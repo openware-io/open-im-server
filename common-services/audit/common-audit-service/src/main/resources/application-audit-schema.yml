@@ -1,0 +1,22 @@
+# 审计表独立 schema 开关（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §5 批次 2c）。
+#
+# 启用方式：SPRING_PROFILES_ACTIVE 里加上 audit-schema（可与其他 profile 用逗号并列）。
+# 回退方式：去掉该 profile —— 服务立刻回到老库 gv_saas 的普通审计表，代码与镜像都不用回滚。
+#
+# 为什么用 profile 而不是只改库名环境变量：
+#   审计表迁到新库时**物理设计已变**（老库是普通表 + 唯一键幂等；新库是 occurred_at 月分区主表 + 幂等台账），
+#   两个迁移目录的版本号互不复用。切库名与切迁移目录必须是同一个原子动作，
+#   否则会出现「连到新库却跑老库迁移」或「连到老库却跑新库迁移」两种都会失败的状态。
+spring:
+  datasource:
+    # 新库名可用 AUDIT_DATABASE 单独覆盖（默认 gv_audit）。
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${AUDIT_DATABASE:gv_audit}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  flyway:
+    # 新库基线目录：V1 幂等台账、V2 分区主表、V3 归档清单。
+    locations: classpath:db/migration-audit
+# 审计写入是高频大表：列表接口的总数统计默认封顶，超过只回「已封顶」（见 AuditQueryApplicationService）。
+audit:
+  query:
+    count-cap: ${AUDIT_QUERY_COUNT_CAP:100000}
+  # 保留策略与本文件无关（两套 profile 共用）：分区预建/归档清单/幂等清理在 application.yml 里配置。
+  # 只有启用本 profile（新库 gv_audit）时才真正存在月分区，分区维护才有意义。

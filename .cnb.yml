@@ -1,0 +1,13 @@
+$:
+  push:
+    - docker:
+        image: maven:3.9.9-eclipse-temurin-25
+        volumes:
+          - /root/.m2:copy-on-write
+      stages:
+        - name: Maven 版本
+          script: mvn -v
+        - name: 编译 + 静态检查（enforcer / checkstyle）
+          script: mvn -B compile
+        - name: 自动化测试（JUnit 5）
+          script: mvn -B test

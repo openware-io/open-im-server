@@ -1,0 +1,109 @@
+server:
+ port: ${PORT:3200}
+
+spring:
+ config:
+  import:
+   - optional:file:.env[.properties]
+   - optional:file:../.env[.properties]
+ threads:
+  virtual:
+   enabled: true
+ application:
+  name: im-message-service
+ datasource:
+  url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_DATABASE:${DB_NAME:im_server}}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  username: ${DB_USERNAME:${DB_USER:root}}
+  password: ${DB_PASSWORD:}
+  driver-class-name: com.mysql.cj.jdbc.Driver
+ mongodb:
+  host: ${MONGODB_HOST:localhost}
+  port: ${MONGODB_PORT:27017}
+  database: ${MONGODB_DATABASE:im_chat}
+  username: ${MONGODB_USERNAME:}
+  password: ${MONGODB_PASSWORD:}
+  authentication-database: ${MONGODB_AUTH_DATABASE:admin}
+ data:
+  redis:
+   host: ${REDIS_HOST:localhost}
+   port: ${REDIS_PORT:6379}
+   database: ${REDIS_DB:0}
+   password: ${REDIS_PASSWORD:}
+ flyway:
+  enabled: true
+  locations: classpath:db/migration
+  table: msg_schema_history
+  baseline-on-migrate: true
+  baseline-version: 0
+ jackson:
+  default-property-inclusion: non_null
+
+mybatis-plus:
+ configuration:
+  map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-ms: ${JWT_EXPIRATION_MS:604800000}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  paths-to-exclude: /internal/**
+
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:im-message-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:im-admin-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    max-clock-skew-ms: ${INTERNAL_SERVICE_AUTH_MAX_CLOCK_SKEW_MS:60000}
+  services:
+    media:
+      base-url: ${INTERNAL_MEDIA_SERVICE_BASE_URL:}
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-message-service/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-message-service/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[com.gvchat.im]": INFO
+  "[org.springframework.web]": INFO
+
+im:
+ mq:
+  type: ${IM_MQ_TYPE:REMOTING}
+  namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:9876}
+  producer-group: ${IM_MESSAGE_SERVICE_MQ_PRODUCER_GROUP:im-message-service-producer}
+  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:${IM_MQ_DEFAULT_CONSUMER_GROUP_PREFIX:gv_im}}
+ message:
+  outbox:
+   relay-delay-ms: ${IM_MESSAGE_OUTBOX_RELAY_DELAY_MS:1000}
+   batch-size: ${IM_MESSAGE_OUTBOX_BATCH_SIZE:100}
+  projection:
+   hot-ttl-days: ${IM_MESSAGE_HOT_TTL_DAYS:30}
+ conversation:
+  base-url: ${IM_CONVERSATION_SERVICE_BASE_URL:http://localhost:3300}
+ user:
+  base-url: ${IM_USER_SERVICE_BASE_URL:http://localhost:3100}
+ admin:
+  base-url: ${IM_ADMIN_SERVICE_BASE_URL:http://localhost:3400}
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}

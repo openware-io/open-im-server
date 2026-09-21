@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: common-mail-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_mail
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4210
+mail:
+  smtp:
+    host: ${MAIL_SMTP_HOST:}
+    port: ${MAIL_SMTP_PORT:587}
+    username: ${MAIL_SMTP_USERNAME:}
+    password: ${MAIL_SMTP_PASSWORD:}
+    from: ${MAIL_SMTP_FROM:}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

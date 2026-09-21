@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:customer_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    enabled: true
+    table: flyway_schema_history_customer_test
+    baseline-on-migrate: false
+    baseline-version: 0
+    locations: classpath:db/test-migration
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+# 测试 profile：关掉姓名盲索引回填定时任务，避免 @SpringBootTest 启动时后台写库干扰用例
+# （用例自己直接调 MemberApplicationService#rebuildNameIndexForTenant 验证回填逻辑）。
+member:
+  name-index:
+    rebuild-enabled: false
+jwt:
+  secret: 0123456789abcdef0123456789abcdef

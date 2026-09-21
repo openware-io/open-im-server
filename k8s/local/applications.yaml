@@ -1,0 +1,225 @@
+apiVersion: v1
+kind: Service
+metadata: { name: im-user-service }
+spec: { selector: { app: im-user-service }, ports: [ { port: 3100, targetPort: 3100 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: im-user-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: im-user-service } }
+  template:
+    metadata: { labels: { app: im-user-service } }
+    spec:
+      containers:
+        - name: im-user-service
+          image: __APP_IMAGE_IM_USER_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3100' }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: INTERNAL_MEDIA_SERVICE_BASE_URL, value: http://common-media-service:3600 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'im-admin-service,im-message-service,im-access-ws,im-conversation-service,platform-admin-service' }
+          ports: [ { containerPort: 3100 } ]
+          readinessProbe: &http3100 { httpGet: { path: /actuator/health, port: 3100 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3100 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: im-conversation-service }
+spec: { selector: { app: im-conversation-service }, ports: [ { port: 3300, targetPort: 3300 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: im-conversation-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: im-conversation-service } }
+  template:
+    metadata: { labels: { app: im-conversation-service } }
+    spec:
+      containers:
+        - name: im-conversation-service
+          image: __APP_IMAGE_IM_CONVERSATION_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3300' }
+            - { name: IM_CONVERSATION_RTC_ENABLED, value: "true" }
+            - { name: IM_CONVERSATION_RTC_TURN_URL, value: "turn:turn.dev.example.com:3478?transport=udp,turn:turn.dev.example.com:3478?transport=tcp" }
+            - name: IM_CONVERSATION_RTC_TURN_USERNAME
+              valueFrom: { secretKeyRef: { name: gv-chat-turn-credentials, key: TURN_USERNAME } }
+            - name: IM_CONVERSATION_RTC_TURN_PASSWORD
+              valueFrom: { secretKeyRef: { name: gv-chat-turn-credentials, key: TURN_PASSWORD } }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+          ports: [ { containerPort: 3300 } ]
+          readinessProbe: &http3300 { httpGet: { path: /actuator/health, port: 3300 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3300 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-media-service }
+spec: { selector: { app: common-media-service }, ports: [ { port: 3600, targetPort: 3600 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-media-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-media-service } }
+  template:
+    metadata: { labels: { app: common-media-service } }
+    spec:
+      containers:
+        - name: common-media-service
+          image: __APP_IMAGE_COMMON_MEDIA_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3600' }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: MEDIA_INTERNAL_ENDPOINT, value: http://minio:9000 }
+            - { name: MEDIA_PUBLIC_BASE_URL, value: http://127.0.0.1:30900 }
+          ports: [ { containerPort: 3600 } ]
+          readinessProbe: &http3600 { httpGet: { path: /actuator/health, port: 3600 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3600 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: im-message-service }
+spec: { selector: { app: im-message-service }, ports: [ { port: 3200, targetPort: 3200 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: im-message-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: im-message-service } }
+  template:
+    metadata: { labels: { app: im-message-service } }
+    spec:
+      containers:
+        - name: im-message-service
+          image: __APP_IMAGE_IM_MESSAGE_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3200' }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: IM_USER_SERVICE_BASE_URL, value: http://im-user-service:3100 }
+            - { name: IM_CONVERSATION_SERVICE_BASE_URL, value: http://im-conversation-service:3300 }
+            - { name: IM_ADMIN_SERVICE_BASE_URL, value: http://im-admin-service:3400 }
+            - { name: INTERNAL_MEDIA_SERVICE_BASE_URL, value: http://common-media-service:3600 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'im-admin-service,im-message-service,im-access-ws,im-conversation-service,platform-admin-service' }
+          ports: [ { containerPort: 3200 } ]
+          readinessProbe: &http3200 { httpGet: { path: /actuator/health, port: 3200 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3200 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: im-admin-service }
+spec: { selector: { app: im-admin-service }, ports: [ { port: 3400, targetPort: 3400 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: im-admin-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: im-admin-service } }
+  template:
+    metadata: { labels: { app: im-admin-service } }
+    spec:
+      containers:
+        - name: im-admin-service
+          image: __APP_IMAGE_IM_ADMIN_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3400' }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: INTERNAL_USER_SERVICE_BASE_URL, value: http://im-user-service:3100 }
+            - { name: INTERNAL_MESSAGE_SERVICE_BASE_URL, value: http://im-message-service:3200 }
+            - { name: INTERNAL_CONVERSATION_SERVICE_BASE_URL, value: http://im-conversation-service:3300 }
+            - { name: INTERNAL_MEDIA_SERVICE_BASE_URL, value: http://common-media-service:3600 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'im-admin-service,im-message-service,im-access-ws,im-conversation-service,platform-admin-service' }
+          ports: [ { containerPort: 3400 } ]
+          readinessProbe: &http3400 { httpGet: { path: /actuator/health, port: 3400 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3400 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: im-access-ws }
+spec: { selector: { app: im-access-ws }, ports: [ { port: 3001, targetPort: 3001 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: im-access-ws }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: im-access-ws } }
+  template:
+    metadata: { labels: { app: im-access-ws } }
+    spec:
+      containers:
+        - name: im-access-ws
+          image: __APP_IMAGE_IM_ACCESS_WS__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3001' }
+            - { name: DB_HOST, value: mysql }
+            - { name: DB_PORT, value: '3306' }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: MONGODB_HOST, value: mongodb }
+            - { name: MONGODB_PORT, value: '27017' }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: JPUSH_APNS_PRODUCTION, value: 'false' }
+            - { name: IM_ACCESS_WS_ALLOWED_ORIGINS, value: 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:30080,http://localhost:30080' }
+          ports: [ { containerPort: 3001 } ]
+          readinessProbe: &tcp3001 { tcpSocket: { port: 3001 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { tcpSocket: { port: 3001 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }

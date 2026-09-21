@@ -1,0 +1,34 @@
+# 本地 Kind 环境的库初始化 Job（可重复执行：CREATE DATABASE/USER IF NOT EXISTS + GRANT 均幂等）。
+#
+# gv_audit：审计日志独立 schema（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md）。
+#   * 审计服务启动时 Flyway 会在 gv_audit 里建分区主表/幂等台账/归档清单，因此**建库授权必须先于服务发布**；
+#   * 审计列表要按租户ID回填租户名（读 gv_saas.tnt_tenant），而下面已整体授权 gv_saas.*，无需额外 GRANT；
+#   * Compose 用的是已有数据卷（不会重跑 entrypoint 初始化），所以那里改用
+#     scripts/migration/audit-schema-bootstrap.sql 作为显式前置步骤。
+apiVersion: batch/v1
+kind: Job
+metadata: { name: mysql-saas-init }
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mysql-saas-init
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: DB_USERNAME, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: DB_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+          command: [sh, -ec]
+          args:
+            - >-
+              until mysqladmin ping -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done;
+              mysql -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e
+              "CREATE DATABASE IF NOT EXISTS gv_saas;
+              CREATE USER IF NOT EXISTS '$DB_USERNAME'@'%' IDENTIFIED BY '$DB_PASSWORD';
+              GRANT ALL PRIVILEGES ON gv_saas.* TO '$DB_USERNAME'@'%';
+              CREATE DATABASE IF NOT EXISTS gv_audit DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+              GRANT ALL PRIVILEGES ON gv_audit.* TO '$DB_USERNAME'@'%';
+              FLUSH PRIVILEGES;"

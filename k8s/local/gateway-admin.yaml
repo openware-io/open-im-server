@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata: { name: gateway }
+spec:
+  type: NodePort
+  selector: { app: gateway }
+  ports: [ { port: 3002, targetPort: 3002, nodePort: 30002 } ]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: gateway }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: gateway } }
+  template:
+    metadata: { labels: { app: gateway } }
+    spec:
+      containers:
+        - name: gateway
+          image: __APP_IMAGE_GATEWAY__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: PORT, value: '3002' }
+            - { name: IM_USER_URI, value: http://im-user-service:3100 }
+            - { name: IM_MESSAGE_URI, value: http://im-message-service:3200 }
+            - { name: IM_CONVERSATION_URI, value: http://im-conversation-service:3300 }
+            - { name: IM_ADMIN_URI, value: http://im-admin-service:3400 }
+            - { name: COMMON_MEDIA_URI, value: http://common-media-service:3600 }
+            - { name: IM_ACCESS_WS_URI, value: ws://im-access-ws:3001 }
+            - { name: PLATFORM_IDENTITY_URI, value: http://platform-identity-service:4100 }
+            - { name: PLATFORM_TENANT_URI, value: http://platform-tenant-service:4110 }
+            - { name: PLATFORM_RESOURCE_URI, value: http://platform-resource-service:4120 }
+            - { name: PLATFORM_ORDER_URI, value: http://platform-order-service:4130 }
+            - { name: COMMON_PAYMENT_URI, value: http://common-payment-service:4140 }
+            - { name: PLATFORM_ADMIN_URI, value: http://platform-admin-service:4150 }
+            - { name: PLATFORM_CUSTOMER_URI, value: http://platform-customer-service:4160 }
+            - { name: PLATFORM_MARKETING_URI, value: http://platform-marketing-service:4170 }
+            - { name: COMMON_CHANNEL_URI, value: http://common-payment-channel-service:4180 }
+            - { name: COMMON_AUDIT_URI, value: http://common-audit-service:4190 }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: IM_GATEWAY_ALLOWED_ORIGINS, value: 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:30080,http://localhost:30080,http://127.0.0.1:30081,http://localhost:30081,http://127.0.0.1:30082,http://localhost:30082,http://127.0.0.1:30083,http://localhost:30083' }
+          ports: [ { containerPort: 3002 } ]
+          readinessProbe: &gatewayHealth { httpGet: { path: /actuator/health, port: 3002 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 3002 }, initialDelaySeconds: 90, periodSeconds: 5 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: pc-admin-nginx }
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+      root /usr/share/nginx/html;
+      index index.html;
+      location /api/ {
+        proxy_pass http://gateway:3002;
+        proxy_set_header Host $host;
+        proxy_set_header Origin "";
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+      }
+      location / { try_files $uri $uri/ /index.html; }
+    }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pc-admin }
+spec:
+  type: NodePort
+  selector: { app: pc-admin }
+  ports: [ { port: 80, targetPort: 80, nodePort: 30080 } ]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pc-admin }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pc-admin } }
+  template:
+    metadata: { labels: { app: pc-admin } }
+    spec:
+      containers:
+        - name: pc-admin
+          image: __APP_IMAGE_PC_ADMIN__
+          imagePullPolicy: IfNotPresent
+          ports: [ { containerPort: 80 } ]
+          volumeMounts: [ { name: nginx-config, mountPath: /etc/nginx/conf.d/default.conf, subPath: default.conf } ]
+          readinessProbe: { httpGet: { path: /, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
+      volumes: [ { name: nginx-config, configMap: { name: pc-admin-nginx } } ]

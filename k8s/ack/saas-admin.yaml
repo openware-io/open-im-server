@@ -1,0 +1,80 @@
+apiVersion: v1
+kind: Service
+metadata: { name: platform-admin-service }
+spec: { selector: { app: platform-admin-service }, ports: [ { port: 4150, targetPort: 4150 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-admin-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-admin-service } }
+  template:
+    metadata: { labels: { app: platform-admin-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: platform-admin-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-admin-service:2.0.16
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4150' }
+            # SSO 交换复用集团 IDaaS 的共享 JWT_SECRET（与 /idaas/auth/sso/verify 一致）
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            # 内部服务 HMAC 签名（KTV 配置 BFF 调用 tenant/resource/payment 内部接口）
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            # Flyway + saa_admin_account 需要连接 gv_saas 库
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: IDAAS_SERVICE_BASE_URL, value: http://group-idaas-service:4220 }
+            # BFF 领域服务内部地址（租户上下文选择 / KTV 配置 / 预约 / 储值 / 运营人员）
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: IDENTITY_SERVICE_BASE_URL, value: http://platform-identity-service:4100 }
+            - { name: ORDER_SERVICE_BASE_URL, value: http://platform-order-service:4130 }
+            - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+            - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
+            - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: REDIS_PASSWORD } } }
+          ports: [ { containerPort: 4150 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4150 }, initialDelaySeconds: 20, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4150 }, initialDelaySeconds: 30, periodSeconds: 10 }
+          resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: saas-admin }
+spec: { selector: { app: saas-admin }, ports: [ { port: 80, targetPort: 80 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: saas-admin }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: saas-admin } }
+  template:
+    metadata: { labels: { app: saas-admin } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: saas-admin
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/saas-admin:2.1.2
+          imagePullPolicy: Always
+          ports: [ { containerPort: 80 } ]
+          readinessProbe: { httpGet: { path: /, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas-admin
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: saas-admin.dev.example.com
+      http:
+        paths:
+          - { path: /, pathType: Prefix, backend: { service: { name: saas-admin, port: { number: 80 } } } }

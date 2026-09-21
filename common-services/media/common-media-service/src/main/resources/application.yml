@@ -1,0 +1,100 @@
+server:
+ port: ${PORT:3600}
+spring:
+ config:
+  import:
+   - optional:file:.env[.properties]
+   - optional:file:../.env[.properties]
+ application:
+  name: common-media-service
+ datasource:
+  url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_DATABASE:${DB_NAME:im_server}}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  username: ${DB_USERNAME:${DB_USER:root}}
+  password: ${DB_PASSWORD:}
+  driver-class-name: com.mysql.cj.jdbc.Driver
+ data:
+  redis:
+   host: ${REDIS_HOST:localhost}
+   port: ${REDIS_PORT:6379}
+   database: ${REDIS_DB:0}
+   password: ${REDIS_PASSWORD:}
+ flyway:
+  enabled: true
+  locations: classpath:db/migration
+  table: support_schema_history
+  baseline-on-migrate: true
+  baseline-version: 0
+ jackson:
+  default-property-inclusion: non_null
+mybatis-plus:
+ configuration:
+  map-underscore-to-camel-case: true
+jwt:
+ secret: ${JWT_SECRET:}
+internal:
+ service-auth:
+  service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:common-media-service}
+  expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:im-message-service,im-user-service,im-admin-service,platform-admin-service}
+  secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+# 媒体能力配置保持业务中立（前缀 media，不再使用 im 语义）；图片能力对内由 /internal/media/images 提供。
+media:
+ provider: ${MEDIA_PROVIDER:minio}
+ endpoint: ${MEDIA_INTERNAL_ENDPOINT:http://127.0.0.1:9000}
+ public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://127.0.0.1:9000}
+ region: ${MEDIA_REGION:us-east-1}
+ access-key: ${MEDIA_ACCESS_KEY:}
+ secret-key: ${MEDIA_SECRET_KEY:}
+ private-bucket: ${MEDIA_PRIVATE_BUCKET:im-private}
+ public-bucket: ${MEDIA_PUBLIC_BUCKET:gv-media-public}
+ public-url-prefix: ${MEDIA_PUBLIC_URL_PREFIX:/api/v1/media-public}
+ upload-session-ttl-seconds: ${MEDIA_UPLOAD_SESSION_TTL_SECONDS:900}
+ access-url-ttl-seconds: ${MEDIA_ACCESS_URL_TTL_SECONDS:604800}
+ multipart-threshold-bytes: ${MEDIA_MULTIPART_THRESHOLD_BYTES:20971520}
+ max-image-bytes: ${MEDIA_MAX_IMAGE_BYTES:10485760}
+ max-audio-bytes: ${MEDIA_MAX_AUDIO_BYTES:20971520}
+ max-attachment-bytes: ${MEDIA_MAX_ATTACHMENT_BYTES:52428800}
+ max-video-bytes: ${MEDIA_MAX_VIDEO_BYTES:209715200}
+ max-audio-duration-ms: ${MEDIA_MAX_AUDIO_DURATION_MS:600000}
+ max-video-duration-ms: ${MEDIA_MAX_VIDEO_DURATION_MS:3600000}
+ max-image-pixels: ${MEDIA_MAX_IMAGE_PIXELS:40000000}
+ ffprobe-path: ${MEDIA_FFPROBE_PATH:ffprobe}
+ probe-timeout-seconds: ${MEDIA_PROBE_TIMEOUT_SECONDS:30}
+ allowed-image-types: ${MEDIA_ALLOWED_IMAGE_TYPES:image/jpeg,image/png,image/webp}
+ allowed-audio-types: ${MEDIA_ALLOWED_AUDIO_TYPES:audio/mpeg,audio/ogg,audio/wav,audio/mp4,audio/aac}
+ allowed-video-types: ${MEDIA_ALLOWED_VIDEO_TYPES:video/mp4}
+ allowed-attachment-types: ${MEDIA_ALLOWED_ATTACHMENT_TYPES:application/pdf,text/plain,application/zip,application/vnd.android.package-archive,application/octet-stream}
+ allowed-voucher-types: ${MEDIA_ALLOWED_VOUCHER_TYPES:image/jpeg,image/png,application/pdf}
+
+springdoc:
+ api-docs:
+  path: /api-docs
+ paths-to-exclude: /internal/**
+ swagger-ui:
+  path: /swagger-ui.html
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/common-media-service/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/common-media-service/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[com.gvchat.im]": INFO
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}

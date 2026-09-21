@@ -1,0 +1,61 @@
+spring:
+  application:
+    name: platform-order-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_order
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4130
+jwt:
+  secret: ${JWT_SECRET:}
+ktv:
+  pricing:
+    billing-unit: HOUR
+    room-unit-price: 10000
+    default-session-minutes: 120
+    free-wait-minutes: 0
+    overtime-rate: 1.0
+    increment-minutes: 30
+    rounding-direction: CONSUMER_FAVOR
+    server-price-per-hour: 5000
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+im:
+  mq:
+    namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
+    producer-group: ${PLATFORM_ORDER_SERVICE_MQ_PRODUCER_GROUP:platform-order-service-producer}
+    consumer-group-prefix: ${PLATFORM_ORDER_SERVICE_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+app:
+  # 包厢/服务人员价格以租户后台「计价方案」为准（/internal/pricing-plans）；
+  # 读不到时用本文件 ktv.pricing 的默认值。
+  tenant-service:
+    base-url: ${TENANT_SERVICE_BASE_URL:http://platform-tenant-service:4110}
+  # 开台占用包厢、结台释放并置清洁中（/internal/resources）；读不到时可用性降级、不阻断开台/结台。
+  resource-service:
+    base-url: ${RESOURCE_SERVICE_BASE_URL:http://platform-resource-service:4120}
+  # 账单「已收分项」要读 payment 域按订单汇总的组合收款分腿（/internal/payment/**）。
+  # 默认值与容器内一致；本机调试用 PAYMENT_SERVICE_BASE_URL=http://localhost:4140 覆盖。
+  payment-service:
+    base-url: ${PAYMENT_SERVICE_BASE_URL:http://common-payment-service:4140}
+  # 统一审计上报（AuditClient）。缺省值是集群内服务名；直接运行（本地直跑/Compose）时用
+  # INTERNAL_AUDIT_SERVICE_BASE_URL=http://localhost:4190 覆盖。k8s/ACK 若不注入该环境变量，
+  # 会退化成 SDK 默认的 http://localhost:4190，审计上报只在 WARN 里报错、静默丢失。
+  audit-service:
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
+platform:
+  order:
+    outbox:
+      batch-size: ${PLATFORM_ORDER_OUTBOX_BATCH_SIZE:100}
+      relay-delay-ms: ${PLATFORM_ORDER_OUTBOX_RELAY_DELAY_MS:1000}
+      max-retry-count: ${PLATFORM_ORDER_OUTBOX_MAX_RETRY_COUNT:10}
+      base-retry-delay-seconds: ${PLATFORM_ORDER_OUTBOX_BASE_RETRY_DELAY_SECONDS:1}
+      max-backoff-seconds: ${PLATFORM_ORDER_OUTBOX_MAX_BACKOFF_SECONDS:3600}

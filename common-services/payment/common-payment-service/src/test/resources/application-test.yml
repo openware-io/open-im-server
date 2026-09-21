@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:payment_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  flyway:
+    enabled: true
+    table: flyway_schema_history_payment_test
+    baseline-on-migrate: false
+    baseline-version: 0
+    locations: classpath:db/test-migration
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+jwt:
+  secret: 0123456789abcdef0123456789abcdef
+platform:
+  payment:
+    outbox:
+      relay-delay-ms: 3600000

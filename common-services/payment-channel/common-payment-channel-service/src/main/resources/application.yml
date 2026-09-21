@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: common-payment-channel-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_payment_channel
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4180
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 支付渠道密钥：全部来自环境占位（不硬编码真实密钥），enabled 决定渠道能力开关。
+pay-channel-provider:
+  wechat:
+    enabled: ${WECHAT_PAY_ENABLED:false}
+    app-id: ${WECHAT_PAY_APP_ID:}
+    merchant-id: ${WECHAT_PAY_MCH_ID:}
+    secret-key: ${WECHAT_PAY_SECRET_KEY:}
+    notify-url: ${WECHAT_PAY_NOTIFY_URL:}
+    api-version: ${WECHAT_PAY_API_VERSION:v2}
+    api-v3-key: ${WECHAT_PAY_API_V3_KEY:}
+    merchant-private-key: ${WECHAT_PAY_MCH_PRIVATE_KEY:}
+    merchant-serial-no: ${WECHAT_PAY_MCH_SERIAL_NO:}
+    platform-public-key: ${WECHAT_PAY_PLATFORM_PUBLIC_KEY:}
+    platform-serial-no: ${WECHAT_PAY_PLATFORM_SERIAL_NO:}
+  alipay:
+    enabled: ${ALIPAY_PAY_ENABLED:false}
+    app-id: ${ALIPAY_PAY_APP_ID:}
+    merchant-private-key: ${ALIPAY_PAY_PRIVATE_KEY:}
+    alipay-public-key: ${ALIPAY_PAY_PUBLIC_KEY:}
+    notify-url: ${ALIPAY_PAY_NOTIFY_URL:}
+    gateway-url: ${ALIPAY_PAY_GATEWAY:https://openapi.alipay.com/gateway.do}
+  stripe:
+    enabled: ${STRIPE_PAY_ENABLED:false}
+    secret-key: ${STRIPE_PAY_SECRET_KEY:}
+    webhook-secret: ${STRIPE_PAY_WEBHOOK_SECRET:}
+    api-url: ${STRIPE_PAY_API_URL:https://api.stripe.com/v1}
+    webhook-tolerance-seconds: ${STRIPE_PAY_WEBHOOK_TOLERANCE_SECONDS:300}

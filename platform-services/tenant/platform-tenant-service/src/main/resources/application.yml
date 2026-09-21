@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: platform-tenant-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_tenant
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4110
+jwt:
+  secret: ${JWT_SECRET:}
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-tenant-service}
+    # 允许的内部来源白名单：identity/admin 签发上下文时读币种；customer 读钱包代币展示配置
+    # （GET /internal/iam/tenant-config/{tenantId}/wallet-token）。新增来源必须在此显式列出，否则 401。
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:platform-identity-service,platform-admin-service,platform-customer-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+app:
+  # 统一审计上报（AuditClient）。缺省值是集群内服务名；直接运行（本地直跑/Compose）时用
+  # INTERNAL_AUDIT_SERVICE_BASE_URL=http://localhost:4190 覆盖。k8s/ACK 若不注入该环境变量，
+  # 会退化成 SDK 默认的 http://localhost:4190，审计上报只在 WARN 里报错、静默丢失。
+  audit-service:
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}

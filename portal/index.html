@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <title>集团统一登录门户</title>
+  <meta name="description" content="集团 IDaaS 统一登录门户：一套账号，登录后按权限进入 IM、平台运营和租户后台。">
+  <style>
+    :root {
+      --blue: #007aff;
+      --green: #2fd084;
+      --ink: #172033;
+      --muted: #657084;
+      --line: #e7ebf2;
+      --bg: #f6f8fc;
+      --card: #ffffff;
+      --danger: #ff3b30;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    .wrap { width: min(960px, calc(100% - 40px)); margin: 0 auto; }
+
+    header {
+      background: rgba(255,255,255,.85);
+      border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 10;
+      backdrop-filter: saturate(180%) blur(12px);
+    }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 19px; color: var(--ink); }
+    .logo { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff; font-weight: 800; font-size: 17px;
+      box-shadow: 0 8px 20px rgba(99,102,241,.28); }
+    .user-badge { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
+    .user-badge b { color: var(--ink); }
+
+    main { padding: 56px 0 72px; }
+    .hero { text-align: center; padding: 12px 0 24px; }
+    .hero h1 { margin: 20px 0 8px; font-size: clamp(28px, 5vw, 40px); letter-spacing: -.5px; }
+    .hero .lead { color: var(--muted); margin: 0 auto; max-width: 560px; font-size: 16px; }
+
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 22px;
+      padding: 40px; box-shadow: 0 18px 48px rgba(31,49,83,.08);
+      max-width: 520px; margin: 0 auto;
+    }
+    .field { margin-bottom: 18px; }
+    .field label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--ink); }
+    .field input {
+      width: 100%; min-height: 46px; padding: 0 14px; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 15px; color: var(--ink); background: #fff; outline: none;
+      transition: border-color .15s ease;
+    }
+    .field input:focus { border-color: var(--blue); }
+    .field select {
+      width: 100%; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
+      font-size: 15px; color: var(--ink); background: #fff; outline: none; transition: border-color .15s ease;
+    }
+    .field select:focus { border-color: var(--blue); }
+    .field-hint { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
+    .session-note { text-align: center; color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 52px; padding: 0 38px; border-radius: 13px; border: none; cursor: pointer;
+      background: var(--blue); color: #fff; font-weight: 700; font-size: 17px; width: 100%;
+      box-shadow: 0 12px 28px rgba(0,122,255,.3); transition: transform .1s ease, filter .1s ease;
+    }
+    .btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .btn:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .btn.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); box-shadow: none; font-size: 14px; min-height: 40px; }
+
+    .error { color: var(--danger); font-size: 13px; margin-top: 12px; text-align: center; min-height: 18px; }
+    .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 20px; }
+    .hint code { background: #eef1f7; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+
+    .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 24px; }
+    .app-card {
+      display: flex; align-items: center; gap: 16px; padding: 22px 20px; background: var(--card);
+      border: 1px solid var(--line); border-radius: 16px; cursor: pointer;
+      box-shadow: 0 12px 28px rgba(31,49,83,.05);
+      transition: box-shadow .2s, border-color .2s, transform .2s;
+    }
+    .app-card:hover { box-shadow: 0 18px 40px rgba(0,122,255,.16); border-color: var(--blue); transform: translateY(-2px); }
+    .app-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-weight: 800; font-size: 18px; flex-shrink: 0; }
+    .app-icon.im { background: #007aff; }
+    .app-icon.saas { background: #2fd084; }
+    .app-name { font-size: 16px; font-weight: 700; }
+    .app-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .logout { display: flex; justify-content: center; margin-top: 24px; }
+
+    footer { padding: 36px 0; color: var(--muted); border-top: 1px solid var(--line); text-align: center; font-size: 14px; }
+    footer p { margin: 6px 0; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <nav>
+        <div class="brand"><span class="logo">门</span><span>集团统一登录门户</span></div>
+        <div class="user-badge" id="userBadge" style="display:none">
+          <span>已登录：<b id="userName"></b></span>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>一个入口，进入所有后台</h1>
+      <p class="lead">使用集团账号登录后，按账号权限进入 IM 后台、平台运营后台或租户后台。</p>
+    </section>
+
+    <div class="wrap">
+      <!-- 登录表单 -->
+      <div class="card" id="loginCard">
+        <div class="field">
+          <label for="username">账号</label>
+          <input id="username" name="username" autocomplete="username" placeholder="请输入账号" />
+        </div>
+        <div class="field">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
+        </div>
+        <div class="field">
+          <label for="ttlHours">登录有效时长</label>
+          <!--
+            有效期由集团 IDaaS 会话持有（白名单 2/24/168/720 小时）；从本门户跳转 IM / SaaS 后台时
+            携带一次性 sso_ticket，各后台**继承这个会话的剩余时长**（只用自身上限封顶），
+            不需要再各自登录一次，所以这里选的时长会一路带到后台。
+          -->
+          <select id="ttlHours" name="ttlHours" autocomplete="off">
+            <option value="2">2 小时（推荐）</option>
+            <option value="24">24 小时</option>
+            <option value="168">7 天</option>
+            <option value="720">30 天</option>
+          </select>
+          <p class="field-hint">进入 IM / SaaS 后台后沿用该有效期，无需重复登录；越短越安全。</p>
+        </div>
+        <button class="btn" id="loginBtn" type="button">登 录</button>
+        <div class="error" id="loginError"></div>
+        <div class="hint">登录接口：<code>POST /idaas/auth/login</code>（集团 IDaaS，Redis 会话 + HttpOnly Cookie）</div>
+      </div>
+
+      <!-- 应用列表 -->
+      <div id="appList" class="hidden">
+        <div class="session-note" id="sessionNote"></div>
+        <div class="apps">
+          <div class="app-card" data-app="im">
+            <div class="app-icon im">IM</div>
+            <div>
+              <div class="app-name">IM 后台</div>
+              <div class="app-desc">即时通讯管理后台</div>
+            </div>
+          </div>
+          <!--
+            集团门户只给集团人员使用，因此只保留一个 SaaS 后台入口。
+            进入 SaaS 后台后由其自身的 /select 页面按账号权限选择「平台运营 / 租户」，
+            门户里再拆成两张卡既重复（两者跳转地址完全相同）也不符合业务：
+            租户不会使用集团门户。
+          -->
+          <div class="app-card" data-app="saas">
+            <div class="app-icon saas">S</div>
+            <div>
+              <div class="app-name">SaaS 后台</div>
+              <div class="app-desc">平台运营与租户管理</div>
+            </div>
+          </div>
+        </div>
+        <div class="logout">
+          <button class="btn ghost" id="logoutBtn" type="button" style="width:auto;padding:0 24px">退出登录</button>
+        </div>
+        <div class="hint">点击应用后，门户携带一次性 <code>sso_ticket</code> 跳转后台，后台向 IDaaS 校验票据并再次执行业务权限校验。</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <p>集团 IDaaS 统一登录 · admin.dev.example.com</p>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var IDAAS_BASE = 'https://api.dev.example.com/idaas';
+      var IM_ADMIN_URL = 'https://admin.dev.example.com/im/';
+      var SAAS_ADMIN_URL = 'https://admin.dev.example.com/saas/';
+
+      var loginCard = document.getElementById('loginCard');
+      var appList = document.getElementById('appList');
+      var userBadge = document.getElementById('userBadge');
+      var userName = document.getElementById('userName');
+      var loginError = document.getElementById('loginError');
+      var loginBtn = document.getElementById('loginBtn');
+      var ttlSelect = document.getElementById('ttlHours');
+      var sessionNote = document.getElementById('sessionNote');
+      var TTL_KEY = 'idaas_ttl_hours';
+
+      // 记住上次选的登录有效时长（默认 2 小时：安全基线）。白名单由 IDaaS 兜底，前端只做回显。
+      try {
+        var savedTtl = window.localStorage.getItem(TTL_KEY);
+        if (savedTtl && ttlSelect.querySelector('option[value="' + savedTtl + '"]')) ttlSelect.value = savedTtl;
+      } catch (err) { /* 隐私模式下 localStorage 不可用：忽略，用默认档 */ }
+
+      /** 本次登录有效期文案：到期时间 + 剩余时长（并说明后台沿用同一有效期）。 */
+      function expiryText(expiresAt) {
+        if (!expiresAt || expiresAt <= 0) return '';
+        var end = new Date(expiresAt);
+        var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+        var stamp = end.getFullYear() + '-' + pad(end.getMonth() + 1) + '-' + pad(end.getDate())
+          + ' ' + pad(end.getHours()) + ':' + pad(end.getMinutes());
+        var mins = Math.max(0, Math.round((expiresAt - Date.now()) / 60000));
+        var left = mins >= 1440 ? Math.floor(mins / 1440) + ' 天'
+          : (mins >= 60 ? Math.floor(mins / 60) + ' 小时' : mins + ' 分钟');
+        return '本次登录有效期至 ' + stamp + '（约 ' + left + '后到期）· 进入 IM / SaaS 后台沿用该有效期';
+      }
+
+      function render(authenticated, username) {
+        if (authenticated) {
+          loginCard.classList.add('hidden');
+          appList.classList.remove('hidden');
+          userBadge.style.display = 'flex';
+          userName.textContent = username || '管理员';
+        } else {
+          loginCard.classList.remove('hidden');
+          appList.classList.add('hidden');
+          userBadge.style.display = 'none';
+        }
+      }
+
+      // 登录态以 HttpOnly Cookie 为准（Redis 服务端会话），浏览器不落地 token。
+      async function refreshSession() {
+        try {
+          var resp = await fetch(IDAAS_BASE + '/auth/session', { credentials: 'include' });
+          var data = await resp.json().catch(function () { return null; });
+          var authed = !!(data && data.authenticated);
+          render(authed, data && data.username);
+          sessionNote.textContent = authed ? expiryText(data && data.expiresAt) : '';
+        } catch (err) {
+          render(false, '');
+          sessionNote.textContent = '';
+        }
+      }
+
+      async function handleLogin() {
+        var username = document.getElementById('username').value.trim();
+        var password = document.getElementById('password').value;
+        var ttlHours = Number(ttlSelect.value) || 2;
+        loginError.textContent = '';
+        if (!username || !password) { loginError.textContent = '请输入账号和密码'; return; }
+        loginBtn.disabled = true;
+        loginBtn.textContent = '登录中…';
+        try {
+          var resp = await fetch(IDAAS_BASE + '/auth/login', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username, password: password, ttlHours: ttlHours })
+          });
+          var data = await resp.json().catch(function () { return null; });
+          if (!resp.ok || !data || !data.sessionId) {
+            throw new Error((data && data.message) || ('HTTP ' + resp.status));
+          }
+          try { window.localStorage.setItem(TTL_KEY, String(ttlHours)); } catch (err) { /* 忽略 */ }
+          await refreshSession();
+        } catch (err) {
+          var http = (err && err.message && String(err.message).match(/HTTP (\d+)/)) || null;
+          if (http && (http[1] === '401' || http[1] === '403')) {
+            loginError.textContent = '账号或密码错误，请重试';
+          } else {
+            loginError.textContent = '登录失败，请稍后重试';
+          }
+        } finally {
+          loginBtn.disabled = false;
+          loginBtn.textContent = '登 录';
+        }
+      }
+
+      // 跳转后台：先换一次性 SSO 票据（60s 有效、用后即焚），再携带 sso_ticket 跳转。
+      async function jumpTo(app) {
+        // 先同步打开空白窗口（处于用户点击手势的同步上下文），避免 async 后被浏览器弹窗拦截。
+        var win = window.open('', '_blank');
+        if (!win) {
+          loginError.textContent = '浏览器拦截了弹窗，请允许本站弹窗后重试';
+          return;
+        }
+        try {
+          var resp = await fetch(IDAAS_BASE + '/auth/sso-ticket', {
+            method: 'POST',
+            credentials: 'include'
+          });
+          var data = await resp.json().catch(function () { return null; });
+          if (!resp.ok || !data || !data.ticket) {
+            throw new Error((data && data.message) || ('HTTP ' + resp.status));
+          }
+          var url = app === 'im'
+            ? IM_ADMIN_URL + '#/login?sso_ticket=' + encodeURIComponent(data.ticket)
+            : SAAS_ADMIN_URL + '#/login?sso_ticket=' + encodeURIComponent(data.ticket);
+          win.location.href = url;
+        } catch (err) {
+          win.close();
+          loginError.textContent = '获取登录票据失败，请重新登录';
+          refreshSession();
+        }
+      }
+
+      loginBtn.addEventListener('click', handleLogin);
+      document.getElementById('password').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') handleLogin();
+      });
+      document.getElementById('logoutBtn').addEventListener('click', async function () {
+        await fetch(IDAAS_BASE + '/auth/logout', { method: 'POST', credentials: 'include' }).catch(function () {});
+        render(false, '');
+      });
+      appList.addEventListener('click', function (e) {
+        var card = e.target.closest('.app-card');
+        if (card) jumpTo(card.getAttribute('data-app'));
+      });
+
+      refreshSession();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: common-audit-service
+  datasource:
+    # 默认仍连老库 gv_saas（历史）。审计表迁到独立 schema gv_audit 时启用 audit-schema profile
+    # （application-audit-schema.yml 同时切库名与 Flyway 迁移目录），回退就是去掉该 profile。
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${MYSQL_DATABASE:gv_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_audit
+    baseline-on-migrate: true
+    baseline-version: 0
+    # 老库历史目录（V1~V4）。新库基线在 db/migration-audit，由 profile 切换——两个目录**不得混用**：
+    # 老库 V1 建的是普通表，新库 V2 建的是分区主表，同一版本序列里混用必然冲突。
+    locations: classpath:db/migration
+  # 审计写入是高频大表：列表接口的总数统计默认封顶，超过只回「已封顶」（见 AuditQueryApplicationService）。
+audit:
+  query:
+    count-cap: ${AUDIT_QUERY_COUNT_CAP:100000}
+  # 保留策略（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §5 批次 4）：
+  # 热存 24 个月，超期月份登记归档清单并移出可查范围；本阶段不投递对象存储、不 DROP PARTITION。
+  retention:
+    enabled: ${AUDIT_RETENTION_ENABLED:true}
+    # 调度间隔（毫秒）；保留任务幂等，可重复运行。
+    interval-ms: ${AUDIT_RETENTION_INTERVAL_MS:3600000}
+    # 热存月数：含当前月在内共 N 个自然月可查。
+    hot-months: ${AUDIT_RETENTION_HOT_MONTHS:24}
+    # 预建未来月数：确保新写入不落进 pmax（pmax 非空会告警）。
+    pre-create-months: ${AUDIT_RETENTION_PRE_CREATE_MONTHS:2}
+    # 幂等台账保留天数：幂等只需覆盖重试窗口，超期幂等键可清理。
+    idempotency-days: ${AUDIT_RETENTION_IDEMPOTENCY_DAYS:7}
+    # 法律保留月份（逗号分隔 YYYY-MM）：命中的月份不归档、不删除、仍可查。
+    hold-periods: ${AUDIT_RETENTION_HOLD_PERIODS:}
+server:
+  port: 4190
+jwt:
+  # 校验 X-Tenant-Context 签名所需（与 identity/admin BFF 同源）；缺失时审计查询一律拒绝，不信任明文头。
+  secret: ${JWT_SECRET:}
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:common-audit-service}
+    # 只接受审计上报通道身份：写审计的能力不与业务服务身份混用。
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:gv-im-audit-reporter}
+    # k8s/ACK 的 common-audit-service Deployment 目前未注入该环境变量，回退值与
+    # AuditClientConfig 的默认值一致，保证「上报方签名 = 服务端验签」；生产注入后应删除回退值。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET:gv-im-audit-channel-dev-secret-0001}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+app:
+  audit-service:
+    # 审计服务自身也要留痕（保留策略的归档登记/分区预建，见 AuditRetentionApplicationService），
+    # 走与其它服务**同一条**上报通道：同一个 AuditClient（自带脱敏、校验、幂等）。
+    #
+    # 上报目标刻意保持缺省值 http://localhost:4190（本 Pod 自己的端口），**不要**改成集群内的
+    # common-audit-service:4190：审计服务的上报对象就是它自己，经 Service ClusterIP 回连自己会走
+    # hairpin 路径，本地 Kind 实测会以 ClosedChannelException 失败，自留审计静默丢失（只留 WARN）。
+    # 其它业务服务上报的是跨 Pod 调用，仍用集群 DNS，因此这个键本身必须保留
+    # （缺了会被守护用例 AuditBaseUrlConfiguredTest 拦下）。
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://localhost:4190}

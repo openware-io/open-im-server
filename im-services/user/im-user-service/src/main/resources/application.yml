@@ -1,0 +1,112 @@
+server:
+ port: ${PORT:3100}
+
+spring:
+ config:
+  import:
+   - optional:file:.env[.properties]
+   - optional:file:../.env[.properties]
+ threads:
+  virtual:
+   enabled: true
+ application:
+  name: im-user-service
+ datasource:
+  url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_DATABASE:${DB_NAME:im_server}}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  username: ${DB_USERNAME:${DB_USER:root}}
+  password: ${DB_PASSWORD:}
+  driver-class-name: com.mysql.cj.jdbc.Driver
+ data:
+  redis:
+   host: ${REDIS_HOST:localhost}
+   port: ${REDIS_PORT:6379}
+   database: ${REDIS_DB:0}
+   password: ${REDIS_PASSWORD:}
+ flyway:
+  enabled: true
+  locations: classpath:db/migration
+  table: user_schema_history
+  baseline-on-migrate: true
+  baseline-version: 0
+ jackson:
+  default-property-inclusion: non_null
+
+mybatis-plus:
+ configuration:
+  map-underscore-to-camel-case: true
+
+jwt:
+  secret: ${JWT_SECRET:}
+  expiration-ms: ${JWT_EXPIRATION_MS:604800000}
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  paths-to-exclude: /internal/**
+
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:im-user-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:im-admin-service,im-message-service,im-access-ws,im-conversation-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+    max-clock-skew-ms: ${INTERNAL_SERVICE_AUTH_MAX_CLOCK_SKEW_MS:60000}
+  services:
+    media:
+      base-url: ${INTERNAL_MEDIA_SERVICE_BASE_URL:}
+    conversation:
+      base-url: ${INTERNAL_CONVERSATION_SERVICE_BASE_URL:http://im-conversation-service:3300}
+    sms:
+      base-url: ${INTERNAL_SMS_SERVICE_BASE_URL:}
+    # 统一账号模型（SaaS 身份域）：删除用户时清理 idt_login_identity / idt_oauth_link / 孤儿 idt_account。
+    # 该清理在删除事务内发起，失败即整体回滚，因此地址必须有可用回退值。
+    identity:
+      base-url: ${IDENTITY_SERVICE_BASE_URL:http://platform-identity-service:4100}
+
+im:
+ mq:
+  namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
+  producer-group: ${IM_USER_SERVICE_MQ_PRODUCER_GROUP:im-user-service-producer}
+ mail:
+  enabled: ${IM_MAIL_ENABLED:false}
+  host: ${IM_MAIL_HOST:}
+  port: ${IM_MAIL_PORT:587}
+  username: ${IM_MAIL_USERNAME:}
+  password: ${IM_MAIL_PASSWORD:}
+  from: ${IM_MAIL_FROM:}
+  reset-link-base: ${IM_MAIL_RESET_LINK_BASE:https://admin.dev.example.com}
+ sms:
+  enabled: ${IM_SMS_ENABLED:false}
+  reset-code-template: ${IM_SMS_RESET_CODE_TEMPLATE:}
+  sign-name: ${IM_SMS_SIGN_NAME:}
+ user:
+  outbox:
+   batch-size: ${IM_USER_OUTBOX_BATCH_SIZE:100}
+   relay-delay-ms: ${IM_USER_OUTBOX_RELAY_DELAY_MS:1000}
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-user-service/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-user-service/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[com.gvchat.im]": INFO
+  "[org.springframework.web]": INFO
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}

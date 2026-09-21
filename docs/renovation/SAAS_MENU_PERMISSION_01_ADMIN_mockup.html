@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaaS 租户后台 · 菜单与权限分层示意图 v0.3</title>
+<style>
+  :root {
+    --sidebar-bg: #1d1e2c;
+    --sidebar-text: #a3a6ad;
+    --sidebar-active: #409eff;
+    --primary: #409eff;
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --border: #e4e7ed;
+    --text: #303133;
+    --text-2: #606266;
+    --text-3: #909399;
+    --radius: 8px;
+    --shadow: 0 1px 4px rgba(0, 21, 41, .06), 0 2px 8px rgba(0, 21, 41, .04);
+    --ok: #67c23a;
+    --warn: #e6a23c;
+    --bad: #f56c6c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px 24px 60px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 1560px; margin: 0 auto; }
+  header.page { margin-bottom: 26px; }
+  header.page h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: .3px; }
+  header.page p { margin: 0; color: var(--text-2); }
+  header.page .tag {
+    display: inline-block; margin-left: 10px; padding: 1px 9px; border-radius: 10px;
+    background: #ecf5ff; color: var(--primary); font-size: 12px; font-weight: 500;
+    border: 1px solid #d9ecff; vertical-align: 3px;
+  }
+  header.page .tag.rev { background: #fdf6ec; color: #b88230; border-color: #f3d19e; }
+
+  section { margin-bottom: 34px; }
+  .sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .sec-num {
+    flex: none; width: 24px; height: 24px; border-radius: 6px; background: var(--primary);
+    color: #fff; font-size: 13px; font-weight: 700; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .sec-num.new { background: var(--warn); }
+  .sec-num.fix { background: var(--bad); }
+  .sec-head h2 { font-size: 17px; margin: 0; }
+  .sec-head .hint { color: var(--text-3); font-size: 13px; }
+  .badge-new {
+    font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 1px 6px;
+    border-radius: 3px; background: #fdf6ec; color: #b88230; border: 1px solid #f3d19e;
+    vertical-align: 2px;
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px;
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: start; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 1400px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 1100px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+
+  .cap {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    font-size: 13px; font-weight: 600; color: var(--text-2); flex-wrap: wrap;
+  }
+  .cap .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .dot-bad  { background: var(--bad); }
+  .dot-good { background: var(--ok); }
+  .dot-warn { background: var(--warn); }
+  .cap .sub { font-weight: 400; color: var(--text-3); font-size: 12px; }
+
+  /* ============ 侧边栏模拟 ============ */
+  .sidebar {
+    width: 100%; background: var(--sidebar-bg); border-radius: 6px;
+    padding: 0 0 12px; overflow: hidden; font-size: 13px;
+  }
+  .sb-logo {
+    height: 50px; display: flex; align-items: center; gap: 9px; padding: 0 16px;
+    color: #fff; font-size: 15px; font-weight: 700;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .sb-logo .sq {
+    width: 18px; height: 18px; border-radius: 4px; flex: none;
+    background: linear-gradient(135deg, #409eff, #79bbff);
+  }
+  .sb-flat { padding: 6px 0; }
+  .sb-flat .it {
+    padding: 9px 16px 9px 34px; color: var(--sidebar-text); position: relative;
+    white-space: nowrap;
+  }
+  .sb-flat .it::before {
+    content: ''; position: absolute; left: 18px; top: 50%; transform: translateY(-50%);
+    width: 12px; height: 12px; border-radius: 3px; background: rgba(255,255,255,.14);
+  }
+  .sb-flat .it.on { color: var(--primary); background: rgba(64,158,255,.09); }
+
+  .sb-seg { padding: 0; }
+  .sb-seg + .sb-seg { border-top: 2px solid rgba(255,255,255,.13); margin-top: 6px; }
+  .seg-head {
+    display: flex; align-items: center; gap: 8px; padding: 11px 14px 10px;
+    background: rgba(255,255,255,.035);
+  }
+  .seg-badge {
+    flex: none; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    padding: 2px 6px; border-radius: 3px;
+  }
+  .seg-badge.tenant { background: rgba(64,158,255,.18); color: #79bbff; border: 1px solid rgba(64,158,255,.35); }
+  .seg-badge.store  { background: rgba(103,194,58,.16); color: #95d475; border: 1px solid rgba(103,194,58,.35); }
+  .seg-name { color: #e6e8eb; font-size: 13px; font-weight: 600; flex: 1; min-width: 0;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg-caret { color: #6b6f7a; font-size: 10px; }
+  .seg-meta { padding: 0 14px 8px 14px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .biz-tag {
+    font-size: 10px; padding: 1px 6px; border-radius: 3px;
+    background: rgba(230,162,60,.16); color: #e6a23c; border: 1px solid rgba(230,162,60,.32);
+  }
+  .tz-tag { font-size: 10px; color: #6b6f7a; padding: 1px 0; }
+
+  .grp { padding: 1px 0; }
+  .grp-title {
+    display: flex; align-items: center; gap: 8px;
+    padding: 9px 16px; color: var(--sidebar-text);
+  }
+  .grp-title .cv { font-size: 9px; color: #6b6f7a; width: 9px; }
+  .grp-title .ic {
+    width: 14px; height: 14px; border-radius: 3px; flex: none;
+    background: rgba(255,255,255,.13);
+  }
+  .grp-title .nm { flex: 1; }
+  .grp-title .cnt {
+    font-size: 10px; color: #6b6f7a; background: rgba(255,255,255,.06);
+    padding: 0 5px; border-radius: 8px;
+  }
+  .grp-title.open { color: #dfe2e6; }
+  .grp-title.open .cv { color: var(--sidebar-active); }
+  .leaf {
+    padding: 7px 16px 7px 47px; color: var(--sidebar-text); position: relative;
+    white-space: nowrap; font-size: 12.5px;
+  }
+  .leaf::before {
+    content: ''; position: absolute; left: 32px; top: 50%; transform: translateY(-50%);
+    width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.22);
+  }
+  .leaf.on { color: var(--primary); background: rgba(64,158,255,.09); }
+  .leaf.on::before { background: var(--primary); }
+  .leaf .dom {
+    font-size: 9.5px; margin-left: 6px; padding: 0 4px; border-radius: 3px;
+    background: rgba(230,162,60,.15); color: #e6a23c; vertical-align: 1px;
+  }
+  .leaf .perm { font-size: 9.5px; margin-left: 6px; color: #5c6170; }
+  .leaf .moved {
+    font-size: 9.5px; margin-left: 6px; padding: 0 4px; border-radius: 3px;
+    background: rgba(103,194,58,.15); color: #95d475; vertical-align: 1px;
+  }
+  .count-note {
+    margin-top: 12px; font-size: 12.5px; color: var(--text-2);
+    display: flex; gap: 18px; flex-wrap: wrap;
+  }
+  .count-note b { color: var(--text); }
+  .bad  { color: var(--bad); }
+  .good { color: var(--ok); }
+
+  /* ============ 矩阵 ============ */
+  table.matrix { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--border); padding: 9px 11px; vertical-align: top; text-align: left;
+  }
+  table.matrix thead th {
+    background: #fafafa; font-size: 12px; color: var(--text-2); font-weight: 600; text-align: center;
+  }
+  table.matrix tbody th {
+    background: #fafafa; color: var(--text-2); font-weight: 600; width: 168px;
+  }
+  table.matrix tbody th .lv { font-size: 11px; color: var(--text-3); font-weight: 400; display: block; }
+  td.cell-core    { background: #f4f9ff; }
+  td.cell-domain  { background: #fffaf2; }
+  td.cell-empty   { background: #fcfcfd; color: #d0d3d9; text-align: center; }
+  .chip {
+    display: inline-block; margin: 1px 3px 1px 0; padding: 1px 7px; border-radius: 10px;
+    background: #fff; border: 1px solid var(--border); font-size: 11.5px; color: var(--text-2);
+  }
+  td.cell-domain .chip { border-color: #f3d19e; color: #b88230; background: #fffdf8; }
+
+  /* ============ 分类卡片 ============ */
+  .cat {
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff;
+    box-shadow: var(--shadow); display: flex; flex-direction: column;
+  }
+  .cat-head { padding: 12px 14px 11px; border-bottom: 1px solid var(--border); background: #fafafa; }
+  .cat-head .t { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
+  .cat-head .s { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+  .cat-head .rule {
+    display: inline-block; margin-top: 7px; font-family: Consolas, Monaco, monospace;
+    font-size: 11px; padding: 1px 6px; border-radius: 3px;
+    background: #f0f2f5; color: var(--text-2);
+  }
+  .cat-body { padding: 12px 14px 14px; flex: 1; }
+  .cat.a .cat-head { border-top: 3px solid #409eff; }
+  .cat.b .cat-head { border-top: 3px solid #67c23a; }
+  .cat.c .cat-head { border-top: 3px solid #e6a23c; background: #fffbf5; }
+  .cat.d .cat-head { border-top: 3px solid #f56c6c; background: #fff8f8; }
+  .cat .chip { font-family: Consolas, Monaco, monospace; font-size: 11px; }
+  .cat.c .chip { border-color: #f3d19e; background: #fffdf8; color: #b88230; }
+  .cat.d .chip { border-color: #fbd9d9; background: #fffafa; color: #c45656; }
+  .cat-note {
+    margin-top: 11px; padding-top: 10px; border-top: 1px dashed var(--border);
+    font-size: 11.5px; color: var(--text-3); line-height: 1.75;
+  }
+  .cat-note b { color: var(--text-2); }
+  .tick { font-size: 10px; padding: 0 4px; border-radius: 3px; margin-left: 4px; }
+  .tick.ok   { background: #f0f9eb; color: #529b2e; }
+  .tick.warn { background: #fdf6ec; color: #b88230; }
+  .tick.bad  { background: #fef0f0; color: #c45656; }
+
+  /* ============ 代码块 ============ */
+  .sqlbox {
+    margin: 0; background: #fafafa; border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px; overflow: auto; font-family: Consolas, Monaco, monospace;
+    font-size: 12px; line-height: 1.75; color: #4a5568; white-space: pre;
+  }
+  .sqlbox .c { color: #909399; }
+  .sqlbox .k { color: #2b6cb0; }
+  .sqlbox .v { color: #b88230; }
+  .sqlbox .hl { color: #c05621; }
+
+  /* ============ 修正对照 ============ */
+  .fixrow { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; align-items: center; }
+  @media (max-width: 900px) { .fixrow { grid-template-columns: 1fr; } .fixrow .fx-arrow { display: none; } }
+  .fx { border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; background: #fff; }
+  .fx.wrong { border-left: 3px solid var(--bad); background: #fffafa; }
+  .fx.right { border-left: 3px solid var(--ok); background: #fafffa; }
+  .fx .lbl { font-size: 11px; font-weight: 700; letter-spacing: .4px; margin-bottom: 5px; }
+  .fx.wrong .lbl { color: #c45656; }
+  .fx.right .lbl { color: #529b2e; }
+  .fx .txt { font-size: 12.5px; }
+  .fx-arrow { text-align: center; color: var(--text-3); font-size: 20px; }
+  .evidence {
+    border: 1px solid var(--border); border-left: 3px solid var(--border);
+    background: #fafafa; border-radius: 6px; padding: 9px 13px;
+    font-family: Consolas, Monaco, monospace; font-size: 12px; color: var(--text-3);
+    overflow-x: auto;
+  }
+
+  /* ============ 业态过滤 ============ */
+  .biz-head {
+    display: flex; align-items: center; gap: 8px; padding: 10px 13px; border-radius: 6px;
+    background: #fafafa; border: 1px solid var(--border); margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .biz-head .bname { font-weight: 600; font-size: 13.5px; }
+  .biz-head .bt {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 3px; font-weight: 600;
+    background: #ecf5ff; color: var(--primary); border: 1px solid #d9ecff;
+  }
+  .biz-head .store { color: var(--text-3); font-size: 12px; margin-left: auto; }
+  .hit  { color: var(--ok); font-weight: 600; }
+  .miss { color: var(--bad); font-weight: 600; }
+  .filter-note {
+    padding: 11px 14px; background: #f4f9ff; border-left: 3px solid var(--primary);
+    border-radius: 0 5px 5px 0; font-size: 12.5px; color: var(--text-2); line-height: 1.75;
+  }
+  .filter-note.warn { background: #fffbf5; border-left-color: var(--warn); }
+  .filter-note.danger { background: #fff8f8; border-left-color: var(--bad); }
+
+  /* ============ 权限继承 ============ */
+  .inherit { display: grid; grid-template-columns: 1fr 46px 1fr; gap: 0; align-items: center; }
+  @media (max-width: 1000px) { .inherit { grid-template-columns: 1fr; } .inherit .arrow { display: none; } }
+  .bind-list { display: flex; flex-direction: column; gap: 9px; }
+  .bind { border: 1px solid var(--border); border-radius: 6px; padding: 10px 13px; background: #fcfcfd; }
+  .bind.lv-platform { border-left: 3px solid #909399; }
+  .bind.lv-tenant   { border-left: 3px solid var(--primary); }
+  .bind.lv-org      { border-left: 3px solid var(--warn); }
+  .bind.lv-store    { border-left: 3px solid var(--ok); }
+  .bind .r1 { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .bind .lvtag {
+    font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px;
+    background: #f0f2f5; color: var(--text-2); letter-spacing: .4px;
+  }
+  .bind.lv-tenant .lvtag { background: #ecf5ff; color: #2b7cd3; }
+  .bind.lv-org    .lvtag { background: #fdf6ec; color: #b88230; }
+  .bind.lv-store  .lvtag { background: #f0f9eb; color: #529b2e; }
+  .bind .r2 { font-size: 11.5px; color: var(--text-3); margin-top: 3px;
+              font-family: Consolas, Monaco, monospace; }
+  .bind .r3 { margin-top: 6px; }
+  .arrow { text-align: center; color: var(--text-3); font-size: 22px; }
+  .result {
+    border: 2px solid var(--primary); border-radius: 8px; padding: 14px 16px;
+    background: linear-gradient(180deg, #f7fbff, #fff);
+  }
+  .result h4 { margin: 0 0 4px; font-size: 14px; }
+  .result .sub { font-size: 12px; color: var(--text-3); margin-bottom: 11px;
+                 font-family: Consolas, Monaco, monospace; }
+  .perm-row { display: flex; align-items: flex-start; gap: 9px; padding: 6px 0;
+              border-top: 1px dashed var(--border); font-size: 12.5px; }
+  .perm-row .src {
+    flex: none; width: 62px; font-size: 10.5px; font-weight: 700; text-align: center;
+    padding: 2px 0; border-radius: 3px; letter-spacing: .3px;
+  }
+  .src.platform { background: #f0f2f5; color: #606266; }
+  .src.tenant   { background: #ecf5ff; color: #2b7cd3; }
+  .src.org      { background: #fdf6ec; color: #b88230; }
+  .src.store    { background: #f0f9eb; color: #529b2e; }
+  .perm-row .codes { font-family: Consolas, Monaco, monospace; font-size: 11.5px;
+                     color: var(--text-2); line-height: 1.8; }
+
+  /* ============ 剪枝流程 ============ */
+  .flow { display: flex; flex-direction: column; }
+  .fstep {
+    display: flex; gap: 12px; padding: 11px 14px; border: 1px solid var(--border);
+    border-radius: 6px; background: #fcfcfd; align-items: flex-start;
+  }
+  .fstep .n {
+    flex: none; width: 20px; height: 20px; border-radius: 50%; background: #e9ecf2;
+    color: var(--text-2); font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fstep.cut  { background: #fff8f8; border-color: #fbd9d9; }
+  .fstep.cut .n { background: #fde2e2; color: #c45656; }
+  .fstep .fc { flex: 1; font-size: 12.5px; }
+  .fstep .fc b { display: block; margin-bottom: 2px; font-size: 13px; }
+  .fdown { text-align: center; color: #c8ccd4; font-size: 13px; line-height: 1.1; padding: 3px 0; }
+
+  code {
+    background: rgba(64,158,255,.08); color: #2b6cb0; padding: 1px 5px;
+    border-radius: 3px; font-family: Consolas, Monaco, monospace; font-size: 11.5px;
+  }
+
+  .gap-id {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 4px; background: #fef0f0; color: #c45656;
+    font-size: 11px; font-weight: 700;
+  }
+  .sev { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px; white-space: nowrap; }
+  .sev.high { background: #fef0f0; color: #c45656; }
+  .sev.mid  { background: #fdf6ec; color: #b88230; }
+  .sev.low  { background: #f0f9eb; color: #529b2e; }
+
+  footer {
+    margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--border);
+    color: var(--text-3); font-size: 12.5px; line-height: 1.9;
+  }
+  .changelog { margin-top: 14px; border-collapse: collapse; }
+  .changelog td { padding: 3px 16px 3px 0; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>SaaS 租户后台 · 菜单与权限分层示意图<span class="tag rev">v0.3 · 已按主代码与迁移种子复核</span></h1>
+    <p>配套方案：<code>docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
+  </header>
+
+  <!-- ================= 1. 现状 vs 方案 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">1</div>
+      <h2>侧边栏：现状 vs 方案</h2>
+      <span class="hint">同一批 19 个菜单，从「一层平铺」变为「两段 + 功能域折叠」</span>
+    </div>
+    <div class="grid-2">
+
+      <div class="card">
+        <div class="cap"><span class="dot dot-bad"></span>现状 · 一层平铺 19 项
+          <span class="sub">→ 与截图一致，无层级、无租户/门店边界</span></div>
+        <div class="sidebar">
+          <div class="sb-logo"><span class="sq"></span>SaaS 管理后台</div>
+          <div class="sb-flat">
+            <div class="it on">门店</div>
+            <div class="it">币种</div>
+            <div class="it">包厢/资源</div>
+            <div class="it">预约管理</div>
+            <div class="it">收银台</div>
+            <div class="it">订单管理</div>
+            <div class="it">仓库管理</div>
+            <div class="it">商品管理</div>
+            <div class="it">收银/支付</div>
+            <div class="it">交班/日结</div>
+            <div class="it">报表</div>
+            <div class="it">会员管理</div>
+            <div class="it">积分管理</div>
+            <div class="it">支付方式</div>
+            <div class="it">储值管理</div>
+            <div class="it">脱敏权限</div>
+            <div class="it">KTV 配置</div>
+            <div class="it">运营人员</div>
+            <div class="it">审计日志</div>
+          </div>
+        </div>
+        <div class="count-note">
+          <span>一级项 <b class="bad">19</b></span>
+          <span>层级数 <b class="bad">1</b></span>
+          <span>租户/门店边界 <b class="bad">无</b></span>
+          <span>业态过滤 <b class="bad">无</b></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cap"><span class="dot dot-good"></span>方案 v0.3 · 两段式 + 域折叠
+          <span class="sub">→ 租户级 7 域 / 门店级 5 域，最多 3 层</span></div>
+        <div class="sidebar">
+          <div class="sb-logo"><span class="sq"></span>SaaS 管理后台</div>
+
+          <div class="sb-seg">
+            <div class="seg-head">
+              <span class="seg-badge tenant">租户</span>
+              <span class="seg-name">A380集团</span>
+              <span class="seg-caret">▼</span>
+            </div>
+            <div class="grp">
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">经营总览</span><span class="cnt">0</span></div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">组织与门店</span><span class="cnt">1</span></div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">通用目录</span><span class="cnt">1</span></div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">会员与营销</span><span class="cnt">3</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">资金与支付</span><span class="cnt">2</span></div>
+              <div class="leaf on">支付渠道配置<span class="perm">租户级默认</span></div>
+              <div class="leaf">币种<span class="perm">⚿ tenant.currency.manage</span></div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">人员与权限</span><span class="cnt">2</span></div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">租户设置</span><span class="cnt">1</span></div>
+            </div>
+          </div>
+
+          <div class="sb-seg">
+            <div class="seg-head">
+              <span class="seg-badge store">门店</span>
+              <span class="seg-name">A380 KTV旗舰店</span>
+              <span class="seg-caret">▼</span>
+            </div>
+            <div class="seg-meta">
+              <span class="biz-tag">KTV</span>
+              <span class="tz-tag">Asia/Shanghai</span>
+            </div>
+            <div class="grp">
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">门店运营</span><span class="cnt">6</span></div>
+              <div class="leaf">包厢看板<span class="dom">ktv</span></div>
+              <div class="leaf">收银台</div>
+              <div class="leaf">订单管理</div>
+              <div class="leaf">预约管理</div>
+              <div class="leaf">收银/支付</div>
+              <div class="leaf">交班/日结</div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">门店资源</span><span class="cnt">2</span></div>
+              <div class="leaf">资源管理<span class="dom">resource_type</span></div>
+              <div class="leaf">服务人员<span class="dom">ktv</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">门店商品与库存</span><span class="cnt">3</span></div>
+              <div class="leaf">商品管理<span class="moved">★ 从租户级迁入</span></div>
+              <div class="leaf">商品分类</div>
+              <div class="leaf">仓库管理</div>
+              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">门店报表</span><span class="cnt">1</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">门店设置</span><span class="cnt">3</span></div>
+              <div class="leaf">门店信息</div>
+              <div class="leaf">计价方案<span class="moved">★ 从平台级迁入</span></div>
+              <div class="leaf">KTV 配置<span class="dom">ktv</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="count-note">
+          <span>一级域 <b class="good">12</b>（租户 7 + 门店 5）</span>
+          <span>层级数 <b class="good">3</b></span>
+          <span>租户/门店边界 <b class="good">有</b></span>
+          <span>业态过滤 <b class="good">有</b></span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= 2. 两轴模型 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">2</div>
+      <h2>核心模型：两条正交轴</h2>
+      <span class="hint">每个菜单节点、每个权限码都必须同时声明 <code>scope_level</code> + <code>domain_code</code></span>
+    </div>
+    <div class="card">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width:172px">层级 ＼ 功能域</th>
+            <th><span class="chip" style="border-color:#b3d8ff;color:#2b7cd3;background:#ecf5ff">core</span> 跨业态内核</th>
+            <th><span class="chip" style="border-color:#f3d19e;color:#b88230;background:#fdf6ec">ktv</span> KTV</th>
+            <th><span class="chip" style="border-color:#f3d19e;color:#b88230;background:#fdf6ec">hotel</span> 酒店</th>
+            <th><span class="chip" style="border-color:#f3d19e;color:#b88230;background:#fdf6ec">spa / massage</span></th>
+            <th><span class="chip" style="border-color:#f3d19e;color:#b88230;background:#fdf6ec">retail</span> 超市</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>PLATFORM <span class="lv">平台运营 · tenant_id 可空</span></th>
+            <td class="cell-core"><span class="chip">租户管理</span><span class="chip">平台角色/权限</span><span class="chip">支付渠道授权</span></td>
+            <td class="cell-empty">—</td><td class="cell-empty">—</td><td class="cell-empty">—</td><td class="cell-empty">—</td>
+          </tr>
+          <tr>
+            <th>TENANT <span class="lv">租户 = 集团主体 · tenant_id</span></th>
+            <td class="cell-core">
+              <span class="chip">门店管理</span><span class="chip">币种</span><span class="chip">支付渠道（默认）</span>
+              <span class="chip">通用目录</span><span class="chip">会员/积分/储值</span>
+              <span class="chip">运营人员</span><span class="chip">角色权限</span><span class="chip">脱敏权限</span><span class="chip">审计日志</span>
+            </td>
+            <td class="cell-domain"><span class="chip">业态模板</span><span class="chip">服务项目</span></td>
+            <td class="cell-domain"><span class="chip">房型定义</span></td>
+            <td class="cell-domain"><span class="chip">技师等级</span></td>
+            <td class="cell-domain"><span class="chip">分类模板</span></td>
+          </tr>
+          <tr>
+            <th>ORGANIZATION <span class="lv">品牌/事业部 · 一期仅模型位</span></th>
+            <td class="cell-core"><span class="chip">组织级报表</span><span class="chip">组织策略下发</span></td>
+            <td class="cell-empty">—</td><td class="cell-empty">—</td><td class="cell-empty">—</td><td class="cell-empty">—</td>
+          </tr>
+          <tr>
+            <th>STORE <span class="lv">门店 · 数据隔离最细粒度</span></th>
+            <td class="cell-core">
+              <span class="chip">订单</span><span class="chip">预约</span><span class="chip">收银/退款</span>
+              <span class="chip">交班/日结</span><span class="chip">库存</span><span class="chip">资源管理</span>
+              <span class="chip">计价方案</span><span class="chip">门店商品</span><span class="chip">门店报表</span><span class="chip">门店信息</span>
+            </td>
+            <td class="cell-domain">
+              <span class="chip">包厢看板</span><span class="chip">开台/结台</span><span class="chip">服务人员</span>
+              <span class="chip">计时计费</span><span class="chip">KTV 配置</span>
+            </td>
+            <td class="cell-domain"><span class="chip">房态看板</span><span class="chip">入住/退房</span><span class="chip">房价</span></td>
+            <td class="cell-domain"><span class="chip">技师排班</span><span class="chip">房间/钟房</span></td>
+            <td class="cell-domain"><span class="chip">收银台</span><span class="chip">条码/称重</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="filter-note" style="margin-top:16px">
+        <b>归属判定唯一口径：</b>看该功能的权威数据主键里<b>有没有 <code>store_id</code></b>。<br>
+        有 → <b>门店级</b>（同一功能在 N 家门店就是 N 份数据）；只有 <code>tenant_id</code> → <b>租户级</b>；只有 <code>organization_id</code> → 组织级；无租户约束 → 平台级。<br>
+        <b>「同一业态开多家店」不改变菜单结构</b>——门店级菜单对每家店都一样，只是数据不同；跨店对比能力放租户级「经营总览」。
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3. 数据模型实测 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num new">3</div>
+      <h2>通用 vs 门店独立：全库 114 张表实测分类<span class="badge-new">新增</span></h2>
+      <span class="hint">扫描 138 个 Flyway 迁移得出，不是语义推断</span>
+    </div>
+
+    <div class="grid-4">
+
+      <div class="cat a">
+        <div class="cat-head">
+          <div class="t">A · 租户通用</div>
+          <div class="s">跨店共享一份数据，新增业态零改动</div>
+          <div class="rule">只有 tenant_id</div>
+        </div>
+        <div class="cat-body">
+          <span class="chip">cst_member</span>
+          <span class="chip">cst_point_account</span>
+          <span class="chip">cst_point_ledger</span>
+          <span class="chip">cst_wallet_account</span>
+          <span class="chip">cst_wallet_ledger</span>
+          <span class="chip">mkt_campaign</span>
+          <span class="chip">mkt_coupon</span>
+          <span class="chip">mkt_coupon_issuance</span>
+          <span class="chip">mkt_coupon_redemption</span>
+          <span class="chip">mkt_consent</span>
+          <span class="chip">tnt_tenant</span>
+          <span class="chip">tnt_organization</span>
+          <span class="chip">tnt_legal_entity</span>
+          <span class="chip">tnt_tenant_config</span>
+          <span class="chip">tnt_business_type</span>
+          <span class="chip">iam_role</span>
+          <span class="chip">iam_audit_log</span>
+          <span class="chip">saa_admin_account</span>
+          <span class="chip">idt_account</span>
+          <div class="cat-note">
+            会员 / 积分 / 储值 / 营销 / 租户 / 组织 / IAM —— <b>酒店、按摩、超市全部直接复用</b>。<br>
+            储值账户挂 <code>legal_entity_id</code>（法人主体）而非门店，是<b>正确的商业决策</b>。
+          </div>
+        </div>
+      </div>
+
+      <div class="cat b">
+        <div class="cat-head">
+          <div class="t">B · 门店独立</div>
+          <div class="s">每家店一份，天然要求上下文带 storeId</div>
+          <div class="rule">store_id NOT NULL</div>
+        </div>
+        <div class="cat-body">
+          <span class="chip">ord_order</span><span class="tick ok">+business_type</span>
+          <span class="chip">ord_reservation</span><span class="tick ok">+business_type</span>
+          <span class="chip">res_resource</span><span class="tick ok">+resource_type</span>
+          <span class="chip">res_room_type</span>
+          <span class="chip">res_occupation</span>
+          <span class="chip">res_schedule</span>
+          <span class="chip">ord_inventory_material</span>
+          <span class="chip">ord_inventory_stock</span>
+          <span class="chip">ord_inventory_transaction</span>
+          <span class="chip">ord_product</span>
+          <span class="chip">ord_product_category</span>
+          <span class="chip">tnt_pricing_plan</span>
+          <span class="chip">pay_shift</span>
+          <span class="chip">pay_daily_closing</span>
+          <span class="chip">pay_intent</span>
+          <span class="chip">pay_channel_provider</span>
+          <div class="cat-note">
+            <b>ord_order 四层键齐全</b>：<code>tenant_id + organization_id + store_id + business_type</code>，是标准范本。<br>
+            <code>res_resource.resource_type</code> 用枚举承载业态，<b>一张表服务所有业态</b>。
+          </div>
+        </div>
+      </div>
+
+      <div class="cat c">
+        <div class="cat-head">
+          <div class="t">C · 混合：租户定义 + 门店覆盖 ★</div>
+          <div class="s">分层能力的关键，当前只有 3 张表做到</div>
+          <div class="rule">store_id NULL = 租户默认</div>
+        </div>
+        <div class="cat-body">
+          <span class="chip">ord_catalog_item</span><span class="tick ok">完整</span>
+          <span class="chip">pay_channel_config</span><span class="tick ok">完整</span>
+          <span class="chip">res_room_type.unit_price</span><span class="tick warn">仅价格字段</span>
+          <span class="chip">iam_user_role</span><span class="tick ok">三层作用域</span>
+          <div class="cat-note">
+            <code>ord_catalog_item</code> 与 <code>pay_channel_config</code> 的列注释<b>明写「NULL=租户级」</b>，是现成范本。<br>
+            <code>iam_user_role</code> 的授权继承已完整可用（见第 6 节）。
+          </div>
+          <pre class="sqlbox" style="margin-top:11px;font-size:11px"><span class="c">-- 分层范本：照抄这个模式</span>
+store_id bigint unsigned <span class="k">NULL</span>
+  COMMENT <span class="v">'门店ID，NULL=租户级通用'</span>
+
+<span class="c">-- 读：COALESCE(门店行, 租户行)</span>
+<span class="c">-- 写：门店行覆盖租户行</span></pre>
+        </div>
+      </div>
+
+      <div class="cat d">
+        <div class="cat-head">
+          <div class="t">D · 派生门店级 ⚠️ 最大技术债</div>
+          <div class="s">无 store_id，靠父键间接归属</div>
+          <div class="rule">store_id 缺失</div>
+        </div>
+        <div class="cat-body">
+          <span class="chip">ord_order_item</span>
+          <span class="chip">ord_ktv_session</span>
+          <span class="chip">ord_ktv_server_session</span>
+          <span class="chip">pay_collect</span>
+          <span class="chip">pay_refund</span>
+          <span class="chip">pay_transaction</span>
+          <div class="cat-note">
+            归属路径：<code>order_id → ord_order.store_id</code><br>
+            <b>后果：</b>门店级权限 / 报表 / 审计若要按 store 收敛，这些表<b>无法直接过滤，必须 JOIN 回 ord_order</b>。<br>
+            <b>建议：</b>写时冗余 <code>store_id + business_type</code>（订单创建时一起写、不可变），读时直查。
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="cap"><span class="dot" style="background:#909399"></span>E · 平台级（无租户约束）</div>
+      <span class="chip">tenant_payment_method</span>
+      <span class="chip">pay_channel_provider（平台侧）</span>
+      <span class="chip">saa_admin_account</span>
+      <div class="cat-note" style="border-top:0;padding-top:8px;margin-top:8px">
+        <code>tenant_payment_method</code> 是「平台授予租户某项支付能力」的开关，<code>AdminMenuApplicationService.isWalletGranted()</code>
+        就是查它来决定「储值管理」菜单是否下发 —— 这是 <code>required_grant</code> 剪枝规则的现成实现。
+      </div>
+    </div>
+
+    <div class="filter-note warn" style="margin-top:16px">
+      <b>新增功能时的决策树：</b><br>
+      ① 这张表的权威数据是不是<b>每家店一份</b>？　是 → <b>B 门店独立</b>，<code>store_id NOT NULL</code>，菜单挂门店段。<br>
+      ② 不是，但允许<b>门店覆盖</b>？　是 → <b>C 混合</b>，<code>store_id NULL = 租户默认</code>，读用 COALESCE。<br>
+      ③ 都不是 → <b>A 租户通用</b>，只有 <code>tenant_id</code>，菜单挂租户段。<br>
+      <b>绝不允许出现 D</b> —— 归属靠父键推断的表一多，门店级权限就是空谈。
+    </div>
+  </section>
+
+  <!-- ================= 4. 修正对照 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num fix">4</div>
+      <h2>对 v0.1 的两处修正<span class="badge-new">修正</span></h2>
+      <span class="hint">v0.1 凭语义推断归属，v0.2 按建表语句实测</span>
+    </div>
+    <div class="card">
+
+      <div class="fixrow" style="margin-bottom:12px">
+        <div class="fx wrong">
+          <div class="lbl">✗ v0.1 判断</div>
+          <div class="txt">「商品管理」放<b>租户级</b>「商品与服务」域 —— 认为目录全租户共享，门店只做库存覆盖</div>
+        </div>
+        <div class="fx-arrow">➜</div>
+        <div class="fx right">
+          <div class="lbl">✓ v0.2 修正</div>
+          <div class="txt"><code>ord_product</code> / <code>ord_product_category</code> 都是 <b><code>store_id NOT NULL</code></b> → 商品是<b>门店级</b>，移入「门店商品与库存」。<br>
+            租户级只保留 <code>ord_catalog_item</code>（<code>store_id NULL</code>）作为<b>通用目录</b>。</div>
+        </div>
+      </div>
+      <div class="evidence">V11__ord_inventory_product.sql &nbsp;→&nbsp; `store_id` bigint unsigned NOT NULL COMMENT '门店ID'</div>
+
+      <div class="fixrow" style="margin-top:22px;margin-bottom:12px">
+        <div class="fx wrong">
+          <div class="lbl">✗ v0.1 判断</div>
+          <div class="txt">「计价方案」从 <code>PLATFORM</code> 迁到 <b><code>TENANT</code></b> —— 认为它是租户可配的经营策略</div>
+        </div>
+        <div class="fx-arrow">➜</div>
+        <div class="fx right">
+          <div class="lbl">✓ v0.2 修正</div>
+          <div class="txt"><code>tnt_pricing_plan</code> 是 <b><code>store_id NOT NULL</code></b> → 实际是<b>门店级</b>，移入「门店设置」。<br>
+            它现在挂在 <code>scope=PLATFORM</code> 的 <code>/admin/pricing-plans</code> 下，是<b>层级和归属双重错位</b>。</div>
+        </div>
+      </div>
+      <div class="evidence">V2__tnt_pricing_plan.sql &nbsp;→&nbsp; `tenant_id` NOT NULL, <b>`store_id` bigint unsigned NOT NULL</b></div>
+
+      <div class="filter-note danger" style="margin-top:18px">
+        <b>连带影响：</b>修正 1 之后，租户级「商品与服务」域只剩通用目录与业态模板，因此<b>改名为「通用目录」</b>（第 1 节侧边栏已更新）。
+        修正 2 之后，<code>tnt_pricing_plan</code> 若要支持「租户默认价 + 门店覆盖价」，需要先把 <code>store_id</code> 改为可空 —— 见第 7 节缺口 1。
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 5. 业态过滤 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">5</div>
+      <h2>业态过滤：同一租户、三家门店</h2>
+      <span class="hint">门店级菜单随 <code>business_type</code> 变化，租户级区完全一致</span>
+    </div>
+    <div class="grid-3">
+
+      <div class="card">
+        <div class="biz-head">
+          <span class="bname">A380 KTV旗舰店</span>
+          <span class="bt">KTV</span>
+          <span class="store">store_id=3001</span>
+        </div>
+        <div class="sidebar">
+          <div class="sb-seg">
+            <div class="seg-head"><span class="seg-badge store">门店</span><span class="seg-name">门店级区</span></div>
+            <div class="grp">
+              <div class="leaf">包厢看板 <span class="hit">✓</span></div>
+              <div class="leaf">订单 / 预约 / 收银 / 交班</div>
+              <div class="leaf" style="color:#dfe2e6">门店资源 <span class="hit">✓</span></div>
+              <div class="leaf">　├ 资源管理 <span class="dom">KTV_ROOM</span></div>
+              <div class="leaf">　└ 服务人员 <span class="dom">KTV_SERVER</span></div>
+              <div class="leaf">门店商品与库存</div>
+              <div class="leaf">门店报表</div>
+              <div class="leaf" style="color:#dfe2e6">门店设置</div>
+              <div class="leaf">　├ 计价方案 <span class="dom">HOUR/30min</span></div>
+              <div class="leaf">　└ KTV 配置 <span class="hit">✓ ktv</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-note" style="margin-top:10px">
+          资源与计价走 <code>resource_type</code> 枚举：<code>KTV_ROOM</code> / <code>KTV_SERVER</code>。酒店/按摩分组整组不出现。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="biz-head">
+          <span class="bname">A380 外滩酒店</span>
+          <span class="bt" style="background:#fdf6ec;color:#b88230;border-color:#f3d19e">HOTEL</span>
+          <span class="store">store_id=3002</span>
+        </div>
+        <div class="sidebar">
+          <div class="sb-seg">
+            <div class="seg-head"><span class="seg-badge store">门店</span><span class="seg-name">门店级区</span></div>
+            <div class="grp">
+              <div class="leaf">房态看板 <span class="hit">✓</span></div>
+              <div class="leaf">订单 / 预约 / 收银 / 交班</div>
+              <div class="leaf" style="color:#dfe2e6">门店资源 <span class="hit">✓</span></div>
+              <div class="leaf">　├ 资源管理 <span class="dom">HOTEL_ROOM</span></div>
+              <div class="leaf">　└ 房型</div>
+              <div class="leaf">门店商品与库存</div>
+              <div class="leaf">门店报表</div>
+              <div class="leaf" style="color:#dfe2e6">门店设置</div>
+              <div class="leaf">　├ 计价方案 <span class="dom">NIGHT</span></div>
+              <div class="leaf" style="color:#5c6170">　└ 门店信息</div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-note" style="margin-top:10px">
+          <b>同一张 <code>res_resource</code> 表、同一个「资源管理」菜单</b>，内容换成 <code>HOTEL_ROOM</code>。<br>
+          KTV 配置 <span class="miss">不可见</span>。这正是「统一表 + 枚举」的价值。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="biz-head">
+          <span class="bname">A380 静安按摩</span>
+          <span class="bt" style="background:#fdf6ec;color:#b88230;border-color:#f3d19e">MASSAGE</span>
+          <span class="store">store_id=3003</span>
+        </div>
+        <div class="sidebar">
+          <div class="sb-seg">
+            <div class="seg-head"><span class="seg-badge store">门店</span><span class="seg-name">门店级区</span></div>
+            <div class="grp">
+              <div class="leaf">服务看板 <span class="hit">✓</span></div>
+              <div class="leaf">订单 / 预约 / 收银 / 交班</div>
+              <div class="leaf" style="color:#dfe2e6">门店资源 <span class="hit">✓</span></div>
+              <div class="leaf">　├ 资源管理 <span class="dom">THERAPIST</span></div>
+              <div class="leaf">　└ 钟房</div>
+              <div class="leaf">门店商品与库存</div>
+              <div class="leaf">门店报表</div>
+              <div class="leaf" style="color:#dfe2e6">门店设置</div>
+              <div class="leaf">　├ 计价方案 <span class="dom">MINUTE</span></div>
+              <div class="leaf" style="color:#5c6170">　└ 门店信息</div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-note" style="margin-top:10px">
+          技师 = <code>THERAPIST</code> 资源，<code>res_schedule</code> 承接排班。KTV/酒店分组均不出现。
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <div class="filter-note" style="margin-top:0">
+        <b>规则：</b><code>domain_code = 'core'</code> 的节点<b>永远渲染</b>；<code>domain_code ≠ 'core'</code> 的节点<b>仅当当前上下文门店的 business_type 命中时渲染</b>。
+        业态匹配大小写不敏感；业态未在 <code>tnt_business_type</code> 登记时保留 core 节点并记 WARN。<br>
+        <b>租户级区在三种业态下完全一致</b>——会员、储值、营销、币种、运营人员、审计日志是全租户一份数据。
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 6. 权限继承 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">6</div>
+      <h2>权限层次：绑定在上层，自动下沉到下层</h2>
+      <span class="hint">沿用现有 <code>iam_user_role.scope_type</code> 与 <code>selectPermissionCodes</code> 的 SQL 语义，不重造授权链</span>
+    </div>
+    <div class="card">
+      <div class="inherit">
+        <div class="bind-list">
+          <div class="bind lv-platform">
+            <div class="r1"><span class="lvtag">PLATFORM</span>platform.operator</div>
+            <div class="r2">tenant_id = NULL · scope_type = PLATFORM</div>
+          </div>
+          <div class="bind lv-tenant">
+            <div class="r1"><span class="lvtag">TENANT</span>tenant.owner</div>
+            <div class="r2">tenant_id = 100 · store_id = NULL</div>
+            <div class="r3">
+              <span class="chip">tenant.currency.manage</span><span class="chip">iam.role.manage</span>
+              <span class="chip">member.pii.view</span><span class="chip">audit.view</span>
+            </div>
+          </div>
+          <div class="bind lv-org">
+            <div class="r1"><span class="lvtag">ORG</span>tenant.ops</div>
+            <div class="r2">organization_id = 5 · store_id = NULL</div>
+            <div class="r3"><span class="chip">order.view</span><span class="chip">resource.manage</span></div>
+          </div>
+          <div class="bind lv-store">
+            <div class="r1"><span class="lvtag">STORE</span>store.manager</div>
+            <div class="r2">store_id = 3001</div>
+            <div class="r3"><span class="chip">ktv.session.open</span><span class="chip">ktv.server.end</span><span class="chip">payment.collect</span></div>
+          </div>
+        </div>
+
+        <div class="arrow">➜</div>
+
+        <div class="result">
+          <h4>上下文 = A380集团 / 组织5 / KTV旗舰店(3001)</h4>
+          <div class="sub">contextId = 100:5:3001　business_type = KTV</div>
+
+          <div class="perm-row">
+            <span class="src platform">PLATFORM</span>
+            <span class="codes">租户管理、平台角色…（平台账号才带）</span>
+          </div>
+          <div class="perm-row">
+            <span class="src tenant">TENANT</span>
+            <span class="codes">tenant.currency.manage · iam.role.manage · member.pii.view · audit.view · tenant.store.manage</span>
+          </div>
+          <div class="perm-row">
+            <span class="src org">ORG</span>
+            <span class="codes">order.view · resource.manage</span>
+          </div>
+          <div class="perm-row">
+            <span class="src store">STORE</span>
+            <span class="codes">ktv.session.open · ktv.server.end · payment.collect</span>
+          </div>
+          <div class="perm-row" style="border-top:1px solid #d9ecff;margin-top:6px;padding-top:9px">
+            <span class="src" style="background:#409eff;color:#fff">有效</span>
+            <span class="codes" style="color:#303133;font-weight:600">
+              四层取并集 = 该门店上下文的完整权限快照 → 签入 X-Tenant-Context token
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-note" style="margin-top:16px">
+        <b>现有 SQL 已经实现了这套下沉</b>，无需重写：<br>
+        <code>AND (#{storeId} IS NULL OR ur.store_id IS NULL OR ur.store_id = #{storeId})</code><br>
+        即「<b>上下文维度为空 = 全放行</b>」：租户级绑定（<code>store_id IS NULL</code>）对名下所有门店生效，组织级绑定对本组织所有门店生效。<br>
+        <b>本方案只补两件事：</b>① 给权限加 <code>scope_level</code> 元数据，让授权界面能按层级分树、能拦住「门店级权限授到租户级」；
+        ② 给菜单加 <code>scope_level</code>，让它渲染在正确的那一段。
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 7. 缺口与技术债 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num fix">7</div>
+      <h2>五处缺口与技术债<span class="badge-new">新增</span></h2>
+      <span class="hint">其中 1 / 2 / 4 都动表结构，建议在 M1 之前先把地基打平</span>
+    </div>
+    <div class="card">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th style="width:46px">#</th><th style="width:230px">缺口</th><th style="width:90px">严重度</th>
+            <th>影响</th><th style="width:330px">建议</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">1</span></td>
+            <td><code>tnt_pricing_plan.store_id NOT NULL</code></td>
+            <td><span class="sev high">高</span></td>
+            <td>A380 开 3 家 KTV 要配 3 遍计价方案；且它挂在 <code>scope=PLATFORM</code> 的 <code>/admin/pricing-plans</code> 下 —— <b>层级和归属双重错位</b></td>
+            <td>改 <code>store_id NULL = 租户默认</code>；菜单归入门店设置的业态域</td>
+          </tr>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">2</span></td>
+            <td>派生子表无 <code>store_id</code><br>
+              <span style="font-size:11px;color:#909399"><code>ord_order_item</code> · <code>ord_ktv_session</code> · <code>pay_collect</code> · <code>pay_refund</code> · <code>pay_transaction</code></span></td>
+            <td><span class="sev high">高</span></td>
+            <td>门店级权限 / 报表 / 审计无法直接收敛，必须 JOIN 回 <code>ord_order</code>。这是「门店级菜单与权限」能不能真正落地的<b>最大障碍</b></td>
+            <td>写时冗余 <code>store_id + business_type</code>（订单创建时一起写、不可变）；读时直查</td>
+          </tr>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">3</span></td>
+            <td><code>iam_audit_log</code> 无 <code>store_id</code></td>
+            <td><span class="sev mid">中</span></td>
+            <td>门店级审计只能翻 <code>detail_json</code>，无法过滤 / 索引</td>
+            <td>加可空 <code>store_id</code></td>
+          </tr>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">4</span></td>
+            <td><code>mkt_campaign_scope</code> <b>「首发骨架不建」</b></td>
+            <td><span class="sev high">高</span></td>
+            <td>优惠券的「业态及门店范围」在 <code>SAAS_PLATFORM_01</code> §营销里<b>承诺了但未实现</b>；<code>rule_snapshot_json</code> 注释直接写「不可查询」</td>
+            <td>补 <code>mkt_campaign_scope</code>（<code>scope_type</code> / <code>business_type</code> / <code>store_id</code>）</td>
+          </tr>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">5</span></td>
+            <td><code>cst_member</code> 无门店线索</td>
+            <td><span class="sev low">低</span></td>
+            <td>会员跨店通用是<b>正确商业决策</b>，但「办卡门店 / 归属门店」这类运营诉求无处落</td>
+            <td>加 <code>origin_store_id</code>（可空，仅记录，不参与隔离）</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="filter-note danger" style="margin-top:16px">
+        <b>为什么缺口 2 最要紧：</b>本方案要让「门店级功能放在门店层次」，前提是<b>门店级数据能被可靠地按 <code>store_id</code> 切分</b>。
+        现在订单明细、KTV 会话、支付退款这几张最核心的事实表都只能靠 JOIN 推断门店 —— 菜单分好了层，权限却收敛不下去，等于只做了一半。
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 8. 剪枝规则 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">8</div>
+      <h2>菜单下发：五条剪枝规则</h2>
+      <span class="hint">取代现在后端 4 条硬编码 path 判断 + 前端 <code>MENU_ITEM_PERMISSIONS</code> 映射</span>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="cap"><span class="dot" style="background:#409eff"></span>服务端剪枝（自底向上，叶子先判）</div>
+        <div class="flow">
+          <div class="fstep cut">
+            <span class="n">a</span>
+            <div class="fc"><b>门店级节点</b>：上下文无 <code>storeId</code> → 剪</div>
+          </div>
+          <div class="fdown">▼</div>
+          <div class="fstep cut">
+            <span class="n">b</span>
+            <div class="fc"><b>平台节点</b>：非 SUPER_ADMIN / PLATFORM_ADMIN → 剪</div>
+          </div>
+          <div class="fdown">▼</div>
+          <div class="fstep cut">
+            <span class="n">c</span>
+            <div class="fc"><b>业态节点</b>：<code>domain_code ≠ 'core'</code> 且门店 <code>business_type</code> 不匹配 → 剪</div>
+          </div>
+          <div class="fdown">▼</div>
+          <div class="fstep cut">
+            <span class="n">d</span>
+            <div class="fc"><b>权限节点</b>：<code>required_permission</code> 未命中任一 → 剪<br>
+              <span style="color:#909399">如「币种」需要 <code>tenant.currency.manage</code></span></div>
+          </div>
+          <div class="fdown">▼</div>
+          <div class="fstep cut">
+            <span class="n">e</span>
+            <div class="fc"><b>能力开关节点</b>：<code>required_grant</code> 未授予 → 剪<br>
+              <span style="color:#909399">如「储值管理」需要租户已获 <code>payment.method.wallet</code>（查 <code>tenant_payment_method</code>）</span></div>
+          </div>
+          <div class="fdown">▼</div>
+          <div class="fstep" style="background:#f0f9eb;border-color:#c2e7b0">
+            <span class="n" style="background:#e1f3d8;color:#529b2e">✓</span>
+            <div class="fc"><b>父节点无子 → 连父一起剪</b>，最后按 <code>scope_level</code> 落进两段</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cap"><span class="dot" style="background:#67c23a"></span>前置数据（声明式，配置即生效）</div>
+        <pre class="sqlbox"><span class="c">-- iam_menu 表（新增）：一个节点一行</span>
+code                = <span class="k">'store.resource.room'</span>
+parent_code         = <span class="k">'store.resource'</span>
+name                = <span class="k">'包厢/资源'</span>
+path                = <span class="k">'/admin/resources'</span>   <span class="hl">← path 永不变</span>
+<span class="k">scope_level</span>         = <span class="v">'STORE'</span>          <span class="hl">← 落进门店段</span>
+<span class="k">domain_code</span>         = <span class="v">'ktv'</span>            <span class="hl">← 业态过滤开关</span>
+sort_no             = 20
+required_permission = <span class="k">'resource.manage'</span>
+required_grant      = NULL
+status              = <span class="k">'ACTIVE'</span>
+
+<span class="c">-- iam_permission 加列（M3，纯加法）</span>
+ALTER TABLE iam_permission ADD
+  scope_level      <span class="v">'STORE'</span>   <span class="hl">-- 归属层级</span>
+  domain_code      <span class="v">'core'</span>    <span class="hl">-- 归属业态</span>
+  grantable_levels <span class="v">NULL</span>      <span class="hl">-- 空=自身及以下</span>
+  menu_code        <span class="v">NULL</span>      <span class="hl">-- 关联菜单节点</span></pre>
+        <div class="filter-note" style="margin-top:14px">
+          <b>权限码一个字都不改。</b><code>module.resource.action</code> 三段格式、存量 60+ 权限码、后端 <code>PermissionGuard</code> 的 403 判定、
+          16 个 Flyway 种子脚本、单测断言<b>全部不动</b>——改码会造成大面积回归，历史审计动作码还会失配。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 9. 分期落地 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num">9</div>
+      <h2>分期落地</h2>
+      <span class="hint">M0 为 v0.2 新增：先补数据地基，避免菜单分完层、权限却收敛不下去</span>
+    </div>
+    <div class="card">
+      <table class="matrix">
+        <thead>
+          <tr><th style="width:70px">里程碑</th><th>内容</th><th style="width:150px">DB 改动</th><th style="width:230px">解决的问题</th><th style="width:90px">可独立上线</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>M0 <span class="badge-new">新</span></th>
+            <td><b>数据地基</b>：子表冗余 <code>store_id + business_type</code>（缺口 2）；<code>tnt_pricing_plan.store_id</code> 改可空（缺口 1）；补 <code>mkt_campaign_scope</code>（缺口 4）</td>
+            <td><b class="bad">改表 + 回填</b></td>
+            <td>门店级数据切不开 → 权限收敛不下去</td>
+            <td><b class="good">✅ 需灰度</b></td>
+          </tr>
+          <tr>
+            <th>M1</th>
+            <td>菜单树化：把 19 项重组成两段 + 域折叠（含 v0.2 修正的商品/计价归属）；前端渲染分隔线与段头。<b>注</b>：<code>AdminLayout.vue</code> 现无分组能力，两段式是新建；已有 2 个位置耦合测试断言需同步改写</td>
+            <td><b class="good">无</b></td>
+            <td>截图里的长菜单、租户/门店边界缺失</td>
+            <td><b class="good">✅ 可回滚</b></td>
+          </tr>
+          <tr>
+            <th>M2</th>
+            <td><code>iam_menu</code> 建表 + 种子；菜单定义外置；新旧接口并行</td>
+            <td>新表</td>
+            <td>菜单可见性双份硬编码</td>
+            <td><b class="good">✅</b></td>
+          </tr>
+          <tr>
+            <th>M3</th>
+            <td>权限元数据回填；菜单 <code>required_permission</code> 化，删掉后端 4 条 if 与前端映射表</td>
+            <td>加列</td>
+            <td>权限无层级归属、无法拦截非法授予</td>
+            <td><b class="good">✅ 脚本可重放</b></td>
+          </tr>
+          <tr>
+            <th>M4</th>
+            <td>上下文下发 <code>businessType</code>；业态菜单过滤；权限聚合按业态收敛</td>
+            <td><b class="good">无</b>（表已有）</td>
+            <td>多业态菜单串味</td>
+            <td><b class="good">✅</b></td>
+          </tr>
+          <tr>
+            <th>M5</th>
+            <td>授权界面按层级分树；批量多门店绑定；门店切换不整页 reload</td>
+            <td><b class="good">无</b></td>
+            <td>多店授权运维体验、切换打断</td>
+            <td><b class="good">✅</b></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="filter-note danger" style="margin-top:16px">
+        <b>硬约束：所有现有路由 <code>path</code> 一律不变</b>，只改分组、顺序、显示层级。
+        否则书签、深链、审计动作码、E2E 用例会大面积失效。
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    配套文档：<code>gv_im_server/docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>（§9 含 9 项待评审决策点）<br>
+    关联标准：<code>docs/business/ACCOUNT_PERMISSION_MODEL.md</code>　·　<code>docs/renovation/SAAS_PLATFORM_01_SERVICE.md §5.1</code>　·　<code>docs/renovation/SAAS_PLATFORM_04_DATA.md</code>
+    <table class="changelog">
+      <tr><td><b>v0.1</b></td><td>首版：现状对比、两轴模型、菜单提案、权限继承、剪枝规则、分期。</td></tr>
+      <tr><td><b>v0.2</b></td><td>按 138 个 Flyway 迁移实测修正两处归属（商品 → 门店级、计价方案 → 门店级）；新增第 3 节「通用 vs 门店独立」四类分类、第 4 节修正对照、第 7 节五处缺口与技术债；新增 M0 数据地基里程碑。</td></tr>
+      <tr><td><b>v0.3</b></td><td>按主代码与迁移种子复核：租户菜单 18 → <b>19</b> 项（新增「订单管理」）；存量权限码 44（非 60+）、码为 2～3 段；<code>platform.operator</code> 实为全量持有 44 个码；前端权限映射仅 1 条且方向与后端相反；Flyway 按模块编号。详见 <code>SAAS_MENU_PERMISSION_02_SERVICE.md</code> §5.5 与 <code>HANDOFF</code> §0.2。</td></tr>
+    </table>
+  </footer>
+
+</div>
+</body>
+</html>

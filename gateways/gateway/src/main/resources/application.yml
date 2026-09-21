@@ -1,0 +1,401 @@
+server:
+ port: ${PORT:3002}
+
+spring:
+ application:
+  name: gateway
+ data:
+  redis:
+   host: ${REDIS_HOST:localhost}
+   port: ${REDIS_PORT:6379}
+   database: ${REDIS_DB:0}
+   password: ${REDIS_PASSWORD:}
+ cloud:
+  gateway:
+   server:
+    webflux:
+     globalcors:
+      add-to-simple-url-handler-mapping: true
+      cors-configurations:
+       '[/**]':
+        allowedOrigins: ${IM_GATEWAY_ALLOWED_ORIGINS:http://127.0.0.1:5173,http://localhost:5173,https://example.com,https://www.example.com,https://www.miniservice.dev.example.com}
+        allowedMethods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+        allowedHeaders: "*"
+        exposedHeaders: X-Request-Id,X-Currency
+        allowCredentials: true
+     forwarded:
+      enabled: true
+     routes:
+      - id: ws-im
+        uri: ${IM_ACCESS_WS_URI:ws://localhost:3001}
+        predicates:
+         - Path=/ws/im/v1
+      - id: docs-user
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/_docs/user/api-docs
+        filters:
+         - StripPrefix=2
+         - RemoveRequestHeader=Authorization
+      - id: docs-message
+        uri: ${IM_MESSAGE_URI:http://localhost:3200}
+        predicates:
+         - Path=/_docs/message/api-docs
+        filters:
+         - StripPrefix=2
+         - RemoveRequestHeader=Authorization
+      - id: docs-conversation
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/_docs/conversation/api-docs
+        filters:
+         - StripPrefix=2
+         - RemoveRequestHeader=Authorization
+      - id: docs-media
+        uri: ${COMMON_MEDIA_URI:http://localhost:3600}
+        predicates:
+         - Path=/_docs/media/api-docs
+        filters:
+         - StripPrefix=2
+         - RemoveRequestHeader=Authorization
+      - id: docs-admin
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/_docs/admin/api-docs
+        filters:
+         - StripPrefix=2
+         - RemoveRequestHeader=Authorization
+      - id: oauth
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/oauth/**
+      - id: oidc-discovery
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/.well-known/openid-configuration
+      - id: open-platform
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/open/**
+      - id: api-users
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/users/**
+        filters:
+         - StripPrefix=2
+      - id: api-account-cancellations
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/account-cancellations/**
+        filters:
+         - StripPrefix=2
+      - id: saas-auth-context
+        uri: ${PLATFORM_IDENTITY_URI:http://localhost:4100}
+        predicates:
+         - Path=/api/v1/auth/contexts,/api/v1/auth/context/select,/api/v1/auth/session,/api/v1/auth/csrf,/api/v1/auth/logout
+        filters:
+         - StripPrefix=2
+      - id: api-auth
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/auth/**
+        filters:
+         - StripPrefix=2
+      - id: api-device-tokens
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/device-tokens/**
+        filters:
+         - StripPrefix=2
+      - id: api-device-keys
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/device-keys/**
+        filters:
+         - StripPrefix=2
+      - id: api-devices
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/devices/**
+        filters:
+         - StripPrefix=2
+      - id: api-friends
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/friends/**
+        filters:
+         - StripPrefix=2
+      - id: api-user-stickers
+        uri: ${IM_USER_URI:http://localhost:3100}
+        predicates:
+         - Path=/api/v1/user-stickers/**
+        filters:
+         - StripPrefix=2
+      - id: api-messages
+        uri: ${IM_MESSAGE_URI:http://localhost:3200}
+        predicates:
+         - Path=/api/v1/messages/**
+        filters:
+         - StripPrefix=2
+      - id: api-favorites
+        uri: ${IM_MESSAGE_URI:http://localhost:3200}
+        predicates:
+         - Path=/api/v1/favorites/**
+        filters:
+         - StripPrefix=2
+      - id: api-conversations
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/conversations/**
+        filters:
+         - StripPrefix=2
+      - id: api-channels
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/channels/**
+        filters:
+         - StripPrefix=2
+      - id: api-secret-chats
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/secret-chats/**
+        filters:
+         - StripPrefix=2
+      - id: api-secret-group-chats
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/secret-group-chats/**
+        filters:
+         - StripPrefix=2
+      - id: api-secret-messages
+        uri: ${IM_MESSAGE_URI:http://localhost:3200}
+        predicates:
+         - Path=/api/v1/secret-messages/**
+        filters:
+         - StripPrefix=2
+      - id: api-secret-group-messages
+        uri: ${IM_MESSAGE_URI:http://localhost:3200}
+        predicates:
+         - Path=/api/v1/secret-group-messages/**
+        filters:
+         - StripPrefix=2
+      - id: api-groups
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/groups/**
+        filters:
+         - StripPrefix=2
+      - id: api-rtc
+        uri: ${IM_CONVERSATION_URI:http://localhost:3300}
+        predicates:
+         - Path=/api/v1/rtc/**
+        filters:
+         - StripPrefix=2
+      - id: api-media
+        uri: ${COMMON_MEDIA_URI:http://localhost:3600}
+        predicates:
+         - Path=/api/v1/media/**
+        filters:
+         - StripPrefix=2
+      # 公共图片/媒体对象读取：统一走网关 /api 命名空间（各环境 /api 都路由到网关，不依赖入口 rewrite），
+      # 前端直接引用 /api/v1/media-public/{bucket}/{objectKey}，不必各自在 nginx 里反代对象存储。
+      # StripPrefix=3 剥掉 api/v1/media-public，落到对象存储的 /{bucket}/{objectKey}；旧的 /media-public/**
+      # 路由已删除（历史存量 URL 由 order/resource 迁移直接改写，无过渡兼容）。
+      # 对象键为不可猜测的 UUID，桶仅开放匿名只读；ACK 若走 OSS/CDN，把 media.public-url-prefix
+      # 配成绝对地址即可，本路由不参与。
+      - id: public-media
+        uri: ${MEDIA_INTERNAL_ENDPOINT:http://localhost:9000}
+        predicates:
+         - Path=/api/v1/media-public/**
+        filters:
+         - StripPrefix=3
+      - id: saas-identity
+        uri: ${PLATFORM_IDENTITY_URI:http://localhost:4100}
+        predicates:
+         - Path=/api/v1/identity/**
+        filters:
+         - StripPrefix=2
+      - id: saas-dev-session
+        # 本地/局域网调试放权端点；服务端默认不注册该 Bean（saas.dev-session.enabled=false），
+        # 未开启时本路由返回 404，前端会回退到正常 OAuth 链路。
+        uri: ${PLATFORM_IDENTITY_URI:http://localhost:4100}
+        predicates:
+         - Path=/api/v1/dev/**
+        filters:
+         - StripPrefix=2
+      - id: saas-tenant
+        uri: ${PLATFORM_TENANT_URI:http://localhost:4110}
+        predicates:
+         - Path=/api/v1/admin/platform/**,/api/v1/admin/tenant/**,/api/v1/admin/iam/**,/api/v1/admin/tenant/config,/api/v1/admin/pricing-plans/**
+        filters:
+         - StripPrefix=2
+      - id: saas-resource
+        uri: ${PLATFORM_RESOURCE_URI:http://localhost:4120}
+        predicates:
+         - Path=/api/v1/admin/resources/**,/api/v1/business/resources/**
+        filters:
+         - StripPrefix=2
+      - id: saas-payment-collect
+        uri: ${COMMON_PAYMENT_URI:http://localhost:4140}
+        predicates:
+         - Path=/api/v1/business/orders/*/collect
+        filters:
+         - StripPrefix=2
+      - id: saas-payment
+        uri: ${COMMON_PAYMENT_URI:http://localhost:4140}
+        predicates:
+         - Path=/api/v1/business/payments/**,/api/v1/business/payment-methods/**,/api/v1/business/shifts/**,/api/v1/business/refund-requests/**,/api/v1/admin/refund-requests/**,/api/v1/admin/daily-closings/**,/api/v1/admin/reconciliations/**,/api/v1/admin/payment-channels/**,/api/v1/admin/payment-methods/**
+        filters:
+         - StripPrefix=2
+      - id: saas-order
+        uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
+        predicates:
+         - Path=/api/v1/business/orders/**,/api/v1/business/ktv/**,/api/v1/business/reservations/**,/api/v1/business/catalog/**
+        filters:
+         - StripPrefix=2
+      - id: saas-order-admin-inventory-product
+        uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
+        predicates:
+         - Path=/api/v1/admin/inventory/**,/api/v1/admin/products/**,/api/v1/admin/orders/*/inventory-recovery,/api/v1/admin/orders/*/items/*/inventory-recovery
+        filters:
+         - StripPrefix=2
+      - id: saas-my-order
+        uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
+        predicates:
+         - Path=/api/v1/me/orders,/api/v1/me/reservations
+        filters:
+         - StripPrefix=2
+      - id: saas-admin
+        uri: ${PLATFORM_ADMIN_URI:http://localhost:4150}
+        predicates:
+         - Path=/api/v1/admin/menus/**,/api/v1/admin/backends/**,/api/v1/admin/auth/sso,/api/v1/admin/auth/login,/api/v1/admin/auth/session,/api/v1/admin/auth/logout,/api/v1/admin/auth/csrf,/api/v1/admin/auth/password,/api/v1/admin/contexts,/api/v1/admin/context/select,/api/v1/admin/ktv/**,/api/v1/admin/reservations/**,/api/v1/admin/staff/**,/api/v1/admin/media/**
+        filters:
+         - StripPrefix=2
+      - id: saas-reports
+        uri: ${PLATFORM_ADMIN_URI:http://localhost:4150}
+        predicates:
+         - Path=/api/v1/admin/reports/**
+        filters:
+         - StripPrefix=2
+      - id: saas-customer
+        uri: ${PLATFORM_CUSTOMER_URI:http://localhost:4160}
+        predicates:
+         - Path=/api/v1/business/members/**,/api/v1/admin/wallets/**
+        filters:
+         - StripPrefix=2
+      - id: saas-my-customer
+        uri: ${PLATFORM_CUSTOMER_URI:http://localhost:4160}
+        predicates:
+         - Path=/api/v1/me/wallet,/api/v1/me/wallet/ledger,/api/v1/me/points
+        filters:
+         - StripPrefix=2
+      - id: saas-audit
+        uri: ${COMMON_AUDIT_URI:http://localhost:4190}
+        predicates:
+         - Path=/api/v1/admin/audits/**
+        filters:
+         - StripPrefix=2
+      - id: saas-channel
+        uri: ${COMMON_CHANNEL_URI:http://localhost:4180}
+        predicates:
+         - Path=/api/v1/admin/channels/**
+        filters:
+         - StripPrefix=2
+      - id: saas-marketing
+        uri: ${PLATFORM_MARKETING_URI:http://localhost:4170}
+        predicates:
+         - Path=/api/v1/business/campaigns/**,/api/v1/business/coupons/**,/api/v1/marketing/**
+        filters:
+         - StripPrefix=2
+      - id: api-admin
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/admin/**
+        filters:
+         - StripPrefix=2
+      - id: api-client-config
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/config/client/**
+        filters:
+         - StripPrefix=2
+      - id: api-client-release-check
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/client/release-check
+         - Method=POST
+        filters:
+         - StripPrefix=2
+      - id: api-client-release-latest
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/client/releases/latest
+         - Method=GET
+        filters:
+         - StripPrefix=2
+      - id: api-miniapp-services
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/miniapp/**
+        filters:
+         - StripPrefix=2
+      - id: api-reports
+        uri: ${IM_ADMIN_URI:http://localhost:3400}
+        predicates:
+         - Path=/api/v1/reports/**
+        filters:
+         - StripPrefix=2
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}
+
+im:
+ documentation:
+  username: ${IM_DOCUMENTATION_USERNAME:}
+  password: ${IM_DOCUMENTATION_PASSWORD:}
+ gateway:
+  rate-limit:
+   enabled: ${IM_GATEWAY_RATE_LIMIT_ENABLED:true}
+   read-requests-per-minute: ${IM_GATEWAY_RATE_LIMIT_READ_PER_MINUTE:120}
+   write-requests-per-minute: ${IM_GATEWAY_RATE_LIMIT_WRITE_PER_MINUTE:60}
+   key-prefix: ${IM_GATEWAY_RATE_LIMIT_KEY_PREFIX:rl:gateway}
+
+springdoc:
+ swagger-ui:
+  path: /swagger-ui.html
+  lang: zh-cn
+  urls:
+   - name: 用户服务
+     url: /_docs/user/api-docs
+   - name: 消息服务
+     url: /_docs/message/api-docs
+   - name: 会话服务
+     url: /_docs/conversation/api-docs
+   - name: 媒体服务
+     url: /_docs/media/api-docs
+   - name: 管理后台服务
+     url: /_docs/admin/api-docs
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/gateway/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/gateway/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[org.springframework.cloud.gateway]": INFO

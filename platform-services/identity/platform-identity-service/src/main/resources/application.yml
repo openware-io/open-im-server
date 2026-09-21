@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: platform-identity-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_identity
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+server:
+  port: 4100
+im:
+  oauth:
+    base-url: ${IM_SERVICE_BASE_URL:http://localhost:3100}
+  mq:
+    namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
+    producer-group: ${PLATFORM_IDENTITY_SERVICE_MQ_PRODUCER_GROUP:platform-identity-service-producer}
+    consumer-group-prefix: ${PLATFORM_IDENTITY_SERVICE_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+jwt:
+  secret: ${JWT_SECRET:}
+app:
+  tenant-service:
+    base-url: ${TENANT_SERVICE_BASE_URL:http://localhost:4110}
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-identity-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:platform-tenant-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+saas:
+  cookie:
+    # true: 纯 http 环境（本地 Kind/真机 adb 反向）种无前缀非 Secure cookie；
+    # false(默认): https 环境（ACK dev/prod）保持 __Host- + Secure。
+    plain: ${SAAS_COOKIE_PLAIN:false}
+  # 本地/局域网调试放权（见 DevSaasSessionController）：默认关闭，仅本地 Kind 清单开启。
+  dev-session:
+    enabled: ${SAAS_DEV_SESSION_ENABLED:false}
+    allowed-app-ids: ${SAAS_DEV_SESSION_ALLOWED_APP_IDS:saas-a380-c,saas-a380-h5}
+    consumer-account-id: ${SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID:0}
+    operator-account-id: ${SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID:0}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

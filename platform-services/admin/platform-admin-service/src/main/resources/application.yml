@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: platform-admin-service
+  servlet:
+    multipart:
+      # 商品/物料图片单张上限 12MB（媒体服务按 media.max-image-bytes=10MB 做权威校验并返回 400）
+      max-file-size: 12MB
+      max-request-size: 12MB
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_admin
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      database: 0
+server:
+  port: 4150
+saas:
+  cookie:
+    # true for local Kind/plain HTTP; false for ACK HTTPS
+    plain: ${SAAS_COOKIE_PLAIN:false}
+jwt:
+  secret: ${JWT_SECRET:}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-admin-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:platform-admin-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+app:
+  # 图片能力由 common-media-service 统一提供（业务无关的内部接口 /internal/media/images）；
+  # BFF 不再自建 MinIO 客户端，也不再持有对象存储凭据。
+  media-service:
+    base-url: ${INTERNAL_MEDIA_SERVICE_BASE_URL:http://common-media-service:3600}
+  # 统一审计：/admin/** 写操作与导出/下载敏感读经内部接口上报（HMAC 校验 + 幂等键）。
+  audit-service:
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
+    reporter-source: ${INTERNAL_AUDIT_REPORTER_SOURCE:gv-im-audit-reporter}

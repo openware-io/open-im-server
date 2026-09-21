@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: Service
+metadata: { name: common-sms-service }
+spec: { selector: { app: common-sms-service }, ports: [ { port: 4200, targetPort: 4200 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-sms-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-sms-service } }
+  template:
+    metadata: { labels: { app: common-sms-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: common-sms-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-sms-service:2.0.1
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4200' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+          ports: [ { containerPort: 4200 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-mail-service }
+spec: { selector: { app: common-mail-service }, ports: [ { port: 4210, targetPort: 4210 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-mail-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-mail-service } }
+  template:
+    metadata: { labels: { app: common-mail-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: common-mail-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-mail-service:2.0.1
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4210' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+          ports: [ { containerPort: 4210 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---

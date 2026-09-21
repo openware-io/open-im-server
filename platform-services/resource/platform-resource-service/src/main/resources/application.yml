@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: platform-resource-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_resource
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4120
+jwt:
+  secret: ${JWT_SECRET:}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+
+im:
+  mq:
+    namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
+    producer-group: ${PLATFORM_RESOURCE_SERVICE_MQ_PRODUCER_GROUP:platform-resource-service-producer}
+platform:
+  resource:
+    occupation:
+      expiry-scan-delay-ms: ${PLATFORM_RESOURCE_OCCUPATION_EXPIRY_SCAN_DELAY_MS:60000}
+    outbox:
+      batch-size: ${PLATFORM_RESOURCE_OUTBOX_BATCH_SIZE:100}
+      relay-delay-ms: ${PLATFORM_RESOURCE_OUTBOX_RELAY_DELAY_MS:1000}
+      max-retry-count: ${PLATFORM_RESOURCE_OUTBOX_MAX_RETRY_COUNT:10}
+      base-retry-delay-seconds: ${PLATFORM_RESOURCE_OUTBOX_BASE_RETRY_DELAY_SECONDS:1}
+      max-backoff-seconds: ${PLATFORM_RESOURCE_OUTBOX_MAX_BACKOFF_SECONDS:3600}
+app:
+  # 统一审计上报（AuditClient）。缺省值是集群内服务名；直接运行（本地直跑/Compose）时用
+  # INTERNAL_AUDIT_SERVICE_BASE_URL=http://localhost:4190 覆盖。k8s/ACK 若不注入该环境变量，
+  # 会退化成 SDK 默认的 http://localhost:4190，审计上报只在 WARN 里报错、静默丢失。
+  audit-service:
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}

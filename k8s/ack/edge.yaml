@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Service
+metadata: { name: gateway }
+spec: { selector: { app: gateway }, ports: [ { port: 3002, targetPort: 3002 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: gateway }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: gateway } }
+  template:
+    metadata: { labels: { app: gateway } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: gateway
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/gateway@sha256:3beaadc8171e85c1887e27d9569b388a95e78bdb6c638f88c562952e797df60a
+          imagePullPolicy: Always
+          envFrom: [ { configMapRef: { name: gv-im-config } }, { secretRef: { name: gv-im-secret } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '3002' }
+            - { name: IM_USER_URI, value: http://im-user-service:3100 }
+            - { name: IM_MESSAGE_URI, value: http://im-message-service:3200 }
+            - { name: IM_CONVERSATION_URI, value: http://im-conversation-service:3300 }
+            - { name: IM_ADMIN_URI, value: http://im-admin-service:3400 }
+            - { name: COMMON_MEDIA_URI, value: http://common-media-service:3600 }
+            # 公共媒体对象读取（/api/v1/media-public/**）由网关直连对象存储，缺少该变量会退化为 http://localhost:9000 并全部 502
+            - { name: MEDIA_INTERNAL_ENDPOINT, value: http://minio:9000 }
+            - { name: IM_ACCESS_WS_URI, value: ws://im-access-ws:3001 }
+            - { name: PLATFORM_ADMIN_URI, value: http://platform-admin-service:4150 }
+            - { name: PLATFORM_IDENTITY_URI, value: http://platform-identity-service:4100 }
+            - { name: PLATFORM_TENANT_URI, value: http://platform-tenant-service:4110 }
+            - { name: PLATFORM_RESOURCE_URI, value: http://platform-resource-service:4120 }
+            - { name: PLATFORM_ORDER_URI, value: http://platform-order-service:4130 }
+            - { name: COMMON_PAYMENT_URI, value: http://common-payment-service:4140 }
+            - { name: PLATFORM_CUSTOMER_URI, value: http://platform-customer-service:4160 }
+            - { name: COMMON_AUDIT_URI, value: http://common-audit-service:4190 }
+            - { name: COMMON_CHANNEL_URI, value: http://common-payment-channel-service:4180 }
+            - { name: PLATFORM_MARKETING_URI, value: http://platform-marketing-service:4170 }
+            - { name: IM_GATEWAY_ALLOWED_ORIGINS, value: 'https://admin.dev.example.com,https://saas-admin.dev.example.com,https://example.com,https://www.example.com,https://miniservice.dev.example.com' }
+            # 覆盖 secret 里的 REDIS_HOST=redis（reactive Lettuce/Netty 解析不到短名），用 ClusterIP 直连
+            - { name: REDIS_HOST, value: 192.168.247.182 }
+          ports: [ { containerPort: 3002 } ]
+          readinessProbe: &health { httpGet: { path: /actuator/health, port: 3002 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: *health
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: pc-admin }
+spec: { selector: { app: pc-admin }, ports: [ { port: 80, targetPort: 80 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: pc-admin }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: pc-admin } }
+  template:
+    metadata: { labels: { app: pc-admin } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: pc-admin
+          image: REPLACED_BY_DEPLOY_SCRIPT
+          imagePullPolicy: IfNotPresent
+          ports: [ { containerPort: 80 } ]
+          readinessProbe: { httpGet: { path: /, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: im-api
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 250m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  tls: [ { hosts: [ api.dev.example.com ], secretName: api.dev.example.com-tls } ]
+  rules:
+    - host: api.dev.example.com
+      http:
+        paths:
+          - { path: /api, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /ws, pathType: Prefix, backend: { service: { name: im-access-ws, port: { number: 3001 } } } }
+          - { path: /oauth, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /open, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /, pathType: Prefix, backend: { service: { name: minio, port: { number: 9000 } } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: { name: im-admin }
+spec:
+  ingressClassName: nginx
+  tls: [ { hosts: [ admin.dev.example.com ], secretName: admin.dev.example.com-tls } ]
+  rules:
+    - host: admin.dev.example.com
+      http:
+        paths:
+          - { path: /, pathType: Prefix, backend: { service: { name: unified-portal, port: { number: 80 } } } }
+          - { path: /api, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: im-admin-im
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls: [ { hosts: [ admin.dev.example.com ], secretName: admin.dev.example.com-tls } ]
+  rules:
+    - host: admin.dev.example.com
+      http:
+        paths:
+          - path: /im(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: { service: { name: pc-admin, port: { number: 80 } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: im-admin-saas
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls: [ { hosts: [ admin.dev.example.com ], secretName: admin.dev.example.com-tls } ]
+  rules:
+    - host: admin.dev.example.com
+      http:
+        paths:
+          - path: /saas(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend: { service: { name: saas-admin, port: { number: 80 } } }

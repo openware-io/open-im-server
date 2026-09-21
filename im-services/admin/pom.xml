@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>com.gvchat</groupId>
+    <artifactId>im-services</artifactId>
+    <version>2.0.1</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+  <artifactId>im-admin</artifactId><version>1.0.38</version>
+  <packaging>pom</packaging>
+  <properties>
+    <domain.version>1.0.38</domain.version>
+    <im.user-api.version>1.0.37</im.user-api.version>
+    <im.message-api.version>1.0.63</im.message-api.version>
+    <im.conversation-api.version>1.0.32</im.conversation-api.version>
+    <common-media-api.version>2.0.2</common-media-api.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency><groupId>com.gvchat</groupId><artifactId>im-admin-api</artifactId><version>${domain.version}</version></dependency>
+      <dependency><groupId>com.gvchat</groupId><artifactId>im-user-api</artifactId><version>${im.user-api.version}</version></dependency>
+      <dependency><groupId>com.gvchat</groupId><artifactId>im-message-api</artifactId><version>${im.message-api.version}</version></dependency>
+      <dependency><groupId>com.gvchat</groupId><artifactId>im-conversation-api</artifactId><version>${im.conversation-api.version}</version></dependency>
+      <dependency><groupId>com.gvchat</groupId><artifactId>common-media-api</artifactId><version>${common-media-api.version}</version></dependency>
+    </dependencies>
+  </dependencyManagement>
+  <modules>
+    <module>im-admin-api</module>
+    <module>im-admin-service</module>
+  </modules>
+</project>

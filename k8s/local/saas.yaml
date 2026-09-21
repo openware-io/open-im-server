@@ -1,0 +1,478 @@
+apiVersion: v1
+kind: Service
+metadata: { name: platform-identity-service }
+spec: { selector: { app: platform-identity-service }, ports: [ { port: 4100, targetPort: 4100 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-tenant-service }
+spec: { selector: { app: platform-tenant-service }, ports: [ { port: 4110, targetPort: 4110 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-resource-service }
+spec: { selector: { app: platform-resource-service }, ports: [ { port: 4120, targetPort: 4120 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-order-service }
+spec: { selector: { app: platform-order-service }, ports: [ { port: 4130, targetPort: 4130 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-payment-service }
+spec: { selector: { app: common-payment-service }, ports: [ { port: 4140, targetPort: 4140 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-admin-service }
+spec: { selector: { app: platform-admin-service }, ports: [ { port: 4150, targetPort: 4150 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-customer-service }
+spec: { selector: { app: platform-customer-service }, ports: [ { port: 4160, targetPort: 4160 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-marketing-service }
+spec: { selector: { app: platform-marketing-service }, ports: [ { port: 4170, targetPort: 4170 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-payment-channel-service }
+spec: { selector: { app: common-payment-channel-service }, ports: [ { port: 4180, targetPort: 4180 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-audit-service }
+spec: { selector: { app: common-audit-service }, ports: [ { port: 4190, targetPort: 4190 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-sms-service }
+spec: { selector: { app: common-sms-service }, ports: [ { port: 4200, targetPort: 4200 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-mail-service }
+spec: { selector: { app: common-mail-service }, ports: [ { port: 4210, targetPort: 4210 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: group-idaas-service }
+spec: { selector: { app: group-idaas-service }, ports: [ { port: 4220, targetPort: 4220 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: saas-admin }
+spec: { selector: { app: saas-admin }, ports: [ { port: 80, targetPort: 80 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: saas-mobile }
+spec: { selector: { app: saas-mobile }, ports: [ { port: 80, targetPort: 80 } ] }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: unified-portal }
+spec: { selector: { app: unified-portal }, ports: [ { port: 80, targetPort: 80 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-identity-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-identity-service } }
+  template:
+    metadata: { labels: { app: platform-identity-service } }
+    spec:
+      containers:
+        - name: platform-identity-service
+          image: __APP_IMAGE_PLATFORM_IDENTITY_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4100' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: REDIS_HOST, value: redis }
+            - { name: IM_SERVICE_BASE_URL, value: http://im-user-service:3100 }
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'platform-tenant-service,platform-admin-service' }
+            # 局域网/本地调试放权（仅本地 Kind 清单）：允许内网来源用调试账号直接建立 H5 会话，
+            # 绕开普通 http 内网地址下不可用的 PKCE。生产环境不设置这三个变量（默认关闭）。
+            - { name: SAAS_DEV_SESSION_ENABLED, value: 'true' }
+            - { name: SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID, value: '101' }
+            - { name: SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID, value: '100' }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            # 本地 Kind 走 http(含真机 adb reverse 的 127.0.0.1):Android WebView 会丢弃 http 下 __Host-+Secure
+            # Set-Cookie,必须用无前缀非 Secure 别名(saas_c_session),否则 C 端会话在真机上无法建立。
+            - { name: SAAS_COOKIE_PLAIN, value: 'true' }
+          ports: [ { containerPort: 4100 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4100 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-tenant-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-tenant-service } }
+  template:
+    metadata: { labels: { app: platform-tenant-service } }
+    spec:
+      containers:
+        - name: platform-tenant-service
+          image: __APP_IMAGE_PLATFORM_TENANT_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4110' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: SPRING_DATA_REDIS_HOST, value: redis }
+            - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: REDIS_PASSWORD } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+          ports: [ { containerPort: 4110 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-resource-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-resource-service } }
+  template:
+    metadata: { labels: { app: platform-resource-service } }
+    spec:
+      containers:
+        - name: platform-resource-service
+          image: __APP_IMAGE_PLATFORM_RESOURCE_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4120' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+          ports: [ { containerPort: 4120 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-order-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-order-service } }
+  template:
+    metadata: { labels: { app: platform-order-service } }
+    spec:
+      containers:
+        - name: platform-order-service
+          image: __APP_IMAGE_PLATFORM_ORDER_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4130' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+          ports: [ { containerPort: 4130 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4130 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-payment-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-payment-service } }
+  template:
+    metadata: { labels: { app: common-payment-service } }
+    spec:
+      containers:
+        - name: common-payment-service
+          image: __APP_IMAGE_COMMON_PAYMENT_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4140' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
+          ports: [ { containerPort: 4140 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4140 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-customer-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-customer-service } }
+  template:
+    metadata: { labels: { app: platform-customer-service } }
+    spec:
+      containers:
+        - name: platform-customer-service
+          image: __APP_IMAGE_PLATFORM_CUSTOMER_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4160' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            # 钱包「代币数量」展示口径：读取租户代币品牌名/ratio（/internal/iam/tenant-config/{id}/wallet-token）。
+            # secret 必须与 platform-tenant-service 一致，否则 401 后品牌静默回退 A380币/100。
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+          ports: [ { containerPort: 4160 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4160 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-marketing-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-marketing-service } }
+  template:
+    metadata: { labels: { app: platform-marketing-service } }
+    spec:
+      containers:
+        - name: platform-marketing-service
+          image: __APP_IMAGE_PLATFORM_MARKETING_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4170' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+          ports: [ { containerPort: 4170 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-audit-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-audit-service } }
+  template:
+    metadata: { labels: { app: common-audit-service } }
+    spec:
+      containers:
+        - name: common-audit-service
+          image: __APP_IMAGE_COMMON_AUDIT_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4190' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            # 审计存储切到独立 schema gv_audit（月分区主表 + 幂等台账 + 归档清单），与 ACK 同一 profile。
+            # 本地不需要手工建库：k8s/local/mysql-saas-init-job.yaml 已建出 gv_audit 并授权。
+            - { name: SPRING_PROFILES_ACTIVE, value: audit-schema }
+            # 自留审计刻意不注入上报地址：本服务的上报目标就是自己，默认 http://localhost:4190
+            # 直接进本 Pod 的 4190 端口；走 Service ClusterIP 回连自己会因 hairpin 以
+            # ClosedChannelException 失败（本地 Kind 实测），自留审计会静默丢失。
+          ports: [ { containerPort: 4190 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4190 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-payment-channel-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-payment-channel-service } }
+  template:
+    metadata: { labels: { app: common-payment-channel-service } }
+    spec:
+      containers:
+        - name: common-payment-channel-service
+          image: __APP_IMAGE_COMMON_PAYMENT_CHANNEL_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4180' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+          ports: [ { containerPort: 4180 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-sms-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-sms-service } }
+  template:
+    metadata: { labels: { app: common-sms-service } }
+    spec:
+      containers:
+        - name: common-sms-service
+          image: __APP_IMAGE_COMMON_SMS_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4200' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+          ports: [ { containerPort: 4200 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-mail-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-mail-service } }
+  template:
+    metadata: { labels: { app: common-mail-service } }
+    spec:
+      containers:
+        - name: common-mail-service
+          image: __APP_IMAGE_COMMON_MAIL_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4210' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+          ports: [ { containerPort: 4210 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: group-idaas-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: group-idaas-service } }
+  template:
+    metadata: { labels: { app: group-idaas-service } }
+    spec:
+      containers:
+        - name: group-idaas-service
+          image: __APP_IMAGE_GROUP_IDAAS_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4220' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_DATABASE, value: gv_saas }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+          ports: [ { containerPort: 4220 } ]
+          readinessProbe: { httpGet: { path: /idaas/actuator/health, port: 4220 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-admin-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-admin-service } }
+  template:
+    metadata: { labels: { app: platform-admin-service } }
+    spec:
+      containers:
+        - name: platform-admin-service
+          image: __APP_IMAGE_PLATFORM_ADMIN_SERVICE__
+          imagePullPolicy: IfNotPresent
+          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4150' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: IDAAS_SERVICE_BASE_URL, value: http://group-idaas-service:4220 }
+            - { name: IM_USER_SERVICE_BASE_URL, value: http://im-user-service:3100 }
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'platform-tenant-service,platform-admin-service' }
+            - { name: IDENTITY_SERVICE_BASE_URL, value: http://platform-identity-service:4100 }
+            - { name: ORDER_SERVICE_BASE_URL, value: http://platform-order-service:4130 }
+            - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+            - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
+            - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
+            # Kind 真机通过 HTTP 访问 SaaS 后台；管理端会话不能带 Secure，否则浏览器会丢弃。
+            - { name: SAAS_COOKIE_PLAIN, value: 'true' }
+          ports: [ { containerPort: 4150 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4150 }, initialDelaySeconds: 30, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: saas-admin }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: saas-admin } }
+  template:
+    metadata: { labels: { app: saas-admin } }
+    spec:
+      containers:
+        - name: saas-admin
+          image: __APP_IMAGE_SAAS_ADMIN__
+          imagePullPolicy: IfNotPresent
+          ports: [ { containerPort: 80 } ]
+          readinessProbe: { httpGet: { path: /, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: saas-mobile }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: saas-mobile } }
+  template:
+    metadata: { labels: { app: saas-mobile } }
+    spec:
+      containers:
+        - name: saas-mobile
+          image: __APP_IMAGE_SAAS_MOBILE__
+          imagePullPolicy: IfNotPresent
+          ports: [ { containerPort: 80 } ]
+          readinessProbe: { httpGet: { path: /a380/index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: unified-portal }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: unified-portal } }
+  template:
+    metadata: { labels: { app: unified-portal } }
+    spec:
+      containers:
+        - name: unified-portal
+          image: __APP_IMAGE_UNIFIED_PORTAL__
+          imagePullPolicy: IfNotPresent
+          ports: [ { containerPort: 80 } ]
+          readinessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }

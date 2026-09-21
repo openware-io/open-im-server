@@ -1,0 +1,106 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - local/applications.yaml
+  - ack/edge.yaml
+  - ack/minio-init.yaml
+images:
+  - name: gv-im/im-user-service
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-user-service
+    newTag: 1.0.33
+  - name: gv-im/im-message-service
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-message-service
+    newTag: 1.0.38
+  - name: gv-im/im-conversation-service
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-conversation-service
+    newTag: 1.0.31
+  - name: gv-im/common-media-service
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-media-service
+    newTag: 2.0.1
+  - name: gv-im/im-admin-service
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-admin-service
+    newTag: 1.0.29
+  - name: gv-im/im-access-ws
+    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-access-ws
+    newTag: 1.0.31
+patches:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+    patch: |-
+      - op: add
+        path: /spec/template/spec/imagePullSecrets
+        value:
+          - name: acr-public-key
+      # 方案 B：部署按版本 tag 引用，必须 Always 拉取；否则同名 tag 被重推后
+      # 节点会继续使用缓存中的旧镜像，造成静默版本漂移（2026-09-10 包厢加载失败即由此引起）。
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+      - op: replace
+        path: /spec/template/spec/containers/0/envFrom
+        value:
+          - configMapRef:
+              name: gv-im-config
+          - secretRef:
+              name: gv-im-secret
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: common-media-service
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/9/value
+        value: https://api.dev.example.com
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: im-access-ws
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/8/value
+        value: 'true'
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: im-conversation-service
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: IM_CONVERSATION_RTC_ENABLED
+            value: "true"
+          - name: IM_CONVERSATION_RTC_TURN_URL
+            value: turn:turn.dev.example.com:3478?transport=udp,turn:turn.dev.example.com:3478?transport=tcp
+          - name: IM_CONVERSATION_RTC_TURN_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: gv-chat-turn-credentials
+                key: TURN_USERNAME
+          - name: IM_CONVERSATION_RTC_TURN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: gv-chat-turn-credentials
+                key: TURN_PASSWORD
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: gateway
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/gateway:1.1.6
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: pc-admin
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/pc-admin:2.0.1

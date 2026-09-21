@@ -1,0 +1,84 @@
+server:
+ port: ${PORT:3001}
+
+spring:
+ config:
+  import:
+   - optional:file:.env[.properties]
+   - optional:file:../.env[.properties]
+ threads:
+  virtual:
+   enabled: true
+ application:
+  name: im-access-ws
+ data:
+  redis:
+   host: ${REDIS_HOST:localhost}
+   port: ${REDIS_PORT:6379}
+   database: ${REDIS_DB:0}
+   password: ${REDIS_PASSWORD:}
+
+jwt:
+ secret: ${JWT_SECRET:}
+ expiration-ms: ${JWT_EXPIRATION_MS:604800000}
+
+internal:
+ service-auth:
+  service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:im-access-ws}
+  expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:im-access-ws}
+  secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+  max-clock-skew-ms: ${INTERNAL_SERVICE_AUTH_MAX_CLOCK_SKEW_MS:60000}
+  services:
+    user:
+      base-url: ${INTERNAL_USER_SERVICE_BASE_URL:http://im-user-service:3100}
+ services:
+  conversation:
+   base-url: ${INTERNAL_CONVERSATION_SERVICE_BASE_URL:http://im-conversation-service:3300}
+
+push:
+ jpush:
+  enabled: ${JPUSH_ENABLED:false}
+  endpoint: ${JPUSH_ENDPOINT:https://api.jpush.cn/v3/push}
+  app-key: ${JPUSH_APP_KEY:}
+  master-secret: ${JPUSH_MASTER_SECRET:}
+  apns-production: ${JPUSH_APNS_PRODUCTION:false}
+  time-to-live-seconds: ${JPUSH_TIME_TO_LIVE_SECONDS:86400}
+  include-content: ${JPUSH_INCLUDE_CONTENT:false}
+
+im:
+ access-ws:
+  allowed-origins: ${IM_ACCESS_WS_ALLOWED_ORIGINS:}
+  max-text-message-bytes: ${IM_ACCESS_WS_MAX_TEXT_MESSAGE_BYTES:65536}
+ mq:
+  type: ${IM_MQ_TYPE:REMOTING}
+  namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:9876}
+  producer-group: ${IM_ACCESS_WS_MQ_PRODUCER_GROUP:im-access-ws-producer}
+  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-access-ws/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-access-ws/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[com.gvchat.im]": INFO
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}
+

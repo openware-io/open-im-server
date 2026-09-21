@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: common-sms-service
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    table: flyway_schema_history_sms
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+server:
+  port: 4200
+sms:
+  aliyun:
+    access-key-id: ${SMS_ALIYUN_ACCESS_KEY_ID:}
+    access-key-secret: ${SMS_ALIYUN_ACCESS_KEY_SECRET:}
+    sign-name: ${SMS_ALIYUN_SIGN_NAME:}
+    endpoint: ${SMS_ALIYUN_ENDPOINT:dysmsapi.aliyuncs.com}
+  tencent:
+    secret-id: ${SMS_TENCENT_SECRET_ID:}
+    secret-key: ${SMS_TENCENT_SECRET_KEY:}
+    sdk-app-id: ${SMS_TENCENT_SDK_APP_ID:}
+    sign-name: ${SMS_TENCENT_SIGN_NAME:}
+    endpoint: ${SMS_TENCENT_ENDPOINT:sms.tencentcloudapi.com}
+    region: ${SMS_TENCENT_REGION:ap-guangzhou}
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true

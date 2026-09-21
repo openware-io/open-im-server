@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata: { name: minio-init }
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: minio-init
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/mc:RELEASE.2024-10-08T09-37-26Z
+          imagePullPolicy: Always
+          command: [sh, -ec]
+          args:
+            - |
+              mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+              mc mb --ignore-existing "local/$MEDIA_PRIVATE_BUCKET"
+              # 聊天媒体采用稳定长期 URL（参考 Telegram/微信）：桶匿名可下载，访问控制靠不可猜测的 UUID 对象键。
+              mc anonymous set download "local/$MEDIA_PRIVATE_BUCKET"
+              # 公共图片桶（业务无关的公共能力：SaaS 后台商品/物料、后续 H5/小程序都复用它），同样匿名只读，
+              # 访问控制靠不可猜测的 UUID 对象键。
+              mc mb --ignore-existing "local/$MEDIA_PUBLIC_BUCKET"
+              mc anonymous set download "local/$MEDIA_PUBLIC_BUCKET"
+              mc admin user add local "$MEDIA_ACCESS_KEY" "$MEDIA_SECRET_KEY" || true
+              mc admin policy attach local readwrite --user "$MEDIA_ACCESS_KEY"
+          env:
+            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_USER } } }
+            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_PASSWORD } } }
+            - { name: MEDIA_PRIVATE_BUCKET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_PRIVATE_BUCKET } } }
+            - { name: MEDIA_PUBLIC_BUCKET, value: gv-media-public }
+            - { name: MEDIA_ACCESS_KEY, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_ACCESS_KEY } } }
+            - { name: MEDIA_SECRET_KEY, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_SECRET_KEY } } }

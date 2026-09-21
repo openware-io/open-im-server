@@ -1,0 +1,44 @@
+{
+  "properties": [
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "JWT HMAC signing secret."
+    },
+    {
+      "name": "jwt.expiration-ms",
+      "type": "java.lang.Long",
+      "description": "JWT access token expiration in milliseconds."
+    },
+    {
+      "name": "push.jpush.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether the JPUSH sender is enabled."
+    },
+    {
+      "name": "push.jpush.endpoint",
+      "type": "java.lang.String",
+      "description": "JPUSH REST API endpoint."
+    },
+    {
+      "name": "push.jpush.app-key",
+      "type": "java.lang.String",
+      "description": "JPUSH application appKey."
+    },
+    {
+      "name": "push.jpush.master-secret",
+      "type": "java.lang.String",
+      "description": "JPUSH application master secret."
+    },
+    {
+      "name": "push.jpush.apns-production",
+      "type": "java.lang.Boolean",
+      "description": "Whether JPUSH iOS notifications use the APNs production environment."
+    },
+    {
+      "name": "push.jpush.time-to-live-seconds",
+      "type": "java.lang.Integer",
+      "description": "JPUSH offline retention time in seconds."
+    }
+  ]
+}

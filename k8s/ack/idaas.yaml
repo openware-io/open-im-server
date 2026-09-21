@@ -1,0 +1,46 @@
+apiVersion: v1
+kind: Service
+metadata: { name: group-idaas-service }
+spec: { selector: { app: group-idaas-service }, ports: [ { port: 4220, targetPort: 4220 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: group-idaas-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: group-idaas-service } }
+  template:
+    metadata: { labels: { app: group-idaas-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: group-idaas-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/group-idaas-service:2.0.2
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_DATABASE, value: gv_saas }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: REDIS_HOST, value: redis }
+            - { name: REDIS_PORT, value: '6379' }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: REDIS_PASSWORD } } }
+          ports: [ { containerPort: 4220 } ]
+          readinessProbe: { httpGet: { path: /idaas/actuator/health, port: 4220 }, initialDelaySeconds: 20, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /idaas/actuator/health, port: 4220 }, initialDelaySeconds: 30, periodSeconds: 10 }
+          resources: { requests: { cpu: 50m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idaas
+spec:
+  ingressClassName: nginx
+  tls: [ { hosts: [ api.dev.example.com ], secretName: api.dev.example.com-tls } ]
+  rules:
+    - host: api.dev.example.com
+      http:
+        paths:
+          - { path: /idaas, pathType: Prefix, backend: { service: { name: group-idaas-service, port: { number: 4220 } } } }

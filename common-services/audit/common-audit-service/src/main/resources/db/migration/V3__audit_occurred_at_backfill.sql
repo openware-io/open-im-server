@@ -1,0 +1,13 @@
+-- V3：修复 occurred_at 落空写入导致的「按发生时间查询漏行」。
+--
+-- 背景（2026-09-17 部署实测）：`SELECT id, action, occurred_at, created_at FROM iam_audit_log`
+-- 显示新写入行 occurred_at 全为 NULL、created_at 正常。根因在写入侧：上报体未提供 occurredAt 时
+-- AuditLogApplicationService → IamAuditLogPo.occurred_at 直接写 NULL（V2 只对**当时已存在**的行
+-- 回填过一次，V2 之后新落库的行又变成 NULL）。
+--
+-- 本脚本只做一件事：把所有 occurred_at 为 NULL 的行回填为 created_at（幂等，可重复执行）。
+--   * 只增不改：不改列定义、不改索引、不改动已执行过的 V1/V2 脚本；
+--   * 写入侧已在应用层补「缺省落 created_at」（AuditLogApplicationService#toLog）；
+--   * 查询侧已在仓储层补「occurred_at 为空回退 created_at」（AuditLogRepositoryImpl#applyTimeRange），
+--     即使本脚本未执行或执行前有新 NULL 行写入，时间筛选也不会静默丢行。
+UPDATE `iam_audit_log` SET `occurred_at` = `created_at` WHERE `occurred_at` IS NULL;

@@ -1,0 +1,6 @@
+package com.gvchat.im.message.application.command;
+
+import java.util.List;
+
+public record MarkMessagesReadCommand(long userId, List<String> msgIds) {
+}

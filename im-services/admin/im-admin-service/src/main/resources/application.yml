@@ -1,0 +1,122 @@
+server:
+ port: ${PORT:3400}
+
+spring:
+ config:
+  import:
+   - optional:file:.env[.properties]
+   - optional:file:../.env[.properties]
+ threads:
+  virtual:
+   enabled: false
+ application:
+  name: im-admin-service
+ datasource:
+  url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_DATABASE:${DB_NAME:}}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  username: ${DB_USERNAME:${DB_USER:}}
+  password: ${DB_PASSWORD:}
+  driver-class-name: com.mysql.cj.jdbc.Driver
+ data:
+  redis:
+   host: ${REDIS_HOST:}
+   port: ${REDIS_PORT:}
+   database: ${REDIS_DB:}
+   password: ${REDIS_PASSWORD:}
+ flyway:
+  enabled: true
+  locations: classpath:db/migration
+  table: admin_schema_history
+  baseline-on-migrate: true
+  baseline-version: 0
+ jackson:
+  default-property-inclusion: non_null
+ servlet:
+  multipart:
+   max-file-size: 200MB
+   max-request-size: 220MB
+
+mybatis-plus:
+ configuration:
+  map-underscore-to-camel-case: true
+
+jwt:
+ secret: ${JWT_SECRET:}
+ expiration-ms: ${JWT_EXPIRATION_MS:604800000}
+
+im:
+ mq:
+  namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:}
+  producer-group: ${IM_ADMIN_SERVICE_MQ_PRODUCER_GROUP:im-admin-service-producer}
+  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+
+push:
+ jpush:
+  enabled: ${JPUSH_ENABLED:false}
+  endpoint: ${JPUSH_ENDPOINT:https://api.jpush.cn/v3/push}
+  app-key: ${JPUSH_APP_KEY:}
+  master-secret: ${JPUSH_MASTER_SECRET:}
+  apns-production: ${JPUSH_APNS_PRODUCTION:true}
+  time-to-live-seconds: ${JPUSH_TIME_TO_LIVE_SECONDS:86400}
+
+springdoc:
+ api-docs:
+  path: /api-docs
+ swagger-ui:
+  path: /swagger-ui.html
+
+logging:
+ file:
+  name: ${LOG_FILE:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-admin-service/application.log}
+ logback:
+  rollingpolicy:
+   file-name-pattern: ${LOG_FILE_PATTERN:${IM_OUTPUT_ROOT:.outputs}/logs/im-services/im-admin-service/application.%d{yyyy-MM-dd}.%i.log.gz}
+   max-file-size: 20MB
+   max-history: 14
+   total-size-cap: 2GB
+ level:
+  "[com.gvchat.im]": INFO
+  "[org.springframework.web]": INFO
+
+internal:
+ service-auth:
+  service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:im-admin-service}
+  expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:im-message-service,im-conversation-service}
+  secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+  max-clock-skew-ms: ${INTERNAL_SERVICE_AUTH_MAX_CLOCK_SKEW_MS:60000}
+ services:
+  user:
+   base-url: ${INTERNAL_USER_SERVICE_BASE_URL:}
+   message-base-url: ${INTERNAL_MESSAGE_SERVICE_BASE_URL:}
+   conversation-base-url: ${INTERNAL_CONVERSATION_SERVICE_BASE_URL:}
+  media:
+   base-url: ${INTERNAL_MEDIA_SERVICE_BASE_URL:}
+
+# IM 后台管理动作审计上报地址（common-audit-service）：集群内走服务名，本地用
+# INTERNAL_AUDIT_SERVICE_BASE_URL=http://localhost:4190 覆盖；缺了会退化成 SDK 的 localhost 默认值、
+# 审计静默丢失（SDK 守护用例 AuditBaseUrlConfiguredTest 会拦下这类模块）。
+app:
+ audit-service:
+  base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
+
+management:
+ info:
+  env:
+   enabled: true
+ endpoints:
+  web:
+   exposure:
+    include: health,info
+
+info:
+ release:
+  git-commit: ${INFO_BUILD_GIT_COMMIT:unknown}
+  image: ${INFO_BUILD_IMAGE:unknown}
+  artifact-sha256: ${INFO_BUILD_ARTIFACT_SHA256:unknown}
+
+client-release:
+  enabled-platforms: ${CLIENT_RELEASE_ENABLED_PLATFORMS:android,ios,windows,macos}
+  allowed-download-hosts: ${CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS:play.google.com,apps.apple.com}
+  supported-protocol-versions: ${CLIENT_RELEASE_SUPPORTED_PROTOCOL_VERSIONS:v1}
+  minimum-server-capability-version: ${CLIENT_RELEASE_MINIMUM_SERVER_CAPABILITY_VERSION:1}
+  schedule-fixed-delay-ms: ${CLIENT_RELEASE_SCHEDULE_FIXED_DELAY_MS:30000}
+  schedule-batch-size: ${CLIENT_RELEASE_SCHEDULE_BATCH_SIZE:50}

@@ -1,0 +1,3 @@
+package com.gvchat.im.admin.domain.clientrelease.model;
+import java.util.Arrays;
+public enum PackageType { APK("apk"), GOOGLE_PLAY("google-play"), APP_STORE("app-store"), MSIX("msix"), EXE("exe"), DMG("dmg"), PKG("pkg"), FLATPAK("flatpak"), APPIMAGE("appimage"); private final String databaseValue; PackageType(String databaseValue) { this.databaseValue = databaseValue; } public String databaseValue() { return databaseValue; } public static PackageType fromDatabaseValue(String value) { return Arrays.stream(values()).filter(item -> item.databaseValue.equals(value)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown package type: " + value)); } }

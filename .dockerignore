@@ -1,0 +1,10 @@
+.git
+.idea
+.outputs
+.worktrees
+*.log
+.env
+release_manager
+**/target/**
+!**/target/
+!**/target/*.jar

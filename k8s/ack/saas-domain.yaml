@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Service
+metadata: { name: platform-tenant-service }
+spec: { selector: { app: platform-tenant-service }, ports: [ { port: 4110, targetPort: 4110 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-tenant-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-tenant-service } }
+  template:
+    metadata: { labels: { app: platform-tenant-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: platform-tenant-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-tenant-service:2.0.3
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4110' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+          ports: [ { containerPort: 4110 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-resource-service }
+spec: { selector: { app: platform-resource-service }, ports: [ { port: 4120, targetPort: 4120 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-resource-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-resource-service } }
+  template:
+    metadata: { labels: { app: platform-resource-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: platform-resource-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-resource-service:2.0.2
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4120' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+          ports: [ { containerPort: 4120 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-order-service }
+spec: { selector: { app: platform-order-service }, ports: [ { port: 4130, targetPort: 4130 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-order-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-order-service } }
+  template:
+    metadata: { labels: { app: platform-order-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: platform-order-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-order-service:2.0.7
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4130' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
+            - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+          ports: [ { containerPort: 4130 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4130 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4130 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-payment-service }
+spec: { selector: { app: common-payment-service }, ports: [ { port: 4140, targetPort: 4140 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-payment-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-payment-service } }
+  template:
+    metadata: { labels: { app: common-payment-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: common-payment-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-payment-service:2.0.2
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4140' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
+          ports: [ { containerPort: 4140 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4140 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4140 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---

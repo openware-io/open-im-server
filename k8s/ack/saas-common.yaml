@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: Service
+metadata: { name: common-audit-service }
+spec: { selector: { app: common-audit-service }, ports: [ { port: 4190, targetPort: 4190 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-audit-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-audit-service } }
+  template:
+    metadata: { labels: { app: common-audit-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: common-audit-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-audit-service:2.0.1
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4190' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            # 内部服务鉴权密钥：本服务要接受 im-admin-service 等身份的**内部审计查询**调用
+            # （AuditQueryClient 用 gv-im-audit-reporter 通道身份，与 audit 服务 expected-source 同名）。
+            # 2026-09-19 切 audit-schema profile 时本 Deployment 漏注入 → im-admin-service 调
+            # /internal/audit/records/search 恒 401，IM 后台「审计日志」页 500/空列表（真机验收实测）。
+            # 与本文件其它服务同一来源（gv-im-secret）。
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            # 审计存储切到独立 schema gv_audit（月分区主表 + 幂等台账 + 归档清单）。
+            # 前置条件：必须先按 scripts/migration/audit-schema-bootstrap.sql 在 ACK 的 MySQL 上
+            # 建库并授权给 im_user，否则本 profile 会让 Flyway/连接直接失败（无库可连）。
+            # 回退：删除本行并重启——立刻回到 gv_saas 的普通审计表，镜像与代码都不用回滚。
+            - { name: SPRING_PROFILES_ACTIVE, value: audit-schema }
+            # 本服务自己的自留审计（保留任务的归档登记/分区预建）**刻意不注入上报地址**：
+            # 审计服务的上报目标就是它自己，走默认的 http://localhost:4190 直接进本 Pod 的 4190 端口，
+            # 既最短又避免「Pod 经 Service ClusterIP 回连自己」的 hairpin 路径
+            # （Kind 实测该路径会以 ClosedChannelException 失败，自留审计静默丢失）。
+            # 其它业务服务上报的是跨 Pod 调用，仍用集群 DNS http://common-audit-service:4190 默认值。
+          ports: [ { containerPort: 4190 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4190 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4190 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: common-payment-channel-service }
+spec: { selector: { app: common-payment-channel-service }, ports: [ { port: 4180, targetPort: 4180 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: common-payment-channel-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: common-payment-channel-service } }
+  template:
+    metadata: { labels: { app: common-payment-channel-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: common-payment-channel-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-payment-channel-service:2.0.1
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4180' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+          ports: [ { containerPort: 4180 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: platform-marketing-service }
+spec: { selector: { app: platform-marketing-service }, ports: [ { port: 4170, targetPort: 4170 } ] }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: platform-marketing-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: platform-marketing-service } }
+  template:
+    metadata: { labels: { app: platform-marketing-service } }
+    spec:
+      imagePullSecrets: [ { name: acr-public-key } ]
+      containers:
+        - name: platform-marketing-service
+          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-marketing-service:2.0.1
+          imagePullPolicy: Always
+          env:
+            - { name: TZ, value: UTC }
+            - { name: PORT, value: '4170' }
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_USER, value: im_user }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+          ports: [ { containerPort: 4170 } ]
+          readinessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 30, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 40, periodSeconds: 10 }
+          resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 768Mi } }

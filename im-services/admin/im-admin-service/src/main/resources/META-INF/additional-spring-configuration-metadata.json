@@ -1,0 +1,9 @@
+{
+  "properties": [
+    {
+      "name": "internal.services.user.base-url",
+      "type": "java.lang.String",
+      "description": "im-user-service 管理端内部积分接口的基础地址。"
+    }
+  ]
+}
