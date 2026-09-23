@@ -34,8 +34,11 @@ jobs:
           java-version: '25'
           cache: maven
 
+      - name: Fix mvnw (CRLF + exec bit)
+        run: sed -i 's/\r$//' mvnw && chmod +x mvnw
+
       - name: Maven package
-        run: sh ./mvnw -B -T 1C clean package -DskipTests
+        run: ./mvnw -B -T 1C clean package -DskipTests
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
