@@ -1,6 +1,6 @@
--- 审计主表（独立 schema gv_audit）：按业务发生时间 occurred_at 做月分区。
+-- 审计主表（独立 schema open_audit）：按业务发生时间 occurred_at 做月分区。
 -- 方案与取舍：docs/renovation/AUDIT_STORAGE_01_SERVICE.md（§2.1 结构、§3 为什么用原生分区、§3 为什么按 occurred_at 分区）。
--- 本目录是 gv_audit 的全新基线（版本号与 db/migration 的老库历史互不复用，见 V1 文件头说明）。
+-- 本目录是 open_audit 的全新基线（版本号与 db/migration 的老库历史互不复用，见 V1 文件头说明）。
 --
 -- 关键口径（改动前请先读方案）：
 --   * 分区列必须是 occurred_at：前端的时间筛选与排序都用它；若按 created_at 分区，查询谓词无法裁剪分区，

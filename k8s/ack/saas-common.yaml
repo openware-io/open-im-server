@@ -15,25 +15,25 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-audit-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-audit-service:2.0.1
+          image: registry.example.com/openware/common-audit-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4190' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             # 内部服务鉴权密钥：本服务要接受 im-admin-service 等身份的**内部审计查询**调用
-            # （AuditQueryClient 用 gv-im-audit-reporter 通道身份，与 audit 服务 expected-source 同名）。
+            # （AuditQueryClient 用 open-im-audit-reporter 通道身份，与 audit 服务 expected-source 同名）。
             # 2026-09-19 切 audit-schema profile 时本 Deployment 漏注入 → im-admin-service 调
             # /internal/audit/records/search 恒 401，IM 后台「审计日志」页 500/空列表（真机验收实测）。
-            # 与本文件其它服务同一来源（gv-im-secret）。
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
-            # 审计存储切到独立 schema gv_audit（月分区主表 + 幂等台账 + 归档清单）。
+            # 与本文件其它服务同一来源（open-im-secret）。
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            # 审计存储切到独立 schema open_audit（月分区主表 + 幂等台账 + 归档清单）。
             # 前置条件：必须先按 scripts/migration/audit-schema-bootstrap.sql 在 ACK 的 MySQL 上
             # 建库并授权给 im_user，否则本 profile 会让 Flyway/连接直接失败（无库可连）。
-            # 回退：删除本行并重启——立刻回到 gv_saas 的普通审计表，镜像与代码都不用回滚。
+            # 回退：删除本行并重启——立刻回到 open_saas 的普通审计表，镜像与代码都不用回滚。
             - { name: SPRING_PROFILES_ACTIVE, value: audit-schema }
             # 本服务自己的自留审计（保留任务的归档登记/分区预建）**刻意不注入上报地址**：
             # 审计服务的上报目标就是它自己，走默认的 http://localhost:4190 直接进本 Pod 的 4190 端口，
@@ -62,15 +62,15 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-payment-channel-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-payment-channel-service:2.0.1
+          image: registry.example.com/openware/common-payment-channel-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4180' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
           ports: [ { containerPort: 4180 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 40, periodSeconds: 10 }
@@ -93,15 +93,15 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-marketing-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-marketing-service:2.0.1
+          image: registry.example.com/openware/platform-marketing-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4170' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
           ports: [ { containerPort: 4170 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 40, periodSeconds: 10 }

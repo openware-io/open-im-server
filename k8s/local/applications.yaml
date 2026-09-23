@@ -16,7 +16,7 @@ spec:
         - name: im-user-service
           image: __APP_IMAGE_IM_USER_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3100' }
@@ -52,16 +52,16 @@ spec:
         - name: im-conversation-service
           image: __APP_IMAGE_IM_CONVERSATION_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3300' }
             - { name: IM_CONVERSATION_RTC_ENABLED, value: "true" }
             - { name: IM_CONVERSATION_RTC_TURN_URL, value: "turn:turn.dev.example.com:3478?transport=udp,turn:turn.dev.example.com:3478?transport=tcp" }
             - name: IM_CONVERSATION_RTC_TURN_USERNAME
-              valueFrom: { secretKeyRef: { name: gv-chat-turn-credentials, key: TURN_USERNAME } }
+              valueFrom: { secretKeyRef: { name: open-chat-turn-credentials, key: TURN_USERNAME } }
             - name: IM_CONVERSATION_RTC_TURN_PASSWORD
-              valueFrom: { secretKeyRef: { name: gv-chat-turn-credentials, key: TURN_PASSWORD } }
+              valueFrom: { secretKeyRef: { name: open-chat-turn-credentials, key: TURN_PASSWORD } }
             - { name: DB_HOST, value: mysql }
             - { name: DB_PORT, value: '3306' }
             - { name: REDIS_HOST, value: redis }
@@ -92,7 +92,7 @@ spec:
         - name: common-media-service
           image: __APP_IMAGE_COMMON_MEDIA_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3600' }
@@ -128,7 +128,7 @@ spec:
         - name: im-message-service
           image: __APP_IMAGE_IM_MESSAGE_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3200' }
@@ -167,7 +167,7 @@ spec:
         - name: im-admin-service
           image: __APP_IMAGE_IM_ADMIN_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3400' }
@@ -206,7 +206,7 @@ spec:
         - name: im-access-ws
           image: __APP_IMAGE_IM_ACCESS_WS__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3001' }

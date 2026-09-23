@@ -2,10 +2,10 @@
 param(
   [string]$Gateway = 'http://127.0.0.1:30002',
   [string]$H5Base = 'http://127.0.0.1:30082',
-  [string]$Context = 'kind-gv-im-local',
-  [string]$Namespace = 'gv-im-local',
+  [string]$Context = 'kind-open-im-local',
+  [string]$Namespace = 'open-im-local',
   [string]$Kubeconfig = '',
-  [string]$DatabaseSecret = 'gv-im-env',
+  [string]$DatabaseSecret = 'open-im-env',
   [string]$DatabaseSecretKey = 'DB_PASSWORD',
   [string]$RedisSecret = $DatabaseSecret,
   [string]$RootDatabaseSecretKey = $DatabaseSecretKey
@@ -18,8 +18,8 @@ function MySqlTarget { $deployment = Invoke-Cluster @('get','deployment','mysql'
 function RedisTarget { $deployment = Invoke-Cluster @('get','deployment','redis','--ignore-not-found','-o','name'); if ($deployment) { return 'deployment/redis' }; $statefulSet = Invoke-Cluster @('get','statefulset','redis','--ignore-not-found','-o','name'); if ($statefulSet) { return 'statefulset/redis' }; throw 'Redis workload was not found.' }
 function DbPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-Cluster @('get','secret',$DatabaseSecret,'-o',"jsonpath={.data.$RootDatabaseSecretKey}")).Trim())) }
 function RedisPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-Cluster @('get','secret',$RedisSecret,'-o','jsonpath={.data.REDIS_PASSWORD}')).Trim())) }
-function Sql([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'gv_saas','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL cleanup failed.' } }
-function SqlValue([string]$query) { $out = Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'gv_saas','-N','-B','-e',$query); if ($LASTEXITCODE) { throw 'MySQL assertion failed.' }; return ($out | Select-Object -Last 1).ToString().Trim() }
+function Sql([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_saas','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL cleanup failed.' } }
+function SqlValue([string]$query) { $out = Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_saas','-N','-B','-e',$query); if ($LASTEXITCODE) { throw 'MySQL assertion failed.' }; return ($out | Select-Object -Last 1).ToString().Trim() }
 function SqlIm([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'im_server','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL identity command failed.' } }
 function Remove-SaasSession([string]$cookie) {
   if ([string]::IsNullOrWhiteSpace($cookie)) { return }

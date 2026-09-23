@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: unified-portal
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/unified-portal:1.0.1
+          image: registry.example.com/openware/unified-portal:1.0.1
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 80 } ]
           readinessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }

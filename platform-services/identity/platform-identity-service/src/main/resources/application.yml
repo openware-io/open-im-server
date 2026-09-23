@@ -2,7 +2,7 @@ spring:
   application:
     name: platform-identity-service
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:
@@ -25,7 +25,7 @@ im:
   mq:
     namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
     producer-group: ${PLATFORM_IDENTITY_SERVICE_MQ_PRODUCER_GROUP:platform-identity-service-producer}
-    consumer-group-prefix: ${PLATFORM_IDENTITY_SERVICE_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+    consumer-group-prefix: ${PLATFORM_IDENTITY_SERVICE_MQ_CONSUMER_GROUP_PREFIX:open_im}
 jwt:
   secret: ${JWT_SECRET:}
 app:

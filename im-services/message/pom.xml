@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>com.gvchat</groupId>
+    <groupId>io.openware</groupId>
     <artifactId>im-services</artifactId>
     <version>2.0.1</version>
     <relativePath>../pom.xml</relativePath>
@@ -19,10 +19,10 @@
   </properties>
   <dependencyManagement>
     <dependencies>
-      <dependency><groupId>com.gvchat</groupId><artifactId>im-message-api</artifactId><version>${domain.version}</version></dependency>
-      <dependency><groupId>com.gvchat</groupId><artifactId>im-conversation-api</artifactId><version>${im.conversation-api.version}</version></dependency>
-      <dependency><groupId>com.gvchat</groupId><artifactId>im-user-api</artifactId><version>${im.user-api.version}</version></dependency>
-      <dependency><groupId>com.gvchat</groupId><artifactId>common-media-api</artifactId><version>${common-media-api.version}</version></dependency>
+      <dependency><groupId>io.openware</groupId><artifactId>im-message-api</artifactId><version>${domain.version}</version></dependency>
+      <dependency><groupId>io.openware</groupId><artifactId>im-conversation-api</artifactId><version>${im.conversation-api.version}</version></dependency>
+      <dependency><groupId>io.openware</groupId><artifactId>im-user-api</artifactId><version>${im.user-api.version}</version></dependency>
+      <dependency><groupId>io.openware</groupId><artifactId>common-media-api</artifactId><version>${common-media-api.version}</version></dependency>
     </dependencies>
   </dependencyManagement>
   <modules>

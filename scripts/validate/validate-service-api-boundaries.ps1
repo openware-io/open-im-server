@@ -22,7 +22,7 @@ foreach ($relativePath in $serviceRoots) {
   $path = Join-Path $root $relativePath
   if (-not (Test-Path -LiteralPath $path)) { continue }
   $text = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))
-  if ($relativePath -match '/application/' -and $text -match 'import\s+com\.gvchat\.infrastructure\.mq\.') {
+  if ($relativePath -match '/application/' -and $text -match 'import\s+io\.openware\.infrastructure\.mq\.') {
     $violations.Add("Application layer depends on infrastructure implementation: $relativePath")
   }
   if ($relativePath -match '/controller/' -and $text -match 'import\s+.*\.(repository|mapper|po)\.') {

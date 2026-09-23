@@ -29,7 +29,7 @@
 - 写流量（`POST`/`PUT`/`PATCH`/`DELETE`）：默认 60 次/分钟
 - `OPTIONS`（CORS 预检）、`/_docs/**`、`/swagger-ui/**`、`/v3/api-docs/**`、`/actuator/**`、`/ws/**` 不限流
 
-实现位于 `com.gvchat.gateway.ratelimit`（`RateLimitConfig`、`RateLimitFilter`、`RateLimitProperties`），基于 `spring-boot-starter-data-redis-reactive` 的 Lua 令牌桶脚本。客户端地址通过 `X-Forwarded-For` 解析（信任最后一跳反向代理，如 nginx-ingress），回退到直连地址。阈值、开关、Redis key 前缀均可由环境变量覆盖：
+实现位于 `io.openware.gateway.ratelimit`（`RateLimitConfig`、`RateLimitFilter`、`RateLimitProperties`），基于 `spring-boot-starter-data-redis-reactive` 的 Lua 令牌桶脚本。客户端地址通过 `X-Forwarded-For` 解析（信任最后一跳反向代理，如 nginx-ingress），回退到直连地址。阈值、开关、Redis key 前缀均可由环境变量覆盖：
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |

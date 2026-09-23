@@ -45,7 +45,7 @@ media:
  access-key: ${MEDIA_ACCESS_KEY:}
  secret-key: ${MEDIA_SECRET_KEY:}
  private-bucket: ${MEDIA_PRIVATE_BUCKET:im-private}
- public-bucket: ${MEDIA_PUBLIC_BUCKET:gv-media-public}
+ public-bucket: ${MEDIA_PUBLIC_BUCKET:open-media-public}
  public-url-prefix: ${MEDIA_PUBLIC_URL_PREFIX:/api/v1/media-public}
  upload-session-ttl-seconds: ${MEDIA_UPLOAD_SESSION_TTL_SECONDS:900}
  access-url-ttl-seconds: ${MEDIA_ACCESS_URL_TTL_SECONDS:604800}
@@ -82,7 +82,7 @@ logging:
    max-history: 14
    total-size-cap: 2GB
  level:
-  "[com.gvchat.im]": INFO
+  "[io.openware.im]": INFO
 
 management:
  info:

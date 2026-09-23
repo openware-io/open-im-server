@@ -53,7 +53,7 @@ im:
   type: ${IM_MQ_TYPE:REMOTING}
   namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:9876}
   producer-group: ${IM_ACCESS_WS_MQ_PRODUCER_GROUP:im-access-ws-producer}
-  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:open_im}
 
 logging:
  file:
@@ -65,7 +65,7 @@ logging:
    max-history: 14
    total-size-cap: 2GB
  level:
-  "[com.gvchat.im]": INFO
+  "[io.openware.im]": INFO
 
 management:
  info:

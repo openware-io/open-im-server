@@ -4,8 +4,8 @@ param(
   [switch]$Stop,
   [switch]$SkipBuild,
   [string]$ReleaseManifestPath,
-  [string]$Registry = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com',
-  [string]$RepositoryNamespace = 'meta-cogni',
+  [string]$Registry = 'registry.example.com',
+  [string]$RepositoryNamespace = 'openware',
   [ValidateRange(30, 600)]
   [int]$StartupTimeoutSeconds = 240
 )
@@ -22,7 +22,7 @@ foreach ($name in @('im-user-service', 'im-message-service', 'im-conversation-se
   $property = $releaseManifest.services.PSObject.Properties[$name]
   if (!$property) { throw "Release manifest missing service: $name" }
   $approvedImages[$name] = Get-ApprovedReleaseImage -Name $name -Entry $property.Value -Registry $Registry -RepositoryNamespace $RepositoryNamespace
-  $variableName = 'GV_IMAGE_' + $name.Replace('-', '_').ToUpperInvariant()
+  $variableName = 'OPEN_IMAGE_' + $name.Replace('-', '_').ToUpperInvariant()
   [Environment]::SetEnvironmentVariable($variableName, $approvedImages[$name], 'Process')
 }
 $envFile = Join-Path $root '.env'

@@ -2,9 +2,9 @@ spring:
   application:
     name: common-audit-service
   datasource:
-    # 默认仍连老库 gv_saas（历史）。审计表迁到独立 schema gv_audit 时启用 audit-schema profile
+    # 默认仍连老库 open_saas（历史）。审计表迁到独立 schema open_audit 时启用 audit-schema profile
     # （application-audit-schema.yml 同时切库名与 Flyway 迁移目录），回退就是去掉该 profile。
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${MYSQL_DATABASE:gv_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${MYSQL_DATABASE:open_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:
@@ -42,10 +42,10 @@ internal:
   service-auth:
     service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:common-audit-service}
     # 只接受审计上报通道身份：写审计的能力不与业务服务身份混用。
-    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:gv-im-audit-reporter}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:open-im-audit-reporter}
     # k8s/ACK 的 common-audit-service Deployment 目前未注入该环境变量，回退值与
     # AuditClientConfig 的默认值一致，保证「上报方签名 = 服务端验签」；生产注入后应删除回退值。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET:gv-im-audit-channel-dev-secret-0001}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET:open-im-audit-channel-dev-secret-0001}
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

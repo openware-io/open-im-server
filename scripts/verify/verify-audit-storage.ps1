@@ -1,7 +1,7 @@
 # Audit storage acceptance (independent schema + occurred_at monthly partitions + ledger + manifest).
 #
 # Coverage (plan: docs/renovation/AUDIT_STORAGE_01_SERVICE.md):
-#   1) gv_audit schema exists (created by scripts/migration/audit-schema-bootstrap.sql)
+#   1) open_audit schema exists (created by scripts/migration/audit-schema-bootstrap.sql)
 #   2) iam_audit_log is RANGE-partitioned on occurred_at, with pmin and pmax fallbacks present
 #   3) MySQL invariant: every unique index of a partitioned table includes the partition column
 #   4) occurred_at is NOT NULL (partition key must never be NULL, otherwise rows land in pmin)
@@ -14,7 +14,7 @@
 # (5.1 reads a BOM-less .ps1 as ANSI, which would corrupt non-ASCII literals).
 #
 # Usage (Kind environment; Docker Desktop provides the runtime, Compose is not used):
-#   1) kubectl -n gv-im-local port-forward svc/mysql 13306:3306     # cluster MySQL -> local 13306
+#   1) kubectl -n open-im-local port-forward svc/mysql 13306:3306     # cluster MySQL -> local 13306
 #   2) powershell -File scripts/verify/verify-audit-storage.ps1 -User root -Password <DB_PASSWORD>
 # ACK: pass -DbHost / -Port / -User / -Password of that environment (or run against a port-forward).
 param(
@@ -23,7 +23,7 @@ param(
   [int]$Port = 13306,
   [string]$User = 'root',
   [string]$Password = '',
-  [string]$AuditDatabase = 'gv_audit',
+  [string]$AuditDatabase = 'open_audit',
   [switch]$AllowFallbackRows
 )
 

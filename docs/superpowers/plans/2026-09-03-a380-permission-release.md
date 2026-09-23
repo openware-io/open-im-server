@@ -21,7 +21,7 @@
 ### Task 1: Lock the authentication contract with tests
 
 **Files:**
-- Modify: `platform-services/identity/platform-identity-service/src/test/java/com/gvchat/platform/identity/application/AuthContextApplicationServiceTest.java`
+- Modify: `platform-services/identity/platform-identity-service/src/test/java/io/openware/platform/identity/application/AuthContextApplicationServiceTest.java`
 - Create: `scripts/verify/ack-auth-contract.ps1`
 
 - [ ] Add tests proving tenant failures raise a typed error and valid account contexts remain available.
@@ -31,8 +31,8 @@
 ### Task 2: Stop permission failures being masked
 
 **Files:**
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/application/AuthContextApplicationService.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/api/controller/AuthContextController.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/application/AuthContextApplicationService.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/api/controller/AuthContextController.java`
 
 - [ ] Return stable `IAM_CONTEXT_UNAVAILABLE` errors for tenant-service failures.
 - [ ] Reject malformed or unauthorized context selection instead of returning opaque placeholder tokens.

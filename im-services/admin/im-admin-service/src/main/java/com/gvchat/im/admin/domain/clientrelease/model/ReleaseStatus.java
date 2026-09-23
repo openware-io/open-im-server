@@ -1,3 +1,0 @@
-package com.gvchat.im.admin.domain.clientrelease.model;
-import java.util.Arrays;
-public enum ReleaseStatus { DRAFT("draft"), SCHEDULED("scheduled"), ROLLING_OUT("rolling_out"), RELEASED("released"), PAUSED("paused"), WITHDRAWN("withdrawn"), ARCHIVED("archived"); private final String databaseValue; ReleaseStatus(String databaseValue) { this.databaseValue = databaseValue; } public String databaseValue() { return databaseValue; } public static ReleaseStatus fromDatabaseValue(String value) { return Arrays.stream(values()).filter(item -> item.databaseValue.equals(value)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown release status: " + value)); } }

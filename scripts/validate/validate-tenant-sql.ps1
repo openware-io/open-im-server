@@ -2,7 +2,7 @@
 # Usage: pwsh scripts/validate/validate-tenant-sql.ps1 -Path <flyway-dir>
 # Exit: 0 = pass; 1 = tenant table missing tenant_id
 param(
-    [string]$Path = 'D:\projects\cnb\gv_im_server\platform-services'
+    [string]$Path = 'D:\projects\cnb\open_im_server\platform-services'
 )
 $ErrorActionPreference = 'Stop'
 

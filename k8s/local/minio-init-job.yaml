@@ -25,10 +25,10 @@ spec:
                 mc admin policy attach local readwrite --user "$MEDIA_ACCESS_KEY"
               fi
           env:
-            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: MINIO_ROOT_USER } } }
-            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: MINIO_ROOT_PASSWORD } } }
-            - { name: MEDIA_PRIVATE_BUCKET, valueFrom: { secretKeyRef: { name: gv-im-env, key: MEDIA_PRIVATE_BUCKET } } }
-            - { name: MEDIA_PUBLIC_BUCKET, value: gv-media-public }
-            - { name: MEDIA_ACCESS_KEY, valueFrom: { secretKeyRef: { name: gv-im-env, key: MEDIA_ACCESS_KEY } } }
-            - { name: MEDIA_SECRET_KEY, valueFrom: { secretKeyRef: { name: gv-im-env, key: MEDIA_SECRET_KEY } } }
+            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: MINIO_ROOT_USER } } }
+            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: MINIO_ROOT_PASSWORD } } }
+            - { name: MEDIA_PRIVATE_BUCKET, valueFrom: { secretKeyRef: { name: open-im-env, key: MEDIA_PRIVATE_BUCKET } } }
+            - { name: MEDIA_PUBLIC_BUCKET, value: open-media-public }
+            - { name: MEDIA_ACCESS_KEY, valueFrom: { secretKeyRef: { name: open-im-env, key: MEDIA_ACCESS_KEY } } }
+            - { name: MEDIA_SECRET_KEY, valueFrom: { secretKeyRef: { name: open-im-env, key: MEDIA_SECRET_KEY } } }
           resources: { requests: { cpu: 50m, memory: 64Mi }, limits: { cpu: 250m, memory: 256Mi } }

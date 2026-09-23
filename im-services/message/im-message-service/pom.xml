@@ -2,7 +2,7 @@
      xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>com.gvchat</groupId>
+    <groupId>io.openware</groupId>
     <artifactId>im-message</artifactId><version>1.0.63</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
@@ -13,35 +13,35 @@
   <dependencies>
     <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>im-message-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>im-conversation-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>im-user-api</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>common</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>protocol-ws</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>protocol-mq</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>infrastructure</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.gvchat</groupId>
+      <groupId>io.openware</groupId>
       <artifactId>common-media-api</artifactId>
     </dependency>
     <dependency>

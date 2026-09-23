@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: saas-mobile
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/saas-mobile:1.1.1
+          image: registry.example.com/openware/saas-mobile:1.1.1
           imagePullPolicy: Always
           ports: [ { containerPort: 80 } ]
           readinessProbe: { httpGet: { path: /a380/index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }

@@ -15,14 +15,14 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-sms-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-sms-service:2.0.1
+          image: registry.example.com/openware/common-sms-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4200' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
           ports: [ { containerPort: 4200 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 40, periodSeconds: 10 }
@@ -45,14 +45,14 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-mail-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-mail-service:2.0.1
+          image: registry.example.com/openware/common-mail-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4210' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
           ports: [ { containerPort: 4210 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 40, periodSeconds: 10 }

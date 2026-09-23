@@ -215,8 +215,8 @@ git pull            # 分支 develop/2.0.0-saas-20260826
 ⚠️ **两个会被打破的现有测试**：`AdminMenuApplicationServiceTest` 的 2 个**位置耦合断言**（`currency` 紧跟 `store`、`order-manage` 紧跟收银台），以及 `menuPermission.test.js:22-25` 的"映射全量相等"，M1 需同步改写。
 
 入口文件：
-- `gv_im_server/platform-services/admin/platform-admin-service/src/main/java/com/gvchat/platform/admin/application/AdminMenuApplicationService.java`
-- `gv_im_server/platform-services/admin/platform-admin-api/src/main/java/com/gvchat/platform/admin/api/menu/AdminMenuItem.java`
+- `gv_im_server/platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/application/AdminMenuApplicationService.java`
+- `gv_im_server/platform-services/admin/platform-admin-api/src/main/java/io/openware/platform/admin/api/menu/AdminMenuItem.java`
 - `gv_saas_admin/src/layout/AdminLayout.vue`
 - `gv_saas_admin/src/stores/menu.js`
 - 测试：`AdminMenuApplicationServiceTest`、`src/utils/menuPermission.test.js`

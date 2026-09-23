@@ -5,23 +5,23 @@ resources:
   - ack/edge.yaml
   - ack/minio-init.yaml
 images:
-  - name: gv-im/im-user-service
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-user-service
+  - name: open-im/im-user-service
+    newName: registry.example.com/openware/im-user-service
     newTag: 1.0.33
-  - name: gv-im/im-message-service
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-message-service
+  - name: open-im/im-message-service
+    newName: registry.example.com/openware/im-message-service
     newTag: 1.0.38
-  - name: gv-im/im-conversation-service
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-conversation-service
+  - name: open-im/im-conversation-service
+    newName: registry.example.com/openware/im-conversation-service
     newTag: 1.0.31
-  - name: gv-im/common-media-service
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-media-service
+  - name: open-im/common-media-service
+    newName: registry.example.com/openware/common-media-service
     newTag: 2.0.1
-  - name: gv-im/im-admin-service
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-admin-service
+  - name: open-im/im-admin-service
+    newName: registry.example.com/openware/im-admin-service
     newTag: 1.0.29
-  - name: gv-im/im-access-ws
-    newName: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/im-access-ws
+  - name: open-im/im-access-ws
+    newName: registry.example.com/openware/im-access-ws
     newTag: 1.0.31
 patches:
   - target:
@@ -42,9 +42,9 @@ patches:
         path: /spec/template/spec/containers/0/envFrom
         value:
           - configMapRef:
-              name: gv-im-config
+              name: open-im-config
           - secretRef:
-              name: gv-im-secret
+              name: open-im-secret
   - target:
       group: apps
       version: v1
@@ -79,12 +79,12 @@ patches:
           - name: IM_CONVERSATION_RTC_TURN_USERNAME
             valueFrom:
               secretKeyRef:
-                name: gv-chat-turn-credentials
+                name: open-chat-turn-credentials
                 key: TURN_USERNAME
           - name: IM_CONVERSATION_RTC_TURN_PASSWORD
             valueFrom:
               secretKeyRef:
-                name: gv-chat-turn-credentials
+                name: open-chat-turn-credentials
                 key: TURN_PASSWORD
   - target:
       group: apps
@@ -94,7 +94,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/image
-        value: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/gateway:1.1.6
+        value: registry.example.com/openware/gateway:1.1.6
   - target:
       group: apps
       version: v1
@@ -103,4 +103,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/image
-        value: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/pc-admin:2.0.1
+        value: registry.example.com/openware/pc-admin:2.0.1

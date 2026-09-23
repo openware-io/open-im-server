@@ -2,10 +2,10 @@
 param(
   [switch]$SkipBuild,
   [switch]$Stop,
-  [string]$Namespace = 'gv-im-local',
+  [string]$Namespace = 'open-im-local',
   [ValidatePattern('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')]
-  [string]$KindClusterName = 'gv-im-local',
-  [string]$AdminProjectPath = 'D:\projects\cnb\gv_chat_admin',
+  [string]$KindClusterName = 'open-im-local',
+  [string]$AdminProjectPath = 'D:\projects\cnb-oss\open-chat-admin',
   [ValidatePattern('^(0\.0\.0\.0|127\.0\.0\.1|localhost|(?:\d{1,3}\.){3}\d{1,3})$')]
   [string]$LocalBindAddress = '0.0.0.0',
   [string]$LocalAdvertiseAddress,
@@ -20,8 +20,8 @@ param(
   [switch]$ValidateOnly,
   [ValidatePattern('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')]
   [string]$RegistryPullSecretName = 'acr-registry',
-  [string]$Registry = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com',
-  [string]$RepositoryNamespace = 'meta-cogni',
+  [string]$Registry = 'registry.example.com',
+  [string]$RepositoryNamespace = 'openware',
   [ValidateRange(60, 900)]
   [int]$StartupTimeoutSeconds = 600
 )
@@ -123,8 +123,8 @@ function Apply-RenderedManifest {
   foreach ($entry in $Replacements.GetEnumerator()) { $content = $content.Replace($entry.Key, $entry.Value) }
   if ($StartSuspended) { $content = $content.Replace('replicas: 1', 'replicas: 0') }
   $content = $content.Replace('      containers:', "      imagePullSecrets:`n        - name: $RegistryPullSecretName`n      containers:")
-  if ($content -match 'image:\s+(gv-im/|gv-local/|\S*__[A-Z_]+__)') { throw "Unresolved application image in $Name" }
-  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-render-" + [guid]::NewGuid().ToString() + '.yaml')
+  if ($content -match 'image:\s+(open-im/|open-local/|\S*__[A-Z_]+__)') { throw "Unresolved application image in $Name" }
+  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-render-" + [guid]::NewGuid().ToString() + '.yaml')
   try {
     [System.IO.File]::WriteAllText($tempPath, $content, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('apply', '--namespace', $Namespace, '-f', $tempPath)
@@ -174,7 +174,7 @@ function Stop-LocalPortForwards {
     Where-Object { $_.CommandLine -match "port-forward service/($($services -join '|'))" -and $_.CommandLine -match [regex]::Escape("--namespace $Namespace") } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
   foreach ($service in $services) {
-    $proxyName = "gv-im-k8s-$service-proxy"
+    $proxyName = "open-im-k8s-$service-proxy"
     $existingProxy = & docker container ls --all --filter "name=^/$proxyName`$" --quiet
     if ($existingProxy) { & docker rm --force $proxyName | Out-Null }
   }
@@ -184,7 +184,7 @@ function Start-LocalNodePortProxy {
   param([string]$Service, [int]$NodePort, [int]$LocalPort = $NodePort, [int]$ServicePort = $NodePort)
   $node = (& docker ps --filter 'label=io.x-k8s.kind.role=control-plane' --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --format '{{.Names}}' | Select-Object -First 1)
   if ([string]::IsNullOrWhiteSpace($node)) { throw "Kind control-plane node was not found for cluster: $KindClusterName" }
-  $proxyName = "gv-im-k8s-$Service-proxy"
+  $proxyName = "open-im-k8s-$Service-proxy"
   $existingProxy = & docker container ls --all --filter "name=^/$proxyName`$" --quiet
   if ($existingProxy) { & docker rm --force $proxyName | Out-Null }
   & docker run --detach --name $proxyName --network kind -p "$LocalBindAddress`:$LocalPort`:$NodePort" alpine/socat "TCP-LISTEN:$NodePort,fork,reuseaddr" "TCP:$node`:$NodePort"
@@ -259,11 +259,11 @@ function Set-ApplicationImage {
         'org.opencontainers.image.version' = $MavenVersion
         'org.opencontainers.image.revision' = $Revision
         'org.opencontainers.image.created' = $CreatedAt
-        'release.gv-im.local/id' = $ReleaseId
-        'release.gv-im.local/code-sha' = $Revision
-        'release.gv-im.local/artifact-sha256' = $ArtifactHash
-        'release.gv-im.local/deployed-at' = $CreatedAt
-        'release.gv-im.local/image-ref' = $imageRef
+        'release.open-im.local/id' = $ReleaseId
+        'release.open-im.local/code-sha' = $Revision
+        'release.open-im.local/artifact-sha256' = $ArtifactHash
+        'release.open-im.local/deployed-at' = $CreatedAt
+        'release.open-im.local/image-ref' = $imageRef
       }
     }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = 'Always'; env = @(
       @{ name = 'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE'; value = 'health,info' },
@@ -273,7 +273,7 @@ function Set-ApplicationImage {
       @{ name = 'INFO_BUILD_ARTIFACT_SHA256'; value = $ArtifactHash }
     ) }) } } }
   } | ConvertTo-Json -Compress -Depth 8
-  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
+  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
   try {
     [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('patch', "deployment/$Name", '--namespace', $Namespace, '--type=strategic', '--patch-file', $patchFile)
@@ -345,7 +345,7 @@ $infrastructureImages = @(
   'minio/mc:RELEASE.2024-05-28T17-19-04Z'
 )
 foreach ($image in $infrastructureImages) { Import-KubernetesRegistryImage -Image $image }
-$rocketmqImage = 'gv-im/rocketmq:5.3.1-local'
+$rocketmqImage = 'open-im/rocketmq:5.3.1-local'
 # 本地已构建过就复用：基镜像 apache/rocketmq:5.3.1 只在首次构建时从 Docker Hub 拉取，
 # 无外网/代理抖动时重建会让整个 Kind 部署在应用清单之前直接失败（该镜像不参与发布清单校验）。
 $savedErrorActionPreference = $ErrorActionPreference
@@ -375,7 +375,7 @@ foreach ($name in $localSaasImageNames | Where-Object { $_ -ne 'im-user-service'
 function Set-LocalRecreateStrategy {
   param([string]$Name)
   $patch = '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
-  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-strategy-" + [guid]::NewGuid().ToString() + '.json')
+  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-strategy-" + [guid]::NewGuid().ToString() + '.json')
   try {
     [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('patch', "deployment/$Name", '--namespace', $Namespace, '--type=strategic', '--patch-file', $patchFile)
@@ -393,7 +393,7 @@ function Remove-ReleaseBuildWaste {
 Invoke-Kubectl -Arguments @('create', 'namespace', $Namespace, '--dry-run=client', '-o', 'yaml') | & kubectl apply -f -
 if ($LASTEXITCODE -ne 0) { throw 'Creating the Kubernetes namespace failed.' }
 
-$secretEnvFile = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-" + [guid]::NewGuid().ToString() + '.env')
+$secretEnvFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-" + [guid]::NewGuid().ToString() + '.env')
 try {
   $secretEntries = Get-Content -LiteralPath $envFile | Where-Object {
     $line = $_.Trim()
@@ -403,14 +403,14 @@ try {
   $secretValues = @{}
   foreach ($entry in $secretEntries) { $name, $value = $entry -split '=', 2; $secretValues[$name] = $value }
   [System.IO.File]::WriteAllLines($secretEnvFile, [string[]]$secretEntries, [System.Text.UTF8Encoding]::new($false))
-  & kubectl create secret generic gv-im-env --namespace $Namespace --from-env-file=$secretEnvFile --dry-run=client -o yaml | & kubectl apply -f -
+  & kubectl create secret generic open-im-env --namespace $Namespace --from-env-file=$secretEnvFile --dry-run=client -o yaml | & kubectl apply -f -
   if ($LASTEXITCODE -ne 0) { throw 'Creating the Kubernetes environment secret failed.' }
   $turnUsername = $secretValues['IM_CONVERSATION_RTC_TURN_USERNAME']
   $turnPassword = $secretValues['IM_CONVERSATION_RTC_TURN_PASSWORD']
   if ([string]::IsNullOrWhiteSpace($turnUsername) -or [string]::IsNullOrWhiteSpace($turnPassword)) {
     throw 'IM_CONVERSATION_RTC_TURN_USERNAME and IM_CONVERSATION_RTC_TURN_PASSWORD are required for local Kubernetes deployment.'
   }
-  & kubectl create secret generic gv-chat-turn-credentials --namespace $Namespace --from-literal="TURN_USERNAME=$turnUsername" --from-literal="TURN_PASSWORD=$turnPassword" --dry-run=client -o yaml | & kubectl apply -f -
+  & kubectl create secret generic open-chat-turn-credentials --namespace $Namespace --from-literal="TURN_USERNAME=$turnUsername" --from-literal="TURN_PASSWORD=$turnPassword" --dry-run=client -o yaml | & kubectl apply -f -
   if ($LASTEXITCODE -ne 0) { throw 'Creating the local TURN credentials secret failed.' }
 } finally {
   if (Test-Path -LiteralPath $secretEnvFile) { Remove-Item -LiteralPath $secretEnvFile -Force }
@@ -454,7 +454,7 @@ foreach ($name in $applicationDeployments) {
 
 Invoke-Kubectl -Arguments @('scale', 'deployment/im-user-service', '--namespace', $Namespace, '--replicas=1')
 Invoke-Kubectl -Arguments @('rollout', 'status', 'deployment/im-user-service', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
-& (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'gv-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30082" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
+& (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'open-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30082" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
 if ($LASTEXITCODE -ne 0) { throw 'Kind OIDC client registry synchronization failed.' }
 foreach ($deployment in ($applicationDeployments | Where-Object { $_ -ne 'im-user-service' })) {
   Invoke-Kubectl -Arguments @('scale', "deployment/$deployment", '--namespace', $Namespace, '--replicas=1')

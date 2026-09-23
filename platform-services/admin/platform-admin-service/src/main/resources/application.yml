@@ -7,7 +7,7 @@ spring:
       max-file-size: 12MB
       max-request-size: 12MB
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:
@@ -46,4 +46,4 @@ app:
   # 统一审计：/admin/** 写操作与导出/下载敏感读经内部接口上报（HMAC 校验 + 幂等键）。
   audit-service:
     base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
-    reporter-source: ${INTERNAL_AUDIT_REPORTER_SOURCE:gv-im-audit-reporter}
+    reporter-source: ${INTERNAL_AUDIT_REPORTER_SOURCE:open-im-audit-reporter}

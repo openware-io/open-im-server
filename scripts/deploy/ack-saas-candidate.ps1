@@ -2,8 +2,8 @@
 param(
   [Parameter(Mandatory)] [string]$ReleaseManifestPath,
   [string]$Namespace = 'im-business',
-  [string]$Registry = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com',
-  [string]$RepositoryNamespace = 'meta-cogni',
+  [string]$Registry = 'registry.example.com',
+  [string]$RepositoryNamespace = 'openware',
   [ValidateRange(120, 1800)]
   [int]$StartupTimeoutSeconds = 900
 )

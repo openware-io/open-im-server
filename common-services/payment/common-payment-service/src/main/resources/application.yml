@@ -2,7 +2,7 @@ spring:
   application:
     name: common-payment-service
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:
@@ -23,7 +23,7 @@ im:
   mq:
     namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
     producer-group: ${COMMON_PAYMENT_SERVICE_MQ_PRODUCER_GROUP:common-payment-service-producer}
-    consumer-group-prefix: ${COMMON_PAYMENT_SERVICE_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+    consumer-group-prefix: ${COMMON_PAYMENT_SERVICE_MQ_CONSUMER_GROUP_PREFIX:open_im}
 app:
   # 组合收款扣减储值/积分要回调 platform-customer-service 的内部端点。
   # 默认值与容器内一致（同 im-access-ws 的 http://im-user-service:3100 口径）；本机起服务时用

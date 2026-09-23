@@ -108,14 +108,14 @@
 
 | 位置 | 内容 |
 |---|---|
-| `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/application/ReservationApplicationService.java:92-97` | 类注释原文：「`startAt/endAt` 以带时区偏移的 `OffsetDateTime` 入参，统一转换为北京时间（UTC+8）后落库，避免转 UTC 导致前端按本地时钟展示时出现 8 小时偏移」「落库的是**门店营业本地墙上时间**（+08:00 的 LocalDateTime）」 |
+| `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/application/ReservationApplicationService.java:92-97` | 类注释原文：「`startAt/endAt` 以带时区偏移的 `OffsetDateTime` 入参，统一转换为北京时间（UTC+8）后落库，避免转 UTC 导致前端按本地时钟展示时出现 8 小时偏移」「落库的是**门店营业本地墙上时间**（+08:00 的 LocalDateTime）」 |
 | `ReservationApplicationService.java:716-721` | `toBusinessLocal(OffsetDateTime)` 实现：`odt.withOffsetSameInstant(ZoneOffset.ofHours(8)).toLocalDateTime()` —— **`+08:00` 是硬编码常量** |
 | `ReservationApplicationService.java:132-133` | `po.setStartAt(toBusinessLocal(cmd.startAt()))` |
 | `ReservationApplicationService.java:447-448,454-455` | 超订重叠判定按 `LocalDateTime` 比较（左闭右开） |
 | `platform-services/order/platform-order-service/src/main/resources/db/migration/V19__ord_reservation_time_comment.sql:10-12` | 用新迁移把 `ord_reservation.start_at/end_at` 列注释改成「门店营业本地时间（+08:00）」 |
 | `.../db/migration/V2__ord_reservation.sql:12-13` | 原列注释写的是「预约开始时间（UTC）」——注释与实现不一致，已由 V19 纠正 |
 | `.../api/controller/ReservationController.java:32-38,68,174-175` | 对外契约文档化为「入参必须带偏移；出参是 +08:00 的 LocalDateTime，无偏移信息」 |
-| `platform-services/order/platform-order-service/src/test/java/com/gvchat/platform/order/application/ReservationApplicationServiceTest.java:114` | 单元测试把这个口径固化了：断言 `START_AT.withOffsetSameInstant(ZoneOffset.ofHours(8)).toLocalDateTime()` |
+| `platform-services/order/platform-order-service/src/test/java/io/openware/platform/order/application/ReservationApplicationServiceTest.java:114` | 单元测试把这个口径固化了：断言 `START_AT.withOffsetSameInstant(ZoneOffset.ofHours(8)).toLocalDateTime()` |
 
 #### (2) 口径乙：JVM 默认时区墙上时间（`LocalDateTime.now()`）
 
@@ -185,7 +185,7 @@
   - 会话 `opened_at`/`billing_start_at` 来自 `LocalDateTime.now()`（`KtvSessionApplicationService.java:141,155,159`）；
   - `KtvRoomFeeCalculator.billableSeconds` 用 `Duration.between(billingStartAt, closedAt)` 且 `Math.max(0L, d)`（`KtvRoomFeeCalculator.java:58-64`）；
   - `standardSeconds`：`reservedEndAt.isAfter(billingStartAt)` 才用预约窗口，否则回退 `default_session_minutes`（`:66-72`）；
-  - 而 `reserved_start_at/reserved_end_at` **在生产代码里从未被写入**（全仓仅测试赋值：`platform-services/order/.../src/test/java/com/gvchat/platform/order/application/OrderIntegrationTest.java:274-275`），`openTable` 也不写（`ReservationApplicationService.java:326-327`）。
+  - 而 `reserved_start_at/reserved_end_at` **在生产代码里从未被写入**（全仓仅测试赋值：`platform-services/order/.../src/test/java/io/openware/platform/order/application/OrderIntegrationTest.java:274-275`），`openTable` 也不写（`ReservationApplicationService.java:326-327`）。
 - 后果（两个独立缺陷叠加）：
   1. **超时判定失效**：预约 19:00–22:00，但会话从不记 `reserved_end_at`，`standardSeconds` 恒为 120 分钟（`default_session_minutes`）。门店若把默认时长配成 180 分钟，实际开了 150 分钟也不计超时 → **少收超时费**。
   2. **一旦补写 `reserved_end_at`，就会立刻错账**：若写入的是 `+08:00` 墙钟而 `billing_start_at` 是 UTC 墙钟，`reservedEndAt.isAfter(billingStartAt)` 对 UTC JVM 恒为 false → 永远回退；反过来若是 `billing_start_at` 比 `closed_at` 大（跨口径），`billableSeconds` 被 `Math.max(0L, d)` 钳到 0 → **房费 0**。
@@ -770,7 +770,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 
 | 证据 | 位置 |
 |---|---|
-| 预约「统一转北京时间落库」注释 | `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/application/ReservationApplicationService.java:92-97` |
+| 预约「统一转北京时间落库」注释 | `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/application/ReservationApplicationService.java:92-97` |
 | `toBusinessLocal` 硬编码 +08 | `.../ReservationApplicationService.java:716-721` |
 | 预约写 start/end | `.../ReservationApplicationService.java:132-133` |
 | 超订重叠判定（左闭右开） | `.../ReservationApplicationService.java:437-461`（尤其 `:443-444,447-448,454-455`） |
@@ -780,8 +780,8 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | 预约列表无 `fromAt/toAt` | `.../api/controller/ReservationController.java:52-57` |
 | V19 列注释纠正为 +08 墙钟 | `.../src/main/resources/db/migration/V19__ord_reservation_time_comment.sql:1-12` |
 | V2 原注释写 UTC | `.../db/migration/V2__ord_reservation.sql:12-13` |
-| 单测固化 +08 口径 | `.../src/test/java/com/gvchat/platform/order/application/ReservationApplicationServiceTest.java:56-57,114` |
-| Web 层单测用 +08 串 | `.../src/test/java/com/gvchat/platform/order/api/controller/ReservationControllerWebTest.java:73,91,111-112` |
+| 单测固化 +08 口径 | `.../src/test/java/io/openware/platform/order/application/ReservationApplicationServiceTest.java:56-57,114` |
+| Web 层单测用 +08 串 | `.../src/test/java/io/openware/platform/order/api/controller/ReservationControllerWebTest.java:73,91,111-112` |
 
 **A.2 会话计时与计费**
 
@@ -793,14 +793,14 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | 计费时长钳零 | `.../domain/ktv/service/KtvRoomFeeCalculator.java:58-64` |
 | 标准时长回退 `default_session_minutes` | `.../domain/ktv/service/KtvRoomFeeCalculator.java:66-72` |
 | 计费公式 | `.../KtvRoomFeeCalculator.java:74-92` |
-| `reserved_start_at/end_at` 仅测试赋值 | `.../src/test/java/com/gvchat/platform/order/application/OrderIntegrationTest.java:274-275` |
+| `reserved_start_at/end_at` 仅测试赋值 | `.../src/test/java/io/openware/platform/order/application/OrderIntegrationTest.java:274-275` |
 | 规范要求 UTC 落库/门店时区展示 | `docs/renovation/KTV_BUSINESS_01_SERVICE.md:148`；字段语义 `:143-144` |
 
 **A.3 收银 / 交班 / 日结 / 对账**
 
 | 证据 | 位置 |
 |---|---|
-| 开班/交班 `LocalDateTime.now()` | `common-services/payment/common-payment-service/src/main/java/com/gvchat/common/payment/application/CashierApplicationService.java:44-55,73-93` |
+| 开班/交班 `LocalDateTime.now()` | `common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/application/CashierApplicationService.java:44-55,73-93` |
 | 班次现金汇总时间窗 | `.../CashierApplicationService.java:114-122`；`.../infra/persistence/mapper/PayIntentMapper.java:28` |
 | 日结落库不校验营业日 | `.../CashierApplicationService.java:125-133` |
 | 日结请求体（businessDate 由调用方给） | `.../api/controller/CashierController.java:53,94` |
@@ -814,7 +814,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 
 | 证据 | 位置 |
 |---|---|
-| 报表四个端点签名与 `Instant.now()` 的 `dataAsOf` | `platform-services/admin/platform-admin-service/src/main/java/com/gvchat/platform/admin/api/controller/ReportController.java:40-44,72,76-80,110,114-118,144,148-152,164` |
+| 报表四个端点签名与 `Instant.now()` 的 `dataAsOf` | `platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/api/controller/ReportController.java:40-44,72,76-80,110,114-118,144,148-152,164` |
 | `Range.of` 用 `LocalDate.now()`（JVM 日） | `.../ReportController.java:335-347`（`:337,345`） |
 | `opsKey` 以 `business_date` 为分组键 | `.../ReportController.java:192-195` |
 | SQL 用 `DATE_FORMAT` 切日 | `.../infra/persistence/mapper/ReportMapper.java:93,105,113,124,132,143,153,164` |
@@ -1032,7 +1032,7 @@ $ kubectl -n gv-im-local logs deploy/platform-tenant-service --tail=2
 
 | 项 | 实际值 |
 |---|---|
-| 位置 | `sdk/infrastructure/src/main/java/com/gvchat/infrastructure/time/StoreTimeService.java`（`com.gvchat.infrastructure.time`） |
+| 位置 | `sdk/infrastructure/src/main/java/io/openware/infrastructure/time/StoreTimeService.java`（`io.openware.infrastructure.time`） |
 | 为什么放这里 | `infrastructure`（`sdk/infrastructure`）是 20 个可部署服务**全部**已声明的依赖，而 `StoreTimeService` 要被 order / payment / admin / tenant 共用（§4.2 S19）；放 `common-services` 会引入跨域依赖，放各服务会退化成多份实现 |
 | 形态 | 无状态静态工具 + 一个 `record BusinessDayWindow`；不读库、不持配置、不重算历史（配置读取与降级策略留给调用方） |
 
@@ -1057,7 +1057,7 @@ API（最小必要面）：
   各自独立、不会被合并；营业日窗口相应为 25 小时。
 - **跨门店**：同一绝对时刻在不同门店时区/切点下可以属于不同的营业日（用例已固化）。
 
-测试：`sdk/infrastructure/src/test/java/com/gvchat/infrastructure/time/StoreTimeServiceTest.java`，**29 个用例**
+测试：`sdk/infrastructure/src/test/java/io/openware/infrastructure/time/StoreTimeServiceTest.java`，**29 个用例**
 （含 §6.1 的 TC-U1/U2/U3/U4/U5/U6/U10 与 §6.4 的 TC-D3）。
 门店写接口测试：`platform-tenant-service/src/test/java/.../api/controller/StoreControllerTest.java`，**13 个用例**
 （读写往返、字段级可选、拒绝偏移字面量、切点格式/范围、空请求、跨门店 403、跨租户 403、404、缺权限 403、

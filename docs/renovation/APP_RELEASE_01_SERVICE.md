@@ -515,7 +515,7 @@ POST /api/v1/client/release-check
 新实现按管理域的 `clientrelease` 子域分层，不继续把发布业务塞进 `AdminManagementApplicationService` 或 `AdminManagementPersistenceAdapter`。下列文件是实现提交的最小清单；名称可因既有代码生成约定微调，但不得改变层次和依赖方向。
 
 ```text
-im-services/admin/im-admin-service/src/main/java/com/gvchat/im/admin/
+im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/
   api/clientrelease/
     ClientReleaseController.java                 # 公开检查与管理端 HTTP 入口
     ClientReleaseDtos.java                       # Request/Response DTO，不泄露领域对象

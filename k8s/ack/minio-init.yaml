@@ -9,7 +9,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: minio-init
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/mc:RELEASE.2024-10-08T09-37-26Z
+          image: registry.example.com/openware/mc:RELEASE.2024-10-08T09-37-26Z
           imagePullPolicy: Always
           command: [sh, -ec]
           args:
@@ -25,9 +25,9 @@ spec:
               mc admin user add local "$MEDIA_ACCESS_KEY" "$MEDIA_SECRET_KEY" || true
               mc admin policy attach local readwrite --user "$MEDIA_ACCESS_KEY"
           env:
-            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_USER } } }
-            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_PASSWORD } } }
-            - { name: MEDIA_PRIVATE_BUCKET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_PRIVATE_BUCKET } } }
-            - { name: MEDIA_PUBLIC_BUCKET, value: gv-media-public }
-            - { name: MEDIA_ACCESS_KEY, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_ACCESS_KEY } } }
-            - { name: MEDIA_SECRET_KEY, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MEDIA_SECRET_KEY } } }
+            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: open-im-secret, key: MINIO_ROOT_USER } } }
+            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: MINIO_ROOT_PASSWORD } } }
+            - { name: MEDIA_PRIVATE_BUCKET, valueFrom: { secretKeyRef: { name: open-im-secret, key: MEDIA_PRIVATE_BUCKET } } }
+            - { name: MEDIA_PUBLIC_BUCKET, value: open-media-public }
+            - { name: MEDIA_ACCESS_KEY, valueFrom: { secretKeyRef: { name: open-im-secret, key: MEDIA_ACCESS_KEY } } }
+            - { name: MEDIA_SECRET_KEY, valueFrom: { secretKeyRef: { name: open-im-secret, key: MEDIA_SECRET_KEY } } }

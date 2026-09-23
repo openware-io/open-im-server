@@ -39,12 +39,12 @@
 
 - 核心消息链路遵循 `api -> application -> domain <- infra`：`api` 对消息核心只使用应用命令、查询和结果，`application` 只依赖领域模型、仓储与端口，`domain.message` 不依赖 Spring、MyBatis-Plus、Jackson、RocketMQ 或 Spring Data 实现
 - `MessageLayerArchitectureTest` 在测试阶段扫描核心源文件 import，阻止 `api` 直接依赖 `domain` 或 `infra`，阻止 `application` 依赖 `api` 或 `infra`，并检查核心四层目录存在
-- 本门禁覆盖已迁移的 `com.gvchat.im.message` 核心链路，不将历史跨域代码作为消息领域模型的一部分
+- 本门禁覆盖已迁移的 `io.openware.im.message` 核心链路，不将历史跨域代码作为消息领域模型的一部分
 
 ## 已知遗留
 
-- 启动类当前扫描 `com.gvchat.im`，尚未收敛到 `com.gvchat.im.message` 并通过显式配置引入共享基础设施；因此进程仍会发现同模块下的历史 Bean
-- `com.gvchat.im.domain` 和 `com.gvchat.common.dto` 中仍保留好友、群组、敏感词、系统配置等历史代码；`LegacyFriendRelationAdapter`、`LegacyGroupMembershipAdapter` 仍直接调用其中的服务
+- 启动类当前扫描 `io.openware.im`，尚未收敛到 `io.openware.im.message` 并通过显式配置引入共享基础设施；因此进程仍会发现同模块下的历史 Bean
+- `io.openware.im.domain` 和 `io.openware.common.dto` 中仍保留好友、群组、敏感词、系统配置等历史代码；`LegacyFriendRelationAdapter`、`LegacyGroupMembershipAdapter` 仍直接调用其中的服务
 - 上述遗留不改变消息权威写入主链路，但需要在跨域端口具备稳定实现后迁移至其权威服务，并移除 message 服务中的历史 ORM 与 Bean
 # 好友通过自动消息
 

@@ -15,14 +15,14 @@ spec:
     spec:
       containers:
         - name: mysql
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/mysql:8.0
+          image: registry.example.com/openware/mysql:8.0
           imagePullPolicy: Always
           args: [ --max_connections=300 ]
           env:
-            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MYSQL_ROOT_PASSWORD } } }
-            - { name: MYSQL_DATABASE, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_DATABASE } } }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: MYSQL_ROOT_PASSWORD } } }
+            - { name: MYSQL_DATABASE, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_DATABASE } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
           ports: [ { containerPort: 3306 } ]
           readinessProbe: { exec: { command: [sh, -c, 'mysqladmin ping -h localhost -p$MYSQL_ROOT_PASSWORD'] }, initialDelaySeconds: 20, periodSeconds: 5 }
           resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: '1', memory: 1Gi } }
@@ -48,10 +48,10 @@ spec:
     spec:
       containers:
         - name: redis
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/redis:7-alpine
+          image: registry.example.com/openware/redis:7-alpine
           imagePullPolicy: Always
           command: [sh, -c, 'redis-server --appendonly yes --requirepass "$REDIS_PASSWORD"']
-          env: [ { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: REDIS_PASSWORD } } } ]
+          env: [ { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: REDIS_PASSWORD } } } ]
           ports: [ { containerPort: 6379 } ]
           readinessProbe: { exec: { command: [sh, -c, 'redis-cli -a "$REDIS_PASSWORD" ping'] }, initialDelaySeconds: 10, periodSeconds: 5 }
           resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
@@ -77,11 +77,11 @@ spec:
     spec:
       containers:
         - name: mongodb
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/mongo:7.0.12
+          image: registry.example.com/openware/mongo:7.0.12
           imagePullPolicy: Always
           env:
-            - { name: MONGO_INITDB_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MONGODB_USERNAME } } }
-            - { name: MONGO_INITDB_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MONGODB_PASSWORD } } }
+            - { name: MONGO_INITDB_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: open-im-secret, key: MONGODB_USERNAME } } }
+            - { name: MONGO_INITDB_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: MONGODB_PASSWORD } } }
           ports: [ { containerPort: 27017 } ]
           readinessProbe: { tcpSocket: { port: 27017 }, initialDelaySeconds: 15, periodSeconds: 5 }
           resources: { requests: { cpu: 250m, memory: 512Mi }, limits: { cpu: '1', memory: 1Gi } }
@@ -107,12 +107,12 @@ spec:
     spec:
       containers:
         - name: minio
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/minio:RELEASE.2024-10-13T13-34-11Z
+          image: registry.example.com/openware/minio:RELEASE.2024-10-13T13-34-11Z
           imagePullPolicy: Always
           args: [server, /data]
           env:
-            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_USER } } }
-            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: MINIO_ROOT_PASSWORD } } }
+            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: open-im-secret, key: MINIO_ROOT_USER } } }
+            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: MINIO_ROOT_PASSWORD } } }
           ports: [ { containerPort: 9000 } ]
           readinessProbe: { httpGet: { path: /minio/health/live, port: 9000 }, initialDelaySeconds: 15, periodSeconds: 5 }
           resources: { requests: { cpu: 100m, memory: 256Mi }, limits: { cpu: 500m, memory: 1Gi } }
@@ -135,7 +135,7 @@ spec:
   template:
     metadata: { labels: { app: rocketmq-namesrv } }
     spec:
-      containers: [ { name: namesrv, image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91, command: [sh, mqnamesrv], ports: [ { containerPort: 9876 } ], resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } } } ]
+      containers: [ { name: namesrv, image: registry.example.com/openware/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91, command: [sh, mqnamesrv], ports: [ { containerPort: 9876 } ], resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } } } ]
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -149,14 +149,14 @@ spec:
     spec:
       initContainers:
         - name: prepare-store
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91
+          image: registry.example.com/openware/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91
           imagePullPolicy: Always
           command: [sh, -c, 'mkdir -p /home/rocketmq/store && chown -R 3000:3000 /home/rocketmq/store']
           securityContext: { runAsUser: 0, runAsGroup: 0 }
           volumeMounts: [ { name: data, mountPath: /home/rocketmq/store } ]
       containers:
         - name: broker
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91
+          image: registry.example.com/openware/rocketmq@sha256:6ad88a43aece60f4974238fa6ac7be50e6a7347d6ac223f4182534ff12b67a91
           imagePullPolicy: Always
           command: [sh, mqbroker, -c, /home/rocketmq/conf/broker.conf]
           env: [ { name: JAVA_OPT_EXT, value: '-Xms256m -Xmx256m -Xmn128m -XX:MaxDirectMemorySize=128m' } ]

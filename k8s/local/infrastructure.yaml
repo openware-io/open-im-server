@@ -18,10 +18,10 @@ spec:
           imagePullPolicy: IfNotPresent
           args: ["--max_connections=200"]
           env:
-            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
-            - { name: MYSQL_DATABASE, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_DATABASE } } }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_DATABASE, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_DATABASE } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
           ports: [ { containerPort: 3306 } ]
           readinessProbe: { exec: { command: [sh, -c, 'mysqladmin ping -h localhost -p$MYSQL_ROOT_PASSWORD'] }, initialDelaySeconds: 15, periodSeconds: 5 }
           resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
@@ -47,7 +47,7 @@ spec:
           image: redis:7-alpine
           imagePullPolicy: IfNotPresent
           command: [sh, -c, 'redis-server --requirepass "$REDIS_PASSWORD"']
-          env: [ { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: REDIS_PASSWORD } } } ]
+          env: [ { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } } ]
           ports: [ { containerPort: 6379 } ]
           readinessProbe: { exec: { command: [sh, -c, 'redis-cli -a "$REDIS_PASSWORD" ping'] }, initialDelaySeconds: 5, periodSeconds: 5 }
           resources: { requests: { cpu: 100m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
@@ -71,8 +71,8 @@ spec:
           image: mongo:7.0.12
           imagePullPolicy: IfNotPresent
           env:
-            - { name: MONGO_INITDB_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: gv-im-env, key: MONGODB_USERNAME } } }
-            - { name: MONGO_INITDB_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: MONGODB_PASSWORD } } }
+            - { name: MONGO_INITDB_ROOT_USERNAME, valueFrom: { secretKeyRef: { name: open-im-env, key: MONGODB_USERNAME } } }
+            - { name: MONGO_INITDB_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: MONGODB_PASSWORD } } }
           ports: [ { containerPort: 27017 } ]
           readinessProbe: { tcpSocket: { port: 27017 }, initialDelaySeconds: 10, periodSeconds: 5 }
           resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } }
@@ -102,8 +102,8 @@ spec:
           imagePullPolicy: IfNotPresent
           args: [server, /data, --console-address, ':9001']
           env:
-            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: MINIO_ROOT_USER } } }
-            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: MINIO_ROOT_PASSWORD } } }
+            - { name: MINIO_ROOT_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: MINIO_ROOT_USER } } }
+            - { name: MINIO_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: MINIO_ROOT_PASSWORD } } }
           ports: [ { containerPort: 9000 }, { containerPort: 9001 } ]
           readinessProbe: { httpGet: { path: /minio/health/live, port: 9000 }, initialDelaySeconds: 10, periodSeconds: 5 }
           resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: 500m, memory: 512Mi } }
@@ -123,7 +123,7 @@ spec:
   selector: { matchLabels: { app: rocketmq-namesrv } }
   template:
     metadata: { labels: { app: rocketmq-namesrv } }
-    spec: { containers: [ { name: namesrv, image: gv-im/rocketmq:5.3.1-local, command: [sh, mqnamesrv], ports: [ { containerPort: 9876 } ], resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } } } ] }
+    spec: { containers: [ { name: namesrv, image: open-im/rocketmq:5.3.1-local, command: [sh, mqnamesrv], ports: [ { containerPort: 9876 } ], resources: { requests: { cpu: 250m, memory: 256Mi }, limits: { cpu: '1', memory: 768Mi } } } ] }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -136,7 +136,7 @@ spec:
     spec:
       containers:
         - name: broker
-          image: gv-im/rocketmq:5.3.1-local
+          image: open-im/rocketmq:5.3.1-local
           imagePullPolicy: IfNotPresent
           command: [sh, mqbroker, -n, rocketmq-namesrv:9876]
           env:

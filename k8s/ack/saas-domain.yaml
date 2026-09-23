@@ -15,16 +15,16 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-tenant-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-tenant-service:2.0.3
+          image: registry.example.com/openware/platform-tenant-service:2.0.3
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4110' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
           ports: [ { containerPort: 4110 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 40, periodSeconds: 10 }
@@ -47,15 +47,15 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-resource-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-resource-service:2.0.2
+          image: registry.example.com/openware/platform-resource-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4120' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
           ports: [ { containerPort: 4120 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 40, periodSeconds: 10 }
@@ -78,14 +78,14 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-order-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-order-service:2.0.7
+          image: registry.example.com/openware/platform-order-service:2.0.7
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4130' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
             - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
@@ -111,14 +111,14 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-payment-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/common-payment-service:2.0.2
+          image: registry.example.com/openware/common-payment-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4140' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
             - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
           ports: [ { containerPort: 4140 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4140 }, initialDelaySeconds: 30, periodSeconds: 5 }

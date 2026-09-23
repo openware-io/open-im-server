@@ -91,13 +91,13 @@ spec:
         - name: platform-identity-service
           image: __APP_IMAGE_PLATFORM_IDENTITY_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4100' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: REDIS_HOST, value: redis }
             - { name: IM_SERVICE_BASE_URL, value: http://im-user-service:3100 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
@@ -107,7 +107,7 @@ spec:
             - { name: SAAS_DEV_SESSION_ENABLED, value: 'true' }
             - { name: SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID, value: '101' }
             - { name: SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID, value: '100' }
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             # 本地 Kind 走 http(含真机 adb reverse 的 127.0.0.1):Android WebView 会丢弃 http 下 __Host-+Secure
             # Set-Cookie,必须用无前缀非 Secure 别名(saas_c_session),否则 C 端会话在真机上无法建立。
@@ -128,17 +128,17 @@ spec:
         - name: platform-tenant-service
           image: __APP_IMAGE_PLATFORM_TENANT_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4110' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: SPRING_DATA_REDIS_HOST, value: redis }
             - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
-            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: REDIS_PASSWORD } } }
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
           ports: [ { containerPort: 4110 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4110 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -155,13 +155,13 @@ spec:
         - name: platform-resource-service
           image: __APP_IMAGE_PLATFORM_RESOURCE_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4120' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
           ports: [ { containerPort: 4120 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 30, periodSeconds: 5 }
@@ -179,13 +179,13 @@ spec:
         - name: platform-order-service
           image: __APP_IMAGE_PLATFORM_ORDER_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4130' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
@@ -206,13 +206,13 @@ spec:
         - name: common-payment-service
           image: __APP_IMAGE_COMMON_PAYMENT_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4140' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             - { name: CUSTOMER_SERVICE_BASE_URL, value: http://platform-customer-service:4160 }
           ports: [ { containerPort: 4140 } ]
@@ -231,17 +231,17 @@ spec:
         - name: platform-customer-service
           image: __APP_IMAGE_PLATFORM_CUSTOMER_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4160' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             # 钱包「代币数量」展示口径：读取租户代币品牌名/ratio（/internal/iam/tenant-config/{id}/wallet-token）。
             # secret 必须与 platform-tenant-service 一致，否则 401 后品牌静默回退 A380币/100。
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
           ports: [ { containerPort: 4160 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4160 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -258,13 +258,13 @@ spec:
         - name: platform-marketing-service
           image: __APP_IMAGE_PLATFORM_MARKETING_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4170' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
           ports: [ { containerPort: 4170 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4170 }, initialDelaySeconds: 30, periodSeconds: 5 }
@@ -282,15 +282,15 @@ spec:
         - name: common-audit-service
           image: __APP_IMAGE_COMMON_AUDIT_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4190' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
-            # 审计存储切到独立 schema gv_audit（月分区主表 + 幂等台账 + 归档清单），与 ACK 同一 profile。
-            # 本地不需要手工建库：k8s/local/mysql-saas-init-job.yaml 已建出 gv_audit 并授权。
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+            # 审计存储切到独立 schema open_audit（月分区主表 + 幂等台账 + 归档清单），与 ACK 同一 profile。
+            # 本地不需要手工建库：k8s/local/mysql-saas-init-job.yaml 已建出 open_audit 并授权。
             - { name: SPRING_PROFILES_ACTIVE, value: audit-schema }
             # 自留审计刻意不注入上报地址：本服务的上报目标就是自己，默认 http://localhost:4190
             # 直接进本 Pod 的 4190 端口；走 Service ClusterIP 回连自己会因 hairpin 以
@@ -311,13 +311,13 @@ spec:
         - name: common-payment-channel-service
           image: __APP_IMAGE_COMMON_PAYMENT_CHANNEL_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4180' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
           ports: [ { containerPort: 4180 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -334,13 +334,13 @@ spec:
         - name: common-sms-service
           image: __APP_IMAGE_COMMON_SMS_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4200' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
           ports: [ { containerPort: 4200 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4200 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -357,13 +357,13 @@ spec:
         - name: common-mail-service
           image: __APP_IMAGE_COMMON_MAIL_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4210' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
           ports: [ { containerPort: 4210 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4210 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -380,14 +380,14 @@ spec:
         - name: group-idaas-service
           image: __APP_IMAGE_GROUP_IDAAS_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4220' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_DATABASE, value: gv_saas }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_DATABASE, value: open_saas }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: REDIS_HOST, value: redis }
             - { name: REDIS_PORT, value: '6379' }
           ports: [ { containerPort: 4220 } ]
@@ -406,13 +406,13 @@ spec:
         - name: platform-admin-service
           image: __APP_IMAGE_PLATFORM_ADMIN_SERVICE__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4150' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_USERNAME } } }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-env, key: DB_PASSWORD } } }
+            - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: REDIS_HOST, value: redis }
             - { name: REDIS_PORT, value: '6379' }
             - { name: IDAAS_SERVICE_BASE_URL, value: http://group-idaas-service:4220 }

@@ -2,7 +2,7 @@ spring:
   application:
     name: platform-order-service
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/gv_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:
@@ -33,7 +33,7 @@ im:
   mq:
     namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:localhost:9876}
     producer-group: ${PLATFORM_ORDER_SERVICE_MQ_PRODUCER_GROUP:platform-order-service-producer}
-    consumer-group-prefix: ${PLATFORM_ORDER_SERVICE_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+    consumer-group-prefix: ${PLATFORM_ORDER_SERVICE_MQ_CONSUMER_GROUP_PREFIX:open_im}
 app:
   # 包厢/服务人员价格以租户后台「计价方案」为准（/internal/pricing-plans）；
   # 读不到时用本文件 ktv.pricing 的默认值。

@@ -7,12 +7,12 @@ param(
   # 增量开发发版：只构建/推送列出的服务，清单里也只列出这些服务（配合 k8s-scoped.ps1 部署）。
   # 留空表示按既有行为构建全部服务；不能与 -FormalRelease 同时使用（正式发版用 -FormalTargets）。
   [string[]]$Targets = @(),
-  [string]$Registry = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com',
-  [string]$RepositoryNamespace = 'meta-cogni'
+  [string]$Registry = 'registry.example.com',
+  [string]$RepositoryNamespace = 'openware'
 )
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$projects = @{ 'pc-admin'='D:\projects\cnb\gv_chat_admin'; 'saas-admin'='D:\projects\cnb\gv_saas_admin'; 'saas-mobile'='D:\projects\cnb\gv_saas_mobile'; 'unified-portal'=(Join-Path $root 'portal') }
+$projects = @{ 'pc-admin'='D:\projects\cnb-oss\open-chat-admin'; 'saas-admin'='D:\projects\cnb-oss\open-saas-admin'; 'saas-mobile'='D:\projects\cnb-oss\open-saas-mobile'; 'unified-portal'=(Join-Path $root 'portal') }
 $createdAt=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); $timestamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $revision=(& git -C $root rev-parse --short HEAD).Trim(); if(!$revision){throw 'Cannot resolve git revision.'}
 $registryPrefix="$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))"

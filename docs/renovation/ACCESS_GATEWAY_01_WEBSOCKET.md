@@ -75,7 +75,7 @@ im-access-ws
 ## 5. 目标工程结构
 
 ```text
-com.gvchat.im.accessws
+io.openware.im.accessws
 ├── ImAccessWsApplication.java
 ├── websocket
 │   ├── config
@@ -149,7 +149,7 @@ com.gvchat.im.accessws
 ### 批次 3：清理、依赖与发布验证
 
 1. 删除全部业务副本、MyBatis 依赖、MySQL 驱动、编译排除项及失效测试。
-2. 将启动扫描收敛至 `com.gvchat.im.accessws`，显式装配需要的平台组件。
+2. 将启动扫描收敛至 `io.openware.im.accessws`，显式装配需要的平台组件。
 3. 补齐握手认证、Origin、帧校验、命令发布、ACK 状态机、事件幂等、跨节点路由和配置启动测试。
 4. 执行网关局部与根 Reactor `clean verify`，完成 MQ 回放、重复投递、节点故障和客户端重连演练。
 

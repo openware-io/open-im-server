@@ -1,3 +1,0 @@
-package com.gvchat.im.admin.domain.clientrelease.model;
-import java.util.Arrays;
-public enum ReleaseOperationAction { CREATE("create"), UPDATE("update"), SUBMIT("submit"), ROLLOUT("rollout"), PAUSE("pause"), RESUME("resume"), WITHDRAW("withdraw"), ARCHIVE("archive"), UPSERT_POLICY("upsert_policy"), SCHEDULED_PUBLISH("scheduled_publish"); private final String databaseValue; ReleaseOperationAction(String databaseValue) { this.databaseValue = databaseValue; } public String databaseValue() { return databaseValue; } public static ReleaseOperationAction fromDatabaseValue(String value) { return Arrays.stream(values()).filter(item -> item.databaseValue.equals(value)).findFirst().orElseThrow(() -> new IllegalArgumentException("Unknown release operation action: " + value)); } }

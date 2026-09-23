@@ -11,37 +11,37 @@
 -- 1) 分区清单：应看到 pmin、连续月分区、pmax
 SELECT PARTITION_NAME, PARTITION_DESCRIPTION, TABLE_ROWS
 FROM information_schema.PARTITIONS
-WHERE TABLE_SCHEMA = 'gv_audit' AND TABLE_NAME = 'iam_audit_log'
+WHERE TABLE_SCHEMA = 'open_audit' AND TABLE_NAME = 'iam_audit_log'
 ORDER BY PARTITION_ORDINAL_POSITION;
 
 -- 2) 唯一索引必须包含分区列：期望返回 0 行
 SELECT INDEX_NAME, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) AS columns_in_index
 FROM information_schema.STATISTICS
-WHERE TABLE_SCHEMA = 'gv_audit' AND TABLE_NAME = 'iam_audit_log' AND NON_UNIQUE = 0
+WHERE TABLE_SCHEMA = 'open_audit' AND TABLE_NAME = 'iam_audit_log' AND NON_UNIQUE = 0
 GROUP BY INDEX_NAME
 HAVING SUM(COLUMN_NAME = 'occurred_at') = 0;
 
 -- 3) 分区裁剪：partitions 列应只出现被筛选到的分区（示例区间=2026-09，期望 p202609）
 EXPLAIN
-SELECT id, action, occurred_at FROM gv_audit.iam_audit_log
+SELECT id, action, occurred_at FROM open_audit.iam_audit_log
 WHERE occurred_at >= '2026-09-01 00:00:00' AND occurred_at < '2026-10-01 00:00:00'
 ORDER BY occurred_at DESC LIMIT 20;
 
 -- 4) 兜底分区可写：远未来时间应落进 pmax 而不是报错（ERROR 1526 = 无匹配分区）
-SELECT COUNT(*) AS pmax_rows_before FROM gv_audit.iam_audit_log PARTITION (pmax);
-INSERT INTO gv_audit.iam_audit_log
+SELECT COUNT(*) AS pmax_rows_before FROM open_audit.iam_audit_log PARTITION (pmax);
+INSERT INTO open_audit.iam_audit_log
   (tenant_id, action, action_label, resource_type, result, idempotency_key, occurred_at, created_at)
 VALUES
   (0, 'audit.partition.verify', '分区校验', 'audit', 'SUCCESS', 'partition-verify', '2099-01-01 00:00:00', NOW(3));
-SELECT COUNT(*) AS pmax_rows_after FROM gv_audit.iam_audit_log PARTITION (pmax);
+SELECT COUNT(*) AS pmax_rows_after FROM open_audit.iam_audit_log PARTITION (pmax);
 -- 清理探针行（只删探针自己，审计表本身不允许业务删除）
-DELETE FROM gv_audit.iam_audit_log
+DELETE FROM open_audit.iam_audit_log
 WHERE idempotency_key = 'partition-verify' AND occurred_at = '2099-01-01 00:00:00';
-SELECT COUNT(*) AS pmax_rows_cleaned FROM gv_audit.iam_audit_log PARTITION (pmax);
+SELECT COUNT(*) AS pmax_rows_cleaned FROM open_audit.iam_audit_log PARTITION (pmax);
 
 -- 5) 幂等台账在位（唯一性职责已从主表迁出）
 SELECT COUNT(*) AS ledger_unique_keys
 FROM information_schema.STATISTICS
-WHERE TABLE_SCHEMA = 'gv_audit' AND TABLE_NAME = 'iam_audit_idempotency' AND NON_UNIQUE = 0
+WHERE TABLE_SCHEMA = 'open_audit' AND TABLE_NAME = 'iam_audit_idempotency' AND NON_UNIQUE = 0
   AND COLUMN_NAME IN ('tenant_id', 'idempotency_key');
 -- 期望 2（(tenant_id, idempotency_key) 复合唯一键）

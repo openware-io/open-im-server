@@ -15,18 +15,18 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: group-idaas-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/group-idaas-service:2.0.2
+          image: registry.example.com/openware/group-idaas-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: MYSQL_DATABASE, value: gv_saas }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: MYSQL_DATABASE, value: open_saas }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             - { name: REDIS_HOST, value: redis }
             - { name: REDIS_PORT, value: '6379' }
-            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: REDIS_PASSWORD } } }
+            - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: REDIS_PASSWORD } } }
           ports: [ { containerPort: 4220 } ]
           readinessProbe: { httpGet: { path: /idaas/actuator/health, port: 4220 }, initialDelaySeconds: 20, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /idaas/actuator/health, port: 4220 }, initialDelaySeconds: 30, periodSeconds: 10 }

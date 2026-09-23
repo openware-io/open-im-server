@@ -93,13 +93,13 @@
 ### Task 1: 建立统一 OIDC Provider 与 Client Registry
 
 **Files:**
-- Create: `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/api/controller/OidcMetadataController.java`
-- Create: `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/api/controller/OidcAuthorizationController.java`
-- Modify: `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/application/openplatform/OpenPlatformApplicationService.java`
-- Modify: `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/api/dto/request/OauthTokenRequest.java`
-- Modify: `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/api/dto/response/OauthTokenResponse.java`
+- Create: `im-services/user/im-user-service/src/main/java/io/openware/im/user/api/controller/OidcMetadataController.java`
+- Create: `im-services/user/im-user-service/src/main/java/io/openware/im/user/api/controller/OidcAuthorizationController.java`
+- Modify: `im-services/user/im-user-service/src/main/java/io/openware/im/user/application/openplatform/OpenPlatformApplicationService.java`
+- Modify: `im-services/user/im-user-service/src/main/java/io/openware/im/user/api/dto/request/OauthTokenRequest.java`
+- Modify: `im-services/user/im-user-service/src/main/java/io/openware/im/user/api/dto/response/OauthTokenResponse.java`
 - Create: `im-services/user/im-user-service/src/main/resources/db/migration/V20__user_oidc_registry.sql`（确认当前版本后顺延；表名使用 `user_` 前缀）
-- Create: `im-services/user/im-user-service/src/test/java/com/gvchat/im/user/application/openplatform/OidcProviderContractTest.java`
+- Create: `im-services/user/im-user-service/src/test/java/io/openware/im/user/application/openplatform/OidcProviderContractTest.java`
 
 **Interfaces:**
 - Consumes: existing `OpenApplicationRepository`, `AuthorizationCodeStore`, `OauthTokenStore`, `OpenUserAuthorizationRepository`。
@@ -140,23 +140,23 @@ Expected: 所有标准参数、签名、scope、重放和撤销用例通过。
 ### Task 2: 收敛 SaaS BFF、身份映射和 B 端企业授权
 
 **Files:**
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/infra/oauth/ImOAuthClient.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/application/OAuthImBindApplicationService.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/api/controller/OAuthImBindController.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/application/AuthContextApplicationService.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/infra/client/TenantServiceClient.java`
-- Modify: `platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/infra/security/SaasUserSessionCookie.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/infra/oauth/ImOAuthClient.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/application/OAuthImBindApplicationService.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/api/controller/OAuthImBindController.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/application/AuthContextApplicationService.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/infra/client/TenantServiceClient.java`
+- Modify: `platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/infra/security/SaasUserSessionCookie.java`
 - Create: `platform-services/identity/platform-identity-service/src/main/resources/db/migration/V6__idt_federated_identity.sql`
 - Create: `platform-services/tenant/platform-tenant-service/src/main/resources/db/migration/V16__tnt_app_installation_and_scope.sql`（`V15` 已被权限版本归一迁移占用；以实际当前最大版本顺延）
-- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/application/PermissionSnapshotProvider.java`
-- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/infra/authorization/PermissionSnapshotCache.java`
-- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/infra/persistence/mapper/IamSnapshotMapper.java`
-- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/api/controller/InternalIamController.java`
-- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/api/controller/IamController.java`
-- Modify: `sdk/infrastructure/src/main/java/com/gvchat/infrastructure/tenant/TenantContextFilter.java`
-- Modify: `gateways/gateway/src/main/java/com/gvchat/gateway/security/SaasSessionAuthenticationFilter.java`
-- Create: `platform-services/identity/platform-identity-service/src/test/java/com/gvchat/platform/identity/application/OidcBffBindingTest.java`
-- Create: `platform-services/identity/platform-identity-service/src/test/java/com/gvchat/platform/identity/application/TenantAppAuthorizationTest.java`
+- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/application/PermissionSnapshotProvider.java`
+- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/infra/authorization/PermissionSnapshotCache.java`
+- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/infra/persistence/mapper/IamSnapshotMapper.java`
+- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/api/controller/InternalIamController.java`
+- Modify: `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/api/controller/IamController.java`
+- Modify: `sdk/infrastructure/src/main/java/io/openware/infrastructure/tenant/TenantContextFilter.java`
+- Modify: `gateways/gateway/src/main/java/io/openware/gateway/security/SaasSessionAuthenticationFilter.java`
+- Create: `platform-services/identity/platform-identity-service/src/test/java/io/openware/platform/identity/application/OidcBffBindingTest.java`
+- Create: `platform-services/identity/platform-identity-service/src/test/java/io/openware/platform/identity/application/TenantAppAuthorizationTest.java`
 
 **Interfaces:**
 - Consumes: Provider 标准 code exchange、ID Token、JWKS 和租户安装记录。

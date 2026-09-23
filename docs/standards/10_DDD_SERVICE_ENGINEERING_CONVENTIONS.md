@@ -195,7 +195,7 @@
     │       ├── mybatis/mapper
     │       └── db/migration
     └── test
-        └── java/com/gvchat/im/<domain>
+        └── java/io/openware/im/<domain>
             ├── domain
             ├── application
             └── infra

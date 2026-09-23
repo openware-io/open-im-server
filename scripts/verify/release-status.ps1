@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-  [string]$Namespace = 'gv-im-local',
+  [string]$Namespace = 'open-im-local',
   [string]$OutputPath
 )
 
@@ -54,13 +54,13 @@ $rows = foreach ($deployment in $deployments) {
   [pscustomobject][ordered]@{
     Service = $deployment.metadata.name
     MavenVersion = Get-AnnotationValue -Annotations $annotations -Name 'org.opencontainers.image.version'
-    ReleaseId = Get-AnnotationValue -Annotations $annotations -Name 'release.gv-im.local/id'
-    GitCommit = Get-AnnotationValue -Annotations $annotations -Name 'release.gv-im.local/code-sha'
-    ArtifactSha256 = Get-AnnotationValue -Annotations $annotations -Name 'release.gv-im.local/artifact-sha256'
+    ReleaseId = Get-AnnotationValue -Annotations $annotations -Name 'release.open-im.local/id'
+    GitCommit = Get-AnnotationValue -Annotations $annotations -Name 'release.open-im.local/code-sha'
+    ArtifactSha256 = Get-AnnotationValue -Annotations $annotations -Name 'release.open-im.local/artifact-sha256'
     Image = $container.image
     ImageDigest = if ($null -eq $containerStatus) { '' } else { [string]$containerStatus.imageID }
     Pod = if ($null -eq $pod) { '' } else { [string]$pod.metadata.name }
-    DeployedAt = Get-AnnotationValue -Annotations $annotations -Name 'release.gv-im.local/deployed-at'
+    DeployedAt = Get-AnnotationValue -Annotations $annotations -Name 'release.open-im.local/deployed-at'
     Ready = $ready
   }
 }

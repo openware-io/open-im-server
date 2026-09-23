@@ -17,7 +17,7 @@
 
 `im-message` 的消息写模型、已读状态、Outbox、HTTP 入站层和核心分层已基本完成规范化，但仍保存好友、群组、群成员等跨域历史 ORM 副本，并由历史适配器依赖全局根包服务。
 
-`im-conversation` 仍处于历史结构：业务 DTO 位于 `com.gvchat.common.dto`，领域服务、MyBatis 实体和 Mapper 风格 Repository 位于 `com.gvchat.im.domain`，Controller 直接调用领域服务并返回领域对象。启动扫描已收敛到本域根包，但历史业务 Bean 尚未迁入该根包，存在无法完成 Spring 装配的风险。
+`im-conversation` 仍处于历史结构：业务 DTO 位于 `io.openware.common.dto`，领域服务、MyBatis 实体和 Mapper 风格 Repository 位于 `io.openware.im.domain`，Controller 直接调用领域服务并返回领域对象。启动扫描已收敛到本域根包，但历史业务 Bean 尚未迁入该根包，存在无法完成 Spring 装配的风险。
 
 两个服务需要作为一项联合治理处理：群组、群成员、角色、禁言和群状态是 conversation 域事实；message 发送前需要这些事实完成即时授权校验，但不应再复制或直连它们。
 
@@ -36,7 +36,7 @@
 1. 不在本轮拆分新的微服务，不将群组能力拆出 conversation。
 2. 不重定义客户端 WebSocket 协议、既有消息命令 Topic、消费组或消息顺序策略。
 3. 不将 MongoDB、Redis 或接入网关升级为权威业务库。
-4. 不以扩大 `@ComponentScan` 至 `com.gvchat.im` 作为兼容方案。
+4. 不以扩大 `@ComponentScan` 至 `io.openware.im` 作为兼容方案。
 5. 不允许以 Service Maven 依赖、共享 Mapper、共享业务实体或跨库事务取代稳定契约。
 
 ## 3. 已确认架构决策
@@ -74,7 +74,7 @@ api -> application -> domain <- infra
 | PO、Mapper、Repository Adapter | `infra.persistence` | 关系型持久化实现 | 向 API、Application、Domain 泄露 |
 | 远程调用、MQ 消费发布、Redis、Mongo | `infra.integration`、`infra.messaging`、`infra.cache`、`infra.projection` | 技术适配 | 反向承载领域规则 |
 
-`common` 仅允许保留当前服务内部的异常、无业务语义工具和局部技术配置。不得把业务 DTO、实体、Repository、Service、跨域模型放入 `common`，不得再使用服务源码根包 `com.gvchat.common` 或 `com.gvchat.im.domain` 承载业务实现。
+`common` 仅允许保留当前服务内部的异常、无业务语义工具和局部技术配置。不得把业务 DTO、实体、Repository、Service、跨域模型放入 `common`，不得再使用服务源码根包 `io.openware.common` 或 `io.openware.im.domain` 承载业务实现。
 
 ### 3.3 跨服务协作模型
 
@@ -121,7 +121,7 @@ Outbox Relay -> RocketMQ -> Mongo / Redis / 下游投影
 
 | 编号 | 优先级 | 当前偏差 | 风险 | 目标处理 |
 | --- | --- | --- | --- | --- |
-| C-01 | P0 | 启动扫描已限定 `com.gvchat.im.conversation`，但 `GroupService`、RTC、配置等核心 Bean 仍位于 `com.gvchat.im.domain` | Controller 依赖无法装配，服务无法可靠启动 | 同一批次迁移到本域包；不扩大扫描范围 |
+| C-01 | P0 | 启动扫描已限定 `io.openware.im.conversation`，但 `GroupService`、RTC、配置等核心 Bean 仍位于 `io.openware.im.domain` | Controller 依赖无法装配，服务无法可靠启动 | 同一批次迁移到本域包；不扩大扫描范围 |
 | C-02 | P0 | `Group`、`GroupMember`、`SystemConfig` 为 MyBatis-Plus 实体，Repository 直接继承 `BaseMapper`，服务使用 MyBatis Wrapper | 领域规则、持久化和框架耦合，无法测试与演进 | 拆出纯领域模型、Repository 契约、PO、Mapper、Adapter、Converter |
 | C-03 | P0 | Flyway 被关闭，POM 缺 Flyway Starter 与 MySQL 适配器，未见权威迁移目录 | 无法空库重建、版本升级和追溯表归属 | 建立 conversation 专属 Flyway 基线与增量迁移 |
 | C-04 | P0 | 映射历史 `system_configs` | 与 admin 的配置事实所有权冲突 | 删除实体、Mapper、服务与写路径，改为 admin 协作 |
@@ -135,7 +135,7 @@ Outbox Relay -> RocketMQ -> Mongo / Redis / 下游投影
 | --- | --- | --- | --- | --- |
 | M-01 | P0 | `LegacyGroupMembershipAdapter`、`LegacyFriendRelationAdapter` 依赖历史全局根包服务 | 本域扫描后 Bean 依赖不可满足，跨域实现不稳定 | 改为对方版本化内部 Query API 或授权投影适配器 |
 | M-02 | P1 | `Friend`、`FriendRequest`、`Group`、`GroupMember` 及 Mapper 风格 Repository 位于消息服务源码 | message 跨域读取、持久化模型复制、表所有权模糊 | 先替换调用，再删除全部历史副本 |
-| M-03 | P1 | `com.gvchat.common.dto` 保留历史好友、群组 DTO | 业务模型归属不清，可能继续被错误复用 | 删除随遗留副本消失的 DTO；消息私有 DTO 迁至 `message.api.dto` |
+| M-03 | P1 | `io.openware.common.dto` 保留历史好友、群组 DTO | 业务模型归属不清，可能继续被错误复用 | 删除随遗留副本消失的 DTO；消息私有 DTO 迁至 `message.api.dto` |
 | M-04 | P1 | Mongo 投影目录仍为 `message.projection` | 基础设施职责未完全归位 | 迁至 `message.infra.projection`，保持事件与索引语义不变 |
 | M-05 | P1 | 架构测试未禁止历史根包和跨域表映射 | 已知遗留可以回流 | 在删除遗留后升级为强制失败门禁 |
 
@@ -150,7 +150,7 @@ Outbox Relay -> RocketMQ -> Mongo / Redis / 下游投影
 ### 5.1 conversation
 
 ```text
-com.gvchat.im.conversation
+io.openware.im.conversation
 ├── ImConversationServiceApplication.java
 ├── api
 │   ├── controller
@@ -197,7 +197,7 @@ com.gvchat.im.conversation
 ### 5.2 message
 
 ```text
-com.gvchat.im.message
+io.openware.im.message
 ├── api
 │   ├── controller
 │   ├── dto
@@ -320,7 +320,7 @@ ConversationAuthorizationChangedEvent
 4. 为现有跨域表、Mapper、实体、Repository、SQL 和调用点建立只读遗留清单，冻结新增路径。
 5. 冻结 `GroupMessageAuthorizationQuery`、响应 DTO、服务身份、超时、错误码、审计字段和降级策略。
 6. 冻结 conversation 授权变化事件的 Topic、消费者组、Payload、`conversationId` 顺序键和版本策略。
-7. 增加报告模式架构测试：发现 `com.gvchat.common.dto`、`com.gvchat.im.domain`、跨域 Mapper 和跨服务 Service 依赖时输出明确清单，暂不以历史存量阻断构建。
+7. 增加报告模式架构测试：发现 `io.openware.common.dto`、`io.openware.im.domain`、跨域 Mapper 和跨服务 Service 依赖时输出明确清单，暂不以历史存量阻断构建。
 
 **不做事项**：不删除历史代码，不改表结构，不更改既有 HTTP/MQ 对外语义。
 
@@ -394,7 +394,7 @@ ConversationAuthorizationChangedEvent
 2. 消费 conversation 授权变化事件，建立 Redis 授权投影；投影只用于加速和受控降级，缺失或版本不确定时回退至同步查询。
 3. 将 `LegacyFriendRelationAdapter` 重写为 `infra.integration.user` 适配器，调用 user 的稳定好友关系 Query 或权威授权投影。
 4. 删除 message 历史 `Friend`、`FriendRequest`、`Group`、`GroupMember`、相关 Mapper 风格 Repository、Service、PO、SQL 与无效配置。
-5. 删除随历史副本消失的 `com.gvchat.common.dto`；消息本域 HTTP DTO 必须迁入 `message.api.dto`。
+5. 删除随历史副本消失的 `io.openware.common.dto`；消息本域 HTTP DTO 必须迁入 `message.api.dto`。
 6. 将 Mongo 热消息、离线收件箱和投影服务从 `message.projection` 迁至 `message.infra.projection`，保持集合名、索引、事件消费顺序与查询行为兼容。
 7. 保持消息写库与 Outbox 同事务，不改变 `msg_` 表所有权、命令幂等和 `conversationId` 顺序键。
 
@@ -418,7 +418,7 @@ ConversationAuthorizationChangedEvent
 
 **工作项**：
 
-1. 删除两个服务中的全局历史根包 `com.gvchat.common.dto`、`com.gvchat.im.domain` 及其空目录。
+1. 删除两个服务中的全局历史根包 `io.openware.common.dto`、`io.openware.im.domain` 及其空目录。
 2. 完成 Controller、DTO、Application、Domain、Infra 包归位；保留服务私有 `common.exception` 时必须位于服务根包内。
 3. 将 message 与 conversation 投影、缓存、MQ、远程调用配置统一收敛到 `infra`。
 4. 将报告模式架构测试升级为强制失败：禁止全局历史根包、跨域表映射、跨服务 Service 依赖、领域框架依赖、PO/Mapper 越层、Controller 直连基础设施。
@@ -457,11 +457,11 @@ ConversationAuthorizationChangedEvent
 
 | 当前区域 | 处理 | 目标区域 |
 | --- | --- | --- |
-| `com.gvchat.common.dto` 下群组 DTO | 迁移并拆分为 HTTP Request/Response | `com.gvchat.im.conversation.api.dto` |
-| `com.gvchat.im.domain.entity.Group`、`GroupMember` | 拆为纯领域模型与持久化 PO | `domain.group.model`、`infra.persistence.group.po` |
-| `com.gvchat.im.domain.repository.GroupRepository` 等 | 拆为领域契约与基础设施 Adapter | `domain.group.repository`、`infra.persistence.group.repository` |
-| `com.gvchat.im.domain.service.GroupService` | 拆为聚合行为、领域策略和应用用例 | `domain.group`、`application.group` |
-| `com.gvchat.im.domain.service.RtcService`、`RtcIceService` | 迁移并按职责拆分 | `domain.rtc`、`application.rtc`、`infra.integration` |
+| `io.openware.common.dto` 下群组 DTO | 迁移并拆分为 HTTP Request/Response | `io.openware.im.conversation.api.dto` |
+| `io.openware.im.domain.entity.Group`、`GroupMember` | 拆为纯领域模型与持久化 PO | `domain.group.model`、`infra.persistence.group.po` |
+| `io.openware.im.domain.repository.GroupRepository` 等 | 拆为领域契约与基础设施 Adapter | `domain.group.repository`、`infra.persistence.group.repository` |
+| `io.openware.im.domain.service.GroupService` | 拆为聚合行为、领域策略和应用用例 | `domain.group`、`application.group` |
+| `io.openware.im.domain.service.RtcService`、`RtcIceService` | 迁移并按职责拆分 | `domain.rtc`、`application.rtc`、`infra.integration` |
 | `SystemConfig`、`AppConfigService` 及关联 Mapper | 删除；改为 admin 协作 | `infra.integration.admin` 或 `infra.cache` |
 | `GroupController`、`RtcController` | 改为 DTO + Application Service 入口 | `api.controller` |
 | `InternalAdminConversationQueryController` | 改为版本化内部契约入口 | `api.controller.internal` 与 `im-conversation-api` |
@@ -471,14 +471,14 @@ ConversationAuthorizationChangedEvent
 
 | 当前区域 | 处理 | 目标区域 |
 | --- | --- | --- |
-| `com.gvchat.im.domain.entity.Friend`、`FriendRequest` | 删除 | user 契约或 user 授权投影 |
-| `com.gvchat.im.domain.entity.Group`、`GroupMember` | 删除 | conversation 授权 Query 或投影 |
+| `io.openware.im.domain.entity.Friend`、`FriendRequest` | 删除 | user 契约或 user 授权投影 |
+| `io.openware.im.domain.entity.Group`、`GroupMember` | 删除 | conversation 授权 Query 或投影 |
 | 对应 `BaseMapper` 风格 Repository | 删除 | `infra.integration.user`、`infra.integration.conversation` |
 | `LegacyFriendRelationAdapter` | 替换 | user API Client Adapter |
 | `LegacyGroupMembershipAdapter` | 替换 | conversation API Client Adapter |
-| `com.gvchat.common.dto` 历史好友/群组 DTO | 删除或迁移 | 删除；仅消息 HTTP DTO 留在 `api.dto` |
-| `com.gvchat.im.message.projection` | 移动 | `com.gvchat.im.message.infra.projection` |
-| `MessageLayerArchitectureTest` | 扩展并升级强制门禁 | `src/test/java/com/gvchat/im/message` |
+| `io.openware.common.dto` 历史好友/群组 DTO | 删除或迁移 | 删除；仅消息 HTTP DTO 留在 `api.dto` |
+| `io.openware.im.message.projection` | 移动 | `io.openware.im.message.infra.projection` |
+| `MessageLayerArchitectureTest` | 扩展并升级强制门禁 | `src/test/java/io/openware/im/message` |
 
 实际文件移动必须在实施批次开始前以当前 Git 工作区为准复核；文档清单用于定义职责与迁移方向，不应作为盲目批量重命名脚本的输入。
 
@@ -514,7 +514,7 @@ ConversationAuthorizationChangedEvent
 ### 10.1 必须新增或扩展的门禁
 
 1. conversation 分层测试：检查 `api`、`application`、`domain`、`infra` 导入方向，领域框架依赖禁令，PO/Mapper 位置和 Controller 返回对象约束。
-2. message 架构测试：禁止 `com.gvchat.im.domain`、`com.gvchat.common.dto` 历史根包、好友/群组跨域 Mapper、跨服务 Service 依赖和投影目录回退。
+2. message 架构测试：禁止 `io.openware.im.domain`、`io.openware.common.dto` 历史根包、好友/群组跨域 Mapper、跨服务 Service 依赖和投影目录回退。
 3. POM 依赖边界测试：业务数据库服务只使用 MyBatis-Plus Boot Starter，不直接声明底层 MyBatis 组件；持有 Flyway 脚本的服务具备 Flyway Starter 和 MySQL 适配器。
 4. Flyway 测试：空库初始化、历史库升级、迁移表集合、关键索引与中文注释校验。
 5. 契约测试：conversation 授权 Query、user 好友 Query、授权事件 Payload、错误码、服务身份与超时映射。

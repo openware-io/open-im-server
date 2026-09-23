@@ -89,14 +89,14 @@ git -C D:\projects\cnb\gv_im_server status --porcelain
 
 | 服务 | 统一出口位置 |
 |---|---|
-| platform-order | `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/handler/GlobalExceptionHandler.java:41-45` |
-| platform-resource | `platform-services/resource/platform-resource-service/src/main/java/com/gvchat/platform/resource/handler/GlobalExceptionHandler.java:84-91` |
-| platform-tenant | `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/handler/GlobalExceptionHandler.java:85-92` |
-| common-media | `common-services/media/common-media-service/src/main/java/com/gvchat/common/media/handler/GlobalExceptionHandler.java:38-43` |
-| im-admin | `im-services/admin/im-admin-service/src/main/java/com/gvchat/im/admin/handler/GlobalExceptionHandler.java:62-67` |
-| im-conversation | `im-services/conversation/im-conversation-service/src/main/java/com/gvchat/im/conversation/handler/GlobalExceptionHandler.java:53-58` |
-| im-message | `im-services/message/im-message-service/src/main/java/com/gvchat/im/message/handler/GlobalExceptionHandler.java:52-57` |
-| im-user | `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/handler/GlobalExceptionHandler.java:69-74` |
+| platform-order | `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/handler/GlobalExceptionHandler.java:41-45` |
+| platform-resource | `platform-services/resource/platform-resource-service/src/main/java/io/openware/platform/resource/handler/GlobalExceptionHandler.java:84-91` |
+| platform-tenant | `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/handler/GlobalExceptionHandler.java:85-92` |
+| common-media | `common-services/media/common-media-service/src/main/java/io/openware/common/media/handler/GlobalExceptionHandler.java:38-43` |
+| im-admin | `im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/handler/GlobalExceptionHandler.java:62-67` |
+| im-conversation | `im-services/conversation/im-conversation-service/src/main/java/io/openware/im/conversation/handler/GlobalExceptionHandler.java:53-58` |
+| im-message | `im-services/message/im-message-service/src/main/java/io/openware/im/message/handler/GlobalExceptionHandler.java:52-57` |
+| im-user | `im-services/user/im-user-service/src/main/java/io/openware/im/user/handler/GlobalExceptionHandler.java:69-74` |
 
 - **现象**：`@ExceptionHandler(Exception.class)` 的匹配优先级高于 `DefaultHandlerExceptionResolver`，把 Spring 用于表达 4xx 的框架异常全部截获。Pod 日志原文（`platform-resource-service`）：
   `org.springframework.web.HttpRequestMethodNotSupportedException: Request method 'GET' is not supported`
@@ -164,7 +164,7 @@ GET  http://im-user-service:3100/oauth/zzz
 
 #### H-3 静默 500：有响应、无日志 —— `common-media` + 4 个 IM 服务
 
-- **位置**：同 H-2 四处 + `common-services/media/common-media-service/src/main/java/com/gvchat/common/media/handler/GlobalExceptionHandler.java:38-43`
+- **位置**：同 H-2 四处 + `common-services/media/common-media-service/src/main/java/io/openware/common/media/handler/GlobalExceptionHandler.java:38-43`
 - **现象**：兜底方法体内没有任何 `log.*` 调用。
 - **影响**：线上 500 无法定位；排障只能靠复现。本项与 H-1 叠加后危险度更高（大量「500」其实是客户端错误，却连日志都没有，只能靠猜）。
 - **建议**：兜底必须 `log.error("<service> unhandled exception, uri={}", request.getRequestURI(), ex)`，并把 advise 加上 `@Slf4j`。
@@ -185,7 +185,7 @@ $ kubectl -n gv-im-local logs common-media-service-67854d859c-p2jrn --tail=12
 
 #### H-4 登录失败返回 500（应 401）—— platform-identity-service
 
-- **位置**：`platform-services/identity/platform-identity-service/src/main/java/com/gvchat/platform/identity/application/AccountApplicationService.java:153-155`
+- **位置**：`platform-services/identity/platform-identity-service/src/main/java/io/openware/platform/identity/application/AccountApplicationService.java:153-155`
   ```java
   if (li == null || !passwordEncoder.matches(credential, li.getCredential())) {
       throw new IllegalStateException("AUTH_INVALID_CREDENTIAL");
@@ -214,7 +214,7 @@ POST 同上（畸形 JSON '{not json'）
 
 | 服务 | 统一出口 | 缺失项 |
 |---|---|---|
-| platform-admin | `platform-services/admin/platform-admin-service/src/main/java/com/gvchat/platform/admin/handler/GlobalExceptionHandler.java:15-23` | 只有 `ApiException`；无 `Exception` 兜底、无 `@Slf4j` |
+| platform-admin | `platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/handler/GlobalExceptionHandler.java:15-23` | 只有 `ApiException`；无 `Exception` 兜底、无 `@Slf4j` |
 | platform-customer | `.../customer/.../handler/GlobalExceptionHandler.java:17-25` | 同上 |
 | platform-identity | `.../identity/.../handler/GlobalExceptionHandler.java:17-33` | 无 `Exception` 兜底；`handleIllegalArgument:27-33` 直接回显 `ex.getMessage()` |
 | platform-marketing | `.../marketing/.../handler/GlobalExceptionHandler.java:17-25` | 只有 `ApiException` |
@@ -311,14 +311,14 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 
 #### M-4 网关自身的错误体不统一
 
-- `gateways/gateway/src/main/java/com/gvchat/gateway/ratelimit/RateLimitFilter.java:32-33`：`{"code":429,"message":"请求过于频繁，请稍后再试"}` —— **`code` 是数字 429**，而全仓库其它 141 个码都是 `UPPER_SNAKE` 字符串；429 也不在 `sdk/common/.../HttpStatusCodes.java` 常量表里（该表没有 429）。
+- `gateways/gateway/src/main/java/io/openware/gateway/ratelimit/RateLimitFilter.java:32-33`：`{"code":429,"message":"请求过于频繁，请稍后再试"}` —— **`code` 是数字 429**，而全仓库其它 141 个码都是 `UPPER_SNAKE` 字符串；429 也不在 `sdk/common/.../HttpStatusCodes.java` 常量表里（该表没有 429）。
 - `gateways/gateway/.../security/SaasSessionAuthenticationFilter.java:200-207`：401 体 `{"code":"SAAS_SESSION_REQUIRED","message":"SaaS session is required"}` —— 英文；且**会话存在但租户上下文为空时报的码是 `SAAS_CONTEXT_REQUIRED`**（`:87`），与下游的 `TENANT_CONTEXT_REQUIRED` / `TENANT_CONTEXT_MISSING` 三足鼎立（见 4.1）。
 - 网关未匹配路由：WebFlux 默认体 `{"timestamp":"...","path":"...","status":404,"error":"Not Found","requestId":"..."}`（实测）。
 - **严重度**：中
 
 #### M-5 出错时返回 HTTP 200 + 错误载荷 —— platform-order 报表
 
-- `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/api/controller/ReportController.java:42`、`:68`、`:90`
+- `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/api/controller/ReportController.java:42`、`:68`、`:90`
   ```java
   if (tenantId == null) { return Map.of("error", "TENANT_CONTEXT_MISSING"); }
   ```
@@ -374,8 +374,8 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 
 | 服务 | 统一出口 | 覆盖 |
 |---|---|---|
-| **platform-tenant** | `platform-services/tenant/platform-tenant-service/src/main/java/com/gvchat/platform/tenant/handler/GlobalExceptionHandler.java`（`:23` `@RestControllerAdvice`，`:24` `@Slf4j`） | `BusinessException`(:27) → 400；`ApiException`(:35) → 按 status；`DataAccessException`(:50) → 租户上下文缺失转 **401**、否则 500+`DATABASE_ERROR`；`HttpMessageNotReadableException`(:66) → 400 `REQUEST_BODY_INVALID`；`MissingServletRequestParameterException`(:75) → 400 `REQUEST_PARAM_MISSING`；`Exception`(:85) → **500 `INTERNAL_ERROR` + `log.error(..., ex)`**。✅ 全维度达标 |
-| **platform-resource** | `platform-services/resource/platform-resource-service/src/main/java/com/gvchat/platform/resource/handler/GlobalExceptionHandler.java:22-24,26,34,49,65,74,84` | 与 tenant 同构。✅ 全维度达标 |
+| **platform-tenant** | `platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/handler/GlobalExceptionHandler.java`（`:23` `@RestControllerAdvice`，`:24` `@Slf4j`） | `BusinessException`(:27) → 400；`ApiException`(:35) → 按 status；`DataAccessException`(:50) → 租户上下文缺失转 **401**、否则 500+`DATABASE_ERROR`；`HttpMessageNotReadableException`(:66) → 400 `REQUEST_BODY_INVALID`；`MissingServletRequestParameterException`(:75) → 400 `REQUEST_PARAM_MISSING`；`Exception`(:85) → **500 `INTERNAL_ERROR` + `log.error(..., ex)`**。✅ 全维度达标 |
+| **platform-resource** | `platform-services/resource/platform-resource-service/src/main/java/io/openware/platform/resource/handler/GlobalExceptionHandler.java:22-24,26,34,49,65,74,84` | 与 tenant 同构。✅ 全维度达标 |
 
 - **实测印证**：`GET http://platform-resource-service:4120/admin/resources`（无租户上下文）→ `401 {"code":"TENANT_CONTEXT_REQUIRED","message":"缺少有效的租户/门店上下文"}`；`POST` 同路径 → `403 {"code":"PERMISSION_DENIED","message":"缺少权限: resource.manage"}`。**这正是历史上「403 退化成 500」的修复证据，该问题在这两个服务已闭环。**
 
@@ -848,7 +848,7 @@ Get-ChildItem -Recurse -Filter GlobalExceptionHandler.java | Where-Object { $_.F
 
 | # | 服务 | 文件:行 | 现状 | 影响 | 严重度 |
 |---|---|---|---|---|---|
-| 1 | im-user | `im-services/user/im-user-service/src/main/java/com/gvchat/im/user/infra/mail/SmtpPasswordResetMailSender.java:37` | `log.info("[password-reset] mail disabled, would send reset link to {}: {}", email, resetLink)` | **密码重置链接（含一次性 token）+ 邮箱明文**；日志可读即可接管账号。`im.mail.enabled` 默认 false → **这是默认分支** | 高 |
+| 1 | im-user | `im-services/user/im-user-service/src/main/java/io/openware/im/user/infra/mail/SmtpPasswordResetMailSender.java:37` | `log.info("[password-reset] mail disabled, would send reset link to {}: {}", email, resetLink)` | **密码重置链接（含一次性 token）+ 邮箱明文**；日志可读即可接管账号。`im.mail.enabled` 默认 false → **这是默认分支** | 高 |
 | 2 | im-user | `.../infra/sms/SmsPasswordResetSender.java:37` | `... code={}", mask(phone), code)` | **短信验证码明文**（手机号已脱敏、验证码未脱敏）。`im.sms.enabled` 默认 false → 默认分支 | 高 |
 | 3 | common-sms | `common-services/sms/.../infra/provider/TencentSmsProvider.java:64,101,104` | `... to={} ...", phone` | **完整手机号（PII）**；同模块 `SmsApplicationService.java:34-35` 已在用 `PhonePrivacy.digest/mask`，provider 层未脱敏 | 高 |
 | 4 | common-sms | `.../infra/provider/AliyunSmsProvider.java:54,87,90` | 同上 | 同上 | 高 |

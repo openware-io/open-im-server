@@ -24,9 +24,9 @@
 
 ### 未完成与遗留
 
-1. 启动扫描仍为 `com.gvchat.im`，未完成批次 0 要求的 `com.gvchat.im.message` 收敛和共享基础设施显式装配。
+1. 启动扫描仍为 `io.openware.im`，未完成批次 0 要求的 `io.openware.im.message` 收敛和共享基础设施显式装配。
 2. 好友、群组及其 DTO、服务、实体、Mapper 风格仓储仍在该服务源码中；敏感词和系统配置的无调用历史 ORM 代码已移除。好友、群成员端口的实现仍通过 `LegacyFriendRelationAdapter`、`LegacyGroupMembershipAdapter` 依赖历史服务。
-3. 分层架构测试仅对已迁移的 `com.gvchat.im.message` 核心路径设为强制门禁，不将上述跨域遗留纳入领域纯净性断言，避免将已知迁移工作伪装为已完成。
+3. 分层架构测试仅对已迁移的 `io.openware.im.message` 核心路径设为强制门禁，不将上述跨域遗留纳入领域纯净性断言，避免将已知迁移工作伪装为已完成。
 
 | 编号 | 优先级 | 状态 | 内容与后续方向 |
 | --- | --- | --- | --- |
@@ -43,7 +43,7 @@
 ## 4. 目标结构
 
 ```text
-com.gvchat.im.message
+io.openware.im.message
 ├── api
 │   ├── controller
 │   ├── dto
@@ -78,7 +78,7 @@ com.gvchat.im.message
 ### 批次 0：冻结边界
 
 1. 已建立方案、核心分层 import 扫描和 Flyway 表集合检查。
-2. 未完成：将启动扫描收敛至 `com.gvchat.im.message`，仅通过显式配置加载共享基础设施。
+2. 未完成：将启动扫描收敛至 `io.openware.im.message`，仅通过显式配置加载共享基础设施。
 
 ### 批次 1：权威消息写入与 Outbox
 
@@ -95,7 +95,7 @@ com.gvchat.im.message
 
 ### 批次 3：投影与遗留收口
 
-1. 已完成 Outbox Relay 的基础设施迁移；Mongo/Redis 投影仍位于 `com.gvchat.im.message.projection`，待迁入 `infra.projection` 时保持现有投影与事件发布顺序。`msg_offline_inbox` 为未被读取的冗余投影，应随消息同步改造移除；`msg_hot_message` 保留为可再生的热消息查询投影。
+1. 已完成 Outbox Relay 的基础设施迁移；Mongo/Redis 投影仍位于 `io.openware.im.message.projection`，待迁入 `infra.projection` 时保持现有投影与事件发布顺序。`msg_offline_inbox` 为未被读取的冗余投影，应随消息同步改造移除；`msg_hot_message` 保留为可再生的热消息查询投影。
 2. 已完成：移除 `SensitiveWord`、`ContentFilterService`、`SensitiveWordRepository`、`SystemConfig`、`AppConfigService`、`SystemConfigRepository` 的无调用消息域历史代码，并由静态引用测试防止重新引入；未完成：清理 `Friend`、`FriendRequest`、`Group`、`GroupMember` 的消息域历史 ORM 代码，或迁移到其权威服务。
 3. 已完成 API、领域、应用的核心自动化边界测试；待启动扫描和跨域遗留收口后扩展至全模块基础设施边界。
 

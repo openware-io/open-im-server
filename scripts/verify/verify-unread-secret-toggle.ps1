@@ -1,20 +1,20 @@
 [CmdletBinding()]
 param(
   [string]$Gateway = 'http://127.0.0.1:30002',
-  [string]$KubeContext = 'kind-gv-im-local',
-  [string]$Namespace = 'gv-im-local',
+  [string]$KubeContext = 'kind-open-im-local',
+  [string]$Namespace = 'open-im-local',
   [string]$Database = 'im_server',
   [string]$Username,
   [string]$Password
 )
 # 验证后台功能开关对未读角标的影响（bug#8 场景）：
 # secret/secret_group 两开关 ON 时计入 msg_secret_unread 投影；OFF 时服务端排除（count=0 且按会话为空）。
-# 一次性数据与配置在 finally 中清理恢复，幂等可重复。需 root MySQL 密码（读 gv-im-env secret）。
+# 一次性数据与配置在 finally 中清理恢复，幂等可重复。需 root MySQL 密码（读 open-im-env secret）。
 $ErrorActionPreference = 'Stop'
 if (!$Username -or !$Password) { throw 'Provide -Username/-Password of a disposable account.' }
 
 function MySql([string]$Query) {
-  $pwd = kubectl --context $KubeContext -n $Namespace get secret gv-im-env -o jsonpath='{.data.DB_PASSWORD}' |
+  $pwd = kubectl --context $KubeContext -n $Namespace get secret open-im-env -o jsonpath='{.data.DB_PASSWORD}' |
     ForEach-Object { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($_)) }
   kubectl --context $KubeContext -n $Namespace exec deploy/mysql -- mysql -uroot "-p$pwd" $Database -N -e $Query 2>$null
   if ($LASTEXITCODE -ne 0) { throw "mysql failed: $Query" }

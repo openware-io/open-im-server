@@ -12,7 +12,7 @@ Get-ChildItem -Path (Join-Path $root 'sdk'), (Join-Path $root 'gateways'), (Join
   foreach ($dependency in $pom.SelectNodes('/m:project/m:dependencies/m:dependency', $manager)) {
     $groupId = $dependency.SelectSingleNode('m:groupId', $manager).InnerText
     $artifactId = $dependency.SelectSingleNode('m:artifactId', $manager).InnerText
-    if ($groupId -eq 'com.gvchat' -and $artifactId -like '*-service') {
+    if ($groupId -eq 'io.openware' -and $artifactId -like '*-service') {
       $violations.Add("Cross-service implementation dependency is forbidden: $($_.FullName) -> $artifactId")
     }
   }

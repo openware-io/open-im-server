@@ -1,5 +1,5 @@
 -- C 端预约迁移（E-MIG）· SaaS 侧 ord_reservation 建表（SAAS_PLATFORM_04 §6.3）
--- 目标库：gv_saas（platform-order-service），Flyway 历史表 flyway_schema_history_order。
+-- 目标库：open_saas（platform-order-service），Flyway 历史表 flyway_schema_history_order。
 -- 说明：仅新建 SaaS 侧表，不改动 im-order-service（IM 库）已执行的 V1/V2 迁移。
 CREATE TABLE `ord_reservation` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '预约ID',

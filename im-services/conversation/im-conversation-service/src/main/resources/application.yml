@@ -77,7 +77,7 @@ logging:
    max-history: 14
    total-size-cap: 2GB
  level:
-  "[com.gvchat.im]": INFO
+  "[io.openware.im]": INFO
   "[org.springframework.web]": INFO
 
 im:
@@ -85,7 +85,7 @@ im:
     type: ${IM_MQ_TYPE:REMOTING}
     namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:127.0.0.1:9876}
     producer-group: ${IM_CONVERSATION_SERVICE_MQ_PRODUCER_GROUP:im-conversation-service-producer}
-    consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:${IM_MQ_DEFAULT_CONSUMER_GROUP_PREFIX:gv_im}}
+    consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:${IM_MQ_DEFAULT_CONSUMER_GROUP_PREFIX:open_im}}
   conversation:
     outbox:
       relay-delay-ms: ${IM_CONVERSATION_OUTBOX_RELAY_DELAY_MS:1000}

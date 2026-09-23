@@ -62,7 +62,7 @@ im-admin-service
 | A-04 | P0 | 管理域表没有 Flyway 迁移，配置中明确禁用 Flyway | 为 `adm_` 表建立 admin 唯一迁移所有权，先完成历史基线和数据迁移 |
 | A-05 | P1 | Controller 直接接收全局 DTO、调用历史 Service 并返回 ORM 实体 | 建立管理端 Request/Response、Command/Query/Result、Converter 和 Application Service |
 | A-06 | P1 | 后台端点与客户端配置、版本检查、MiniApp 查询、举报创建混在同一 Controller 区域 | 按 admin-console、client-public、moderation 三类入站 API 组织，保持既有路径兼容 |
-| A-07 | P1 | 启动扫描为 `com.gvchat.im`，会装配历史同名领域组件 | 最后收敛为 `com.gvchat.im.admin`，显式导入平台安全、Redis、MQ 组件 |
+| A-07 | P1 | 启动扫描为 `io.openware.im`，会装配历史同名领域组件 | 最后收敛为 `io.openware.im.admin`，显式导入平台安全、Redis、MQ 组件 |
 | A-08 | P1 | `system_configs` 在 admin 和 conversation 等模块同时映射 | 迁移为 `adm_system_config`，admin 成为唯一写入者，通过事件同步消费者缓存/投影 |
 | A-09 | P1 | 管理操作仅有粗粒度 `ADMIN`，缺少权限点和不可篡改审计 | 引入管理权限、操作审计聚合和关键命令的操作者、理由、关联键记录 |
 | A-10 | P2 | 测试仅覆盖积分 HTTP 客户端 | 按领域、应用、HTTP、持久化、MQ 投影和安全边界补齐测试 |
@@ -70,7 +70,7 @@ im-admin-service
 ## 4. 目标结构
 
 ```text
-com.gvchat.im.admin
+io.openware.im.admin
 ├── ImAdminServiceApplication.java
 ├── api
 │   ├── console
@@ -190,8 +190,8 @@ com.gvchat.im.admin
 ### 批次 4：接口整理、旧代码删除与扫描收敛
 
 1. 保持既有 HTTP 路径、字段和错误码兼容，将 Controller 迁入 `api.console`、`api.client`、`api.moderation`。
-2. 删除 `com.gvchat.common.dto`、`com.gvchat.im.domain` 历史包、跨域 PO/Mapper/Service、admin 私有在线状态写入和无调用 Push 配置。
-3. 将启动扫描收敛至 `com.gvchat.im.admin`，显式导入平台安全、Redis、MQ 和必要的 HTTP 客户端配置。
+2. 删除 `io.openware.common.dto`、`io.openware.im.domain` 历史包、跨域 PO/Mapper/Service、admin 私有在线状态写入和无调用 Push 配置。
+3. 将启动扫描收敛至 `io.openware.im.admin`，显式导入平台安全、Redis、MQ 和必要的 HTTP 客户端配置。
 4. 在所有投影和跨域命令验证通过后，将边界门禁升级为强制失败。
 
 ### 批次 5：验证、发布与回滚演练

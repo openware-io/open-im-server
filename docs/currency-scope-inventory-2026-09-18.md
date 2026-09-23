@@ -188,11 +188,11 @@ H2 测试基线（口径镜像，改造时须同步）：
 
 | 模块 | 类 / 方法 / 路径 | 币种字段 | 证据 |
 |---|---|---|---|
-| order | `OrderPo`（`GET /business/orders`、`GET /me/orders` 直接返回 PO） | `currencyCode` | `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/infra/persistence/po/OrderPo.java:55` |
+| order | `OrderPo`（`GET /business/orders`、`GET /me/orders` 直接返回 PO） | `currencyCode` | `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrderPo.java:55` |
 | order | `POST /business/orders` → `CreateOrderRequest` | `currencyCode`（**由客户端传入，无服务端默认值/校验**） | `.../api/controller/OrderController.java:295`（record）、`:120`（`po.setCurrencyCode(req.currencyCode())`） |
 | order | `GET /business/orders/{orderId}/bill` → `BillResult` | `currencyCode` | `.../application/dto/BillResult.java:11`；控制器 `.../api/controller/OrderBillController.java:22-25`；装配 `.../application/BillApplicationService.java:76` |
 | order | `GET /business/ktv/pricing` → `PricingView` | **无币种字段**（但 `displayText` 内嵌 `¥`） | `.../api/controller/KtvPricingController.java:144`（record 定义）、`:91-124`（文案与符号） |
-| payment | `POST /business/orders/{orderId}/collect` → `CollectRequest` | `currencyCode`（**客户端传入，未与订单币种比对**） | `common-services/payment/common-payment-service/src/main/java/com/gvchat/common/payment/api/controller/CollectController.java:55`；`:46` 透传；应用层 `.../application/CollectApplicationService.java:97`、`:397`、`:409` |
+| payment | `POST /business/orders/{orderId}/collect` → `CollectRequest` | `currencyCode`（**客户端传入，未与订单币种比对**） | `common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/api/controller/CollectController.java:55`；`:46` 透传；应用层 `.../application/CollectApplicationService.java:97`、`:397`、`:409` |
 | payment | `PayIntentDto` | `currencyCode` | `.../application/PayIntentDto.java:10` |
 | payment | `GET /internal/payment/orders/{orderId}/collected` | — | `.../api/controller/InternalPaymentQueryController.java:40` |
 | customer | `GET /business/members/{id}/wallet` → `CstWalletAccountPo` | `currencyCode` | `.../infra/persistence/po/CstWalletAccountPo.java:23`；控制器 `.../api/controller/MemberController.java:90` |
@@ -201,9 +201,9 @@ H2 测试基线（口径镜像，改造时须同步）：
 | customer | `POST /internal/customer/wallets/deduct` → `WalletDeductRequest` | `currency` | 同上 `:128`；金额校验 `.../application/WalletApplicationService.java:89` |
 | customer | `POST /internal/customer/wallets/release` → `WalletReleaseRequest` | `currency` | 同上 `:132` |
 | customer | `POST /admin/wallets/recharge` → `RechargeRequest` | `currency` | `.../api/controller/WalletAdminController.java:34`；`:24` |
-| admin(BFF) | `GET/POST/PUT /admin/ktv/wallet-recharge` → `WalletRechargeRequest/Result` | `currencyCode` | `platform-services/admin/platform-admin-api/src/main/java/com/gvchat/platform/admin/api/ktv/WalletRechargeRequest.java:11`；`WalletRechargeResult.java:12` |
+| admin(BFF) | `GET/POST/PUT /admin/ktv/wallet-recharge` → `WalletRechargeRequest/Result` | `currencyCode` | `platform-services/admin/platform-admin-api/src/main/java/io/openware/platform/admin/api/ktv/WalletRechargeRequest.java:11`；`WalletRechargeResult.java:12` |
 | admin(BFF) | `GET/POST /admin/ktv/payment-switches` → `PaymentSwitchConfig` | `currencyCode` | `.../api/ktv/PaymentSwitchConfig.java:15` |
-| payment-channel | `CreatePaymentIntentRequest` / `QueryOrderResult` / `VerifyCallbackResult` | `currency` | `common-services/payment-channel/common-payment-channel-api/src/main/java/com/gvchat/common/payment/channel/spi/CreatePaymentIntentRequest.java:9`、`QueryOrderResult.java:10`、`VerifyCallbackResult.java:9` |
+| payment-channel | `CreatePaymentIntentRequest` / `QueryOrderResult` / `VerifyCallbackResult` | `currency` | `common-services/payment-channel/common-payment-channel-api/src/main/java/io/openware/common/payment/channel/spi/CreatePaymentIntentRequest.java:9`、`QueryOrderResult.java:10`、`VerifyCallbackResult.java:9` |
 | order(customer) | `CustomerClient.WalletBalanceResponse` / `WalletDeductRequest` / `WalletReleaseRequest` | `currencyCode` / `currency` | `common-services/payment/.../infra/client/CustomerClient.java:171,174,177,180,183` |
 | admin(customer) | `CustomerServiceClient.RechargeRequest` / `WalletAccountView` | `currency` / `currencyCode` | `platform-services/admin/.../infra/CustomerServiceClient.java:116,120,95` |
 | tenant | `POST/PUT /admin/tenant/config` → `WalletTokenConfig` | **无币种**（只有 `brandName` + `ratio`） | `platform-services/tenant/.../api/controller/TenantConfigController.java:117` |
@@ -218,7 +218,7 @@ OpenAPI 契约快照中已含 `currencyCode`：
 
 | 模块 | 类 / 端点 | 金额字段 | 证据 |
 |---|---|---|---|
-| payment | `CashierController` `POST /business/shifts/open` → `OpenShiftRequest` | `BigDecimal openingCash` | `common-services/payment/common-payment-service/src/main/java/com/gvchat/common/payment/api/controller/CashierController.java:63` |
+| payment | `CashierController` `POST /business/shifts/open` → `OpenShiftRequest` | `BigDecimal openingCash` | `common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/api/controller/CashierController.java:63` |
 | payment | `POST /business/shifts/{id}/close` → `CloseShiftRequest` | `BigDecimal actualCash` | 同上 `:64`；`ShiftDto` `.../application/ShiftDto.java:11`（`expectedCash/actualCash/differenceAmount`，**无币种**） |
 | payment | `POST /business/refund-requests` → `RefundRequest` | `BigDecimal amount` | 同上 `:66`；`RefundDto` `.../application/RefundDto.java:10`（`requestedAmount/approvedAmount`，**无币种**） |
 | payment | `POST /admin/refund-requests/{id}/approve` → `ApproveRefundRequest` | `BigDecimal approvedAmount` | 同上 `:67` |
@@ -237,7 +237,7 @@ OpenAPI 契约快照中已含 `currencyCode`：
 | marketing | `POST /business/coupons/{id}/redeem` → `RedeemCouponRequest` | `Long amount` | 同上 `:62` |
 | tenant | `GET/POST/PUT /internal/pricing-plans` → `pricePerUnit` | `Long pricePerUnit` | `platform-services/tenant/.../api/controller/InternalPricingPlanController.java:70`；`PricingPlanController.java:38` |
 | resource | `POST/PUT` 房型 → `RoomTypeRequest` | `unitPrice` / `serverUnitPrice` | `platform-services/resource/.../api/controller/ResourceTypeController.java:70` |
-| admin(BFF) | `PricingPlan` / `PricingPackage` / `ServerCatalogItem` / `PaymentChannelSwitch` | `roomPricePerUnit` / `price` / `pricePerIncrement` / `minAmount` / `maxAmount` | `platform-services/admin/platform-admin-api/src/main/java/com/gvchat/platform/admin/api/ktv/PricingPlan.java:16,36`、`ServerCatalogItem.java:18`、`PaymentSwitchConfig.java` |
+| admin(BFF) | `PricingPlan` / `PricingPackage` / `ServerCatalogItem` / `PaymentChannelSwitch` | `roomPricePerUnit` / `price` / `pricePerIncrement` / `minAmount` / `maxAmount` | `platform-services/admin/platform-admin-api/src/main/java/io/openware/platform/admin/api/ktv/PricingPlan.java:16,36`、`ServerCatalogItem.java:18`、`PaymentSwitchConfig.java` |
 
 ### 2.3 硬编码「¥」「元」「CNY」「分」的位置（逐条）
 
@@ -245,22 +245,22 @@ OpenAPI 契约快照中已含 `currencyCode`：
 
 | 位置 | 原文性质 | 证据 |
 |---|---|---|
-| **硬编码 `¥` 拼进接口返回文案** | `return "¥" + minor / 100 + "." + String.format("%02d", minor % 100);` | `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/api/controller/KtvPricingController.java:123` |
+| **硬编码 `¥` 拼进接口返回文案** | `return "¥" + minor / 100 + "." + String.format("%02d", minor % 100);` | `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/api/controller/KtvPricingController.java:123` |
 | 同上方法的 Javadoc | `/** 最小货币单位（分）→ 「¥188.00」：金额一律「元」两位小数（前端不得再自行换算）。 */` | 同上 `:121` |
 | `displayText` 文案模板 | `例：{@code ¥238.00/小时（房型 ¥188.00 + 服务 ¥50.00）· 30 分钟递增 · 标准 2.0 小时}。` | 同上 `:85` |
 | 同上 | `服务单价为 0 时不出现「+ ¥0.00」，首段与改造前完全一致。` | 同上 `:86` |
 | 同上 | `「每 N 分钟 ¥X」必须与实际计费单价同源…` | 同上 `:87` |
 | 单位后缀拼接 | `case HOUR -> "/小时"; case HALF_HOUR -> "/半小时"; case PACKAGE -> "/套餐";` | 同上 `:92-96` |
 | 拼装 | `text.append("（房型 ")...append(" + 服务 ")...` | 同上 `:99-100` |
-| **硬编码 `CNY`（订单创建）** | `order.setCurrencyCode("CNY");` — 到店预约开台 | `platform-services/order/platform-order-service/src/main/java/com/gvchat/platform/order/application/ReservationApplicationService.java:174` |
-| 硬编码 `CNY`（BFF 计价方案） | `return code == null \|\| code.isBlank() ? "CNY" : code;` | `platform-services/admin/platform-admin-service/src/main/java/com/gvchat/platform/admin/application/KtvConfigApplicationService.java:102-104` |
-| 硬编码 `CNY`（BFF 骨架数据） | `new PaymentSwitchConfig(1L, storeId, null, null, "CNY", channels)` | `platform-services/admin/platform-admin-service/src/main/java/com/gvchat/platform/admin/infra/RestKtvConfigDomainClient.java:130` |
+| **硬编码 `CNY`（订单创建）** | `order.setCurrencyCode("CNY");` — 到店预约开台 | `platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/application/ReservationApplicationService.java:174` |
+| 硬编码 `CNY`（BFF 计价方案） | `return code == null \|\| code.isBlank() ? "CNY" : code;` | `platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/application/KtvConfigApplicationService.java:102-104` |
+| 硬编码 `CNY`（BFF 骨架数据） | `new PaymentSwitchConfig(1L, storeId, null, null, "CNY", channels)` | `platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/infra/RestKtvConfigDomainClient.java:130` |
 | 同上 | `new PaymentSwitchConfig(1L, storeId, "星光 KTV · 朝阳店", 1001L, "CNY", ...)` | 同上 `:315` |
-| 硬编码 `CNY`（C 端钱包） | `walletService.ensureAccount(member.getId(), "CNY")` | `platform-services/customer/platform-customer-service/src/main/java/com/gvchat/platform/customer/api/controller/MemberController.java:62` |
+| 硬编码 `CNY`（C 端钱包） | `walletService.ensureAccount(member.getId(), "CNY")` | `platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/api/controller/MemberController.java:62` |
 | 同上 | `return walletService.ensureAccount(member.getId(), "CNY");` — `GET /me/wallet` | `.../api/controller/MyAssetsController.java:37` |
 | 硬编码 `CNY` 默认（钱包域） | `return findOrCreate(customerId, currency == null \|\| currency.isBlank() ? "CNY" : currency);` | `.../application/WalletApplicationService.java:134` |
 | 同上注释 | `/** 确保会员储值账户存在（C 端懒创建），默认币种 CNY。 */` | 同上 `:129` |
-| 硬编码 `CNY`（微信渠道回退） | `return (currency == null \|\| currency.isBlank()) ? "CNY" : currency.toUpperCase(Locale.ROOT);` | `common-services/payment-channel/common-payment-channel-service/src/main/java/com/gvchat/common/payment/channel/infra/provider/WechatChannel.java:502-503` |
+| 硬编码 `CNY`（微信渠道回退） | `return (currency == null \|\| currency.isBlank()) ? "CNY" : currency.toUpperCase(Locale.ROOT);` | `common-services/payment-channel/common-payment-channel-service/src/main/java/io/openware/common/payment/channel/infra/provider/WechatChannel.java:502-503` |
 | 同上 | `params.getOrDefault("fee_type", "CNY")` | 同上 `:168`、`:216` |
 | 同上 | `new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, "CNY")` | 同上 `:218`、`:356` |
 | 同上 | `amount.put("currency", defaultCurrency(request.currency()));` | 同上 `:247` |
@@ -306,10 +306,10 @@ OpenAPI 契约快照中已含 `currencyCode`：
 | 结算 | `"{\"totalAmount\":" + order.getTotalAmount() + ",\"discount\":" + order.getDiscountAmount() + ",\"tax\":" + order.getTaxAmount() + "}"` | `platform-services/order/.../application/SettlementApplicationService.java:50-54` |
 | 租户代币配置 | `"{\"brandName\":\"" + req.brandName() + "\",\"ratio\":" + req.ratio() + "}"` | `platform-services/tenant/.../api/controller/TenantConfigController.java:58-64` |
 | 钱包充值（内联 JSON） | `"{\"customerId\":" + customerId + ",\"amount\":" + amount + ",\"currency\":\"" + currency + "\"}"` | `platform-services/customer/.../application/WalletApplicationService.java:58` |
-| 审计敏感字段清洗 | `body.put("detailJson", "{\"password\":\"p@ss\",\"amount\":\"10.00\"}")`（测试证明 amount **不被脱敏**） | `common-services/audit/common-audit-service/src/test/java/com/gvchat/common/audit/application/service/AuditLogApplicationServiceTest.java:40,52` |
+| 审计敏感字段清洗 | `body.put("detailJson", "{\"password\":\"p@ss\",\"amount\":\"10.00\"}")`（测试证明 amount **不被脱敏**） | `common-services/audit/common-audit-service/src/test/java/io/openware/common/audit/application/service/AuditLogApplicationServiceTest.java:40,52` |
 
 审计动作注册表（与资金相关的动作码）：
-- `sdk/infrastructure/src/main/java/com/gvchat/infrastructure/audit/AuditActions.java:130-133` — `payment.refund.request/approve/reject/offline`
+- `sdk/infrastructure/src/main/java/io/openware/infrastructure/audit/AuditActions.java:130-133` — `payment.refund.request/approve/reject/offline`
 - 同上 `:156-157` — `wallet.recharge` / `wallet.refund`
 - 同上 `:126` — `inventory.receipt.create`
 
@@ -976,7 +976,7 @@ C 端 `c-end/saas.js`：
 
 ### S18. IM 消息里的订单卡片 / 红包
 - **结论：不存在。** 证据：
-  - 消息类型枚举 `sdk/common/src/main/java/com/gvchat/common/enums/MsgType.java:9-23` 只有 `TEXT/IMAGE/FILE/VOICE/VIDEO/LOCATION/NAMECARD/CALL/SYSTEM/RECALL/EMOJI` — **无 `ORDER_CARD` / `RED_PACKET` / `TRANSFER`**
+  - 消息类型枚举 `sdk/common/src/main/java/io/openware/common/enums/MsgType.java:9-23` 只有 `TEXT/IMAGE/FILE/VOICE/VIDEO/LOCATION/NAMECARD/CALL/SYSTEM/RECALL/EMOJI` — **无 `ORDER_CARD` / `RED_PACKET` / `TRANSFER`**
   - `git grep -n -iE "order_?card|orderCard|redpacket|red_packet|红包" -- "*.java" "*.sql" "*.yml"` 在 `gv_im_server` → **0 条相关命中**（仅「余额不足」错误文案等）
   - `gv_chat_app`：`redPacket` / `red_packet` / `红包` → **0 条**（`orderCard` 1 个文件命中实为 `lib/screens/business/ktv_timing_screen.dart:238,304` 的私有 Widget 方法名 `_orderCard(KtvOrder order, ...)`，不是 IM 消息类型）
   - `gv_chat_app` 消息渲染 switch 无订单/红包分支：`lib/screens/chat_room/chat_room_message_tile.dart:413-671`（8 个 case：`text/emoji/image/video/file/voice/call/namecard`）；预览 `lib/core/message_preview.dart:22-46` 同样无
@@ -1008,7 +1008,7 @@ C 端 `c-end/saas.js`：
 - 声明「单位是元」：`platform-services/order/.../api/controller/ReportController.java:26` — `金额按最小货币单位约定（PO 内 decimal(20,6) 单位元），返回保留原值；数据时点以查询时刻为准。` ← **同一仓库同一域内自相矛盾**
 - `decimal(20,6)` 保留 6 位小数本身暗示「元」形态，但列注释写「分」：`.../V9__ord_catalog_item.sql:10`（`'单价（最小货币单位：分）'`）、`.../V11__ord_inventory_product.sql:68`（`'销售单价（分）'`）
 - 与 payment 域对比：`pay_intent.amount decimal(20,6)` **无单位注释**（`.../V1__pay_baseline.sql:6`），而 `pay_channel_transaction.amount bigint` 注释是 `'金额最小货币单位整数（分）'`（`.../pay_channel_baseline.sql:27`）
-- 测试使用了**带角分的「元」形态值**，进一步放大歧义：`common-services/payment/.../src/test/java/com/gvchat/common/payment/application/CashierApplicationServiceTest.java:49` — `thenReturn(new BigDecimal("500.00"))`；`:69-74` — `new BigDecimal("620.50")` / `expectedCash` `"600.00"` / `differenceAmount` `"20.50"`
+- 测试使用了**带角分的「元」形态值**，进一步放大歧义：`common-services/payment/.../src/test/java/io/openware/common/payment/application/CashierApplicationServiceTest.java:49` — `thenReturn(new BigDecimal("500.00"))`；`:69-74` — `new BigDecimal("620.50")` / `expectedCash` `"600.00"` / `differenceAmount` `"20.50"`
 - 结论：**「分」还是「元」目前没有单一权威定义**。币种改造必须先冻结这一条，否则换 USD 时（USD 也有 100 分）看不出问题，但一旦引入 JPY（0 位小数）或任何报表口径调整就会爆发。
 
 ### 5.2 【高危】金额被当字符串拼进文案 / 审计 JSON

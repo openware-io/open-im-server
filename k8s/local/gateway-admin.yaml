@@ -19,7 +19,7 @@ spec:
         - name: gateway
           image: __APP_IMAGE_GATEWAY__
           imagePullPolicy: IfNotPresent
-          envFrom: [ { secretRef: { name: gv-im-env } } ]
+          envFrom: [ { secretRef: { name: open-im-env } } ]
           env:
             - { name: PORT, value: '3002' }
             - { name: IM_USER_URI, value: http://im-user-service:3100 }

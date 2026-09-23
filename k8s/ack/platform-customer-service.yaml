@@ -15,19 +15,19 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-customer-service
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/platform-customer-service:2.0.1
+          image: registry.example.com/openware/platform-customer-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4160' }
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
-            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: gv-im-secret, key: DB_PASSWORD } } }
-            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: JWT_SECRET } } }
+            - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             # 钱包「代币数量」展示口径：customer 读取租户的代币品牌名/ratio（GET /internal/iam/tenant-config/{id}/wallet-token）。
             # secret 必须与 platform-tenant-service 的 INTERNAL_SERVICE_AUTH_SECRET 一致，否则 401 后品牌静默回退 A380币/100。
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
-            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: gv-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: APP_WALLET_DEFAULT_LEGAL_ENTITY_ID, value: '100' }
           ports: [ { containerPort: 4160 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4160 }, initialDelaySeconds: 30, periodSeconds: 5 }

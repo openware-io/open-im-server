@@ -1,11 +1,11 @@
 [CmdletBinding()]
 param(
   [Parameter(Mandatory)][string]$SaasReleaseManifestPath,
-  [string]$Namespace = 'gv-im-local',
+  [string]$Namespace = 'open-im-local',
   [ValidatePattern('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')]
-  [string]$KindClusterName = 'gv-im-local',
-  [string]$Registry = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com',
-  [string]$RepositoryNamespace = 'meta-cogni',
+  [string]$KindClusterName = 'open-im-local',
+  [string]$Registry = 'registry.example.com',
+  [string]$RepositoryNamespace = 'openware',
   [ValidateRange(60, 900)]
   [int]$StartupTimeoutSeconds = 600
 )
@@ -72,7 +72,7 @@ function Invoke-Kubectl {
 function Set-LocalRecreateStrategy {
   param([string]$Name)
   $patch = '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
-  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-strategy-" + [guid]::NewGuid().ToString() + '.json')
+  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-strategy-" + [guid]::NewGuid().ToString() + '.json')
   try {
     [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('patch', "deployment/$Name", '--namespace', $Namespace, '--type=strategic', '--patch-file', $patchFile)
@@ -89,17 +89,17 @@ function Set-ApplicationImage {
   $annotations = @{
     'org.opencontainers.image.version' = $moduleVersions[$Name]
     'org.opencontainers.image.revision' = $revisions[$Name]
-    'release.gv-im.local/id' = $releaseId
-    'release.gv-im.local/code-sha' = $revisions[$Name]
-    'release.gv-im.local/deployed-at' = $deployedAt
-    'release.gv-im.local/image-ref' = $imageRef
+    'release.open-im.local/id' = $releaseId
+    'release.open-im.local/code-sha' = $revisions[$Name]
+    'release.open-im.local/deployed-at' = $deployedAt
+    'release.open-im.local/image-ref' = $imageRef
   }
   $podTemplate = @{
     metadata = @{ labels = $labels; annotations = $annotations }
     spec = @{ containers = @(@{ name = $Name; imagePullPolicy = 'Always' }) }
   }
   $patch = @{ metadata = @{ labels = $labels }; spec = @{ template = $podTemplate } } | ConvertTo-Json -Compress -Depth 8
-  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("gv-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
+  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
   try {
     [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('patch', "deployment/$Name", '--namespace', $Namespace, '--type=strategic', '--patch-file', $patchFile)

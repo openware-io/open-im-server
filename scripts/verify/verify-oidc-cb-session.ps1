@@ -7,17 +7,17 @@ param(
 $ErrorActionPreference = 'Stop'
 
 function Get-DbPassword {
-  $value = (kubectl --context kind-gv-im-local -n gv-im-local get secret gv-im-env -o jsonpath='{.data.DB_PASSWORD}').Trim()
+  $value = (kubectl --context kind-open-im-local -n open-im-local get secret open-im-env -o jsonpath='{.data.DB_PASSWORD}').Trim()
   return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($value))
 }
 
 function Get-RedisPassword {
-  $value = (kubectl --context kind-gv-im-local -n gv-im-local get secret gv-im-env -o jsonpath='{.data.REDIS_PASSWORD}').Trim()
+  $value = (kubectl --context kind-open-im-local -n open-im-local get secret open-im-env -o jsonpath='{.data.REDIS_PASSWORD}').Trim()
   return [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($value))
 }
 
 function Invoke-MySql([string]$sql) {
-  kubectl --context kind-gv-im-local -n gv-im-local exec deploy/mysql -- mysql -u root "-p$script:dbPassword" im_server -e $sql | Out-Null
+  kubectl --context kind-open-im-local -n open-im-local exec deploy/mysql -- mysql -u root "-p$script:dbPassword" im_server -e $sql | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'MySQL command failed.' }
 }
 
@@ -69,7 +69,7 @@ function Remove-SaasSession([string]$cookie) {
   if ([string]::IsNullOrWhiteSpace($cookie)) { return }
   $sessionId = ($cookie -split '=', 2)[1]
   if ([string]::IsNullOrWhiteSpace($sessionId)) { return }
-  kubectl --context kind-gv-im-local -n gv-im-local exec deploy/redis -- redis-cli -a $script:redisPassword DEL "saas:user-session:$sessionId" "saas:user-csrf:$sessionId" | Out-Null
+  kubectl --context kind-open-im-local -n open-im-local exec deploy/redis -- redis-cli -a $script:redisPassword DEL "saas:user-session:$sessionId" "saas:user-csrf:$sessionId" | Out-Null
 }
 
 $script:dbPassword = Get-DbPassword

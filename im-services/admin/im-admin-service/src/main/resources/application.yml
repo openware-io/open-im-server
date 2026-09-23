@@ -47,7 +47,7 @@ im:
  mq:
   namesrv-addr: ${ROCKETMQ_NAMESRV_ADDR:}
   producer-group: ${IM_ADMIN_SERVICE_MQ_PRODUCER_GROUP:im-admin-service-producer}
-  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:gv_im}
+  consumer-group-prefix: ${IM_MQ_CONSUMER_GROUP_PREFIX:open_im}
 
 push:
  jpush:
@@ -74,7 +74,7 @@ logging:
    max-history: 14
    total-size-cap: 2GB
  level:
-  "[com.gvchat.im]": INFO
+  "[io.openware.im]": INFO
   "[org.springframework.web]": INFO
 
 internal:

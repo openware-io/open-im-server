@@ -15,9 +15,9 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: gateway
-          image: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/gateway@sha256:3beaadc8171e85c1887e27d9569b388a95e78bdb6c638f88c562952e797df60a
+          image: registry.example.com/openware/gateway@sha256:3beaadc8171e85c1887e27d9569b388a95e78bdb6c638f88c562952e797df60a
           imagePullPolicy: Always
-          envFrom: [ { configMapRef: { name: gv-im-config } }, { secretRef: { name: gv-im-secret } } ]
+          envFrom: [ { configMapRef: { name: open-im-config } }, { secretRef: { name: open-im-secret } } ]
           env:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3002' }

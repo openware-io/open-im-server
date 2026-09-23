@@ -58,7 +58,7 @@ services:
         condition: service_started
 
   im-user-service:
-    image: ${GV_IMAGE_IM_USER_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_IM_USER_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment: &service_environment
       DB_HOST: mysql
@@ -102,7 +102,7 @@ services:
       start_period: 30s
 
   im-message-service:
-    image: ${GV_IMAGE_IM_MESSAGE_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_IM_MESSAGE_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment:
       <<: *service_environment
@@ -117,7 +117,7 @@ services:
     healthcheck: *application_healthcheck
 
   im-conversation-service:
-    image: ${GV_IMAGE_IM_CONVERSATION_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_IM_CONVERSATION_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment:
       <<: *service_environment
@@ -126,7 +126,7 @@ services:
     healthcheck: *application_healthcheck
 
   common-media-service:
-    image: ${GV_IMAGE_COMMON_MEDIA_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_COMMON_MEDIA_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment:
       <<: *service_environment
@@ -170,7 +170,7 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-local-minio-secret}
 
   im-admin-service:
-    image: ${GV_IMAGE_IM_ADMIN_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_IM_ADMIN_SERVICE:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment:
       <<: *service_environment
@@ -182,7 +182,7 @@ services:
     healthcheck: *application_healthcheck
 
   im-access-ws:
-    image: ${GV_IMAGE_IM_ACCESS_WS:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_IM_ACCESS_WS:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     environment:
       <<: *service_environment
@@ -195,7 +195,7 @@ services:
         condition: service_started
 
   gateway:
-    image: ${GV_IMAGE_GATEWAY:?Use deploy-docker.ps1 with ReleaseManifestPath}
+    image: ${OPEN_IMAGE_GATEWAY:?Use deploy-docker.ps1 with ReleaseManifestPath}
     pull_policy: always
     ports:
       - "${GATEWAY_PORT:-3002}:3002"

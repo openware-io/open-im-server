@@ -23,13 +23,13 @@
 
 ### 2.1 发号器（分布式会员号）
 
-- 复用 `com.gvchat.common.util.SnowflakeIdGenerator`（已存在于 common，Twitter Snowflake 算法，输出无符号十进制字符串）。
+- 复用 `io.openware.common.util.SnowflakeIdGenerator`（已存在于 common，Twitter Snowflake 算法，输出无符号十进制字符串）。
 - 会员号 = `"M" + snowflakeIdGenerator.nextId()`，全局唯一、单调递增、含时间与工作节点信息。
 - 接入：`MemberApplicationService` 注入 `SnowflakeIdGenerator`；启动类 `@Import(SnowflakeIdGenerator.class)`。
 
 ### 2.2 字段加密（姓名/手机密文）
 
-- 新增 `com.gvchat.common.crypto.AesGcmCipher`：AES-256-GCM 加解密。
+- 新增 `io.openware.common.crypto.AesGcmCipher`：AES-256-GCM 加解密。
 - 密钥：由配置 `app.crypto.aes-secret` 经 SHA-256 派生 32 字节 AES-256 密钥（对配置长度不敏感，避免 16/24/32 字节限制）。
 - 密文格式：`v1:base64(iv(12B) || ciphertext+tag)`，带版本前缀，支持将来轮换/换算法。
 - 接入：`MemberApplicationService` 注入 `AesGcmCipher`，`name`→`name_cipher`、`phone`→`phone_cipher`；启动类 `@Import(AesGcmCipher.class)`。

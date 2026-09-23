@@ -52,7 +52,7 @@
 | U-01 | P0 | `User` 领域实体绑定 MyBatis-Plus 和 Jackson | 改造前历史实现，当前已迁移为纯领域聚合与持久化 PO | 10：领域层框架无关、对象隔离 | 拆分纯领域聚合与 `infra.persistence.po.UserPo` |
 | U-02 | P0 | `domain.repository` 实际为 MyBatis Mapper，领域服务直接调用 `BaseMapper` 与 `Wrappers` | 改造前历史实现，当前已迁移为领域仓储契约与基础设施适配器 | 10：Repository 契约在 domain、实现和 Mapper 在 infra | 定义领域 Repository 接口；将 Mapper 与实现迁入 `infra.persistence` |
 | U-03 | P0 | Controller 绕过 application，直接调用领域服务并返回领域实体 | 改造前历史实现，当前已由 API DTO 和应用服务承接 | 10：`api -> application -> domain <- infra`、对象隔离 | 引入内部 API DTO、Application Command/Result、应用服务与转换器 |
-| U-04 | P1 | 服务私有 DTO、领域对象散落在全局 `com.gvchat.common` 与 `com.gvchat.im.domain` 包 | 改造前历史实现，当前已迁移至 `com.gvchat.im.user` 分层包 | 10：限界上下文目录与私有对象归属 | 迁移到 `com.gvchat.im.user` 下的分层包，收紧启动扫描范围 |
+| U-04 | P1 | 服务私有 DTO、领域对象散落在全局 `io.openware.common` 与 `io.openware.im.domain` 包 | 改造前历史实现，当前已迁移至 `io.openware.im.user` 分层包 | 10：限界上下文目录与私有对象归属 | 迁移到 `io.openware.im.user` 下的分层包，收紧启动扫描范围 |
 | U-05 | P1 | Maven API 契约 Command 被内部 HTTP Controller 直接用作请求 DTO | 改造前历史实现，当前内部请求 DTO 已与 Maven API 契约分离 | 10：Maven API 制品与 Service 内部入站 API 不可互相替代 | 建立内部请求 DTO 和应用 Command；保留 API Command 仅供跨服务契约 |
 | U-06 | P1 | 现有领域/Controller Javadoc 出现损坏标签、缺字和不可读说明 | 改造前历史实现，已在迁移时一并修复 | 30、工程规则：UTF-8 与中文注释质量 | 随所属类迁移修复；不进行独立的大范围格式化 |
 | U-07 | P2 | 测试以 Flyway 与架构检查为主，尚缺领域纯单测、应用用例测试和 HTTP 映射测试 | 改造前历史实现，当前实施状态见第 10 节 | 10：分层测试优先级 | 按迁移批次补齐，不以一次性覆盖率目标替代关键行为验证 |
@@ -72,7 +72,7 @@
 ## 6. 目标结构
 
 ```text
-im-user-service/src/main/java/com/gvchat/im/user
+im-user-service/src/main/java/io/openware/im/user
 ├── ImUserServiceApplication.java
 ├── api
 │   ├── controller
@@ -222,7 +222,7 @@ MyBatis PO / Mapper / Repository Adapter / Redis / MQ / Security ---------- infr
 #### 验收
 
 - 每个切片完成独立 `clean verify`，并执行相关 API/事件/持久化测试。
-- Service 模块不残留业务私有 `com.gvchat.common.dto`、全局 `com.gvchat.im.domain` 或 MyBatis 注解的领域对象。
+- Service 模块不残留业务私有 `io.openware.common.dto`、全局 `io.openware.im.domain` 或 MyBatis 注解的领域对象。
 
 ### 批次 4：收尾、收敛与发布验证
 
@@ -230,7 +230,7 @@ MyBatis PO / Mapper / Repository Adapter / Redis / MQ / Security ---------- infr
 
 - 删除完成迁移后无引用的旧包、旧 DTO、旧 Mapper 适配层和临时兼容代码。
 - 修复迁移类的 Javadoc 损坏内容与不准确说明。
-- 收紧启动类 Component Scan 至 `com.gvchat.im.user`，前提是所有本域组件已完成迁移且所需共享组件采用显式配置导入。
+- 收紧启动类 Component Scan 至 `io.openware.im.user`，前提是所有本域组件已完成迁移且所需共享组件采用显式配置导入。
 
 #### 验收
 
