@@ -1,5 +1,12 @@
-# Build & push all backend service images to ghcr.io/openware-io.
-# Trigger: push a version tag, e.g.  git tag v2.1.0 && git push origin v2.1.0
+# Build & push backend service images to ghcr.io/openware-io.
+#
+# 严格遵循 docs/RELEASE_RUNBOOK.md §1.1「服务域独立版本模型」：
+#   - 镜像标签 = 对应叶子服务 pom.xml 的版本（从 target/<artifact>-<version>.jar 文件名解析）
+#   - 禁止 latest / dev / 时间戳等临时标签
+#   - 正式标签为纯 SemVer，不可覆盖
+#
+# 触发：打版本 tag，例如  git tag v2.0.1 && git push origin v2.0.1
+# （tag 仅作触发器；实际镜像标签由各服务 Maven 版本决定）
 name: publish-images
 
 on:
@@ -40,12 +47,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push images
+      - name: Build and push images (tag = per-service Maven version)
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${GITHUB_REF_NAME#v}"
-          # image-name -> maven module directory
+          # 镜像名 -> maven 模块目录
           services=$(cat <<'EOF'
           im-user-service:im-services/user/im-user-service
           im-message-service:im-services/message/im-message-service
@@ -72,17 +78,23 @@ jobs:
           echo "$services" | while IFS=: read -r name mod; do
             [ -z "$name" ] && continue
             jar=$(ls "$mod"/target/*.jar 2>/dev/null | grep -v original | head -1 || true)
-            if [ -z "$jar" ]; then echo "::warning::no jar for $name"; continue; fi
+            if [ -z "$jar" ]; then echo "::warning::no jar for $name, skipped"; continue; fi
+            # 文件名形如 <artifact>-<version>.jar -> 解析版本（规范：镜像标签=服务 Maven 版本）
+            base=$(basename "$jar" .jar)
+            version="${base#"$name"-}"
+            case "$version" in
+              *SNAPSHOT|*.*.*) ;;
+              *) echo "::error::cannot parse semver from $base"; exit 1;;
+            esac
             image="${REGISTRY}/${ORG}/${name}"
-            echo "==> building $image:$TAG from $jar"
+            echo "==> $image:$version"
             docker buildx build \
               --platform linux/amd64 \
               --build-arg JAR_PATH="$jar" \
-              --build-arg IMAGE_VERSION="$TAG" \
+              --build-arg IMAGE_VERSION="$version" \
               --build-arg IMAGE_REVISION="${GITHUB_SHA}" \
               --build-arg IMAGE_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --build-arg IMAGE_SOURCE="https://github.com/${{ github.repository }}" \
-              -t "${image}:${TAG}" \
-              -t "${image}:latest" \
+              -t "${image}:${version}" \
               --push .
           done

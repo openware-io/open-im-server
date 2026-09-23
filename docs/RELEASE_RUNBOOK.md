@@ -11,11 +11,11 @@
 
 | 仓库 | 路径 | 分支 | 版本文件 |
 | --- | --- | --- | --- |
-| 后端（Java 微服务） | `D:\projects\cnb\gv_im_server` | `develop/develop-bz-20260812` | 所有 `pom.xml` 的 `<version>` |
-| 客户端（Flutter） | `D:\projects\cnb\gv_chat_app` | `javachat` | `pubspec.yaml` 的 `version: X.Y.Z+buildNumber` |
-| 管理后台（Vue） | `D:\projects\cnb\gv_chat_admin` | `develop/api-20260731-th` | `package.json` 的 `version` |
+| 后端（Java 微服务） | `D:\projects\cnb-oss\open-im-server` | `develop/develop-bz-20260812` | 所有 `pom.xml` 的 `<version>` |
+| 客户端（Flutter） | `D:\projects\cnb-oss\open-chat-app` | `javachat` | `pubspec.yaml` 的 `version: X.Y.Z+buildNumber` |
+| 管理后台（Vue） | `D:\projects\cnb-oss\open-chat-admin` | `develop/api-20260731-th` | `package.json` 的 `version` |
 | 官网（静态站） | `D:\projects\cnb\open-website` | `main` | `VERSION` |
-| SaaS 移动 H5（C端 A380 更多服务 + B端 商户端） | `D:\projects\cnb\gv_saas_mobile` | `main` | `VERSION` |
+| SaaS 移动 H5（C端 A380 更多服务 + B端 商户端） | `D:\projects\cnb-oss\open-saas-mobile` | `main` | `VERSION` |
 
 > 分支名可能随时间演进；以 `git remote -v` + `git branch` 实测为准。官网 CMS 的版本号独立维护。
 
@@ -90,7 +90,7 @@
 一次改动只涉及少数服务时，不要重建/推送/滚动全部工作负载：
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb-oss\open-im-server
 # 后端服务改了实现：只构建该模块（不带 -am 之外的全量构建），产物落到对应 target/
 .\mvnw.cmd -B -ntp -pl platform-services/tenant/platform-tenant-service -am package
 # 只构建/推送 -Targets 列出的服务，发布清单里也只登记这些服务
@@ -117,7 +117,7 @@ cd D:\projects\cnb\gv_im_server
 单服务域发版（例：`im-message` 域 `1.0.21 → 1.0.22`）：
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb-oss\open-im-server
 # 只改该服务域父 POM 版本；同域 *-api 与 *-service 继承，无需逐个改
 .\mvnw.ps1 -f im-services/message/pom.xml versions:set -DnewVersion=1.0.22
 # 若其他域依赖本域 *-api，同步它们的版本属性（如 im-message-api.version）
@@ -130,7 +130,7 @@ cd D:\projects\cnb\gv_im_server
 ### 4.2 构建
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb-oss\open-im-server
 mvn -B clean package -DskipTests        # 全量构建，产物在各模块 target/
 ```
 
@@ -138,12 +138,12 @@ mvn -B clean package -DskipTests        # 全量构建，产物在各模块 targ
 
 ### 4.3 构建并推送镜像（8 个后端服务）
 
-镜像前缀：`crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni`（集群用 `-vpc.` 前缀拉取，同一仓库）。
+镜像前缀：`ghcr.io/openware-io`（集群用 `-vpc.` 前缀拉取，同一仓库）。
 
 ```powershell
 $tag = '1.0.14'; $rev = (git rev-parse --short HEAD)
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
-$prefix = 'crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni'
+$prefix = 'ghcr.io/openware-io'
 $services = [ordered]@{
   'im-user-service'        = 'im-services/user/im-user-service/target/im-user-service-1.0.14.jar'
   'im-message-service'     = 'im-services/message/im-message-service/target/im-message-service-1.0.14.jar'
@@ -156,7 +156,7 @@ $services = [ordered]@{
 }
 foreach ($e in $services.GetEnumerator()) {
   $img = "$prefix/$($e.Key):$tag"
-  docker build --pull=false --build-arg "JAR_PATH=$($e.Value)" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$rev" --build-arg "IMAGE_CREATED=$stamp" --build-arg "IMAGE_SOURCE=git://gv_im_server" -t $img $root
+  docker build --pull=false --build-arg "JAR_PATH=$($e.Value)" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$rev" --build-arg "IMAGE_CREATED=$stamp" --build-arg "IMAGE_SOURCE=https://github.com/openware-io/open-im-server" -t $img $root
   docker push $img
 }
 ```
@@ -195,7 +195,7 @@ kubeconfig 路径从 VS Code 配置读取：`Code\User\settings.json` 的 `vs-ku
 ### 5.2 构建 APK
 
 ```powershell
-cd D:\projects\cnb\gv_chat_app
+cd D:\projects\cnb-oss\open-chat-app
 .\tools\build.ps1 android prod apk -JPushAppKey "YOUR_JPUSH_APPKEY"
 # 产物：build\app\outputs\flutter-apk\app-release.apk
 ```
@@ -208,7 +208,7 @@ cd D:\projects\cnb\gv_chat_app
 
 ```powershell
 # 只需本地构建 APK（正式环境直装包）
-cd D:\projects\cnb\gv_chat_app
+cd D:\projects\cnb-oss\open-chat-app
 .\tools\build.ps1 android prod apk -JPushAppKey "YOUR_JPUSH_APPKEY"
 # 产物：build\app\outputs\flutter-apk\app-release.apk
 ```
@@ -256,7 +256,7 @@ cd D:\projects\cnb\gv_chat_app
 2. 构建安装包：
 
    ```powershell
-   cd D:\projects\cnb\gv_chat_desktop
+   cd D:\projects\cnb-oss\open-chat-desktop
    npm run build:win
    # 产物：dist\WV Chat Setup <version>.exe
    ```
@@ -281,7 +281,7 @@ cd D:\projects\cnb\gv_chat_app
 2. 使用统一发布构建生成正式清单；不得直接 `docker push` 或更新工作负载镜像：
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb-oss\open-im-server
 .\scripts\deploy\build-saas-release.ps1 -FormalRelease -FormalTargets pc-admin -ReleaseManifestPath .\.outputs\releases\pc-admin-formal.json
 # Kind 回归通过后，使用同一清单发布 ACK。
 .\scripts\deploy\ack.ps1 -ReleaseManifestPath .\.outputs\releases\pc-admin-formal.json
@@ -299,9 +299,9 @@ cd D:\projects\cnb\gv_im_server
 
 ```powershell
 cd D:\projects\cnb\open-website
-docker build --platform linux/amd64 -t crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37 -f Dockerfile .
-docker push crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37
-kubectl -n meta-cogni set image deployment/xch-cms xch-cms=crpi-2xbf44rg544imbew-vpc.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37
+docker build --platform linux/amd64 -t ghcr.io/openware-io/open-website:1.0.37 -f Dockerfile .
+docker push ghcr.io/openware-io/open-website:1.0.37
+kubectl -n meta-cogni set image deployment/xch-cms xch-cms=ghcr.io/openware-io/open-website:1.0.37
 kubectl -n meta-cogni rollout status deployment/xch-cms --timeout=300s
 ```
 
@@ -317,7 +317,7 @@ kubectl -n meta-cogni rollout status deployment/xch-cms --timeout=300s
 2. 使用统一发布构建生成正式清单；不得直接构建、推送或替换 ACK 工作负载：
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb-oss\open-im-server
 .\scripts\deploy\build-saas-release.ps1 -FormalRelease -FormalTargets saas-mobile -ReleaseManifestPath .\.outputs\releases\saas-mobile-formal.json
 # Kind 回归通过后，使用同一清单发布 ACK。
 .\scripts\deploy\ack.ps1 -ReleaseManifestPath .\.outputs\releases\saas-mobile-formal.json
