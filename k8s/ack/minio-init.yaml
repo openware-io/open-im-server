@@ -9,7 +9,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: minio-init
-          image: registry.example.com/openware/mc:RELEASE.2024-10-08T09-37-26Z
+          image: minio/mc:RELEASE.2024-10-08T09-37-26Z
           imagePullPolicy: Always
           command: [sh, -ec]
           args:

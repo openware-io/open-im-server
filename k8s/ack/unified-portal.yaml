@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: unified-portal
-          image: registry.example.com/openware/unified-portal:1.0.1
+          image: ghcr.io/openware-io/unified-portal:1.0.1
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 80 } ]
           readinessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }

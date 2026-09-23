@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-audit-service
-          image: registry.example.com/openware/common-audit-service:2.0.1
+          image: ghcr.io/openware-io/common-audit-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -62,7 +62,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-payment-channel-service
-          image: registry.example.com/openware/common-payment-channel-service:2.0.1
+          image: ghcr.io/openware-io/common-payment-channel-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -93,7 +93,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-marketing-service
-          image: registry.example.com/openware/platform-marketing-service:2.0.1
+          image: ghcr.io/openware-io/platform-marketing-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }

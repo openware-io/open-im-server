@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: group-idaas-service
-          image: registry.example.com/openware/group-idaas-service:2.0.2
+          image: ghcr.io/openware-io/group-idaas-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }

@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-identity-service
-          image: registry.example.com/openware/platform-identity-service:2.0.10
+          image: ghcr.io/openware-io/platform-identity-service:2.0.10
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }

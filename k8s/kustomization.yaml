@@ -6,22 +6,22 @@ resources:
   - ack/minio-init.yaml
 images:
   - name: open-im/im-user-service
-    newName: registry.example.com/openware/im-user-service
+    newName: ghcr.io/openware-io/im-user-service
     newTag: 1.0.33
   - name: open-im/im-message-service
-    newName: registry.example.com/openware/im-message-service
+    newName: ghcr.io/openware-io/im-message-service
     newTag: 1.0.38
   - name: open-im/im-conversation-service
-    newName: registry.example.com/openware/im-conversation-service
+    newName: ghcr.io/openware-io/im-conversation-service
     newTag: 1.0.31
   - name: open-im/common-media-service
-    newName: registry.example.com/openware/common-media-service
+    newName: ghcr.io/openware-io/common-media-service
     newTag: 2.0.1
   - name: open-im/im-admin-service
-    newName: registry.example.com/openware/im-admin-service
+    newName: ghcr.io/openware-io/im-admin-service
     newTag: 1.0.29
   - name: open-im/im-access-ws
-    newName: registry.example.com/openware/im-access-ws
+    newName: ghcr.io/openware-io/im-access-ws
     newTag: 1.0.31
 patches:
   - target:
@@ -94,7 +94,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/image
-        value: registry.example.com/openware/gateway:1.1.6
+        value: ghcr.io/openware-io/gateway:1.1.6
   - target:
       group: apps
       version: v1
@@ -103,4 +103,4 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/image
-        value: registry.example.com/openware/pc-admin:2.0.1
+        value: ghcr.io/openware-io/pc-admin:2.0.1

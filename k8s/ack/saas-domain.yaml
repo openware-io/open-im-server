@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-tenant-service
-          image: registry.example.com/openware/platform-tenant-service:2.0.3
+          image: ghcr.io/openware-io/platform-tenant-service:2.0.3
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -47,7 +47,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-resource-service
-          image: registry.example.com/openware/platform-resource-service:2.0.2
+          image: ghcr.io/openware-io/platform-resource-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -78,7 +78,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-order-service
-          image: registry.example.com/openware/platform-order-service:2.0.7
+          image: ghcr.io/openware-io/platform-order-service:2.0.7
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -111,7 +111,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: common-payment-service
-          image: registry.example.com/openware/common-payment-service:2.0.2
+          image: ghcr.io/openware-io/common-payment-service:2.0.2
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }

@@ -4,7 +4,7 @@ param(
   [switch]$Stop,
   [switch]$SkipBuild,
   [string]$ReleaseManifestPath,
-  [string]$Registry = 'registry.example.com',
+  [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = 'openware',
   [ValidateRange(30, 600)]
   [int]$StartupTimeoutSeconds = 240

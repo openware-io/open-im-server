@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: gateway
-          image: registry.example.com/openware/gateway@sha256:3beaadc8171e85c1887e27d9569b388a95e78bdb6c638f88c562952e797df60a
+          image: ghcr.io/openware-io/gateway:1.1.6
           imagePullPolicy: Always
           envFrom: [ { configMapRef: { name: open-im-config } }, { secretRef: { name: open-im-secret } } ]
           env:

@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-admin-service
-          image: registry.example.com/openware/platform-admin-service:2.0.16
+          image: ghcr.io/openware-io/platform-admin-service:2.0.16
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
@@ -61,7 +61,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: saas-admin
-          image: registry.example.com/openware/saas-admin:2.1.2
+          image: ghcr.io/openware-io/saas-admin:2.1.2
           imagePullPolicy: Always
           ports: [ { containerPort: 80 } ]
           readinessProbe: { httpGet: { path: /, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }

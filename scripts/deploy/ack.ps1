@@ -2,7 +2,7 @@
 param(
   [Parameter(Mandatory)] [string]$ReleaseManifestPath,
   [string]$Namespace = 'im-business',
-  [string]$Registry = 'registry.example.com',
+  [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = 'openware',
   [ValidateRange(120, 1800)] [int]$StartupTimeoutSeconds = 900
 )

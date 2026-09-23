@@ -7,7 +7,7 @@ param(
   # 增量开发发版：只构建/推送列出的服务，清单里也只列出这些服务（配合 k8s-scoped.ps1 部署）。
   # 留空表示按既有行为构建全部服务；不能与 -FormalRelease 同时使用（正式发版用 -FormalTargets）。
   [string[]]$Targets = @(),
-  [string]$Registry = 'registry.example.com',
+  [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = 'openware'
 )
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest

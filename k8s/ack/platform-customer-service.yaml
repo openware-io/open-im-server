@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [ { name: acr-public-key } ]
       containers:
         - name: platform-customer-service
-          image: registry.example.com/openware/platform-customer-service:2.0.1
+          image: ghcr.io/openware-io/platform-customer-service:2.0.1
           imagePullPolicy: Always
           env:
             - { name: TZ, value: UTC }
