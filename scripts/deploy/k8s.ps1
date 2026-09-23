@@ -265,7 +265,7 @@ function Set-ApplicationImage {
         'release.open-im.local/deployed-at' = $CreatedAt
         'release.open-im.local/image-ref' = $imageRef
       }
-    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = 'Always'; env = @(
+    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }; env = @(
       @{ name = 'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE'; value = 'health,info' },
       @{ name = 'MANAGEMENT_INFO_ENV_ENABLED'; value = 'true' },
       @{ name = 'INFO_BUILD_GIT_COMMIT'; value = $Revision },
@@ -292,7 +292,7 @@ if ($SaasReleaseManifestPath) {
     if (!$property) { throw "SaaS release manifest missing service: $name" }
     $entry = $property.Value
     [void](Get-ApprovedReleaseImage -Name $name -Entry $entry -Registry $Registry -RepositoryNamespace $RepositoryNamespace)
-    $saasImages[$name] = [string]$entry.imageDigest
+    $saasImages[$name] = if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { [string]$entry.image } else { [string]$entry.imageDigest }
     $saasTags[$name] = [string]$entry.tag
   }
 } elseif ($SaasImageTag) { throw 'SaasImageTag is deprecated. Use SaasReleaseManifestPath so each service keeps its approved module version.' }
@@ -341,11 +341,11 @@ $infrastructureImages = @(
   'mysql:8.0',
   'redis:7-alpine',
   'mongo:7.0.12',
-  'minio/minio:RELEASE.2024-06-13T22-53-53Z',
-  'minio/mc:RELEASE.2024-05-28T17-19-04Z'
+  'minio/minio:RELEASE.2024-10-13T13-34-11Z',
+  'minio/mc:RELEASE.2024-10-08T09-37-26Z'
 )
 foreach ($image in $infrastructureImages) { Import-KubernetesRegistryImage -Image $image }
-$rocketmqImage = 'open-im/rocketmq:5.3.1-local'
+$rocketmqImage = 'apache/rocketmq:5.3.1'
 # 本地已构建过就复用：基镜像 apache/rocketmq:5.3.1 只在首次构建时从 Docker Hub 拉取，
 # 无外网/代理抖动时重建会让整个 Kind 部署在应用清单之前直接失败（该镜像不参与发布清单校验）。
 $savedErrorActionPreference = $ErrorActionPreference
@@ -368,6 +368,7 @@ $localSaasImageNames = @(
   'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service',
   'saas-admin', 'saas-mobile', 'unified-portal'
 )
+foreach ($name in $saasImages.Keys) { Import-KubernetesRegistryImage -Image $saasImages[$name] }
 foreach ($name in $localSaasImageNames | Where-Object { $_ -ne 'im-user-service' }) {
   if (!$saasTags[$name]) { throw "SaaS release manifest is required for $name." }
 }
@@ -390,7 +391,7 @@ function Remove-ReleaseBuildWaste {
   if ($LASTEXITCODE -ne 0) { throw 'Docker dangling-image cleanup failed.' }
 }
 
-Invoke-Kubectl -Arguments @('create', 'namespace', $Namespace, '--dry-run=client', '-o', 'yaml') | & kubectl apply -f -
+if (-not (& kubectl get namespace $Namespace 2>$null)) { & kubectl create namespace $Namespace | Out-Null }
 if ($LASTEXITCODE -ne 0) { throw 'Creating the Kubernetes namespace failed.' }
 
 $secretEnvFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-" + [guid]::NewGuid().ToString() + '.env')
