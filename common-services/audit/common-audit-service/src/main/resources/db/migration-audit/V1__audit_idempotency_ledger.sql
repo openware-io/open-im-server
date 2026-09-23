@@ -1,6 +1,6 @@
 -- 审计写入幂等台账（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §2.2）。
 --
--- 本目录（db/migration-audit）是**独立 schema open_audit 的全新基线**，与 db/migration（老库 open_saas 的历史）
+-- 本目录（db/migration-audit）是**独立 schema open_audit 的全新基线**，与 db/migration（老库 open_im 的历史）
 -- 互不复用版本号：审计表迁到新库时物理设计已变（分区主表 + 台账），沿用老库 V1+V5 会在新库先建普通表、
 -- 再建分区表而冲突；迁移规范也允许「确认不存在历史库时重建 V1 基线」，新库正是这种情况。
 -- 两个目录由 application-audit-schema.yml 按 profile 二选一（见方案 §5 批次 2c）。

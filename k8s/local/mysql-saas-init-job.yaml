@@ -2,7 +2,7 @@
 #
 # open_audit：审计日志独立 schema（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md）。
 #   * 审计服务启动时 Flyway 会在 open_audit 里建分区主表/幂等台账/归档清单，因此**建库授权必须先于服务发布**；
-#   * 审计列表要按租户ID回填租户名（读 open_saas.tnt_tenant），而下面已整体授权 open_saas.*，无需额外 GRANT；
+#   * 审计列表要按租户ID回填租户名（读 open_im.tnt_tenant），而下面已整体授权 open_im.*，无需额外 GRANT；
 #   * Compose 用的是已有数据卷（不会重跑 entrypoint 初始化），所以那里改用
 #     scripts/migration/audit-schema-bootstrap.sql 作为显式前置步骤。
 apiVersion: batch/v1
@@ -26,9 +26,9 @@ spec:
             - >-
               until mysqladmin ping -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done;
               mysql -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e
-              "CREATE DATABASE IF NOT EXISTS open_saas;
+              "CREATE DATABASE IF NOT EXISTS open_im;
               CREATE USER IF NOT EXISTS '$DB_USERNAME'@'%' IDENTIFIED BY '$DB_PASSWORD';
-              GRANT ALL PRIVILEGES ON open_saas.* TO '$DB_USERNAME'@'%';
+              GRANT ALL PRIVILEGES ON open_im.* TO '$DB_USERNAME'@'%';
               CREATE DATABASE IF NOT EXISTS open_audit DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
               GRANT ALL PRIVILEGES ON open_audit.* TO '$DB_USERNAME'@'%';
               FLUSH PRIVILEGES;"

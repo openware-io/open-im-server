@@ -36,7 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>返回值里的 {@code deletedAccount} / {@code accountType} 显式说明「账号本体有没有被删」，
  * 让调用方与审计能看出「IM 身份已清、员工账号本体保留」的差异。
  *
- * <p>**只有本服务拥有 open_saas 的 idt_* 表**，清理只能由本服务执行；调用方通过内部端点在
+ * <p>**只有本服务拥有 open_im 的 idt_* 表**，清理只能由本服务执行；调用方通过内部端点在
  * **自己的事务里**发起（IM 侧失败则整体回滚，不留半删状态）。
  */
 @Service

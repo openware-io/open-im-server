@@ -8,7 +8,7 @@
 --   2) 到店事实只由「到店登记」（CONFIRMED → ARRIVED）或「到店开台」（CONFIRMED → CONVERTED，隐含到店）写入；
 --   3) 两种路径都写 arrived_at，后台据此展示真实到店时间（未到店为 NULL）。
 --
--- 目标库：open_saas（platform-order-service），Flyway 历史表 flyway_schema_history_order。
+-- 目标库：open_im（platform-order-service），Flyway 历史表 flyway_schema_history_order。
 ALTER TABLE `ord_reservation`
   ADD COLUMN `arrived_at` datetime(3) NULL
     COMMENT '实际到店时间（门店登记到店或到店开台时写入；未到店/历史行为 NULL）' AFTER `order_id`;

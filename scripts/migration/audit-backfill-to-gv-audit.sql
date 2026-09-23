@@ -1,6 +1,6 @@
 -- =============================================================================
 -- 审计日志迁移：Backfill + Verify + Switch + Rollback
--- 目标库：open_audit（新，按 occurred_at 月分区 + 幂等台账）；源库：open_saas（旧，普通表）
+-- 目标库：open_audit（新，按 occurred_at 月分区 + 幂等台账）；源库：open_im（旧，普通表）
 -- 说明：两个库在同一 MySQL 实例，本脚本在任一库的会话内执行，跨库读写（需同时具备两库权限）。
 --       建表由 Flyway 在 open_audit 里完成（db/migration-audit：V1 台账、V2 分区主表、V3 归档清单），
 --       本脚本只负责**搬数据**。方案：docs/renovation/AUDIT_STORAGE_01_SERVICE.md §5 批次 3。
@@ -41,7 +41,7 @@ SELECT
    error_code, ip, user_agent, request_id, trace_id, source_service, COALESCE(idempotency_key, ''),
    detail_json,
    COALESCE(occurred_at, created_at) AS occurred_at, created_at
-FROM open_saas.iam_audit_log
+FROM open_im.iam_audit_log
 WHERE COALESCE(occurred_at, created_at) >= __PERIOD_START__
   AND COALESCE(occurred_at, created_at) <  __PERIOD_END__
 -- 显式无操作：只忽略主键 (id, occurred_at) 重复，其它约束错误照常报错。
@@ -52,8 +52,8 @@ ON DUPLICATE KEY UPDATE open_audit.iam_audit_log.id = open_audit.iam_audit_log.i
 -- -----------------------------------------------------------------------------
 -- [Verify] 逐月对账：两库同区间的行数必须一致（回填后执行）
 -- -----------------------------------------------------------------------------
-SELECT 'open_saas(旧)' AS source, COUNT(*) AS rows_in_period
-FROM open_saas.iam_audit_log
+SELECT 'open_im(旧)' AS source, COUNT(*) AS rows_in_period
+FROM open_im.iam_audit_log
 WHERE COALESCE(occurred_at, created_at) >= __PERIOD_START__
   AND COALESCE(occurred_at, created_at) <  __PERIOD_END__
 UNION ALL
@@ -63,7 +63,7 @@ WHERE occurred_at >= __PERIOD_START__ AND occurred_at < __PERIOD_END__;
 
 -- 抽样核对（各取 3 条最新，逐字段比对关键列；行数一致也要确认内容真的搬过来了）
 SELECT id, action, action_label, result, occurred_at, created_at
-FROM open_saas.iam_audit_log
+FROM open_im.iam_audit_log
 WHERE COALESCE(occurred_at, created_at) >= __PERIOD_START__
   AND COALESCE(occurred_at, created_at) <  __PERIOD_END__
 ORDER BY id DESC LIMIT 3;
@@ -89,7 +89,7 @@ FROM open_audit.iam_audit_log PARTITION (pmax);
 -- -----------------------------------------------------------------------------
 -- [Rollback] 回退（回退窗口 = 1 个发布周期）
 -- -----------------------------------------------------------------------------
--- 1) 去掉 audit-schema profile 并重启 common-audit-service：读写立刻回到 open_saas.iam_audit_log；
+-- 1) 去掉 audit-schema profile 并重启 common-audit-service：读写立刻回到 open_im.iam_audit_log；
 -- 2) 旧表在回退窗口内**不得删除、不得改动**（本脚本对其只读）；
 -- 3) 新库可原样保留（不影响旧表）；确认稳定一个发布周期后，再决定旧表归档或删除。
 -- 注意：回退期间若有新写入落在新表（含回填之后产生的记录），回退后这些记录不会出现在旧表里——

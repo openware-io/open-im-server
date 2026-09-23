@@ -24,7 +24,7 @@ public interface OperatorNameMapper {
     @Select("""
         <script>
         SELECT platform_account_id AS operator_id, username AS username, display_name AS display_name
-        FROM open_saas.saa_admin_account
+        FROM open_im.saa_admin_account
         WHERE platform_account_id IN
         <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
         </script>
@@ -39,7 +39,7 @@ public interface OperatorNameMapper {
      * 上限 200 条：运营排查用的关键字不会命中更多账号，超限属于输入过宽，宁可少匹配也不做全表扫描。
      */
     @Select("""
-        SELECT platform_account_id FROM open_saas.saa_admin_account
+        SELECT platform_account_id FROM open_im.saa_admin_account
         WHERE platform_account_id IS NOT NULL
           AND (display_name LIKE CONCAT('%', #{keyword}, '%') OR username LIKE CONCAT('%', #{keyword}, '%'))
         ORDER BY platform_account_id

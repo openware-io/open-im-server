@@ -13,7 +13,7 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
     /**
      * 按账号取 IM 登录标识（统一账号模型：{@code idt_login_identity}，仅 ACTIVE 的 IM 身份）。
      *
-     * <p>「创建时就回填 IM 信息」的取数入口：{@code idt_*}} 在同一个 open_saas 库、且不带 tenant_id，
+     * <p>「创建时就回填 IM 信息」的取数入口：{@code idt_*}} 在同一个 open_im 库、且不带 tenant_id，
      * 因此忽略租户行过滤（与 admin 报表跨域 join ord_ / pay_ 同一范式）；取不到就返回 null——
      * **IM 没有这个信息时不伪造**，客户档案照建（员工也可以是消费者）。
      */

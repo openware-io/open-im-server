@@ -2,7 +2,7 @@ spring:
   application:
     name: platform-marketing-service
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:

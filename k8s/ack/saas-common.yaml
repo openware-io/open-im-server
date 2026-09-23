@@ -33,7 +33,7 @@ spec:
             # 审计存储切到独立 schema open_audit（月分区主表 + 幂等台账 + 归档清单）。
             # 前置条件：必须先按 scripts/migration/audit-schema-bootstrap.sql 在 ACK 的 MySQL 上
             # 建库并授权给 im_user，否则本 profile 会让 Flyway/连接直接失败（无库可连）。
-            # 回退：删除本行并重启——立刻回到 open_saas 的普通审计表，镜像与代码都不用回滚。
+            # 回退：删除本行并重启——立刻回到 open_im 的普通审计表，镜像与代码都不用回滚。
             - { name: SPRING_PROFILES_ACTIVE, value: audit-schema }
             # 本服务自己的自留审计（保留任务的归档登记/分区预建）**刻意不注入上报地址**：
             # 审计服务的上报目标就是它自己，走默认的 http://localhost:4190 直接进本 Pod 的 4190 端口，

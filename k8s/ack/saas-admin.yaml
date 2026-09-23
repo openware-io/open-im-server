@@ -24,7 +24,7 @@ spec:
             - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             # 内部服务 HMAC 签名（KTV 配置 BFF 调用 tenant/resource/payment 内部接口）
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
-            # Flyway + saa_admin_account 需要连接 open_saas 库
+            # Flyway + saa_admin_account 需要连接 open_im 库
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }

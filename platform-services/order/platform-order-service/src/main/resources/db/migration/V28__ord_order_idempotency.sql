@@ -6,7 +6,7 @@
 --   * 列可空：调用方不带 Idempotency-Key 时行为完全不变（历史/内部调用不受影响）；
 --   * 唯一键 (tenant_id, idempotency_key)：并发重复提交由数据库兜底，服务端命中后回放已有订单。
 --
--- 目标库：open_saas（platform-order-service），Flyway 历史表 flyway_schema_history_order。
+-- 目标库：open_im（platform-order-service），Flyway 历史表 flyway_schema_history_order。
 ALTER TABLE `ord_order`
   ADD COLUMN `idempotency_key` varchar(64) NULL
     COMMENT '幂等键（请求头 Idempotency-Key，租户内唯一；NULL = 调用方未提供）' AFTER `order_no`,

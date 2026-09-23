@@ -2,7 +2,7 @@
 -- 依赖 admin 域(saa_admin_account)、tenant 域(iam_user_role) 表，须在所有相关服务启动后执行一次（幂等）。
 -- 优先级：PLATFORM_OPERATOR > EMPLOYEE > CUSTOMER（默认）。
 
-USE open_saas;
+USE open_im;
 
 -- 1) 平台运营：持有 PLATFORM 作用域角色的账号（如 admin）
 UPDATE idt_account a

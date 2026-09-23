@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 操作人展示信息只读行（{@code open_saas.saa_admin_account}），仅用于审计列表/详情补全姓名与账号，
+ * 操作人展示信息只读行（{@code open_im.saa_admin_account}），仅用于审计列表/详情补全姓名与账号，
  * 不参与任何写入：账号表的权威值只读，审计表里的历史值不被覆盖。
  */
 @Getter

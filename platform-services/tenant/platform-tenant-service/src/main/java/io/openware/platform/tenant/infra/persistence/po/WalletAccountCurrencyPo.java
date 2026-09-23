@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * 校验是否存在非零余额且币种不同的账户，并在显式 `migrateBalances` 时把币种改写为新币种（金额数字不变）。
  *
  * <p>为什么由 tenant-service 直接读这张表：全平台共用同一个 MySQL 库（各服务 datasource 均指向
- * `open_saas`），而币种切换必须与 `tnt_store.default_currency` 写穿在**同一事务**内完成，
+ * `open_im`），而币种切换必须与 `tnt_store.default_currency` 写穿在**同一事务**内完成，
  * 走跨服务内部调用无法保证事务一致性。字段只声明联动所需的列，账户其余字段由 customer-service 负责。
  */
 @Getter

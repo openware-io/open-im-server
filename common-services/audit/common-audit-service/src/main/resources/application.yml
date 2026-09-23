@@ -2,9 +2,9 @@ spring:
   application:
     name: common-audit-service
   datasource:
-    # 默认仍连老库 open_saas（历史）。审计表迁到独立 schema open_audit 时启用 audit-schema profile
+    # 默认仍连老库 open_im（历史）。审计表迁到独立 schema open_audit 时启用 audit-schema profile
     # （application-audit-schema.yml 同时切库名与 Flyway 迁移目录），回退就是去掉该 profile。
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${MYSQL_DATABASE:open_saas}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/${MYSQL_DATABASE:open_im}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
   flyway:

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>背景：H5 的 OAuth 走 PKCE，依赖浏览器安全上下文（WebCrypto）。局域网设备用
  * {@code http://192.168.x.x:port/} 打开页面时不是安全上下文，{@code crypto.subtle} 不可用，
  * 正常授权链路无法完成；同时裸跳 IM {@code /oauth/authorize} 在桌面浏览器里也没有 IM 登录态。
- * 因此前端在 localhost/内网地址 + 调试端口下改为调用本端点换取会话（见 open_saas_mobile 的
+ * 因此前端在 localhost/内网地址 + 调试端口下改为调用本端点换取会话（见 open_im_mobile 的
  * {@code ensureLocalDevSession}）。
  *
  * <p>安全边界（三重）：

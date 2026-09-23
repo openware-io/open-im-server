@@ -25,10 +25,10 @@
  *      （Kind 里 MySQL 是集群内 Service，默认不对宿主机暴露）
  *   2) 把集群内 MySQL 暴露到本机 13306：
  *      kubectl -n open-im-local port-forward svc/mysql 13306:3306
- *   3) 跑本脚本（连接器 jar 来自 Maven 本地仓；im_user 对 open_saas 有全量权限，够建临时表）：
+ *   3) 跑本脚本（连接器 jar 来自 Maven 本地仓；im_user 对 open_im 有全量权限，够建临时表）：
  *      java -cp "$env:USERPROFILE\.m2\repository\com\mysql\mysql-connector-j\9.7.0\mysql-connector-j-9.7.0.jar" `
  *           scripts/verify/AuditPartitionDdlCheck.java `
- *           --host 127.0.0.1 --port 13306 --user im_user --password <DB_PASSWORD> --schema open_saas
+ *           --host 127.0.0.1 --port 13306 --user im_user --password <DB_PASSWORD> --schema open_im
  *
  * 也可先编译再运行（javac 要求文件名与公有类同名，因此本文件用 PascalCase 命名）：
  *   javac -encoding UTF-8 -cp <jar> -d <tmp> scripts/verify/AuditPartitionDdlCheck.java
@@ -66,7 +66,7 @@ public final class AuditPartitionDdlCheck {
         String port = options.getOrDefault("port", envOr("MYSQL_PORT", "3306"));
         String user = options.getOrDefault("user", envOr("MYSQL_USER", "root"));
         String password = options.getOrDefault("password", envOr("MYSQL_PASSWORD", ""));
-        String schema = options.getOrDefault("schema", envOr("MYSQL_DATABASE", "open_saas"));
+        String schema = options.getOrDefault("schema", envOr("MYSQL_DATABASE", "open_im"));
         String suffix = options.getOrDefault("suffix", "_ddlcheck");
 
         String url = "jdbc:mysql://" + host + ":" + port + "/" + schema

@@ -22,7 +22,7 @@ spec:
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
-            - { name: MYSQL_DATABASE, value: open_saas }
+            - { name: MYSQL_DATABASE, value: open_im }
             - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             - { name: REDIS_HOST, value: redis }
             - { name: REDIS_PORT, value: '6379' }

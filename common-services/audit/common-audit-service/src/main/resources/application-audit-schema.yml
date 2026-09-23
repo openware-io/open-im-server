@@ -1,7 +1,7 @@
 # 审计表独立 schema 开关（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §5 批次 2c）。
 #
 # 启用方式：SPRING_PROFILES_ACTIVE 里加上 audit-schema（可与其他 profile 用逗号并列）。
-# 回退方式：去掉该 profile —— 服务立刻回到老库 open_saas 的普通审计表，代码与镜像都不用回滚。
+# 回退方式：去掉该 profile —— 服务立刻回到老库 open_im 的普通审计表，代码与镜像都不用回滚。
 #
 # 为什么用 profile 而不是只改库名环境变量：
 #   审计表迁到新库时**物理设计已变**（老库是普通表 + 唯一键幂等；新库是 occurred_at 月分区主表 + 幂等台账），

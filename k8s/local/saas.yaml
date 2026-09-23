@@ -385,7 +385,7 @@ spec:
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4220' }
             - { name: MYSQL_HOST, value: mysql }
-            - { name: MYSQL_DATABASE, value: open_saas }
+            - { name: MYSQL_DATABASE, value: open_im }
             - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
             - { name: REDIS_HOST, value: redis }

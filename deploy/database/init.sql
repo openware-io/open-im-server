@@ -6,7 +6,7 @@
 -- and creates/migrates ALL tables automatically — no other SQL is required.
 --
 -- Two schemas:
---   open_saas   — business data (all im-* / platform-* / common-* services)
+--   open_im   — business data (all im-* / platform-* / common-* services)
 --   open_audit  — independent audit-log schema (enabled via `audit-schema` profile)
 --
 -- Usage:
@@ -23,7 +23,7 @@
 SET NAMES utf8mb4;
 
 -- 1. Schemas -------------------------------------------------------------------
-CREATE DATABASE IF NOT EXISTS open_saas
+CREATE DATABASE IF NOT EXISTS open_im
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 CREATE DATABASE IF NOT EXISTS open_audit
   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
@@ -34,6 +34,6 @@ CREATE USER IF NOT EXISTS 'im_user'@'%' IDENTIFIED BY 'change-me';
 ALTER USER 'im_user'@'%' IDENTIFIED BY 'change-me';
 
 -- 3. Grants --------------------------------------------------------------------
-GRANT ALL PRIVILEGES ON open_saas.* TO 'im_user'@'%';
+GRANT ALL PRIVILEGES ON open_im.* TO 'im_user'@'%';
 GRANT ALL PRIVILEGES ON open_audit.* TO 'im_user'@'%';
 FLUSH PRIVILEGES;
