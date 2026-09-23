@@ -21,7 +21,7 @@ param(
   [ValidatePattern('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')]
   [string]$RegistryPullSecretName = 'acr-registry',
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = 'openware',
+  [string]$RepositoryNamespace = '',
   [ValidateRange(60, 900)]
   [int]$StartupTimeoutSeconds = 600
 )

@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
   [string]$ReleaseManifestPath,
+  [switch]$SkipPush,
   [switch]$SkipPackage,
   [switch]$FormalRelease,
   [string[]]$FormalTargets = @(),
@@ -8,14 +9,14 @@ param(
   # 留空表示按既有行为构建全部服务；不能与 -FormalRelease 同时使用（正式发版用 -FormalTargets）。
   [string[]]$Targets = @(),
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = 'openware'
+  [string]$RepositoryNamespace = ''
 )
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $projects = @{ 'pc-admin'='D:\projects\cnb-oss\open-chat-admin'; 'saas-admin'='D:\projects\cnb-oss\open-saas-admin'; 'saas-mobile'='D:\projects\cnb-oss\open-saas-mobile'; 'unified-portal'=(Join-Path $root 'portal') }
 $createdAt=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); $timestamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $revision=(& git -C $root rev-parse --short HEAD).Trim(); if(!$revision){throw 'Cannot resolve git revision.'}
-$registryPrefix="$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))"
+$registryPrefix = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))" } else { $Registry.TrimEnd('/') }
 $imageTagSuffix = if ($FormalRelease) { '' } else { '-SNAPSHOT' }
 $allowTagOverwrite = -not $FormalRelease
 function Assert-Clean([string]$p){$status=@(& git -C $p status --porcelain);$gitRoot=[IO.Path]::GetFullPath(((& git -C $p rev-parse --show-toplevel).Trim())).TrimEnd('\');$allowed=@();if($gitRoot -eq $root){$allowed=@(' M k8s/README.md',' M k8s/local/saas.yaml',' M scripts/deploy/build-saas-release.ps1',' M scripts/deploy/ack-saas-candidate.ps1',' M scripts/deploy/k8s.ps1')};$unexpected=@($status|Where-Object{$_ -and $_ -notin $allowed});if($unexpected.Count){throw "Refusing release from dirty worktree: $p`n$($unexpected -join "`n")"}}
@@ -97,6 +98,11 @@ function Publish-Image([string]$name,[string]$tag,[bool]$AllowOverwrite,[string]
   if(!$AllowOverwrite -and (Get-RegistryDigest $image 1)){throw "Formal release image tag already exists and must not be overwritten: $image"}
   $id=(& docker image inspect $image --format '{{.Id}}').Trim()
   if($LASTEXITCODE -ne 0 -or !$id){throw "Built image is missing: $image"}
+  if($SkipPush){
+    $localDigest = $id
+    $digestImage = "$registryPrefix/$name@$localDigest"
+    return [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$localDigest;imageDigest=$digestImage}
+  }
   $digest=$null
   for($a=1;$a -le 10 -and !$digest;$a++){
     $pushCode=Invoke-Docker -DockerArgs @('push',$image)

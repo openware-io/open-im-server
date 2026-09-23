@@ -15,7 +15,7 @@ function Get-ApprovedReleaseImage {
   if ($baseVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' -or $moduleVersion -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-SNAPSHOT)?$' -or $tag -notmatch '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-SNAPSHOT)?$' -or ($tag -ne $moduleVersion -and $tag -ne "$baseVersion-SNAPSHOT")) {
     throw "Image tag must equal the approved module version or its development -SNAPSHOT form: ${Name}:$tag (module $moduleVersion)"
   }
-  $repository = "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))/$Name"
+  $repository = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))/$Name" } else { "$($Registry.TrimEnd('/'))/$Name" }
   $image = "${repository}:$tag"
   $digest = [string]$Entry.digest
   if ($digest -notmatch '^sha256:[a-f0-9]{64}$' -or $Entry.image -ne $image -or $Entry.imageDigest -ne "$repository@$digest") {
