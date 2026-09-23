@@ -4,7 +4,7 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding = $utf8
 [Console]::OutputEncoding = $utf8
 $OutputEncoding = $utf8
-$mutex = [System.Threading.Mutex]::new($false, "Global\gv-im-server-maven-build")
+$mutex = [System.Threading.Mutex]::new($false, "Global\open-im-server-maven-build")
 $lockAcquired = $false
 
 $wrapperJar = Join-Path $PSScriptRoot ".mvn\wrapper\maven-wrapper.jar"

@@ -339,7 +339,7 @@ stash-archive/
 - `gv_im_server` 分支 `develop/2.0.0-saas-20260826`，HEAD = `dfad2d55`，工作区**干净**，与 `origin` 偏差 `0 0`
 - `git stash list` **为空**，`git reflog` 无 stash 记录
 - 工作区根 `D:\projects\cnb` 下 **8 个** git 仓库（`gv_chat_admin` / `gv_chat_app` / `gv_chat_desktop` /
-  `gv_chat_turn` / `gv_im_server` / `gv_saas_admin` / `gv_saas_mobile` / `meta-cogni-cms`），全部 clean
+  `gv_chat_turn` / `gv_im_server` / `gv_saas_admin` / `gv_saas_mobile` / `open-website`），全部 clean
 - 方案点名的 9 个代码入口文件**全部存在**（`AdminMenuApplicationService.java`、`AdminMenuItem.java`、
   `IamSnapshotMapper.java`、`PermissionSnapshotProvider.java`、`AdminLayout.vue`、`stores/menu.js`、
   `utils/menuPermission.js`、`router/index.js`、`TenantContextSelector.vue`）

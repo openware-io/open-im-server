@@ -14,7 +14,7 @@
 | 后端（Java 微服务） | `D:\projects\cnb\gv_im_server` | `develop/develop-bz-20260812` | 所有 `pom.xml` 的 `<version>` |
 | 客户端（Flutter） | `D:\projects\cnb\gv_chat_app` | `javachat` | `pubspec.yaml` 的 `version: X.Y.Z+buildNumber` |
 | 管理后台（Vue） | `D:\projects\cnb\gv_chat_admin` | `develop/api-20260731-th` | `package.json` 的 `version` |
-| 官网（静态站） | `D:\projects\cnb\meta-cogni-cms` | `main` | `VERSION` |
+| 官网（静态站） | `D:\projects\cnb\open-website` | `main` | `VERSION` |
 | SaaS 移动 H5（C端 A380 更多服务 + B端 商户端） | `D:\projects\cnb\gv_saas_mobile` | `main` | `VERSION` |
 
 > 分支名可能随时间演进；以 `git remote -v` + `git branch` 实测为准。官网 CMS 的版本号独立维护。
@@ -289,7 +289,7 @@ cd D:\projects\cnb\gv_im_server
 
 ---
 
-## 7. 官网发布（meta-cogni-cms）
+## 7. 官网发布（open-website）
 
 官网是纯静态站点，**镜像只放静态资源（HTML/CSS/JS），不打包 APK**。APK 统一走第 5 节对象存储（MinIO/OSS），由管理端「客户端发布」页上传并回填下载地址；下载页通过 `GET /api/v1/client/releases/latest` 取对象存储 URL，不从官网镜像读 APK。
 
@@ -298,10 +298,10 @@ cd D:\projects\cnb\gv_im_server
 3. 构建 + 推送 + 部署（镜像标签 = `VERSION`，不用 `latest`；集群用 `-vpc.` 前缀拉取）：
 
 ```powershell
-cd D:\projects\cnb\meta-cogni-cms
-docker build --platform linux/amd64 -t crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/meta-cogni-cms:1.0.37 -f Dockerfile .
-docker push crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/meta-cogni-cms:1.0.37
-kubectl -n meta-cogni set image deployment/xch-cms xch-cms=crpi-2xbf44rg544imbew-vpc.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/meta-cogni-cms:1.0.37
+cd D:\projects\cnb\open-website
+docker build --platform linux/amd64 -t crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37 -f Dockerfile .
+docker push crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37
+kubectl -n meta-cogni set image deployment/xch-cms xch-cms=crpi-2xbf44rg544imbew-vpc.cn-hangzhou.personal.cr.aliyuncs.com/meta-cogni/open-website:1.0.37
 kubectl -n meta-cogni rollout status deployment/xch-cms --timeout=300s
 ```
 
@@ -342,10 +342,10 @@ cd D:\projects\cnb\gv_im_server
 | `scripts/deploy/ack.ps1` | 校验并部署已生成的正式发布清单；不构建、不推送、不接受直接 tag |
 | `gv_chat_app/tools/build.ps1` | 客户端构建（`android prod apk`） |
 | `gv_chat_app/tools/release.ps1` | 客户端一键发版（bump → 构建 → 上传 → 建记录 → 提交 → 验收），见 15_CLIENT_RELEASE_SKILL.md |
-| `meta-cogni-cms/scripts/build-and-push.sh` | 官网镜像构建推送 |
-| `meta-cogni-cms/scripts/deploy.sh` | 官网镜像部署 |
+| `open-website/scripts/build-and-push.sh` | 官网镜像构建推送 |
+| `open-website/scripts/deploy.sh` | 官网镜像部署 |
 | `gv_saas_mobile/Dockerfile` | SaaS 移动 H5（Vue 双端）镜像构建（版本读 `VERSION`） |
-| `meta-cogni-cms/html/download.html` | 官网下载页（读 latest release） |
+| `open-website/html/download.html` | 官网下载页（读 latest release） |
 | `im-services/admin/.../ClientReleaseController.java` | 客户端发布管理 API（草稿/提交/灰度/审计） |
 | `im-services/admin/.../ClientReleaseCheckApplicationService.java` | release-check 决策 |
 

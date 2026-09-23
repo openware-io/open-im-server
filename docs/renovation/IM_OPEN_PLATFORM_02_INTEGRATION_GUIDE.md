@@ -438,4 +438,4 @@ curl -s -X POST "$IM_BASE/oauth/revoke?token=$ACCESS_TOKEN"
 | `IM_OPEN_PLATFORM_04_SERVICE.md` | 轻量层：C 端「服务板块」服务项接入 |
 | `IM_OPEN_PLATFORM_05_AUTHORIZATION_GOVERNANCE_DRAFT.md` | 授权治理（草案） |
 
-> 对外发布镜像 / Published mirror：`https://example.com/developer.html`（中英双语 / bilingual；本指南的对外镜像页，源文件在 `meta-cogni-cms/html/developer.html`。**接口、流程、示例与验收标准变更时，两者必须同步更新**）。
+> 对外发布镜像 / Published mirror：`https://example.com/developer.html`（中英双语 / bilingual；本指南的对外镜像页，源文件在 `open-website/html/developer.html`。**接口、流程、示例与验收标准变更时，两者必须同步更新**）。

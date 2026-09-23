@@ -197,6 +197,6 @@
 - SaaS OAuth Client：`platform-services/identity/platform-identity-service`
 - 内部应用审核：`/internal/admin/open-applications`
 - 内部规范：`IM_OPEN_PLATFORM_01_SERVICE.md`、`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`
-- 官网开发者页：`meta-cogni-cms/html/developer.html`
+- 官网开发者页：`open-website/html/developer.html`
 
 > 下一步：先评审第 6 节 M0 范围，确认当前版本必须实现的最小集合，再拆分代码任务和测试任务；M1/M2 不应在未评审前混入本次实现。

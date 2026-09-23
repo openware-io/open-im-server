@@ -252,8 +252,8 @@ Expected: 恶意页面无法借用 IM 登录态，C/B profile 无法互读，客
 - Modify: `gv_saas_mobile/docs/backend-security-contract.md`
 - Modify: `gv_saas_mobile/nginx.conf`
 - Modify: `gateways/gateway/src/main/resources/application.yml`
-- Modify: `../meta-cogni-cms/html/developer.html`
-- Modify: `../meta-cogni-cms/html/js/i18n.js`
+- Modify: `../open-website/html/developer.html`
+- Modify: `../open-website/html/js/i18n.js`
 - Modify: `../gv_chat_admin/src/views/open-platform/applications.vue`
 - Create: `gv_saas_mobile/e2e/oauth-hybrid.spec.js`
 - Create: `scripts/verify/oidc-hybrid-preflight.ps1`
@@ -292,7 +292,7 @@ Expected: 恶意页面无法借用 IM 登录态，C/B profile 无法互读，客
 
 - [ ] **Step 6: Publish the verified developer guide**
 
-在 `meta-cogni-cms/html/developer.html` 增加应用注册、OIDC 快速开始、PKCE/Bridge、scope、B 端安装授权、撤销和错误码章节；在 `meta-cogni-cms/html/js/i18n.js` 同步补齐 `zh`/`en` 字典。页面只引用已通过 E2E 的 issuer、端点和示例，禁止出现真实 secret、内网地址、旧 `/identity/oauth/im/bind` 或客户端换码示例。
+在 `open-website/html/developer.html` 增加应用注册、OIDC 快速开始、PKCE/Bridge、scope、B 端安装授权、撤销和错误码章节；在 `open-website/html/js/i18n.js` 同步补齐 `zh`/`en` 字典。页面只引用已通过 E2E 的 issuer、端点和示例，禁止出现真实 secret、内网地址、旧 `/identity/oauth/im/bind` 或客户端换码示例。
 
 - [ ] **Step 7: Export and review OpenAPI snapshots**
 

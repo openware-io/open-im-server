@@ -170,4 +170,4 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 ## 10. 交付物与官网引导
 
 - **技术文档**：本规范（仓库内，面向内部 / 评审）+ [IM_OPEN_PLATFORM_01](IM_OPEN_PLATFORM_01_SERVICE.md)/[02](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)（OAuth 层）。
-- **官网引导页**：`developer.html` 已新增「服务板块接入引导」章节，与本规范字段 / 步骤一致（见 meta-cogni-cms 官网静态页更新）。
+- **官网引导页**：`developer.html` 已新增「服务板块接入引导」章节，与本规范字段 / 步骤一致（见 open-website 官网静态页更新）。

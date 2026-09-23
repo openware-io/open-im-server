@@ -141,6 +141,6 @@ curl -I "https://example.com/download/wv-chat-<版本>.apk"
 | 客户端 Flutter | `D:\projects\cnb\gv_chat_app` | `pubspec.yaml` 的 `version: X.Y.Z+N` |
 | 后端 Java | `D:\projects\cnb\gv_im_server` | 各 `pom.xml`（按服务域独立 bump，见 [RELEASE_RUNBOOK](../../RELEASE_RUNBOOK.md)） |
 | 管理后台 Vue | `D:\projects\cnb\gv_chat_admin` | `package.json` 的 `version` |
-| 官网静态站 | `D:\projects\cnb\meta-cogni-cms` | `VERSION`（仅 CMS 内容变更时 +1） |
+| 官网静态站 | `D:\projects\cnb\open-website` | `VERSION`（仅 CMS 内容变更时 +1） |
 
 > 本文档只管客户端发版；后端/管理后台/官网部署仍按 [RELEASE_RUNBOOK](../../RELEASE_RUNBOOK.md) 第 4/6/7 节。
