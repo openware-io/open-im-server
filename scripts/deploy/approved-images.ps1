@@ -21,6 +21,9 @@ function Get-ApprovedReleaseImage {
   if ($digest -notmatch '^sha256:[a-f0-9]{64}$' -or $Entry.image -ne $image -or $Entry.imageDigest -ne "$repository@$digest") {
     throw "Release manifest repository or digest mismatch: $Name"
   }
+  if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
+    return $image
+  }
   for ($attempt = 1; $attempt -le 3; $attempt++) {
     $savedPreference = $ErrorActionPreference
     try {
