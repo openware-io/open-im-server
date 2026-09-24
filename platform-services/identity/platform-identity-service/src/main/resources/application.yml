@@ -34,7 +34,7 @@ app:
 internal:
   service-auth:
     service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-identity-service}
-    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:platform-tenant-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:platform-tenant-service,platform-admin-service,im-user-service}
     secret: ${INTERNAL_SERVICE_AUTH_SECRET}
 saas:
   cookie:

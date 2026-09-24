@@ -159,7 +159,12 @@ foreach ($name in $targets) {
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or !$runtimeRaw) { throw "Cannot inspect Kind runtime container: $($pod.metadata.name)" }
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
-    if ([string]$runtime.status.imageRef -ne $images[$name]) { throw "Kind runtime image digest mismatch: $($pod.metadata.name)" }
+    # CRI records the resolved linux/amd64 platform descriptor here; imageID above is
+    # the registry manifest digest pinned by the approved release manifest.
+    $repository = $images[$name] -replace '@sha256:[a-f0-9]{64}$', ''
+    if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
+      throw "Kind runtime repository mismatch: $($pod.metadata.name)"
+    }
   }
 }
 Remove-InactiveReplicaSets

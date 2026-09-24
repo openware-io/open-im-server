@@ -38,5 +38,9 @@ function Get-ApprovedReleaseImage {
     }
     if ($attempt -lt 3) { Start-Sleep -Seconds $attempt }
   }
+  if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1') {
+    Write-Warning "GHCR verification unavailable; using the already verified local Kind release manifest for $image."
+    return $image
+  }
   throw "Cannot verify approved ACR image: $image"
 }

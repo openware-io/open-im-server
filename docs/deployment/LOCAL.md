@@ -62,21 +62,21 @@ Docker Compose 用于标准本地开发环境，负责管理 Compose 项目、�
 
 `-ResetData` 仅删除 Compose 数据卷，不影响 Kubernetes 资源。
 
-Compose 从逐服务发布清单校验 ACR 仓库、模块版本和远程摘要后拉取业务镜像，不再本地构建 `gv-im/*:local`。启动后校验容器实际镜像摘要。Compose 会先等待 MySQL、Redis、MongoDB、RocketMQ 与 MinIO，再启动业务服务；Gateway 等待全部下游服务健康后才启动。请使用脚本而非直接执行 `docker compose up`。
+Compose 从逐服务发布清单校验 GHCR 仓库、模块版本和远程摘要后拉取业务镜像，不再本地构建 `open-im/*:local`。启动后校验容器实际镜像摘要。Compose 会先等待 MySQL、Redis、MongoDB、RocketMQ 与 MinIO，再启动业务服务；Gateway 等待全部下游服务健康后才启动。请使用脚本而非直接执行 `docker compose up`。
 
 本地 Docker 镜像保留策略：同一服务仓库最多保留按本地构建时间排序的最近两个版本；清理前必须排除所有容器正在引用的镜像。该策略只清理本机镜像标签，不删除 ACR 远程制品；基础设施镜像按运行依赖保留，不套用业务镜像版本上限。开发 `-SNAPSHOT` 镜像被覆盖后，旧的本地标签仍按此策略清理。
 
 ## Kubernetes（Kind）
 
-Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。Docker Desktop 仅提供容器运行时；不使用其内置 Kubernetes。部署脚本默认创建并切换到 `gv-im-local` Kind 集群，其 `kubectl` 上下文为 `kind-gv-im-local`。
+Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。Docker Desktop 仅提供容器运行时；不使用其内置 Kubernetes。部署脚本默认创建并切换到 `open-im-local` Kind 集群，其 `kubectl` 上下文为 `kind-open-im-local`。
 
-本地 Kind 使用一个控制平面和一个工作节点。控制平面带 `NoSchedule` 污点，业务服务、数据库与中间件均调度到工作节点；这模拟生产环境的基本隔离边界，但不替代生产所需的多控制平面和工作节点池。脚本先发布并等待基础设施，初始化本地 `gv_saas` 数据库及最小访问授权，再发布业务服务、网关和管理后台，最后建立 Windows 本地访问代理。
+本地 Kind 使用一个控制平面和一个工作节点。控制平面带 `NoSchedule` 污点，业务服务、数据库与中间件均调度到工作节点；这模拟生产环境的基本隔离边界，但不替代生产所需的多控制平面和工作节点池。脚本先发布并等待基础设施，初始化本地数据库及最小访问授权，再发布业务服务、网关和管理后台，最后建立 Windows 本地访问代理。
 
 ```powershell
 .\deploy-k8s.ps1 -SaasReleaseManifestPath <逐服务ACR发布清单路径> -RegistryPullSecretName <已配置的ACR拉取Secret名称>
 ```
 
-实现脚本为 `scripts/deploy/k8s.ps1`，仓库根目录脚本仅作为兼容入口。声明式资源位于 [`k8s/local/`](../../k8s/local/)；脚本负责命名空间、从本地 `.env` 生成的 `gv-im-env` Secret、本地镜像、发布顺序及 Windows 本地访问转发。
+实现脚本为 `scripts/deploy/k8s.ps1`，仓库根目录脚本仅作为兼容入口。声明式资源位于 [`k8s/local/`](../../k8s/local/)；脚本负责命名空间、从本地 `.env` 生成的 `open-im-env` Secret、本地镜像、发布顺序及 Windows 本地访问转发。
 
 常用参数：
 
@@ -85,7 +85,7 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 .\deploy-k8s.ps1 -Stop
 ```
 
-脚本使用命名空间 `gv-im-local` 并创建 `gv-im-env` Secret。开发分支默认使用 `<模块版本>-SNAPSHOT` 镜像标签，允许在 ACR 覆盖；只有明确的正式发布构建才使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、时间戳、提交号及其他临时后缀；构建时间与 Git 修订只写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 ACR，开发构建默认运行，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；脚本拒绝把未列入该范围的 Maven 叶子打成正式包。Kind 使用开发清单进行真实验证；ACK 接受开发或正式清单。Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 ACR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；`-SkipBuild` 仅兼容旧调用，不触发镜像构建。Kind 需要提前配置命名空间及 ACR 拉取 Secret（默认名 `acr-registry`，可通过 `-RegistryPullSecretName` 指定）；`-ValidateOnly` 只校验真实 ACR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
+脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支默认使用 `<模块版本>-SNAPSHOT` 镜像标签，允许在 GHCR 覆盖；只有明确的正式发布构建才使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、时间戳、提交号及其他临时后缀；构建时间与 Git 修订只写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，开发构建默认运行，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；脚本拒绝把未列入该范围的 Maven 叶子打成正式包。Kind 使用开发清单进行真实验证；ACK 接受开发或正式清单。Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；`-SkipBuild` 仅兼容旧调用，不触发镜像构建。Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
 
 访问地址：
 
@@ -96,9 +96,9 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 - 统一门户：`http://<宿主机局域网IP>:30083`
 - MinIO API/控制台：`http://<宿主机局域网IP>:30900` / `http://<宿主机局域网IP>:30901`
 
-在 Kind 上下文中，脚本会为网关、IM 管理端、SaaS 管理端、SaaS 移动端、统一门户和 MinIO（API/控制台）创建连接 Kind 节点的本地代理容器。默认绑定 `0.0.0.0`，因此同一局域网内的调试设备可通过宿主机 IP 访问；只需本机访问时可传 `-LocalBindAddress 127.0.0.1`。`-Stop` 只会停止这些本地代理并删除 Kind 集群中的 `gv-im-local` 命名空间。
+在 Kind 上下文中，脚本会为网关、IM 管理端、SaaS 管理端、SaaS 移动端、统一门户和 MinIO（API/控制台）创建连接 Kind 节点的本地代理容器。默认绑定 `0.0.0.0`，因此同一局域网内的调试设备可通过宿主机 IP 访问；只需本机访问时可传 `-LocalBindAddress 127.0.0.1`。`-Stop` 只会停止这些本地代理并删除 Kind 集群中的 `open-im-local` 命名空间。
 
-使用 `k9s -n gv-im-local` 或 `kubectl` 查看集群资源；应用的 Deployment、Pod 和 Service 均被隔离在该命名空间中。
+使用 `k9s -n open-im-local` 或 `kubectl` 查看集群资源；应用的 Deployment、Pod 和 Service 均被隔离在该命名空间中。
 
 Kubernetes 的数据库与 MinIO 本地存储使用 `emptyDir`。Pod 重建或执行 `-Stop` 后数据会被清空；这与 Docker Compose 数据卷相互隔离。
 
@@ -119,7 +119,7 @@ Kubernetes 的数据库与 MinIO 本地存储使用 `emptyDir`。Pod 重建或�
 - 直接运行脚本仅管理其在 `.outputs/local-deployment/` 中记录的进程，不会停止 Compose 容器、Kubernetes 资源或其数据。
 - Docker Compose 与 Kubernetes 模式可复用镜像层，但 Kubernetes 应用镜像始终使用不可变发布标签。重新构建镜像不会替换正在运行的容器或 Pod；需要运行对应部署脚本完成发布。
 - Docker 使用端口 `3002`、`8080`；Kubernetes 使用 `30002`、`5173`，两者的应用访问端口不会冲突。
-- Kubernetes 状态使用 `kubectl get pods -n gv-im-local` 查询；Compose 状态使用 `docker compose ps` 查询。
+- Kubernetes 状态使用 `kubectl get pods -n open-im-local` 查询；Compose 状态使用 `docker compose ps` 查询。
 
 ## 验证
 

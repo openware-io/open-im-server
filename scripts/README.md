@@ -43,4 +43,4 @@ Kubernetes 资源声明不写入部署脚本，统一位于 `k8s/local/`；生�
 
 `deploy-k8s.ps1` 在每次部署成功后自动执行该命令，并在 `.outputs/releases/` 下保存一份发布记录。
 
-日常交互式查看使用已安装的 `k9s`：打开新 PowerShell 后运行 `k9s -n gv-im-local`，在 Deployment 或 Pod 详情中可查看镜像标签、标签和注解。它连接当前 `kubectl` 上下文，不需要额外部署一套 Kubernetes 管理平台。
+日常交互式查看使用已安装的 `k9s`：打开新 PowerShell 后运行 `k9s -n open-im-local`，在 Deployment 或 Pod 详情中可查看镜像标签、标签和注解。它连接当前 `kubectl` 上下文，不需要额外部署一套 Kubernetes 管理平台。

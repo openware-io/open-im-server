@@ -1,4 +1,4 @@
-# gv_im_server
+# OpenIM Server
 
 ## 本地部署
 
@@ -6,7 +6,7 @@
 脚本目录与职责见[脚本说明](./scripts/README.md)。
 Kind 集群资源清单见[Kubernetes 清单说明](./k8s/README.md)。
 
-`gv_im_server` 已按微服务方向完成第一阶段拆分：对外入口统一由 `gateway` 暴露 HTTPS/WSS，后端按用户域、聊天域、管理域与长连接接入层拆分部署。
+OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一由 `gateway` 暴露 HTTPS/WSS，后端按用户域、聊天域、管理域与长连接接入层拆分部署。
 
 ## 当前服务拓扑
 

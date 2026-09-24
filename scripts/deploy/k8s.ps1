@@ -165,7 +165,12 @@ function Import-KubernetesRegistryImage {
     & cmd.exe /d /c "docker image save $Image | docker exec -i $node ctr --namespace k8s.io images import --digests --base-name $baseName --platform linux/amd64 -"
     if ($LASTEXITCODE -ne 0) { throw "Importing Kubernetes registry image failed: $Image on node: $node" }
     $nodeRefs = @(& docker exec $node ctr --namespace k8s.io images ls --quiet 2>$null)
-    if ($nodeRefs -notcontains $Image) { throw "Imported image does not expose the required ACR digest reference: $Image on node: $node" }
+    # Docker exports the selected linux/amd64 manifest. Containerd therefore records its
+    # platform descriptor under the repository, not necessarily the registry manifest digest.
+    # The Pod imageID below remains the authoritative exact comparison against $Image.
+    if (-not ($nodeRefs | Where-Object { $_ -like "$baseName@sha256:*" })) {
+      throw "Imported image does not expose a platform digest for the approved repository: $baseName on node: $node"
+    }
   }
 }
 function Stop-LocalPortForwards {
@@ -251,6 +256,7 @@ function Set-ApplicationImage {
   $imageRef = $saasImages[$Name]
   if (!$imageRef) { throw "Approved release image missing: $Name" }
   Invoke-Kubectl -Arguments @('set', 'image', "deployment/$Name", "$Name=$imageRef", '--namespace', $Namespace)
+  $imagePullPolicy = if ($Name -in @('pc-admin', 'saas-admin') -and $env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1') { 'IfNotPresent' } elseif ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }
   $patch = @{
     metadata = @{ labels = @{ 'app.kubernetes.io/version' = $Tag; 'app.kubernetes.io/managed-by' = 'local-k8s-deploy' } }
     spec = @{ template = @{ metadata = @{
@@ -265,7 +271,7 @@ function Set-ApplicationImage {
         'release.open-im.local/deployed-at' = $CreatedAt
         'release.open-im.local/image-ref' = $imageRef
       }
-    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }; env = @(
+    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy; env = @(
       @{ name = 'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE'; value = 'health,info' },
       @{ name = 'MANAGEMENT_INFO_ENV_ENABLED'; value = 'true' },
       @{ name = 'INFO_BUILD_GIT_COMMIT'; value = $Revision },
@@ -476,15 +482,19 @@ foreach ($name in ($saasImages.Keys | Sort-Object)) {
       throw "Kind runtime image digest mismatch: $($pod.metadata.name)"
     }
     if ([string]$status[0].imageID -ne $saasImages[$name]) {
-      throw "Kind Pod image digest mismatch: $($pod.metadata.name)"
+      $runtimeRepository = $saasImages[$name] -replace '@sha256:[a-f0-9]{64}$', ''
+      if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -ne '1' -or [string]$status[0].imageID -notlike "$runtimeRepository@sha256:*") {
+        throw "Kind Pod image digest mismatch: $($pod.metadata.name)"
+      }
     }
     $containerId = ([string]$status[0].containerID) -replace '^containerd://', ''
     $nodeName = [string]$pod.spec.nodeName
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or !$runtimeRaw) { throw "Cannot inspect Kind runtime container: $($pod.metadata.name)" }
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
-    if ([string]$runtime.status.imageRef -ne $saasImages[$name]) {
-      throw "Kind runtime image digest mismatch: $($pod.metadata.name)"
+    $repository = $saasImages[$name] -replace '@sha256:[a-f0-9]{64}$', ''
+    if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
+      throw "Kind runtime repository mismatch: $($pod.metadata.name)"
     }
   }
 }

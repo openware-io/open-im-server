@@ -25,6 +25,7 @@ spec:
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
             - { name: IM_SERVICE_BASE_URL, value: http://im-user-service:3100 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
+            - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'platform-tenant-service,platform-admin-service,im-user-service' }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: JWT_SECRET, value: 80sA8SCmrQYcC6fvEtSQAmJBUNFkwZg3ICK91OqKjMQ }
             - { name: JWT_EXPIRATION_MS, value: '604800000' }

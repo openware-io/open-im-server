@@ -187,15 +187,19 @@
 
   <footer>
     <div class="wrap">
-      <p>集团 IDaaS 统一登录 · admin.dev.example.com</p>
+      <p>集团 IDaaS 统一登录</p>
     </div>
   </footer>
 
   <script>
     (function () {
-      var IDAAS_BASE = 'https://api.dev.example.com/idaas';
-      var IM_ADMIN_URL = 'https://admin.dev.example.com/im/';
-      var SAAS_ADMIN_URL = 'https://admin.dev.example.com/saas/';
+      // 与门户同源转发到 IDaaS，避免把本地 Kind、测试或生产环境地址写死进前端产物。
+      var IDAAS_BASE = '/idaas';
+      // 后台入口由访问门户的主机推导：本地 Kind 使用 NodePort，Ingress 复用同域路径。
+      var APP_ORIGIN = window.location.protocol + '//' + window.location.hostname;
+      var IS_LOCAL_KIND = window.location.port === '30083';
+      var IM_ADMIN_URL = IS_LOCAL_KIND ? APP_ORIGIN + ':30080/' : APP_ORIGIN + '/im/';
+      var SAAS_ADMIN_URL = IS_LOCAL_KIND ? APP_ORIGIN + ':30081/' : APP_ORIGIN + '/saas/';
 
       var loginCard = document.getElementById('loginCard');
       var appList = document.getElementById('appList');

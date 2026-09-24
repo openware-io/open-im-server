@@ -10,6 +10,7 @@ import io.openware.group.idaas.application.AuthApplicationService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -29,9 +30,12 @@ public class AuthController {
   private static final String COOKIE_NAME = "idaas_session";
 
   private final AuthApplicationService authApplicationService;
+  private final boolean plainCookie;
 
-  public AuthController(AuthApplicationService authApplicationService) {
+  public AuthController(AuthApplicationService authApplicationService,
+                        @Value("${idaas.cookie.plain:false}") boolean plainCookie) {
     this.authApplicationService = authApplicationService;
+    this.plainCookie = plainCookie;
   }
 
   @PostMapping("/login")
@@ -66,14 +70,14 @@ public class AuthController {
 
   private void addSessionCookie(HttpServletResponse response, String sessionId, Duration ttl) {
     ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, sessionId)
-        .httpOnly(true).secure(true).sameSite("None").path("/")
+        .httpOnly(true).secure(!plainCookie).sameSite(plainCookie ? "Lax" : "None").path("/")
         .maxAge(ttl).build();
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
   }
 
   private void clearSessionCookie(HttpServletResponse response) {
     ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
-        .httpOnly(true).secure(true).sameSite("None").path("/")
+        .httpOnly(true).secure(!plainCookie).sameSite(plainCookie ? "Lax" : "None").path("/")
         .maxAge(Duration.ZERO).build();
     response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
   }
