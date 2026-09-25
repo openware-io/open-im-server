@@ -4,7 +4,7 @@ param(
   [string]$RemoteSubnet = '192.168.31.0/24',
   [ValidateRange(1, 65535)]
   [int[]]$Ports = @(30082),
-  [string]$RuleName = 'GV IM Kind LAN saas-mobile'
+  [string]$RuleName = 'OpenIM Kind LAN saas-mobile'
 )
 
 $ErrorActionPreference = 'Stop'

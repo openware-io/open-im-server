@@ -3,8 +3,8 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$producer = Join-Path $root 'sdk\infrastructure\src\main\java\com\gvchat\infrastructure\mq\remoting\RemotingMqProducer.java'
-$consumerFactory = Join-Path $root 'sdk\infrastructure\src\main\java\com\gvchat\infrastructure\mq\remoting\RemotingMqConsumerFactory.java'
+$producer = Join-Path $root 'sdk\infrastructure\src\main\java\io\openware\infrastructure\mq\remoting\RemotingMqProducer.java'
+$consumerFactory = Join-Path $root 'sdk\infrastructure\src\main\java\io\openware\infrastructure\mq\remoting\RemotingMqConsumerFactory.java'
 $violations = [System.Collections.Generic.List[string]]::new()
 
 foreach ($path in @($producer, $consumerFactory)) {

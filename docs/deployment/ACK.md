@@ -105,7 +105,7 @@ Internet
 - `im-order-service`
 - `im-admin-service`
 - `im-access-ws`
-- `pc-admin`（源码目录已确认：`D:\projects\cnb\gv_chat_admin`）
+- `pc-admin`（源码目录已确认：`D:\projects\cnb-oss\open-chat-admin`）
 
 `gateway` 是唯一后端 API 入口。`pc-admin` 的 `/api/` 请求将转发至该网关；CORS 与 WebSocket Origin 白名单配置为 `https://admin.<主域名>`。
 

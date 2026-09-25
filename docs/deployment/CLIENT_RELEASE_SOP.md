@@ -12,8 +12,8 @@
 ## 1. 版本累加（代码）
 
 - Maven：根/聚合器/sdk 2.0.0→2.0.1；im-user 1.0.28→1.0.29；gateway 1.1.0→1.1.1（勿动 im-admin 等自身版本）。
-- App：gv_chat_app/pubspec.yaml  version: 2.0.0+82 → 2.0.1+83。
-- 桌面：gv_chat_desktop/package.json  version 2.0.0 → 2.0.1；后台 gv_saas_admin/package.json 同。
+- App：open-chat-app/pubspec.yaml  version: 2.0.0+82 → 2.0.1+83。
+- 桌面：open-chat-desktop/package.json  version 2.0.0 → 2.0.1；后台 open-saas-admin/package.json 同。
 
 ## 2. 构建产物
 

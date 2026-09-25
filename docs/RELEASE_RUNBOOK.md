@@ -1,7 +1,7 @@
 # 版本管理与发布规范（Runbook）
 
 > 本文档是「怎么发版、怎么管版本」的唯一操作手册，供人类与后续 AI 代理共同遵守。
-> **Android APK 发版先看 [`standards/15_CLIENT_RELEASE_SKILL.md`](standards/15_CLIENT_RELEASE_SKILL.md) 并直接运行 `gv_chat_app/tools/release.ps1`；Windows 桌面端 EXE 发版按本文档第 5.6 节执行。** 后端/管理后台/官网部署仍按本文档执行。
+> **Android APK 发版先看 [`standards/15_CLIENT_RELEASE_SKILL.md`](standards/15_CLIENT_RELEASE_SKILL.md) 并直接运行 `open-chat-app/tools/release.ps1`；Windows 桌面端 EXE 发版按本文档第 5.6 节执行。** 后端/管理后台/官网部署仍按本文档执行。
 > 治理规则（版本命名、灰度、审计、安全门禁等）见 [`standards/14_CLIENT_RELEASE_GOVERNANCE.md`](standards/14_CLIENT_RELEASE_GOVERNANCE.md)；
 > ACK 集群拓扑与域名见 [`deployment/ACK.md`](deployment/ACK.md)。本文档与这两篇互补，本文档负责「一步步怎么做」。
 
@@ -27,7 +27,7 @@
 
 > **默认 `PATCH`（最后一位）+1**：修复、优化、小改动一律 `PATCH`；只有真正的「兼容功能发布」才 `MINOR` +1；只有「不兼容变更」才 `MAJOR` +1。**禁止为 bug 修复抬 MINOR**。
 
-### 1.1 后端（gv_im_server）：服务域独立版本模型
+### 1.1 后端（open-im-server）：服务域独立版本模型
 
 > 与 [`standards/20_MAVEN_ENGINEERING_CONVENTIONS.md`](standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)「版本治理」一致。**禁止全仓 pom lockstep 统一 bump。**
 
@@ -52,9 +52,9 @@
 ### 1.2 客户端 / 官网
 
 - 客户端 `pubspec.yaml` 的 `version: X.Y.Z+buildNumber`；`buildNumber` **严格递增**，一次发版 +1，服务端只比较 buildNumber。
-- Windows 桌面端 `gv_chat_desktop/package.json` 的 `version` 独立维护；Windows `buildNumber` 在 `windows/stable` 渠道内严格递增，不能与 Android 共用。
+- Windows 桌面端 `open-chat-desktop/package.json` 的 `version` 独立维护；Windows `buildNumber` 在 `windows/stable` 渠道内严格递增，不能与 Android 共用。
 - 官网 CMS `VERSION` 独立维护，每次 CMS 内容变更 +1。
-- SaaS 移动 H5（`gv_saas_mobile`）`VERSION` 独立维护，每次 H5 页面/接口契约变更 +1。
+- SaaS 移动 H5（`open-saas-mobile`）`VERSION` 独立维护，每次 H5 页面/接口契约变更 +1。
 
 > 现状：当前部分工程仍为历史版本模型。迁移期间不得为了生成开发镜像修改根聚合、结构聚合或领域父 POM 的稳定版本；应在对应可部署叶子服务完成版本迁移后再使用 `-SNAPSHOT` 构建。
 
@@ -108,7 +108,7 @@ cd D:\projects\cnb-oss\open-im-server
 
 ---
 
-## 4. 后端发布（gv_im_server）
+## 4. 后端发布（open-im-server）
 
 ### 4.1 bump 版本（只 bump 改动的版本单元）
 
@@ -186,7 +186,7 @@ kubeconfig 路径从 VS Code 配置读取：`Code\User\settings.json` 的 `vs-ku
 
 ---
 
-## 5. 客户端发布（gv_chat_app）
+## 5. 客户端发布（open-chat-app）
 
 ### 5.1 bump 版本
 
@@ -248,11 +248,11 @@ cd D:\projects\cnb-oss\open-chat-app
 
 `https://example.com/download.html` 调用 `GET /api/v1/client/releases/latest?platform=android&channel=stable`，返回 `stable` 渠道**最新一条 `released`** 记录（含版本、下载 URL、SHA-256、更新说明）。所以「客户端发布」里最新一条已发布记录 = 官网下载页展示的数据。
 
-### 5.6 Windows 桌面端发布（gv_chat_desktop）
+### 5.6 Windows 桌面端发布（open-chat-desktop）
 
 > **构建 EXE 不等于发版完成。每次 Windows 桌面端发版都必须在管理后台「客户端发布」创建并提交发布记录；未创建后台记录，即使 EXE 已构建或已上传也不算完成发版。**
 
-1. 在 `gv_chat_desktop/package.json` 将 `version` 默认 PATCH +1。Windows `buildNumber` 必须取后台 `windows/stable` 已发布记录的最大值严格 +1，**不得借用 Android 或其他平台的 buildNumber**。
+1. 在 `open-chat-desktop/package.json` 将 `version` 默认 PATCH +1。Windows `buildNumber` 必须取后台 `windows/stable` 已发布记录的最大值严格 +1，**不得借用 Android 或其他平台的 buildNumber**。
 2. 构建安装包：
 
    ```powershell
@@ -275,7 +275,7 @@ cd D:\projects\cnb-oss\open-chat-app
 
 ---
 
-## 6. 管理后台发布（gv_chat_admin）
+## 6. 管理后台发布（open-chat-admin）
 
 1. bump `package.json` 的 `version`，并在干净工作树确认本次只有 `pc-admin` 被提升为正式版本。
 2. 使用统一发布构建生成正式清单；不得直接 `docker push` 或更新工作负载镜像：
@@ -309,7 +309,7 @@ kubectl -n meta-cogni rollout status deployment/xch-cms --timeout=300s
 
 ---
 
-## 7.5 SaaS 移动 H5 发布（gv_saas_mobile，Vue 双端 C端 + B端）
+## 7.5 SaaS 移动 H5 发布（open-saas-mobile，Vue 双端 C端 + B端）
 
 版本由仓库根 `VERSION` 文件维护（语义化 `MAJOR.MINOR.PATCH`，默认 PATCH +1）。开发分支镜像 tag 使用 `<version>-SNAPSHOT`，允许在 ACR 覆盖；只有用户明确要求正式包时才使用不带后缀的 `<version>`，且正式 tag 不可覆盖。禁止 `latest`、时间戳、提交号及其他临时后缀；UTC 时间戳与 Git 短提交只写入镜像 label 和发布清单（`buildIdentity`/`sourceRevision`）。
 
@@ -340,11 +340,11 @@ cd D:\projects\cnb-oss\open-im-server
 | 脚本/文件 | 用途 |
 | --- | --- |
 | `scripts/deploy/ack.ps1` | 校验并部署已生成的正式发布清单；不构建、不推送、不接受直接 tag |
-| `gv_chat_app/tools/build.ps1` | 客户端构建（`android prod apk`） |
-| `gv_chat_app/tools/release.ps1` | 客户端一键发版（bump → 构建 → 上传 → 建记录 → 提交 → 验收），见 15_CLIENT_RELEASE_SKILL.md |
+| `open-chat-app/tools/build.ps1` | 客户端构建（`android prod apk`） |
+| `open-chat-app/tools/release.ps1` | 客户端一键发版（bump → 构建 → 上传 → 建记录 → 提交 → 验收），见 15_CLIENT_RELEASE_SKILL.md |
 | `open-website/scripts/build-and-push.sh` | 官网镜像构建推送 |
 | `open-website/scripts/deploy.sh` | 官网镜像部署 |
-| `gv_saas_mobile/Dockerfile` | SaaS 移动 H5（Vue 双端）镜像构建（版本读 `VERSION`） |
+| `open-saas-mobile/Dockerfile` | SaaS 移动 H5（Vue 双端）镜像构建（版本读 `VERSION`） |
 | `open-website/html/download.html` | 官网下载页（读 latest release） |
 | `im-services/admin/.../ClientReleaseController.java` | 客户端发布管理 API（草稿/提交/灰度/审计） |
 | `im-services/admin/.../ClientReleaseCheckApplicationService.java` | release-check 决策 |
