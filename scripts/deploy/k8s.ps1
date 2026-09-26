@@ -453,6 +453,7 @@ $localOrigins = @(
 ) -join ','
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/gateway', "IM_GATEWAY_ALLOWED_ORIGINS=$localOrigins", '--namespace', $Namespace)
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-access-ws', "IM_ACCESS_WS_ALLOWED_ORIGINS=$localOrigins", '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/group-idaas-service', "IDAAS_CORS_ALLOWED_ORIGINS=$localOrigins", '--namespace', $Namespace)
 
 foreach ($deployment in $applicationDeployments) { Set-LocalRecreateStrategy -Name $deployment }
 foreach ($name in $applicationDeployments) {
