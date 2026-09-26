@@ -463,6 +463,9 @@ foreach ($name in $applicationDeployments) {
 
 Invoke-Kubectl -Arguments @('scale', 'deployment/im-user-service', '--namespace', $Namespace, '--replicas=1')
 Invoke-Kubectl -Arguments @('rollout', 'status', 'deployment/im-user-service', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
+Invoke-Kubectl -Arguments @('delete', 'job/im-admin-sso-bootstrap', '--namespace', $Namespace, '--ignore-not-found=true')
+Apply-Manifest -Name 'im-admin-sso-bootstrap-job.yaml'
+Invoke-Kubectl -Arguments @('wait', '--for=condition=complete', 'job/im-admin-sso-bootstrap', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 & (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'open-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30080" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
 if ($LASTEXITCODE -ne 0) { throw 'Kind OIDC client registry synchronization failed.' }
 foreach ($deployment in ($applicationDeployments | Where-Object { $_ -ne 'im-user-service' })) {

@@ -1,0 +1,29 @@
+# Local Kind only: make the local IDaaS bootstrap administrator usable in the IM
+# admin console. The account is mapped by username, not copied as a credential:
+# its BCrypt hash is read from the authoritative local group_account record.
+# Re-running the job is safe and preserves an existing IM administrator account.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: im-admin-sso-bootstrap }
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: im-admin-sso-bootstrap
+          image: mysql:8.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: MYSQL_ROOT_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+          command: [sh, -ec]
+          args:
+            - >-
+              until mysqladmin ping -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done;
+              mysql -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e
+              "INSERT INTO im_server.user
+              (username, nickname, avatar, password, email, phone, signature, status, role, created_by, created_at, updated_by, updated_at)
+              SELECT username, display_name, '', password, NULL, NULL, '', 'active', 'admin', 0, NOW(3), 0, NOW(3)
+              FROM open_im.group_account
+              WHERE username = 'admin' AND status = 'ENABLED'
+              ON DUPLICATE KEY UPDATE role = IF(user.role = 'admin', user.role, VALUES(role)), updated_at = NOW(3);"
