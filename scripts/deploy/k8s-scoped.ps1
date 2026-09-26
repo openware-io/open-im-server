@@ -85,6 +85,7 @@ function Set-ApplicationImage {
   param([string]$Name)
   $imageRef = $images[$Name]
   Invoke-Kubectl -Arguments @('set', 'image', "deployment/$Name", "$Name=$imageRef", '--namespace', $Namespace)
+  $imagePullPolicy = if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }
   $labels = @{ 'app.kubernetes.io/version' = $tags[$Name]; 'app.kubernetes.io/managed-by' = 'local-k8s-incremental' }
   $annotations = @{
     'org.opencontainers.image.version' = $moduleVersions[$Name]
@@ -96,7 +97,7 @@ function Set-ApplicationImage {
   }
   $podTemplate = @{
     metadata = @{ labels = $labels; annotations = $annotations }
-    spec = @{ containers = @(@{ name = $Name; imagePullPolicy = 'Always' }) }
+    spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy }) }
   }
   $patch = @{ metadata = @{ labels = $labels }; spec = @{ template = $podTemplate } } | ConvertTo-Json -Compress -Depth 8
   $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
