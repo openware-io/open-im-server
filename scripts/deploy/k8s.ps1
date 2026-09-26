@@ -441,14 +441,15 @@ if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
 }
 Apply-RenderedManifest -Name 'gateway-admin.yaml' -Replacements $replacements -StartSuspended
 Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspended
+$ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"
+if ($LASTEXITCODE -ne 0) { throw 'Kind ingress-nginx installation failed.' }
+Apply-Manifest -Name 'ingress.yaml'
 $advertiseAddress = Get-LocalAdvertiseAddress
-Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-user-service', "OIDC_ISSUER=http://$advertiseAddress`:30002", '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-user-service', "OIDC_ISSUER=http://$advertiseAddress`:30080", '--namespace', $Namespace)
 $localOrigins = @(
-  'http://127.0.0.1:5173', 'http://localhost:5173', 'http://127.0.0.1:30080', 'http://localhost:30080',
-  'http://127.0.0.1:30081', 'http://localhost:30081', 'http://127.0.0.1:30082', 'http://localhost:30082',
-  'http://10.0.2.2:30082',
-  'http://127.0.0.1:30083', 'http://localhost:30083', "http://$advertiseAddress`:5173", "http://$advertiseAddress`:30080",
-  "http://$advertiseAddress`:30081", "http://$advertiseAddress`:30082", "http://$advertiseAddress`:30083"
+  'http://127.0.0.1:30080', 'http://localhost:30080', 'http://10.0.2.2:30080',
+  "http://$advertiseAddress`:30080"
 ) -join ','
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/gateway', "IM_GATEWAY_ALLOWED_ORIGINS=$localOrigins", '--namespace', $Namespace)
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-access-ws', "IM_ACCESS_WS_ALLOWED_ORIGINS=$localOrigins", '--namespace', $Namespace)
@@ -461,7 +462,7 @@ foreach ($name in $applicationDeployments) {
 
 Invoke-Kubectl -Arguments @('scale', 'deployment/im-user-service', '--namespace', $Namespace, '--replicas=1')
 Invoke-Kubectl -Arguments @('rollout', 'status', 'deployment/im-user-service', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
-& (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'open-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30082" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
+& (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'open-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30080" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
 if ($LASTEXITCODE -ne 0) { throw 'Kind OIDC client registry synchronization failed.' }
 foreach ($deployment in ($applicationDeployments | Where-Object { $_ -ne 'im-user-service' })) {
   Invoke-Kubectl -Arguments @('scale', "deployment/$deployment", '--namespace', $Namespace, '--replicas=1')
@@ -506,27 +507,22 @@ Apply-Manifest -Name 'minio-init-job.yaml'
 Invoke-Kubectl -Arguments @('wait', '--for=condition=complete', 'job/minio-init', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 
 Stop-LocalPortForwards
-Start-LocalNodePortProxy -Service 'gateway' -NodePort 30002 -ServicePort 3002
-Start-LocalNodePortProxy -Service 'pc-admin' -NodePort 30080 -LocalPort 5173 -ServicePort 80
-Start-LocalNodePortProxy -Service 'saas-admin' -NodePort 30081 -ServicePort 80
-Start-LocalNodePortProxy -Service 'saas-mobile' -NodePort 30082 -ServicePort 80
-Start-LocalNodePortProxy -Service 'unified-portal' -NodePort 30083 -ServicePort 80
 Start-LocalNodePortProxy -Service 'minio-api' -NodePort 30900 -ServicePort 9000
 Start-LocalNodePortProxy -Service 'minio-console' -NodePort 30901 -ServicePort 9001
-$gatewayHealth = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30002/actuator/health'
+$gatewayHealth = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30080/actuator/health'
 $gatewayHealthBody = Get-HttpResponseBody -Content $gatewayHealth.Content
 if ($gatewayHealthBody -notmatch '"status"\s*:\s*"UP"') { throw "Gateway health check failed: $gatewayHealthBody" }
-$adminPage = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:5173/'
+$adminPage = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30080/'
 $adminPageBody = Get-HttpResponseBody -Content $adminPage.Content
 if ($adminPage.StatusCode -ne 200 -or $adminPageBody -notmatch 'id="app"') { throw 'Kubernetes admin page verification failed.' }
 Invoke-Kubectl -Arguments @('get', 'pods,services', '--namespace', $Namespace)
 Write-Host 'Kubernetes deployment is ready:'
 Write-Host "  Bind:    $LocalBindAddress"
-Write-Host '  Gateway: http://<host-ip>:30002'
-Write-Host '  IM Admin: http://<host-ip>:5173'
-Write-Host '  SaaS Admin: http://<host-ip>:30081'
-Write-Host '  SaaS Mobile: http://<host-ip>:30082'
-Write-Host '  Portal: http://<host-ip>:30083'
+Write-Host '  Ingress: http://<host-ip>:30080'
+Write-Host '  IM Admin: http://<host-ip>:30080/im/'
+Write-Host '  SaaS Admin: http://<host-ip>:30080/saas/'
+Write-Host '  SaaS Mobile: http://<host-ip>:30080/a380/ or /b/'
+Write-Host '  Portal: http://<host-ip>:30080/'
 $releaseOutputDirectory = Join-Path $root '.outputs\releases'
 $releaseOutputPath = Join-Path $releaseOutputDirectory ("$releaseId.json")
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\verify\release-status.ps1') -Namespace $Namespace -OutputPath $releaseOutputPath

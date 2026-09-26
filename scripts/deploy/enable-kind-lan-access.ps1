@@ -3,7 +3,7 @@ param(
   [ValidatePattern('^(?:\d{1,3}\.){3}\d{1,3}/(?:[0-9]|[12][0-9]|3[0-2])$')]
   [string]$RemoteSubnet = '192.168.31.0/24',
   [ValidateRange(1, 65535)]
-  [int[]]$Ports = @(30082),
+  [int[]]$Ports = @(30080),
   [string]$RuleName = 'OpenIM Kind LAN saas-mobile'
 )
 

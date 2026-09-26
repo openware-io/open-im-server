@@ -1,0 +1,62 @@
+# All local application traffic enters through ingress-nginx. The controller
+# is exposed on the Kind control-plane NodePort 30080 for LAN/mobile testing.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-im-api
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 250m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /api, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /actuator, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /oauth, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /open, pathType: Prefix, backend: { service: { name: gateway, port: { number: 3002 } } } }
+          - { path: /ws, pathType: Prefix, backend: { service: { name: im-access-ws, port: { number: 3001 } } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-im-portal
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /idaas, pathType: Prefix, backend: { service: { name: group-idaas-service, port: { number: 4220 } } } }
+          - { path: /, pathType: Prefix, backend: { service: { name: unified-portal, port: { number: 80 } } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-im-admin-apps
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: 'true'
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /im(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: pc-admin, port: { number: 80 } } } }
+          - { path: /saas(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-admin, port: { number: 80 } } } }
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: open-im-mobile-apps
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: 'true'
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - { path: /a380(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }
+          - { path: /b(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }

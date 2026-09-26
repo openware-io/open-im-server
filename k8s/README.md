@@ -2,7 +2,9 @@
 
 `local/` 包含本地 Kind 部署使用的声明式 Kubernetes 资源。清单有意省略 `metadata.namespace`，由 `scripts/deploy/k8s.ps1` 按 `-Namespace` 参数应用到目标命名空间。
 
-部署脚本从未提交的仓库 `.env` 文件创建 `open-im-env`，并从发布清单按 GHCR `image@sha256:digest` 拉取 SaaS 候选镜像后导入专属 Kind 节点；Kind 不重新构建这些候选镜像。应用清单和 Windows 可访问的 NodePort 代理仍由本地脚本管理。默认集群名为 `open-im-local`，上下文为 `kind-open-im-local`。
+部署脚本从未提交的仓库 `.env` 文件创建 `open-im-env`，并从发布清单按 GHCR `image@sha256:digest` 拉取 SaaS 候选镜像后导入专属 Kind 节点；Kind 不重新构建这些候选镜像。应用 Service 使用 `ClusterIP`，统一由固定版本的 ingress-nginx 暴露。控制器 HTTP 使用 Kind NodePort `30080`，默认集群名为 `open-im-local`，上下文为 `kind-open-im-local`。
+
+本地统一入口为 `http://<宿主机局域网IP>:30080`：根路径是统一门户，`/im/` 是 IM 管理端，`/saas/` 是 SaaS 管理端，`/a380/` 与 `/b/` 是 SaaS 移动端，`/api/` 和 `/ws/` 分别进入网关和 IM WebSocket。Ingress-nginx 安装清单来自官方 Kind provider `controller-v1.12.1`，脚本会校验固定 SHA-256 后再应用。
 
 候选制品遵循单次构建模型：`build-saas-release.ps1` 默认生成带 `-SNAPSHOT` 的开发 tag 并推送到 ACR，开发 tag 允许覆盖；传入 `-FormalRelease` 才生成不带后缀的正式 tag，正式 tag 不可覆盖。Kind 与 ACK 都可使用开发或正式清单；同一发布类型的 Kind 验证和 ACK 发布必须消费同一份 schema v2 发布清单。禁止 `latest`、`dev`、时间戳、提交号及其他临时后缀，也禁止用本地 `RepoDigests` 代替 ACR 远端 manifest 校验。
 

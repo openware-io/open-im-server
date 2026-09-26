@@ -61,22 +61,22 @@ spec: { selector: { app: common-mail-service }, ports: [ { port: 4210, targetPor
 apiVersion: v1
 kind: Service
 metadata: { name: group-idaas-service }
-spec: { selector: { app: group-idaas-service }, ports: [ { port: 4220, targetPort: 4220 } ] }
+spec: { type: ClusterIP, selector: { app: group-idaas-service }, ports: [ { port: 4220, targetPort: 4220 } ] }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: saas-admin }
-spec: { selector: { app: saas-admin }, ports: [ { port: 80, targetPort: 80 } ] }
+spec: { type: ClusterIP, selector: { app: saas-admin }, ports: [ { port: 80, targetPort: 80 } ] }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: saas-mobile }
-spec: { selector: { app: saas-mobile }, ports: [ { port: 80, targetPort: 80 } ] }
+spec: { type: ClusterIP, selector: { app: saas-mobile }, ports: [ { port: 80, targetPort: 80 } ] }
 ---
 apiVersion: v1
 kind: Service
 metadata: { name: unified-portal }
-spec: { selector: { app: unified-portal }, ports: [ { port: 80, targetPort: 80 } ] }
+spec: { type: ClusterIP, selector: { app: unified-portal }, ports: [ { port: 80, targetPort: 80 } ] }
 ---
 apiVersion: apps/v1
 kind: Deployment

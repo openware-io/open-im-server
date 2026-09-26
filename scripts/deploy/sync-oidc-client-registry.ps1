@@ -91,8 +91,8 @@ foreach ($additionalOrigin in $AdditionalViteBOrigins) {
   $bUris += "$additionalAuthority/index.b.html"
 }
 if ($Environment -eq 'kind') {
-  $cUris += @('http://127.0.0.1:30082/a380/', 'http://localhost:30082/a380/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
-  $bUris += @('http://127.0.0.1:30082/b/', 'http://localhost:30082/b/', 'http://127.0.0.1:5176/index.b.html', 'http://localhost:5176/index.b.html')
+  $cUris += @('http://127.0.0.1:30080/a380/', 'http://localhost:30080/a380/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
+  $bUris += @('http://127.0.0.1:30080/b/', 'http://localhost:30080/b/', 'http://127.0.0.1:5176/index.b.html', 'http://localhost:5176/index.b.html')
 }
 $cUris = @($cUris | Select-Object -Unique)
 $bUris = @($bUris | Select-Object -Unique)
