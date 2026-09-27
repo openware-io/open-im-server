@@ -24,21 +24,21 @@ class AdminAuditLogApplicationServiceTest {
   @SuppressWarnings("unchecked")
   void shouldForwardFiltersAndMapPage() {
     when(auditQueryClient.search(any())).thenReturn(Map.of(
-        "items", List.of(Map.of("action", "im-user.delete", "resourceId", "71")),
+        "items", List.of(Map.of("action", "im.user.delete", "resourceId", "71")),
         "total", 3,
         "page", 2,
         "pageSize", 50,
         "totalPages", 1,
         "totalCapped", false));
 
-    AdminAuditLogPage page = service.list(2, 50, "im-user.delete", "user_account", "admin", null,
+    AdminAuditLogPage page = service.list(2, 50, "im.user.delete", "user_account", "admin", null,
         "2026-09-01", "2026-09-30");
 
     ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
     verify(auditQueryClient).search(captor.capture());
     Map<String, Object> filters = captor.getValue();
     assertThat(filters).containsEntry("page", 2).containsEntry("pageSize", 50)
-        .containsEntry("action", "im-user.delete").containsEntry("resourceType", "user_account")
+        .containsEntry("action", "im.user.delete").containsEntry("resourceType", "user_account")
         .containsEntry("operatorKeyword", "admin").containsEntry("from", "2026-09-01")
         .containsEntry("to", "2026-09-30");
     // 未传的筛选项不下发，避免把空串当过滤值。

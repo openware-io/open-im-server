@@ -203,8 +203,8 @@ public final class AuditActions {
     register("audit.retention.partition.add", "审计分区预建");
     register("admin.operation", "后台操作");
     // IM 后台用户管理动作（模块码 im-user 无法由「模块+动作」自动组合出中文，必须显式登记）。
-    register("im-user.delete", "删除 IM 用户");
-    register("im-user.status.update", "IM 用户状态变更");
+    register("im.user.delete", "删除 IM 用户");
+    register("im.user.status.update", "IM 用户状态变更");
   }
 
   private AuditActions() {}

@@ -10,7 +10,7 @@ package io.openware.common.audit.api.dto;
  *
  * @param page            页码，从 1 开始，缺省 1
  * @param pageSize        每页条数，缺省 20，上限 {@link AuditQueryRequest#MAX_PAGE_SIZE}
- * @param action          动作码精确匹配，如 {@code im-user.delete}
+ * @param action          动作码精确匹配，如 {@code im.user.delete}
  * @param actionPrefix    动作码前缀匹配，如 {@code im-user.}
  * @param resourceType    资源类型精确匹配，如 {@code user_account}
  * @param resourceId      资源 ID 精确匹配

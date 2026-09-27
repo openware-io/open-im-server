@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
  *       管理员账号（{@code user.role='admin'}）→ 409 {@code ADMIN_ACCOUNT_UNDELETABLE}；
  *       {@code confirmUsername} 与账号当前用户名不一致 → 400 {@code USERNAME_CONFIRM_MISMATCH}。
  *       这些码由用户服务原样返回（本层不做二次翻译）；</li>
- *   <li>删除成功后写 {@code common-audit-service}：action {@code im-user.delete}、resourceType
+ *   <li>删除成功后写 {@code common-audit-service}：action {@code im.user.delete}、resourceType
  *       {@code user_account}，detail 只记被删用户名 + 级联计数（含统一账号是否保留），**不落 PII**。</li>
  * </ol>
  */
@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
 public class AdminUserDeletionApplicationService {
 
   /** 审计动作码：删除 IM 用户（已在 SDK {@code AuditActions} 登记中文标签）。 */
-  public static final String AUDIT_ACTION_DELETE = "im-user.delete";
+  public static final String AUDIT_ACTION_DELETE = "im.user.delete";
   /** 审计资源类型：统一账号（{@code user_account}）。 */
   public static final String AUDIT_RESOURCE_USER_ACCOUNT = "user_account";
 

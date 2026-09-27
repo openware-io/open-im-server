@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 public class AdminUserApplicationService {
 
   /** 审计动作码：IM 后台变更用户状态（与「删除用户」同属用户管理动作，审计日志页一并可查）。 */
-  public static final String AUDIT_ACTION_STATUS_UPDATE = "im-user.status.update";
+  public static final String AUDIT_ACTION_STATUS_UPDATE = "im.user.status.update";
 
   private final AdminReadClient adminReadClient;
   private final AuditClient auditClient;

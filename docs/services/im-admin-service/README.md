@@ -26,7 +26,7 @@
 - 管理域职责已独立，不再回退到聚合 API 服务。
 - `/admin/users`、`/admin/messages` 与 `/admin/stats` 读取 `adm_` 投影；`/admin/users/{id}` 保持调用用户域内部详情接口。
 - 投影消费 `im_user_event_status_changed_v1` 和 `im_message_event_stored_v1`，以 `adm_projection_event.event_id` 去重并支持重复投递。
-- 删除用户与状态变更写 `common-audit-service`（action `im-user.delete` / `im-user.status.update`，
+- 删除用户与状态变更写 `common-audit-service`（action `im.user.delete` / `im.user.status.update`，
   resourceType `user_account`；detail 只含用户名与级联计数，不落 PII）。
 - 删除是 **IM 自己的业务边界**，不引入 SaaS 域门禁：守卫只有「不能删自己」+ 用户服务内的
   「管理员账号（`user.role='admin'`）不可删 / 用户名二次确认 / 账号不存在」。
