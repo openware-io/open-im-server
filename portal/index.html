@@ -195,11 +195,12 @@
     (function () {
       // 与门户同源转发到 IDaaS，避免把本地 Kind、测试或生产环境地址写死进前端产物。
       var IDAAS_BASE = '/idaas';
-      // 后台入口由访问门户的主机推导：本地 Kind 使用 NodePort，Ingress 复用同域路径。
+      // 后台始终通过门户所在域名的 Ingress 前缀访问。不要再按旧的
+      // 30081/30083 NodePort 分支跳转：该分支会绕过 Ingress，且这些端口
+      // 不承载当前后台入口，导致集团登录成功后打开空页或连接失败。
       var APP_ORIGIN = window.location.protocol + '//' + window.location.hostname;
-      var IS_LOCAL_KIND = window.location.port === '30083';
-      var IM_ADMIN_URL = IS_LOCAL_KIND ? APP_ORIGIN + ':30080/' : APP_ORIGIN + '/im/';
-      var SAAS_ADMIN_URL = IS_LOCAL_KIND ? APP_ORIGIN + ':30081/' : APP_ORIGIN + '/saas/';
+      var IM_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/im/';
+      var SAAS_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/saas/';
 
       var loginCard = document.getElementById('loginCard');
       var appList = document.getElementById('appList');
