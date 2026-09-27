@@ -87,10 +87,11 @@ function Set-ApplicationImage {
   Invoke-Kubectl -Arguments @('set', 'image', "deployment/$Name", "$Name=$imageRef", '--namespace', $Namespace)
   $imagePullPolicy = if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }
   $labels = @{ 'app.kubernetes.io/version' = $tags[$Name]; 'app.kubernetes.io/managed-by' = 'local-k8s-incremental' }
+  $serviceReleaseId = "local-scoped-$releaseType.$releaseTimestamp.$($revisions[$Name])"
   $annotations = @{
     'org.opencontainers.image.version' = $moduleVersions[$Name]
     'org.opencontainers.image.revision' = $revisions[$Name]
-    'release.open-im.local/id' = $releaseId
+    'release.open-im.local/id' = $serviceReleaseId
     'release.open-im.local/code-sha' = $revisions[$Name]
     'release.open-im.local/deployed-at' = $deployedAt
     'release.open-im.local/image-ref' = $imageRef
@@ -122,6 +123,7 @@ $expectedContext = "kind-$KindClusterName"
 if ($LASTEXITCODE -ne 0) { throw "Unable to select Kind context: $expectedContext" }
 
 $releaseId = "local-scoped-$([string]$manifest.buildIdentity)"
+$releaseTimestamp = ([string]$manifest.createdAt -replace '[^0-9]', '').Substring(0, 14)
 $deployedAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 Write-Host "Incremental release: $($targets.Count) target(s) -> $($targets -join ', ')"
 Write-Host "Build identity: $($manifest.buildIdentity) ($releaseType)"
