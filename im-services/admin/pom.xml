@@ -12,7 +12,7 @@
   <packaging>pom</packaging>
   <properties>
     <domain.version>1.0.39</domain.version>
-    <im.user-api.version>1.0.37</im.user-api.version>
+    <im.user-api.version>1.0.38</im.user-api.version>
     <im.message-api.version>1.0.63</im.message-api.version>
     <im.conversation-api.version>1.0.32</im.conversation-api.version>
     <common-media-api.version>2.0.2</common-media-api.version>
