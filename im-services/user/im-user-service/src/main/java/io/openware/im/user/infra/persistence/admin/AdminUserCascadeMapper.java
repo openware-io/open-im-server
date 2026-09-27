@@ -62,16 +62,16 @@ public interface AdminUserCascadeMapper {
   @Delete("DELETE FROM conversation_group_member WHERE user_id = #{userId}")
   int deleteGroupMembers(@Param("userId") Long userId);
 
-  /** 频道订阅行（会话域同库表 {@code channel_subscription}）。 */
-  @Delete("DELETE FROM channel_subscription WHERE user_id = #{userId}")
+  /** 频道订阅行（会话域同库表 {@code conversation_channel_subscription}）。 */
+  @Delete("DELETE FROM conversation_channel_subscription WHERE user_id = #{userId}")
   int deleteChannelSubscriptions(@Param("userId") Long userId);
 
   /**
-   * 密聊会话行（会话域同库表 {@code secret_chat}）。
+   * 密聊会话行（会话域同库表 {@code conversation_secret_chat}）。
    *
    * <p>口径与用户自助注销一致：账号不存在后密聊会话不再成立，参与行一并删除。
    */
-  @Delete("DELETE FROM secret_chat WHERE user_a = #{userId} OR user_b = #{userId}")
+  @Delete("DELETE FROM conversation_secret_chat WHERE user_a = #{userId} OR user_b = #{userId}")
   int deleteSecretChats(@Param("userId") Long userId);
 
   /** 私密群聊成员行（会话域同库表 {@code conversation_secret_group_member}）。 */

@@ -9,10 +9,10 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>im-user</artifactId>
-  <version>1.0.37</version>
+  <version>1.0.38</version>
   <packaging>pom</packaging>
   <properties>
-    <domain.version>1.0.37</domain.version>
+    <domain.version>1.0.38</domain.version>
     <common-media-api.version>2.0.2</common-media-api.version>
   </properties>
   <dependencyManagement>
