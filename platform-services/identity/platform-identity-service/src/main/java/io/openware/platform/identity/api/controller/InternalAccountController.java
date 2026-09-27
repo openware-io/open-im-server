@@ -3,7 +3,6 @@ package io.openware.platform.identity.api.controller;
 import io.openware.platform.identity.application.AccountApplicationService;
 import io.openware.platform.identity.application.ImUnifiedAccountApplicationService;
 import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 账号内部端点（供 platform-admin-service 运营人员开通、IM 后台删除用户调用，不走网关）。
+ * 账号内部端点（供 platform-admin-service 运营人员开通和只读核对，不走网关）。
  */
 @RestController
 @RequestMapping("/internal/accounts")
@@ -49,10 +48,5 @@ public class InternalAccountController {
      * <p>由 IM 侧在**自己的事务内**调用；本端点**不做任何拒绝**：只清 IM 身份（登录标识 + OAuth 绑定），
      * 账号本体仅在「客户账号 + 孤儿」时才删，员工 / 平台运营账号本体保留（等后台换绑 IM 账号）。
      */
-    @DeleteMapping("/im/{username}")
-    public ImUnifiedAccountApplicationService.ImAccountPurgeResult purgeImAccount(@PathVariable String username) {
-        return imUnifiedAccountService.purgeByImUsername(username);
-    }
-
     public record EnsureAccountRequest(String loginType, String loginIdentifier, String accountType) {}
 }

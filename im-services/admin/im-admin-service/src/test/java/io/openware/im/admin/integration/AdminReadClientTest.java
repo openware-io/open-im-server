@@ -73,20 +73,20 @@ class AdminReadClientTest {
         .andExpect(queryParam("operatorId", "1"))
         .andExpect(queryParam("confirmUsername", "im_71"))
         .andRespond(withSuccess("{\"deleted\":true,\"username\":\"im_71\","
-            + "\"tombstoneUsername\":\"deleted_71_ab12cd34\",\"messagesPreserved\":true,"
+            + "\"tombstoneUsername\":null,\"messagesPreserved\":false,"
             + "\"cascade\":{\"deviceTokens\":6,\"deviceSessions\":2,\"deviceKeys\":1,\"notificationSettings\":1,"
             + "\"securityQuestions\":1,\"favorites\":3,\"friendRelations\":4,\"friendRequests\":1,"
             + "\"groupMembers\":5,\"channelSubscriptions\":0,\"secretChats\":0,\"secretGroupMembers\":0,"
             + "\"stickers\":0,\"privacySettings\":1,\"statusOperations\":0,\"loginIdentities\":1,"
-            + "\"oauthLinks\":1,\"unifiedAccounts\":0,\"unifiedAccountRetained\":true,"
+            + "\"oauthLinks\":0,\"unifiedAccounts\":0,\"unifiedAccountRetained\":true,"
             + "\"unifiedAccountType\":\"EMPLOYEE\",\"account\":1}}", MediaType.APPLICATION_JSON));
 
     var response = client.deleteUser(71L, 1L, "im_71");
 
     assertThat(response.deleted()).isTrue();
     assertThat(response.username()).isEqualTo("im_71");
-    assertThat(response.tombstoneUsername()).startsWith("deleted_71_");
-    assertThat(response.messagesPreserved()).isTrue();
+    assertThat(response.tombstoneUsername()).isNull();
+    assertThat(response.messagesPreserved()).isFalse();
     assertThat(response.cascade().deviceSessions()).isEqualTo(2);
     assertThat(response.cascade().groupMembers()).isEqualTo(5);
     assertThat(response.cascade().loginIdentities()).isEqualTo(1);

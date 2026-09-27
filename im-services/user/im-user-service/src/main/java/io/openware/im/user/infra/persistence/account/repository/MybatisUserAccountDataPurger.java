@@ -31,7 +31,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 用户数据硬删实现：删除该用户在用户服务拥有的全部关联数据（设备令牌/设备会话/好友/贴纸/设备密钥/设置/密保问题/审计等）。
- * 账号主记录改为墓碑化（{@code UserAccount#cancel} 置为 disabled），本清理器负责删除其私有关联数据。
+ * 用户生命周期清理器负责删除账号在 IM 业务域内的私有关联数据；账号主记录是否保留由上层生命周期策略决定。
  */
 @Component
 @RequiredArgsConstructor

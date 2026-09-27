@@ -19,97 +19,66 @@ import io.openware.im.user.domain.account.model.SelfDestructPolicy;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
-import io.openware.im.user.domain.account.port.PasswordHasher;
 import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
-import io.openware.im.user.integration.UnifiedAccountPurgeClient;
 import io.openware.im.user.infra.persistence.admin.AdminUserCascadeMapper;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** 后台删除用户：守卫（404/409/400）+ 级联计数 + 墓碑化 + 统一账号清理在事务内失败即抛出。 */
+/** 后台删除用户：守卫（404/409/400）+ 级联计数 + 硬删除 + 统一账号清理在事务内失败即抛出。 */
 class AdminUserDeletionApplicationServiceTest {
 
   private final UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
   private final AdminUserCascadeMapper cascadeMapper = mock(AdminUserCascadeMapper.class);
-  private final PasswordHasher passwordHasher = mock(PasswordHasher.class);
   private final UserStatusEventOutbox outbox = mock(UserStatusEventOutbox.class);
-  private final UnifiedAccountPurgeClient unifiedAccountPurgeClient = mock(UnifiedAccountPurgeClient.class);
   private final AdminUserDeletionApplicationService service = new AdminUserDeletionApplicationService(
-      userAccountRepository, cascadeMapper, passwordHasher, outbox, unifiedAccountPurgeClient);
+      userAccountRepository, cascadeMapper, outbox);
 
   @Test
-  void shouldCascadeDeleteAndTombstoneUsername() {
+  void shouldCascadeDeleteAndHardDeleteAccount() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
     when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
-    when(passwordHasher.hash(any())).thenReturn("random-hash");
+    when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
-    when(unifiedAccountPurgeClient.purgeImAccount("im_71"))
-        .thenReturn(new UnifiedAccountPurgeClient.PurgeResult(1, 1, true, "CUSTOMER"));
 
     AdminUserDeleteResponse response = service.deleteUser(71L, "im_71", 1L);
 
     assertTrue(response.deleted());
     assertEquals("im_71", response.username());
-    assertTrue(response.messagesPreserved());
-    assertTrue(response.tombstoneUsername().startsWith("deleted_71_"), response.tombstoneUsername());
+    assertFalse(response.messagesPreserved());
+    assertEquals(null, response.tombstoneUsername());
     assertEquals(3L, response.cascade().deviceSessions());
     assertEquals(2L, response.cascade().deviceKeys());
     assertEquals(1L, response.cascade().favorites());
     assertEquals(4L, response.cascade().friendRelations());
     assertEquals(5L, response.cascade().groupMembers());
     assertEquals(1L, response.cascade().account());
-    // 统一账号模型清理计数（idt_login_identity / idt_oauth_link / 客户孤儿 idt_account）
-    assertEquals(1L, response.cascade().loginIdentities());
-    assertEquals(1L, response.cascade().oauthLinks());
-    assertEquals(1L, response.cascade().unifiedAccounts());
-    assertEquals(false, response.cascade().unifiedAccountRetained());
-    assertEquals("CUSTOMER", response.cascade().unifiedAccountType());
 
-    // 主记录墓碑化而不是物理删除：客户档案按 username=deleted_<id>_<hash> 判定「IM 账号已删除」。
-    verify(userAccountRepository, never()).hardDelete(anyLong());
-    verify(userAccountRepository).save(account);
-    assertEquals(UserAccountStatus.DISABLED, account.getStatus());
-    assertEquals("已注销用户", account.getNickname());
-    assertEquals("", account.getPhone());
-    assertEquals(response.tombstoneUsername(), account.getUsername());
-    // 消息本体一律不删：整个流程不投递「聊天记录清理」事件。
+    verify(userAccountRepository).hardDelete(71L);
     verify(outbox).append(any(UserAuthenticationInvalidated.class));
-    verify(unifiedAccountPurgeClient).purgeImAccount("im_71");
+    verify(outbox, org.mockito.Mockito.atLeastOnce()).append(any(io.openware.im.user.domain.account.event.UserChatRecordsPurged.class));
   }
 
-  /** 员工账号本体保留（只解绑 IM 身份）时，计数必须把「保留」讲清楚，供审计区分。 */
+  /** SaaS/审计数据不由 IM 删除流程触碰。 */
   @Test
   void shouldReportUnifiedAccountRetainedForEmployeeAccount() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
     when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
-    when(passwordHasher.hash(any())).thenReturn("random-hash");
+    when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
-    when(unifiedAccountPurgeClient.purgeImAccount("im_71"))
-        .thenReturn(new UnifiedAccountPurgeClient.PurgeResult(1, 1, false, "EMPLOYEE"));
-
     AdminUserDeleteResponse response = service.deleteUser(71L, "im_71", 1L);
-
     assertEquals(0L, response.cascade().unifiedAccounts());
-    assertEquals(true, response.cascade().unifiedAccountRetained());
-    assertEquals("EMPLOYEE", response.cascade().unifiedAccountType());
   }
 
   @Test
-  void shouldPropagateUnifiedAccountPurgeFailureSoTransactionRollsBack() {
+  void shouldDeleteWithoutCrossBusinessPurge() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
     when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
-    when(passwordHasher.hash(any())).thenReturn("random-hash");
+    when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
-    // 身份域调用失败 → 异常必须冒泡，让本事务整体回滚（不留半删状态）。
-    when(unifiedAccountPurgeClient.purgeImAccount("im_71"))
-        .thenThrow(new IllegalStateException("清理统一账号落点失败"));
-
-    IllegalStateException exception =
-        assertThrows(IllegalStateException.class, () -> service.deleteUser(71L, "im_71", 1L));
-
-    assertTrue(exception.getMessage().contains("清理统一账号落点失败"));
+    AdminUserDeleteResponse response = service.deleteUser(71L, "im_71", 1L);
+    assertTrue(response.deleted());
   }
 
   @Test
@@ -120,8 +89,8 @@ class AdminUserDeletionApplicationServiceTest {
 
     assertEquals(404, exception.getStatus());
     assertEquals("USER_NOT_FOUND", exception.getCode());
-    verifyNoInteractions(cascadeMapper, unifiedAccountPurgeClient);
-    verify(userAccountRepository, never()).save(any(UserAccount.class));
+    verifyNoInteractions(cascadeMapper);
+    verify(userAccountRepository, never()).hardDelete(anyLong());
   }
 
   @Test
@@ -132,8 +101,8 @@ class AdminUserDeletionApplicationServiceTest {
 
     assertEquals(409, exception.getStatus());
     assertEquals("ADMIN_ACCOUNT_UNDELETABLE", exception.getCode());
-    verifyNoInteractions(cascadeMapper, unifiedAccountPurgeClient);
-    verify(userAccountRepository, never()).save(any(UserAccount.class));
+    verifyNoInteractions(cascadeMapper);
+    verify(userAccountRepository, never()).hardDelete(anyLong());
   }
 
   @Test
@@ -144,8 +113,8 @@ class AdminUserDeletionApplicationServiceTest {
 
     assertEquals(400, exception.getStatus());
     assertEquals("USERNAME_CONFIRM_MISMATCH", exception.getCode());
-    verifyNoInteractions(cascadeMapper, unifiedAccountPurgeClient);
-    verify(userAccountRepository, never()).save(any(UserAccount.class));
+    verifyNoInteractions(cascadeMapper);
+    verify(userAccountRepository, never()).hardDelete(anyLong());
   }
 
   @Test

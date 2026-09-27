@@ -124,8 +124,8 @@ public class UserAccountRepositoryAdapter implements UserAccountRepository {
     LambdaQueryWrapper<UserAccountPo> query = Wrappers.<UserAccountPo>lambdaQuery()
         .eq(username != null && !username.isBlank(), UserAccountPo::getUsername, username)
         .eq(status != null, UserAccountPo::getStatus, status == null ? null : status.name().toLowerCase())
-        // 删除账号采用墓碑化以保留历史消息解析；墓碑不是可管理用户，不应回到用户列表或再次删除。
-        .apply("username NOT LIKE 'deleted\\_%' ESCAPE '\\\\'");
+        // 主动注销账号保留在表内，但注销状态不进入可管理用户列表。
+        .ne(UserAccountPo::getStatus, UserAccountStatus.DISABLED.name().toLowerCase());
     if (keyword != null && !keyword.isBlank()) {
       query.and(wrapper -> {
         wrapper.like(UserAccountPo::getUsername, keyword).or().like(UserAccountPo::getNickname, keyword);

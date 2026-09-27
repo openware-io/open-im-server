@@ -52,8 +52,9 @@ class AdminUserDeletionApplicationServiceTest {
     assertThat(record.resourceName()).isEqualTo("im_71");
     assertThat(record.operatorId()).isEqualTo(1L);
     assertThat(record.operatorName()).isEqualTo("admin");
-    assertThat(record.detailJson()).contains("im_71").contains("messagesPreserved")
-        .contains("deviceSessions").contains("unifiedAccountRetained");
+    assertThat(record.detailJson()).contains("im_71").contains("deviceSessions")
+        .contains("unifiedAccounts").contains("unifiedAccountRetained")
+        .doesNotContain("messagesPreserved");
     // 审计 detail 不得落手机号/邮箱等 PII。
     assertThat(record.detailJson()).doesNotContain("13800000000").doesNotContain("a@b.com");
   }
@@ -127,7 +128,7 @@ class AdminUserDeletionApplicationServiceTest {
   }
 
   private static AdminUserDeleteResponse deletedResponse() {
-    return new AdminUserDeleteResponse(true, "im_71", "deleted_71_ab12cd34", true,
+    return new AdminUserDeleteResponse(true, "im_71", null, false,
         new AdminUserDeleteCascade(1, 2, 1, 1, 1, 1, 3, 1, 4, 0, 0, 0, 0, 1, 0, 1, 1, 1, false, "CUSTOMER", 1));
   }
 }

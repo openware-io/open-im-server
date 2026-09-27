@@ -652,7 +652,7 @@ public class MemberApplicationService {
 
     /**
      * 批量补齐「IM 侧真实账号」（同页一次查询）：界面「IM 账号」列显示 {@code imAccountName}；
-     * IM 用户已删除（无行或 {@code deleted_*}）时置 {@code imAccountDeleted=true}，供页面标红并纳入清理判据。
+     * IM 用户已删除（用户行缺失）时置 {@code imAccountDeleted=true}，供页面标红并纳入清理判据。
      */
     private void fillImAccounts(java.util.List<CstMemberPo> records) {
         if (records == null || records.isEmpty()) {

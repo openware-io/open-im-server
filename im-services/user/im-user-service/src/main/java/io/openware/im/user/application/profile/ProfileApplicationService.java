@@ -130,11 +130,7 @@ public class ProfileApplicationService {
     }
     byte[] randomBytes = new byte[32];
     new SecureRandom().nextBytes(randomBytes);
-    String replacementUsername = "deleted_" + userId + "_" + System.currentTimeMillis();
-    if (replacementUsername.length() > 64) {
-      replacementUsername = replacementUsername.substring(0, 64);
-    }
-    account.cancel(passwordHasher.hash(HexFormat.of().formatHex(randomBytes)), replacementUsername, LocalDateTime.now());
+    account.markCancelled(passwordHasher.hash(HexFormat.of().formatHex(randomBytes)), LocalDateTime.now());
     invalidateAuthentication(account);
     // 账号注销（软删除）：广播聊天记录清理事件，让会话/消息服务级联清除该用户的群成员、密聊、频道订阅等关联数据，
     // 避免群成员列表残留「用户xxx」这类已注销账号的悬空引用。

@@ -25,14 +25,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 账号注销处理服务：异步「墓碑化」账号并删除私有关联数据，同时广播聊天记录清理、认证失效与各端数据擦除事件。
+ * 账号注销处理服务：保留注销状态并清理 IM 私有关联数据，同时广播聊天记录清理、认证失效与各端数据擦除事件。
  *
- * <p>账号主记录不物理删除，而是调用 {@link UserAccount#cancel} 置为 disabled 并把昵称改为「已注销用户」、
- * 清空邮箱/手机号/头像/签名，替换为随机密码与用户名。这样跨服务的群成员列表与消息投影在异步清理完成前
- * 仍能解析到「已注销用户」标识，而不是悬空引用；群成员关系与聊天记录由消息/会话服务消费
- * {@link UserChatRecordsPurged} 事件异步清理（优先 tombstone 保留消息顺序游标）。</p>
+ * <p>审计/注销日志独立保留；用户主记录保留为注销状态，不生成 deleted_* 墓碑。</p>
  *
- * <p>单条申请在一个事务内处理（软删 + 事件落 Outbox + 状态流转），失败则整体回滚并单独标记失败。</p>
+ * <p>单条申请在一个事务内处理（注销状态 + IM 数据清理 + 事件落 Outbox + 状态流转），失败则整体回滚并单独标记失败。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -71,9 +68,9 @@ public class AccountCancellationProcessor {
     // 1. 硬删用户服务内私有关联数据（设备令牌/设备会话/好友/贴纸/设备密钥/设置/密保问题/旧 Outbox）。
     userAccountDataPurger.purge(userId);
 
-    // 2. 账号墓碑化（软删）：保留主记录并置为 disabled + 「已注销用户」，清空个人可识别信息。
+    // 2. 保留账号主记录为注销状态；注销申请和注销日志作为审计证据保留。
     if (account != null) {
-      account.cancel(passwordHasher.hash(UUID.randomUUID().toString()), tombstoneUsername(userId), now);
+      account.markCancelled(passwordHasher.hash(UUID.randomUUID().toString()), now);
       userAccountRepository.save(account);
     }
     long nextStatusVersion = account == null ? 1L : account.getStatusVersion();
@@ -88,7 +85,7 @@ public class AccountCancellationProcessor {
     application.complete(EnumSet.allOf(AccountCancellationStep.class), now);
     accountCancellationRepository.save(application);
     logRepository.save(AccountCancellationLog.create(application.getId(), userId,
-        AccountCancellationAction.COMPLETED, "Account tombstoned and related data purged; client data wipe marked",
+        AccountCancellationAction.COMPLETED, "Account cancelled and IM data purged; client data wipe marked",
         "SYSTEM", null, null, now));
     log.info("Account cancellation completed, userId={}, cancellationId={}", userId, application.getId());
   }
@@ -112,8 +109,4 @@ public class AccountCancellationProcessor {
         application.getUserId(), application.getId(), trimmed);
   }
 
-  /** 生成墓碑用户名：释放原用户名，同时保证唯一（追加用户 id 与随机段）。 */
-  private static String tombstoneUsername(Long userId) {
-    return "deleted_" + userId + "_" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);
-  }
 }

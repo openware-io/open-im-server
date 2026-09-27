@@ -73,21 +73,19 @@ public class AdminUserDeletionApplicationService {
   }
 
   /**
-   * 审计 detail：被删用户名 + 级联计数 + 消息保留口径（{@code cascade} 内含统一账号是否保留）。
+   * 审计 detail：被删用户名 + IM 业务域级联计数；不记录或删除 SaaS/统一身份数据。
    *
    * <p>只放用户名、账号类型与计数：手机号/邮箱/设备标识等 PII 一律不落审计。
    */
   private static String detailJson(AdminUserDeleteResponse result) {
     Map<String, Object> detail = new LinkedHashMap<>();
     detail.put("username", result.username());
-    detail.put("tombstoneUsername", result.tombstoneUsername());
-    detail.put("messagesPreserved", result.messagesPreserved());
     detail.put("cascade", result.cascade());
     try {
       return OBJECT_MAPPER.writeValueAsString(detail);
     } catch (Exception exception) {
       // 序列化失败不能让删除回滚：退化成最小可读 JSON（审计详情是辅助信息，不是业务事实来源）。
-      return "{\"username\":\"" + result.username() + "\",\"messagesPreserved\":true}";
+      return "{\"username\":\"" + result.username() + "\",\"imDataPurged\":true}";
     }
   }
 }

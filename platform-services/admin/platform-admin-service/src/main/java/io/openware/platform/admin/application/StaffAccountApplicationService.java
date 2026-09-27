@@ -151,7 +151,7 @@ public class StaffAccountApplicationService {
      * 旧 IM 标识是否已经不存在（IM 后台删除用户后，统一账号模型里只解绑、员工账号本体保留）。
      *
      * <p>判据两步：① 按用户名解析 IM open_id（{@code im_<id>}）——解析不到就说明 IM 用户已不存在
-     * （行被删除，或 username 已被墓碑化成 {@code deleted_<id>_<hash>}）；
+     * （IM 用户行被管理员硬删除）；
      * ② 解析到了再查统一账号模型里的 IM 身份落点（identity 内部只读端点），{@code found=false}
      * 说明该 IM 身份已被清理，旧绑定同样失效。
      *

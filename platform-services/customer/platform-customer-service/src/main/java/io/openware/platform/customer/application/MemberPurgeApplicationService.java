@@ -65,7 +65,7 @@ public class MemberPurgeApplicationService {
             throw new ApiException(HttpStatusCodes.NOT_FOUND, "MEMBER_NOT_FOUND", "客户不存在");
         }
         // IM 关联判据分两种：①im_account 为空 → 从未关联 IM，是垃圾数据；
-        // ②im_account 有值但 IM 侧用户已不存在（行被删或 username 已是 deleted_<id>_<hash> 形态，即后台「删除用户」留下的残档）
+        // ②im_account 有值但 IM 侧用户已不存在（管理员删除后的 IM 用户行缺失）
         //   → 同样失去有效 IM 关联，允许按垃圾数据清理；只有 IM 账号仍然有效时才拒绝。
         boolean imGone = false;
         if (member.getImAccount() != null && !member.getImAccount().isBlank()) {
@@ -104,7 +104,7 @@ public class MemberPurgeApplicationService {
     /**
      * IM 侧账号是否已不存在：以**客户档案为驱动表**（{@code selectImAccounts} 的 memberIds 口径）解析它的
      * IM 登录标识（{@code im_<id>}，标识行缺失时用档案上的 {@code im_account} 兜底）后查不到 IM 用户行，
-     * 或该行 username 已是 {@code deleted_<id>_<hash>}（IM 后台删除用户留下的形态）。
+     * 管理员删除采用硬删除，判断以 IM 用户行是否存在为准。
      *
      * <p>fail-closed：查询本身失败时返回 false（即仍然拒绝清理），
      * 宁可让人工处理，也不误删一个可能仍然有效的 IM 关联。

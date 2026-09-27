@@ -101,10 +101,10 @@ public class UserAccount {
     this.updatedAt = occurredAt;
   }
 
-  public void cancel(String replacementPasswordHash, String replacementUsername, LocalDateTime occurredAt) {
+  /** 用户主动注销：保留账号行和注销状态，不修改用户名。 */
+  public void markCancelled(String replacementPasswordHash, LocalDateTime occurredAt) {
     this.status = UserAccountStatus.DISABLED;
     this.statusVersion++;
-    this.username = replacementUsername;
     this.passwordHash = replacementPasswordHash;
     this.nickname = "已注销用户";
     this.avatar = "";

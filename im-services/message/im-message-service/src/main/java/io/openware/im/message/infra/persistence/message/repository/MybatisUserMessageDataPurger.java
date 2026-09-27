@@ -1,7 +1,6 @@
 package io.openware.im.message.infra.persistence.message.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.openware.common.enums.ChatType;
 import io.openware.im.message.domain.message.port.UserMessageDataPurger;
 import io.openware.im.message.infra.persistence.message.mapper.MessageMapper;
 import io.openware.im.message.infra.persistence.message.mapper.MessageReadStatusMapper;
@@ -18,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 用户消息数据硬删实现：删除该用户发送的消息、私密消息/私密群聊密文（发送方或接收方）、
+ * 用户消息数据硬删实现：删除该用户参与的全部消息、私密消息/私密群聊密文（发送方或接收方）、
  * 已读状态与同步索引/序列。私密销毁墓碑不含用户标识，随会话清理由会话服务兜底。
  */
 @Component
@@ -33,15 +32,8 @@ public class MybatisUserMessageDataPurger implements UserMessageDataPurger {
 
   @Override
   public void purge(long userId) {
-    // 群/频道消息 tombstone：保留 (conversation_id, seq) 顺序游标，仅把正文替换为「该用户已注销」，
-    // 避免物理删除破坏其他成员的消息序列连续性（对应注销清理 #12）。
-    messageMapper.update(null, Wrappers.<MessagePo>lambdaUpdate()
-        .eq(MessagePo::getFromUserId, userId)
-        .in(MessagePo::getChatType, ChatType.GROUP, ChatType.CHANNEL)
-        .set(MessagePo::getContent, "该用户已注销"));
-    // 单聊消息：删除该用户参与的全部私聊（发送方 + 接收方两侧），单聊无群顺序游标问题。
+    // 所有会话类型均物理删除；消息序号允许断号，避免为保序保留用户业务数据。
     messageMapper.delete(Wrappers.<MessagePo>lambdaQuery()
-        .eq(MessagePo::getChatType, ChatType.PRIVATE)
         .and(w -> w.eq(MessagePo::getFromUserId, userId)
             .or().eq(MessagePo::getToId, String.valueOf(userId))));
     messageReadStatusMapper.delete(

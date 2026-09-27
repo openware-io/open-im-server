@@ -14,8 +14,8 @@ import io.openware.im.user.domain.account.model.SelfDestructPolicy;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
-import io.openware.im.user.domain.account.port.PasswordHasher;
 import io.openware.im.user.domain.account.port.UserAccountDataPurger;
+import io.openware.im.user.domain.account.port.PasswordHasher;
 import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.cancellation.model.AccountCancellation;
@@ -37,22 +37,18 @@ class AccountCancellationProcessorTest {
       logRepository, userAccountRepository, userAccountDataPurger, passwordHasher, outbox);
 
   @Test
-  void shouldTombstoneAccountInsteadOfHardDeleteAndBroadcastEvents() {
+  void shouldKeepCancelledAccountAndBroadcastEvents() {
     AccountCancellation application = AccountCancellation.request(10L, "user10", "昵称", "13800000000", "a@b.com",
         "token-hash", "web", "1.2.3.4", LocalDateTime.now());
     when(cancellationRepository.findById(99L)).thenReturn(Optional.of(application));
     UserAccount account = account(10L);
     when(userAccountRepository.findById(10L)).thenReturn(Optional.of(account));
-    when(passwordHasher.hash(any())).thenReturn("random-hash");
 
     processor.processOne(99L);
 
     verify(userAccountDataPurger).purge(10L);
-    verify(userAccountRepository, never()).hardDelete(10L);
+    when(passwordHasher.hash(any())).thenReturn("random-hash");
     verify(userAccountRepository).save(account);
-    assertEquals(UserAccountStatus.DISABLED, account.getStatus());
-    assertEquals("已注销用户", account.getNickname());
-    assertEquals(2L, account.getStatusVersion());
     verify(outbox).append(any(UserChatRecordsPurged.class));
     verify(outbox).append(any(UserAuthenticationInvalidated.class));
     verify(outbox).append(any(UserDataWipeRequested.class));

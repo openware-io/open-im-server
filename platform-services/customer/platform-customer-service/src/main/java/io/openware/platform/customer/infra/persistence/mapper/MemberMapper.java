@@ -62,8 +62,8 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
      * 或档案上的 {@code im_account} 解析出 IM 用户 id，再取 {@code im_server.user.username / nickname}。
      * 客户管理「IM 账号」列显示的就是它。
      *
-     * <p>「IM 账号已删除」（{@code deleted=1}）的口径：IM 用户行缺失，或 username 已是
-     * {@code deleted_<id>_<hash>}（IM 后台删除用户留下的墓碑）。这类客户档案在业务上同样是垃圾数据。
+     * <p>「IM 账号已删除」（{@code deleted=1}）的口径：IM 用户行缺失。IM 管理员删除是硬删除，
+     * 不使用 deleted_* 墓碑用户名。
      *
      * <p><b>驱动表必须是 cst_member</b>：若以 {@code idt_login_identity} 为驱动表，IM 后台把该账号的登录标识行
      * **物理删掉**之后，这里会「查不到行 → 不标记已删除」，客户列表就会把已删的 IM 账号继续显示为有效关联，
@@ -74,7 +74,7 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
      */
     @Select("<script>SELECT m.id AS memberId, m.account_id AS accountId, u.id AS imUserId, "
             + "u.username AS imUsername, u.nickname AS imNickname, "
-            + "CASE WHEN u.id IS NULL OR u.username LIKE 'deleted\\_%' THEN 1 ELSE 0 END AS deleted "
+            + "CASE WHEN u.id IS NULL THEN 1 ELSE 0 END AS deleted "
             + "FROM cst_member m "
             + "LEFT JOIN idt_login_identity li ON li.account_id = m.account_id "
             + "AND li.login_type = 'IM' AND li.status = 'ACTIVE' "

@@ -60,7 +60,7 @@ public class CstMemberPo {
      */
     @TableField(exist = false)
     private String imAccountName;
-    /** 非持久化展示字段：IM 账号是否已不存在（用户行缺失，或 username 已是 {@code deleted_<id>_<hash>} 形态）。 */
+    /** 非持久化展示字段：IM 账号是否已不存在（以 IM 用户行缺失为准）。 */
     @TableField(exist = false)
     private Boolean imAccountDeleted;
     private Long levelId;
