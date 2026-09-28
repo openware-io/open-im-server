@@ -16,6 +16,8 @@ import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -55,7 +57,7 @@ class AdminMenuApplicationServiceTest {
     assertEquals("currency", currency.code());
     assertEquals("币种", currency.name());
     assertEquals("TENANT", currency.scope());
-    assertEquals("money", currency.icon());
+    assertEquals("wallet", currency.icon());
     assertEquals(0L, currency.parentId().longValue());
     assertTrue(currency.children().isEmpty());
     // 紧邻「门店」，保持列表可读。
@@ -122,6 +124,24 @@ class AdminMenuApplicationServiceTest {
     List<AdminMenuItem> menus = service.menus(null);
 
     assertEquals(1, menus.stream().filter(menu -> CURRENCY_PATH.equals(menu.path())).count());
+  }
+
+  @Test
+  void fullMenuTreeUsesUniqueIcons() {
+    adminWithTenantContext();
+    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(1L);
+    when(tenantIamClient.permissions(1L, 100L, null, null))
+        .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
+            1L, 100L, null, null, 1, List.of("iam.role.manage", "audit.view")));
+
+    Set<String> icons = new HashSet<>();
+    List<AdminMenuItem> menus = service.menus(null);
+    for (AdminMenuItem menu : menus) {
+      assertTrue(icons.add(menu.icon()), "菜单图标重复: " + menu.name() + " -> " + menu.icon());
+      for (AdminMenuItem child : menu.children()) {
+        assertTrue(icons.add(child.icon()), "菜单图标重复: " + child.name() + " -> " + child.icon());
+      }
+    }
   }
 
   private void adminWithTenantContext() {
