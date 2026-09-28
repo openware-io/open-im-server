@@ -417,8 +417,10 @@
             <div class="grp">
               <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">经营总览</span><span class="cnt">0</span></div>
               <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">组织与门店</span><span class="cnt">1</span></div>
-              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">通用目录</span><span class="cnt">1</span></div>
-              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">会员与营销</span><span class="cnt">3</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">客户与营销</span><span class="cnt">3</span></div>
+              <div class="leaf">客户管理<span class="perm">/business/members · 租户级</span></div>
+              <div class="leaf">积分管理<span class="perm">/business/points · 租户级</span></div>
+              <div class="leaf">储值管理<span class="perm">/business/wallet · 租户级 + payment.method.wallet</span></div>
               <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">资金与支付</span><span class="cnt">2</span></div>
               <div class="leaf on">支付渠道配置<span class="perm">租户级默认</span></div>
               <div class="leaf">币种<span class="perm">⚿ tenant.currency.manage</span></div>
@@ -500,7 +502,7 @@
             <th>TENANT <span class="lv">租户 = 集团主体 · tenant_id</span></th>
             <td class="cell-core">
               <span class="chip">门店管理</span><span class="chip">币种</span><span class="chip">支付渠道（默认）</span>
-              <span class="chip">通用目录</span><span class="chip">会员/积分/储值</span>
+              <span class="chip">会员/积分/储值</span>
               <span class="chip">运营人员</span><span class="chip">角色权限</span><span class="chip">脱敏权限</span><span class="chip">审计日志</span>
             </td>
             <td class="cell-domain"><span class="chip">业态模板</span><span class="chip">服务项目</span></td>
@@ -619,12 +621,12 @@
           <div class="rule">store_id NULL = 租户默认</div>
         </div>
         <div class="cat-body">
-          <span class="chip">ord_catalog_item</span><span class="tick ok">完整</span>
+          <span class="chip">ord_catalog_item</span><span class="tick warn">内部模型，暂不形成菜单</span>
           <span class="chip">pay_channel_config</span><span class="tick ok">完整</span>
           <span class="chip">res_room_type.unit_price</span><span class="tick warn">仅价格字段</span>
           <span class="chip">iam_user_role</span><span class="tick ok">三层作用域</span>
           <div class="cat-note">
-            <code>ord_catalog_item</code> 与 <code>pay_channel_config</code> 的列注释<b>明写「NULL=租户级」</b>，是现成范本。<br>
+            <code>pay_channel_config</code> 的列注释<b>明写「NULL=租户级」</b>，作为当前经营配置范本；<code>ord_catalog_item</code> 仅作内部模型记录，暂不形成菜单。<br>
             <code>iam_user_role</code> 的授权继承已完整可用（见第 6 节）。
           </div>
           <pre class="sqlbox" style="margin-top:11px;font-size:11px"><span class="c">-- 分层范本：照抄这个模式</span>
@@ -697,7 +699,7 @@ store_id bigint unsigned <span class="k">NULL</span>
         <div class="fx right">
           <div class="lbl">✓ v0.2 修正</div>
           <div class="txt"><code>ord_product</code> / <code>ord_product_category</code> 都是 <b><code>store_id NOT NULL</code></b> → 商品是<b>门店级</b>，移入「门店商品与库存」。<br>
-            租户级只保留 <code>ord_catalog_item</code>（<code>store_id NULL</code>）作为<b>通用目录</b>。</div>
+            当前不新增租户级共享商品/服务菜单，避免与现有<b>门店商品与库存</b>重复。</div>
         </div>
       </div>
       <div class="evidence">V11__ord_inventory_product.sql &nbsp;→&nbsp; `store_id` bigint unsigned NOT NULL COMMENT '门店ID'</div>
@@ -717,7 +719,7 @@ store_id bigint unsigned <span class="k">NULL</span>
       <div class="evidence">V2__tnt_pricing_plan.sql &nbsp;→&nbsp; `tenant_id` NOT NULL, <b>`store_id` bigint unsigned NOT NULL</b></div>
 
       <div class="filter-note danger" style="margin-top:18px">
-        <b>连带影响：</b>修正 1 之后，租户级「商品与服务」域只剩通用目录与业态模板，因此<b>改名为「通用目录」</b>（第 1 节侧边栏已更新）。
+        <b>范围收敛：</b>修正 1 之后，商品能力只保留门店级「门店商品与库存」入口；跨门店共享商品/服务调用暂不纳入开源方案菜单。
         修正 2 之后，<code>tnt_pricing_plan</code> 若要支持「租户默认价 + 门店覆盖价」，需要先把 <code>store_id</code> 改为可空 —— 见第 7 节缺口 1。
       </div>
     </div>

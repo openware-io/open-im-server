@@ -1,4 +1,4 @@
-# SaaS 租户后台菜单与权限分层方案（评审稿 v0.3）
+# SaaS 租户后台菜单与权限分层方案（评审稿 v0.7）
 
 > **所属方案集**：`SAAS_MENU_PERMISSION`（SaaS 导航与权限分层改造）
 > **本文件**：`01_ADMIN`，总体方案 + PC 后台菜单/交互（评审稿，先评审后派工）
@@ -56,7 +56,7 @@
 1. **授权作用域已经是四层**：`iam_user_role.scope_type` 的 `TENANT/ORGANIZATION/STORE` 已落地，`selectPermissionCodes` 的 SQL 已按「父级绑定对子级上下文生效」聚合。**本方案不重造授权链，只补元数据与展示层次。**
 2. **权限传播链已闭环**：`iam_user_role → iam_role → iam_role_permission → iam_permission` → 权限快照 → 签 `X-Tenant-Context` token → 各服务 `TenantContextFilter` 解析 → `TenantContextHolder`。菜单分层只影响「入口可见性」，越权拦截仍由这条链强制，**菜单不是安全边界**。
 3. **业态枚举已可配**：`tnt_business_type`（`KTV/HOTEL/SPA/MASSAGE/RETAIL`，可注册扩展），`tnt_store.business_type` 一个门店一种业态。
-4. **分层模型已有现成范本**：`ord_catalog_item` 与 `pay_channel_config` 的列注释明写「`store_id NULL` = 租户级」，读用 COALESCE、写用门店行覆盖。见 §11。
+4. **数据模型中存在租户默认/门店覆盖范本**：`pay_channel_config` 的列注释明写「`store_id NULL` = 租户级」，读用 COALESCE、写用门店行覆盖。`ord_catalog_item` 虽有类似字段，但当前不形成独立菜单或跨门店商品/服务能力。
 
 ### 1.3 问题清单
 
@@ -99,7 +99,7 @@
 | 值 | 含义 | 数据隔离键 | 典型功能 |
 | --- | --- | --- | --- |
 | `PLATFORM` | 平台运营，跨租户 | 无（`tenantId=0` 允许） | 租户开通、平台 IAM、支付渠道授权 |
-| `TENANT` | 租户（= 集团/法人主体） | `tenant_id` | 币种、会员规则、积分规则、支付渠道默认值、通用目录、运营人员、角色权限、审计 |
+| `TENANT` | 租户（= 集团/法人主体） | `tenant_id` | 币种、会员规则、积分规则、支付渠道默认值、运营人员、角色权限、审计 |
 | `ORGANIZATION` | 组织（品牌/事业部/区域），一期一层 | `organization_id` | 跨店汇总报表、组织级策略下发（**一期只做展示位，不做独立页面**） |
 | `STORE` | 门店，**数据隔离最细粒度** | `store_id` | 开台、订单、收银、交班、预约、资源/房态、库存、门店商品、计价方案、门店日报、门店配置 |
 
@@ -143,7 +143,6 @@
 │                              │
 │  ▸ 经营总览                  │  租户级区（TENANT）
 │  ▸ 组织与门店                │  跨店视角，数据按 tenant_id 隔离
-│  ▸ 通用目录                  │
 │  ▸ 会员与营销                │
 │  ▸ 资金与支付                │
 │  ▸ 人员与权限                │
@@ -187,13 +186,12 @@
 | --- | --- | --- | --- |
 | `tenant.overview` | 经营总览 | 跨店经营看板（后续）、租户报表（后续） | 跨 `store_id` 聚合，主键无 `store_id` |
 | `tenant.org` | 组织与门店 | **门店管理** `/admin/tenant/stores`、组织管理（后续）、法人主体 | `tnt_store` / `tnt_organization` / `tnt_legal_entity` 的父级管理 |
-| `tenant.catalog` | 通用目录 | **通用商品/服务目录**（`ord_catalog_item`，`store_id NULL = 租户级通用`）、业态模板（后续） | 目录行 `store_id` 可空，一次定义多店复用 |
-| `tenant.crm` | 会员与营销 | **会员管理** `/business/members`、**积分管理** `/business/points`、**储值管理** `/business/wallet`、优惠券/营销（后续） | `cst_*` / `mkt_*` 只有 `tenant_id`；储值挂 `legal_entity_id` |
+| `tenant.crm` | 客户与营销 | **客户管理** `/business/members`、**积分管理** `/business/points`、**储值管理** `/business/wallet`、优惠券/营销（后续） | `cst_*` / `mkt_*` 只有 `tenant_id`；储值挂 `legal_entity_id` |
 | `tenant.finance` | 资金与支付 | **支付渠道配置（租户级默认）** `/business/payment-methods`、**币种** `/admin/tenant/currency`、税率/发票（后续） | `pay_channel_config.store_id NULL = 租户级`；币种为租户级唯一来源 |
 | `tenant.iam` | 人员与权限 | **运营人员** `/admin/staff`、角色权限（后续，租户自助）、**脱敏权限** `/admin/security` | `iam_*` 按 `tenant_id` |
 | `tenant.settings` | 租户设置 | **审计日志** `/admin/audits`、租户信息/接入配置（后续） | `iam_audit_log` / `tnt_tenant_config` |
 
-> **v0.1 → v0.2 变更**：原「商品与服务」域更名为「通用目录」，移出「商品管理」（实为门店级），不再列「计价方案」（实为门店级）。
+> **v0.7 范围收敛**：商品能力只保留门店级「门店商品与库存」入口。跨门店共享商品/服务调用、租户级商品目录暂不纳入开源方案菜单；`ord_catalog_item` 仅保留为内部数据模型记录。
 
 ### 3.3 门店级功能域明细
 
@@ -224,10 +222,10 @@
 | 收银/支付 | `/business/payments` | TENANT | **STORE** | core | 门店运营 | 需 `storeId` |
 | 交班/日结 | `/business/shifts` | TENANT | **STORE** | core | 门店运营 | 需 `storeId` |
 | 报表 | `/admin/reports` | TENANT | **STORE** | core | 门店报表 | 租户级「经营总览」后续新增 path |
-| 会员管理 | `/business/members` | TENANT | TENANT | core | 会员与营销 | 不变层 |
-| 积分管理 | `/business/points` | TENANT | TENANT | core | 会员与营销 | 不变层 |
+| 客户管理 | `/business/members` | TENANT | TENANT | core | 客户与营销 | 仅改显示名，path/code 不变 |
+| 积分管理 | `/business/points` | TENANT | TENANT | core | 客户与营销 | 不变层 |
 | 支付方式 | `/business/payment-methods` | TENANT | TENANT | core | 资金与支付 | 租户级默认渠道 |
-| 储值管理 | `/business/wallet` | TENANT | TENANT | core | 会员与营销 | 保留 `payment.method.wallet` 门禁 |
+| 储值管理 | `/business/wallet` | TENANT | TENANT | core | 客户与营销 | 保留 `payment.method.wallet` 门禁 |
 | 脱敏权限 | `/admin/security` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
 | KTV 配置 | `/admin/ktv/config` | TENANT | **STORE** | **ktv** | 门店设置 | 需 `storeId` + 业态命中 |
 | 运营人员 | `/admin/staff` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
@@ -252,12 +250,12 @@ v0.1 凭语义推断归属，v0.2 按建表语句实测，发现两处判断错�
 
 | # | v0.1 判断 | 实测证据 | v0.2 修正 |
 | --- | --- | --- | --- |
-| 1 | 「商品管理」放**租户级**「商品与服务」——认为目录全租户共享，门店只做库存覆盖 | `V11__ord_inventory_product.sql`：`ord_product.store_id bigint unsigned NOT NULL`；`ord_product_category` 同样 `NOT NULL` | 商品是**门店级**，移入「门店商品与库存」。租户级只保留 `ord_catalog_item`（`store_id NULL`）作为**通用目录** |
+| 1 | 「商品管理」放**租户级**「商品与服务」——认为目录全租户共享，门店只做库存覆盖 | `V11__ord_inventory_product.sql`：`ord_product.store_id bigint unsigned NOT NULL`；`ord_product_category` 同样 `NOT NULL` | 商品是**门店级**，移入「门店商品与库存」。不新增租户级共享商品/服务菜单；`ord_catalog_item` 不作为本期用户入口 |
 | 2 | 「计价方案」从 `PLATFORM` 迁到 **`TENANT`**——认为它是租户可配的经营策略 | `V2__tnt_pricing_plan.sql`：`tnt_pricing_plan.store_id bigint unsigned NOT NULL` | 计价方案是**门店级**，移入「门店设置」。它现在挂在 `scope=PLATFORM` 的 `/admin/pricing-plans` 下，是**层级和归属双重错位** |
 
 **连带影响：**
 
-- 修正 1 后租户级「商品与服务」域只剩通用目录与业态模板，故**更名为「通用目录」**。
+- 修正 1 后不再新增租户级「商品与服务」域，避免与现有「门店商品与库存」重复。
 - 修正 2 后，`tnt_pricing_plan` 若要支持「租户默认价 + 门店覆盖价」，需先把 `store_id` 改为可空 —— 见 §12 缺口 1。
 - 两处修正均**不改变 path**，符合 §3 的硬约束。
 
@@ -566,7 +564,7 @@ CREATE TABLE `iam_menu` (
 
 | 表 / 列 | 分层方式 | 成熟度 |
 | --- | --- | --- |
-| `ord_catalog_item` | 列注释明写 **「门店ID，NULL=租户级通用」** | ✅ 完整实现 |
+| `ord_catalog_item` | 列注释明写「门店ID，NULL=租户级通用」；当前仅作内部模型记录，不形成独立菜单 | 🟡 有表结构，暂不纳入本期产品范围 |
 | `pay_channel_config` | 列注释明写 **「NULL=租户级」** | ✅ 完整实现 |
 | `res_room_type.unit_price` / `server_unit_price` | 「NULL 回退门店级单价」 | 🟡 只做了价格字段，未做行级分层 |
 | `iam_user_role` | `tenant_id` / `organization_id` / `store_id` 三列 + `scope_type` | ✅ 授权继承已完整 |

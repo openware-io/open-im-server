@@ -147,13 +147,13 @@ git pull            # 分支 develop/2.0.0-saas-20260826
 | 商品管理 | 租户级 | `ord_product.store_id NOT NULL` | **门店级** → 「门店商品与库存」 |
 | 计价方案 | TENANT | `tnt_pricing_plan.store_id NOT NULL` | **门店级** → 「门店设置」 |
 
-连带：租户级「商品与服务」域更名为**「通用目录」**（只剩 `ord_catalog_item`，`store_id NULL`）。
+范围收敛：不新增租户级「商品与服务」或「通用目录」菜单，避免与现有门店级「门店商品与库存」重复；`ord_catalog_item` 仅保留为内部数据模型记录，跨门店共享商品/服务调用暂不纳入本期开源方案。
 
 ### 2.2 数据模型四类分类（全库 114 张表实测）
 
 - **A 租户通用**（只有 `tenant_id`）：`cst_*` 会员/积分/储值、`mkt_*` 营销、`tnt_*` 租户/组织/主体、`iam_*`。**新增业态零改动。**
 - **B 门店独立**（`store_id NOT NULL`）：`ord_order`（四层键齐全，标准范本）、`ord_reservation`、`res_*`、`ord_inventory_*`、`ord_product*`、`tnt_pricing_plan`、`pay_shift`/`pay_daily_closing`/`pay_intent`、`pay_channel_provider`。
-- **C 混合**（`store_id NULL` = 租户默认）★ **只有 3 张表做到**：`ord_catalog_item`、`pay_channel_config`、`res_room_type` 价格字段；外加 `iam_user_role` 的三层作用域。**这是分层能力的现成范本，新需求照抄。**
+- **C 混合**（`store_id NULL` = 租户默认）★ 当前仅将 `pay_channel_config` 作为经营配置范本；`ord_catalog_item` 虽存在类似字段，但不形成用户菜单或跨门店商品/服务能力；另有 `res_room_type` 价格字段与 `iam_user_role` 的三层作用域。
 - **D 派生门店级** ⚠️ 最大技术债：`ord_order_item`、`ord_ktv_session`、`ord_ktv_server_session`、`pay_collect`、`pay_refund`、`pay_transaction` —— 都没有 `store_id`，只能靠 `order_id` JOIN 推断门店。
 
 ### 2.3 权限码归属速查（44 个，实测）
