@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SaaS 租户后台 · 菜单权限与总部经营原型 v0.8</title>
+<title>SaaS 租户后台 · 菜单权限与总部经营原型 v0.9</title>
 <style>
   :root {
     --sidebar-bg: #1d1e2c;
@@ -386,14 +386,14 @@
 <div class="wrap">
 
   <header class="page">
-    <h1>SaaS 租户后台 · 菜单权限与总部经营原型<span class="tag rev">v0.8 · 双方案合并评审</span></h1>
-    <p>配套方案：<code>SAAS_MENU_PERMISSION_01_ADMIN.md</code>（方案 A）　·　总部经营方案（方案 B，待拆分）　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
+    <h1>SaaS 租户后台 · 菜单权限与总部经营原型<span class="tag rev">v0.9 · 双方案合并评审</span></h1>
+    <p>方案 A：<code>SAAS_MENU_PERMISSION_01_ADMIN.md</code>　·　方案 B：<code>SAAS_TENANT_HEADQUARTERS_01_SERVICE.md</code>　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
   </header>
 
   <div class="scope-bar">
     <span class="scope-pill menu"><span class="scope-dot"></span>方案 A · 菜单与权限</span>
     <span class="scope-pill hq"><span class="scope-dot"></span>方案 B · 租户总部经营</span>
-    <span class="scope-note">本页合并展示，范围以标签区分；总部指标和客户资产门店归因均为待规范确认的业务原型。</span>
+    <span class="scope-note">本页合并展示，范围以标签区分；总部只读下钻，客户/积分/储值在门店上下文操作，余额隔离口径列入决策清单。</span>
   </div>
 
   <!-- ================= 1. 现状 vs 方案 ================= -->
@@ -494,7 +494,7 @@
               <div class="leaf">门店信息</div>
               <div class="leaf">计价方案<span class="moved">★ 从平台级迁入</span></div>
               <div class="leaf">KTV 配置<span class="dom">ktv</span></div>
-              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">客户与营销</span><span class="cnt">3</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">客户与资产</span><span class="cnt">3</span></div>
               <div class="leaf">客户管理<span class="perm">/business/members · 当前门店</span></div>
               <div class="leaf">积分管理<span class="perm">/business/points · 当前门店</span></div>
               <div class="leaf">储值管理<span class="perm">/business/wallet · 当前门店 + wallet grant</span></div>
@@ -533,15 +533,15 @@
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-label">营业门店</div><div class="kpi-value">3 / 4</div><div class="kpi-sub">示意数据 · 按业态筛选</div></div>
         <div class="kpi"><div class="kpi-label">客户档案</div><div class="kpi-value">12,680</div><div class="kpi-sub">租户去重口径</div></div>
-        <div class="kpi"><div class="kpi-label">本期储值余额</div><div class="kpi-value">¥ 286,400</div><div class="kpi-sub">余额口径待规范确认</div></div>
-        <div class="kpi"><div class="kpi-label">本期积分余额</div><div class="kpi-value">1,248,900</div><div class="kpi-sub">积分个数 · 跨店汇总</div></div>
-        <div class="kpi"><div class="kpi-label">本期经营额</div><div class="kpi-value">¥ 1.86M</div><div class="kpi-sub">示意数据 · 需接报表口径</div></div>
+        <div class="kpi"><div class="kpi-label">共享储值余额</div><div class="kpi-value">CNY 286,400</div><div class="kpi-sub">共享账户余额 · 按币种展示</div></div>
+        <div class="kpi"><div class="kpi-label">共享积分余额</div><div class="kpi-value">1,248,900</div><div class="kpi-sub">积分个数 · 不按门店重复相加</div></div>
+        <div class="kpi"><div class="kpi-label">本期经营额</div><div class="kpi-value">CNY 1.86M</div><div class="kpi-sub">多币种分组 · 首版不做汇率折算</div></div>
       </div>
 
       <div class="grid-2">
         <div class="boundary hq">
           <h3>总部能做什么</h3>
-          <p>查看全租户客户数、积分和储值汇总；按业态/门店筛选；查看门店对比；点击门店进入对应门店上下文。总部总览不直接替代门店充值、退还、积分调整等操作。</p>
+          <p>查看全租户客户数、积分和储值汇总；按业态/门店筛选；查看门店对比；点击门店进入对应门店上下文。总部总览默认只读，不直接替代门店充值、退还、积分调整等操作。</p>
         </div>
         <div class="boundary store">
           <h3>门店能做什么</h3>
@@ -559,7 +559,28 @@
           </tbody>
         </table>
       </div>
-      <div class="scope-warning"><b>待规范确认：</b>客户主档是否允许跨店共享、积分/储值余额是否按租户/法人主体共享、门店是否只能操作本店流水。以上数据是原型示意，不是已冻结的接口或数据库字段。</div>
+      <div class="scope-warning"><b>方案 B 当前口径：</b>客户主档租户内唯一，门店用关系表区分；积分/储值余额默认共享，流水按门店归因；总部只读，门店执行写操作。共享余额不按门店重复相加，多币种按币种分组；余额隔离和总部批量操作仍须决策。</div>
+    </div>
+  </section>
+
+  <!-- ================= B. 配置作用域 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num new">B</div>
+      <h2><span class="scope-pill hq">方案 B</span> 经营配置作用域</h2>
+      <span class="hint">同一业务可统一设置、单店覆盖或多店批量应用</span>
+    </div>
+    <div class="card">
+      <table class="matrix">
+        <thead><tr><th>设置方式</th><th>目标</th><th>生效优先级</th><th>工程语义</th></tr></thead>
+        <tbody>
+          <tr><th>租户默认</th><td>全租户</td><td>最低</td><td><code>tenant_id + config_key</code>，仅适用于允许租户作用域的配置。</td></tr>
+          <tr><th>业态默认</th><td>同一租户 + 同一业务类型</td><td>中</td><td><code>tenant_id + business_type + config_key</code>，覆盖租户默认。</td></tr>
+          <tr><th>单店覆盖</th><td>一个 <code>store_id</code></td><td>最高</td><td><code>tenant_id + store_id + config_key</code>，只影响当前门店。</td></tr>
+          <tr><th>多店设置</th><td>明确选择多个门店</td><td>写入单店覆盖</td><td>一次幂等批量命令展开写入，不创建持久化门店组；全量校验后全成全败。</td></tr>
+        </tbody>
+      </table>
+      <div class="scope-warning"><b>不纳入本期：</b>跨门店商品/服务共享目录与跨店履约调用。门店已有「门店商品与库存」，本方案不再新增重复的租户级商品菜单。</div>
     </div>
   </section>
 
@@ -1160,7 +1181,7 @@ ALTER TABLE iam_permission ADD
           </tr>
           <tr>
             <th>M1</th>
-            <td>菜单树化：把 19 项重组成两段 + 域折叠，新增总部「经营总览」入口，客户/积分/储值移入门店客户与营销域。<b>注</b>：<code>AdminLayout.vue</code> 现无分组能力，两段式是新建；已有 2 个位置耦合测试断言需同步改写</td>
+            <td>菜单树化：把 19 项重组成两段 + 域折叠，新增总部「经营总览」入口，客户/积分/储值移入门店客户与资产域。<b>注</b>：<code>AdminLayout.vue</code> 现无分组能力，两段式是新建；已有 2 个位置耦合测试断言需同步改写</td>
             <td><b class="good">无</b></td>
             <td>截图里的长菜单、租户/门店边界缺失</td>
             <td><b class="good">✅ 可回滚</b></td>
@@ -1204,13 +1225,14 @@ ALTER TABLE iam_permission ADD
   </section>
 
   <footer>
-    配套文档：<code>gv_im_server/docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>（方案 A；方案 B 待拆分成独立总部经营方案）<br>
+    配套文档：<code>docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>（方案 A）　·　<code>docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md</code>（方案 B）<br>
     关联标准：<code>docs/business/ACCOUNT_PERMISSION_MODEL.md</code>　·　<code>docs/renovation/SAAS_PLATFORM_01_SERVICE.md §5.1</code>　·　<code>docs/renovation/SAAS_PLATFORM_04_DATA.md</code>
     <table class="changelog">
       <tr><td><b>v0.1</b></td><td>首版：现状对比、两轴模型、菜单提案、权限继承、剪枝规则、分期。</td></tr>
       <tr><td><b>v0.2</b></td><td>按 138 个 Flyway 迁移实测修正两处归属（商品 → 门店级、计价方案 → 门店级）；新增第 3 节「通用 vs 门店独立」四类分类、第 4 节修正对照、第 7 节五处缺口与技术债；新增 M0 数据地基里程碑。</td></tr>
       <tr><td><b>v0.3</b></td><td>按主代码与迁移种子复核：租户菜单 18 → <b>19</b> 项（新增「订单管理」）；存量权限码 44（非 60+）、码为 2～3 段；<code>platform.operator</code> 实为全量持有 44 个码；前端权限映射仅 1 条且方向与后端相反；Flyway 按模块编号。详见 <code>SAAS_MENU_PERMISSION_02_SERVICE.md</code> §5.5 与 <code>HANDOFF</code> §0.2。</td></tr>
-      <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；补充客户门店关系、积分/储值流水门店归因的待规范项。示意数据不代表已冻结接口或表结构。</td></tr>
+      <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；补充客户门店关系、积分/储值流水门店归因的待规范项。</td></tr>
+      <tr><td><b>v0.9</b></td><td>方案 B 拆分为独立服务方案；明确总部只读下钻、客户/积分/储值默认归属、租户/业态/门店配置三层作用域、多店批量设置和决策清单。</td></tr>
     </table>
   </footer>
 

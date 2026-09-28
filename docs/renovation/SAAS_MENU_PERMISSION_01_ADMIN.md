@@ -1,16 +1,18 @@
-# SaaS 租户后台菜单与权限分层方案（评审稿 v0.7）
+# SaaS 租户后台菜单与权限分层方案（评审稿 v0.9）
 
 > **所属方案集**：`SAAS_MENU_PERMISSION`（SaaS 导航与权限分层改造）
-> **本文件**：`01_ADMIN`，总体方案 + PC 后台菜单/交互（评审稿，先评审后派工）
+> **本文件**：`01_ADMIN`，方案 A：PC 后台菜单/权限分层与入口迁移（评审稿，先评审后派工）
 > **配套示意图**：`SAAS_MENU_PERMISSION_01_ADMIN_mockup.html`（自包含，直接浏览器打开）
+> **方案 B**：`SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`，租户总部经营总览、门店下钻、客户/积分/储值门店操作与配置作用域。
 > **方案集拆分（已完成，按 `docs/renovation/README.md` 的 `<SERIES>_<NN>_<AREA>` 规范）**：
 > `SAAS_MENU_PERMISSION_01_ADMIN.md` —— 本文，总体方案 + PC 后台菜单结构与交互
 > `SAAS_MENU_PERMISSION_02_SERVICE.md` —— 权限层次模型、归属元数据 DDL、角色与授予规则、菜单下发契约、数据地基
+> `SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` —— 方案 B：总部经营与跨店数据服务
 > `SAAS_MENU_PERMISSION_HANDOFF.md` —— 跨机续接说明（引导语）
 >
-> 两份方案冲突时**以 `02_SERVICE` 为准**（它按建表语句与聚合 SQL 实测编写）。
+> 方案 A 的菜单/权限实现冲突时**以 `02_SERVICE` 为准**（它按建表语句与聚合 SQL 实测编写）；总部经营和客户资产口径以方案 B 为准。
 > **关联标准**：`docs/business/ACCOUNT_PERMISSION_MODEL.md`、`docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1、`docs/renovation/SAAS_PLATFORM_04_DATA.md`、`docs/renovation/KTV_BUSINESS_01_SERVICE.md` §0.3
-> **状态**：待评审（未实施）
+> **状态**：待评审（未实施）；原型已合并展示方案 A/B，服务方案已拆分
 > **v0.3 复核说明（2026-09-22）**：本版按 `AdminMenuApplicationService` 、`AdminMenuController`、`AdminMenuItem`、
 > 该模块 4 个测试，以及 `gv_saas_admin` 的 `AdminLayout.vue` / `SidebarMenuItem.vue` / `stores/menu.js` /
 > `utils/menuPermission.js` / `router/index.js` / `TenantContextSelector.vue` 逐行复核，修正了 v0.2 的 6 处事实错误
@@ -186,7 +188,7 @@
 | --- | --- | --- | --- |
 | `tenant.overview` | 经营总览 | 跨店经营看板（后续）、租户报表（后续） | 跨 `store_id` 聚合，主键无 `store_id` |
 | `tenant.org` | 组织与门店 | **门店管理** `/admin/tenant/stores`、组织管理（后续）、法人主体 | `tnt_store` / `tnt_organization` / `tnt_legal_entity` 的父级管理 |
-| `tenant.crm` | 客户与营销 | **客户管理** `/business/members`、**积分管理** `/business/points`、**储值管理** `/business/wallet`、优惠券/营销（后续） | `cst_*` / `mkt_*` 只有 `tenant_id`；储值挂 `legal_entity_id` |
+| `tenant.crm` | 客户与营销 | 营销规则/优惠券配置（后续）；**不承载客户、积分、储值明细或写操作** | 客户资产主档/余额可以跨店复用，但当前操作必须带门店上下文并按 `store_id` 归因 |
 | `tenant.finance` | 资金与支付 | **支付渠道配置（租户级默认）** `/business/payment-methods`、**币种** `/admin/tenant/currency`、税率/发票（后续） | `pay_channel_config.store_id NULL = 租户级`；币种为租户级唯一来源 |
 | `tenant.iam` | 人员与权限 | **运营人员** `/admin/staff`、角色权限（后续，租户自助）、**脱敏权限** `/admin/security` | `iam_*` 按 `tenant_id` |
 | `tenant.settings` | 租户设置 | **审计日志** `/admin/audits`、租户信息/接入配置（后续） | `iam_audit_log` / `tnt_tenant_config` |
@@ -202,6 +204,7 @@
 | `store.stock` | 门店商品与库存 | **商品管理** `/admin/products`、商品分类、**仓库管理** `/admin/inventory`、库存流水 | `core` | `ord_product` / `ord_product_category` / `ord_inventory_*` 均 `store_id NOT NULL` |
 | `store.report` | 门店报表 | **报表** `/admin/reports`、库存成本毛利、员工业绩、资源利用率 | `core` | 报表按门店维度聚合 |
 | `store.settings` | 门店设置 | 门店信息、**计价方案** `/admin/pricing-plans`、支付渠道启用 | `core` + `ktv` | `tnt_pricing_plan.store_id NOT NULL`；`pay_channel_config` 门店行覆盖租户默认 |
+| `store.crm` | 客户与资产 | **客户管理** `/business/members`、**积分管理** `/business/points`、**储值管理** `/business/wallet` | `core` | 页面与写操作必须绑定当前 `store_id`；主档/余额是否共享由方案 B 决策，流水必须按店归因 |
 
 > `门店设置` 是**混合域分组**（同时挂 `core` 和业态子项）。规则是「父节点的 `domain_code` 取 `core`，业态子项各自声明业态」——父节点不因业态过滤而消失，只剪掉不匹配的子项。
 
@@ -222,10 +225,10 @@
 | 收银/支付 | `/business/payments` | TENANT | **STORE** | core | 门店运营 | 需 `storeId` |
 | 交班/日结 | `/business/shifts` | TENANT | **STORE** | core | 门店运营 | 需 `storeId` |
 | 报表 | `/admin/reports` | TENANT | **STORE** | core | 门店报表 | 租户级「经营总览」后续新增 path |
-| 客户管理 | `/business/members` | TENANT | TENANT | core | 客户与营销 | 仅改显示名，path/code 不变 |
-| 积分管理 | `/business/points` | TENANT | TENANT | core | 客户与营销 | 不变层 |
+| 客户管理 | `/business/members` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；path/code 不变；总部只看汇总/下钻 |
+| 积分管理 | `/business/points` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；余额口径与流水归因见方案 B |
 | 支付方式 | `/business/payment-methods` | TENANT | TENANT | core | 资金与支付 | 租户级默认渠道 |
-| 储值管理 | `/business/wallet` | TENANT | TENANT | core | 客户与营销 | 保留 `payment.method.wallet` 门禁 |
+| 储值管理 | `/business/wallet` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；保留 `payment.method.wallet` 能力门禁，写入必须记录当前门店 |
 | 脱敏权限 | `/admin/security` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
 | KTV 配置 | `/admin/ktv/config` | TENANT | **STORE** | **ktv** | 门店设置 | 需 `storeId` + 业态命中 |
 | 运营人员 | `/admin/staff` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
@@ -299,7 +302,7 @@ ALTER TABLE `iam_permission`
 | `iam.role.manage` | TENANT | core | 角色权限 |
 | `member.pii.view` | TENANT | core | 脱敏（**可下放到门店**：`grantable_levels` 显式含 `ORGANIZATION,STORE`） |
 | `audit.view` | TENANT | core | 审计（同上，可下放到门店） |
-| （规划中）`member.view` / `points.*` / `wallet.*` | TENANT | core | 会员内核。**存量 44 个码里没有这些**，属预期新增 |
+| （规划中）`member.view` / `member.manage` / `points.*` / `wallet.*` | **STORE** | core | 客户、积分、储值入口下放门店；**存量 44 个码里没有这些，属预期新增**。总部总览另用 `tenant.overview.view`（TENANT） |
 | `payment.method.*` | TENANT | core | 支付渠道启停 |
 | `order.view` / `order.settle` / `order.void` / `order.hold` / `order.transfer` | STORE | core | 订单 |
 | `payment.collect` / `payment.refund.*` | STORE | core | 收银 |
@@ -668,7 +671,9 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 - [ ] 门店 `business_type=KTV` 时，KTV 专属分组可见，且仅当上下文带 `storeId`。
 - [ ] 「商品管理」「计价方案」出现在**门店级段**，不出现在租户级段（v0.2 修正落点）。
 - [ ] 无 `tenant.currency.manage` 的账号看不到「币种」（口径与现状一致）。
-- [ ] 未授予 `payment.method.wallet` 的租户看不到「储值管理」。
+- [ ] 未授予 `payment.method.wallet` 的租户看不到「储值管理」；已授权但未选门店时也不得进入写操作页。
+- [ ] 客户、积分、储值均只在 STORE 上下文渲染；总部只显示汇总和下钻入口，不直接执行门店写操作。
+- [ ] 总部余额指标按账户归属和币种分组返回，不把共享余额按门店简单相加。
 - [ ] 无 `audit.view` 看不到「审计日志」；无 `iam.role.manage` 看不到「运营人员」「脱敏权限」。
 - [ ] **所有现有 `path` 可直达**（深链、书签不失效）。
 
@@ -740,3 +745,5 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | 2026-09-18 | v0.1（评审稿） | 首版：现状诊断、两轴模型、菜单提案、权限元数据、5 里程碑路线、9 项决策点 |
 | 2026-09-18 | v0.2（评审稿） | ① 按 138 个 Flyway 迁移实测修正两处归属：商品管理 → 门店级、计价方案 → **门店级**（v0.1 误判为 TENANT）；② 新增 §7「通用 vs 门店独立」四类分类与决策树；③ 新增 §8 五处缺口与技术债；④ 新增 M0 数据地基里程碑；⑤ 决策点 D-7 修正，新增 D-10 / D-11 |
 | 2026-09-22 | **v0.3（评审稿 · 实测复核）** | 按 `AdminMenuApplicationService` / `AdminMenuController` / `AdminMenuItem` / 4 个测试 + `gv_saas_admin` 六个文件逐行复核，修正 6 处事实错误并补 4 项决策点：<br>① **租户菜单 19 项不是 18**（`a057d771` 于 09-19 新增"订单管理"`/admin/orders`），§1.1 / §1.3-P1 / §3.3 / §3.4 / §9 全部同步，映射表补该行；<br>② **前端权限映射只有 1 条**（`/admin/tenant/currency`），且未登记路径"一律可见"与后端"未命中即隐藏"方向相反 ⇒ P5 表述修正；<br>③ **存量权限码 44 个、`module.resource[.action]` 2～3 段**（不是"60+、三段"），且 `module/resource/action` 不可反推 `code`；<br>④ **`platform.operator` 持有 44/44 全量**（不是 3 个 TENANT 级码）⇒ §5.3 加实测列、§5.5 矩阵重画（PLATFORM 出现在每一行）；<br>⑤ **前端与上下文都没有 `businessType`/`timezone`** ⇒ §6.3 标注后端需先加字段；<br>⑥ **`AdminLayout.vue` 无分组/分隔线/上下文标识**（两段式是新建），`menuPermission.test.js:22-25` 与 `AdminMenuApplicationServiceTest` 的 2 个位置耦合断言会被 M1 打破；<br>⑦ §8 新增缺口 6（业态双源 + 门店业态无写路径）；§11 Flyway 清单改为**按模块编号**；新增 D-12～D-15 |
+| 2026-09-28 | **v0.8（方案拆分）** | 本文件收敛为方案 A；方案 B 拆分到 `SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`。菜单仍只保留现有门店商品与库存入口；客户/积分/储值的总部总览、门店操作、配置作用域和余额归属不再混入本文件。 |
+| 2026-09-28 | **v0.9（方案 B 对齐）** | 将客户/积分/储值从租户级映射改为门店级入口；租户区仅保留总部汇总/营销配置预留；补充共享余额不能按门店相加、多币种必须分组的验收约束。 |

@@ -1,9 +1,9 @@
-# SaaS 权限分层与菜单模型方案（服务端 · 评审稿 v0.2）
+# SaaS 权限分层与菜单模型方案（服务端 · 评审稿 v0.3）
 
 > **所属方案集**：`SAAS_MENU_PERMISSION`
 > **本文件**：`02_SERVICE`，权限层次模型、归属元数据、角色与授予规则、菜单下发契约、数据地基
 > **前置**：`SAAS_MENU_PERMISSION_01_ADMIN.md`（总体方案 + PC 后台菜单结构与交互）
-> **配套**：`SAAS_MENU_PERMISSION_01_ADMIN_mockup.html`（示意图）、`SAAS_MENU_PERMISSION_HANDOFF.md`（交接）
+> **配套**：`SAAS_MENU_PERMISSION_01_ADMIN_mockup.html`（示意图）、`SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`（总部经营方案）、`SAAS_MENU_PERMISSION_HANDOFF.md`（交接）
 > **关联标准**：`docs/business/ACCOUNT_PERMISSION_MODEL.md`、`docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1、`docs/renovation/SAAS_PLATFORM_04_DATA.md`
 > **状态**：待评审（未实施）
 > **v0.2 复核说明（2026-09-22）**：本版按 `platform-tenant-service` 的 27 个迁移种子、
@@ -129,6 +129,22 @@
 | **合计** | **39** | **5** | **44** |
 
 > **待确认**：`docs/business/ACCOUNT_PERMISSION_MODEL.md` §4.2 提到的 `tenant.tenant.manage` 等码与本文一致；若后续有权限码只存在于代码 `PermissionGuard` 而未入 `iam_permission` 种子，需补一轮核对。核对 SQL 见 §11.4。
+
+### 3.5.1 本期新增权限登记（不计入上表 44 个存量码）
+
+方案 B 的总部与门店资产入口需要新增权限码；先登记归属，再实现接口和菜单，禁止先用前端隐藏代替授权。按 §4.2 的宽向继承规则，STORE 码默认允许绑定到 `PLATFORM/TENANT/ORGANIZATION/STORE`，TENANT 码默认允许绑定到 `PLATFORM/TENANT`。
+
+| 权限码 | scope_level | domain_code | grantable_levels | 用途 |
+| --- | --- | --- | --- | --- |
+| `tenant.overview.view` | TENANT | core | `PLATFORM,TENANT` | 总部经营总览只读 |
+| `tenant.config.manage` | TENANT | core | `PLATFORM,TENANT` | 租户默认配置 |
+| `tenant.business.config.manage` | TENANT | core | `PLATFORM,TENANT` | 业态默认配置 |
+| `member.view` / `member.manage` | STORE | core | `PLATFORM,TENANT,ORGANIZATION,STORE` | 当前门店客户关系与客户资料 |
+| `points.view` / `points.adjust` | STORE | core | `PLATFORM,TENANT,ORGANIZATION,STORE` | 当前门店积分查看与调整 |
+| `wallet.view` / `wallet.recharge` / `wallet.refund` | STORE | core | `PLATFORM,TENANT,ORGANIZATION,STORE` | 当前门店储值操作；另受 `payment.method.wallet` 能力开关约束 |
+| `store.config.manage` | STORE | core | `PLATFORM,TENANT,ORGANIZATION,STORE` | 单店覆盖与多店批量配置 |
+
+这些码进入 `iam_permission` 后，必须同步角色授予、菜单 `required_permission`、代码权限守卫、审计动作和 CI 的“每个 ACTIVE 码至少被角色持有”断言。
 
 ### 3.6 权限码形态实测（v0.2 新增，推翻"三段格式"的说法）
 
@@ -1061,3 +1077,4 @@ v0.1 在 `01_ADMIN` §11 写的 `V28__order_children_store_scope.sql` / `V29__se
 | --- | --- | --- |
 | 2026-09-21 | v0.1（评审稿） | 首版。从 `01_ADMIN.md` 拆出服务端规格，补充：44 个存量权限码全量归属表（实测）、`grantable_levels` 跨层授予依据（`platform.operator` 持有 TENANT 级权限）、业态过滤 SQL（D-2 方案 a）、M0 四缺口的 DDL 与三阶段灰度、缓存失效配套、CI 校验 SQL、本文件 5 项决策点 |
 | 2026-09-22 | **v0.2（评审稿 · 实测复核）** | **按迁移种子与主代码逐行复核后修正 7 处事实错误并细化 4 个方案**：<br>① **`platform.operator` 持有 44/44 全量权限（不是 3 个 TENANT 级）**，原判据会把现状绑定全判非法 ⇒ 新增 §5.5「PLATFORM 作用域的正确处理」（R1–R6 六条规则 + 修正矩阵 + S-6/S-7）；<br>② `grantable_levels` 语义改为**绑定作用域白名单**，44 个码全部显式含 `PLATFORM`（§4.2 规则化生成，§4.3 四条验收 SQL）；<br>③ §3.3 标题 26 → **27**（与 §3.5 对齐）；<br>④ 新增 §3.6「权限码形态实测」：**2～3 段**、`code` 为权威、`module/resource/action` 不可反推 `code`；<br>⑤ §7 D-2 给出**可直接落地的 `@Select` 原文**，并修正大小写（`LOWER(s.business_type)`）、fail-closed、`storeId IS NULL` 放行、拦截器四细节 + 8 条测试用例；<br>⑥ §10 重写：实测缓存参数、`forceRefresh` 路径，**修正"`StoreApplicationService` 更新业态时 evictAll"（该写路径根本不存在）**，新增 §10.4 上下文缺 `businessType`/`timezone`、§10.5 业态双源三处缺口；<br>⑦ 新增 §11.5 **Flyway 按模块编号表**（原全局 V28–V31 连号不成立，order 服务 V28 已占）；<br>⑧ §8.3 把校验落到 `IamController` 三个具体方法与行号；§9.4 CI 断言汇总为 6 条；§14 决策点 5 → **10 项**（新增 S-6…S-10） |
+| 2026-09-28 | **v0.3（方案 B 对齐）** | 新增总部总览和门店客户/积分/储值入口所需的权限登记表（不计入 44 个存量码）；明确新增码必须同步角色、菜单、PermissionGuard、审计和 CI。 |

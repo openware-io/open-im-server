@@ -2,7 +2,16 @@
 
 > 这不是方案，是**交接便签**：记录了当前进度、已定结论、待办与踩过的坑。
 > 换机器 / 换会话后，先读本文件，再读 `SAAS_MENU_PERMISSION_01_ADMIN.md` 与 `SAAS_MENU_PERMISSION_02_SERVICE.md`。
-> 最后更新：2026-09-22（v0.3 实测复核）
+> 最后更新：2026-09-28（v1.0：方案 A/B 对齐总部只读、门店资产入口、多币种和领域配置边界）
+
+## 当前工作区检查点（2026-09-28）
+
+- 仓库：`open-im-server`，当前分支：`develop/2.2.0-auth`。
+- 分支已推送：`origin/develop/2.2.0-auth`，基于远端 `main` 创建。
+- 本轮先更新方案与原型，暂未实施生产代码、Flyway 或前端功能。
+- 当前交付物版本：方案 A v0.9、方案 B v0.2、服务端规格 v0.3、原型 v0.9。
+- 客户/积分/储值的目标入口为 STORE；总部只提供汇总、筛选、对比和下钻，不直接替代门店写操作。
+- 余额默认按租户/法人主体共享，流水按门店归因；多币种总部金额按币种分组，不直接相加。
 
 ---
 
@@ -13,14 +22,15 @@
 ```text
 接手一个已有方案，先读文档再动手，不要重新论证已经定下的结论。
 
-仓库：gv_im_server，分支 develop/2.0.0-saas-20260826（先 git pull）
+仓库：open-im-server，分支 develop/2.2.0-auth（先 git pull）
 任务：SaaS 租户后台的「菜单分层 + 权限分层」方案推进
 
-按顺序读这三份（都在 gv_im_server/docs/renovation/）：
+按顺序读这四份（都在 open-im-server/docs/renovation/）：
 1. SAAS_MENU_PERMISSION_HANDOFF.md   —— 交接便签：进度、已定结论、待决策、下一步、环境坑
-   （先看它的 §0.2「v0.3 复核修正了什么」——里面 9 条推翻了更早版本的结论，别用旧结论）
-2. SAAS_MENU_PERMISSION_01_ADMIN.md  —— 总体方案 v0.3：两轴模型、菜单结构、页面归属、数据模型实测
-3. SAAS_MENU_PERMISSION_02_SERVICE.md —— 服务端规格 v0.2：44 个权限码归属、PLATFORM/platform.operator 处理（§5.5）、DDL、授予规则、下发契约、M0 数据地基、Flyway 按模块编号（§11.5）
+   （先看顶部“当前工作区检查点”和 §0.2「v0.3 复核修正了什么」——实测修正优先于更早版本）
+2. SAAS_MENU_PERMISSION_01_ADMIN.md  —— 方案 A v0.9：两轴模型、菜单结构、页面归属、权限入口迁移
+3. SAAS_MENU_PERMISSION_02_SERVICE.md —— 服务端规格 v0.3：44 个存量权限码归属、总部/门店新增权限登记、PLATFORM/platform.operator 处理（§5.5）、DDL、授予规则、下发契约、M0 数据地基、Flyway 按模块编号（§11.5）
+4. SAAS_TENANT_HEADQUARTERS_01_SERVICE.md —— 方案 B v0.2：总部总览、门店下钻、客户/积分/储值归属、三层配置作用域与决策清单
 
 读完后先向我复述：
   (a) 当前进度到哪一步；
@@ -32,9 +42,7 @@
 - 权限码 module.resource[.action] 格式不变（2～3 段，code 是唯一权威，三列不可反推）
 - 菜单不是安全边界，越权仍由后端 TenantContext.permissions 403 强制
 
-未拍板的两个决策先问我：
-- D-2 业态权限怎么合入（方案 a：权限聚合按门店 business_type 过滤 domain_code）
-- D-10 M0 数据地基是否先于 M1
+优先请产品确认方案 A §12、方案 B §9、服务端规格 §14 汇总的决策清单；实现前至少需要明确余额共享、多币种总部金额和无门店上下文的接口行为。
 
 其余决策点（D-1…D-15、S-1…S-10）都有建议值，别逐个来问，先说你的整体打算。
 
@@ -47,13 +55,14 @@
 
 ## 0.1 一句话现状
 
-**方案已完成到 v0.3（`01_ADMIN`）+ v0.2（`02_SERVICE`），代码零改动，尚未实施。** 四个交付物已入库：
+**方案已完成到 v0.9（方案 A）+ v0.2（服务端权限）+ v0.2（方案 B），代码零改动，尚未实施。** 五个交付物已入库：
 
 | 文件 | 内容 |
 | --- | --- |
 | `docs/renovation/SAAS_MENU_PERMISSION_HANDOFF.md` | 本文，跨机续接说明 |
-| `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | 总体方案 v0.3：现状诊断、两轴模型、菜单提案、权限元数据概览、数据模型实测、缺口、分期、**15 项决策点（D-1…D-15）** |
-| `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | 服务端规格 v0.2：**44 个存量权限码全量归属表（实测）**、**PLATFORM 与 `platform.operator` 的正确处理（§5.5）**、`iam_permission`/`iam_role` DDL 与规则化回填、5 个预置角色实测持有量、授予合法性矩阵、业态过滤 SQL 与 8 条测试用例、菜单下发契约与剪枝、M0 四缺口 DDL 与三阶段灰度、**Flyway 按模块编号表（§11.5）**、**10 项决策点（S-1…S-10）** |
+| `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | 总体方案 v0.9：现状诊断、两轴模型、菜单提案、客户/积分/储值门店入口、缺口、分期、**15 项决策点（D-1…D-15）** |
+| `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | 服务端规格 v0.3：**44 个存量权限码全量归属表（实测）**、总部/门店新增权限登记、**PLATFORM 与 `platform.operator` 的正确处理（§5.5）**、`iam_permission`/`iam_role` DDL 与规则化回填、5 个预置角色实测持有量、授予合法性矩阵、业态过滤 SQL 与 8 条测试用例、菜单下发契约与剪枝、M0 四缺口 DDL 与三阶段灰度、**Flyway 按模块编号表（§11.5）**、**10 项决策点（S-1…S-10）** |
+| `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | 方案 B v0.2：总部只读总览、门店下钻、客户主档/门店关系、积分/储值流水归因、租户/业态/门店配置优先级、多币种口径、**HQ-1…HQ-9 决策清单** |
 | `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN_mockup.html` | 示意图（自包含单文件，浏览器直接打开） |
 
 **没有动过任何生产代码**，没有新增 Flyway 脚本，没有改表。
@@ -86,7 +95,7 @@ v0.1/v0.2 的部分结论是**读语义推断**出来的，这一轮把主代码
 ### 1.1 代码（必做，能拿到）
 
 ```bash
-git pull            # 分支 develop/2.0.0-saas-20260826
+git pull            # 分支 develop/2.2.0-auth
 ```
 
 三个交付物随提交 `fc2862f8`（v0.2）入库；v0.3 实测复核在同分支后续提交里，`git pull` 即可拿到。若远端 HEAD 比
@@ -176,9 +185,9 @@ git pull            # 分支 develop/2.0.0-saas-20260826
 
 ---
 
-## 3. 待决策（25 项，最要紧的两项）
+## 3. 待决策（34 项，按方案范围分组）
 
-完整表在 `01_ADMIN.md` §12（菜单/交互侧，D-1…D-15）与 `02_SERVICE.md` §14（服务端侧，S-1…S-10）。**开工前必须先拍这两个：**
+完整表在 `01_ADMIN.md` §12（菜单/交互侧，D-1…D-15）、`02_SERVICE.md` §14（服务端侧，S-1…S-10）与 `SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` §9（总部侧，HQ-1…HQ-9）。**开工前优先确认余额共享、多币种金额和无门店上下文的接口行为；其余采用文档推荐值即可进入技术评审。**
 
 | # | 决策 | 建议 | 卡住什么 |
 | --- | --- | --- | --- |

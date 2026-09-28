@@ -72,6 +72,21 @@ SAAS_PLATFORM_08_APP.md       B 端 App 低保真交互原型、关键流程与�
 SAAS_PLATFORM_09_SERVICE.md   DDD 聚合、端口、领域事件、事务与测试映射
 ```
 
+## SaaS 菜单权限与总部经营方案集
+
+```text
+SAAS_MENU_PERMISSION_01_ADMIN.md          方案 A：PC 菜单分层、入口归属与权限展示
+SAAS_MENU_PERMISSION_02_SERVICE.md        方案 A 服务端：权限元数据、菜单下发、授权校验与数据地基
+SAAS_MENU_PERMISSION_HANDOFF.md           交接便签：当前分支、版本、决策清单与实施入口
+SAAS_MENU_PERMISSION_01_ADMIN_mockup.html 方案 A/B 合并评审原型（自包含 HTML）
+```
+
+总部经营单独拆为 `SAAS_TENANT_HEADQUARTERS` 方案集，避免把跨门店查询和客户资产归属混入菜单方案：
+
+```text
+SAAS_TENANT_HEADQUARTERS_01_SERVICE.md    方案 B：总部总览、门店下钻、客户/积分/储值门店操作与配置作用域
+```
+
 ## KTV 业务细化方案集
 
 ```text
