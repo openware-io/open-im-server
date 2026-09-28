@@ -26,6 +26,14 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Verify clean release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            git describe --exact-match --tags "${GITHUB_SHA}" >/dev/null
+          fi
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -40,8 +48,10 @@ jobs:
           tar -xzf /tmp/mvn.tgz -C /tmp
           echo "/tmp/apache-maven-3.9.16/bin" >> $GITHUB_PATH
 
-      - name: Maven package
-        run: mvn -B -T 1C clean package -DskipTests
+      - name: Maven verify
+        # 发布必须经过完整的编译、Checkstyle、依赖约束和测试门禁。
+        # 任何测试失败都不得继续构建或推送镜像。
+        run: mvn -B -T 1C clean verify
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
