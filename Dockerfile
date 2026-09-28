@@ -10,12 +10,14 @@ WORKDIR /app
 ENV TZ=UTC
 
 ARG JAR_PATH
+ARG IMAGE_NAME
 ARG IMAGE_VERSION
 ARG IMAGE_REVISION
 ARG IMAGE_CREATED
 ARG IMAGE_SOURCE
 
-LABEL org.opencontainers.image.version=$IMAGE_VERSION \
+LABEL org.opencontainers.image.title=$IMAGE_NAME \
+      org.opencontainers.image.version=$IMAGE_VERSION \
       org.opencontainers.image.revision=$IMAGE_REVISION \
       org.opencontainers.image.created=$IMAGE_CREATED \
       org.opencontainers.image.source=$IMAGE_SOURCE

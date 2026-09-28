@@ -14,6 +14,7 @@ param(
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $projects = @{ 'pc-admin'='D:\projects\cnb-oss\open-chat-admin'; 'saas-admin'='D:\projects\cnb-oss\open-saas-admin'; 'saas-mobile'='D:\projects\cnb-oss\open-saas-mobile'; 'unified-portal'=(Join-Path $root 'portal') }
+$projectSources = @{ 'pc-admin'='https://github.com/openware-io/open-chat-admin'; 'saas-admin'='https://github.com/openware-io/open-saas-admin'; 'saas-mobile'='https://github.com/openware-io/open-saas-mobile'; 'unified-portal'='https://github.com/openware-io/open-im-server' }
 $createdAt=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); $timestamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $revision=(& git -C $root rev-parse --short HEAD).Trim(); if(!$revision){throw 'Cannot resolve git revision.'}
 $registryPrefix = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))" } else { $Registry.TrimEnd('/') }
@@ -67,9 +68,34 @@ function Get-LocalImageId([string]$image){
 function Remove-ReplacedLocalImage([string]$oldId,[string]$newId){
   if(!$oldId -or !$newId -or $oldId -eq $newId){return}
   $containers=(@(& docker ps -a --filter "ancestor=$oldId" --format '{{.ID}}' 2>$null)|Where-Object{$_})
-  if($containers.Count -gt 0){Write-Warning "Keeping replaced local image $oldId because it is referenced by container(s): $($containers -join ', ')";return}
+  if($containers.Count -gt 0){throw "Refusing to complete image replacement: old local image $oldId is referenced by container(s): $($containers -join ', ')"}
   & docker image rm $oldId 2>$null|Out-Null
-  if($LASTEXITCODE -eq 0){Write-Host "Removed replaced local image: $oldId"}else{Write-Warning "Unable to remove replaced local image: $oldId"}
+  if($LASTEXITCODE -ne 0){throw "Unable to remove replaced local image: $oldId"}
+  $remaining=(@(& docker image ls --quiet --no-trunc 2>$null)|Where-Object{$_ -eq $oldId})
+  if($remaining.Count -gt 0){throw "Old local image remains after replacement cleanup: $oldId"}
+  Write-Host "Removed replaced local image: $oldId"
+}
+function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
+  # 不使用 docker image prune：只检查带有本发布服务标识的镜像，绝不误删其他项目的本地构建缓存。
+  $dangling=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique)
+  foreach($id in $dangling){
+    $saved=$ErrorActionPreference
+    try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
+    if($code -ne 0 -or !$raw){continue}
+    try{$labels=$raw|ConvertFrom-Json}catch{continue}
+    if([string]$labels.'org.opencontainers.image.title' -ne $Name -or [string]$labels.'org.opencontainers.image.version' -ne $Tag){continue}
+    $containers=@(& docker ps -a --filter "ancestor=$id" --format '{{.ID}}' 2>$null|Where-Object{$_})
+    if($containers.Count -gt 0){throw "Dangling release image $id for ${Name}:$Tag is referenced by container(s): $($containers -join ', ')"}
+    & docker image rm $id 2>$null|Out-Null
+    if($LASTEXITCODE -ne 0){throw "Unable to remove dangling release image $id for ${Name}:$Tag"}
+  }
+  $left=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique | Where-Object{
+    $id=$_;$saved=$ErrorActionPreference
+    try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
+    if($code -ne 0 -or !$raw){return $false};try{$labels=$raw|ConvertFrom-Json}catch{return $false}
+    return [string]$labels.'org.opencontainers.image.title' -eq $Name -and [string]$labels.'org.opencontainers.image.version' -eq $Tag
+  })
+  if($left.Count -gt 0){throw "Release cleanup gate failed: dangling image(s) remain for ${Name}:${Tag}: $($left -join ', ')"}
 }
 function Get-ExistingReleaseImage([string]$name,[string]$tag,[int]$MaxAttempts=10){
   $image="$registryPrefix/$name`:$tag";$digest=Get-RegistryDigest $image $MaxAttempts
@@ -222,10 +248,11 @@ foreach($e in $defs.GetEnumerator()) {
     if($imageRevision -ne $revision) {
       $oldImageId=Get-LocalImageId $image
       $imageRevision=$revision
-      & docker build --quiet --pull=false --build-arg "JAR_PATH=$rel" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" -t $image $root
+      & docker build --quiet --pull=false --build-arg "JAR_PATH=$rel" --build-arg "IMAGE_NAME=$name" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" --build-arg "IMAGE_SOURCE=https://github.com/openware-io/open-im-server" -t $image $root
       if($LASTEXITCODE){throw "Docker build failed: $name"}
       Remove-ReplacedLocalImage $oldImageId (Get-LocalImageId $image)
     }
+    Assert-NoDanglingReleaseImage -Name $name -Tag $tag
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
   }
@@ -255,10 +282,13 @@ foreach($e in $projects.GetEnumerator()) {
     if($imageRevision -ne $projectRevision) {
       $oldImageId=Get-LocalImageId $image
       $imageRevision=$projectRevision
-      & docker build --quiet --pull=false @args --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" -t $image $e.Value
+      $sourceUrl=$projectSources[$name]
+      if(!$sourceUrl){throw "Release source URL is missing: $name"}
+      & docker build --quiet --pull=false @args --build-arg "IMAGE_NAME=$name" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" --build-arg "IMAGE_SOURCE=$sourceUrl" -t $image $e.Value
       if($LASTEXITCODE){throw "Docker build failed: $name"}
       Remove-ReplacedLocalImage $oldImageId (Get-LocalImageId $image)
     }
+    Assert-NoDanglingReleaseImage -Name $name -Tag $tag
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
   }
