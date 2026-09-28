@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SaaS 租户后台 · 菜单与权限分层示意图 v0.3</title>
+<title>SaaS 租户后台 · 菜单权限与总部经营原型 v0.8</title>
 <style>
   :root {
     --sidebar-bg: #1d1e2c;
@@ -56,6 +56,38 @@
     border-radius: 3px; background: #fdf6ec; color: #b88230; border: 1px solid #f3d19e;
     vertical-align: 2px;
   }
+  .scope-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 24px; }
+  .scope-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+  .scope-pill.menu { color: #2b6cb0; background: #ecf5ff; border: 1px solid #b3d8ff; }
+  .scope-pill.hq { color: #6b4f9e; background: #f4efff; border: 1px solid #d9c7f2; }
+  .scope-pill .scope-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .scope-note { color: var(--text-2); font-size: 13px; }
+  .hq-shell { border: 1px solid #d9c7f2; border-radius: 8px; background: #fbf9ff; padding: 16px; }
+  .hq-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .hq-head strong { font-size: 16px; }
+  .hq-context { color: #6b4f9e; font-size: 12px; background: #f4efff; border: 1px solid #d9c7f2; border-radius: 4px; padding: 2px 7px; }
+  .hq-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+  .hq-toolbar select, .hq-toolbar input { height: 30px; padding: 0 8px; color: var(--text-2); background: #fff; border: 1px solid #dcdfe6; border-radius: 4px; font: inherit; font-size: 12px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 14px; }
+  .kpi { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 11px 12px; min-width: 0; }
+  .kpi-label { color: var(--text-3); font-size: 11px; }
+  .kpi-value { margin-top: 4px; color: var(--text); font-size: 20px; font-weight: 700; line-height: 1.25; }
+  .kpi-sub { margin-top: 3px; color: var(--text-3); font-size: 11px; }
+  .hq-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; }
+  .hq-table th, .hq-table td { padding: 9px 10px; border-bottom: 1px solid #ebeef5; text-align: left; white-space: nowrap; }
+  .hq-table th { color: var(--text-2); background: #fafafa; font-weight: 600; }
+  .hq-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .hq-table tr:last-child td { border-bottom: 0; }
+  .hq-table .drill { color: #6b4f9e; font-weight: 600; }
+  .boundary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .boundary { border-radius: 6px; padding: 12px; background: #fff; border: 1px solid var(--border); }
+  .boundary h3 { margin: 0 0 7px; font-size: 13px; }
+  .boundary p { margin: 0; color: var(--text-2); font-size: 12px; line-height: 1.7; }
+  .boundary.hq h3 { color: #6b4f9e; }
+  .boundary.store h3 { color: #529b2e; }
+  .scope-warning { margin-top: 12px; padding: 9px 11px; color: #8a641b; background: #fdf6ec; border: 1px solid #f3d19e; border-radius: 5px; font-size: 12px; }
+  @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } .boundary-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 680px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .hq-toolbar { margin-left: 0; width: 100%; } .hq-toolbar select, .hq-toolbar input { flex: 1; min-width: 0; } }
 
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -354,9 +386,15 @@
 <div class="wrap">
 
   <header class="page">
-    <h1>SaaS 租户后台 · 菜单与权限分层示意图<span class="tag rev">v0.3 · 已按主代码与迁移种子复核</span></h1>
-    <p>配套方案：<code>docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
+    <h1>SaaS 租户后台 · 菜单权限与总部经营原型<span class="tag rev">v0.8 · 双方案合并评审</span></h1>
+    <p>配套方案：<code>SAAS_MENU_PERMISSION_01_ADMIN.md</code>（方案 A）　·　总部经营方案（方案 B，待拆分）　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
   </header>
+
+  <div class="scope-bar">
+    <span class="scope-pill menu"><span class="scope-dot"></span>方案 A · 菜单与权限</span>
+    <span class="scope-pill hq"><span class="scope-dot"></span>方案 B · 租户总部经营</span>
+    <span class="scope-note">本页合并展示，范围以标签区分；总部指标和客户资产门店归因均为待规范确认的业务原型。</span>
+  </div>
 
   <!-- ================= 1. 现状 vs 方案 ================= -->
   <section>
@@ -403,8 +441,8 @@
       </div>
 
       <div class="card">
-        <div class="cap"><span class="dot dot-good"></span>方案 v0.3 · 两段式 + 域折叠
-          <span class="sub">→ 租户级 7 域 / 门店级 5 域，最多 3 层</span></div>
+        <div class="cap"><span class="dot dot-good"></span><span class="scope-pill menu">方案 A</span>菜单权限 · 两段式 + 域折叠
+          <span class="sub">→ 总部总览 1 个入口 / 门店经营 6 个域，最多 3 层</span></div>
         <div class="sidebar">
           <div class="sb-logo"><span class="sq"></span>SaaS 管理后台</div>
 
@@ -415,12 +453,9 @@
               <span class="seg-caret">▼</span>
             </div>
             <div class="grp">
-              <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">经营总览</span><span class="cnt">0</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">经营总览</span><span class="cnt">1</span></div>
+              <div class="leaf on">跨店经营总览<span class="perm">/admin/tenant/overview · 总部汇总/下钻</span></div>
               <div class="grp-title"><span class="cv">›</span><span class="ic"></span><span class="nm">组织与门店</span><span class="cnt">1</span></div>
-              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">客户与营销</span><span class="cnt">3</span></div>
-              <div class="leaf">客户管理<span class="perm">/business/members · 租户级</span></div>
-              <div class="leaf">积分管理<span class="perm">/business/points · 租户级</span></div>
-              <div class="leaf">储值管理<span class="perm">/business/wallet · 租户级 + payment.method.wallet</span></div>
               <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">资金与支付</span><span class="cnt">2</span></div>
               <div class="leaf on">支付渠道配置<span class="perm">租户级默认</span></div>
               <div class="leaf">币种<span class="perm">⚿ tenant.currency.manage</span></div>
@@ -459,11 +494,15 @@
               <div class="leaf">门店信息</div>
               <div class="leaf">计价方案<span class="moved">★ 从平台级迁入</span></div>
               <div class="leaf">KTV 配置<span class="dom">ktv</span></div>
+              <div class="grp-title open"><span class="cv">⌄</span><span class="ic"></span><span class="nm">客户与营销</span><span class="cnt">3</span></div>
+              <div class="leaf">客户管理<span class="perm">/business/members · 当前门店</span></div>
+              <div class="leaf">积分管理<span class="perm">/business/points · 当前门店</span></div>
+              <div class="leaf">储值管理<span class="perm">/business/wallet · 当前门店 + wallet grant</span></div>
             </div>
           </div>
         </div>
         <div class="count-note">
-          <span>一级域 <b class="good">12</b>（租户 7 + 门店 5）</span>
+          <span>一级域 <b class="good">11</b>（租户 5 + 门店 6）</span>
           <span>层级数 <b class="good">3</b></span>
           <span>租户/门店边界 <b class="good">有</b></span>
           <span>业态过滤 <b class="good">有</b></span>
@@ -473,11 +512,62 @@
     </div>
   </section>
 
-  <!-- ================= 2. 两轴模型 ================= -->
+  <!-- ================= B. 总部经营原型 ================= -->
+  <section>
+    <div class="sec-head">
+      <div class="sec-num new">B</div>
+      <h2><span class="scope-pill hq">方案 B</span> 租户总部经营总览</h2>
+      <span class="hint">总部看全局、按门店下钻；具体客户/积分/储值操作回到门店上下文</span>
+    </div>
+    <div class="hq-shell">
+      <div class="hq-head">
+        <strong>A380集团 · 总部视角</strong>
+        <span class="hq-context">TENANT · 跨门店只读汇总</span>
+        <div class="hq-toolbar">
+          <select aria-label="统计周期"><option>本月</option><option>本周</option><option>自定义</option></select>
+          <select aria-label="业态筛选"><option>全部业态</option><option>KTV</option><option>酒店</option><option>按摩</option></select>
+          <select aria-label="门店筛选"><option>全部门店</option><option>KTV旗舰店</option><option>酒店中心店</option><option>按摩体验店</option></select>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi"><div class="kpi-label">营业门店</div><div class="kpi-value">3 / 4</div><div class="kpi-sub">示意数据 · 按业态筛选</div></div>
+        <div class="kpi"><div class="kpi-label">客户档案</div><div class="kpi-value">12,680</div><div class="kpi-sub">租户去重口径</div></div>
+        <div class="kpi"><div class="kpi-label">本期储值余额</div><div class="kpi-value">¥ 286,400</div><div class="kpi-sub">余额口径待规范确认</div></div>
+        <div class="kpi"><div class="kpi-label">本期积分余额</div><div class="kpi-value">1,248,900</div><div class="kpi-sub">积分个数 · 跨店汇总</div></div>
+        <div class="kpi"><div class="kpi-label">本期经营额</div><div class="kpi-value">¥ 1.86M</div><div class="kpi-sub">示意数据 · 需接报表口径</div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="boundary hq">
+          <h3>总部能做什么</h3>
+          <p>查看全租户客户数、积分和储值汇总；按业态/门店筛选；查看门店对比；点击门店进入对应门店上下文。总部总览不直接替代门店充值、退还、积分调整等操作。</p>
+        </div>
+        <div class="boundary store">
+          <h3>门店能做什么</h3>
+          <p>在当前门店查看客户关系、积分和储值明细，并执行门店授权的业务操作。每笔积分/储值流水记录当前 <code>store_id</code>，客户主档不重复创建。</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px; padding:0; overflow:auto">
+        <table class="hq-table">
+          <thead><tr><th>门店</th><th>业态</th><th class="num">客户数</th><th class="num">积分发放</th><th class="num">积分使用</th><th class="num">储值充值</th><th class="num">储值消费</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr><td>KTV旗舰店</td><td><span class="biz-tag">KTV</span></td><td class="num">5,240</td><td class="num">128,600</td><td class="num">64,200</td><td class="num">¥ 82,400</td><td class="num">¥ 61,800</td><td class="drill">进入门店</td></tr>
+            <tr><td>酒店中心店</td><td><span class="biz-tag">HOTEL</span></td><td class="num">4,180</td><td class="num">96,300</td><td class="num">42,100</td><td class="num">¥ 124,000</td><td class="num">¥ 93,600</td><td class="drill">进入门店</td></tr>
+            <tr><td>按摩体验店</td><td><span class="biz-tag">MASSAGE</span></td><td class="num">3,260</td><td class="num">73,900</td><td class="num">31,800</td><td class="num">¥ 80,000</td><td class="num">¥ 47,200</td><td class="drill">进入门店</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="scope-warning"><b>待规范确认：</b>客户主档是否允许跨店共享、积分/储值余额是否按租户/法人主体共享、门店是否只能操作本店流水。以上数据是原型示意，不是已冻结的接口或数据库字段。</div>
+    </div>
+  </section>
+
+  <!-- ================= A. 菜单权限模型 ================= -->
   <section>
     <div class="sec-head">
       <div class="sec-num">2</div>
-      <h2>核心模型：两条正交轴</h2>
+      <h2><span class="scope-pill menu">方案 A</span> 核心模型：两条正交轴</h2>
       <span class="hint">每个菜单节点、每个权限码都必须同时声明 <code>scope_level</code> + <code>domain_code</code></span>
     </div>
     <div class="card">
@@ -502,7 +592,7 @@
             <th>TENANT <span class="lv">租户 = 集团主体 · tenant_id</span></th>
             <td class="cell-core">
               <span class="chip">门店管理</span><span class="chip">币种</span><span class="chip">支付渠道（默认）</span>
-              <span class="chip">会员/积分/储值</span>
+              <span class="chip">经营总览（客户/积分/储值汇总）</span>
               <span class="chip">运营人员</span><span class="chip">角色权限</span><span class="chip">脱敏权限</span><span class="chip">审计日志</span>
             </td>
             <td class="cell-domain"><span class="chip">业态模板</span><span class="chip">服务项目</span></td>
@@ -520,7 +610,7 @@
             <td class="cell-core">
               <span class="chip">订单</span><span class="chip">预约</span><span class="chip">收银/退款</span>
               <span class="chip">交班/日结</span><span class="chip">库存</span><span class="chip">资源管理</span>
-              <span class="chip">计价方案</span><span class="chip">门店商品</span><span class="chip">门店报表</span><span class="chip">门店信息</span>
+              <span class="chip">计价方案</span><span class="chip">门店商品</span><span class="chip">客户/积分/储值操作</span><span class="chip">门店报表</span><span class="chip">门店信息</span>
             </td>
             <td class="cell-domain">
               <span class="chip">包厢看板</span><span class="chip">开台/结台</span><span class="chip">服务人员</span>
@@ -534,8 +624,9 @@
       </table>
 
       <div class="filter-note" style="margin-top:16px">
-        <b>归属判定唯一口径：</b>看该功能的权威数据主键里<b>有没有 <code>store_id</code></b>。<br>
-        有 → <b>门店级</b>（同一功能在 N 家门店就是 N 份数据）；只有 <code>tenant_id</code> → <b>租户级</b>；只有 <code>organization_id</code> → 组织级；无租户约束 → 平台级。<br>
+        <b>归属判定默认口径：</b>看该功能的权威数据主键里<b>有没有 <code>store_id</code></b>。<br>
+        有 → <b>门店级数据</b>；只有 <code>tenant_id</code> → <b>租户级数据</b>；只有 <code>organization_id</code> → 组织级；无租户约束 → 平台级。<br>
+        <b>客户/积分/储值是例外：</b>主档或余额可以租户/法人主体共享，但操作入口、门店关系和流水归因仍按 <code>store_id</code> 落到门店权限。
         <b>「同一业态开多家店」不改变菜单结构</b>——门店级菜单对每家店都一样，只是数据不同；跨店对比能力放租户级「经营总览」。
       </div>
     </div>
@@ -553,8 +644,8 @@
 
       <div class="cat a">
         <div class="cat-head">
-          <div class="t">A · 租户通用</div>
-          <div class="s">跨店共享一份数据，新增业态零改动</div>
+          <div class="t">A · 租户主档 / 共享资产</div>
+          <div class="s">跨店共享数据，不等于总部独占操作</div>
           <div class="rule">只有 tenant_id</div>
         </div>
         <div class="cat-body">
@@ -578,8 +669,8 @@
           <span class="chip">saa_admin_account</span>
           <span class="chip">idt_account</span>
           <div class="cat-note">
-            会员 / 积分 / 储值 / 营销 / 租户 / 组织 / IAM —— <b>酒店、按摩、超市全部直接复用</b>。<br>
-            储值账户挂 <code>legal_entity_id</code>（法人主体）而非门店，是<b>正确的商业决策</b>。
+            客户主档、积分账户、储值账户仍可按租户/法人主体跨店复用，酒店、按摩、超市全部直接复用。<br>
+            但门店关系、门店操作和积分/储值流水必须有 <code>store_id</code>，否则总部总览无法下钻、门店权限无法收敛。
           </div>
         </div>
       </div>
@@ -617,7 +708,7 @@
       <div class="cat c">
         <div class="cat-head">
           <div class="t">C · 混合：租户定义 + 门店覆盖 ★</div>
-          <div class="s">分层能力的关键，当前只有 3 张表做到</div>
+          <div class="s">经营配置的分层样例，不等于共享商品菜单</div>
           <div class="rule">store_id NULL = 租户默认</div>
         </div>
         <div class="cat-body">
@@ -825,7 +916,7 @@ store_id bigint unsigned <span class="k">NULL</span>
       <div class="filter-note" style="margin-top:0">
         <b>规则：</b><code>domain_code = 'core'</code> 的节点<b>永远渲染</b>；<code>domain_code ≠ 'core'</code> 的节点<b>仅当当前上下文门店的 business_type 命中时渲染</b>。
         业态匹配大小写不敏感；业态未在 <code>tnt_business_type</code> 登记时保留 core 节点并记 WARN。<br>
-        <b>租户级区在三种业态下完全一致</b>——会员、储值、营销、币种、运营人员、审计日志是全租户一份数据。
+        <b>总部区在三种业态下提供统一总览</b>——客户、积分、储值可聚合查看；具体明细和写操作必须进入目标门店上下文。
       </div>
     </div>
   </section>
@@ -909,8 +1000,8 @@ store_id bigint unsigned <span class="k">NULL</span>
   <section>
     <div class="sec-head">
       <div class="sec-num fix">7</div>
-      <h2>五处缺口与技术债<span class="badge-new">新增</span></h2>
-      <span class="hint">其中 1 / 2 / 4 都动表结构，建议在 M1 之前先把地基打平</span>
+      <h2>六处缺口与技术债<span class="badge-new">新增</span></h2>
+      <span class="hint">总部总览与门店客户资产下沉新增 5 / 6，建议在菜单落地前冻结口径</span>
     </div>
     <div class="card">
       <table class="matrix">
@@ -952,10 +1043,17 @@ store_id bigint unsigned <span class="k">NULL</span>
           </tr>
           <tr>
             <td style="text-align:center"><span class="gap-id">5</span></td>
-            <td><code>cst_member</code> 无门店线索</td>
-            <td><span class="sev low">低</span></td>
-            <td>会员跨店通用是<b>正确商业决策</b>，但「办卡门店 / 归属门店」这类运营诉求无处落</td>
-            <td>加 <code>origin_store_id</code>（可空，仅记录，不参与隔离）</td>
+            <td><code>cst_member</code> 无门店关系</td>
+            <td><span class="sev high">高</span></td>
+            <td>客户主档可以跨店唯一，但门店客户列表、总部下钻和门店权限没有可靠关联</td>
+            <td>新增 <code>cst_member_store</code> 关系表；<code>origin_store_id</code> 只能作为来源字段，不能替代多店关系</td>
+          </tr>
+          <tr>
+            <td style="text-align:center"><span class="gap-id">6</span></td>
+            <td><code>cst_point_ledger</code> / <code>cst_wallet_ledger</code> 无 <code>store_id</code></td>
+            <td><span class="sev high">高</span></td>
+            <td>当前服务把积分/储值当租户级操作，门店无法按本店过滤、统计和审计；支付虽传入 <code>storeId</code>，customer 域未落库归因</td>
+            <td>流水和写命令增加 <code>store_id + business_type</code>；余额账户是否拆店必须先补充业务规范</td>
           </tr>
         </tbody>
       </table>
@@ -1055,14 +1153,14 @@ ALTER TABLE iam_permission ADD
         <tbody>
           <tr>
             <th>M0 <span class="badge-new">新</span></th>
-            <td><b>数据地基</b>：子表冗余 <code>store_id + business_type</code>（缺口 2）；<code>tnt_pricing_plan.store_id</code> 改可空（缺口 1）；补 <code>mkt_campaign_scope</code>（缺口 4）</td>
+            <td><b>数据地基</b>：补客户门店关系与积分/储值流水 <code>store_id</code>（缺口 5 / 6）；子表冗余 <code>store_id + business_type</code>（缺口 2）；<code>tnt_pricing_plan.store_id</code> 改可空（缺口 1）；补 <code>mkt_campaign_scope</code>（缺口 4）</td>
             <td><b class="bad">改表 + 回填</b></td>
             <td>门店级数据切不开 → 权限收敛不下去</td>
             <td><b class="good">✅ 需灰度</b></td>
           </tr>
           <tr>
             <th>M1</th>
-            <td>菜单树化：把 19 项重组成两段 + 域折叠（含 v0.2 修正的商品/计价归属）；前端渲染分隔线与段头。<b>注</b>：<code>AdminLayout.vue</code> 现无分组能力，两段式是新建；已有 2 个位置耦合测试断言需同步改写</td>
+            <td>菜单树化：把 19 项重组成两段 + 域折叠，新增总部「经营总览」入口，客户/积分/储值移入门店客户与营销域。<b>注</b>：<code>AdminLayout.vue</code> 现无分组能力，两段式是新建；已有 2 个位置耦合测试断言需同步改写</td>
             <td><b class="good">无</b></td>
             <td>截图里的长菜单、租户/门店边界缺失</td>
             <td><b class="good">✅ 可回滚</b></td>
@@ -1106,12 +1204,13 @@ ALTER TABLE iam_permission ADD
   </section>
 
   <footer>
-    配套文档：<code>gv_im_server/docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>（§9 含 9 项待评审决策点）<br>
+    配套文档：<code>gv_im_server/docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md</code>（方案 A；方案 B 待拆分成独立总部经营方案）<br>
     关联标准：<code>docs/business/ACCOUNT_PERMISSION_MODEL.md</code>　·　<code>docs/renovation/SAAS_PLATFORM_01_SERVICE.md §5.1</code>　·　<code>docs/renovation/SAAS_PLATFORM_04_DATA.md</code>
     <table class="changelog">
       <tr><td><b>v0.1</b></td><td>首版：现状对比、两轴模型、菜单提案、权限继承、剪枝规则、分期。</td></tr>
       <tr><td><b>v0.2</b></td><td>按 138 个 Flyway 迁移实测修正两处归属（商品 → 门店级、计价方案 → 门店级）；新增第 3 节「通用 vs 门店独立」四类分类、第 4 节修正对照、第 7 节五处缺口与技术债；新增 M0 数据地基里程碑。</td></tr>
       <tr><td><b>v0.3</b></td><td>按主代码与迁移种子复核：租户菜单 18 → <b>19</b> 项（新增「订单管理」）；存量权限码 44（非 60+）、码为 2～3 段；<code>platform.operator</code> 实为全量持有 44 个码；前端权限映射仅 1 条且方向与后端相反；Flyway 按模块编号。详见 <code>SAAS_MENU_PERMISSION_02_SERVICE.md</code> §5.5 与 <code>HANDOFF</code> §0.2。</td></tr>
+      <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；补充客户门店关系、积分/储值流水门店归因的待规范项。示意数据不代表已冻结接口或表结构。</td></tr>
     </table>
   </footer>
 
