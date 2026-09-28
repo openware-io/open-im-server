@@ -4,10 +4,10 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>io.openware</groupId><artifactId>common-services</artifactId><version>2.0.1</version><relativePath>../pom.xml</relativePath></parent>
   <artifactId>common-payment-channel</artifactId>
-  <version>2.0.1</version>
+  <version>2.2.0</version>
   <packaging>pom</packaging>
   <name>Common Payment Channel</name>
-  <properties><domain.version>2.0.1</domain.version></properties>
+  <properties><domain.version>2.2.0</domain.version></properties>
   <dependencyManagement>
     <dependencies>
       <dependency><groupId>io.openware</groupId><artifactId>common-payment-channel-api</artifactId><version>${domain.version}</version></dependency>

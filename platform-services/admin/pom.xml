@@ -4,9 +4,9 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>io.openware</groupId><artifactId>platform-services</artifactId><version>2.0.1</version><relativePath>../pom.xml</relativePath></parent>
   <artifactId>platform-admin</artifactId>
-  <version>2.0.30</version>
+  <version>2.2.0</version>
   <packaging>pom</packaging>
-  <properties><domain.version>2.0.30</domain.version></properties>
+  <properties><domain.version>2.2.0</domain.version></properties>
   <dependencyManagement>
     <dependencies>
       <dependency><groupId>io.openware</groupId><artifactId>platform-admin-api</artifactId><version>${domain.version}</version></dependency>

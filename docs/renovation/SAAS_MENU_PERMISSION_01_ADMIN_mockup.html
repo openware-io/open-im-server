@@ -533,9 +533,9 @@
       <div class="kpi-grid">
         <div class="kpi"><div class="kpi-label">营业门店</div><div class="kpi-value">3 / 4</div><div class="kpi-sub">示意数据 · 按业态筛选</div></div>
         <div class="kpi"><div class="kpi-label">客户档案</div><div class="kpi-value">12,680</div><div class="kpi-sub">租户去重口径</div></div>
-        <div class="kpi"><div class="kpi-label">共享储值余额</div><div class="kpi-value">CNY 286,400</div><div class="kpi-sub">共享账户余额 · 按币种展示</div></div>
+        <div class="kpi"><div class="kpi-label">共享储值余额</div><div class="kpi-value">USD 286,400</div><div class="kpi-sub">租户共享余额 · 租户币种</div></div>
         <div class="kpi"><div class="kpi-label">共享积分余额</div><div class="kpi-value">1,248,900</div><div class="kpi-sub">积分个数 · 不按门店重复相加</div></div>
-        <div class="kpi"><div class="kpi-label">本期经营额</div><div class="kpi-value">CNY 1.86M</div><div class="kpi-sub">多币种分组 · 首版不做汇率折算</div></div>
+        <div class="kpi"><div class="kpi-label">本期经营额</div><div class="kpi-value">USD 1.86M</div><div class="kpi-sub">租户默认 USD · 暂不跨国换汇</div></div>
       </div>
 
       <div class="grid-2">
@@ -545,7 +545,7 @@
         </div>
         <div class="boundary store">
           <h3>门店能做什么</h3>
-          <p>在当前门店查看客户关系、积分和储值明细，并执行门店授权的业务操作。每笔积分/储值流水记录当前 <code>store_id</code>，客户主档不重复创建。</p>
+          <p>在当前门店查看客户关系、积分和储值明细，并执行门店授权的业务操作。客户主档租户内共享并记录首次新增门店；跨店客户可充值储值、消费产生积分，每笔流水记录实际操作 <code>store_id</code>。</p>
         </div>
       </div>
 
@@ -559,7 +559,7 @@
           </tbody>
         </table>
       </div>
-      <div class="scope-warning"><b>方案 B 当前口径：</b>客户主档租户内唯一，门店用关系表区分；积分/储值余额默认共享，流水按门店归因；总部只读，门店执行写操作。共享余额不按门店重复相加，多币种按币种分组；余额隔离和总部批量操作仍须决策。</div>
+      <div class="scope-warning"><b>方案 B 已确认口径：</b>客户主档租户内唯一并记录首次新增门店；积分/储值余额租户内共享；门店可为跨店客户充值储值、消费产生积分，流水按实际操作门店归因；币种为租户级，默认 USD；总部只读，禁止总部批量调整。</div>
     </div>
   </section>
 

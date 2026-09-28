@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <parent><groupId>io.openware</groupId><artifactId>common-services</artifactId><version>2.0.1</version><relativePath>../pom.xml</relativePath></parent>
   <artifactId>common-payment</artifactId>
-  <version>2.0.6</version>
+  <version>2.2.0</version>
   <packaging>pom</packaging>
   <modules><module>common-payment-api</module><module>common-payment-service</module></modules>
 </project>

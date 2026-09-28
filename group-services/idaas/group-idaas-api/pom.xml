@@ -5,7 +5,7 @@
   <parent>
     <groupId>io.openware</groupId>
     <artifactId>group-idaas</artifactId>
-    <version>2.0.3</version>
+    <version>2.2.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>group-idaas-api</artifactId>
