@@ -58,6 +58,19 @@ function Get-LocalImageRevision([string]$image,[string]$tag){
   if([string]$labels.'org.opencontainers.image.version' -ne $tag){return ''}
   return [string]$labels.'org.opencontainers.image.revision'
 }
+function Get-LocalImageId([string]$image){
+  $saved=$ErrorActionPreference
+  try{$ErrorActionPreference='Continue';$id=(& docker image inspect $image --format '{{.Id}}' 2>$null|Out-String).Trim()}finally{$ErrorActionPreference=$saved}
+  if($LASTEXITCODE -ne 0){return ''}
+  return $id
+}
+function Remove-ReplacedLocalImage([string]$oldId,[string]$newId){
+  if(!$oldId -or !$newId -or $oldId -eq $newId){return}
+  $containers=(@(& docker ps -a --filter "ancestor=$oldId" --format '{{.ID}}' 2>$null)|Where-Object{$_})
+  if($containers.Count -gt 0){Write-Warning "Keeping replaced local image $oldId because it is referenced by container(s): $($containers -join ', ')";return}
+  & docker image rm $oldId 2>$null|Out-Null
+  if($LASTEXITCODE -eq 0){Write-Host "Removed replaced local image: $oldId"}else{Write-Warning "Unable to remove replaced local image: $oldId"}
+}
 function Get-ExistingReleaseImage([string]$name,[string]$tag,[int]$MaxAttempts=10){
   $image="$registryPrefix/$name`:$tag";$digest=Get-RegistryDigest $image $MaxAttempts
   if(!$digest){return $null}
@@ -207,9 +220,11 @@ foreach($e in $defs.GetEnumerator()) {
     $image="$registryPrefix/$name`:$tag"
     $imageRevision=Get-LocalImageRevision -image $image -tag $tag
     if($imageRevision -ne $revision) {
+      $oldImageId=Get-LocalImageId $image
       $imageRevision=$revision
       & docker build --quiet --pull=false --build-arg "JAR_PATH=$rel" --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" -t $image $root
       if($LASTEXITCODE){throw "Docker build failed: $name"}
+      Remove-ReplacedLocalImage $oldImageId (Get-LocalImageId $image)
     }
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
@@ -238,9 +253,11 @@ foreach($e in $projects.GetEnumerator()) {
     $image="$registryPrefix/$name`:$tag"
     $imageRevision=Get-LocalImageRevision -image $image -tag $tag
     if($imageRevision -ne $projectRevision) {
+      $oldImageId=Get-LocalImageId $image
       $imageRevision=$projectRevision
       & docker build --quiet --pull=false @args --build-arg "IMAGE_VERSION=$tag" --build-arg "IMAGE_REVISION=$imageRevision" --build-arg "IMAGE_CREATED=$createdAt" -t $image $e.Value
       if($LASTEXITCODE){throw "Docker build failed: $name"}
+      Remove-ReplacedLocalImage $oldImageId (Get-LocalImageId $image)
     }
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
