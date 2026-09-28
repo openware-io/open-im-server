@@ -71,13 +71,23 @@ function Remove-ReplacedLocalImage([string]$oldId,[string]$newId){
   if($containers.Count -gt 0){throw "Refusing to complete image replacement: old local image $oldId is referenced by container(s): $($containers -join ', ')"}
   & docker image rm $oldId 2>$null|Out-Null
   if($LASTEXITCODE -ne 0){throw "Unable to remove replaced local image: $oldId"}
-  $remaining=(@(& docker image ls --quiet --no-trunc 2>$null)|Where-Object{$_ -eq $oldId})
-  if($remaining.Count -gt 0){throw "Old local image remains after replacement cleanup: $oldId"}
+  # docker image ls excludes dangling images by default.  Use inspect so an untagged
+  # old image cannot be falsely treated as deleted after a SNAPSHOT replacement.
+  $saved=$ErrorActionPreference
+  try{$ErrorActionPreference='Continue';& docker image inspect $oldId 2>$null|Out-Null;$stillExists=($LASTEXITCODE -eq 0)}finally{$ErrorActionPreference=$saved}
+  if($stillExists){
+    & docker image rm --force $oldId 2>$null|Out-Null
+    if($LASTEXITCODE -ne 0){throw "Unable to force-remove replaced local image: $oldId"}
+    $saved=$ErrorActionPreference
+    try{$ErrorActionPreference='Continue';& docker image inspect $oldId 2>$null|Out-Null;$stillExists=($LASTEXITCODE -eq 0)}finally{$ErrorActionPreference=$saved}
+  }
+  if($stillExists){throw "Old local image remains after replacement cleanup: $oldId"}
   Write-Host "Removed replaced local image: $oldId"
 }
 function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
   # 不使用 docker image prune：只检查带有本发布服务标识的镜像，绝不误删其他项目的本地构建缓存。
-  $dangling=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique)
+  $dangling=@()
+  $dangling+=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique)
   foreach($id in $dangling){
     $saved=$ErrorActionPreference
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
@@ -89,7 +99,8 @@ function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
     & docker image rm $id 2>$null|Out-Null
     if($LASTEXITCODE -ne 0){throw "Unable to remove dangling release image $id for ${Name}:$Tag"}
   }
-  $left=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique | Where-Object{
+  $left=@()
+  $left+=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique | Where-Object{
     $id=$_;$saved=$ErrorActionPreference
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
     if($code -ne 0 -or !$raw){return $false};try{$labels=$raw|ConvertFrom-Json}catch{return $false}
