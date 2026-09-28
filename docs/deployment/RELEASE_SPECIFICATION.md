@@ -2,6 +2,12 @@
 
 本规范适用于所有 Kind、ACK 及本地/测试环境的业务 Deployment、发布清单和镜像。
 
+## 适用范围
+
+- **自研业务服务**（IM、SaaS、管理后台、门户及本组织维护的业务镜像）必须严格遵守本文的版本、manifest、镜像引用、来源提交和发布校验规范。
+- **第三方组件**（MySQL、Redis、MongoDB、MinIO、RocketMQ、Ingress、`minio/mc` 等）不套用自研服务的版本标签规则；其镜像版本、升级方式和校验方式遵循该组件官方发布规范及本项目基础设施审批要求。
+- 第三方组件不得写入自研业务 manifest，也不得用第三方组件版本替代自研服务版本；其持久化、凭据、网络暴露和升级策略仍须符合本项目基础设施与安全要求。
+
 ## 镜像引用
 
 - **禁止**在 Kubernetes `Deployment.spec.template.spec.containers[].image`、发布脚本下发参数或发布记录的运行时 `image` 字段中使用 `image@sha256:<64位摘要>` 形式。

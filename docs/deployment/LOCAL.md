@@ -1,5 +1,7 @@
 # 本地部署说明
 
+本地发布门禁严格约束自研业务镜像；MySQL、Redis、MongoDB、MinIO、RocketMQ、Ingress 和 `minio/mc` 等第三方组件按供应方发布规则及基础设施审批清单执行，不套用自研业务的 `-SNAPSHOT` 标签和来源提交校验。
+
 本仓库支持三种相互独立的本地运行方式。日常开发请选择其中一种；不要使用某一种方式的停止命令管理另一种方式。
 
 脚本组织规则见 [`scripts/README.md`](../../scripts/README.md)：部署实现位于 `scripts/deploy/`，运行中系统的冒烟验证位于 `scripts/verify/`，仓库静态检查位于 `scripts/validate/`。

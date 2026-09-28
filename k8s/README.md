@@ -4,6 +4,8 @@
 
 运行时业务镜像必须使用 manifest 中的 `repository:tag`；禁止 `image@sha256:...`。digest 仅用于清单校验。
 
+上述规则严格约束本组织维护的业务镜像。MySQL、Redis、MongoDB、MinIO、RocketMQ、Ingress-nginx、`minio/mc` 等第三方组件按其官方版本/发布规则和本项目基础设施审批清单管理，不纳入自研业务的 `-SNAPSHOT`、来源提交和业务 manifest 标签约束。
+
 部署脚本从未提交的仓库 `.env` 文件创建 `open-im-env`，并从发布清单按 GHCR `repository:tag` 拉取 SaaS 候选镜像后导入专属 Kind 节点；Kind 不重新构建这些候选镜像。应用 Service 使用 `ClusterIP`，统一由固定版本的 ingress-nginx 暴露。控制器 HTTP 使用 Kind NodePort `30080`，默认集群名为 `open-im-local`，上下文为 `kind-open-im-local`。
 
 本地统一入口为 `http://<宿主机局域网IP>:30080`：根路径是统一门户，`/im/` 是 IM 管理端，`/saas/` 是 SaaS 管理端，`/a380/` 与 `/b/` 是 SaaS 移动端，`/api/` 和 `/ws/` 分别进入网关和 IM WebSocket。Ingress-nginx 安装清单来自官方 Kind provider `controller-v1.12.1`，脚本会校验固定 SHA-256 后再应用。

@@ -1,6 +1,8 @@
 # 版本管理与发布规范（Runbook）
 
 > 本文档是「怎么发版、怎么管版本」的唯一操作手册，供人类与后续 AI 代理共同遵守。
+
+本文的严格镜像与 manifest 门禁适用于本组织维护的业务服务；第三方中间件和工具按其官方发布规范及基础设施审批清单管理。
 > **Android APK 发版先看 [`standards/15_CLIENT_RELEASE_SKILL.md`](standards/15_CLIENT_RELEASE_SKILL.md) 并直接运行 `open-chat-app/tools/release.ps1`；Windows 桌面端 EXE 发版按本文档第 5.6 节执行。** 后端/管理后台/官网部署仍按本文档执行。
 > 治理规则（版本命名、灰度、审计、安全门禁等）见 [`standards/14_CLIENT_RELEASE_GOVERNANCE.md`](standards/14_CLIENT_RELEASE_GOVERNANCE.md)；
 > ACK 集群拓扑与域名见 [`deployment/ACK.md`](deployment/ACK.md)。本文档与这两篇互补，本文档负责「一步步怎么做」。

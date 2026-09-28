@@ -1,5 +1,7 @@
 # ACK 部署与运行手册
 
+本手册的严格业务镜像发布规则仅适用于本组织维护的 IM、SaaS、管理后台和门户服务。MySQL、Redis、MongoDB、MinIO、RocketMQ、Ingress 及其他第三方组件按各自官方发布规范和基础设施审批清单管理，不要求使用自研服务的 `-SNAPSHOT` 或业务 manifest 版本规则。
+
 ## 当前发布状态
 
 本项目已使用仓库的 ACK 发布流程部署到 `im-business` 命名空间。ACK 接受由发布构建生成的开发或正式清单：开发镜像 tag 使用 `<版本>-SNAPSHOT` 且允许开发环境覆盖；正式镜像 tag 必须是纯 SemVer 且不可覆盖。两类清单都禁止 `latest`、`dirty` 和手工标签。构建时间戳、Git 修订与构建标识只通过镜像 label（`IMAGE_VERSION`/`IMAGE_REVISION`/`IMAGE_CREATED`）与发布清单字段（`buildIdentity`/`sourceRevision`）记录。
