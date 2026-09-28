@@ -13,7 +13,9 @@ Set-StrictMode -Version Latest
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $manifest = Get-Content -Raw -LiteralPath $ReleaseManifestPath | ConvertFrom-Json
-if (!$manifest.services -or !$manifest.deploymentTargets) { throw 'Release manifest has no deployment targets.' }
+if ([int]$manifest.schemaVersion -ne 2 -or !$manifest.services -or !$manifest.deploymentTargets -or [string]::IsNullOrWhiteSpace([string]$manifest.buildIdentity) -or [string]::IsNullOrWhiteSpace([string]$manifest.sourceRevision)) {
+  throw 'ACK deployment requires a schema v2 manifest with build identity, source revision, services and deployment targets.'
+}
 $releaseType = [string]$manifest.releaseType
 if ($releaseType -notin @('development', 'formal')) {
   throw "Invalid ACK release type: $releaseType"
@@ -37,13 +39,15 @@ function Invoke-Kubectl([string[]]$Arguments) {
 }
 
 function Get-ReleaseImage([string]$Name, [object]$Entry, [string]$ReleaseType) {
-  if (!$Entry.tag -or !$Entry.digest -or !$Entry.image) { throw "Release manifest lacks ACR fields for $Name" }
+  if (!$Entry.tag -or !$Entry.moduleVersion -or !$Entry.digest -or !$Entry.image -or !$Entry.sourceRevision) { throw "Release manifest lacks immutable release fields for $Name" }
   $tag = [string]$Entry.tag
+  $moduleVersion = [string]$Entry.moduleVersion
   $expectedDigest = [string]$Entry.digest
   $tagImage = [string]$Entry.image
-  $repository = "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))/$Name"
+  $baseRepository = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))" } else { $Registry.TrimEnd('/') }
+  $repository = "$baseRepository/$Name"
   $tagPattern = if ($ReleaseType -eq 'formal') { '^\d+\.\d+\.\d+$' } else { '^\d+\.\d+\.\d+-SNAPSHOT$' }
-  if ($tag -notmatch $tagPattern -or $tagImage -ne "$repository`:$tag" -or $tagImage -match '@sha256:') { throw "Invalid $ReleaseType ACR image for ${Name}: $tagImage" }
+  if ($moduleVersion -notmatch $tagPattern -or $tag -ne $moduleVersion -or $tag -notmatch $tagPattern -or $expectedDigest -notmatch '^sha256:[a-f0-9]{64}$' -or $tagImage -ne "$repository`:$tag" -or $tagImage -match '@sha256:') { throw "Invalid $ReleaseType ACR image for ${Name}: $tagImage" }
 
   function Get-RegistryDigest([string]$Image) {
     for ($queryAttempt = 1; $queryAttempt -le 3; $queryAttempt++) {

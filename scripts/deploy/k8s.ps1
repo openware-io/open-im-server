@@ -494,7 +494,13 @@ foreach ($name in ($saasImages.Keys | Sort-Object)) {
     if ($LASTEXITCODE -ne 0 -or !$runtimeRaw) { throw "Cannot inspect Kind runtime container: $($pod.metadata.name)" }
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
     $repository = $saasImages[$name] -replace ':[^:]+$', ''
-    if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
+    $runtimeImageRef = [string]$runtime.status.imageRef
+    if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
+      $localImageId = (& docker image inspect $saasImages[$name] --format '{{.Id}}' 2>$null | Out-String).Trim()
+      if (!$localImageId -or [string]$runtime.status.imageId -ne $localImageId) {
+        throw "Kind offline runtime image mismatch: $($pod.metadata.name)"
+      }
+    } elseif ($runtimeImageRef -notlike "$repository@sha256:*") {
       throw "Kind runtime repository mismatch: $($pod.metadata.name)"
     }
   }
