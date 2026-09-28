@@ -298,7 +298,8 @@ if ($SaasReleaseManifestPath) {
     if (!$property) { throw "SaaS release manifest missing service: $name" }
     $entry = $property.Value
     [void](Get-ApprovedReleaseImage -Name $name -Entry $entry -Registry $Registry -RepositoryNamespace $RepositoryNamespace)
-    $saasImages[$name] = if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { [string]$entry.image } else { [string]$entry.imageDigest }
+    $saasImages[$name] = [string]$entry.image
+    if ($saasImages[$name] -match '@sha256:') { throw "Digest-suffixed image references are forbidden: $name" }
     $saasTags[$name] = [string]$entry.tag
   }
 } elseif ($SaasImageTag) { throw 'SaasImageTag is deprecated. Use SaasReleaseManifestPath so each service keeps its approved module version.' }
@@ -474,7 +475,7 @@ foreach ($deployment in ($applicationDeployments | Where-Object { $_ -ne 'im-use
 }
 foreach ($name in ($saasImages.Keys | Sort-Object)) {
   $actualImage = (& kubectl get deployment $name --namespace $Namespace -o 'jsonpath={.spec.template.spec.containers[0].image}').Trim()
-  if ($LASTEXITCODE -ne 0 -or $actualImage -ne $saasImages[$name]) { throw "Kind digest drift for $name. Expected '$($saasImages[$name])', got '$actualImage'." }
+  if ($LASTEXITCODE -ne 0 -or $actualImage -ne $saasImages[$name] -or $actualImage -match '@sha256:') { throw "Kind image tag drift for $name. Expected '$($saasImages[$name])', got '$actualImage'." }
   $deployment = & kubectl get deployment $name --namespace $Namespace -o json | ConvertFrom-Json
   if ($LASTEXITCODE -ne 0) { throw "Cannot inspect deployment: $name" }
   $selector = ($deployment.spec.selector.matchLabels.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ','
@@ -486,18 +487,13 @@ foreach ($name in ($saasImages.Keys | Sort-Object)) {
     if ($status.Count -ne 1 -or !$status[0].ready) {
       throw "Kind runtime image digest mismatch: $($pod.metadata.name)"
     }
-    if ([string]$status[0].imageID -ne $saasImages[$name]) {
-      $runtimeRepository = $saasImages[$name] -replace '@sha256:[a-f0-9]{64}$', ''
-      if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -ne '1' -or [string]$status[0].imageID -notlike "$runtimeRepository@sha256:*") {
-        throw "Kind Pod image digest mismatch: $($pod.metadata.name)"
-      }
-    }
+    if ([string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
     $containerId = ([string]$status[0].containerID) -replace '^containerd://', ''
     $nodeName = [string]$pod.spec.nodeName
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or !$runtimeRaw) { throw "Cannot inspect Kind runtime container: $($pod.metadata.name)" }
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
-    $repository = $saasImages[$name] -replace '@sha256:[a-f0-9]{64}$', ''
+    $repository = $saasImages[$name] -replace ':[^:]+$', ''
     if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
       throw "Kind runtime repository mismatch: $($pod.metadata.name)"
     }

@@ -460,7 +460,7 @@ saas-20260919T054303Z-a117f298.json   common-audit-service（含自留审计地�
 同一份 5 目标清单（Kind 与 ACK 共用）：common-audit-service / platform-order-service /
 platform-resource-service / platform-tenant-service / saas-admin
 tag：2.0.1-SNAPSHOT / 2.0.16-SNAPSHOT / 2.0.5-SNAPSHOT / 2.0.9-SNAPSHOT / 2.1.21-SNAPSHOT
-全部按 digest 固定（`repo@sha256:...`），部署后逐 Pod 校验 imageID。
+运行时全部使用唯一版本 tag（禁止 `repo@sha256:...` 镜像后缀）；digest 仅作为清单校验字段，部署后逐 Pod 校验解析结果。
 ```
 
 **Kind 全量回归**（`deploy-k8s.ps1` 全量 24 服务 → `k8s-scoped.ps1` 5 目标增量，均按 digest 校验）：

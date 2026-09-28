@@ -5,15 +5,15 @@ param(
   [ValidatePattern('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')]
   [string]$KindClusterName = 'open-im-local',
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = 'openware',
+  [string]$RepositoryNamespace = '',
   [ValidateRange(60, 900)]
   [int]$StartupTimeoutSeconds = 600
 )
 
 # Incremental Kind deployment: rolls only the services listed in the release manifest onto the ACR
-# digests recorded there. Use it for day-to-day "release only what changed" iterations.
+# tags recorded there. Use it for day-to-day "release only what changed" iterations.
 # A full deployment (first-time cluster setup, infrastructure/env changes, applying k8s manifests)
-# still belongs to k8s.ps1. Both consume the same schema v2 release manifest and the same digest
+# still belongs to k8s.ps1. Both consume the same schema v2 release manifest and the same tag
 # verification; manual `kubectl set image` or passing tags by hand stays forbidden.
 # NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI, and a
 # trailing multi-byte character before a newline can swallow that newline (see repo guideline).
@@ -56,7 +56,8 @@ foreach ($name in $targets) {
   if (!$entry) { throw "Release manifest missing service: $name" }
   # Verify every target against ACR by tag and digest: tags may be overwritten, digests may not.
   [void](Get-ApprovedReleaseImage -Name $name -Entry $entry.Value -Registry $Registry -RepositoryNamespace $RepositoryNamespace)
-  $images[$name] = [string]$entry.Value.imageDigest
+  $images[$name] = [string]$entry.Value.image
+  if ($images[$name] -match '@sha256:') { throw "Digest-suffixed image references are forbidden: $name" }
   $digests[$name] = [string]$entry.Value.digest
   $tags[$name] = [string]$entry.Value.tag
   $moduleVersions[$name] = [string]$entry.Value.moduleVersion
@@ -143,10 +144,10 @@ foreach ($name in $targets) {
   Invoke-Kubectl -Arguments @('rollout', 'status', "deployment/$name", '--namespace', $Namespace, "--timeout=$($StartupTimeoutSeconds)s")
 }
 
-# Verify every running container against the manifest digest (local RepoDigests are not sufficient).
+# Verify every running container against the manifest tag.
 foreach ($name in $targets) {
   $actualImage = (& kubectl get deployment $name --namespace $Namespace -o 'jsonpath={.spec.template.spec.containers[0].image}').Trim()
-  if ($LASTEXITCODE -ne 0 -or $actualImage -ne $images[$name]) { throw "Kind digest drift for $name. Expected '$($images[$name])', got '$actualImage'." }
+  if ($LASTEXITCODE -ne 0 -or $actualImage -ne $images[$name] -or $actualImage -match '@sha256:') { throw "Kind image tag drift for $name. Expected '$($images[$name])', got '$actualImage'." }
   $deployment = & kubectl get deployment $name --namespace $Namespace -o json | ConvertFrom-Json
   if ($LASTEXITCODE -ne 0) { throw "Cannot inspect deployment: $name" }
   $selector = ($deployment.spec.selector.matchLabels.PSObject.Properties | ForEach-Object { "$($_.Name)=$($_.Value)" }) -join ','
@@ -156,7 +157,7 @@ foreach ($name in $targets) {
     if ($pod.metadata.PSObject.Properties['deletionTimestamp']) { continue }
     $status = @($pod.status.containerStatuses | Where-Object { $_.name -eq $name })
     if ($status.Count -ne 1 -or !$status[0].ready) { throw "Kind runtime image digest mismatch: $($pod.metadata.name)" }
-    if ([string]$status[0].imageID -ne $images[$name]) { throw "Kind Pod image digest mismatch: $($pod.metadata.name)" }
+    if ([string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
     $containerId = ([string]$status[0].containerID) -replace '^containerd://', ''
     $nodeName = [string]$pod.spec.nodeName
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
@@ -164,7 +165,7 @@ foreach ($name in $targets) {
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
     # CRI records the resolved linux/amd64 platform descriptor here; imageID above is
     # the registry manifest digest pinned by the approved release manifest.
-    $repository = $images[$name] -replace '@sha256:[a-f0-9]{64}$', ''
+    $repository = $images[$name] -replace ':[^:]+$', ''
     if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
       throw "Kind runtime repository mismatch: $($pod.metadata.name)"
     }
@@ -186,4 +187,4 @@ $record = [ordered]@{
 }
 $recordPath = Join-Path $root ".outputs\releases\$releaseId.json"
 $record | ConvertTo-Json -Depth 4 | Set-Content -Encoding utf8 -LiteralPath $recordPath
-Write-Host "Incremental Kind deployment verified by digest. Record: $recordPath"
+Write-Host "Incremental Kind deployment verified by immutable tag. Record: $recordPath"

@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory)] [string]$ReleaseManifestPath,
   [string]$Namespace = 'im-business',
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = 'openware',
+  [string]$RepositoryNamespace = '',
   [ValidateRange(120, 1800)]
   [int]$StartupTimeoutSeconds = 900
 )
@@ -37,14 +37,13 @@ function Invoke-Kubectl([string[]]$Arguments) {
 }
 
 function Get-ReleaseImage([string]$Name, [object]$Entry, [string]$ReleaseType) {
-  if (!$Entry.tag -or !$Entry.digest -or !$Entry.imageDigest) { throw "Release manifest lacks ACR fields for $Name" }
+  if (!$Entry.tag -or !$Entry.digest -or !$Entry.image) { throw "Release manifest lacks ACR fields for $Name" }
   $tag = [string]$Entry.tag
   $expectedDigest = [string]$Entry.digest
-  $digestImage = [string]$Entry.imageDigest
+  $tagImage = [string]$Entry.image
   $repository = "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))/$Name"
   $tagPattern = if ($ReleaseType -eq 'formal') { '^\d+\.\d+\.\d+$' } else { '^\d+\.\d+\.\d+-SNAPSHOT$' }
-  if ($tag -notmatch $tagPattern -or $digestImage -notmatch '^' + [regex]::Escape($repository) + '@sha256:[a-f0-9]{64}$') { throw "Invalid $ReleaseType ACR image for ${Name}: $digestImage" }
-  if (!$digestImage.EndsWith("@$expectedDigest")) { throw "Manifest digest mismatch for $Name" }
+  if ($tag -notmatch $tagPattern -or $tagImage -ne "$repository`:$tag" -or $tagImage -match '@sha256:') { throw "Invalid $ReleaseType ACR image for ${Name}: $tagImage" }
 
   function Get-RegistryDigest([string]$Image) {
     for ($queryAttempt = 1; $queryAttempt -le 3; $queryAttempt++) {
@@ -94,11 +93,8 @@ foreach ($service in $services) {
   if (!$entry) { throw "Release manifest missing service: $service" }
   $tags[$service] = [string]$entry.tag
   $releaseImage = Get-ReleaseImage $service $entry $releaseType
-  # 必须用 digest 固定引用下发，不能用 tag：Development 发版按规范「不升版本、同 tag 覆盖」，
-  # deployment 里若写的是同一个 tag，kubectl set image 的字符串没有变化 → spec 未变更 → 不触发滚动，
-  # rollout status 直接返回成功、Pod 仍是上一版镜像，最终被下面的 digest 校验拦下（实测 im-user-service
-  # 期望 1c1917a5… 实际仍是上一版的 7b3781f0…）。digest 固定引用同时让 Pod imageID 校验变成精确比对。
-  $images[$service] = [string]$entry.imageDigest
+  $images[$service] = [string]$entry.image
+  if ($images[$service] -match '@sha256:') { throw "Digest-suffixed image references are forbidden: $service" }
   $digests[$service] = $releaseImage.digest
 }
 

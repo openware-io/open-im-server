@@ -45,9 +45,9 @@
 1. **只 bump 实际改动的版本单元**：改 `im-message-service` 只调整 `im-services/message` 服务域基础版本及对应叶子服务版本（开发追加 `-SNAPSHOT`），不动根聚合、其他域、其他网关。
 2. **父 POM 跟 MAJOR**：根聚合与结构聚合父 POM 版本只在 `MAJOR` 变化，服务日常迭代不改父版本。
 3. **跨域依赖显式锁版本**：某服务依赖另一服务域的 `*-api` 时，用属性（如 `im.conversation-api.version`）显式锁定，被依赖域发版后消费方同步更新该属性。
-4. **开发分支默认使用开发版本**：可部署叶子服务的 Maven 版本和镜像标签使用 `<主版本>-SNAPSHOT`（如 `1.2.0-SNAPSHOT`）；根聚合、结构聚合和领域父 POM 保持纯 `MAJOR.MINOR.PATCH`，不追加后缀。
+4. **开发分支默认使用开发版本**：可部署叶子服务的 Maven 版本和镜像标签使用 `<主版本>-SNAPSHOT`；根聚合、结构聚合和领域父 POM 保持纯 `MAJOR.MINOR.PATCH`，不追加后缀。
 5. **正式版本必须显式指定**：只有用户明确要求打正式版本包时，才使用不带 `-SNAPSHOT` 的纯 SemVer。正式版本标签不可覆盖；开发 `-SNAPSHOT` 标签允许在 ACR 覆盖，以满足开发环境持续验证。
-6. **镜像标签 = 对应服务 Maven 版本**，各服务标签不再强制一致，禁止 `latest`、`dev`、时间戳和其他临时后缀。
+6. **镜像标签 = 对应服务 Maven 版本**，开发使用 `<版本>-SNAPSHOT` 且允许覆盖，正式使用纯 SemVer 且不可覆盖；禁止 `latest`、`dev`、`dirty`、手工标签及 `image@sha256:...` 运行时引用。
 
 ### 1.2 客户端 / 官网
 
@@ -173,7 +173,7 @@ kubeconfig 路径从 VS Code 配置读取：`Code\User\settings.json` 的 `vs-ku
 .\scripts\deploy\ack.ps1 -ReleaseManifestPath .\.outputs\releases\formal.json
 ```
 
-> 命名空间 `im-business`。中间件（mysql/redis/mongodb/minio/rocketmq）不动。ACK 工作负载引用清单中已验证的 digest，发布记录保留 tag、digest、Git 修订和时间；开发 `-SNAPSHOT` 清单允许部署，`latest`、非规范 tag 和手工 `kubectl set image` 一律拒绝。
+> 命名空间 `im-business`。中间件（mysql/redis/mongodb/minio/rocketmq）不动。ACK 工作负载引用清单中已验证的 tag，发布记录保留 tag、digest、Git 修订和时间；开发 `-SNAPSHOT` 清单允许部署，`latest`、非规范 tag、`@sha256` 运行时引用和手工 `kubectl set image` 一律拒绝。
 
 ### 4.5 后端服务与端口
 
@@ -311,7 +311,7 @@ kubectl -n meta-cogni rollout status deployment/xch-cms --timeout=300s
 
 ## 7.5 SaaS 移动 H5 发布（open-saas-mobile，Vue 双端 C端 + B端）
 
-版本由仓库根 `VERSION` 文件维护（语义化 `MAJOR.MINOR.PATCH`，默认 PATCH +1）。开发分支镜像 tag 使用 `<version>-SNAPSHOT`，允许在 ACR 覆盖；只有用户明确要求正式包时才使用不带后缀的 `<version>`，且正式 tag 不可覆盖。禁止 `latest`、时间戳、提交号及其他临时后缀；UTC 时间戳与 Git 短提交只写入镜像 label 和发布清单（`buildIdentity`/`sourceRevision`）。
+版本由仓库根 `VERSION` 文件维护（语义化 `MAJOR.MINOR.PATCH`，默认 PATCH +1）。开发分支镜像 tag 使用 `<version>-SNAPSHOT`；只有用户明确要求正式包时才使用不带后缀的 `<version>`，且正式 tag 不可覆盖。禁止 `latest`、`dirty`、手工标签及 `image@sha256:...` 运行时引用；UTC 时间戳与 Git 短提交写入镜像 label 和发布清单（`buildIdentity`/`sourceRevision`）。
 
 1. bump `VERSION`，并在干净工作树确认本次只有 `saas-mobile` 被提升为正式版本。
 2. 使用统一发布构建生成正式清单；不得直接构建、推送或替换 ACK 工作负载：

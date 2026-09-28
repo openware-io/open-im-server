@@ -2,11 +2,11 @@
 
 ## 当前发布状态
 
-本项目已使用仓库的 ACK 发布流程部署到 `im-business` 命名空间。ACK 接受由发布构建生成的开发或正式清单：开发镜像 tag 必须是 `<版本>-SNAPSHOT` 且可在 ACR 覆盖；正式镜像 tag 必须是纯 SemVer 且不可覆盖。两类清单都禁止 `latest`、`dirty`、时间戳、提交号及其他构建后缀。构建时间戳、Git 修订与构建标识只通过镜像 label（`IMAGE_VERSION`/`IMAGE_REVISION`/`IMAGE_CREATED`）与发布清单字段（`buildIdentity`/`sourceRevision`）记录。
+本项目已使用仓库的 ACK 发布流程部署到 `im-business` 命名空间。ACK 接受由发布构建生成的开发或正式清单：开发镜像 tag 使用 `<版本>-SNAPSHOT` 且允许开发环境覆盖；正式镜像 tag 必须是纯 SemVer 且不可覆盖。两类清单都禁止 `latest`、`dirty` 和手工标签。构建时间戳、Git 修订与构建标识只通过镜像 label（`IMAGE_VERSION`/`IMAGE_REVISION`/`IMAGE_CREATED`）与发布清单字段（`buildIdentity`/`sourceRevision`）记录。
 
-**部署引用形态**：ACK 工作负载必须按清单使用镜像 tag，即 `<repo>:<模块版本>` 或 `<repo>:<模块版本>-SNAPSHOT`，让控制台直接显示发布版本。部署脚本在发布前校验该 tag 指向清单 digest，再将 tag 写入工作负载；应用容器必须使用 `imagePullPolicy: Always`。发布后脚本校验工作负载 tag 与清单一致，并核验 Pod 实际 `imageID` 的 digest。发布记录必须保留 tag、digest、Git 修订和时间。
+**部署引用形态**：ACK 工作负载必须按清单使用镜像 tag，禁止 `repo@sha256:...` 后缀，让控制台直接显示发布版本。部署脚本在发布前校验该 tag 指向清单 digest，再将 tag 写入工作负载；应用容器必须使用 `imagePullPolicy: Always`。发布后脚本校验工作负载 tag 与清单一致，并核验 Pod 实际 `imageID` 的 digest。发布记录必须保留 tag、digest、Git 修订和时间。
 
-> 应用工作负载不得引用 `latest` 或非规范 tag。开发工作负载使用 `:<版本>-SNAPSHOT`，正式工作负载使用 `:<版本>`；基础设施镜像继续使用经审批的固定版本 tag 并保持 `IfNotPresent`。
+> 应用工作负载不得引用 `latest`、`dirty` 或 `@sha256`。开发工作负载使用 `:<版本>-SNAPSHOT`，正式工作负载使用 `:<版本>`；基础设施镜像继续使用经审批的固定版本 tag 并保持 `IfNotPresent`。
 
 当前 ACK 正式极光配置：
 
@@ -117,7 +117,7 @@ Internet
 
 ### 发版版本规范
 
-版本号采用各工程已批准的 `主.次.补丁`；开发分支的可部署叶子服务 Maven 版本使用 `<主版本>-SNAPSHOT`，根聚合、结构聚合和领域父 POM保持纯 SemVer。未经用户明确指令，发布流程不得生成正式纯 SemVer 镜像。开发发布使用默认构建生成的 `-SNAPSHOT` 清单，先完成 Kind 回归后可用同一清单发布 ACK；ACK 写入开发 tag，并在 rollout 后核验 Pod 实际 digest 属于本次清单。正式发版步骤：确认版本所有权 → 提升并确认本次目标叶子服务的正式版本 → 提交并保证工作树干净 → 使用 `build-saas-release.ps1 -FormalRelease -FormalTargets <本次服务/前端名称>` 生成逐服务正式清单（含 digest）→ Kind 全量验证 → ACK 按同一正式清单部署。`-FormalTargets` 是强制的精确范围：清单的 `deploymentTargets` 只包含明确晋级的服务或前端，ACK 只按该列表更新工作负载；正式 tag 不可覆盖。
+版本号采用各工程已批准的 `主.次.补丁`；开发分支的可部署叶子服务 Maven 版本和镜像 tag 使用 `<主版本>-SNAPSHOT`，根聚合、结构聚合和领域父 POM保持纯 SemVer。未经用户明确指令，发布流程不得生成正式纯 SemVer 镜像。开发发布使用默认构建生成的 `-SNAPSHOT` 清单，先完成 Kind 回归后可用同一清单发布 ACK；ACK 写入开发 tag，并在 rollout 后核验 Pod 实际解析 digest 属于清单记录。正式发版步骤：确认版本所有权 → 提升并确认本次目标叶子服务的正式版本 → 提交并保证工作树干净 → 使用 `build-saas-release.ps1 -FormalRelease -FormalTargets <本次服务/前端名称>` 生成逐服务正式清单（含 digest）→ Kind 全量验证 → ACK 按同一正式清单部署。`-FormalTargets` 是强制的精确范围：清单的 `deploymentTargets` 只包含明确晋级的服务或前端，ACK 只按该列表更新工作负载；正式 tag 不可覆盖。
 
 后端无需因 ACK 修改 Java 业务代码。环境差异均由 `im-business` 的 ConfigMap 与 Secret 在运行时注入：内部主机名使用集群 Service DNS，外部入口使用 `api.dev.example.com` 与 `admin.dev.example.com`，敏感项使用新建生产 Secret，不能复用本地 `.env`。媒体服务的公开签名地址使用 `https://api.dev.example.com`；Ingress 将 `/api` 路由到网关、`/ws` 路由到 WebSocket 接入层，其余对象路径路由到 MinIO，MinIO 控制台不公开。
 

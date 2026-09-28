@@ -58,7 +58,7 @@ function Get-LocalImageRevision([string]$image,[string]$tag){
   if([string]$labels.'org.opencontainers.image.version' -ne $tag){return ''}
   return [string]$labels.'org.opencontainers.image.revision'
 }
-function Get-ExistingReleaseImage([string]$name,[ValidatePattern('^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-SNAPSHOT)?$')][string]$tag,[int]$MaxAttempts=10){
+function Get-ExistingReleaseImage([string]$name,[string]$tag,[int]$MaxAttempts=10){
   $image="$registryPrefix/$name`:$tag";$digest=Get-RegistryDigest $image $MaxAttempts
   if(!$digest){return $null}
   $pulled=$false
@@ -74,7 +74,7 @@ function Get-ExistingReleaseImage([string]$name,[ValidatePattern('^(0|[1-9][0-9]
   $version=[string]$labels.'org.opencontainers.image.version';$sourceRevision=[string]$labels.'org.opencontainers.image.revision'
   if($version -ne $tag -or !$sourceRevision){throw "Existing release image lacks valid immutable metadata: $image"}
   Write-Host "Reusing existing immutable image: $image@$digest"
-  [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$digest;imageDigest="$registryPrefix/$name@$digest";sourceRevision=$sourceRevision}
+  [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$digest;sourceRevision=$sourceRevision}
 }
 function Invoke-Docker([string[]]$DockerArgs){
   $saved=$ErrorActionPreference
@@ -91,7 +91,7 @@ function Invoke-Docker([string[]]$DockerArgs){
   return $code
 }
 function Publish-Image([string]$name,[string]$tag,[bool]$AllowOverwrite,[string]$SourceRevision){
-  if($tag -eq 'latest' -or $tag -match 'dirty' -or $tag -match '-dev\.' -or $tag -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-SNAPSHOT)?$'){throw "Release image tag must be SemVer or SemVer-SNAPSHOT (no latest/dirty/dev suffix): $tag"}
+  if($tag -eq 'latest' -or $tag -match 'dirty' -or $tag -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-SNAPSHOT)?$'){throw "Release image tag must be SemVer or SemVer-SNAPSHOT (no latest/dirty suffix): $tag"}
   if(!$FormalRelease -and $tag -notmatch '-SNAPSHOT$'){throw "Development image tag must end with -SNAPSHOT: $tag"}
   if($FormalRelease -and $tag -match '-SNAPSHOT$'){throw "Formal release image tag must not end with -SNAPSHOT: $tag"}
   $image="$registryPrefix/$name`:$tag"
@@ -101,7 +101,7 @@ function Publish-Image([string]$name,[string]$tag,[bool]$AllowOverwrite,[string]
   if($SkipPush){
     $localDigest = $id
     $digestImage = "$registryPrefix/$name@$localDigest"
-    return [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$localDigest;imageDigest=$digestImage}
+    return [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$localDigest}
   }
   $digest=$null
   for($a=1;$a -le 10 -and !$digest;$a++){
@@ -126,7 +126,7 @@ function Publish-Image([string]$name,[string]$tag,[bool]$AllowOverwrite,[string]
     if($digest -eq $id){$remoteMatch=$true}else{throw "ACR content differs from built image: $image (expected $digestImage)"}
   }
   if(!$remoteMatch){throw "ACR content differs from built image: $image"}
-  [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$digest;imageDigest=$digestImage}
+  [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$digest}
 }
 Assert-Clean $root;foreach($p in $projects.Values){Assert-Clean $p};& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'scripts\validate\validate-maven-version-ownership.ps1');if($LASTEXITCODE){throw 'Maven version ownership validation failed.'}
 $defs=[ordered]@{ 'im-user-service'=@('im-services/user/im-user-service/target/im-user-service-*.jar','im-services/user/pom.xml');'im-message-service'=@('im-services/message/im-message-service/target/im-message-service-*.jar','im-services/message/pom.xml');'im-conversation-service'=@('im-services/conversation/im-conversation-service/target/im-conversation-service-*.jar','im-services/conversation/pom.xml');'common-media-service'=@('common-services/media/common-media-service/target/common-media-service-*.jar','common-services/media/pom.xml');'im-admin-service'=@('im-services/admin/im-admin-service/target/im-admin-service-*.jar','im-services/admin/pom.xml');'im-access-ws'=@('gateways/im-access-ws/target/im-access-ws-*.jar','gateways/im-access-ws/pom.xml');'gateway'=@('gateways/gateway/target/gateway-*.jar','gateways/gateway/pom.xml');'platform-identity-service'=@('platform-services/identity/platform-identity-service/target/platform-identity-service-*.jar','platform-services/identity/pom.xml');'platform-tenant-service'=@('platform-services/tenant/platform-tenant-service/target/platform-tenant-service-*.jar','platform-services/tenant/pom.xml');'platform-resource-service'=@('platform-services/resource/platform-resource-service/target/platform-resource-service-*.jar','platform-services/resource/pom.xml');'platform-order-service'=@('platform-services/order/platform-order-service/target/platform-order-service-*.jar','platform-services/order/pom.xml');'common-payment-service'=@('common-services/payment/common-payment-service/target/common-payment-service-*.jar','common-services/payment/pom.xml');'platform-admin-service'=@('platform-services/admin/platform-admin-service/target/platform-admin-service-*.jar','platform-services/admin/pom.xml');'platform-customer-service'=@('platform-services/customer/platform-customer-service/target/platform-customer-service-*.jar','platform-services/customer/pom.xml');'platform-marketing-service'=@('platform-services/marketing/platform-marketing-service/target/platform-marketing-service-*.jar','platform-services/marketing/pom.xml');'common-payment-channel-service'=@('common-services/payment-channel/common-payment-channel-service/target/common-payment-channel-service-*.jar','common-services/payment-channel/pom.xml');'common-audit-service'=@('common-services/audit/common-audit-service/target/common-audit-service-*.jar','common-services/audit/pom.xml');'common-sms-service'=@('common-services/sms/common-sms-service/target/common-sms-service-*.jar','common-services/sms/pom.xml');'common-mail-service'=@('common-services/mail/common-mail-service/target/common-mail-service-*.jar','common-services/mail/pom.xml');'group-idaas-service'=@('group-services/idaas/group-idaas-service/target/group-idaas-service-*.jar','group-services/idaas/pom.xml') }
@@ -214,18 +214,19 @@ foreach($e in $defs.GetEnumerator()) {
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
   }
-  $out[$name]=[ordered]@{moduleVersion=$tag;tag=$tag;sourceRevision=$p.sourceRevision;registry=$p.registry;image=$p.image;digest=$p.digest;imageDigest=$p.imageDigest}
+  $out[$name]=[ordered]@{moduleVersion=$jarVersion;tag=$tag;sourceRevision=$p.sourceRevision;registry=$p.registry;image=$p.image;digest=$p.digest}
 }
 foreach($e in $projects.GetEnumerator()) {
   $name=$e.Key
   if($selectedTargets.Count -gt 0 -and $selectedTargets -notcontains $name) { continue }
   $ver=Get-PackageVersion $e.Value
   if($ver -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$'){throw "Project version must be SemVer without a build suffix: ${name}:$ver"}
-  $tag="$ver$imageTagSuffix"
-  $isFormalTarget = $FormalTargets -contains $name
-  if($FormalRelease -and !$isFormalTarget) { continue }
   $projectRevision=(& git -C $e.Value rev-parse --short HEAD).Trim()
   if(!$projectRevision){throw "Cannot resolve source revision: $name"}
+  $moduleVersion=if($FormalRelease){$ver}else{"$ver-SNAPSHOT"}
+  $tag=$moduleVersion
+  $isFormalTarget = $FormalTargets -contains $name
+  if($FormalRelease -and !$isFormalTarget) { continue }
   $p=$null
   if($FormalRelease){
     $p=Get-ExistingReleaseImage $name $tag 1
@@ -244,7 +245,7 @@ foreach($e in $projects.GetEnumerator()) {
     $p=Publish-Image $name $tag $allowTagOverwrite $imageRevision
     $p['sourceRevision']=$imageRevision
   }
-  $out[$name]=[ordered]@{moduleVersion=$ver;tag=$tag;sourceRevision=$p.sourceRevision;registry=$p.registry;image=$p.image;digest=$p.digest;imageDigest=$p.imageDigest}
+  $out[$name]=[ordered]@{moduleVersion=$moduleVersion;tag=$tag;sourceRevision=$p.sourceRevision;registry=$p.registry;image=$p.image;digest=$p.digest}
 }
 if(!$ReleaseManifestPath){$ReleaseManifestPath=Join-Path $root ".outputs\releases\saas-$timestamp-$revision.json"}
 $dir=Split-Path -Parent $ReleaseManifestPath

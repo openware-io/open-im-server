@@ -5,7 +5,7 @@ param(
   [switch]$SkipBuild,
   [string]$ReleaseManifestPath,
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = 'openware',
+  [string]$RepositoryNamespace = '',
   [ValidateRange(30, 600)]
   [int]$StartupTimeoutSeconds = 240
 )
@@ -116,11 +116,10 @@ while ([DateTime]::UtcNow -lt $deadline) {
       foreach ($name in $approvedImages.Keys) {
         $containerId = (& docker @composeCommand ps --quiet $name | Out-String).Trim()
         if ($LASTEXITCODE -ne 0 -or !$containerId) { throw "Application container missing: $name" }
-        $imageId = (& docker inspect $containerId --format '{{.Image}}' | Out-String).Trim()
-        if ($LASTEXITCODE -ne 0) { throw "Cannot inspect application container: $name" }
-        $digests = & docker image inspect $imageId --format '{{json .RepoDigests}}' | ConvertFrom-Json
-        if ($LASTEXITCODE -ne 0 -or $digests -notcontains $releaseManifest.services.PSObject.Properties[$name].Value.imageDigest) {
-          throw "Compose runtime image digest mismatch: $name"
+        $runtimeImage = (& docker inspect $containerId --format '{{.Config.Image}}' | Out-String).Trim()
+        $expectedImage = [string]$releaseManifest.services.PSObject.Properties[$name].Value.image
+        if ($LASTEXITCODE -ne 0 -or $runtimeImage -ne $expectedImage -or $runtimeImage -match '@sha256:') {
+          throw "Compose runtime image tag mismatch: $name"
         }
       }
       Write-Host "Docker deployment is ready: http://127.0.0.1:$gatewayPort"

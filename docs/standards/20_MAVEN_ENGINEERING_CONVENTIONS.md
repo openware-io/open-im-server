@@ -145,7 +145,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-en
 ### 发布要求
 
 - 发布前必须执行根 Reactor 的完整校验，并对待发布服务域执行 `-pl <domain> -am clean verify`。
-- 开发分支默认使用 Maven `-SNAPSHOT` 版本和可覆盖的 ACR `-SNAPSHOT` 镜像；只有用户明确要求正式包时才切换为纯 SemVer，并由发布脚本阻止正式 tag 覆盖。正式发布版本不得使用 Maven 的保留动态语义名称。
+- 开发分支默认使用 Maven `-SNAPSHOT` 版本和可覆盖的 ACR `-SNAPSHOT` 镜像；只有用户明确要求正式包时才切换为纯 SemVer，并由发布脚本阻止正式 tag 覆盖。运行时禁止 `image@sha256:...`，digest 仅用于清单校验。正式发布版本不得使用 Maven 的保留动态语义名称。
 - `distributionManagement` 的 `server.id`、凭据注入方式、仓库权限、回滚方案和制品验收步骤必须在发布文档中说明，凭据不得提交到仓库。
 - 发布后必须验证仓库坐标、POM、可执行 JAR、依赖元数据和服务启动结果；失败制品必须按仓库策略撤回或标记，不得静默覆盖。
 

@@ -64,7 +64,7 @@ Docker Compose 用于标准本地开发环境，负责管理 Compose 项目、�
 
 Compose 从逐服务发布清单校验 GHCR 仓库、模块版本和远程摘要后拉取业务镜像，不再本地构建 `open-im/*:local`。启动后校验容器实际镜像摘要。Compose 会先等待 MySQL、Redis、MongoDB、RocketMQ 与 MinIO，再启动业务服务；Gateway 等待全部下游服务健康后才启动。请使用脚本而非直接执行 `docker compose up`。
 
-本地 Docker 镜像保留策略：同一服务仓库最多保留按本地构建时间排序的最近两个版本；清理前必须排除所有容器正在引用的镜像。该策略只清理本机镜像标签，不删除 ACR 远程制品；基础设施镜像按运行依赖保留，不套用业务镜像版本上限。开发 `-SNAPSHOT` 镜像被覆盖后，旧的本地标签仍按此策略清理。
+本地 Docker 镜像保留策略：同一服务仓库最多保留按本地构建时间排序的最近两个版本；清理前必须排除所有容器正在引用的镜像。该策略只清理本机镜像标签，不删除 ACR 远程制品；基础设施镜像按运行依赖保留，不套用业务镜像版本上限。开发镜像使用 `-SNAPSHOT` 标签，旧的本地标签仍按此策略清理。
 
 ## Kubernetes（Kind）
 
@@ -85,7 +85,7 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 .\deploy-k8s.ps1 -Stop
 ```
 
-脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支默认使用 `<模块版本>-SNAPSHOT` 镜像标签，允许在 GHCR 覆盖；只有明确的正式发布构建才使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、时间戳、提交号及其他临时后缀；构建时间与 Git 修订只写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，开发构建默认运行，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；脚本拒绝把未列入该范围的 Maven 叶子打成正式包。Kind 使用开发清单进行真实验证；ACK 接受开发或正式清单。Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；`-SkipBuild` 仅兼容旧调用，不触发镜像构建。Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
+脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支使用 `<模块版本>-SNAPSHOT` 镜像标签，允许开发环境覆盖；正式发布使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、`dirty`、手工标签及 `@sha256` 镜像后缀；构建时间与 Git 修订写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
 
 访问地址：
 

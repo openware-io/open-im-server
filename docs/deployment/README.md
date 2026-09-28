@@ -12,4 +12,4 @@
 部署脚本的稳定入口始终位于仓库根目录：`deploy-local.ps1`、`deploy-docker.ps1`、`deploy-k8s.ps1`。不得直接修改生成的 Kubernetes 运行资源或绕过部署脚本手工替换镜像，否则版本、Git 修订和发布记录会失去一致性。
 ## ACK 部署
 
-生产 ACK 部署的隔离边界、域名证书准备项和执行顺序见 [ACK 部署方案](./ACK.md)。当前已部署至 `im-business`；后续发布只接受由 `build-saas-release.ps1` 生成的发布清单，并通过 `scripts/deploy/ack.ps1 -ReleaseManifestPath <清单>` 执行。开发清单使用 `-SNAPSHOT`，正式清单需显式传入 `-FormalRelease -FormalTargets ...`。
+生产 ACK 部署的隔离边界、域名证书准备项和执行顺序见 [ACK 部署方案](./ACK.md)。当前已部署至 `im-business`；后续发布只接受由 `build-saas-release.ps1` 生成的发布清单，并通过 `scripts/deploy/ack.ps1 -ReleaseManifestPath <清单>` 执行。开发清单使用 `<版本>-SNAPSHOT`，正式清单需显式传入 `-FormalRelease -FormalTargets ...`。
