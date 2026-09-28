@@ -166,7 +166,13 @@ foreach ($name in $targets) {
     # CRI records the resolved linux/amd64 platform descriptor here; imageID above is
     # the registry manifest digest pinned by the approved release manifest.
     $repository = $images[$name] -replace ':[^:]+$', ''
-    if ([string]$runtime.status.imageRef -notlike "$repository@sha256:*") {
+    $runtimeImageRef = [string]$runtime.status.imageRef
+    if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
+      $localImageId = (& docker image inspect $images[$name] --format '{{.Id}}' 2>$null | Out-String).Trim()
+      if (!$localImageId -or [string]$runtime.status.imageId -ne $localImageId) {
+        throw "Kind offline runtime image mismatch: $($pod.metadata.name)"
+      }
+    } elseif ($runtimeImageRef -notlike "$repository@sha256:*") {
       throw "Kind runtime repository mismatch: $($pod.metadata.name)"
     }
   }

@@ -19,7 +19,8 @@ function Get-ApprovedReleaseImage {
   $repository = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))/$Name" } else { "$($Registry.TrimEnd('/'))/$Name" }
   $image = "${repository}:$tag"
   $digest = [string]$Entry.digest
-  if ($digest -notmatch '^sha256:[a-f0-9]{64}$' -or $Entry.image -ne $image -or [string]$Entry.image -match '@sha256:' -or [string]$Entry.imageDigest -match '@sha256:') {
+  $legacyDigestReference = if ($Entry.PSObject.Properties['imageDigest']) { [string]$Entry.imageDigest } else { '' }
+  if ($digest -notmatch '^sha256:[a-f0-9]{64}$' -or $Entry.image -ne $image -or [string]$Entry.image -match '@sha256:' -or $legacyDigestReference -match '@sha256:') {
     throw "Release manifest contains an invalid digest-suffixed image reference: $Name"
   }
   if ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
