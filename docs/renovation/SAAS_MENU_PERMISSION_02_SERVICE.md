@@ -1,11 +1,11 @@
-# SaaS 权限分层与菜单模型方案（服务端 · 评审稿 v0.3）
+# SaaS 权限分层与菜单模型方案（服务端 · 执行稿 v0.4）
 
 > **所属方案集**：`SAAS_MENU_PERMISSION`
 > **本文件**：`02_SERVICE`，权限层次模型、归属元数据、角色与授予规则、菜单下发契约、数据地基
 > **前置**：`SAAS_MENU_PERMISSION_01_ADMIN.md`（总体方案 + PC 后台菜单结构与交互）
 > **配套**：`SAAS_MENU_PERMISSION_01_ADMIN_mockup.html`（示意图）、`SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`（总部经营方案）、`SAAS_MENU_PERMISSION_HANDOFF.md`（交接）
 > **关联标准**：`docs/business/ACCOUNT_PERMISSION_MODEL.md`、`docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1、`docs/renovation/SAAS_PLATFORM_04_DATA.md`
-> **状态**：待评审（未实施）
+> **状态**：执行稿 v0.4；14 项业务与工程决策已确认，P0-P6、P7-A/P7-B 已实施，P7-C1/C2 按实施主计划分批实施
 > **v0.2 复核说明（2026-09-22）**：本版按 `platform-tenant-service` 的 27 个迁移种子、
 > `IamSnapshotMapper` / `PermissionSnapshotProvider` / `PermissionSnapshotCache` / `IamController` / `StoreApplicationService`
 > 主代码逐行复核，修正了 v0.1 的 7 处事实错误。**若与他处（含 `01_ADMIN`）冲突，以本文件为准。**

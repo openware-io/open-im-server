@@ -12,7 +12,7 @@
 >
 > 方案 A 的菜单/权限实现冲突时**以 `02_SERVICE` 为准**（它按建表语句与聚合 SQL 实测编写）；总部经营和客户资产口径以方案 B 为准。
 > **关联标准**：`docs/business/ACCOUNT_PERMISSION_MODEL.md`、`docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1、`docs/renovation/SAAS_PLATFORM_04_DATA.md`、`docs/renovation/KTV_BUSINESS_01_SERVICE.md` §0.3
-> **状态**：方案 A 已按 2.2.0 分支实施；P7-C1/C2 配置范围已补入原型和实施计划，待业务确认后实施
+> **状态**：方案 A v1.1；14 项业务与工程决策已确认，P0-P6、P7-A、P7-B 及批量写入已完成，P7-C1/C2 正在按实施主计划分批实施
 > **v0.3 复核说明（2026-09-22）**：本版按 `AdminMenuApplicationService` 、`AdminMenuController`、`AdminMenuItem`、
 > 该模块 4 个测试，以及 `gv_saas_admin` 的 `AdminLayout.vue` / `SidebarMenuItem.vue` / `stores/menu.js` /
 > `utils/menuPermission.js` / `router/index.js` / `TenantContextSelector.vue` 逐行复核，修正了 v0.2 的 6 处事实错误

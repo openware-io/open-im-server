@@ -3,6 +3,9 @@ package io.openware.platform.admin.api.controller;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
 import io.openware.platform.admin.api.ktv.ServerCatalogItem;
+import io.openware.platform.admin.api.ktv.PointRuleConfig;
+import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
+import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 import io.openware.platform.admin.application.KtvConfigApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -95,4 +98,33 @@ public class KtvConfigController {
     public ServerCatalogItem updateServer(@PathVariable Long id, @RequestBody ServerCatalogItem item) {
         return service.saveServer(item);
     }
+
+    @GetMapping("/point-rules")
+    public PointRuleConfig pointRule(@RequestParam(required = false) Long storeId,
+                                     @RequestParam(required = false) String businessType) {
+        return service.pointRule(storeId, businessType);
+    }
+
+    @PutMapping("/point-rules")
+    public PointRuleConfig savePointRule(@RequestBody PointRuleConfig config) { return service.savePointRule(config); }
+
+    @GetMapping("/reservation-rules")
+    public ReservationRuleConfig reservationRule(@RequestParam(required = false) Long storeId,
+                                                 @RequestParam(required = false) String businessType) {
+        return service.reservationRule(storeId, businessType);
+    }
+
+    @PutMapping("/reservation-rules")
+    public ReservationRuleConfig saveReservationRule(@RequestBody ReservationRuleConfig config) {
+        return service.saveReservationRule(config);
+    }
+
+    @GetMapping("/payment-rules")
+    public PaymentRuleConfig paymentRule(@RequestParam(required = false) Long storeId,
+                                         @RequestParam(required = false) String businessType) {
+        return service.paymentRule(storeId, businessType);
+    }
+
+    @PutMapping("/payment-rules")
+    public PaymentRuleConfig savePaymentRule(@RequestBody PaymentRuleConfig config) { return service.savePaymentRule(config); }
 }

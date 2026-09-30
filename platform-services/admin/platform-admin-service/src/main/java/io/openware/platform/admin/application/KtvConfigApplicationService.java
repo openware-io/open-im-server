@@ -3,6 +3,9 @@ package io.openware.platform.admin.application;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
 import io.openware.platform.admin.api.ktv.ServerCatalogItem;
+import io.openware.platform.admin.api.ktv.PointRuleConfig;
+import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
+import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 import io.openware.platform.admin.infra.KtvConfigDomainClient;
 import org.springframework.stereotype.Service;
 
@@ -68,4 +71,11 @@ public class KtvConfigApplicationService {
     public ServerCatalogItem saveServer(ServerCatalogItem item) {
         return client.upsertServerCatalogItem(item);
     }
+
+    public PointRuleConfig pointRule(Long storeId, String businessType) { return client.pointRule(storeId, businessType); }
+    public PointRuleConfig savePointRule(PointRuleConfig config) { return client.savePointRule(config); }
+    public ReservationRuleConfig reservationRule(Long storeId, String businessType) { return client.reservationRule(storeId, businessType); }
+    public ReservationRuleConfig saveReservationRule(ReservationRuleConfig config) { return client.saveReservationRule(config); }
+    public PaymentRuleConfig paymentRule(Long storeId, String businessType) { return client.paymentRule(storeId, businessType); }
+    public PaymentRuleConfig savePaymentRule(PaymentRuleConfig config) { return client.savePaymentRule(config); }
 }

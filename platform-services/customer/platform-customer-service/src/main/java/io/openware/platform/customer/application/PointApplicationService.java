@@ -6,6 +6,8 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.CurrencyResolver;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
 import io.openware.platform.customer.infra.persistence.mapper.PointLedgerMapper;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
@@ -26,24 +28,32 @@ public class PointApplicationService {
     private final PointLedgerMapper ledgerMapper;
     private final AuditClient auditClient;
     private final CustomerEventOutbox eventOutbox;
+    private final PointRuleConfigApplicationService ruleService;
 
     public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper,
                                    AuditClient auditClient) {
-        this(accountMapper, ledgerMapper, auditClient, CustomerEventOutbox.disabled());
+        this(accountMapper, ledgerMapper, auditClient, CustomerEventOutbox.disabled(), null);
     }
 
     @Autowired
     public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper,
-                                   AuditClient auditClient, CustomerEventOutbox eventOutbox) {
+                                   AuditClient auditClient, CustomerEventOutbox eventOutbox,
+                                   PointRuleConfigApplicationService ruleService) {
         this.accountMapper = accountMapper;
         this.ledgerMapper = ledgerMapper;
         this.auditClient = auditClient;
         this.eventOutbox = eventOutbox;
+        this.ruleService = ruleService;
+    }
+
+    public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper,
+                                   AuditClient auditClient, CustomerEventOutbox eventOutbox) {
+        this(accountMapper, ledgerMapper, auditClient, eventOutbox, null);
     }
 
     /** 兼容既有装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
     public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper) {
-        this(accountMapper, ledgerMapper, AuditClient.disabled());
+        this(accountMapper, ledgerMapper, AuditClient.disabled(), CustomerEventOutbox.disabled(), null);
     }
 
     /** 会员积分视图：积分账户 + 账本分页（均为「个数」数量口径，响应不含币种与代币字段）。 */
@@ -136,6 +146,15 @@ public class PointApplicationService {
     public CstPointAccountPo redeem(Long storeId, Long memberId, Long points, Long orderId, String idempotencyKey) {
         if (points == null || points <= 0) {
             throw new ApiException(400, "POINTS_INVALID", "抵扣积分必须为正整数");
+        }
+        if (ruleService != null) {
+            TenantContext context = TenantContextHolder.get();
+            long tenantId = context == null ? 0L : context.tenantId();
+            PointRuleConfigApplicationService.PointRule rule = ruleService.resolve(tenantId, storeId,
+                    context == null ? null : context.businessType());
+            if (rule.redeemCapPoints() > 0 && points > rule.redeemCapPoints()) {
+                throw new ApiException(422, "POINT_REDEEM_CAP_EXCEEDED", "本次抵扣积分超过规则上限");
+            }
         }
         assertIdempotent(idempotencyKey);
         CstPointAccountPo account = requireAccountByMember(memberId);

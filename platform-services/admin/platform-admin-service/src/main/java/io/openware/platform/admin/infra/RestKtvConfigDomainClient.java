@@ -11,6 +11,9 @@ import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
 import io.openware.platform.admin.api.ktv.ServerCatalogItem;
+import io.openware.platform.admin.api.ktv.PointRuleConfig;
+import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
+import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -39,18 +42,26 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
     private final RestClient tenantClient;
     private final RestClient resourceClient;
     private final RestClient paymentClient;
+    private final RestClient customerClient;
+    private final RestClient orderClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public RestKtvConfigDomainClient(
             @Value("${TENANT_SERVICE_BASE_URL:http://localhost:4110}") String tenantBaseUrl,
             @Value("${RESOURCE_SERVICE_BASE_URL:http://localhost:4120}") String resourceBaseUrl,
             @Value("${PAYMENT_SERVICE_BASE_URL:http://localhost:4140}") String paymentBaseUrl,
+            @Value("${CUSTOMER_SERVICE_BASE_URL:http://localhost:4130}") String customerBaseUrl,
+            @Value("${ORDER_SERVICE_BASE_URL:http://localhost:4150}") String orderBaseUrl,
             InternalServiceAuthenticationInterceptor internalAuthInterceptor) {
         this.tenantClient = RestClient.builder().baseUrl(tenantBaseUrl)
                 .requestInterceptor(internalAuthInterceptor).build();
         this.resourceClient = RestClient.builder().baseUrl(resourceBaseUrl)
                 .requestInterceptor(internalAuthInterceptor).build();
         this.paymentClient = RestClient.builder().baseUrl(paymentBaseUrl)
+                .requestInterceptor(internalAuthInterceptor).build();
+        this.customerClient = RestClient.builder().baseUrl(customerBaseUrl)
+                .requestInterceptor(internalAuthInterceptor).build();
+        this.orderClient = RestClient.builder().baseUrl(orderBaseUrl)
                 .requestInterceptor(internalAuthInterceptor).build();
     }
 
@@ -242,6 +253,67 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         return toServerCatalogItem(postJson(resourceClient, "/admin/resources", node));
     }
 
+    @Override
+    public PointRuleConfig pointRule(Long storeId, String businessType) {
+        String uri = "/internal/customer/point-rules";
+        if (storeId != null || businessType != null) {
+            uri += "?storeId=" + (storeId == null ? "" : storeId) + "&businessType=" + (businessType == null ? "" : businessType);
+        }
+        return objectMapper.convertValue(getJson(customerClient, uri), PointRuleConfig.class);
+    }
+
+    @Override
+    public PointRuleConfig savePointRule(PointRuleConfig config) {
+        return objectMapper.convertValue(putJson(customerClient, "/internal/customer/point-rules", objectMapper.valueToTree(config)), PointRuleConfig.class);
+    }
+
+    @Override
+    public ReservationRuleConfig reservationRule(Long storeId, String businessType) {
+        String uri = "/internal/order/reservation-rules";
+        if (storeId != null || businessType != null) {
+            uri += "?storeId=" + (storeId == null ? "" : storeId) + "&businessType=" + (businessType == null ? "" : businessType);
+        }
+        return objectMapper.convertValue(getJson(orderClient, uri), ReservationRuleConfig.class);
+    }
+
+    @Override
+    public ReservationRuleConfig saveReservationRule(ReservationRuleConfig config) {
+        return objectMapper.convertValue(putJson(orderClient, "/internal/order/reservation-rules", objectMapper.valueToTree(config)), ReservationRuleConfig.class);
+    }
+
+    @Override
+    public PaymentRuleConfig paymentRule(Long storeId, String businessType) {
+        String uri = "/internal/payment/rules/refund?storeId=" + (storeId == null ? "" : storeId)
+                + "&businessType=" + (businessType == null ? "" : businessType);
+        JsonNode refund = getJson(paymentClient, uri);
+        JsonNode closing = storeId == null ? objectMapper.createObjectNode() : getJson(paymentClient, "/internal/payment/rules/daily-closing?storeId=" + storeId);
+        var merged = objectMapper.createObjectNode();
+        merged.setAll((com.fasterxml.jackson.databind.node.ObjectNode) refund);
+        merged.setAll((com.fasterxml.jackson.databind.node.ObjectNode) closing);
+        merged.put("storeId", storeId == null ? 0L : storeId);
+        merged.put("businessType", businessType == null ? "" : businessType);
+        return objectMapper.convertValue(merged, PaymentRuleConfig.class);
+    }
+
+    @Override
+    public PaymentRuleConfig savePaymentRule(PaymentRuleConfig config) {
+        var refund = objectMapper.createObjectNode();
+        refund.put("storeId", config.storeId());
+        refund.put("businessType", config.businessType());
+        refund.put("approvalThreshold", config.approvalThreshold());
+        refund.put("offlineRefundEnabled", Boolean.TRUE.equals(config.offlineRefundEnabled()));
+        refund.put("version", config.version());
+        refund.put("idempotencyKey", config.idempotencyKey());
+        putJson(paymentClient, "/internal/payment/rules/refund", refund);
+        if (config.storeId() != null && config.storeId() > 0 && config.closingMinute() != null) {
+            var closing = objectMapper.createObjectNode();
+            closing.put("storeId", config.storeId()); closing.put("closingMinute", config.closingMinute());
+            closing.put("version", config.version()); closing.put("idempotencyKey", config.idempotencyKey());
+            putJson(paymentClient, "/internal/payment/rules/daily-closing", closing);
+        }
+        return config;
+    }
+
     // —— 映射 ——
     private PricingPlan toPricingPlan(JsonNode item, JsonNode serverItem) {
         long price = item.path("pricePerUnit").asLong(0L);
@@ -328,6 +400,25 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
     private JsonNode postJson(RestClient client, String uri, JsonNode body) {
         try {
             String resp = client.post()
+                    .uri(uri)
+                    .header("X-Tenant-Context", tenantContextJson())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(objectMapper.writeValueAsString(body))
+                    .retrieve()
+                    .body(String.class);
+            return objectMapper.readTree(resp);
+        } catch (RestClientResponseException e) {
+            throw toApiException(e);
+        } catch (ApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("调用领域服务失败: " + uri, e);
+        }
+    }
+
+    private JsonNode putJson(RestClient client, String uri, JsonNode body) {
+        try {
+            String resp = client.put()
                     .uri(uri)
                     .header("X-Tenant-Context", tenantContextJson())
                     .contentType(MediaType.APPLICATION_JSON)

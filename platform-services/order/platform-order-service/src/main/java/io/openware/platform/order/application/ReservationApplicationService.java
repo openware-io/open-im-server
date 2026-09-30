@@ -88,6 +88,7 @@ public class ReservationApplicationService {
     private final TenantBusinessHoursClient businessHoursClient;
     private final AuditClient auditClient;
     private final DailySerialNumberGenerator dailySerialNumberGenerator;
+    private ReservationRuleApplicationService reservationRuleService;
 
     public ReservationApplicationService(ReservationMapper reservationMapper,
                                          OrderMapper orderMapper,
@@ -105,6 +106,11 @@ public class ReservationApplicationService {
         this.businessHoursClient = businessHoursClient;
         this.auditClient = auditClient;
         this.dailySerialNumberGenerator = dailySerialNumberGenerator;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setReservationRuleService(ReservationRuleApplicationService reservationRuleService) {
+        this.reservationRuleService = reservationRuleService;
     }
 
     /**
@@ -133,6 +139,10 @@ public class ReservationApplicationService {
         // 营业时间（统一原则）：到店时间必须落在营业时段内。放在最前面 —— 它是本域就能判定的规则，
         // 不必先远程校验房型；缺省 18:00–次日 05:00，租户/门店可在「KTV 配置 → 营业时间」覆盖。
         requireWithinBusinessHours(cmd);
+        if (reservationRuleService != null) {
+            reservationRuleService.validateCreate(tenantId, cmd.businessType(), cmd.storeId(),
+                    toBusinessLocal(cmd.startAt()));
+        }
 
         // 幂等：同租户同 Idempotency-Key 已创建则直接返回（重试语义）。
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
@@ -279,6 +289,9 @@ public class ReservationApplicationService {
     public ReservationPo noShow(Long id) {
         try {
             ReservationPo po = require(id);
+            if (reservationRuleService != null) {
+                reservationRuleService.validateCancel(po.getTenantId(), po.getBusinessType(), po.getStoreId(), po.getStartAt());
+            }
             String beforeStatus = po.getStatus();
             if (!ReservationStatus.PENDING.name().equals(beforeStatus)
                     && !ReservationStatus.CONFIRMED.name().equals(beforeStatus)) {

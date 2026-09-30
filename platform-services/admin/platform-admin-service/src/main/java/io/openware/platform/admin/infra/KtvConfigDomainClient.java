@@ -3,6 +3,9 @@ package io.openware.platform.admin.infra;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
 import io.openware.platform.admin.api.ktv.ServerCatalogItem;
+import io.openware.platform.admin.api.ktv.PointRuleConfig;
+import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
+import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 
 import java.util.List;
 
@@ -29,4 +32,11 @@ public interface KtvConfigDomainClient {
     List<ServerCatalogItem> listServerCatalog(Long storeId);
 
     ServerCatalogItem upsertServerCatalogItem(ServerCatalogItem item);
+
+    PointRuleConfig pointRule(Long storeId, String businessType);
+    PointRuleConfig savePointRule(PointRuleConfig config);
+    ReservationRuleConfig reservationRule(Long storeId, String businessType);
+    ReservationRuleConfig saveReservationRule(ReservationRuleConfig config);
+    PaymentRuleConfig paymentRule(Long storeId, String businessType);
+    PaymentRuleConfig savePaymentRule(PaymentRuleConfig config);
 }

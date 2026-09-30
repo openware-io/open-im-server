@@ -7,7 +7,8 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
-import org.springframework.beans.factory.annotation.Autowired;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,13 +32,20 @@ public class RefundApplicationService {
     private final RefundMapper refundMapper;
     private final AuditClient auditClient;
     private final OrderBillingMapper orderBillingMapper;
+    private final PaymentRuleApplicationService paymentRuleService;
 
-    @Autowired
     public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient,
                                     OrderBillingMapper orderBillingMapper) {
+        this(refundMapper, auditClient, orderBillingMapper, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient,
+                                    OrderBillingMapper orderBillingMapper, PaymentRuleApplicationService paymentRuleService) {
         this.refundMapper = refundMapper;
         this.auditClient = auditClient;
         this.orderBillingMapper = orderBillingMapper;
+        this.paymentRuleService = paymentRuleService;
     }
 
     /** 兼容既有装配/单测：无账单查询时退款币种回退当时租户币种（缺省 USD）。 */
@@ -54,6 +62,8 @@ public class RefundApplicationService {
         try {
             RefundPo po = new RefundPo();
             po.setTenantId(tenantId); po.setStoreId(storeId); po.setOrderId(orderId);
+            TenantContext context = TenantContextHolder.get();
+            po.setBusinessType(context == null ? null : context.businessType());
             po.setRequestId(UUID.randomUUID().toString());
             po.setRequestedAmount(amount); po.setReason(reason); po.setRequestedBy(requestedBy);
             // 币种快照（16_CURRENCY_CONVENTIONS §5/§6.3）：退款必须退**原币种**，与申请金额同事务落库。
@@ -161,6 +171,13 @@ public class RefundApplicationService {
         try {
             RefundPo po = requireRefund(refundId);
             requireStatus(po, STATUS_APPROVED, "refund");
+            if (paymentRuleService != null) {
+                PaymentRuleApplicationService.RefundRuleView rule = paymentRuleService.resolveRefund(
+                        po.getTenantId(), po.getStoreId(), po.getBusinessType());
+                if (!rule.offlineRefundEnabled()) {
+                    throw new io.openware.common.exception.ApiException(422, "OFFLINE_REFUND_DISABLED", "当前业态或门店不允许线下退款");
+                }
+            }
             po.setStatus(STATUS_REFUNDED);
             po.setProviderRefundNo(providerRefundNo);
             po.setUpdatedAt(LocalDateTime.now());
