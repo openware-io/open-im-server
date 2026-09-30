@@ -1,0 +1,25 @@
+-- 订单作废审批（Order 域自有表；不依赖 Tenant/IAM 持久化）
+CREATE TABLE `ord_order_void_approval` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `tenant_id` bigint NOT NULL,
+  `store_id` bigint NOT NULL,
+  `business_type` varchar(64) NOT NULL DEFAULT '',
+  `order_id` bigint NOT NULL,
+  `order_version` int NOT NULL DEFAULT 0,
+  `order_status_snapshot` varchar(32) NOT NULL,
+  `order_snapshot_json` text NULL,
+  `reason` varchar(512) NOT NULL,
+  `status` varchar(16) NOT NULL,
+  `applicant_id` bigint NOT NULL,
+  `approver_id` bigint NULL,
+  `review_comment` varchar(512) NULL,
+  `idempotency_key` varchar(128) NULL,
+  `version` int NOT NULL DEFAULT 0,
+  `created_at` datetime(6) NOT NULL,
+  `updated_at` datetime(6) NOT NULL,
+  `reviewed_at` datetime(6) NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_ord_void_approval_idem` (`tenant_id`,`idempotency_key`),
+  KEY `idx_ord_void_approval_order` (`tenant_id`,`order_id`,`status`),
+  KEY `idx_ord_void_approval_store` (`tenant_id`,`store_id`,`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单作废审批';
