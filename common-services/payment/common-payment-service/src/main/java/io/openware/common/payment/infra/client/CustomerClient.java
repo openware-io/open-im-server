@@ -44,6 +44,22 @@ public class CustomerClient {
                 node.path("availablePoints").asLong(), node.path("frozenPoints").asLong());
     }
 
+    /** 按 Customer 域当前门店/业态规则，将抵扣金额（最小货币单位）换算为应扣积分。 */
+    public long pointsForAmount(Long tenantId, Long storeId, long amountMinor) {
+        try {
+            JsonNode node = restClient.get().uri(uriBuilder -> uriBuilder
+                            .path("/internal/customer/points/amount-to-points")
+                            .queryParam("amountMinor", amountMinor).build())
+                    .header("X-Tenant-Context", tenantContextJson(tenantId, storeId))
+                    .retrieve().body(JsonNode.class);
+            return node.path("points").asLong();
+        } catch (RestClientResponseException e) {
+            throw toApiException(e);
+        } catch (Exception e) {
+            throw new IllegalStateException("调用 customer 服务积分金额换算失败", e);
+        }
+    }
+
     public PointEarnResponse earnPoints(Long tenantId, Long storeId, Long customerId, long eligibleAmountMinor,
                                         Long orderId, String idempotencyKey) {
         JsonNode node = post("/internal/customer/points/earn", tenantId, storeId,

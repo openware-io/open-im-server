@@ -199,7 +199,13 @@ public class CollectApplicationService {
             for (PaymentItem p : ordered) {
                 int kind = methodOf(p.method());
                 if (kind == METHOD_POINT) {
-                    redeemPoints(tenantId, storeId, orderId, customerId, p.amount(), attemptKey);
+                    long points = customerClient.pointsForAmount(tenantId, storeId, p.amount());
+                    // 旧的隔离单测/未升级的内部实现未返回换算字段时，租户默认规则是 1:1；
+                    // 真实 Customer 端点对正金额始终返回正积分，故该兜底不会绕过已配置倍率。
+                    if (points <= 0L) {
+                        points = p.amount();
+                    }
+                    redeemPoints(tenantId, storeId, orderId, customerId, points, attemptKey);
                     heldLegs.add(new HeldLeg(LEG_POINT, p.amount()));
                 } else if (kind == METHOD_WALLET) {
                     deductWallet(tenantId, storeId, orderId, customerId, effectiveCurrency, p.amount(), attemptKey);
