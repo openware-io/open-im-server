@@ -32,6 +32,12 @@ VALUES
   ('currency', 'platform-tenant-service', 'CURRENCY', 'TENANT', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3)),
   ('wallet_brand_name', 'platform-tenant-service', 'STRING', 'TENANT', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3)),
   ('wallet_ratio', 'platform-tenant-service', 'INTEGER', 'TENANT', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('points_earn_rule', 'platform-customer-service', 'DECIMAL_RULE', 'TENANT/BUSINESS/STORE', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('points_redeem_rule', 'platform-customer-service', 'DECIMAL_RULE', 'TENANT/BUSINESS/STORE', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('points_expiry_days', 'platform-customer-service', 'INTEGER', 'TENANT/BUSINESS', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('points_redeem_cap', 'platform-customer-service', 'DECIMAL_RULE', 'BUSINESS/STORE', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('reservation_advance_window', 'platform-order-service', 'DURATION', 'TENANT/BUSINESS/STORE', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
+  ,('reservation_cancel_window', 'platform-order-service', 'DURATION', 'TENANT/BUSINESS/STORE', 'OVERRIDE', 'ACTIVE', NOW(3), NOW(3))
 ON DUPLICATE KEY UPDATE
   `owner_service` = VALUES(`owner_service`),
   `value_type` = VALUES(`value_type`),

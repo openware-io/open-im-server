@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SaaS 租户后台 · 菜单权限与总部经营原型 v0.9</title>
+<title>SaaS 租户后台 · 菜单权限与总部经营原型 v1.0</title>
 <style>
   :root {
     --sidebar-bg: #1d1e2c;
@@ -386,7 +386,7 @@
 <div class="wrap">
 
   <header class="page">
-    <h1>SaaS 租户后台 · 菜单权限与总部经营原型<span class="tag rev">v0.9 · 双方案合并评审</span></h1>
+    <h1>SaaS 租户后台 · 菜单权限与总部经营原型<span class="tag rev">v1.0 · P7-C 配置边界评审</span></h1>
     <p>方案 A：<code>SAAS_MENU_PERMISSION_01_ADMIN.md</code>　·　方案 B：<code>SAAS_TENANT_HEADQUARTERS_01_SERVICE.md</code>　·　示例租户：<b>A380集团</b>（KTV + 酒店 + 按摩 多业态）</p>
   </header>
 
@@ -581,6 +581,16 @@
         </tbody>
       </table>
       <div class="scope-warning"><b>不纳入本期：</b>跨门店商品/服务共享目录与跨店履约调用。门店已有「门店商品与库存」，本方案不再新增重复的租户级商品菜单。</div>
+      <h3 style="margin:18px 0 8px">P7-C 配置范围（待确认）</h3>
+      <table class="matrix">
+        <thead><tr><th>批次</th><th>配置项目</th><th>允许作用域</th><th>边界</th></tr></thead>
+        <tbody>
+          <tr><th>C1 · 经营规则</th><td>积分获得/抵扣、积分有效期、抵扣上限；预约提前时间、取消/改期窗口；储值品牌名</td><td>积分/预约按登记规则支持租户/业态/门店；有效期不做单店覆盖；储值品牌名仅租户级</td><td>规则按交易门店生效；客户、余额、流水归因仍遵循既定共享模型。</td></tr>
+          <tr><th>C2 · 资金审批</th><td>退款审批阈值、线下退款开关、作废审批要求、日结时间</td><td>按各项业务边界登记；不把日结复核角色存成配置</td><td>独立实施，强审计；角色与授权继续由 IAM 管理。</td></tr>
+          <tr><th>明确排除</th><td>商品库存、跨店商品/服务调用、客户多店关系、账户/积分余额拆分、资源档案</td><td>不进入三层配置</td><td>不新增通用配置中心或持久化门店组。</td></tr>
+        </tbody>
+      </table>
+      <div class="scope-warning"><b>实施门槛：</b>每项由所属领域持有数据和接口；批量写入先校验租户、门店、状态、业态、权限，再事务写入；提供幂等、乐观锁、审计和失败无部分写入测试。用户确认前不增加菜单或开放接口。</div>
     </div>
   </section>
 
@@ -1233,6 +1243,7 @@ ALTER TABLE iam_permission ADD
       <tr><td><b>v0.3</b></td><td>按主代码与迁移种子复核：租户菜单 18 → <b>19</b> 项（新增「订单管理」）；存量权限码 44（非 60+）、码为 2～3 段；<code>platform.operator</code> 实为全量持有 44 个码；前端权限映射仅 1 条且方向与后端相反；Flyway 按模块编号。详见 <code>SAAS_MENU_PERMISSION_02_SERVICE.md</code> §5.5 与 <code>HANDOFF</code> §0.2。</td></tr>
       <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；冻结客户主档跨店共享、来源门店和流水门店归因口径。</td></tr>
       <tr><td><b>v0.9</b></td><td>方案 B 拆分为独立服务方案；明确总部只读下钻、客户/积分/储值默认归属、租户/业态/门店配置三层作用域、多店批量设置和决策清单。</td></tr>
+      <tr><td><b>v1.0</b></td><td>细化 P7-C1 经营规则与 P7-C2 资金审批配置范围、作用域、排除项和实施门槛，标记为待确认。</td></tr>
     </table>
   </footer>
 

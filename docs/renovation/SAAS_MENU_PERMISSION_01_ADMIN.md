@@ -1,4 +1,4 @@
-# SaaS 租户后台菜单与权限分层方案（评审稿 v0.9）
+# SaaS 租户后台菜单与权限分层方案（评审稿 v1.0）
 
 > **所属方案集**：`SAAS_MENU_PERMISSION`（SaaS 导航与权限分层改造）
 > **本文件**：`01_ADMIN`，方案 A：PC 后台菜单/权限分层与入口迁移（评审稿，先评审后派工）
@@ -12,7 +12,7 @@
 >
 > 方案 A 的菜单/权限实现冲突时**以 `02_SERVICE` 为准**（它按建表语句与聚合 SQL 实测编写）；总部经营和客户资产口径以方案 B 为准。
 > **关联标准**：`docs/business/ACCOUNT_PERMISSION_MODEL.md`、`docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1、`docs/renovation/SAAS_PLATFORM_04_DATA.md`、`docs/renovation/KTV_BUSINESS_01_SERVICE.md` §0.3
-> **状态**：待评审（未实施）；原型已合并展示方案 A/B，服务方案已拆分
+> **状态**：方案 A 已按 2.2.0 分支实施；P7-C1/C2 配置范围已补入原型和实施计划，待业务确认后实施
 > **v0.3 复核说明（2026-09-22）**：本版按 `AdminMenuApplicationService` 、`AdminMenuController`、`AdminMenuItem`、
 > 该模块 4 个测试，以及 `gv_saas_admin` 的 `AdminLayout.vue` / `SidebarMenuItem.vue` / `stores/menu.js` /
 > `utils/menuPermission.js` / `router/index.js` / `TenantContextSelector.vue` 逐行复核，修正了 v0.2 的 6 处事实错误
@@ -747,3 +747,4 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | 2026-09-22 | **v0.3（评审稿 · 实测复核）** | 按 `AdminMenuApplicationService` / `AdminMenuController` / `AdminMenuItem` / 4 个测试 + `gv_saas_admin` 六个文件逐行复核，修正 6 处事实错误并补 4 项决策点：<br>① **租户菜单 19 项不是 18**（`a057d771` 于 09-19 新增"订单管理"`/admin/orders`），§1.1 / §1.3-P1 / §3.3 / §3.4 / §9 全部同步，映射表补该行；<br>② **前端权限映射只有 1 条**（`/admin/tenant/currency`），且未登记路径"一律可见"与后端"未命中即隐藏"方向相反 ⇒ P5 表述修正；<br>③ **存量权限码 44 个、`module.resource[.action]` 2～3 段**（不是"60+、三段"），且 `module/resource/action` 不可反推 `code`；<br>④ **`platform.operator` 持有 44/44 全量**（不是 3 个 TENANT 级码）⇒ §5.3 加实测列、§5.5 矩阵重画（PLATFORM 出现在每一行）；<br>⑤ **前端与上下文都没有 `businessType`/`timezone`** ⇒ §6.3 标注后端需先加字段；<br>⑥ **`AdminLayout.vue` 无分组/分隔线/上下文标识**（两段式是新建），`menuPermission.test.js:22-25` 与 `AdminMenuApplicationServiceTest` 的 2 个位置耦合断言会被 M1 打破；<br>⑦ §8 新增缺口 6（业态双源 + 门店业态无写路径）；§11 Flyway 清单改为**按模块编号**；新增 D-12～D-15 |
 | 2026-09-28 | **v0.8（方案拆分）** | 本文件收敛为方案 A；方案 B 拆分到 `SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`。菜单仍只保留现有门店商品与库存入口；客户/积分/储值的总部总览、门店操作、配置作用域和余额归属不再混入本文件。 |
 | 2026-09-28 | **v0.9（方案 B 对齐）** | 将客户/积分/储值从租户级映射改为门店级入口；租户区仅保留总部汇总/营销配置预留；补充共享余额不能按门店相加、多币种必须分组的验收约束。 |
+| 2026-09-30 | **v1.0（P7-C 细化）** | 增加积分/预约经营规则与资金审批配置的分批边界；明确储值品牌名保持租户级，并同步原型与实施主计划。 |
