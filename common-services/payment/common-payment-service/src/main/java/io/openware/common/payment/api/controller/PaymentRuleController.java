@@ -2,8 +2,6 @@ package io.openware.common.payment.api.controller;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.payment.application.PaymentRuleApplicationService;
-import io.openware.common.payment.infra.persistence.po.PayDailyClosingRuleConfigPo;
-import io.openware.common.payment.infra.persistence.po.PayRefundRuleConfigPo;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -26,9 +24,11 @@ public class PaymentRuleController {
     }
 
     @PutMapping("/refund")
-    public PayRefundRuleConfigPo saveRefund(@RequestBody RefundRequest body) {
-        verify(); TenantContext c = context(); return service.saveRefund(c.tenantId(), new PaymentRuleApplicationService.RefundSaveCommand(
+    public RefundRuleConfig saveRefund(@RequestBody RefundRequest body) {
+        verify(); TenantContext c = context(); var row = service.saveRefund(c.tenantId(), new PaymentRuleApplicationService.RefundSaveCommand(
                 body.storeId(), body.businessType(), body.approvalThreshold(), body.offlineRefundEnabled(), body.version(), body.idempotencyKey()));
+        return new RefundRuleConfig(row.getId(), row.getStoreId(), row.getBusinessType(), row.getApprovalThreshold(),
+                Integer.valueOf(1).equals(row.getOfflineRefundEnabled()), row.getVersion());
     }
 
     @GetMapping("/daily-closing")
@@ -37,13 +37,17 @@ public class PaymentRuleController {
     }
 
     @PutMapping("/daily-closing")
-    public PayDailyClosingRuleConfigPo saveClosing(@RequestBody ClosingRequest body) {
-        verify(); TenantContext c = context(); return service.saveClosing(c.tenantId(), new PaymentRuleApplicationService.ClosingSaveCommand(
+    public ClosingRuleConfig saveClosing(@RequestBody ClosingRequest body) {
+        verify(); TenantContext c = context(); var row = service.saveClosing(c.tenantId(), new PaymentRuleApplicationService.ClosingSaveCommand(
                 body.storeId(), body.closingMinute(), body.version(), body.idempotencyKey()));
+        return new ClosingRuleConfig(row.getId(), row.getStoreId(), row.getClosingMinute(), row.getVersion());
     }
 
     private TenantContext context() { TenantContext c = TenantContextHolder.get(); if (c == null || c.tenantId() <= 0) throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文"); return c; }
     private void verify() { if (!Boolean.TRUE.equals(request.getAttribute(InternalServiceAuthenticationFilter.AUTHENTICATED_ATTRIBUTE))) throw new ApiException(401, "INVALID_INTERNAL_SERVICE_AUTHENTICATION", "内部服务鉴权失败"); }
     public record RefundRequest(Long storeId, String businessType, BigDecimal approvalThreshold, Boolean offlineRefundEnabled, Integer version, String idempotencyKey) {}
     public record ClosingRequest(Long storeId, Integer closingMinute, Integer version, String idempotencyKey) {}
+    public record RefundRuleConfig(Long id, Long storeId, String businessType, BigDecimal approvalThreshold,
+                                   boolean offlineRefundEnabled, Integer version) {}
+    public record ClosingRuleConfig(Long id, Long storeId, Integer closingMinute, Integer version) {}
 }

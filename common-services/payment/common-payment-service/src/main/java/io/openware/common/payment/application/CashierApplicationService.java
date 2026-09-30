@@ -44,24 +44,34 @@ public class CashierApplicationService {
     private final RefundMapper refundMapper;
     private final PayCollectMapper payCollectMapper;
     private final AuditClient auditClient;
+    private final PaymentRuleApplicationService paymentRuleService;
 
     @org.springframework.beans.factory.annotation.Autowired
     public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
                                      PayIntentMapper payIntentMapper, RefundMapper refundMapper,
-                                     PayCollectMapper payCollectMapper, AuditClient auditClient) {
+                                     PayCollectMapper payCollectMapper, AuditClient auditClient,
+                                     PaymentRuleApplicationService paymentRuleService) {
         this.shiftMapper = shiftMapper;
         this.dailyClosingMapper = dailyClosingMapper;
         this.payIntentMapper = payIntentMapper;
         this.refundMapper = refundMapper;
         this.payCollectMapper = payCollectMapper;
         this.auditClient = auditClient;
+        this.paymentRuleService = paymentRuleService;
     }
 
     /** 兼容既有装配/单测：不注入组合收款查询时，日结不含储值/积分分项（生产装配始终注入）。 */
     public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
                                      PayIntentMapper payIntentMapper, RefundMapper refundMapper,
                                      AuditClient auditClient) {
-        this(shiftMapper, dailyClosingMapper, payIntentMapper, refundMapper, null, auditClient);
+        this(shiftMapper, dailyClosingMapper, payIntentMapper, refundMapper, null, auditClient, null);
+    }
+
+    /** 兼容既有测试和非 Spring 调用方的六参数构造函数。 */
+    public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
+                                     PayIntentMapper payIntentMapper, RefundMapper refundMapper,
+                                     PayCollectMapper payCollectMapper, AuditClient auditClient) {
+        this(shiftMapper, dailyClosingMapper, payIntentMapper, refundMapper, payCollectMapper, auditClient, null);
     }
 
     /**
@@ -309,8 +319,10 @@ public class CashierApplicationService {
      * 不使用当前租户设置，避免改设置后重算历史。
      */
     private DailyClosingSummary summarizeBusinessDate(Long tenantId, Long storeId, LocalDate businessDate) {
-        LocalDateTime from = businessDate.atStartOfDay();
-        LocalDateTime to = businessDate.plusDays(1).atStartOfDay();
+        int closingMinute = paymentRuleService == null ? 0
+                : paymentRuleService.resolveClosing(tenantId, storeId).closingMinute();
+        LocalDateTime from = businessDate.atStartOfDay().plusMinutes(closingMinute);
+        LocalDateTime to = businessDate.plusDays(1).atStartOfDay().plusMinutes(closingMinute);
         Map<String, CurrencyBucket> byCurrency = new TreeMap<>();
         collectCollections(byCurrency, tenantId, storeId, from, to);
         collectWalletAndPointCollections(byCurrency, tenantId, storeId, from, to);

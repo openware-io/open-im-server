@@ -292,6 +292,16 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         merged.setAll((com.fasterxml.jackson.databind.node.ObjectNode) closing);
         merged.put("storeId", storeId == null ? 0L : storeId);
         merged.put("businessType", businessType == null ? "" : businessType);
+        if (refund.has("version")) {
+            merged.set("refundVersion", refund.get("version"));
+        } else {
+            merged.put("refundVersion", 0);
+        }
+        if (closing.has("version")) {
+            merged.set("closingVersion", closing.get("version"));
+        } else {
+            merged.put("closingVersion", 0);
+        }
         return objectMapper.convertValue(merged, PaymentRuleConfig.class);
     }
 
@@ -302,13 +312,13 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         refund.put("businessType", config.businessType());
         refund.put("approvalThreshold", config.approvalThreshold());
         refund.put("offlineRefundEnabled", Boolean.TRUE.equals(config.offlineRefundEnabled()));
-        refund.put("version", config.version());
+        refund.put("version", config.refundVersion() == null ? config.version() : config.refundVersion());
         refund.put("idempotencyKey", config.idempotencyKey());
         putJson(paymentClient, "/internal/payment/rules/refund", refund);
         if (config.storeId() != null && config.storeId() > 0 && config.closingMinute() != null) {
             var closing = objectMapper.createObjectNode();
             closing.put("storeId", config.storeId()); closing.put("closingMinute", config.closingMinute());
-            closing.put("version", config.version()); closing.put("idempotencyKey", config.idempotencyKey());
+            closing.put("version", config.closingVersion() == null ? config.version() : config.closingVersion()); closing.put("idempotencyKey", config.idempotencyKey());
             putJson(paymentClient, "/internal/payment/rules/daily-closing", closing);
         }
         return config;

@@ -31,11 +31,16 @@ public class PaymentRuleApplicationService {
         requireTenant(tenantId);
         String type = normalize(businessType);
         PayRefundRuleConfigPo row = storeId == null ? null : findRefund(tenantId, type, storeId);
+        PayRefundRuleConfigPo storeRow = row;
         if (row == null && type != null) row = findRefund(tenantId, type, null);
         if (row == null) row = findRefund(tenantId, "", null);
-        return row == null ? new RefundRuleView(BigDecimal.ZERO, true, "DEFAULT")
-                : new RefundRuleView(row.getApprovalThreshold(), Integer.valueOf(1).equals(row.getOfflineRefundEnabled()),
-                row.getStoreId() != null ? "STORE" : (blank(row.getBusinessType()) ? "TENANT" : "BUSINESS"));
+        if (row == null) return new RefundRuleView(BigDecimal.ZERO, true, "DEFAULT", 0);
+        // 门店只覆盖阈值；线下退款开关始终来自业态/租户层，避免门店页面绕过资金策略。
+        PayRefundRuleConfigPo offlineSource = storeRow == null ? row : (type == null ? null : findRefund(tenantId, type, null));
+        if (offlineSource == null && storeRow != null) offlineSource = findRefund(tenantId, "", null);
+        boolean offline = offlineSource == null || Integer.valueOf(1).equals(offlineSource.getOfflineRefundEnabled());
+        return new RefundRuleView(row.getApprovalThreshold(), offline,
+                row.getStoreId() != null ? "STORE" : (blank(row.getBusinessType()) ? "TENANT" : "BUSINESS"), row.getVersion());
     }
 
     public ClosingRuleView resolveClosing(Long tenantId, Long storeId) {
@@ -59,7 +64,13 @@ public class PaymentRuleApplicationService {
         LocalDateTime now = LocalDateTime.now();
         if (row == null) { row = new PayRefundRuleConfigPo(); row.setTenantId(tenantId); row.setBusinessType(type == null ? "" : type); row.setStoreId(store); row.setVersion(0); row.setCreatedAt(now); row.setCreatedBy(0L); }
         row.setApprovalThreshold(c.approvalThreshold() == null ? BigDecimal.ZERO : c.approvalThreshold());
-        row.setOfflineRefundEnabled(Boolean.TRUE.equals(c.offlineRefundEnabled()) ? 1 : 0); row.setStatus("ACTIVE"); row.setIdempotencyKey(c.idempotencyKey()); row.setUpdatedAt(now); row.setUpdatedBy(0L);
+        // 线下退款只允许租户/业态默认；门店行保留统一安全默认，解析时从上层继承。
+        if (store == null) {
+            row.setOfflineRefundEnabled(Boolean.TRUE.equals(c.offlineRefundEnabled()) ? 1 : 0);
+        } else if (row.getOfflineRefundEnabled() == null) {
+            row.setOfflineRefundEnabled(1);
+        }
+        row.setStatus("ACTIVE"); row.setIdempotencyKey(c.idempotencyKey()); row.setUpdatedAt(now); row.setUpdatedBy(0L);
         if (row.getId() == null) refundMapper.insert(row); else { row.setVersion(row.getVersion() + 1); refundMapper.updateById(row); }
         auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(store).action("payment.refund.rule.save").resourceType("pay_refund_rule_config").resourceId(String.valueOf(row.getId())).build());
         return row;
@@ -94,6 +105,6 @@ public class PaymentRuleApplicationService {
     private static boolean blank(String s) { return s == null || s.isBlank(); }
     public record RefundSaveCommand(Long storeId, String businessType, BigDecimal approvalThreshold, Boolean offlineRefundEnabled, Integer version, String idempotencyKey) {}
     public record ClosingSaveCommand(Long storeId, Integer closingMinute, Integer version, String idempotencyKey) {}
-    public record RefundRuleView(BigDecimal approvalThreshold, boolean offlineRefundEnabled, String source) {}
+    public record RefundRuleView(BigDecimal approvalThreshold, boolean offlineRefundEnabled, String source, Integer version) {}
     public record ClosingRuleView(Integer closingMinute, String source, Integer version) {}
 }

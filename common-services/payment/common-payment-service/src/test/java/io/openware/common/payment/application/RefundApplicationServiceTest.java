@@ -38,6 +38,18 @@ class RefundApplicationServiceTest {
   }
 
   @Test
+  void requestRefund_keepsExistingApprovalRequiredStateMachine() {
+    PaymentRuleApplicationService rules = mock(PaymentRuleApplicationService.class);
+    when(rules.resolveRefund(1L, 77L, null))
+        .thenReturn(new PaymentRuleApplicationService.RefundRuleView(new BigDecimal("100.00"), true, "STORE", 2));
+    RefundApplicationService configured = new RefundApplicationService(refundMapper, auditClient, null, rules);
+
+    RefundDto result = configured.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "小额退款", 7L);
+
+    assertEquals(RefundApplicationService.STATUS_PENDING, result.status());
+  }
+
+  @Test
   void approveRefund_movesPendingToApproved() {
     RefundPo pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
     when(refundMapper.selectById(1L)).thenReturn(pending);
