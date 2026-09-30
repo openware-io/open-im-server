@@ -16,8 +16,11 @@ import lombok.Setter;
 public class CollectConfirmedEvent {
   private String eventId;
   private Long tenantId;
+  private Long storeId;
+  private Long customerId;
   private Long orderId;
   private String collectNo;
-  private long collectedAmount;
+  /** 可获得积分的收款金额（排除积分/储值抵扣分腿，最小货币单位）。 */
+  private long eligibleAmount;
   private Instant occurredAt;
 }

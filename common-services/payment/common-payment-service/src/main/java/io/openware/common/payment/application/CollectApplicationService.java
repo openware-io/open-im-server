@@ -13,18 +13,24 @@ import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
 import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
 import io.openware.common.payment.infra.persistence.mapper.PayTransactionMapper;
 import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
+import io.openware.common.payment.infra.persistence.mapper.EventOutboxMapper;
 import io.openware.common.payment.infra.persistence.po.OrderBillingPo;
 import io.openware.common.payment.infra.persistence.po.PayCollectPo;
 import io.openware.common.payment.infra.persistence.po.PayIntentPo;
 import io.openware.common.payment.infra.persistence.po.PayTransactionPo;
+import io.openware.common.payment.infra.persistence.po.PayEventOutboxPo;
+import io.openware.protocol.mq.event.CollectConfirmedEvent;
+import io.openware.protocol.mq.event.PayEventTypes;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -75,6 +81,7 @@ public class CollectApplicationService {
     private final TransactionTemplate transactionTemplate;
     private final AuditClient auditClient;
     private final OrderBillingMapper orderBillingMapper;
+    private final EventOutboxMapper eventOutboxMapper;
 
     public CollectApplicationService(PayIntentMapper payIntentMapper,
                                      PayTransactionMapper payTransactionMapper,
@@ -83,7 +90,8 @@ public class CollectApplicationService {
                                      PaymentMethodApplicationService paymentMethodService,
                                      PlatformTransactionManager transactionManager,
                                      AuditClient auditClient,
-                                     OrderBillingMapper orderBillingMapper) {
+                                     OrderBillingMapper orderBillingMapper,
+                                     EventOutboxMapper eventOutboxMapper) {
         this.payIntentMapper = payIntentMapper;
         this.payTransactionMapper = payTransactionMapper;
         this.payCollectMapper = payCollectMapper;
@@ -92,6 +100,21 @@ public class CollectApplicationService {
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.auditClient = auditClient;
         this.orderBillingMapper = orderBillingMapper;
+        this.eventOutboxMapper = eventOutboxMapper;
+    }
+
+    /** Backward-compatible constructor for isolated unit tests. */
+    @Autowired
+    public CollectApplicationService(PayIntentMapper payIntentMapper,
+                                     PayTransactionMapper payTransactionMapper,
+                                     PayCollectMapper payCollectMapper,
+                                     CustomerClient customerClient,
+                                     PaymentMethodApplicationService paymentMethodService,
+                                     PlatformTransactionManager transactionManager,
+                                     AuditClient auditClient,
+                                     OrderBillingMapper orderBillingMapper) {
+        this(payIntentMapper, payTransactionMapper, payCollectMapper, customerClient, paymentMethodService,
+                transactionManager, auditClient, orderBillingMapper, null);
     }
 
     /**
@@ -204,10 +227,8 @@ public class CollectApplicationService {
                     }
                 }
                 markConfirmed(collect, result);
+                appendCollectConfirmedOutbox(collect, customerId, cashLegsFinal);
             });
-
-            // 积分获得必须与收款确认形成同一可重试事实。当前收款确认后的积分入口保留在
-            // Customer 域，但不能在本地事务提交后无补偿地调用；由可靠确认事件消费者接入后再启用。
 
             // 高风险写操作（组合收款）审计：异步占位，失败仅告警不阻断收款。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -581,6 +602,45 @@ public class CollectApplicationService {
         collect.setResponseJson(toJson(result));
         collect.setUpdatedAt(LocalDateTime.now());
         payCollectMapper.updateById(collect);
+    }
+
+    /**
+     * 将收款确认事实与本地确认状态放在同一事务写入 Outbox。Customer 消费者据此异步获得积分，
+     * 事件只携带服务端已确认的现金/线上金额（积分、储值抵扣不重复计入），并以 eventId 幂等。
+     */
+    private void appendCollectConfirmedOutbox(PayCollectPo collect, Long customerId,
+                                              List<PaymentItem> cashLegs) {
+        if (eventOutboxMapper == null) {
+            return;
+        }
+        long eligibleAmount = cashLegs == null ? 0L
+                : cashLegs.stream().mapToLong(PaymentItem::amount).sum();
+        if (customerId == null || eligibleAmount <= 0L) {
+            return;
+        }
+        String eventId = "pc-" + collect.getCollectNo() + "-" + UUID.randomUUID().toString().replace("-", "");
+        CollectConfirmedEvent event = CollectConfirmedEvent.builder()
+                .eventId(eventId)
+                .tenantId(collect.getTenantId())
+                .storeId(collect.getStoreId())
+                .customerId(customerId)
+                .orderId(collect.getOrderId())
+                .collectNo(collect.getCollectNo())
+                .eligibleAmount(eligibleAmount)
+                .occurredAt(Instant.now())
+                .build();
+        PayEventOutboxPo outbox = new PayEventOutboxPo();
+        outbox.setTenantId(collect.getTenantId());
+        outbox.setEventId(eventId);
+        outbox.setEventType(PayEventTypes.COLLECT_CONFIRMED);
+        outbox.setAggregateType("collect");
+        outbox.setAggregateId(collect.getCollectNo());
+        outbox.setPayloadJson(toJson(event));
+        outbox.setStatus("PENDING");
+        outbox.setRetryCount(0);
+        outbox.setCreatedAt(LocalDateTime.now());
+        outbox.setUpdatedAt(LocalDateTime.now());
+        eventOutboxMapper.insert(outbox);
     }
 
     /** 失败快照落库（本地事务已回滚后独立提交）：code/message 供排查，attemptKey/heldLegs/compensated 供同键重跑续做。 */
