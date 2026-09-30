@@ -7,6 +7,7 @@ import io.openware.platform.tenant.infra.persistence.po.StorePo;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,10 +44,57 @@ public class StoreApplicationService {
     /** 错误码：门店不属于签名上下文的租户。 */
     public static final String CODE_TENANT_SCOPE_DENIED = "TENANT_SCOPE_DENIED";
 
+    /** 错误码：业态为空、格式非法或不在 ACTIVE 业态字典中。 */
+    public static final String CODE_BUSINESS_TYPE_INVALID = "BUSINESS_TYPE_INVALID";
+
     private final StoreMapper storeMapper;
 
     public StoreApplicationService(StoreMapper storeMapper) {
         this.storeMapper = storeMapper;
+    }
+
+    /**
+     * 修改门店时区、营业日切点和业态；所有字段在同一事务内校验并更新。
+     * 业态只能来自 ACTIVE 的 {@code tnt_business_type}，请求值不会成为事实来源。
+     */
+    @Transactional
+    public StoreUpdateResult update(long tenantId, Long contextStoreId, Long storeId, Long operatorId,
+                                    String timezone, String businessDayCutoff, String businessType) {
+        if (timezone == null && businessDayCutoff == null && businessType == null) {
+            throw new ApiException(400, CODE_STORE_UPDATE_EMPTY,
+                    "没有可修改的字段：请至少传 timezone、businessDayCutoff 或 businessType");
+        }
+
+        ZoneId zone = timezone == null ? null : StoreTimeService.requireZoneId(timezone);
+        LocalTime cutoff = businessDayCutoff == null
+                ? null : StoreTimeService.requireBusinessDayCutoff(businessDayCutoff);
+        String normalizedBusinessType = businessType == null ? null : requireBusinessType(businessType);
+
+        StorePo store = requireScopedStore(tenantId, contextStoreId, storeId);
+        String timezoneBefore = store.getTimezone();
+        String cutoffBefore = store.getBusinessDayCutoff();
+        String businessTypeBefore = store.getBusinessType();
+        String timezoneAfter = zone == null ? timezoneBefore : zone.getId();
+        String cutoffAfter = cutoff == null ? cutoffBefore : StoreTimeService.formatBusinessDayCutoff(cutoff) + ":00";
+        String businessTypeAfter = normalizedBusinessType == null ? businessTypeBefore : normalizedBusinessType;
+
+        StorePo patch = new StorePo();
+        patch.setId(storeId);
+        if (zone != null) patch.setTimezone(timezoneAfter);
+        if (cutoff != null) patch.setBusinessDayCutoff(cutoffAfter);
+        if (normalizedBusinessType != null) patch.setBusinessType(businessTypeAfter);
+        patch.setUpdatedBy(operatorId);
+        LocalDateTime updatedAt = LocalDateTime.now();
+        patch.setUpdatedAt(updatedAt);
+        storeMapper.updateById(patch);
+
+        store.setTimezone(timezoneAfter);
+        store.setBusinessDayCutoff(cutoffAfter);
+        store.setBusinessType(businessTypeAfter);
+        store.setUpdatedBy(operatorId);
+        store.setUpdatedAt(updatedAt);
+        return new StoreUpdateResult(store, timezoneBefore, timezoneAfter, cutoffBefore, cutoffAfter,
+                businessTypeBefore, businessTypeAfter);
     }
 
     /**
@@ -63,44 +111,22 @@ public class StoreApplicationService {
     @Transactional
     public StoreScheduleResult updateSchedule(long tenantId, Long contextStoreId, Long storeId, Long operatorId,
                                               String timezone, String businessDayCutoff) {
-        if (timezone == null && businessDayCutoff == null) {
-            throw new ApiException(400, CODE_STORE_UPDATE_EMPTY,
-                    "没有可修改的字段：请至少传 timezone 或 businessDayCutoff");
+        StoreUpdateResult result = update(tenantId, contextStoreId, storeId, operatorId,
+                timezone, businessDayCutoff, null);
+        return new StoreScheduleResult(result.store(), result.timezoneBefore(), result.timezoneAfter(),
+                result.cutoffBefore(), result.cutoffAfter());
+    }
+
+    private String requireBusinessType(String value) {
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isEmpty() || normalized.length() > 32) {
+            throw new ApiException(400, CODE_BUSINESS_TYPE_INVALID, "businessType 非法");
         }
-
-        // 校验先于查库与写入：入参非法一律 400，既不做任何 UPDATE，也不为坏请求触达数据库。
-        ZoneId zone = timezone == null ? null : StoreTimeService.requireZoneId(timezone);
-        LocalTime cutoff = businessDayCutoff == null ? null : StoreTimeService.requireBusinessDayCutoff(businessDayCutoff);
-
-        StorePo store = requireScopedStore(tenantId, contextStoreId, storeId);
-
-        String timezoneBefore = store.getTimezone();
-        String cutoffBefore = store.getBusinessDayCutoff();
-
-        // 落库文本规范化：时区用 ZoneId 的规范 id；切点对齐 MySQL TIME 列的 HH:mm:ss（与列表出参一致）。
-        String timezoneAfter = zone == null ? timezoneBefore : zone.getId();
-        String cutoffAfter = cutoff == null ? cutoffBefore : StoreTimeService.formatBusinessDayCutoff(cutoff) + ":00";
-
-        StorePo patch = new StorePo();
-        patch.setId(storeId);
-        if (zone != null) {
-            patch.setTimezone(timezoneAfter);
+        String activeCode = storeMapper.selectActiveBusinessType(normalized);
+        if (activeCode == null) {
+            throw new ApiException(400, CODE_BUSINESS_TYPE_INVALID, "businessType 不是 ACTIVE 业态");
         }
-        if (cutoff != null) {
-            patch.setBusinessDayCutoff(cutoffAfter);
-        }
-        patch.setUpdatedBy(operatorId);
-        LocalDateTime updatedAt = LocalDateTime.now();
-        patch.setUpdatedAt(updatedAt);
-        storeMapper.updateById(patch);
-
-        // 同一个事务内把变更回填到已加载实体，避免为了出参再查一次（也保证响应与落库值一致）。
-        store.setTimezone(timezoneAfter);
-        store.setBusinessDayCutoff(cutoffAfter);
-        store.setUpdatedBy(operatorId);
-        store.setUpdatedAt(updatedAt);
-
-        return new StoreScheduleResult(store, timezoneBefore, timezoneAfter, cutoffBefore, cutoffAfter);
+        return activeCode.trim().toUpperCase(Locale.ROOT);
     }
 
     /**
@@ -137,5 +163,10 @@ public class StoreApplicationService {
      */
     public record StoreScheduleResult(StorePo store, String timezoneBefore, String timezoneAfter,
                                       String cutoffBefore, String cutoffAfter) {
+    }
+
+    public record StoreUpdateResult(StorePo store, String timezoneBefore, String timezoneAfter,
+                                    String cutoffBefore, String cutoffAfter,
+                                    String businessTypeBefore, String businessTypeAfter) {
     }
 }

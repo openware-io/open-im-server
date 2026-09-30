@@ -13,7 +13,12 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.customer.infra.persistence.mapper.MemberMapper;
 import io.openware.platform.customer.infra.persistence.mapper.MemberNameTokenMapper;
 import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
+import io.openware.platform.customer.infra.persistence.mapper.PointLedgerMapper;
+import io.openware.platform.customer.infra.persistence.mapper.WalletAccountMapper;
+import io.openware.platform.customer.infra.persistence.mapper.WalletLedgerMapper;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
+import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
+import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +36,9 @@ class MemberPurgeApplicationServiceTest {
     private MemberMapper memberMapper;
     private MemberNameTokenMapper nameTokenMapper;
     private PointAccountMapper pointAccountMapper;
+    private PointLedgerMapper pointLedgerMapper;
+    private WalletAccountMapper walletAccountMapper;
+    private WalletLedgerMapper walletLedgerMapper;
     private AuditClient auditClient;
     private MemberPurgeApplicationService service;
 
@@ -39,8 +47,12 @@ class MemberPurgeApplicationServiceTest {
         memberMapper = mock(MemberMapper.class);
         nameTokenMapper = mock(MemberNameTokenMapper.class);
         pointAccountMapper = mock(PointAccountMapper.class);
+        pointLedgerMapper = mock(PointLedgerMapper.class);
+        walletAccountMapper = mock(WalletAccountMapper.class);
+        walletLedgerMapper = mock(WalletLedgerMapper.class);
         auditClient = mock(AuditClient.class);
-        service = new MemberPurgeApplicationService(memberMapper, nameTokenMapper, pointAccountMapper, auditClient);
+        service = new MemberPurgeApplicationService(memberMapper, nameTokenMapper, pointAccountMapper, auditClient,
+                walletAccountMapper, walletLedgerMapper, pointLedgerMapper);
     }
 
     private static CstMemberPo member(Long id, String imAccount) {
@@ -109,6 +121,11 @@ class MemberPurgeApplicationServiceTest {
         when(memberMapper.selectPurgeBlockers(26L)).thenReturn(noBlockers());
         when(nameTokenMapper.delete(any())).thenReturn(3);
         when(pointAccountMapper.delete(any())).thenReturn(1);
+        when(pointAccountMapper.selectList(any())).thenReturn(java.util.List.of(zeroPoints(31L)));
+        when(walletAccountMapper.selectList(any())).thenReturn(java.util.List.of(zeroWallet(41L)));
+        when(walletLedgerMapper.delete(any())).thenReturn(2);
+        when(pointLedgerMapper.delete(any())).thenReturn(4);
+        when(walletAccountMapper.deleteById(41L)).thenReturn(1);
 
         MemberPurgeApplicationService.PurgeResult result = service.purgeUnlinked(26L);
 
@@ -116,6 +133,25 @@ class MemberPurgeApplicationServiceTest {
         assertEquals(3, result.nameTokensDeleted());
         assertEquals(1, result.pointAccountsDeleted());
         verify(memberMapper).deleteById(26L);
+        verify(walletLedgerMapper).delete(any());
+        verify(pointLedgerMapper).delete(any());
+        verify(walletAccountMapper).deleteById(41L);
         verify(auditClient).recordAsync(any(AuditClient.AuditRecord.class));
+    }
+
+    private static CstWalletAccountPo zeroWallet(Long id) {
+        CstWalletAccountPo po = new CstWalletAccountPo();
+        po.setId(id);
+        po.setAvailableAmount(0L);
+        po.setFrozenAmount(0L);
+        return po;
+    }
+
+    private static CstPointAccountPo zeroPoints(Long id) {
+        CstPointAccountPo po = new CstPointAccountPo();
+        po.setId(id);
+        po.setAvailablePoints(0L);
+        po.setFrozenPoints(0L);
+        return po;
     }
 }

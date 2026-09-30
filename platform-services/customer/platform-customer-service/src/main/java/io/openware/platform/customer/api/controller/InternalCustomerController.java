@@ -1,52 +1,44 @@
 package io.openware.platform.customer.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Value;
+import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import org.springframework.web.bind.annotation.*;
 
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
 
 /**
  * 内部扣减/归还端点（供 common-payment-service 组合收款调用，Gateway 不外暴露 /internal/**）。
  * 租户由 X-Tenant-Context 头经 TenantContextFilter 注入，MyBatis 租户拦截器自动附加 tenant_id；
  * 请求体 tenantId 仅作业务参数，不作为权限依据。
  *
- * 内部 HMAC 鉴权占位：每个内部端点校验 X-IM-Service-*（source + timestamp + signature），
- * 当前为简单签名比对 sha256(source:timestamp:secret)；真实实现应使用 HMAC 共享密钥（见 SDK InternalServiceAuthentication/Filter）。
+ * {@code /internal/customer/**} 由 SDK 鉴权版本 2 过滤器统一验证 HMAC、时间窗和写请求防重放。
  */
 @RestController
 @RequestMapping("/internal/customer")
 public class InternalCustomerController {
-    private static final String SOURCE_HEADER = "X-IM-Service-Source";
-    private static final String TIMESTAMP_HEADER = "X-IM-Service-Timestamp";
-    private static final String SIGNATURE_HEADER = "X-IM-Service-Signature";
-
     private final WalletApplicationService walletService;
     private final PointApplicationService pointService;
     private final HttpServletRequest request;
-    private final String internalSecret;
 
     public InternalCustomerController(WalletApplicationService walletService, PointApplicationService pointService,
-                                      HttpServletRequest request,
-                                      @Value("${app.internal-auth.secret:open-im-internal-dev-secret}") String internalSecret) {
+                                      HttpServletRequest request) {
         this.walletService = walletService;
         this.pointService = pointService;
         this.request = request;
-        this.internalSecret = internalSecret;
     }
 
     /** 储值扣减（CONSUME，扣减前校验余额，幂等）。 */
     @PostMapping("/wallets/deduct")
     public WalletDeductResponse deductWallet(@RequestBody WalletDeductRequest req) {
         verifyInternalAuth();
-        CstWalletAccountPo po = walletService.consume(req.customerId(), req.amount(), req.currency(), req.orderId(),
+        Long storeId = requireStoreContext();
+        CstWalletAccountPo po = walletService.consume(storeId, req.customerId(), req.amount(), req.currency(), req.orderId(),
                 req.idempotencyKey());
         return new WalletDeductResponse(po.getId(), po.getCustomerId(), po.getAvailableAmount(), po.getFrozenAmount(),
                 po.getCurrencyCode());
@@ -56,7 +48,8 @@ public class InternalCustomerController {
     @PostMapping("/wallets/release")
     public WalletReleaseResponse releaseWallet(@RequestBody WalletReleaseRequest req) {
         verifyInternalAuth();
-        CstWalletAccountPo po = walletService.release(req.customerId(), req.amount(), req.currency(), req.orderId(),
+        Long storeId = requireStoreContext();
+        CstWalletAccountPo po = walletService.release(storeId, req.customerId(), req.amount(), req.currency(), req.orderId(),
                 req.idempotencyKey());
         return new WalletReleaseResponse(po.getId(), po.getCustomerId(), po.getAvailableAmount(), po.getFrozenAmount(),
                 po.getCurrencyCode());
@@ -66,7 +59,8 @@ public class InternalCustomerController {
     @PostMapping("/points/redeem")
     public PointRedeemResponse redeemPoints(@RequestBody PointRedeemRequest req) {
         verifyInternalAuth();
-        CstPointAccountPo po = pointService.redeem(req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
+        Long storeId = requireStoreContext();
+        CstPointAccountPo po = pointService.redeem(storeId, req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
         return new PointRedeemResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
     }
 
@@ -74,8 +68,20 @@ public class InternalCustomerController {
     @PostMapping("/points/release")
     public PointReleaseResponse releasePoints(@RequestBody PointReleaseRequest req) {
         verifyInternalAuth();
-        CstPointAccountPo po = pointService.release(req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
+        Long storeId = requireStoreContext();
+        CstPointAccountPo po = pointService.release(storeId, req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
         return new PointReleaseResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+    }
+
+    private Long requireStoreContext() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        if (context.storeId() == null) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "客户资产写操作必须在门店上下文中发起");
+        }
+        return context.storeId();
     }
 
     /** 储值余额查询（组合收款抵扣前校验）。 */
@@ -95,33 +101,9 @@ public class InternalCustomerController {
         return new PointBalanceResponse(po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
     }
 
-    /** 简单签名比对占位：sha256(source:timestamp:secret)；真实实现应为 HMAC(共享密钥) + 时间窗/重放防御。 */
     private void verifyInternalAuth() {
-        String source = request.getHeader(SOURCE_HEADER);
-        String timestamp = request.getHeader(TIMESTAMP_HEADER);
-        String signature = request.getHeader(SIGNATURE_HEADER);
-        if (source == null || source.isBlank() || timestamp == null || signature == null) {
+        if (!Boolean.TRUE.equals(request.getAttribute(InternalServiceAuthenticationFilter.AUTHENTICATED_ATTRIBUTE))) {
             throw new ApiException(401, "INVALID_INTERNAL_SERVICE_AUTHENTICATION", "内部服务鉴权失败");
-        }
-        String expected = sha256Hex(source + ":" + timestamp + ":" + internalSecret);
-        if (!MessageDigest.isEqual(expected.getBytes(StandardCharsets.UTF_8),
-                signature.getBytes(StandardCharsets.UTF_8))) {
-            throw new ApiException(401, "INVALID_INTERNAL_SERVICE_AUTHENTICATION", "内部服务鉴权失败");
-        }
-    }
-
-    private String sha256Hex(String raw) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(raw.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-                sb.append(Character.forDigit(b & 0xF, 16));
-            }
-            return sb.toString();
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("无法计算内部服务签名", e);
         }
     }
 

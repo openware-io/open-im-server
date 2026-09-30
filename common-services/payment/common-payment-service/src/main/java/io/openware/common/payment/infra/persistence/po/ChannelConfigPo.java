@@ -15,10 +15,13 @@ public class ChannelConfigPo {
     private Long id;
     private Long tenantId;
     private Long storeId;
+    private String businessType;
     private String channel;
     private Integer enabled;
     private String merchantId;
     private String status;
+    private Integer version;
+    private String idempotencyKey;
     private Long createdBy;
     private LocalDateTime createdAt;
     private Long updatedBy;

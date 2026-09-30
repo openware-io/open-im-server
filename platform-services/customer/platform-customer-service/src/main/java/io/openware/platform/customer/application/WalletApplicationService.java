@@ -12,6 +12,7 @@ import io.openware.platform.customer.infra.persistence.mapper.WalletLedgerMapper
 import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
 import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +40,7 @@ public class WalletApplicationService {
     private final WalletAccountMapper accountMapper;
     private final WalletLedgerMapper ledgerMapper;
     private final AuditClient auditClient;
+    private final CustomerEventOutbox eventOutbox;
 
     /** 默认商户主体（tnt_legal_entity.id）；tnt_legal_entity 表与租户解析端点落地前用配置兜底。 */
     @Value("${app.wallet.default-legal-entity-id:1}")
@@ -46,14 +48,28 @@ public class WalletApplicationService {
 
     public WalletApplicationService(WalletAccountMapper accountMapper, WalletLedgerMapper ledgerMapper,
                                     AuditClient auditClient) {
+        this(accountMapper, ledgerMapper, auditClient, CustomerEventOutbox.disabled());
+    }
+
+    @Autowired
+    public WalletApplicationService(WalletAccountMapper accountMapper, WalletLedgerMapper ledgerMapper,
+                                    AuditClient auditClient, CustomerEventOutbox eventOutbox) {
         this.accountMapper = accountMapper;
         this.ledgerMapper = ledgerMapper;
         this.auditClient = auditClient;
+        this.eventOutbox = eventOutbox;
     }
 
     /** 充值（现金/线下转账），追加 RECHARGE 流水，幂等。 */
     @Transactional
     public CstWalletAccountPo recharge(Long customerId, Long amount, String currency,
+                                       String paymentMethod, String referenceNo, String idempotencyKey) {
+        return recharge(null, customerId, amount, currency, paymentMethod, referenceNo, idempotencyKey);
+    }
+
+    /** 门店归因写路径：storeId 由入站适配器从已验签 TenantContext 提取。 */
+    @Transactional
+    public CstWalletAccountPo recharge(Long storeId, Long customerId, Long amount, String currency,
                                        String paymentMethod, String referenceNo, String idempotencyKey) {
         try {
             validateAmount(amount);
@@ -64,7 +80,8 @@ public class WalletApplicationService {
             CstWalletAccountPo account = findOrCreate(customerId, Currency.parse(currency).code());
             // 线下转账需关联凭证 referenceNo，真实实现写 iam_audit_log + 财务/店长复核
             long balanceAfter = account.getAvailableAmount() + amount;
-            appendLedger(account, "RECHARGE", amount, balanceAfter, null, idempotencyKey);
+            appendLedger(storeId, account, "RECHARGE", amount, balanceAfter, null, idempotencyKey);
+            appendFact("RECHARGE", account, storeId, amount, balanceAfter);
             account.setAvailableAmount(balanceAfter);
             bump(account);
             accountMapper.updateById(account);
@@ -83,6 +100,11 @@ public class WalletApplicationService {
     /** 储值退还（余额扣减，账本 REFUND，审批占位）。没有账户 = 余额 0，按余额不足拒绝（不建账户）。 */
     @Transactional
     public CstWalletAccountPo refund(Long customerId, Long amount, String reason, String idempotencyKey) {
+        return refund(null, customerId, amount, reason, idempotencyKey);
+    }
+
+    @Transactional
+    public CstWalletAccountPo refund(Long storeId, Long customerId, Long amount, String reason, String idempotencyKey) {
         try {
             validateAmount(amount);
             assertIdempotent(idempotencyKey);
@@ -91,7 +113,8 @@ public class WalletApplicationService {
                 throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
             }
             long balanceAfter = account.getAvailableAmount() - amount;
-            appendLedger(account, "REFUND", amount, balanceAfter, null, idempotencyKey);
+            appendLedger(storeId, account, "REFUND", amount, balanceAfter, null, idempotencyKey);
+            appendFact("REFUND", account, storeId, -amount, balanceAfter);
             account.setAvailableAmount(balanceAfter);
             bump(account);
             accountMapper.updateById(account);
@@ -109,6 +132,12 @@ public class WalletApplicationService {
      */
     @Transactional
     public CstWalletAccountPo consume(Long customerId, Long amount, String currency, Long orderId,
+                                      String idempotencyKey) {
+        return consume(null, customerId, amount, currency, orderId, idempotencyKey);
+    }
+
+    @Transactional
+    public CstWalletAccountPo consume(Long storeId, Long customerId, Long amount, String currency, Long orderId,
                                       String idempotencyKey) {
         try {
             validateAmount(amount);
@@ -130,7 +159,8 @@ public class WalletApplicationService {
             }
             // 冻结-扣减合一占位：真实实现先 HOLD（available→frozen）→ 结算成功 CONSUME（frozen 扣除）→ 失败 RELEASE（frozen→available）。
             long balanceAfter = account.getAvailableAmount() - amount;
-            appendLedger(account, "CONSUME", amount, balanceAfter, orderId, idempotencyKey);
+            appendLedger(storeId, account, "CONSUME", amount, balanceAfter, orderId, idempotencyKey);
+            appendFact("CONSUME", account, storeId, -amount, balanceAfter);
             account.setAvailableAmount(balanceAfter);
             bump(account);
             accountMapper.updateById(account);
@@ -145,6 +175,12 @@ public class WalletApplicationService {
     @Transactional
     public CstWalletAccountPo release(Long customerId, Long amount, String currency, Long orderId,
                                       String idempotencyKey) {
+        return release(null, customerId, amount, currency, orderId, idempotencyKey);
+    }
+
+    @Transactional
+    public CstWalletAccountPo release(Long storeId, Long customerId, Long amount, String currency, Long orderId,
+                                      String idempotencyKey) {
         validateAmount(amount);
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new ApiException(400, "IDEMPOTENCY_KEY_REQUIRED", "缺少 Idempotency-Key");
@@ -158,7 +194,8 @@ public class WalletApplicationService {
             return account;
         }
         long balanceAfter = account.getAvailableAmount() + amount;
-        appendLedger(account, "RELEASE", amount, balanceAfter, orderId, idempotencyKey);
+        appendLedger(storeId, account, "RELEASE", amount, balanceAfter, orderId, idempotencyKey);
+        appendFact("RELEASE", account, storeId, amount, balanceAfter);
         account.setAvailableAmount(balanceAfter);
         bump(account);
         accountMapper.updateById(account);
@@ -178,12 +215,19 @@ public class WalletApplicationService {
 
     /** 储值账本分页（C 端/后台明细）。没有账户 = 无流水，返回空页，不创建账户。 */
     public Page<CstWalletLedgerPo> ledger(Long memberId, long page, long pageSize) {
+        return ledger(memberId, null, page, pageSize);
+    }
+
+    /** 流水读范围：总部不传门店看租户全量，门店上下文只看本店发生的流水。 */
+    public Page<CstWalletLedgerPo> ledger(Long memberId, Long storeId, long page, long pageSize) {
         CstWalletAccountPo account = findByMember(memberId);
         if (account == null) {
             return new Page<>(page, pageSize);
         }
         LambdaQueryWrapper<CstWalletLedgerPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletLedgerPo::getWalletAccountId, account.getId()).orderByDesc(CstWalletLedgerPo::getId);
+        qw.eq(CstWalletLedgerPo::getWalletAccountId, account.getId())
+                .eq(storeId != null, CstWalletLedgerPo::getStoreId, storeId)
+                .orderByDesc(CstWalletLedgerPo::getId);
         return ledgerMapper.selectPage(new Page<>(page, pageSize), qw);
     }
 
@@ -249,9 +293,10 @@ public class WalletApplicationService {
         return accountMapper.selectOne(qw);
     }
 
-    private void appendLedger(CstWalletAccountPo account, String entryType, long amount, long balanceAfter,
+    private void appendLedger(Long storeId, CstWalletAccountPo account, String entryType, long amount, long balanceAfter,
                               Long orderId, String idempotencyKey) {
         CstWalletLedgerPo ledger = new CstWalletLedgerPo();
+        ledger.setStoreId(storeId);
         ledger.setWalletAccountId(account.getId());
         ledger.setEntryType(entryType);
         ledger.setAmount(amount);
@@ -263,6 +308,13 @@ public class WalletApplicationService {
         ledger.setOccurredAt(LocalDateTime.now());
         ledger.setCreatedAt(LocalDateTime.now());
         ledgerMapper.insert(ledger);
+    }
+
+    private void appendFact(String entryType, CstWalletAccountPo account, Long storeId, long delta, long balanceAfter) {
+        eventOutbox.append(new CustomerFactEvent("customer.wallet.changed", "wallet_account",
+                String.valueOf(account.getId()), "{\"entryType\":\"" + entryType + "\",\"customerId\":"
+                        + account.getCustomerId() + ",\"storeId\":" + storeId + ",\"delta\":" + delta
+                        + ",\"balanceAfter\":" + balanceAfter + "}"));
     }
 
     private void validateAmount(Long amount) {

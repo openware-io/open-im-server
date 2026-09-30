@@ -6,6 +6,9 @@ import io.openware.common.payment.application.RefundApplicationService;
 import io.openware.common.payment.application.RefundDto;
 import io.openware.common.payment.application.ShiftDto;
 import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.common.exception.ApiException;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -55,7 +58,18 @@ public class CashierController {
 
     @PostMapping("/business/refund-requests")
     public RefundDto requestRefund(@RequestBody RefundRequest req) {
-        return refundService.requestRefund(req.tenantId(), req.orderId(), req.amount(), req.reason(), req.requestedBy());
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        if (context.storeId() == null) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "退款申请必须在门店上下文中发起");
+        }
+        if (req.storeId() != null && !context.storeId().equals(req.storeId())) {
+            throw new ApiException(422, "STORE_CONTEXT_MISMATCH", "请求门店与当前门店上下文不一致");
+        }
+        return refundService.requestRefund(context.tenantId(), context.storeId(), req.orderId(), req.amount(),
+                req.reason(), req.requestedBy());
     }
 
     @PostMapping("/admin/refund-requests/{id}/approve")
@@ -92,7 +106,7 @@ public class CashierController {
      */
     public record CloseShiftRequest(BigDecimal actualCash, String remark) {}
     public record DailyClosingRequest(Long tenantId, Long storeId, LocalDate businessDate, Long submittedBy) {}
-    public record RefundRequest(Long tenantId, Long orderId, BigDecimal amount, String reason, Long requestedBy) {}
+    public record RefundRequest(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason, Long requestedBy) {}
     public record ApproveRefundRequest(BigDecimal approvedAmount, Long approvedBy) {}
     public record RejectRefundRequest(Long rejectedBy) {}
     public record MarkRefundedRequest(String providerRefundNo, Long operatorId) {}

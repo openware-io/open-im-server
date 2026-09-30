@@ -3,6 +3,10 @@ package io.openware.platform.customer.api.controller;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
 import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
+import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.infrastructure.tenant.PermissionGuard;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -31,7 +35,8 @@ public class WalletAdminController {
     @PostMapping("/recharge")
     public CstWalletAccountPo recharge(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                        @RequestBody RechargeRequest req) {
-        return walletTokenDisplayService.decorate(walletService.recharge(req.customerId(), req.amount(),
+        PermissionGuard.require("wallet.recharge");
+        return walletTokenDisplayService.decorate(walletService.recharge(requireStoreContext(), req.customerId(), req.amount(),
                 req.currency(), req.paymentMethod(), req.referenceNo(), idempotencyKey));
     }
 
@@ -39,8 +44,20 @@ public class WalletAdminController {
     @PostMapping("/refund")
     public CstWalletAccountPo refund(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                      @RequestBody RefundRequest req) {
+        PermissionGuard.require("wallet.refund");
         return walletTokenDisplayService.decorate(
-                walletService.refund(req.customerId(), req.amount(), req.reason(), idempotencyKey));
+                walletService.refund(requireStoreContext(), req.customerId(), req.amount(), req.reason(), idempotencyKey));
+    }
+
+    private Long requireStoreContext() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        if (context.storeId() == null) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "储值写操作必须在门店上下文中发起");
+        }
+        return context.storeId();
     }
 
     public record RechargeRequest(Long customerId, Long amount, String currency, String paymentMethod, String referenceNo) {}

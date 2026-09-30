@@ -3,6 +3,9 @@ package io.openware.platform.customer;
 import io.openware.common.crypto.AesGcmCipher;
 import io.openware.common.util.SnowflakeIdGenerator;
 import io.openware.infrastructure.audit.AuditClientConfig;
+import io.openware.infrastructure.security.InternalServiceAuthentication;
+import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
+import io.openware.infrastructure.security.InternalServiceAuthenticationProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Import;
@@ -17,7 +20,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  */
 @SpringBootApplication
 @EnableScheduling
-@Import({AuditClientConfig.class, SnowflakeIdGenerator.class, AesGcmCipher.class})
+@Import({AuditClientConfig.class, SnowflakeIdGenerator.class, AesGcmCipher.class,
+        InternalServiceAuthenticationProperties.class, InternalServiceAuthentication.class,
+        InternalServiceAuthenticationFilter.class})
 public class PlatformCustomerApplication {
     public static void main(String[] args) {
         SpringApplication.run(PlatformCustomerApplication.class, args);

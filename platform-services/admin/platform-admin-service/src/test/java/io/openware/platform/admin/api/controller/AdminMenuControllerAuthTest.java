@@ -13,6 +13,8 @@ import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.handler.GlobalExceptionHandler;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.TenantPaymentMethodMapper;
+import io.openware.platform.admin.infra.persistence.mapper.AdminMenuMapper;
+import io.openware.platform.admin.infra.persistence.po.AdminMenuPo;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
@@ -37,13 +39,26 @@ class AdminMenuControllerAuthTest {
 
   private final TenantPaymentMethodMapper tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
   private final TenantIamDomainClient tenantIamClient = mock(TenantIamDomainClient.class);
+  private final AdminMenuMapper menuMapper = mock(AdminMenuMapper.class);
   private final AdminTenantContextTokenSigner contextTokens =
       new AdminTenantContextTokenSigner(jwtProperties());
   private final MockMvc mvc = MockMvcBuilders
       .standaloneSetup(new AdminMenuController(
-          new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens)))
+      new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens, menuMapper)))
       .setControllerAdvice(new GlobalExceptionHandler())
       .build();
+
+  {
+    AdminMenuPo menu = new AdminMenuPo();
+    AdminMenuPo platform = new AdminMenuPo();
+    platform.setId(1L); platform.setParentId(0L); platform.setCode("tenant"); platform.setName("租户管理");
+    platform.setPath("/admin/platform/tenants"); platform.setIcon("building"); platform.setScopeLevel("PLATFORM");
+    platform.setDomainCode("core"); platform.setSortNo(1); platform.setStatus("ACTIVE");
+    menu.setId(10L); menu.setParentId(0L); menu.setCode("store"); menu.setName("门店");
+    menu.setPath("/admin/tenant/stores"); menu.setIcon("shop"); menu.setScopeLevel("TENANT");
+    menu.setDomainCode("core"); menu.setSortNo(10); menu.setStatus("ACTIVE");
+    when(menuMapper.selectList(any())).thenReturn(List.of(platform, menu));
+  }
 
   @AfterEach
   void cleanup() {

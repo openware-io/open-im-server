@@ -30,6 +30,8 @@ public class CstMemberPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 首次新增客户的门店；客户主档仍在租户内跨店共享。 */
+    private Long originStoreId;
     /** 持久化列：SaaS 账号 idt_account.id；NULL = 待认领客户。 */
     private Long accountId;
     /** 持久化列（V4）：IM 登录标识（如 im_71 / openId）；NULL = 未绑定 IM。 */

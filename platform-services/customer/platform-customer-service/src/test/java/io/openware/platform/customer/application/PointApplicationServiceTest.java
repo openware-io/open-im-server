@@ -9,12 +9,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
 import io.openware.platform.customer.infra.persistence.mapper.PointLedgerMapper;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointLedgerPo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.mockito.ArgumentCaptor;
 
 /**
@@ -22,6 +24,9 @@ import org.mockito.ArgumentCaptor;
  * 只有 BFF 路径由拦截器兜底。这里断言「业务异常照旧抛出 + 同时落一条 FAILURE 且带稳定错误码」。
  */
 class PointApplicationServiceTest {
+
+  @AfterEach
+  void clearContext() { TenantContextHolder.clear(); }
 
   private final PointAccountMapper accountMapper = mock(PointAccountMapper.class);
   private final PointLedgerMapper ledgerMapper = mock(PointLedgerMapper.class);
@@ -80,6 +85,22 @@ class PointApplicationServiceTest {
     // 成功路径不显式标记结果，由 SDK buildBody 缺省为 SUCCESS；关键是不能被标成 FAILURE。
     assertNotEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("cmd-3", record.idempotencyKey());
+  }
+
+  @Test
+  void storeAttributedAdjustmentAppendsFactEvent() {
+    CustomerEventOutbox eventOutbox = mock(CustomerEventOutbox.class);
+    PointApplicationService serviceWithOutbox =
+        new PointApplicationService(accountMapper, ledgerMapper, auditClient, eventOutbox);
+    when(accountMapper.selectOne(any())).thenReturn(account(1000L));
+    when(ledgerMapper.selectCount(any())).thenReturn(0L);
+
+    serviceWithOutbox.adjust(44L, 7L, 100L, "补偿", "cmd-store-1");
+
+    ArgumentCaptor<CustomerFactEvent> captor = ArgumentCaptor.forClass(CustomerFactEvent.class);
+    verify(eventOutbox).append(captor.capture());
+    assertEquals("customer.points.changed", captor.getValue().eventType());
+    org.junit.jupiter.api.Assertions.assertTrue(captor.getValue().payloadJson().contains("\"storeId\":44"));
   }
 
   private AuditClient.AuditRecord capturedAudit() {

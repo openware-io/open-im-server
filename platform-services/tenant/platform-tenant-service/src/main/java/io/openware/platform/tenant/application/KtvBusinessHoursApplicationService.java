@@ -1,12 +1,22 @@
 package io.openware.platform.tenant.application;
 
 import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
+import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
+import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
+import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
+import io.openware.common.exception.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * KTV 营业时间配置的唯一读取口径（门店级覆盖租户默认）。
@@ -40,9 +50,20 @@ public class KtvBusinessHoursApplicationService {
     private static final String SEPARATOR = "-";
 
     private final InternalTenantConfigMapper tenantConfigMapper;
+    private final TenantConfigMapper configWriter;
+    private final StoreMapper storeMapper;
 
     public KtvBusinessHoursApplicationService(InternalTenantConfigMapper tenantConfigMapper) {
+        this(tenantConfigMapper, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public KtvBusinessHoursApplicationService(InternalTenantConfigMapper tenantConfigMapper,
+                                              TenantConfigMapper configWriter,
+                                              StoreMapper storeMapper) {
         this.tenantConfigMapper = tenantConfigMapper;
+        this.configWriter = configWriter;
+        this.storeMapper = storeMapper;
     }
 
     /**
@@ -52,19 +73,113 @@ public class KtvBusinessHoursApplicationService {
      * @param storeId  目标门店（null/0 → 只用租户默认，不读门店行）
      */
     public KtvBusinessHours resolve(Long tenantId, Long storeId) {
+        return resolve(tenantId, storeId, null);
+    }
+
+    /** 生效顺序：门店覆盖 > 业态默认 > 租户默认 > 代码缺省。 */
+    public KtvBusinessHours resolve(Long tenantId, Long storeId, String requestedBusinessType) {
         if (tenantId == null || tenantId <= 0) {
             return KtvBusinessHours.DEFAULT;
         }
+        String businessType = normalizeBusinessType(requestedBusinessType);
+        if (storeId != null && storeId > 0 && tenantConfigMapper != null) {
+            String actualBusinessType = normalizeBusinessType(tenantConfigMapper.selectStoreBusinessType(tenantId, storeId));
+            if (businessType != null && actualBusinessType != null
+                    && !businessType.equalsIgnoreCase(actualBusinessType)) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "业态与门店不匹配");
+            }
+            if (businessType == null) businessType = actualBusinessType;
+        }
         if (storeId != null && storeId > 0) {
-            KtvBusinessHours store = parse(
-                    tenantConfigMapper.selectStoreConfigValue(tenantId, storeId, CONFIG_KEY), "STORE");
+            String raw = businessType == null
+                    ? tenantConfigMapper.selectStoreConfigValue(tenantId, storeId, CONFIG_KEY)
+                    : tenantConfigMapper.selectStoreConfigValueByBusinessType(tenantId, storeId, businessType, CONFIG_KEY);
+            KtvBusinessHours store = parse(raw, "STORE");
             if (store != null) {
                 return store;
+            }
+        }
+        if (businessType != null) {
+            KtvBusinessHours business = parse(
+                    tenantConfigMapper.selectBusinessConfigValue(tenantId, businessType, CONFIG_KEY), "BUSINESS");
+            if (business != null) {
+                return business;
             }
         }
         KtvBusinessHours tenant = parse(
                 tenantConfigMapper.selectTenantConfigValue(tenantId, CONFIG_KEY), "TENANT");
         return tenant == null ? KtvBusinessHours.DEFAULT : tenant;
+    }
+
+    /** 批量保存同一租户/业态的配置；先完成全部门店校验，再进入同一事务写入。 */
+    @Transactional
+    public void update(Long tenantId, List<Long> requestedStoreIds, String requestedBusinessType,
+                       LocalTime open, LocalTime close) {
+        if (configWriter == null) {
+            throw new IllegalStateException("配置写入适配器未初始化");
+        }
+        String businessType = normalizeBusinessType(requestedBusinessType);
+        Set<Long> storeIds = new LinkedHashSet<>();
+        if (requestedStoreIds != null) {
+            requestedStoreIds.stream().filter(Objects::nonNull).forEach(storeIds::add);
+        }
+        if (storeIds.isEmpty()) {
+            upsert(tenantId, 0L, businessType, format(open, close));
+            return;
+        }
+        String expectedBusinessType = businessType;
+        for (Long storeId : storeIds) {
+            if (storeId <= 0) {
+                throw new IllegalArgumentException("storeId 必须为正数");
+            }
+            Long ownerTenant = storeMapper == null ? null : storeMapper.selectTenantIdById(storeId);
+            if (!Objects.equals(ownerTenant, tenantId)) {
+                throw new IllegalArgumentException("STORE_SCOPE_FORBIDDEN");
+            }
+            String actual = normalizeBusinessType(storeMapper.selectBusinessTypeById(storeId));
+            if (actual == null) {
+                throw new IllegalArgumentException("BUSINESS_TYPE_MISSING");
+            }
+            if (expectedBusinessType == null) {
+                expectedBusinessType = actual;
+            } else if (!expectedBusinessType.equalsIgnoreCase(actual)) {
+                throw new IllegalArgumentException("BUSINESS_TYPE_MISMATCH");
+            }
+        }
+        for (Long storeId : storeIds) {
+            upsert(tenantId, storeId, expectedBusinessType, format(open, close));
+        }
+    }
+
+    private void upsert(Long tenantId, Long storeId, String businessType, String value) {
+        TenantConfigPo po = configWriter.selectOne(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<TenantConfigPo>()
+                .eq("tenant_id", tenantId).eq("store_id", storeId)
+                .eq("business_type", businessType == null ? "" : businessType)
+                .eq("config_key", CONFIG_KEY).last("LIMIT 1"));
+        LocalDateTime now = LocalDateTime.now();
+        if (po == null) {
+            po = new TenantConfigPo();
+            po.setTenantId(tenantId);
+            po.setStoreId(storeId);
+            po.setBusinessType(businessType == null ? "" : businessType);
+            po.setConfigKey(CONFIG_KEY);
+            po.setConfigValue(value);
+            po.setStatus("ACTIVE");
+            po.setVersion(0);
+            po.setCreatedAt(now);
+            po.setUpdatedAt(now);
+            configWriter.insert(po);
+        } else {
+            po.setConfigValue(value);
+            po.setVersion(po.getVersion() == null ? 1 : po.getVersion() + 1);
+            po.setUpdatedAt(now);
+            configWriter.updateById(po);
+        }
+    }
+
+    private static String normalizeBusinessType(String businessType) {
+        if (businessType == null || businessType.isBlank()) return null;
+        return businessType.trim().toUpperCase();
     }
 
     /** 解析配置值；缺行/空值返回 null（调用方继续回退），格式非法记 WARN 后按缺行处理。 */

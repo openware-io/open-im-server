@@ -20,6 +20,7 @@ CREATE TABLE cst_wallet_account (
 CREATE TABLE cst_wallet_ledger (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  store_id BIGINT,
   wallet_account_id BIGINT NOT NULL,
   entry_type VARCHAR(24) NOT NULL,
   amount BIGINT NOT NULL,
@@ -32,4 +33,20 @@ CREATE TABLE cst_wallet_ledger (
   occurred_at TIMESTAMP NOT NULL,
   created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE cst_event_outbox (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  event_id VARCHAR(64) NOT NULL,
+  event_type VARCHAR(64) NOT NULL,
+  aggregate_type VARCHAR(32) NOT NULL,
+  aggregate_id VARCHAR(64) NOT NULL,
+  payload_json VARCHAR(4000) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  retry_count INT NOT NULL DEFAULT 0,
+  next_retry_at TIMESTAMP,
+  published_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
 );

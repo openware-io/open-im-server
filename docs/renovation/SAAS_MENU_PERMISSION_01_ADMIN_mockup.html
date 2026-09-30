@@ -647,7 +647,7 @@
       <div class="filter-note" style="margin-top:16px">
         <b>归属判定默认口径：</b>看该功能的权威数据主键里<b>有没有 <code>store_id</code></b>。<br>
         有 → <b>门店级数据</b>；只有 <code>tenant_id</code> → <b>租户级数据</b>；只有 <code>organization_id</code> → 组织级；无租户约束 → 平台级。<br>
-        <b>客户/积分/储值是例外：</b>主档或余额可以租户/法人主体共享，但操作入口、门店关系和流水归因仍按 <code>store_id</code> 落到门店权限。
+        <b>客户/积分/储值是例外：</b>主档或余额可以租户/法人主体共享，但操作入口和流水归因仍按 <code>store_id</code> 落到门店权限；本期不建立多店客户关系表。
         <b>「同一业态开多家店」不改变菜单结构</b>——门店级菜单对每家店都一样，只是数据不同；跨店对比能力放租户级「经营总览」。
       </div>
     </div>
@@ -691,7 +691,7 @@
           <span class="chip">idt_account</span>
           <div class="cat-note">
             客户主档、积分账户、储值账户仍可按租户/法人主体跨店复用，酒店、按摩、超市全部直接复用。<br>
-            但门店关系、门店操作和积分/储值流水必须有 <code>store_id</code>，否则总部总览无法下钻、门店权限无法收敛。
+            但门店操作和积分/储值流水必须有 <code>store_id</code>，否则总部总览无法下钻、门店权限无法收敛；客户主档只保留首次来源门店。
           </div>
         </div>
       </div>
@@ -1064,10 +1064,10 @@ store_id bigint unsigned <span class="k">NULL</span>
           </tr>
           <tr>
             <td style="text-align:center"><span class="gap-id">5</span></td>
-            <td><code>cst_member</code> 无门店关系</td>
+            <td><code>cst_member</code> 只记录来源门店</td>
             <td><span class="sev high">高</span></td>
-            <td>客户主档可以跨店唯一，但门店客户列表、总部下钻和门店权限没有可靠关联</td>
-            <td>新增 <code>cst_member_store</code> 关系表；<code>origin_store_id</code> 只能作为来源字段，不能替代多店关系</td>
+            <td>客户主档跨店共享；门店区分依赖来源字段与积分/储值流水实际操作门店</td>
+            <td>本期不新增关系表；客户列表租户内共享，流水与写操作必须带 <code>store_id</code></td>
           </tr>
           <tr>
             <td style="text-align:center"><span class="gap-id">6</span></td>
@@ -1174,7 +1174,7 @@ ALTER TABLE iam_permission ADD
         <tbody>
           <tr>
             <th>M0 <span class="badge-new">新</span></th>
-            <td><b>数据地基</b>：补客户门店关系与积分/储值流水 <code>store_id</code>（缺口 5 / 6）；子表冗余 <code>store_id + business_type</code>（缺口 2）；<code>tnt_pricing_plan.store_id</code> 改可空（缺口 1）；补 <code>mkt_campaign_scope</code>（缺口 4）</td>
+            <td><b>数据地基</b>：补积分/储值流水 <code>store_id</code>（缺口 6）；子表冗余 <code>store_id + business_type</code>（缺口 2）；补三层配置作用域（P7）；补 <code>mkt_campaign_scope</code>（缺口 4）</td>
             <td><b class="bad">改表 + 回填</b></td>
             <td>门店级数据切不开 → 权限收敛不下去</td>
             <td><b class="good">✅ 需灰度</b></td>
@@ -1231,7 +1231,7 @@ ALTER TABLE iam_permission ADD
       <tr><td><b>v0.1</b></td><td>首版：现状对比、两轴模型、菜单提案、权限继承、剪枝规则、分期。</td></tr>
       <tr><td><b>v0.2</b></td><td>按 138 个 Flyway 迁移实测修正两处归属（商品 → 门店级、计价方案 → 门店级）；新增第 3 节「通用 vs 门店独立」四类分类、第 4 节修正对照、第 7 节五处缺口与技术债；新增 M0 数据地基里程碑。</td></tr>
       <tr><td><b>v0.3</b></td><td>按主代码与迁移种子复核：租户菜单 18 → <b>19</b> 项（新增「订单管理」）；存量权限码 44（非 60+）、码为 2～3 段；<code>platform.operator</code> 实为全量持有 44 个码；前端权限映射仅 1 条且方向与后端相反；Flyway 按模块编号。详见 <code>SAAS_MENU_PERMISSION_02_SERVICE.md</code> §5.5 与 <code>HANDOFF</code> §0.2。</td></tr>
-      <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；补充客户门店关系、积分/储值流水门店归因的待规范项。</td></tr>
+      <tr><td><b>v0.8</b></td><td>合并展示两个方案范围：新增租户总部经营总览原型；客户、积分、储值移入门店上下文；冻结客户主档跨店共享、来源门店和流水门店归因口径。</td></tr>
       <tr><td><b>v0.9</b></td><td>方案 B 拆分为独立服务方案；明确总部只读下钻、客户/积分/储值默认归属、租户/业态/门店配置三层作用域、多店批量设置和决策清单。</td></tr>
     </table>
   </footer>

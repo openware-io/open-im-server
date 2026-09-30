@@ -5,6 +5,7 @@
 CREATE TABLE cst_member (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  origin_store_id BIGINT,
   account_id BIGINT,
   im_account VARCHAR(64),
   im_username VARCHAR(128),

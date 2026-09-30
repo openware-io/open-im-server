@@ -49,7 +49,7 @@ public class ContextController {
             List<ContextItem> items = tenantIamClient.contexts(platformAccountId).stream()
                     .map(c -> new ContextItem(c.contextId(), c.tenantId(), c.tenantName(),
                             c.organizationId(), c.organizationName(), c.storeId(), c.storeName(),
-                            c.roles(), c.scopeType()))
+                            c.roles(), c.scopeType(), c.businessType(), c.timezone()))
                     .toList();
             return new ContextsResponse(items);
         } catch (Exception e) {
@@ -85,11 +85,16 @@ public class ContextController {
             // 也随响应体回给前端作为全局 store 的唯一启动来源。查询失败不影响上下文选择。
             String currencyCode = Currency.parse(tenantIamClient.tenantCurrencyCode(scope.tenantId())).code();
             // scopeType 随上下文一起签发：平台账号为 PLATFORM（可跨租户看审计），租户账号为 TENANT。
-            sessionStore.setActiveContext(sessionId, tokenSigner.sign(platformAccountId, scope.tenantId(),
-                    scope.organizationId(), scope.storeId(), snapshot.authorizationVersion(), snapshot.permissions(),
-                    selected.scopeType(), currencyCode), request.contextId());
+            String contextToken = selected.businessType() == null && selected.timezone() == null
+                    ? tokenSigner.sign(platformAccountId, scope.tenantId(), scope.organizationId(), scope.storeId(),
+                    snapshot.authorizationVersion(), snapshot.permissions(), selected.scopeType(), currencyCode)
+                    : tokenSigner.sign(platformAccountId, scope.tenantId(), scope.organizationId(), scope.storeId(),
+                    snapshot.authorizationVersion(), snapshot.permissions(), selected.scopeType(), currencyCode,
+                    selected.businessType(), selected.timezone());
+            sessionStore.setActiveContext(sessionId, contextToken, request.contextId());
             return new SelectContextResponse(scope.tenantId(), scope.organizationId(), scope.storeId(),
-                    platformAccountId, snapshot.authorizationVersion(), snapshot.permissions(), currencyCode);
+                    platformAccountId, snapshot.authorizationVersion(), snapshot.permissions(), currencyCode,
+                    selected.businessType(), selected.timezone());
         } catch (ApiException exception) {
             throw exception;
         } catch (Exception e) {

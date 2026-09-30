@@ -2,6 +2,7 @@ package io.openware.platform.order.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.DailySerialNumberGenerator;
@@ -148,6 +150,20 @@ class OrderCreateIdempotencyTest {
                 new OrderController.CreateOrderRequest(null, null, null, "RETAIL", null, null));
 
         assertEquals(99L, replayed.getId());
+    }
+
+    /** 门店上下文业态是权威值，请求体伪造其它业态必须在落单前拒绝。 */
+    @Test
+    void rejectsBusinessTypeDifferentFromStoreContext() {
+        TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,
+                List.of("ktv.session.open"), "TENANT", "KTV", "Asia/Shanghai"));
+
+        ApiException failure = assertThrows(ApiException.class,
+                () -> controller.createOrder(null,
+                        new OrderController.CreateOrderRequest(null, null, null, "RETAIL", null, null)));
+
+        assertEquals("BUSINESS_TYPE_MISMATCH", failure.getCode());
+        verify(orderMapper, never()).insert(any(OrderPo.class));
     }
 
     private static void merchantContext() {

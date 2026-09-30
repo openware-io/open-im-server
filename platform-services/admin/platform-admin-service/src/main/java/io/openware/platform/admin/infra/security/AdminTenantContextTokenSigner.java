@@ -57,6 +57,13 @@ public class AdminTenantContextTokenSigner {
    */
   public String sign(long accountId, long tenantId, Long organizationId, Long storeId,
                      int authorizationVersion, List<String> permissions, String scopeType, String currencyCode) {
+    return sign(accountId, tenantId, organizationId, storeId, authorizationVersion, permissions, scopeType,
+        currencyCode, null, null);
+  }
+
+  public String sign(long accountId, long tenantId, Long organizationId, Long storeId,
+                     int authorizationVersion, List<String> permissions, String scopeType, String currencyCode,
+                     String businessType, String timezone) {
     Date now = new Date();
     return Jwts.builder().subject(String.valueOf(accountId)).issuer("open-saas-identity")
         .audience().add("open-saas-services").and().claim("tenantId", tenantId)
@@ -64,6 +71,8 @@ public class AdminTenantContextTokenSigner {
         .claim("authorizationVersion", authorizationVersion).claim("permissions", permissions)
         .claim("scopeType", scopeType)
         .claim("currency", Currency.parse(currencyCode).code())
+        .claim("businessType", businessType)
+        .claim("timezone", timezone)
         .issuedAt(now).expiration(Date.from(now.toInstant().plus(Duration.ofMinutes(30))))
         .signWith(secretKey).compact();
   }
@@ -118,7 +127,10 @@ public class AdminTenantContextTokenSigner {
     Number store = claims.get("storeId", Number.class);
     return new io.openware.infrastructure.tenant.TenantContext(tenant.longValue(),
         organization == null ? null : organization.longValue(), store == null ? null : store.longValue(),
-        accountId, claims.get("authorizationVersion", Integer.class));
+        accountId, claims.get("authorizationVersion", Integer.class),
+        claims.get("permissions", List.class) == null ? List.of() : claims.get("permissions", List.class),
+        claims.get("scopeType", String.class), claims.get("businessType", String.class),
+        claims.get("timezone", String.class));
   }
 
   /**

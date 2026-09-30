@@ -16,6 +16,8 @@ import static org.mockito.Mockito.when;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.customer.infra.persistence.mapper.WalletAccountMapper;
 import io.openware.platform.customer.infra.persistence.mapper.WalletLedgerMapper;
 import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
@@ -23,10 +25,14 @@ import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.mockito.ArgumentCaptor;
 
 /** A380币储值账本：只追加流水、扣减前校验余额、幂等。 */
 class WalletApplicationServiceTest {
+
+  @AfterEach
+  void clearContext() { TenantContextHolder.clear(); }
 
   private final WalletAccountMapper accountMapper = mock(WalletAccountMapper.class);
   private final WalletLedgerMapper ledgerMapper = mock(WalletLedgerMapper.class);
@@ -53,6 +59,18 @@ class WalletApplicationServiceTest {
     // 账本只追加：只 insert，绝不 update/delete 历史流水。
     verify(ledgerMapper, never()).updateById(any(CstWalletLedgerPo.class));
     verify(accountMapper).updateById(result);
+  }
+
+  @Test
+  void rechargeRecordsSignedStoreOnLedger() {
+    when(accountMapper.selectOne(any())).thenReturn(account(5000L));
+    when(ledgerMapper.selectCount(any())).thenReturn(0L);
+
+    service.recharge(77L, 7L, 2000L, "CNY", "CASH", "R1", "key-store");
+
+    ArgumentCaptor<CstWalletLedgerPo> captor = ArgumentCaptor.forClass(CstWalletLedgerPo.class);
+    verify(ledgerMapper).insert(captor.capture());
+    assertEquals(77L, captor.getValue().getStoreId());
   }
 
   @Test

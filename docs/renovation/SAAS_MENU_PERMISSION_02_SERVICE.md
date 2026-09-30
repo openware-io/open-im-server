@@ -719,7 +719,7 @@ CREATE TABLE `iam_menu` (
 
 ### 9.3 接口契约
 
-`GET /admin/menus/v2?scope=TENANT`
+`GET /admin/menus?scope=TENANT`
 
 ```json
 {
@@ -734,7 +734,7 @@ CREATE TABLE `iam_menu` (
 }
 ```
 
-**兼容**：`GET /admin/menus`（旧平铺）保留且冻结，一个发布周期后删除。前端按 `VITE_MENU_V2` 切换。
+**接口策略**：继续使用 `GET /admin/menus` 作为唯一有效菜单接口，直接切换为数据库菜单查询和声明式剪枝；不新增 v2，不设置 `VITE_MENU_V2`。无消费者的旧平铺兼容代码同批次删除。
 
 ### 9.4 一致性校验（CI 必过）
 
@@ -831,7 +831,7 @@ v0.1 写「`StoreApplicationService` 更新 `business_type` 时调用 `evictAll(
 
 1. `ContextDtos` 的 `SelectContextResponse` / `ContextItem` 增加 `businessType`（门店上下文时非空）；
    建议同时加 `timezone`（`tnt_store.timezone`），供门店段头部显示。
-2. `GET /admin/menus/v2` 的 `context` 段补 `businessType` / `timezone`（§9.3 的响应示例已假定有）。
+2. 现有 `GET /admin/menus` 的 `context` 段补 `businessType` / `timezone`（§9.3 的响应示例已假定有）。
 
 ### 10.5 ⚠️ 修正：业态的"双源"问题（D-2 的前置条件）
 
@@ -1013,7 +1013,7 @@ v0.1 在 `01_ADMIN` §11 写的 `V28__order_children_store_scope.sql` / `V29__se
 | --- | --- | --- |
 | **M0** | `platform-order-service`(V29)、`common-payment-service`(V11)、`common-audit-service`(V5)、`platform-marketing-service`(V5)、`platform-tenant-service`(V28，仅方案 A) | 缺口 1–4 的 DDL + 双写 + 回填 + 校验（§11）；脚本编号见 §11.5 |
 | **M1** | `platform-admin-service` | `AdminMenuApplicationService` 重组树（暂硬编码），`parentId`/`children` 正确填充；**19 项**（不是 18，见 `01_ADMIN` §3.4 v0.3 修正） |
-| **M2** | `platform-admin-service` | `iam_menu` 建表 + 种子（V7）；`menusV2()` 查表 + 剪枝；旧 `GET /admin/menus` 冻结保留 |
+| **M2** | `platform-admin-service` | `iam_menu` 建表 + 种子（V7）；现有 `GET /admin/menus` 直接改为查表 + 剪枝；无消费者的旧兼容代码删除，不新增 v2 |
 | **M3** | `platform-tenant-service` | `iam_permission` / `iam_role` 加列 + 回填（§4）；`grantable_levels` 按 §4.2 规则生成；菜单 `required_permission` 化 |
 | **M4** | `platform-admin-service`（上下文补字段）、`platform-tenant-service`（业态过滤 + 失效点）、`platform-order-service` / `platform-resource-service`（业态权威来源） | **前置**：§10.4 上下文补 `businessType`/`timezone`；§10.5 业态权威来源校验/覆盖。**主体**：§7 业态过滤 + §10.3 业态变更失效点 |
 | **M5** | `platform-tenant-service`（`IamController`）、`gv_saas_admin`（授权界面） | §8.3 的 3 个写路径校验 + `INVALID_GRANT_SCOPE` 错误码 + 批量多门店绑定 `POST /admin/iam/bindings` |
@@ -1048,7 +1048,7 @@ v0.1 在 `01_ADMIN` §11 写的 `V28__order_children_store_scope.sql` / `V29__se
 | **S-6 选"收敛"（剔除 `ktv.*`）** | 需保留一份"全量授权"回滚种子（`V24` 同样的全量语句） | ⚠️ 可逆但要重跑种子 |
 | **`iam_menu.code` 重命名（S-8）** | 旧 code 只作前端 `v-for` key 兜底，无外部契约 | ⚠️ 数据可改回，但会触发前端重建列表 |
 
-**合并顺序硬约束**：M0 阶段 3（置 NOT NULL）**不能与任何读路径切换同批发布**。先结构、后逻辑，中间留一个发布周期。
+**合并顺序硬约束**：M0 阶段 3（置 NOT NULL）必须在开发实施中先完成结构、回填和一致性校验，再切换读路径；本次没有线上兼容过渡要求，但不能在未完成校验时把结构和读逻辑一次性盲改。
 
 ---
 

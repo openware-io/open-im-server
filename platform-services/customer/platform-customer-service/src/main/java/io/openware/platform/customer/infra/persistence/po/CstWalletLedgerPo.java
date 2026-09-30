@@ -18,6 +18,8 @@ public class CstWalletLedgerPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 本笔储值业务发生门店；账户本身不分店。 */
+    private Long storeId;
     private Long walletAccountId;
     private String entryType;
     private Long amount;

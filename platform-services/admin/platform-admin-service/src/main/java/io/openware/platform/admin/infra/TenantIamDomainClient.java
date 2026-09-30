@@ -58,7 +58,8 @@ public class TenantIamDomainClient {
                             nullableLong(item, "storeId"),
                             text(item, "storeName"),
                             stringList(item, "roles"),
-                            text(item, "scopeType")));
+                            text(item, "scopeType"),
+                            text(item, "businessType"), text(item, "timezone")));
                 }
             }
             return result;
@@ -278,7 +279,15 @@ public class TenantIamDomainClient {
     /** tenant-service 内部上下文（内部契约 DTO，非 PO）。 */
     public record Context(String contextId, Long tenantId, String tenantName,
                           Long organizationId, String organizationName,
-                          Long storeId, String storeName, List<String> roles, String scopeType) {}
+                          Long storeId, String storeName, List<String> roles, String scopeType,
+                          String businessType, String timezone) {
+        public Context(String contextId, Long tenantId, String tenantName,
+                       Long organizationId, String organizationName,
+                       Long storeId, String storeName, List<String> roles, String scopeType) {
+            this(contextId, tenantId, tenantName, organizationId, organizationName, storeId, storeName,
+                    roles, scopeType, null, null);
+        }
+    }
 
     /** tenant-service 内部权限快照（内部契约 DTO，非 PO）。 */
     public record PermissionSnapshot(Long accountId, Long tenantId, Long organizationId, Long storeId,

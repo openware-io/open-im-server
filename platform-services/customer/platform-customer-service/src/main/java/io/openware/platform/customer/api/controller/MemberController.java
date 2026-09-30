@@ -96,6 +96,7 @@ public class MemberController {
         return memberService.list(page, pageSize, keyword, level, status, TimeRangeParams.parse(from, to));
     }
 
+
     /**
      * 创建客户 / 未验证手机号创建待认领客户 / 绑定 IM 建档。
      *
@@ -104,7 +105,9 @@ public class MemberController {
      */
     @PostMapping
     public CstMemberPo create(@RequestBody CreateMemberRequest req) {
-        return memberService.create(req.accountId(), req.name(), req.phone(), req.consent(),
+        PermissionGuard.require("member.manage");
+        requireStoreContext();
+        return memberService.create(requireStoreContext(), req.accountId(), req.name(), req.phone(), req.consent(),
                 req.imAccount(), req.imUsername());
     }
 
@@ -115,6 +118,7 @@ public class MemberController {
      */
     @PutMapping("/{id}/im-binding")
     public CstMemberPo bindIm(@PathVariable Long id, @RequestBody ImBindingRequest req) {
+        PermissionGuard.require("member.manage");
         return memberService.bindIm(id, req.imAccount(), req.imUsername(), req.name());
     }
 
@@ -144,11 +148,16 @@ public class MemberController {
     @GetMapping("/me")
     public MemberMeResponse me() {
         TenantContext ctx = TenantContextHolder.get();
-        Long accountId = ctx == null ? null : ctx.accountId();
-        if (accountId == null) {
+        if (ctx == null || ctx.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        Long accountId = ctx.accountId();
+        if (accountId == null || accountId <= 0) {
             throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号上下文");
         }
-        CstMemberPo member = memberService.getOrCreateByAccount(accountId);
+        CstMemberPo member = ctx.storeId() == null
+                ? memberService.getOrCreateByAccount(accountId)
+                : memberService.getOrCreateByAccount(ctx.storeId(), accountId);
         // 币种不再硬编码 CNY：取当时租户币种（缺省 USD，16_CURRENCY_CONVENTIONS §1/§2）。
         // 钱包响应补代币数量/品牌展示字段；积分响应只给积分「个数」（无币种、无代币字段）。
         // 储值走懒初始化读路径（balance）：没有账户即余额 0，不因为「看了一眼资产」就给会员建空账户。
@@ -178,13 +187,28 @@ public class MemberController {
     public MemberPointsView points(@PathVariable Long id,
                                    @RequestParam(defaultValue = "1") long page,
                                    @RequestParam(defaultValue = "20") long pageSize) {
-        return pointService.view(id, page, pageSize);
+        TenantContext context = TenantContextHolder.get();
+        return context == null || context.storeId() == null
+                ? pointService.view(id, page, pageSize)
+                : pointService.view(id, context.storeId(), page, pageSize);
     }
 
     /** 积分调整（高风险审计，命令幂等 commandId）。 */
     @PostMapping("/{id}/points/adjust")
     public CstPointAccountPo adjustPoints(@PathVariable Long id, @RequestBody AdjustPointsRequest req) {
-        return pointService.adjust(id, req.points(), req.reason(), req.commandId());
+        PermissionGuard.require("points.adjust");
+        return pointService.adjust(requireStoreContext(), id, req.points(), req.reason(), req.commandId());
+    }
+
+    private Long requireStoreContext() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        if (context.storeId() == null) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "客户写操作必须在门店上下文中发起");
+        }
+        return context.storeId();
     }
 
     /** 会员储值余额（同主体同币种，租户级、跨门店共用）+ 代币展示数量。没有账户即余额 0（不创建账户）。 */
@@ -236,7 +260,11 @@ public class MemberController {
     public Page<CstWalletLedgerPo> walletLedger(@PathVariable Long id,
                                                 @RequestParam(defaultValue = "1") long page,
                                                 @RequestParam(defaultValue = "20") long pageSize) {
-        return walletTokenDisplayService.decorate(walletService.ledger(id, page, pageSize));
+        TenantContext context = TenantContextHolder.get();
+        Page<CstWalletLedgerPo> ledger = context == null || context.storeId() == null
+                ? walletService.ledger(id, page, pageSize)
+                : walletService.ledger(id, context.storeId(), page, pageSize);
+        return walletTokenDisplayService.decorate(ledger);
     }
 
     public record CreateMemberRequest(Long accountId, String name, String phone, Boolean consent,

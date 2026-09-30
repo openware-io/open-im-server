@@ -8,11 +8,11 @@
 
 - 仓库：`open-im-server`，当前分支：`develop/2.2.0-auth`。
 - 分支已推送：`origin/develop/2.2.0-auth`，基于远端 `main` 创建。
-- 本轮先更新方案与原型，暂未实施生产代码、Flyway 或前端功能。
-- 当前交付物版本：方案 A v0.9、方案 B v0.2、服务端规格 v0.3、原型 v0.9。
+- 本轮先更新方案与原型，暂未实施生产代码、Flyway 或前端功能；实施批次、规范门禁和冲突处理以 `SAAS_MENU_PERMISSION_IMPLEMENTATION_PLAN.md` 为准。
+- 当前交付物版本：方案 A v0.9、方案 B v0.3、服务端规格 v0.3、原型 v0.9、实施主计划 v0.1。
 - 各服务 Maven 版本号本轮未锁步改为 `2.2.0`：现有工程规范按服务域独立递增；是否为本次发布建立统一版本基线，列为发布治理决策，不由本方案擅自覆盖。
 - 客户/积分/储值的目标入口为 STORE；总部只提供汇总、筛选、对比和下钻，不直接替代门店写操作。
-- 余额默认按租户/法人主体共享，流水按门店归因；多币种总部金额按币种分组，不直接相加。
+- 余额默认按租户/法人主体共享，流水按门店归因；本次确认总部读取实时权威数据，不使用异步投影冒充实时；多币种总部金额按币种分组，不直接相加。
 
 ---
 
@@ -31,7 +31,7 @@
    （先看顶部“当前工作区检查点”和 §0.2「v0.3 复核修正了什么」——实测修正优先于更早版本）
 2. SAAS_MENU_PERMISSION_01_ADMIN.md  —— 方案 A v0.9：两轴模型、菜单结构、页面归属、权限入口迁移
 3. SAAS_MENU_PERMISSION_02_SERVICE.md —— 服务端规格 v0.3：44 个存量权限码归属、总部/门店新增权限登记、PLATFORM/platform.operator 处理（§5.5）、DDL、授予规则、下发契约、M0 数据地基、Flyway 按模块编号（§11.5）
-4. SAAS_TENANT_HEADQUARTERS_01_SERVICE.md —— 方案 B v0.2：总部总览、门店下钻、客户/积分/储值归属、三层配置作用域与决策清单
+4. SAAS_TENANT_HEADQUARTERS_01_SERVICE.md —— 方案 B v0.3：总部总览、门店下钻、客户/积分/储值归属、三层配置作用域与决策清单
 
 读完后先向我复述：
   (a) 当前进度到哪一步；
@@ -56,14 +56,15 @@
 
 ## 0.1 一句话现状
 
-**方案已完成到 v0.9（方案 A）+ v0.2（服务端权限）+ v0.2（方案 B），代码零改动，尚未实施。** 五个交付物已入库：
+**方案已完成到 v0.9（方案 A）+ v0.3（服务端权限）+ v0.3（方案 B），代码零改动，尚未实施。** 六个交付物已入库：
 
 | 文件 | 内容 |
 | --- | --- |
 | `docs/renovation/SAAS_MENU_PERMISSION_HANDOFF.md` | 本文，跨机续接说明 |
 | `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | 总体方案 v0.9：现状诊断、两轴模型、菜单提案、客户/积分/储值门店入口、缺口、分期、**15 项决策点（D-1…D-15）** |
 | `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | 服务端规格 v0.3：**44 个存量权限码全量归属表（实测）**、总部/门店新增权限登记、**PLATFORM 与 `platform.operator` 的正确处理（§5.5）**、`iam_permission`/`iam_role` DDL 与规则化回填、5 个预置角色实测持有量、授予合法性矩阵、业态过滤 SQL 与 8 条测试用例、菜单下发契约与剪枝、M0 四缺口 DDL 与三阶段灰度、**Flyway 按模块编号表（§11.5）**、**10 项决策点（S-1…S-10）** |
-| `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | 方案 B v0.2：总部只读总览、门店下钻、客户主档/门店关系、积分/储值流水归因、租户/业态/门店配置优先级、多币种口径、**HQ-1…HQ-9 决策清单** |
+| `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | 方案 B v0.3：总部实时总览、门店下钻、客户主档/门店关系、积分/储值流水归因、垃圾数据清理、租户/业态/门店配置优先级、多币种口径、**HQ-1…HQ-9 决策清单** |
+| `docs/renovation/SAAS_MENU_PERMISSION_IMPLEMENTATION_PLAN.md` | 实施主计划 v0.1：P0-P8 批次、客户端同步、实时总览、数据迁移、DDD 触碰治理、规范门禁和回滚 |
 | `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN_mockup.html` | 示意图（自包含单文件，浏览器直接打开） |
 
 **没有动过任何生产代码**，没有新增 Flyway 脚本，没有改表。
@@ -155,7 +156,7 @@ git pull            # 分支 develop/2.2.0-auth
 | 功能 | v0.1 误判 | 实测证据 | v0.2 结论 |
 | --- | --- | --- | --- |
 | 商品管理 | 租户级 | `ord_product.store_id NOT NULL` | **门店级** → 「门店商品与库存」 |
-| 计价方案 | TENANT | `tnt_pricing_plan.store_id NOT NULL` | **门店级** → 「门店设置」 |
+| 计价方案 | TENANT | `store_id=0` + `business_type` 默认层，`store_id>0` 门店覆盖 | **租户 KTV 配置**，按门店 > 业态 > 租户解析 |
 
 范围收敛：不新增租户级「商品与服务」或「通用目录」菜单，避免与现有门店级「门店商品与库存」重复；`ord_catalog_item` 仅保留为内部数据模型记录，跨门店共享商品/服务调用暂不纳入本期开源方案。
 

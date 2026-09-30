@@ -94,9 +94,25 @@ public class ReservationController {
             throw new ApiException(400, "RESOURCE_ID_NOT_ALLOWED",
                     "预约按房型（roomTypeId）创建，不接受具体包厢 resourceId，具体包厢到店后由门店分配");
         }
+        String businessType = effectiveBusinessType(context, req.businessType());
         return reservationService.create(tenantId, idempotencyKey, new ReservationApplicationService.CreateReservationCommand(
-                req.businessType(), memberId(), storeId, req.roomTypeId(),
+                businessType, memberId(), storeId, req.roomTypeId(),
                 req.startAt(), req.endAt(), req.partySize(), req.contact()));
+    }
+
+    /** 业态由签名门店上下文确定，请求体只用于旧客户端兼容与一致性校验。 */
+    private static String effectiveBusinessType(TenantContext context, String requested) {
+        String authoritative = context == null ? null : context.businessType();
+        if (authoritative != null && !authoritative.isBlank()) {
+            if (requested != null && !requested.isBlank() && !authoritative.equalsIgnoreCase(requested)) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "请求业态与门店当前业态不一致");
+            }
+            return authoritative;
+        }
+        if (requested == null || requested.isBlank()) {
+            throw new ApiException(422, "BUSINESS_TYPE_CONTEXT_MISSING", "门店上下文缺少业态信息，请重新选择门店");
+        }
+        return requested;
     }
 
     /** 确认预约：POST /business/reservations/{id}/confirm（PENDING → CONFIRMED，乐观锁 expectedVersion）。 */

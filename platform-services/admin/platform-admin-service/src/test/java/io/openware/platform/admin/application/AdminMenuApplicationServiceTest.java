@@ -12,6 +12,8 @@ import io.openware.platform.admin.api.menu.AdminMenuItem;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.TenantPaymentMethodMapper;
+import io.openware.platform.admin.infra.persistence.mapper.AdminMenuMapper;
+import io.openware.platform.admin.infra.persistence.po.AdminMenuPo;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
@@ -31,8 +33,34 @@ class AdminMenuApplicationServiceTest {
   private final TenantPaymentMethodMapper tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
   private final TenantIamDomainClient tenantIamClient = mock(TenantIamDomainClient.class);
   private final AdminTenantContextTokenSigner contextTokens = mock(AdminTenantContextTokenSigner.class);
+  private final AdminMenuMapper menuMapper = mock(AdminMenuMapper.class);
   private final AdminMenuApplicationService service =
-      new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens);
+      new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens, menuMapper);
+
+  private void useMenuFixture() {
+    when(menuMapper.selectList(any())).thenReturn(List.of(menu(1, 0, "tenant", "租户管理", "/admin/platform/tenants", "PLATFORM", "core"),
+        menu(3, 0, "iam", "权限管理", "/admin/iam", "PLATFORM", "core"),
+        menu(31, 3, "iam.role", "角色", "/admin/iam/roles", "PLATFORM", "core"),
+        menu(4, 0, "paymethod", "支付方式", "/admin/platform/payment-methods", "PLATFORM", "core"),
+        menu(10, 0, "store", "门店", "/admin/tenant/stores", "TENANT", "core"),
+        menu(27, 0, "currency", "币种", "/admin/tenant/currency", "TENANT", "core", "wallet"),
+        menu(13, 0, "order", "收银台", "/business/orders", "TENANT", "core"),
+        menu(28, 0, "order-manage", "订单管理", "/admin/orders", "TENANT", "core")));
+  }
+
+  private static AdminMenuPo menu(long id, long parent, String code, String name, String path,
+                                  String scope, String domain) {
+    return menu(id, parent, code, name, path, scope, domain, code);
+  }
+
+  private static AdminMenuPo menu(long id, long parent, String code, String name, String path,
+                                  String scope, String domain, String icon) {
+    AdminMenuPo menu = new AdminMenuPo();
+    menu.setId(id); menu.setParentId(parent); menu.setCode(code); menu.setName(name); menu.setPath(path);
+    menu.setIcon(icon); menu.setScopeLevel(scope); menu.setDomainCode(domain); menu.setSortNo((int) id);
+    menu.setStatus("ACTIVE");
+    return menu;
+  }
 
   @AfterEach
   void cleanup() {
@@ -42,6 +70,7 @@ class AdminMenuApplicationServiceTest {
   @Test
   void tenantMenusContainCurrencyEntryNearStore() {
     adminWithTenantContext();
+    useMenuFixture();
     // 未授予储值支付方式、无 iam.role.manage/audit.view：币种入口仍必须返回（它不经授权过滤）。
     when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
     when(tenantIamClient.permissions(1L, 100L, null, null))
@@ -57,6 +86,7 @@ class AdminMenuApplicationServiceTest {
     assertEquals("currency", currency.code());
     assertEquals("币种", currency.name());
     assertEquals("TENANT", currency.scope());
+    assertEquals("core", currency.domainCode());
     assertEquals("wallet", currency.icon());
     assertEquals(0L, currency.parentId().longValue());
     assertTrue(currency.children().isEmpty());
@@ -69,6 +99,7 @@ class AdminMenuApplicationServiceTest {
   @Test
   void platformMenusDoNotContainCurrencyEntry() {
     adminWithTenantContext();
+    useMenuFixture();
 
     List<AdminMenuItem> menus = service.menus("PLATFORM");
 
@@ -84,6 +115,7 @@ class AdminMenuApplicationServiceTest {
   @Test
   void tenantMenusRenameCashierAndAddOrderManagementRightAfterIt() {
     adminWithTenantContext();
+    useMenuFixture();
     when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
@@ -97,6 +129,7 @@ class AdminMenuApplicationServiceTest {
     assertEquals("收银台", cashier.name());
     assertEquals(13L, cashier.id().longValue());
     assertEquals("order", cashier.code());
+    assertEquals("core", cashier.domainCode());
 
     AdminMenuItem orderManagement = menus.stream()
         .filter(menu -> "/admin/orders".equals(menu.path()))
@@ -106,6 +139,7 @@ class AdminMenuApplicationServiceTest {
     assertEquals(28L, orderManagement.id().longValue());
     assertEquals("order-manage", orderManagement.code());
     assertEquals("TENANT", orderManagement.scope());
+    assertEquals("core", orderManagement.domainCode());
 
     // 订单管理紧跟在收银台之后。
     int cashierIndex = menus.indexOf(cashier);
@@ -116,6 +150,7 @@ class AdminMenuApplicationServiceTest {
   @Test
   void fullMenuListPublishesCurrencyExactlyOnce() {
     adminWithTenantContext();
+    useMenuFixture();
     when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(1L);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
@@ -129,6 +164,7 @@ class AdminMenuApplicationServiceTest {
   @Test
   void fullMenuTreeUsesUniqueIcons() {
     adminWithTenantContext();
+    useMenuFixture();
     when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(1L);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
@@ -142,6 +178,28 @@ class AdminMenuApplicationServiceTest {
         assertTrue(icons.add(child.icon()), "菜单图标重复: " + child.name() + " -> " + child.icon());
       }
     }
+  }
+  private List<AdminMenuPo> testMenus() {
+    List<AdminMenuPo> menus = new java.util.ArrayList<>();
+    String[][] values = {
+      {"1","0","tenant","租户管理","/admin/platform/tenants","building","PLATFORM","core"},
+      {"2","0","pricing","计价方案","/admin/pricing-plans","price","PLATFORM","core"},
+      {"3","0","iam","权限管理","/admin/iam","management","PLATFORM","core"},
+      {"31","3","iam.role","角色","/admin/iam/roles","avatar","PLATFORM","core"},
+      {"32","3","iam.permission","权限","/admin/iam/permissions","key","PLATFORM","core"},
+      {"4","0","paymethod","支付方式","/admin/platform/payment-methods","money","PLATFORM","core"},
+      {"10","0","store","门店","/admin/tenant/stores","shop","TENANT","core"},
+      {"27","0","currency","币种","/admin/tenant/currency","wallet","TENANT","core"},
+      {"13","0","order","收银台","/business/orders","tickets","TENANT","core"},
+      {"28","0","order-manage","订单管理","/admin/orders","list","TENANT","core"}
+    };
+    for (String[] value : values) {
+      AdminMenuPo menu = new AdminMenuPo();
+      menu.setId(Long.valueOf(value[0])); menu.setParentId(Long.valueOf(value[1])); menu.setCode(value[2]);
+      menu.setName(value[3]); menu.setPath(value[4]); menu.setIcon(value[5]); menu.setScopeLevel(value[6]);
+      menu.setDomainCode(value[7]); menu.setSortNo(menu.getId().intValue()); menu.setStatus("ACTIVE"); menus.add(menu);
+    }
+    return menus;
   }
 
   private void adminWithTenantContext() {

@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
 
-/** 租户级配置（键值，store_id=0 表示租户级）。 */
+/** 作用域配置（store_id=0、business_type 为空表示租户默认）。 */
 @Getter
 @Setter
 @TableName("tnt_tenant_config")
@@ -16,6 +16,7 @@ public class TenantConfigPo {
     private Long id;
     private Long tenantId;
     private Long storeId;
+    private String businessType;
     private String configKey;
     private String configValue;
     private String status;

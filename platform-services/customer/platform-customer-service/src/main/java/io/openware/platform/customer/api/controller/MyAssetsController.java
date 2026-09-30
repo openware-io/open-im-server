@@ -52,7 +52,11 @@ public class MyAssetsController {
   @GetMapping("/wallet/ledger")
   public Page<CstWalletLedgerPo> walletLedger(@RequestParam(defaultValue = "1") long page,
                                                @RequestParam(defaultValue = "20") long pageSize) {
-    return walletTokenDisplayService.decorate(walletService.ledger(currentMember().getId(), page, pageSize));
+    TenantContext context = TenantContextHolder.get();
+    Page<CstWalletLedgerPo> ledger = context == null || context.storeId() == null
+        ? walletService.ledger(currentMember().getId(), page, pageSize)
+        : walletService.ledger(currentMember().getId(), context.storeId(), page, pageSize);
+    return walletTokenDisplayService.decorate(ledger);
   }
 
   @GetMapping("/points")
@@ -60,14 +64,22 @@ public class MyAssetsController {
                                  @RequestParam(defaultValue = "20") long pageSize) {
     CstMemberPo member = currentMember();
     pointService.ensureAccount(member.getId());
-    return pointService.view(member.getId(), page, pageSize);
+    TenantContext context = TenantContextHolder.get();
+    return context == null || context.storeId() == null
+        ? pointService.view(member.getId(), page, pageSize)
+        : pointService.view(member.getId(), context.storeId(), page, pageSize);
   }
 
   private CstMemberPo currentMember() {
     TenantContext context = TenantContextHolder.get();
-    if (context == null || context.accountId() <= 0) {
+    if (context == null || context.tenantId() <= 0) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+    }
+    if (context.accountId() <= 0) {
       throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少已认证账号");
     }
-    return memberService.getOrCreateByAccount(context.accountId());
+    return context.storeId() == null
+        ? memberService.getOrCreateByAccount(context.accountId())
+        : memberService.getOrCreateByAccount(context.storeId(), context.accountId());
   }
 }

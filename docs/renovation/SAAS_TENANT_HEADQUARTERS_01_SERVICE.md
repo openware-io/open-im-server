@@ -1,10 +1,10 @@
-# SaaS 租户总部经营方案（评审稿 v0.2）
+# SaaS 租户总部经营方案（评审稿 v0.3）
 
 > **所属方案集**：`SAAS_TENANT_HEADQUARTERS`
 > **本文件**：方案 B，租户总部经营总览、跨店筛选、门店下钻、客户/积分/储值门店操作边界与配置作用域。
 > **配套方案 A**：`SAAS_MENU_PERMISSION_01_ADMIN.md`（菜单、权限、作用域与入口迁移）。
 > **配套服务端权限规格**：`SAAS_MENU_PERMISSION_02_SERVICE.md`。
-> **状态**：评审稿，未实施；本轮不做历史数据兼容回填。
+> **状态**：执行稿 v0.6；P6 总部只读总览已实施并验证，P7-A 已完成营业时间三层配置基础与多店批量写，P7-B 已完成计价方案三层作用域首批；支付渠道及其他配置项仍待后续批次。不兼容旧接口。客户主档本期只记录首次来源门店，不引入多店关系表。
 
 ## 1. 范围与硬约束
 
@@ -20,7 +20,7 @@
 4. 业务配置的租户默认、业态默认、门店覆盖和多店批量设置。
 5. 总部菜单、门店菜单、权限作用域、审计和接口边界。
 
-本方案不覆盖：跨门店商品/服务共享目录、跨门店履约调用、组织级独立结算、通用配置中心、历史数据回填和兼容旧接口。
+本方案不覆盖：跨门店商品/服务共享目录、跨门店履约调用、组织级独立结算、通用配置中心。历史数据回填和垃圾数据清理按实施主计划 P4/P5 执行；本次不保留旧接口兼容过渡。
 
 ### 1.2 必须遵守的工程约束
 
@@ -69,7 +69,7 @@
 
 | 对象 | 主档/余额归属 | 门店维度 | 本方案默认口径 |
 | --- | --- | --- | --- |
-| 客户主档 | 租户内唯一 | `cst_member_store` 关系 + 首次来源门店 | 不因门店重复建客户；首次新增记录来源门店，后续门店维护关系 |
+| 客户主档 | 租户内唯一 | `cst_member.origin_store_id` 首次来源门店 | 不因门店重复建客户；客户信息跨店共享；本期不引入多店关系表 |
 | 积分账户 | 租户内客户账户 | 流水 `store_id` | 余额共享；跨店消费仍可产生积分，流水和操作归因到实际门店 |
 | 储值账户 | 租户 + 客户 + 租户币种 | 流水 `store_id` | 余额共享；允许门店为跨店客户充值，充值/消费/退款归因到实际门店 |
 | 门店操作 | 不改变主档归属 | `TenantContext.storeId` | 客户、积分、储值页面在门店段渲染，接口强制当前门店 |
@@ -126,27 +126,27 @@ Admin 服务只做权限、上下文、筛选条件编排和响应聚合，不�
 
 `GET /api/v1/admin/tenant/overview`
 
-查询参数：`from`、`to`、`businessType?`、`storeIds?`、`page`、`pageSize`。
+查询参数：`from`、`to`、`businessType?`、`storeIds?`。当前未接入全领域业态筛选时，BFF 明确返回 `422 BUSINESS_TYPE_FILTER_UNAVAILABLE`，不得静默忽略。
 
 响应固定包含：
 
 ```json
 {
-  "data": {
-    "scope": "TENANT",
-    "currencyCode": "USD",
-    "amounts": {"walletBalance": 286400, "revenue": 1860000},
-    "kpis": {"activeStores": 3, "memberCount": 12680, "pointsBalance": 1248900},
-    "stores": [{"storeId": 3001, "storeName": "KTV旗舰店", "businessType": "KTV", "currencyCode": "USD", "memberCount": 5240, "pointsIssued": 128600, "pointsUsed": 64200, "walletRecharge": 82400, "walletConsume": 61800, "revenue": 720000}],
-    "updatedAt": "2026-09-28T10:00:00Z"
-  },
-  "requestId": "..."
+  "scope": "TENANT",
+  "currencyCode": "USD",
+    "tenant": {"tenantId": 1001, "stores": [{"id": 3001, "code": "KTV-01", "name": "KTV旗舰店", "businessType": "KTV", "status": "ACTIVE"}]},
+    "customer": {"memberCount": 12680, "pointsBalance": 1248900, "walletBalance": 286400, "pointsDelta": 64200, "walletDelta": 61800},
+    "order": {"rows": [{"storeId": 3001, "businessType": "KTV", "currencyCode": "USD", "orderCount": 120, "revenueAmount": 720000, "paidAmount": 680000}]},
+    "payment": {"rows": [{"provider": "CARD", "currencyCode": "USD", "transactionCount": 100, "amount": 680000}]},
+  "updatedAt": "2026-09-28T10:00:00Z",
+  "dataStatus": "COMPLETE",
+  "failures": {}
 }
 ```
 
 总部查询只返回当前租户可见门店；`storeIds` 必须经过当前账号的门店作用域校验。无权限、跨租户门店和无效业态统一返回标准 `403/400`，不能返回空数据掩盖越权。币种为租户级单一配置，默认 `USD`，本期不支持跨国多币种和汇率换算；所有总部金额使用租户币种。
 
-`memberCount` 是租户去重后的客户主档数；门店行的 `memberCount` 是该店关系数，不能把门店行相加后冒充租户去重数。`pointsBalance`/`walletBalance` 表示共享账户余额，门店行只返回期间流水（发放、使用、充值、消费）。
+`memberCount` 始终是租户去重后的客户主档数；本期没有多店客户关系表，门店筛选不会把客户主档改成门店专属列表。`pointsBalance`/`walletBalance` 始终表示租户共享账户余额，不按门店重复计算；`storeIds` 只作用于期间流水（发放、使用、充值、消费）及其 delta。
 
 ### 4.3 下钻
 
@@ -158,21 +158,21 @@ Admin 服务只做权限、上下文、筛选条件编排和响应聚合，不�
 
 | 路由 | 目标上下文 | 目标改造 |
 | --- | --- | --- |
-| `GET/POST /business/members` | STORE | 客户列表、创建和绑定只允许当前 `storeId`；创建后幂等维护 `cst_member_store` |
-| `GET /business/members/points`、`GET /business/members/{id}/points` | STORE | 列表按门店关系过滤；详情校验客户属于当前门店 |
+| `GET/POST /business/members` | STORE | 客户列表跨店共享；创建和绑定必须在当前 `storeId`，创建时只写入首次来源 `origin_store_id` |
+| `GET /business/members/points`、`GET /business/members/{id}/points` | STORE | 客户主档按租户共享；流水明细按实际操作门店过滤，详情仍校验当前租户 |
 | `POST /business/members/{id}/points/adjust` | STORE | 从签名上下文取 `store_id` 写积分流水，忽略/拒绝请求体门店字段 |
-| `GET /business/members/wallets`、`GET /business/members/{id}/wallet` | STORE | 只返回当前门店客户关系；余额可共享，但不能借此获得其他门店客户列表 |
+| `GET /business/members/wallets`、`GET /business/members/{id}/wallet` | STORE | 客户主档按租户共享；余额为共享余额，流水明细按实际操作门店过滤 |
 | `POST /admin/wallets/recharge|refund` | STORE | 保留现有路径；从 `TenantContext.storeId` 写储值流水并强制幂等键 |
 
 上述接口在无 `storeId` 时统一返回 `403 STORE_CONTEXT_REQUIRED`。总部总览只调用领域服务的聚合接口，不通过这些门店接口循环查询或拼接跨店数据。
 
 ## 5. 客户/积分/储值门店化改造
 
-本轮不做历史数据回填，直接以新模型创建新表/新列并要求新写入完整归因：
+按实施计划 P5 执行：先新增结构和双写，再按已确认的数据迁移策略分批补齐可可靠推导的历史归属；不兼容旧接口。无法可靠推导且确认是垃圾数据的记录及其垃圾关联数据清理；其他无法可靠推导的历史记录保留 NULL，并在总部查询中明确标记为不可按店筛选。所有新写入必须完整归因：
 
-1. customer 域新增 `cst_member_store(tenant_id, member_id, store_id, first_seen_at, last_seen_at, status, version)`，唯一键为 `(tenant_id, member_id, store_id)`。
-2. `cst_point_ledger`、`cst_wallet_ledger` 新增 `store_id NOT NULL`；写入必须从 `TenantContext.storeId` 获取，拒绝请求体自带的跨店值。
-3. 账户表继续保存共享余额；门店列表和门店明细按关系表/流水 `store_id` 过滤。
+1. `cst_member` 新增 `origin_store_id`，只记录首次新增客户的门店；客户主档查询仍按租户共享，本期不创建 `cst_member_store`。
+2. `cst_point_ledger`、`cst_wallet_ledger` 新增可空 `store_id`；新写入必须从 `TenantContext.storeId` 获取，历史无法可靠推导时保留 NULL。
+3. 账户表继续保存共享余额；门店流水明细按流水 `store_id` 过滤，余额不按门店拆分。
 4. 所有调整、充值、退款使用一个外部 `Idempotency-Key`（领域层落为 `commandId`），审计记录操作者、租户、实际操作门店、目标客户、前后余额、原因和 requestId；跨店充值/消费仍使用操作门店归因，不改变共享账户归属。
 5. 总部汇总由领域服务返回聚合结果，不由 Admin 读取账户表自行求和；余额与流水的统计时点必须在响应中返回。
 
@@ -194,17 +194,17 @@ config_key, scope_policy, merge_strategy, value_type, owner_service
 | --- | --- | --- |
 | H1 | 菜单新增总部经营总览；客户/积分/储值明确移入门店段 | 方案 A M1 |
 | H2 | 上下文响应补 `businessType`、`timezone`；总部筛选和门店下钻 | tenant/admin BFF |
-| H3 | 客户门店关系、积分/储值流水 `store_id`、门店权限和审计 | customer/payment |
+| H3 | 客户首次来源、积分/储值流水 `store_id`、门店权限和审计 | customer（权威数据）+ audit（审计 API）；本期不建立多店客户关系表；payment 仅提供支付事实/汇总 API |
 | H4 | 配置三层作用域与多店批量设置 | 配置项清单与并发策略 |
 | H5 | 汇总查询、门店对比、指标时点和性能门禁 | H2/H3 |
 
-H1/H2 可以先做原型和契约；H3/H4 未完成前，总部只能展示已实现的汇总，不得开放跨店写操作。
+H1/H2/H3/H5 已完成首版实现：总部只读总览由各领域服务读取当前权威库，Admin 只做并行编排，不直连其他领域数据库、不使用异步旧投影；响应返回 `updatedAt`、整体 `dataStatus` 和分项失败状态。H4 三层配置与多店批量设置仍待后续批次，不能在本版本菜单中开放未实现的配置写入口。
 
 ## 8. 验收标准
 
 - 同一租户可筛选多个业态和多个门店，不能看到其他租户数据。
 - 总部入口只读；客户/积分/储值写操作在门店上下文执行并带 `store_id`。
-- 同一客户跨两家门店只存在一份主档，门店关系分别可见。
+- 同一客户跨两家门店只存在一份主档；主档可被租户内各门店查询，首次新增门店由 `origin_store_id` 标记。
 - 每笔新积分/储值流水都有合法 `store_id`，与签名上下文一致。
 - 配置读取优先级固定，单店覆盖不影响同业务其他门店；多店设置全成全败且可幂等重试。
 - 直接调用隐藏菜单对应 API 仍按权限返回 403；审计包含门店和 requestId。
@@ -215,20 +215,20 @@ H1/H2 可以先做原型和契约；H3/H4 未完成前，总部只能展示已�
 
 | 编号 | 需要决策 | 推荐值 | 不决策的影响 |
 | --- | --- | --- | --- |
-| HQ-1 | 客户主档是否租户内唯一、允许跨店共享 | **是**；维护门店关系并记录首次新增门店 | 决定客户去重、来源门店和门店客户列表模型 |
+| HQ-1 | 客户主档是否租户内唯一、允许跨店共享 | **是**；只记录首次新增门店，不建立多店关系表 | 决定客户去重、来源门店和门店流水筛选模型 |
 | HQ-2 | 积分余额隔离范围 | **租户内客户账户共享**，消费产生积分，流水按实际操作门店归因 | 决定账户表不增加 `store_id`、流水增加 `store_id` |
 | HQ-3 | 储值余额隔离范围 | **租户 + 客户 + 租户币种共享**，允许跨店充值，流水按实际操作门店归因 | 决定钱包账户唯一键和跨店消费规则 |
 | HQ-4 | 总部是否允许跨店批量调整客户/积分/储值 | **总部不允许**；门店可按当前业务权限为跨店客户充值储值/产生积分 | 区分总部批量命令与门店正常业务命令 |
 | HQ-5 | 多店配置是否建立持久化门店组 | **不建立**；多选 `storeIds[]` 批量写覆盖行 | 决定是否引入门店组实体及继承复杂度 |
 | HQ-6 | 业态默认与租户默认是否都允许所有配置项 | 按配置项 `scope_policy` 显式登记 | 决定配置元数据和前端表单范围 |
-| HQ-7 | 总部指标是否允许近实时聚合 | **允许查询时聚合**，首版不先建投影 | 决定首版不引入独立报表读模型和事件链 |
+| HQ-7 | 总部指标时效 | **实时读取各领域权威服务/数据库**，查询时并行聚合并返回 `updatedAt`/分项失败状态 | 决定必须设置超时、并行查询和性能门禁，不能用异步投影替代 |
 | HQ-8 | 多币种租户的总部金额如何展示 | **租户单一币种**，默认 USD；本期不做跨国多币种 | 决定币种设置为租户级，不引入汇率服务 |
 | HQ-9 | 门店客户接口在无 `storeId` 上下文时如何处理 | 直接返回 `STORE_CONTEXT_REQUIRED`，总部只走 overview BFF | 防止通过租户上下文读取/写入未归属门店客户 |
 
 ## 10. 变更记录
 
 **v0.2（2026-09-28）**：与最新原型和方案 A 对齐：客户/积分/储值只在门店上下文操作；总部不设独立客户资产菜单；补充共享余额、客户去重、多币种金额和领域配置归属约束。
-**v0.3（2026-09-29）**：冻结业务决策：客户主档租户内唯一并记录首次新增门店；积分/储值余额租户内共享；门店可在当前业务规则下为跨店客户充值储值、消费产生积分，流水按实际操作门店归因；币种为租户级、默认 USD，暂不支持跨国多币种；总部查询允许近实时聚合。
+**v0.3（2026-09-29）**：冻结业务决策：客户主档租户内唯一并记录首次新增门店；积分/储值余额租户内共享；门店可在当前业务规则下为跨店客户充值储值、消费产生积分，流水按实际操作门店归因；币种为租户级、默认 USD，暂不支持跨国多币种；总部查询实时读取各领域权威数据并返回时点；补充 Customer 域权威数据归属和历史归属/垃圾数据清理规则。
 
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |

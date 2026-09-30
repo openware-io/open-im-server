@@ -8,7 +8,8 @@ import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.StoreApplicationService;
-import io.openware.platform.tenant.application.StoreApplicationService.StoreScheduleResult;
+import io.openware.platform.tenant.application.PermissionSnapshotProvider;
+import io.openware.platform.tenant.application.StoreApplicationService.StoreUpdateResult;
 import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
 import io.openware.platform.tenant.infra.persistence.po.StorePo;
 import java.util.List;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 门店列表与门店配置修改（ADM，租户后台）。
@@ -29,7 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   <li>{@code GET  /admin/tenant/stores?status=} → {@code StorePo[]}，含 {@code timezone} 与
  *       {@code businessDayCutoff}（多时区展示与编辑的真源，字段名与
  *       `docs/renovation/MULTI_TIMEZONE_DESIGN.md` 一致）；</li>
- *   <li>{@code PUT  /admin/tenant/stores/{id}} body {@code {timezone?, businessDayCutoff?}} → 变更后的 {@code StorePo}。</li>
+     *   <li>{@code PUT  /admin/tenant/stores/{id}} body {@code {timezone?, businessDayCutoff?, businessType?}} → 变更后的 {@code StorePo}。</li>
  * </ul>
  *
  * <p>写接口的边界（文档 §2.1、§3.1）：
@@ -66,11 +68,21 @@ public class StoreController {
     private final StoreMapper storeMapper;
     private final StoreApplicationService storeService;
     private final AuditClient auditClient;
+    private final PermissionSnapshotProvider permissionSnapshotProvider;
 
-    public StoreController(StoreMapper storeMapper, StoreApplicationService storeService, AuditClient auditClient) {
+    /** Spring wiring path;业态变更成功后立即逐出按门店维度的权限快照。 */
+    @Autowired
+    public StoreController(StoreMapper storeMapper, StoreApplicationService storeService, AuditClient auditClient,
+                           PermissionSnapshotProvider permissionSnapshotProvider) {
         this.storeMapper = storeMapper;
         this.storeService = storeService;
         this.auditClient = auditClient;
+        this.permissionSnapshotProvider = permissionSnapshotProvider;
+    }
+
+    /** 保留单元测试及旧构造调用。 */
+    public StoreController(StoreMapper storeMapper, StoreApplicationService storeService, AuditClient auditClient) {
+        this(storeMapper, storeService, auditClient, null);
     }
 
     /** 当前租户门店列表（可选状态过滤）。 */
@@ -92,10 +104,11 @@ public class StoreController {
             TenantContext context = requireContext();
             PermissionGuard.require(PERMISSION_TENANT_MANAGE);
 
-            StoreScheduleResult result = storeService.updateSchedule(
+            StoreUpdateResult result = storeService.update(
                     context.tenantId(), context.storeId(), id, context.accountId(),
                     request == null ? null : request.timezone(),
-                    request == null ? null : request.businessDayCutoff());
+                    request == null ? null : request.businessDayCutoff(),
+                    request == null ? null : request.businessType());
 
             // 时区/切点决定「哪天算一天」，属于对账口径变更：必须留痕变更前/后值。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -108,6 +121,9 @@ public class StoreController {
                     .resourceName(result.store().getName())
                     .detailJson(detailJson(result))
                     .build());
+            if (permissionSnapshotProvider != null && request != null && request.businessType() != null) {
+                permissionSnapshotProvider.evictAll();
+            }
 
             return result.store();
         } catch (RuntimeException failure) {
@@ -118,11 +134,13 @@ public class StoreController {
     }
 
     /** 审计详情：只记受控值（IANA id 与 HH:mm:ss），不含门店自由文本。 */
-    private static String detailJson(StoreScheduleResult result) {
+    private static String detailJson(StoreUpdateResult result) {
         return "{\"timezone\":{\"before\":" + jsonText(result.timezoneBefore())
                 + ",\"after\":" + jsonText(result.timezoneAfter()) + "}"
                 + ",\"businessDayCutoff\":{\"before\":" + jsonText(result.cutoffBefore())
-                + ",\"after\":" + jsonText(result.cutoffAfter()) + "}}";
+                + ",\"after\":" + jsonText(result.cutoffAfter()) + "}"
+                + ",\"businessType\":{\"before\":" + jsonText(result.businessTypeBefore())
+                + ",\"after\":" + jsonText(result.businessTypeAfter()) + "}}";
     }
 
     /**
@@ -143,7 +161,9 @@ public class StoreController {
                 .errorCode(AuditErrorCodes.of(failure))
                 .detailJson("{\"requestedTimezone\":" + jsonText(request == null ? null : request.timezone())
                         + ",\"requestedBusinessDayCutoff\":"
-                        + jsonText(request == null ? null : request.businessDayCutoff()) + "}")
+                        + jsonText(request == null ? null : request.businessDayCutoff())
+                        + ",\"requestedBusinessType\":"
+                        + jsonText(request == null ? null : request.businessType()) + "}")
                 .build());
     }
 
@@ -168,7 +188,11 @@ public class StoreController {
      *
      * @param timezone           IANA 时区 id，例如 {@code Asia/Bangkok}
      * @param businessDayCutoff  营业日切点，{@code HH:mm} 或 {@code HH:mm:ss}，取值 {@code 00:00}–{@code 12:00}
+     * @param businessType       ACTIVE 业态编码，例如 {@code KTV}
      */
-    public record UpdateStoreRequest(String timezone, String businessDayCutoff) {
+    public record UpdateStoreRequest(String timezone, String businessDayCutoff, String businessType) {
+        public UpdateStoreRequest(String timezone, String businessDayCutoff) {
+            this(timezone, businessDayCutoff, null);
+        }
     }
 }

@@ -28,7 +28,11 @@ public class KtvConfigApplicationService {
 
     // —— 计价方案 ——
     public List<PricingPlan> pricingPlans(Long storeId) {
-        return client.listPricingPlans(storeId);
+        return client.listPricingPlans(storeId, null);
+    }
+
+    public List<PricingPlan> pricingPlans(Long storeId, String businessType) {
+        return client.listPricingPlans(storeId, businessType);
     }
 
     public PricingPlan savePricingPlan(PricingPlan plan) {
@@ -37,7 +41,11 @@ public class KtvConfigApplicationService {
 
     // —— 支付开关 ——
     public List<PaymentSwitchConfig> paymentSwitches(Long storeId) {
-        return client.listPaymentSwitches(storeId);
+        return client.listPaymentSwitches(storeId, null);
+    }
+
+    public List<PaymentSwitchConfig> paymentSwitches(Long storeId, String businessType) {
+        return client.listPaymentSwitches(storeId, businessType);
     }
 
     public PaymentSwitchConfig savePaymentSwitch(PaymentSwitchConfig config) {

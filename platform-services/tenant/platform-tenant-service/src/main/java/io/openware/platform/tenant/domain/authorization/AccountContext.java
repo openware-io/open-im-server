@@ -14,6 +14,14 @@ public record AccountContext(
         Long storeId,
         String storeName,
         List<String> roles,
-        String scopeType
+        String scopeType,
+        String businessType,
+        String timezone
 ) {
+    public AccountContext(String contextId, Long tenantId, String tenantName, Long organizationId,
+                          String organizationName, Long storeId, String storeName, List<String> roles,
+                          String scopeType) {
+        this(contextId, tenantId, tenantName, organizationId, organizationName, storeId, storeName,
+                roles, scopeType, null, null);
+    }
 }

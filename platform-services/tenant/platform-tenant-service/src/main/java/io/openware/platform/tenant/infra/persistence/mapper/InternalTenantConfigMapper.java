@@ -41,4 +41,32 @@ public interface InternalTenantConfigMapper {
         """)
     String selectStoreConfigValue(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
                                   @Param("configKey") String configKey);
+
+    /** 业态默认配置（store_id=0）。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+        SELECT config_value FROM tnt_tenant_config
+        WHERE tenant_id = #{tenantId} AND store_id = 0 AND business_type = #{businessType}
+          AND config_key = #{configKey} AND status = 'ACTIVE'
+        ORDER BY id LIMIT 1
+        """)
+    String selectBusinessConfigValue(@Param("tenantId") Long tenantId, @Param("businessType") String businessType,
+                                     @Param("configKey") String configKey);
+
+    /** 带业态的门店覆盖配置。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+        SELECT config_value FROM tnt_tenant_config
+        WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND business_type = #{businessType}
+          AND config_key = #{configKey} AND status = 'ACTIVE'
+        ORDER BY id LIMIT 1
+        """)
+    String selectStoreConfigValueByBusinessType(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
+                                                @Param("businessType") String businessType,
+                                                @Param("configKey") String configKey);
+
+    /** 读取门店的权威业态，用于不信任客户端传入的业态。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT business_type FROM tnt_store WHERE tenant_id = #{tenantId} AND id = #{storeId} LIMIT 1")
+    String selectStoreBusinessType(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId);
 }

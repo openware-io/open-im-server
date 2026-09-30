@@ -25,7 +25,10 @@ public record PricingPlan(
         String serverBillingUnit,           // 服务人员计费单位 HOUR / HALF_HOUR，默认 HOUR
         Integer serverIncrementMinutes,     // 服务人员递增粒度 15/30/60，默认 30
         String serverRoundingDirection,     // CONSUMER_FAVOR / ROUND_UP / FLOOR_BLOCK
-        Long serverPricePerIncrement        // 服务人员每递增粒度单价（最小货币单位整数）
+        Long serverPricePerIncrement,       // 服务人员每递增粒度单价（最小货币单位整数）
+        String businessType,                // 业态默认时填写；门店覆盖由 storeId 确定
+        Integer version,                    // 乐观锁版本
+        String idempotencyKey               // 写请求幂等键
 ) {
 
     /** 固定时长固定价套餐（超出按标准单价续费）。 */

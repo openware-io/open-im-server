@@ -2,6 +2,7 @@ package io.openware.platform.tenant.api.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.common.exception.ApiException;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.infra.persistence.mapper.PermissionMapper;
 import io.openware.platform.tenant.infra.persistence.mapper.RoleMapper;
@@ -99,6 +100,18 @@ public class IamController {
     @PostMapping("/roles/{roleId}/permissions")
     @Transactional
     public void assignPermissions(@PathVariable Long roleId, @RequestBody AssignPermissionsRequest req) {
+        RolePo role = roleMapper.selectById(roleId);
+        if (role == null || !"ACTIVE".equals(role.getStatus())) {
+            throw new ApiException(404, "ROLE_NOT_FOUND", "角色不存在");
+        }
+        List<Long> permissionIds = req.permissionIds() == null ? List.of() : req.permissionIds();
+        List<PermissionPo> permissions = permissionIds.isEmpty()
+                ? List.of()
+                : permissionMapper.selectList(new QueryWrapper<PermissionPo>().in("id", permissionIds));
+        if (permissions.size() != permissionIds.size()
+                || permissions.stream().anyMatch(permission -> !grantable(permission, role.getScopeLevel()))) {
+            throw invalidGrantScope();
+        }
         rolePermissionMapper.delete(new QueryWrapper<RolePermissionPo>().eq("role_id", roleId));
         for (Long permissionId : req.permissionIds()) {
             RolePermissionPo rp = new RolePermissionPo();
@@ -141,7 +154,11 @@ public class IamController {
         List<PermissionPo> perms = permissionMapper.selectList(new QueryWrapper<PermissionPo>().eq("code", permissionCode));
         PermissionPo perm = perms.isEmpty() ? null : perms.get(0);
         if (perm == null) {
-            throw new io.openware.common.exception.ApiException(404, "PERMISSION_NOT_FOUND", "权限不存在");
+            throw new ApiException(404, "PERMISSION_NOT_FOUND", "权限不存在");
+        }
+        RolePo role = roleMapper.selectById(roleId);
+        if (role == null || !grantable(perm, role.getScopeLevel())) {
+            throw invalidGrantScope();
         }
         List<RolePermissionPo> existingList = rolePermissionMapper.selectList(new QueryWrapper<RolePermissionPo>()
                 .eq("role_id", roleId).eq("permission_id", perm.getId()));
@@ -165,13 +182,22 @@ public class IamController {
     /** 给账号分配角色（租户/组织/门店作用域）。 */
     @PostMapping("/user-roles")
     public UserRolePo assignUserRole(@RequestBody AssignUserRoleRequest req) {
+        RolePo role = roleMapper.selectById(req.roleId());
+        String scopeType = req.scopeType() == null ? "TENANT" : req.scopeType();
+        if (role == null || !"ACTIVE".equals(role.getStatus())
+                || !scopeType.equals(role.getScopeLevel())
+                || ("PLATFORM".equals(scopeType) && (req.tenantId() != null || req.organizationId() != null || req.storeId() != null))
+                || ("TENANT".equals(scopeType) && (req.tenantId() == null || req.storeId() != null))
+                || ("STORE".equals(scopeType) && (req.tenantId() == null || req.storeId() == null))) {
+            throw invalidGrantScope();
+        }
         UserRolePo po = new UserRolePo();
         po.setAccountId(req.accountId());
         po.setTenantId(req.tenantId());
         po.setOrganizationId(req.organizationId());
         po.setStoreId(req.storeId());
         po.setRoleId(req.roleId());
-        po.setScopeType(req.scopeType() == null ? "TENANT" : req.scopeType());
+        po.setScopeType(scopeType);
         po.setStatus("ACTIVE");
         po.setAuthorizationVersion(1);
         po.setCreatedAt(LocalDateTime.now());
@@ -212,4 +238,14 @@ public class IamController {
     public record MaskingRoleView(Long roleId, String code, String name, boolean piiView) {}
     public record AssignUserRoleRequest(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {}
+
+    private static boolean grantable(PermissionPo permission, String roleScope) {
+        if (roleScope == null || permission.getGrantableLevels() == null) return false;
+        return List.of(permission.getGrantableLevels().split(",")).stream()
+                .map(String::trim).anyMatch(roleScope::equals);
+    }
+
+    private static ApiException invalidGrantScope() {
+        return new ApiException(400, "INVALID_GRANT_SCOPE", "权限或角色不允许授予目标作用域");
+    }
 }

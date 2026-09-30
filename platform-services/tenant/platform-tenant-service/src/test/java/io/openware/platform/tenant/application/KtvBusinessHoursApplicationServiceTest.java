@@ -11,7 +11,10 @@ import static org.mockito.Mockito.when;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService.BusinessHoursView;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService.KtvBusinessHours;
 import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
+import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
+import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
 import java.time.LocalTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -26,8 +29,10 @@ class KtvBusinessHoursApplicationServiceTest {
     private static final long STORE_ID = 1001L;
 
     private final InternalTenantConfigMapper mapper = mock(InternalTenantConfigMapper.class);
+    private final TenantConfigMapper writer = mock(TenantConfigMapper.class);
+    private final StoreMapper stores = mock(StoreMapper.class);
     private final KtvBusinessHoursApplicationService service =
-            new KtvBusinessHoursApplicationService(mapper);
+            new KtvBusinessHoursApplicationService(mapper, writer, stores);
 
     @Test
     void resolvesStoreRowBeforeTenantDefault() {
@@ -126,5 +131,29 @@ class KtvBusinessHoursApplicationServiceTest {
         assertEquals("05:00", view.closeTime());
         assertTrue(view.crossesMidnight());
         assertEquals("18:00 – 次日 05:00", view.displayText());
+    }
+
+    @Test
+    void resolvesBusinessDefaultBeforeTenantDefault() {
+        when(mapper.selectStoreBusinessType(TENANT_ID, STORE_ID)).thenReturn("KTV");
+        when(mapper.selectStoreConfigValueByBusinessType(TENANT_ID, STORE_ID, "KTV", KtvBusinessHoursApplicationService.CONFIG_KEY))
+                .thenReturn(null);
+        when(mapper.selectBusinessConfigValue(TENANT_ID, "KTV", KtvBusinessHoursApplicationService.CONFIG_KEY))
+                .thenReturn("10:00-23:00");
+        KtvBusinessHours hours = service.resolve(TENANT_ID, STORE_ID);
+        assertEquals(LocalTime.of(10, 0), hours.open());
+        assertEquals("BUSINESS", hours.source());
+    }
+
+    @Test
+    void batchUpdateRejectsMixedBusinessTypesBeforeWrite() {
+        when(stores.selectTenantIdById(1001L)).thenReturn(TENANT_ID);
+        when(stores.selectTenantIdById(1002L)).thenReturn(TENANT_ID);
+        when(stores.selectBusinessTypeById(1001L)).thenReturn("KTV");
+        when(stores.selectBusinessTypeById(1002L)).thenReturn("HOTEL");
+        IllegalArgumentException failure = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> service.update(TENANT_ID, List.of(1001L, 1002L), null,
+                        LocalTime.of(9, 0), LocalTime.of(22, 0)));
+        assertEquals("BUSINESS_TYPE_MISMATCH", failure.getMessage());
     }
 }

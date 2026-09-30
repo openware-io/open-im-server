@@ -5,6 +5,7 @@ import io.openware.common.payment.infra.persistence.mapper.ChannelConfigMapper;
 import io.openware.common.payment.infra.persistence.po.ChannelConfigPo;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,27 +36,71 @@ public class ChannelApplicationService {
     }
 
     public List<ChannelConfigDto> list(Long tenantId) {
-        return channelConfigMapper.selectList(new QueryWrapper<ChannelConfigPo>().eq("tenant_id", tenantId))
-                .stream().map(ChannelConfigDto::from).toList();
+        return list(tenantId, null, null);
+    }
+
+    /** 门店读取按门店覆盖 > 业态默认 > 租户默认解析。 */
+    public List<ChannelConfigDto> list(Long tenantId, Long storeId, String requestedBusinessType) {
+        String businessType = normalize(requestedBusinessType);
+        QueryWrapper<ChannelConfigPo> query = new QueryWrapper<ChannelConfigPo>().eq("tenant_id", tenantId)
+                .eq("status", "ACTIVE");
+        List<ChannelConfigPo> rows = channelConfigMapper.selectList(query);
+        if (storeId == null) {
+            if (businessType != null) rows = rows.stream().filter(row -> businessType.equals(normalize(row.getBusinessType()))).toList();
+            return rows.stream().map(ChannelConfigDto::from).toList();
+        }
+        String type = businessType;
+        final List<ChannelConfigPo> resolvedRows = rows;
+        return ONLINE_CHANNELS.stream().map(channel -> resolvedRows.stream()
+                .filter(row -> channel.equals(row.getChannel()))
+                .filter(row -> (storeId.equals(row.getStoreId()) && type != null && type.equals(normalize(row.getBusinessType())))
+                        || (row.getStoreId() == null && type != null && type.equals(normalize(row.getBusinessType())))
+                        || (row.getStoreId() == null && (row.getBusinessType() == null || row.getBusinessType().isBlank())))
+                .sorted((a, b) -> Integer.compare(scopeRank(a, storeId, type), scopeRank(b, storeId, type)))
+                .findFirst()).filter(java.util.Optional::isPresent).map(java.util.Optional::get)
+                .map(ChannelConfigDto::from).toList();
     }
 
     /** 开通/关闭线上渠道（按租户或门店粒度覆盖）。 */
     @Transactional
     public ChannelConfigDto setEnabled(Long tenantId, Long storeId, String channel, boolean enabled, String merchantId) {
+        return setEnabled(tenantId, storeId, null, channel, enabled, merchantId, null, null);
+    }
+
+    @Transactional
+    public ChannelConfigDto setEnabled(Long tenantId, Long storeId, String businessType, String channel,
+                                       boolean enabled, String merchantId, Integer expectedVersion, String idempotencyKey) {
         // 非线上渠道是无状态前置校验：不为它写失败痕迹，只覆盖写操作的执行结果。
         if (!ONLINE_CHANNELS.contains(channel)) throw new IllegalStateException("CHANNEL_NOT_ONLINE");
         try {
+            String scopeType = normalize(businessType);
+            if (storeId != null && scopeType == null) {
+                var context = TenantContextHolder.get();
+                scopeType = context == null ? null : normalize(context.businessType());
+            }
+            String storedType = scopeType == null ? "" : scopeType;
             QueryWrapper<ChannelConfigPo> qw = new QueryWrapper<ChannelConfigPo>()
-                    .eq("tenant_id", tenantId).eq("channel", channel);
+                    .eq("tenant_id", tenantId).eq("channel", channel).eq("business_type", storedType);
             if (storeId == null) qw.isNull("store_id"); else qw.eq("store_id", storeId);
             ChannelConfigPo po = channelConfigMapper.selectOne(qw);
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                ChannelConfigPo idem = channelConfigMapper.selectOne(new QueryWrapper<ChannelConfigPo>()
+                        .eq("tenant_id", tenantId).eq("channel", channel).eq("idempotency_key", idempotencyKey).last("LIMIT 1"));
+                if (idem != null) return ChannelConfigDto.from(idem);
+            }
             if (po == null) {
                 po = new ChannelConfigPo();
                 po.setTenantId(tenantId); po.setStoreId(storeId); po.setChannel(channel);
+                po.setBusinessType(storedType);
                 po.setStatus("ACTIVE"); po.setCreatedAt(LocalDateTime.now()); po.setUpdatedAt(LocalDateTime.now());
+            }
+            if (po.getId() != null && expectedVersion != null && !expectedVersion.equals(po.getVersion())) {
+                throw new IllegalStateException("VERSION_CONFLICT");
             }
             po.setEnabled(enabled ? 1 : 0);
             po.setMerchantId(merchantId);
+            po.setIdempotencyKey(idempotencyKey);
+            po.setVersion(po.getId() == null ? 0 : (po.getVersion() == null ? 1 : po.getVersion() + 1));
             po.setUpdatedAt(LocalDateTime.now());
             if (po.getId() == null) channelConfigMapper.insert(po); else channelConfigMapper.updateById(po);
             // 渠道开通/关闭决定该租户能否走线上收款：此前成功/失败都没有留痕。
@@ -104,5 +149,15 @@ public class ChannelApplicationService {
                 .eq("tenant_id", tenantId).eq("channel", channel).eq("enabled", 1).eq("status", "ACTIVE");
         qw.and(w -> w.isNull("store_id").or().eq("store_id", storeId));
         return channelConfigMapper.selectCount(qw) > 0;
+    }
+
+    private static int scopeRank(ChannelConfigPo row, Long storeId, String businessType) {
+        if (storeId != null && storeId.equals(row.getStoreId())) return 0;
+        if (row.getStoreId() == null && businessType != null && businessType.equals(normalize(row.getBusinessType()))) return 1;
+        return 2;
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim().toUpperCase(java.util.Locale.ROOT);
     }
 }

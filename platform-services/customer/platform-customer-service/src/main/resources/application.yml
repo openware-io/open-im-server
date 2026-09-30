@@ -35,7 +35,9 @@ app:
 internal:
   service-auth:
     service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-customer-service}
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET:}
+    # /internal/customer/** 仅接受这两个受信服务的鉴权版本 2 请求。
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:common-payment-service,platform-admin-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET:open-im-internal-dev-secret-2.2.0}
 # 客户姓名盲索引（cst_member_name_token）存量回填：姓名是随机 IV 密文，迁移里无法解密，
 # 只能由应用层按「没有 token 行」的客户逐条解密重建（幂等、可重入，单条失败不中断整批）。
 # 默认开启、30 分钟一轮；回填完成后可置 false 关掉，或调用

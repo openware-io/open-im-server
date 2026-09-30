@@ -20,4 +20,13 @@ public interface StoreMapper extends BaseMapper<StorePo> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT tenant_id FROM tnt_store WHERE id = #{id}")
     Long selectTenantIdById(@Param("id") Long id);
+
+    /** 返回 ACTIVE 业态的规范编码；业态字典属于 tenant 域，写门店时必须以它为准。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT code FROM tnt_business_type WHERE UPPER(code) = UPPER(#{code}) AND status = 'ACTIVE' LIMIT 1")
+    String selectActiveBusinessType(@Param("code") String code);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT business_type FROM tnt_store WHERE id = #{id} LIMIT 1")
+    String selectBusinessTypeById(@Param("id") Long id);
 }

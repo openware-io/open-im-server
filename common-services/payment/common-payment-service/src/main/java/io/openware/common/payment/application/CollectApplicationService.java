@@ -153,7 +153,7 @@ public class CollectApplicationService {
             }
             collect = existing;
         } else {
-            collect = newCollectRecord(tenantId, orderId, customerId, effectiveCurrency, payable, payments, idempotencyKey);
+            collect = newCollectRecord(tenantId, storeId, orderId, customerId, effectiveCurrency, payable, payments, idempotencyKey);
             try {
                 payCollectMapper.insert(collect);
             } catch (DuplicateKeyException dup) {
@@ -370,10 +370,11 @@ public class CollectApplicationService {
         return ordered;
     }
 
-    private PayCollectPo newCollectRecord(Long tenantId, Long orderId, Long customerId, String currencyCode,
+    private PayCollectPo newCollectRecord(Long tenantId, Long storeId, Long orderId, Long customerId, String currencyCode,
                                           long payable, List<PaymentItem> payments, String idempotencyKey) {
         PayCollectPo collect = new PayCollectPo();
         collect.setTenantId(tenantId);
+        collect.setStoreId(storeId);
         collect.setCollectNo(nextCollectNo());
         collect.setOrderId(orderId);
         collect.setIdempotencyKey(idempotencyKey);
@@ -498,6 +499,7 @@ public class CollectApplicationService {
 
         PayTransactionPo tx = new PayTransactionPo();
         tx.setTenantId(tenantId);
+        tx.setStoreId(storeId);
         tx.setPaymentIntentId(po.getId());
         tx.setProvider(method);
         tx.setAmount(BigDecimal.valueOf(amount));

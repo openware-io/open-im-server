@@ -14,4 +14,6 @@ public class IamContextRow {
     private Long storeId;
     private String storeName;
     private String scopeType;
+    private String businessType;
+    private String timezone;
 }

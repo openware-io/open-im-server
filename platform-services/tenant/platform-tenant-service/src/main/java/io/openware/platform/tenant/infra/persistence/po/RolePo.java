@@ -17,6 +17,8 @@ public class RolePo {
     private String code;
     private String name;
     private String roleType;
+    private String scopeLevel;
+    private String domainCode;
     private Long copyFromRoleId;
     private String status;
     private Long createdBy;

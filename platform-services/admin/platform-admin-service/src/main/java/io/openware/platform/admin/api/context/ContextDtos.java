@@ -8,7 +8,14 @@ public final class ContextDtos {
 
     public record ContextItem(String contextId, Long tenantId, String tenantName, Long organizationId,
                               String organizationName, Long storeId, String storeName, List<String> roles,
-                              String scopeType) {}
+                              String scopeType, String businessType, String timezone) {
+        public ContextItem(String contextId, Long tenantId, String tenantName, Long organizationId,
+                           String organizationName, Long storeId, String storeName, List<String> roles,
+                           String scopeType) {
+            this(contextId, tenantId, tenantName, organizationId, organizationName, storeId, storeName,
+                    roles, scopeType, null, null);
+        }
+    }
 
     public record ContextsResponse(List<ContextItem> items) {}
 
@@ -21,5 +28,11 @@ public final class ContextDtos {
      * 与 JWT claim {@code currency} 同源同值：读目标租户配置，缺省 USD。
      */
     public record SelectContextResponse(Long tenantId, Long organizationId, Long storeId, Long accountId,
-                                        int authorizationVersion, List<String> permissions, String currencyCode) {}
+                                        int authorizationVersion, List<String> permissions, String currencyCode,
+                                        String businessType, String timezone) {
+        public SelectContextResponse(Long tenantId, Long organizationId, Long storeId, Long accountId,
+                                     int authorizationVersion, List<String> permissions, String currencyCode) {
+            this(tenantId, organizationId, storeId, accountId, authorizationVersion, permissions, currencyCode, null, null);
+        }
+    }
 }

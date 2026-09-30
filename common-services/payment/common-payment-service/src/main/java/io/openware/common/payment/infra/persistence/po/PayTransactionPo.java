@@ -15,6 +15,8 @@ public class PayTransactionPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 门店归因：与支付意图写入同一上下文；历史行允许为空，避免跨服务回填猜测。 */
+    private Long storeId;
     private Long paymentIntentId;
     private String provider;
     private String providerTransactionNo;

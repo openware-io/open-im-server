@@ -51,6 +51,11 @@ app:
   # 会退化成 SDK 默认的 http://localhost:4190，审计上报只在 WARN 里报错、静默丢失。
   audit-service:
     base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
+internal:
+  service-auth:
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-order-service}
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:common-payment-service,platform-admin-service}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET:open-im-internal-dev-secret-2.2.0}
 platform:
   order:
     outbox:

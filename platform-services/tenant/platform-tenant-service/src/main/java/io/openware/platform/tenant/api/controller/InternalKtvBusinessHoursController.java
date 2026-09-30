@@ -28,12 +28,14 @@ public class InternalKtvBusinessHoursController {
     }
 
     @GetMapping
-    public BusinessHoursView get(@RequestParam(required = false) Long storeId) {
+    public BusinessHoursView get(@RequestParam(required = false) Long storeId,
+                                 @RequestParam(required = false) String businessType) {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
             throw new ApiException(401, "TENANT_CONTEXT_MISSING", "缺少租户上下文");
         }
         Long scopedStoreId = storeId != null ? storeId : context.storeId();
-        return BusinessHoursView.of(scopedStoreId, businessHoursService.resolve(context.tenantId(), scopedStoreId));
+        return BusinessHoursView.of(scopedStoreId,
+                businessHoursService.resolve(context.tenantId(), scopedStoreId, businessType));
     }
 }

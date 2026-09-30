@@ -16,11 +16,11 @@ import java.util.List;
  */
 public interface KtvConfigDomainClient {
 
-    List<PricingPlan> listPricingPlans(Long storeId);
+    List<PricingPlan> listPricingPlans(Long storeId, String businessType);
 
     PricingPlan upsertPricingPlan(PricingPlan plan);
 
-    List<PaymentSwitchConfig> listPaymentSwitches(Long storeId);
+    List<PaymentSwitchConfig> listPaymentSwitches(Long storeId, String businessType);
 
     PaymentSwitchConfig upsertPaymentSwitch(PaymentSwitchConfig config);
 

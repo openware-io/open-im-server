@@ -15,6 +15,8 @@ public class RefundPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 门店归因：退款申请所属门店；历史行允许为空，后续回填后再收紧约束。 */
+    private Long storeId;
     private Long orderId;
     private Long paymentTransactionId;
     private String requestId;

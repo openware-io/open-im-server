@@ -25,13 +25,20 @@ public class PointApplicationService {
     private final PointAccountMapper accountMapper;
     private final PointLedgerMapper ledgerMapper;
     private final AuditClient auditClient;
+    private final CustomerEventOutbox eventOutbox;
+
+    public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper,
+                                   AuditClient auditClient) {
+        this(accountMapper, ledgerMapper, auditClient, CustomerEventOutbox.disabled());
+    }
 
     @Autowired
     public PointApplicationService(PointAccountMapper accountMapper, PointLedgerMapper ledgerMapper,
-                                   AuditClient auditClient) {
+                                   AuditClient auditClient, CustomerEventOutbox eventOutbox) {
         this.accountMapper = accountMapper;
         this.ledgerMapper = ledgerMapper;
         this.auditClient = auditClient;
+        this.eventOutbox = eventOutbox;
     }
 
     /** 兼容既有装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
@@ -41,9 +48,16 @@ public class PointApplicationService {
 
     /** 会员积分视图：积分账户 + 账本分页（均为「个数」数量口径，响应不含币种与代币字段）。 */
     public MemberPointsView view(Long memberId, long page, long pageSize) {
+        return view(memberId, null, page, pageSize);
+    }
+
+    /** 流水读范围：总部不传门店看租户全量，门店上下文只看本店发生的流水。 */
+    public MemberPointsView view(Long memberId, Long storeId, long page, long pageSize) {
         CstPointAccountPo account = requireAccountByMember(memberId);
         LambdaQueryWrapper<CstPointLedgerPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstPointLedgerPo::getAccountId, account.getId()).orderByDesc(CstPointLedgerPo::getId);
+        qw.eq(CstPointLedgerPo::getAccountId, account.getId())
+                .eq(storeId != null, CstPointLedgerPo::getStoreId, storeId)
+                .orderByDesc(CstPointLedgerPo::getId);
         Page<CstPointLedgerPo> ledger = ledgerMapper.selectPage(new Page<>(page, pageSize), qw);
         return new MemberPointsView(account, toRows(ledger));
     }
@@ -61,6 +75,11 @@ public class PointApplicationService {
     /** 积分调整（ADJUST，命令幂等 commandId），高风险需审计。 */
     @Transactional
     public CstPointAccountPo adjust(Long memberId, Long points, String reason, String commandId) {
+        return adjust(null, memberId, points, reason, commandId);
+    }
+
+    @Transactional
+    public CstPointAccountPo adjust(Long storeId, Long memberId, Long points, String reason, String commandId) {
         try {
             if (points == null || points == 0) {
                 throw new ApiException(400, "POINTS_INVALID", "调整积分不能为0");
@@ -74,7 +93,8 @@ public class PointApplicationService {
                 throw new ApiException(422, "LEDGER_INSUFFICIENT", "积分余额不足");
             }
             long balanceAfter = account.getAvailablePoints() + points;
-            appendLedger(account, "ADJUST", points, balanceAfter, null, null, commandId);
+            appendLedger(storeId, account, "ADJUST", points, balanceAfter, null, null, commandId);
+            appendFact("ADJUST", account, storeId, points, balanceAfter);
             account.setAvailablePoints(balanceAfter);
             bump(account);
             accountMapper.updateById(account);
@@ -109,6 +129,11 @@ public class PointApplicationService {
      */
     @Transactional
     public CstPointAccountPo redeem(Long memberId, Long points, Long orderId, String idempotencyKey) {
+        return redeem(null, memberId, points, orderId, idempotencyKey);
+    }
+
+    @Transactional
+    public CstPointAccountPo redeem(Long storeId, Long memberId, Long points, Long orderId, String idempotencyKey) {
         if (points == null || points <= 0) {
             throw new ApiException(400, "POINTS_INVALID", "抵扣积分必须为正整数");
         }
@@ -118,7 +143,8 @@ public class PointApplicationService {
             throw new ApiException(422, "LEDGER_INSUFFICIENT", "积分余额不足");
         }
         long balanceAfter = account.getAvailablePoints() - points;
-        appendLedger(account, "REDEEM", -points, balanceAfter, "ORDER", orderId, idempotencyKey);
+        appendLedger(storeId, account, "REDEEM", -points, balanceAfter, "ORDER", orderId, idempotencyKey);
+        appendFact("REDEEM", account, storeId, -points, balanceAfter);
         account.setAvailablePoints(balanceAfter);
         bump(account);
         accountMapper.updateById(account);
@@ -128,6 +154,11 @@ public class PointApplicationService {
     /** 积分释放（组合收款失败补偿，账本 REVERSE 反向流水，幂等）：归还已抵扣的积分。真实 HOLD 语义下为 frozen→available。 */
     @Transactional
     public CstPointAccountPo release(Long memberId, Long points, Long orderId, String idempotencyKey) {
+        return release(null, memberId, points, orderId, idempotencyKey);
+    }
+
+    @Transactional
+    public CstPointAccountPo release(Long storeId, Long memberId, Long points, Long orderId, String idempotencyKey) {
         if (points == null || points <= 0) {
             throw new ApiException(400, "POINTS_INVALID", "释放积分必须为正整数");
         }
@@ -136,7 +167,8 @@ public class PointApplicationService {
         }
         CstPointAccountPo account = requireAccountByMember(memberId);
         long balanceAfter = account.getAvailablePoints() + points;
-        appendLedger(account, "REVERSE", points, balanceAfter, "ORDER", orderId, idempotencyKey);
+        appendLedger(storeId, account, "REVERSE", points, balanceAfter, "ORDER", orderId, idempotencyKey);
+        appendFact("REVERSE", account, storeId, points, balanceAfter);
         account.setAvailablePoints(balanceAfter);
         bump(account);
         accountMapper.updateById(account);
@@ -176,9 +208,10 @@ public class PointApplicationService {
         return po;
     }
 
-    private void appendLedger(CstPointAccountPo account, String entryType, long points, long balanceAfter,
+    private void appendLedger(Long storeId, CstPointAccountPo account, String entryType, long points, long balanceAfter,
                               String businessType, Long businessId, String idempotencyKey) {
         CstPointLedgerPo ledger = new CstPointLedgerPo();
+        ledger.setStoreId(storeId);
         ledger.setAccountId(account.getId());
         ledger.setEntryType(entryType);
         ledger.setPoints(points);
@@ -192,6 +225,13 @@ public class PointApplicationService {
         ledger.setOccurredAt(LocalDateTime.now());
         ledger.setCreatedAt(LocalDateTime.now());
         ledgerMapper.insert(ledger);
+    }
+
+    private void appendFact(String entryType, CstPointAccountPo account, Long storeId, long delta, long balanceAfter) {
+        eventOutbox.append(new CustomerFactEvent("customer.points.changed", "point_account",
+                String.valueOf(account.getId()), "{\"entryType\":\"" + entryType + "\",\"customerId\":"
+                        + account.getCustomerId() + ",\"storeId\":" + storeId + ",\"delta\":" + delta
+                        + ",\"balanceAfter\":" + balanceAfter + "}"));
     }
 
     private void assertIdempotent(String idempotencyKey) {

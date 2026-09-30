@@ -13,7 +13,10 @@ public record PaymentSwitchConfig(
         String storeName,
         Long merchantAccountId,
         String currencyCode,               // 缺省取租户币种（USD）
-        List<PaymentChannelSwitch> channels
+        List<PaymentChannelSwitch> channels,
+        String businessType,
+        Integer version,
+        String idempotencyKey
 ) {
 
     public record PaymentChannelSwitch(

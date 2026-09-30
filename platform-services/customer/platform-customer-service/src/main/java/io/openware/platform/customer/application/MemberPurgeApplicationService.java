@@ -7,9 +7,15 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.customer.infra.persistence.mapper.MemberMapper;
 import io.openware.platform.customer.infra.persistence.mapper.MemberNameTokenMapper;
 import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
+import io.openware.platform.customer.infra.persistence.mapper.PointLedgerMapper;
+import io.openware.platform.customer.infra.persistence.mapper.WalletAccountMapper;
+import io.openware.platform.customer.infra.persistence.mapper.WalletLedgerMapper;
+import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
+import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import io.openware.platform.customer.infra.persistence.po.CstMemberNameTokenPo;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
+import io.openware.platform.customer.infra.persistence.po.CstPointLedgerPo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,19 +47,37 @@ public class MemberPurgeApplicationService {
     private final MemberMapper memberMapper;
     private final MemberNameTokenMapper nameTokenMapper;
     private final PointAccountMapper pointAccountMapper;
+    private final WalletAccountMapper walletAccountMapper;
+    private final WalletLedgerMapper walletLedgerMapper;
+    private final PointLedgerMapper pointLedgerMapper;
     private final AuditClient auditClient;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public MemberPurgeApplicationService(MemberMapper memberMapper,
                                          MemberNameTokenMapper nameTokenMapper,
                                          PointAccountMapper pointAccountMapper,
-                                         AuditClient auditClient) {
+                                         AuditClient auditClient,
+                                         WalletAccountMapper walletAccountMapper,
+                                         WalletLedgerMapper walletLedgerMapper,
+                                         PointLedgerMapper pointLedgerMapper) {
         this.memberMapper = memberMapper;
         this.nameTokenMapper = nameTokenMapper;
         this.pointAccountMapper = pointAccountMapper;
         this.auditClient = auditClient;
+        this.walletAccountMapper = walletAccountMapper;
+        this.walletLedgerMapper = walletLedgerMapper;
+        this.pointLedgerMapper = pointLedgerMapper;
     }
 
-    /** 清理结果：客户号 + 删掉的行数（姓名索引 / 零额积分账户）。 */
+    /** 兼容既有单元测试装配；生产使用带钱包 Mapper 的构造器。 */
+    public MemberPurgeApplicationService(MemberMapper memberMapper,
+                                         MemberNameTokenMapper nameTokenMapper,
+                                         PointAccountMapper pointAccountMapper,
+                                         AuditClient auditClient) {
+        this(memberMapper, nameTokenMapper, pointAccountMapper, auditClient, null, null, null);
+    }
+
+    /** 清理结果：客户号 + 删掉的行数（姓名索引 / 积分账户）。 */
     public record PurgeResult(String memberNo, int nameTokensDeleted, int pointAccountsDeleted) {}
 
     /** 清理一个「无 IM 关联且无业务引用」的客户档案。 */
@@ -84,6 +108,28 @@ public class MemberPurgeApplicationService {
         }
 
         int tokens = nameTokenMapper.delete(new QueryWrapper<CstMemberNameTokenPo>().eq("member_id", id));
+        int walletLedgers = 0;
+        int walletAccounts = 0;
+        if (walletAccountMapper != null && walletLedgerMapper != null) {
+            List<CstWalletAccountPo> emptyWallets = walletAccountMapper.selectList(
+                    new QueryWrapper<CstWalletAccountPo>().eq("customer_id", id)
+                            .eq("available_amount", 0).eq("frozen_amount", 0));
+            for (CstWalletAccountPo wallet : emptyWallets) {
+                walletLedgers += walletLedgerMapper.delete(new QueryWrapper<CstWalletLedgerPo>()
+                        .eq("wallet_account_id", wallet.getId()));
+                walletAccounts += walletAccountMapper.deleteById(wallet.getId());
+            }
+        }
+        int pointLedgers = 0;
+        if (pointLedgerMapper != null) {
+            List<CstPointAccountPo> emptyPoints = pointAccountMapper.selectList(
+                    new QueryWrapper<CstPointAccountPo>().eq("customer_id", id)
+                            .eq("available_points", 0).eq("frozen_points", 0));
+            for (CstPointAccountPo point : emptyPoints) {
+                pointLedgers += pointLedgerMapper.delete(new QueryWrapper<CstPointLedgerPo>()
+                        .eq("account_id", point.getId()));
+            }
+        }
         int points = pointAccountMapper.delete(new QueryWrapper<CstPointAccountPo>().eq("customer_id", id));
         memberMapper.deleteById(id);
 
@@ -94,7 +140,10 @@ public class MemberPurgeApplicationService {
                 .idempotencyKey("member-purge-unlinked:" + id)
                 .detailJson("{\"memberNo\":\"" + member.getMemberNo() + "\",\"imAccountDeleted\":" + imGone
                         + ",\"nameTokensDeleted\":" + tokens
-                        + ",\"pointAccountsDeleted\":" + points + "}")
+                        + ",\"pointAccountsDeleted\":" + points
+                        + ",\"pointLedgersDeleted\":" + pointLedgers
+                        + ",\"walletAccountsDeleted\":" + walletAccounts
+                        + ",\"walletLedgersDeleted\":" + walletLedgers + "}")
                 .build());
         log.info("清理无 IM 关联客户: memberId={}, memberNo={}, tokens={}, points={}",
                 id, member.getMemberNo(), tokens, points);

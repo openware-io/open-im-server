@@ -128,6 +128,7 @@ class PaymentIntegrationTest {
     List<PayCollectPo> collects = collectRows("pay-it-key");
     assertEquals(1, collects.size());
     assertEquals("CONFIRMED", collects.get(0).getState());
+    assertEquals(STORE_ID, collects.get(0).getStoreId());
     assertNotNull(collects.get(0).getResponseJson());
     // 币种快照与订单币种一致（禁止跨币种，16_CURRENCY_CONVENTIONS §5/§6）
     assertEquals("CNY", collects.get(0).getCurrencyCode());
@@ -148,6 +149,7 @@ class PaymentIntegrationTest {
     assertEquals(1, txs.size());
     assertEquals(0, txs.get(0).getAmount().compareTo(new BigDecimal("5000.00")));
     assertEquals("SUCCEEDED", txs.get(0).getStatus());
+    assertEquals(STORE_ID, txs.get(0).getStoreId());
 
     var order = orderBillingMapper.selectForUpdate(TENANT_ID, ORDER_ID);
     assertEquals("COMPLETED", order.getStatus());

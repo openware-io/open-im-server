@@ -75,7 +75,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
         return new TenantContext(tenantId, nullableLong(claims, "organizationId"), nullableLong(claims, "storeId"),
                 accountId, claims.get("authorizationVersion", Integer.class),
                 claims.get("permissions", List.class) == null ? List.of() : claims.get("permissions", List.class),
-                scopeType);
+                scopeType, claims.get("businessType", String.class), claims.get("timezone", String.class));
     }
 
     /** 作用域声明归一：只认 {@code PLATFORM}（大小写与空白容忍），其余一律按无作用域处理。 */

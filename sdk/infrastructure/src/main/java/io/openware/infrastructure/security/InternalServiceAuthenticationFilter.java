@@ -26,6 +26,14 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
   private static final String INTERNAL_SECRET_CHATS_PATH = "/internal/secret-chats/";
   private static final String INTERNAL_SECRET_GROUP_CHATS_PATH = "/internal/secret-group-chats/";
   private static final String INTERNAL_IAM_PATH = "/internal/iam/";
+  private static final String INTERNAL_CUSTOMER_PATH = "/internal/customer/";
+  private static final String INTERNAL_PAYMENT_PATH = "/internal/payment/";
+  private static final String INTERNAL_TENANT_PATH = "/internal/tenant/";
+  private static final String INTERNAL_ORDER_PATH = "/internal/order/";
+
+  /** Request attribute set only after a v2 internal-service signature has been accepted. */
+  public static final String AUTHENTICATED_ATTRIBUTE =
+      InternalServiceAuthenticationFilter.class.getName() + ".authenticated";
 
   private final InternalServiceAuthentication authentication;
   private final StringRedisTemplate stringRedisTemplate;
@@ -46,7 +54,11 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
         || request.getRequestURI().startsWith(INTERNAL_CHANNELS_PATH)
         || request.getRequestURI().startsWith(INTERNAL_SECRET_CHATS_PATH)
         || request.getRequestURI().startsWith(INTERNAL_SECRET_GROUP_CHATS_PATH)
-        || request.getRequestURI().startsWith(INTERNAL_IAM_PATH)) {
+        || request.getRequestURI().startsWith(INTERNAL_IAM_PATH)
+        || request.getRequestURI().startsWith(INTERNAL_CUSTOMER_PATH)
+        || request.getRequestURI().startsWith(INTERNAL_PAYMENT_PATH)
+        || request.getRequestURI().startsWith(INTERNAL_TENANT_PATH)
+        || request.getRequestURI().startsWith(INTERNAL_ORDER_PATH)) {
       String source = request.getHeader(InternalServiceAuthentication.SOURCE_HEADER);
       CachedBodyHttpServletRequest cachedRequest = new CachedBodyHttpServletRequest(request);
       byte[] body = cachedRequest.getCachedBody();
@@ -54,6 +66,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
       boolean replayAccepted = signatureValid && (!requiresReplayDefense(cachedRequest)
           || registerRequest(source, cachedRequest.getHeader(InternalServiceAuthentication.REQUEST_ID_HEADER)));
       if (replayAccepted) {
+        cachedRequest.setAttribute(AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
         var token = new UsernamePasswordAuthenticationToken(
             source, null, AuthorityUtils.createAuthorityList("ROLE_INTERNAL_ADMIN"));
         SecurityContextHolder.getContext().setAuthentication(token);

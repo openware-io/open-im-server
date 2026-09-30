@@ -17,7 +17,8 @@ import java.util.Optional;
 
 /**
  * 读租户域的门店计价方案（内部只读 HTTP）：KTV 包厢/服务人员的价格由租户后台「计价方案」维护
- * （{@code tnt_pricing_plan}，按 tenant + store + resourceType 唯一），order 域不直接读它的表。
+ * （{@code tnt_pricing_plan}，按 tenant + businessType + store + resourceType 作用域唯一），
+ * order 域不直接读它的表；tenant 服务返回已解析的有效方案。
  *
  * <p>降级：租户服务不可达 / 未配置方案 / 上下文缺失时返回 empty，计费退回 application.yml 的
  * {@code ktv.pricing} 默认值，保证开台与结台不被外部依赖拖垮。

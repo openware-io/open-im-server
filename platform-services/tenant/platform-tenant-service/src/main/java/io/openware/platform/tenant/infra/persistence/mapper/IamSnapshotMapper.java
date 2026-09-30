@@ -113,7 +113,8 @@ public interface IamSnapshotMapper {
     @Select("""
         SELECT DISTINCT ur.tenant_id, t.name AS tenant_name,
                ur.organization_id, o.name AS organization_name,
-               ur.store_id, s.name AS store_name, ur.scope_type
+               ur.store_id, s.name AS store_name, ur.scope_type,
+               s.business_type, s.timezone
         FROM iam_user_role ur
         JOIN tnt_tenant t ON t.id = ur.tenant_id
         LEFT JOIN tnt_organization o ON o.id = ur.organization_id
@@ -156,7 +157,8 @@ public interface IamSnapshotMapper {
     @Select("""
         SELECT t.id AS tenant_id, t.name AS tenant_name,
                NULL AS organization_id, NULL AS organization_name,
-               NULL AS store_id, NULL AS store_name, 'PLATFORM' AS scope_type
+               NULL AS store_id, NULL AS store_name, 'PLATFORM' AS scope_type,
+               NULL AS business_type, NULL AS timezone
         FROM tnt_tenant t
         WHERE t.status = 'ACTIVE'
         ORDER BY t.id
@@ -171,7 +173,8 @@ public interface IamSnapshotMapper {
     @Select("""
         SELECT s.tenant_id, t.name AS tenant_name,
                s.organization_id, o.name AS organization_name,
-               s.id AS store_id, s.name AS store_name
+               s.id AS store_id, s.name AS store_name,
+               s.business_type, s.timezone
         FROM tnt_store s
         JOIN tnt_tenant t ON t.id = s.tenant_id AND t.status = 'ACTIVE'
         LEFT JOIN tnt_organization o ON o.id = s.organization_id AND o.status = 'ACTIVE'

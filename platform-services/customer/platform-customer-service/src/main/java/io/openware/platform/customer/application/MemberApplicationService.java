@@ -96,17 +96,27 @@ public class MemberApplicationService {
      */
     public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
                                   TimeRange range) {
-        return list(page, pageSize, keyword, level, status, range, false);
+        return list(page, pageSize, keyword, level, status, range, false, null);
     }
 
     /** 客户分页列表；onlyUnlinked=true 只取 im_account IS NULL（账号无 IM 身份 = 垃圾数据）。 */
     public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
                                   TimeRange range, boolean onlyUnlinked) {
+        return list(page, pageSize, keyword, level, status, range, onlyUnlinked, null);
+    }
+
+    /** 客户列表可按首次新增门店筛选；不传时保持租户内跨店共享主档口径。 */
+    public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
+                                  TimeRange range, boolean onlyUnlinked, Long originStoreId) {
         LambdaQueryWrapper<CstMemberPo> qw = new LambdaQueryWrapper<>();
         applyKeyword(qw, keyword);
         if (level != null) qw.eq(CstMemberPo::getLevelId, level);
         if (status != null && !status.isBlank()) qw.eq(CstMemberPo::getStatus, status);
         if (onlyUnlinked) qw.isNull(CstMemberPo::getImAccount);
+        if (originStoreId != null) {
+            if (originStoreId <= 0) throw new ApiException(400, "STORE_FILTER_INVALID", "门店筛选非法");
+            qw.eq(CstMemberPo::getOriginStoreId, originStoreId);
+        }
         // 账号类型（idt_account）：客户/员工/平台运营——员工账号上的客户档案要能一眼看出来。
         applyJoinedAtRange(qw, range);
         qw.orderByDesc(CstMemberPo::getId);
@@ -159,14 +169,44 @@ public class MemberApplicationService {
     }
 
     /**
+     * 按账号找或建客户；首次懒创建时显式记录来源门店。
+     * 读到既有客户不改写其首次建档门店，避免跨店访问污染来源归因。
+     */
+    @Transactional
+    public CstMemberPo getOrCreateByAccount(Long originStoreId, Long accountId) {
+        if (accountId == null) {
+            throw new ApiException(400, "ACCOUNT_ID_REQUIRED", "缺少 accountId");
+        }
+        CstMemberPo existing = findEarliestByAccountId(accountId);
+        if (existing != null) {
+            fillPlain(existing);
+            return existing;
+        }
+        if (originStoreId == null) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "首次创建客户必须在门店上下文中发起");
+        }
+        return create(originStoreId, accountId, "客户", "", false, null, null);
+    }
+
+    /**
      * 积分管理列表：分页返回客户 + 积分账户余额（积分账户懒加载，缺失按 0）。
      *
      * <p>{@code range} 与客户列表同一口径：按**建档时间** {@code joined_at} 闭区间筛选
      * （积分行是「客户 + 积分账户」，业务时间列仍是客户的建档时间）。
      */
     public Page<MemberPointsRow> pointsList(long page, long pageSize, String keyword, TimeRange range) {
+        return pointsList(page, pageSize, keyword, range, null);
+    }
+
+    /** 积分管理列表可按客户首次新增门店筛选；积分余额仍是租户级共享。 */
+    public Page<MemberPointsRow> pointsList(long page, long pageSize, String keyword, TimeRange range,
+                                            Long originStoreId) {
         LambdaQueryWrapper<CstMemberPo> qw = new LambdaQueryWrapper<>();
         applyKeyword(qw, keyword);
+        if (originStoreId != null) {
+            if (originStoreId <= 0) throw new ApiException(400, "STORE_FILTER_INVALID", "门店筛选非法");
+            qw.eq(CstMemberPo::getOriginStoreId, originStoreId);
+        }
         applyJoinedAtRange(qw, range);
         qw.orderByDesc(CstMemberPo::getId);
         Page<CstMemberPo> memberPage = memberMapper.selectPage(new Page<>(page, pageSize), qw);
@@ -216,6 +256,13 @@ public class MemberApplicationService {
     @Transactional
     public CstMemberPo create(Long accountId, String name, String phone, Boolean consent,
                               String imAccount, String imUsername) {
+        return create(null, accountId, name, phone, consent, imAccount, imUsername);
+    }
+
+    /** 入站适配器显式传入已验签门店；不从请求体推断归因。 */
+    @Transactional
+    public CstMemberPo create(Long originStoreId, Long accountId, String name, String phone, Boolean consent,
+                              String imAccount, String imUsername) {
         String normalizedIm = normalizeImAccount(imAccount);
 
         // 创建时就回填 IM 信息（统一账号模型 idt_login_identity / idt_profile_sync_record）：
@@ -248,6 +295,7 @@ public class MemberApplicationService {
         try {
             LocalDateTime now = LocalDateTime.now();
             CstMemberPo po = new CstMemberPo();
+            po.setOriginStoreId(originStoreId);
             po.setAccountId(accountId);
             po.setImAccount(normalizedIm);
             po.setImUsername(normalizedImUsername);

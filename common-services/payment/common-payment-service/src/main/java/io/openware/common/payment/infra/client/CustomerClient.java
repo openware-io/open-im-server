@@ -3,39 +3,28 @@ package io.openware.common.payment.infra.client;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
 
 /**
  * 组合收款调 platform-customer-service 的内部扣减/归还端点（RestClient）。
  * 租户通过 X-Tenant-Context 头传递（customer 侧 TenantContextFilter 解析后 MyBatis 租户拦截器自动附加 tenant_id）。
  *
- * 内部 HMAC 鉴权占位：每个内部请求附加 X-IM-Service-* 头（serviceName + timestamp + signature），
- * 签名当前为简单比对 sha256(serviceName:timestamp:secret)；真实实现应使用 HMAC 共享密钥（见 SDK
- * InternalServiceAuthentication/InternalServiceAuthenticationInterceptor，可整体替换本占位）。
+ * 内部请求由 SDK 的鉴权版本 2 拦截器签名；服务端会校验 HMAC、时间窗和写请求防重放。
  */
 @Component
 public class CustomerClient {
-    private static final String SERVICE_NAME = "common-payment-service";
-    private static final String SOURCE_HEADER = "X-IM-Service-Source";
-    private static final String TIMESTAMP_HEADER = "X-IM-Service-Timestamp";
-    private static final String SIGNATURE_HEADER = "X-IM-Service-Signature";
-
     private final RestClient restClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final String internalSecret;
-
     public CustomerClient(@Value("${app.customer-service.base-url:http://localhost:4160}") String baseUrl,
-                          @Value("${app.internal-auth.secret:open-im-internal-dev-secret}") String internalSecret) {
-        this.restClient = RestClient.builder().baseUrl(baseUrl).build();
-        this.internalSecret = internalSecret;
+                          InternalServiceAuthenticationInterceptor internalAuthInterceptor) {
+        this.restClient = RestClient.builder().baseUrl(baseUrl)
+                .requestInterceptor(internalAuthInterceptor).build();
     }
 
     public WalletDeductResponse deductWallet(Long tenantId, Long storeId, Long customerId, Long amount, String currency,
@@ -89,14 +78,10 @@ public class CustomerClient {
     private JsonNode post(String uri, Long tenantId, Long storeId, Object body, String idempotencyKey) {
         try {
             String bodyJson = objectMapper.writeValueAsString(body);
-            long timestamp = System.currentTimeMillis();
             String resp = restClient.post()
                     .uri(uri)
                     .header("X-Tenant-Context", tenantContextJson(tenantId, storeId))
                     .header("Idempotency-Key", idempotencyKey)
-                    .header(SOURCE_HEADER, SERVICE_NAME)
-                    .header(TIMESTAMP_HEADER, Long.toString(timestamp))
-                    .header(SIGNATURE_HEADER, simpleSignature(timestamp))
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(bodyJson)
                     .retrieve()
@@ -113,13 +98,9 @@ public class CustomerClient {
 
     private JsonNode get(String uri, Long tenantId, Long storeId) {
         try {
-            long timestamp = System.currentTimeMillis();
             String resp = restClient.get()
                     .uri(uri)
                     .header("X-Tenant-Context", tenantContextJson(tenantId, storeId))
-                    .header(SOURCE_HEADER, SERVICE_NAME)
-                    .header(TIMESTAMP_HEADER, Long.toString(timestamp))
-                    .header(SIGNATURE_HEADER, simpleSignature(timestamp))
                     .retrieve()
                     .body(String.class);
             return objectMapper.readTree(resp);
@@ -129,23 +110,6 @@ public class CustomerClient {
             throw e;
         } catch (Exception e) {
             throw new IllegalStateException("调用 customer 服务失败: " + uri, e);
-        }
-    }
-
-    /** 简单签名占位：sha256(serviceName:timestamp:secret)；真实实现应为 HMAC(共享密钥)。 */
-    private String simpleSignature(long timestamp) {
-        try {
-            String raw = SERVICE_NAME + ":" + timestamp + ":" + internalSecret;
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(raw.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-                sb.append(Character.forDigit(b & 0xF, 16));
-            }
-            return sb.toString();
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("无法生成内部服务签名", e);
         }
     }
 

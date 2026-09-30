@@ -2,6 +2,10 @@ package io.openware.platform.customer.api.controller;
 
 import io.openware.platform.customer.application.MemberPurgeApplicationService;
 import io.openware.platform.customer.application.MemberPurgeApplicationService.PurgeResult;
+import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.common.exception.ApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +33,11 @@ public class MemberPurgeController {
      */
     @PostMapping("/{id}/purge-unlinked")
     public PurgeResult purgeUnlinked(@PathVariable Long id) {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        PermissionGuard.require("member.manage");
         return purgeService.purgeUnlinked(id);
     }
 }

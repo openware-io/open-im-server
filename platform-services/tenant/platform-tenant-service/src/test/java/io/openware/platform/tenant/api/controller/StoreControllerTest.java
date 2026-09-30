@@ -14,6 +14,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.controller.StoreController.UpdateStoreRequest;
 import io.openware.platform.tenant.application.StoreApplicationService;
+import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
 import io.openware.platform.tenant.infra.persistence.po.StorePo;
 import java.util.List;
@@ -130,6 +131,58 @@ class StoreControllerTest {
         StorePo updated = controller.update(STORE_ID, new UpdateStoreRequest(null, "02:00:30"));
 
         assertThat(updated.getBusinessDayCutoff()).isEqualTo("02:00:00");
+    }
+
+    /** 业态只能写入 ACTIVE 字典值，并与时区/切点更新共用同一字段级补丁。 */
+    @Test
+    void updateWritesActiveBusinessTypeAndAuditsBeforeAfter() {
+        when(storeMapper.selectActiveBusinessType("HOTEL")).thenReturn("HOTEL");
+        when(storeMapper.selectTenantIdById(STORE_ID)).thenReturn(TENANT_ID);
+        when(storeMapper.selectById(STORE_ID)).thenReturn(store());
+        withContext(null, PERMISSION);
+
+        StorePo updated = controller.update(STORE_ID, new UpdateStoreRequest(null, null, "hotel"));
+
+        assertThat(updated.getBusinessType()).isEqualTo("HOTEL");
+        assertThat(updated.getTimezone()).isEqualTo("Asia/Shanghai");
+        ArgumentCaptor<StorePo> patch = ArgumentCaptor.forClass(StorePo.class);
+        verify(storeMapper).updateById(patch.capture());
+        assertThat(patch.getValue().getBusinessType()).isEqualTo("HOTEL");
+        assertThat(patch.getValue().getTimezone()).isNull();
+        ArgumentCaptor<AuditClient.AuditRecord> record = ArgumentCaptor.forClass(AuditClient.AuditRecord.class);
+        verify(auditClient).recordAsync(record.capture());
+        assertThat(record.getValue().detailJson())
+                .contains("\"businessType\":{\"before\":\"KTV\",\"after\":\"HOTEL\"}");
+    }
+
+    /** 非 ACTIVE 业态直接 400，不能因门店租户边界校验而产生写入。 */
+    @Test
+    void updateRejectsInactiveBusinessType() {
+        when(storeMapper.selectActiveBusinessType("HOTEL")).thenReturn(null);
+        withContext(null, PERMISSION);
+
+        assertThatThrownBy(() -> controller.update(STORE_ID, new UpdateStoreRequest(null, null, "hotel")))
+                .isInstanceOf(ApiException.class)
+                .hasFieldOrPropertyWithValue("status", 400)
+                .hasFieldOrPropertyWithValue("code", "BUSINESS_TYPE_INVALID");
+        verify(storeMapper, never()).selectTenantIdById(any());
+        verify(storeMapper, never()).selectById(any());
+        verify(storeMapper, never()).updateById(any(StorePo.class));
+    }
+
+    /** 业态改变后必须立即清理按门店业态过滤的权限快照。 */
+    @Test
+    void updateBusinessTypeEvictsPermissionSnapshots() {
+        PermissionSnapshotProvider snapshots = mock(PermissionSnapshotProvider.class);
+        controller = new StoreController(storeMapper, new StoreApplicationService(storeMapper), auditClient, snapshots);
+        when(storeMapper.selectActiveBusinessType("SPA")).thenReturn("SPA");
+        when(storeMapper.selectTenantIdById(STORE_ID)).thenReturn(TENANT_ID);
+        when(storeMapper.selectById(STORE_ID)).thenReturn(store());
+        withContext(null, PERMISSION);
+
+        controller.update(STORE_ID, new UpdateStoreRequest(null, null, "SPA"));
+
+        verify(snapshots).evictAll();
     }
 
     /** 时区必须是 IANA id：`+08:00` 这类偏移字面量 400，且不落库。 */

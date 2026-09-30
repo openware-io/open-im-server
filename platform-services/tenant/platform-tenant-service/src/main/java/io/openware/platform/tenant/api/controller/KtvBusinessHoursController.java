@@ -1,6 +1,5 @@
 package io.openware.platform.tenant.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
@@ -9,14 +8,13 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService.BusinessHoursView;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -37,13 +35,18 @@ import java.util.List;
 public class KtvBusinessHoursController {
 
     private final KtvBusinessHoursApplicationService businessHoursService;
-    private final TenantConfigMapper tenantConfigMapper;
     private final AuditClient auditClient;
 
     public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
-                                      TenantConfigMapper tenantConfigMapper, AuditClient auditClient) {
+                                      io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper ignored,
+                                      AuditClient auditClient) {
+        this(businessHoursService, auditClient);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
+                                      AuditClient auditClient) {
         this.businessHoursService = businessHoursService;
-        this.tenantConfigMapper = tenantConfigMapper;
         this.auditClient = auditClient;
     }
 
@@ -56,7 +59,7 @@ public class KtvBusinessHoursController {
     public BusinessHoursView get(@RequestParam(required = false) Long storeId) {
         Long tenantId = requireTenant();
         Long scopedStoreId = storeId != null ? storeId : scopedStoreId();
-        return BusinessHoursView.of(scopedStoreId, businessHoursService.resolve(tenantId, scopedStoreId));
+        return BusinessHoursView.of(scopedStoreId, businessHoursService.resolve(tenantId, scopedStoreId, null));
     }
 
     /**
@@ -76,21 +79,27 @@ public class KtvBusinessHoursController {
             }
             LocalTime open = parseTime(req.openTime(), "openTime");
             LocalTime close = parseTime(req.closeTime(), "closeTime");
-            Long targetStoreId = req.storeId() == null ? 0L : req.storeId();
-            if (targetStoreId < 0) {
-                throw new ApiException(400, "STORE_ID_INVALID", "storeId 不能为负数");
+            List<Long> targets = new ArrayList<>(new LinkedHashSet<>(req.targetStoreIds()));
+            String requestedBusinessType = req.businessType();
+            if (targets.isEmpty()) targets.add(0L);
+            if (targets.contains(0L) && targets.size() > 1) {
+                throw new ApiException(400, "STORE_TARGET_MIXED", "租户默认与门店覆盖不能在同一批次写入");
+            }
+            if (targets.size() == 1 && targets.get(0) == 0L && requestedBusinessType == null) {
+                requestedBusinessType = null;
             }
             String value = KtvBusinessHoursApplicationService.format(open, close);
-            upsert(tenantId, targetStoreId, value);
+            businessHoursService.update(tenantId, targets.stream().filter(id -> id > 0).toList(), requestedBusinessType, open, close);
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
                     .action("tenant.business_hours.update")
                     .resourceType("tnt_tenant_config")
                     .resourceId(String.valueOf(tenantId))
-                    .resourceName(targetStoreId == 0L ? "租户默认营业时间" : "门店 " + targetStoreId + " 营业时间")
-                    .detailJson("{\"storeId\":" + targetStoreId + ",\"businessHours\":\"" + value + "\"}")
+                    .resourceName(targets.size() == 1 && targets.get(0) == 0L ? "租户/业态默认营业时间" : "批量门店营业时间")
+                    .detailJson("{\"storeIds\":" + targets + ",\"businessType\":\"" + (requestedBusinessType == null ? "" : requestedBusinessType) + "\",\"businessHours\":\"" + value + "\"}")
                     .build());
-            return BusinessHoursView.of(targetStoreId, businessHoursService.resolve(tenantId, targetStoreId));
+            Long viewStoreId = targets.size() == 1 ? targets.get(0) : 0L;
+            return BusinessHoursView.of(viewStoreId, businessHoursService.resolve(tenantId, viewStoreId, requestedBusinessType));
         } catch (RuntimeException failure) {
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
@@ -114,30 +123,6 @@ public class KtvBusinessHoursController {
         }
     }
 
-    /** 配置落库：{@code (tenant_id, store_id, config_key)} 唯一，存在即更新，不存在则插入。 */
-    private void upsert(Long tenantId, Long storeId, String value) {
-        List<TenantConfigPo> rows = tenantConfigMapper.selectList(new QueryWrapper<TenantConfigPo>()
-                .eq("tenant_id", tenantId).eq("store_id", storeId)
-                .eq("config_key", KtvBusinessHoursApplicationService.CONFIG_KEY));
-        if (!rows.isEmpty()) {
-            TenantConfigPo po = rows.get(0);
-            po.setConfigValue(value);
-            po.setUpdatedAt(LocalDateTime.now());
-            tenantConfigMapper.updateById(po);
-            return;
-        }
-        TenantConfigPo po = new TenantConfigPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(storeId);
-        po.setConfigKey(KtvBusinessHoursApplicationService.CONFIG_KEY);
-        po.setConfigValue(value);
-        po.setStatus("ACTIVE");
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        tenantConfigMapper.insert(po);
-    }
-
     private Long requireTenant() {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
@@ -151,5 +136,13 @@ public class KtvBusinessHoursController {
         return context == null || context.storeId() == null ? 0L : context.storeId();
     }
 
-    public record UpdateRequest(Long storeId, String openTime, String closeTime) {}
+    public record UpdateRequest(Long storeId, List<Long> storeIds, String businessType,
+                                String openTime, String closeTime) {
+        List<Long> targetStoreIds() {
+            List<Long> result = new ArrayList<>();
+            if (storeIds != null) result.addAll(storeIds);
+            if (storeId != null) result.add(storeId);
+            return result;
+        }
+    }
 }

@@ -307,7 +307,8 @@ public class OrderController {
         }
         // 占用/清洁中的包厢不能再开台：必须在落订单之前校验，否则失败路径会留下一张没有包厢、
         // 没有会话的孤儿 DRAFT 单（房态看板会把它当成一个「使用中」的幽灵包厢）。
-        if ("KTV".equals(req.businessType()) && req.resourceId() != null) {
+        String businessType = effectiveBusinessType(ctx, req.businessType());
+        if ("KTV".equals(businessType) && req.resourceId() != null) {
             resourceStateClient.state(req.resourceId()).ifPresent(state -> {
                 if (!state.available()) {
                     throw new ApiException(422, "ROOM_UNAVAILABLE",
@@ -323,7 +324,7 @@ public class OrderController {
         po.setStoreId(storeId);
         po.setOrderNo(dailySerialNumberGenerator.next(DocType.ORDER, tenantId));
         po.setIdempotencyKey(blankToNull(idempotencyKey));
-        po.setBusinessType(req.businessType());
+        po.setBusinessType(businessType);
         po.setStatus("DRAFT");
         po.setCurrencyCode(resolveCurrencyCode(req.currencyCode()));
         po.setSubtotalAmount(BigDecimal.ZERO);
@@ -347,11 +348,29 @@ public class OrderController {
         }
 
         // 同步创建包厢会话（RESERVED），关联 orderId + 包厢 resourceId，返回 sessionId 供开台/计时/结台使用。
-        if ("KTV".equals(req.businessType()) && req.resourceId() != null) {
+        if ("KTV".equals(businessType) && req.resourceId() != null) {
             KtvSessionPo session = ktvSessionService.create(tenantId, po.getId(), req.resourceId());
             po.setSessionId(session.getId());
         }
         return po;
+    }
+
+    /**
+     * 业态以签名租户上下文中的门店权威快照为准。请求体字段仅保留为旧客户端的输入兼容：
+     * 新上下文存在时，缺省请求体使用上下文值，显式不一致直接拒绝，避免客户端伪造门店业态。
+     */
+    private static String effectiveBusinessType(TenantContext context, String requested) {
+        String authoritative = context == null ? null : context.businessType();
+        if (authoritative != null && !authoritative.isBlank()) {
+            if (requested != null && !requested.isBlank() && !authoritative.equalsIgnoreCase(requested)) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "请求业态与门店当前业态不一致");
+            }
+            return authoritative;
+        }
+        if (requested == null || requested.isBlank()) {
+            throw new ApiException(422, "BUSINESS_TYPE_CONTEXT_MISSING", "门店上下文缺少业态信息，请重新选择门店");
+        }
+        return requested;
     }
 
     /**

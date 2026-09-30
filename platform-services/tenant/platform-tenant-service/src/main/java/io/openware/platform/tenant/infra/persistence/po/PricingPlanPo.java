@@ -16,6 +16,7 @@ public class PricingPlanPo {
     private Long id;
     private Long tenantId;
     private Long storeId;
+    private String businessType;
     private String resourceType;
     private String billingUnit;
     private Integer incrementMinutes;
@@ -24,6 +25,8 @@ public class PricingPlanPo {
     private Integer defaultSessionMinutes;
     private BigDecimal overtimeRate;
     private String status;
+    private Integer version;
+    private String idempotencyKey;
     private Long createdBy;
     private LocalDateTime createdAt;
     private Long updatedBy;

@@ -29,7 +29,7 @@
 4. **菜单定义从 Java 常量外置到表 `iam_menu`**，菜单可见性从「后端 4 条 path 硬编码 + 前端 1 条 path 映射」改为「`required_permission` + `required_grant` + `business_type` 声明式过滤」。
 5. **所有现有路由 `path` 一律不变**，只改分组、顺序、显示层级——避免书签、深链、审计动作码、E2E 用例大面积失效。这条是本方案的硬约束。
 6. **业态只影响菜单与数据范围，不参与角色建模**。角色 = 职责（`tenant.owner` / `store.manager` / `store.cashier` / `store.finance`），业态 = 数据过滤维度。否则角色数会按「职责 × 业态」爆炸。
-7. **v0.2 修正**：按 138 个 Flyway 迁移实测，「商品管理」是**门店级**（`ord_product.store_id NOT NULL`）、「计价方案」是**门店级**（`tnt_pricing_plan.store_id NOT NULL`）。v0.1 把它们放在租户级/平台级是错的，见 §4。
+7. **v0.3 修正**：商品仍是**门店级**；计价方案已按本次三层配置方案调整为**租户经营配置**，使用 `store_id=0` 区分租户/业态默认，门店行作为覆盖。见 §4 和实施方案 P7-B。
 8. **v0.2 新增 M0 数据地基里程碑**：门店级数据的可切分性（`store_id` 覆盖度）是整套菜单分层能否落地的前提，必须先补，见 §12。
 
 ---
@@ -70,7 +70,7 @@
 | P4 | 权限码无归属元数据 | 授权界面无法按层级分树；无法校验「把门店级权限授到租户级」这类非法授予 |
 | P5 | 菜单可见性硬编码在两处，且**方向相反** | 后端 4 条 path 判断（未命中权限 → 隐藏） + 前端 1 条映射（未登记 → **可见**，`menuPermission.js:41`）。每加一个受门禁菜单要改后端 + 前端 + 测试三处；两边口径一旦漂移，表现为"菜单看得见但点进去 403" |
 | P6 | 切门店整页 reload | 租户级操作（改币种、配角色）被门店切换打断 |
-| P7 | 平台级菜单归属错位 | `计价方案` 现为 `scope=PLATFORM`，但 `tnt_pricing_plan.store_id NOT NULL`，实际是**门店级** |
+| P7 | 平台级菜单归属错位 | `计价方案` 已迁入租户 KTV 配置，支持租户/业态默认与门店覆盖 |
 | P8 | 门店级事实表 `store_id` 覆盖不全 | 订单明细 / KTV 会话 / 支付退款只能靠 JOIN 推断门店，门店级权限收敛不下去（§12 缺口 2） |
 
 ---
@@ -203,7 +203,7 @@
 | `store.resource` | 门店资源 | **资源管理** `/admin/resources`（`resource_type` 区分 KTV 包厢/酒店房间/技师）、**服务人员**（`ktv`）、房型（`hotel`） | `core` + 业态子项 | `res_resource` / `res_room_type` / `res_occupation` / `res_schedule` 均 `store_id NOT NULL` |
 | `store.stock` | 门店商品与库存 | **商品管理** `/admin/products`、商品分类、**仓库管理** `/admin/inventory`、库存流水 | `core` | `ord_product` / `ord_product_category` / `ord_inventory_*` 均 `store_id NOT NULL` |
 | `store.report` | 门店报表 | **报表** `/admin/reports`、库存成本毛利、员工业绩、资源利用率 | `core` | 报表按门店维度聚合 |
-| `store.settings` | 门店设置 | 门店信息、**计价方案** `/admin/pricing-plans`、支付渠道启用 | `core` + `ktv` | `tnt_pricing_plan.store_id NOT NULL`；`pay_channel_config` 门店行覆盖租户默认 |
+| `store.settings` | 门店设置 | 门店信息、支付渠道启用 | `core` + `ktv` | 计价方案由租户 KTV 配置统一管理；门店行作为覆盖 |
 | `store.crm` | 客户与资产 | **客户管理** `/business/members`、**积分管理** `/business/points`、**储值管理** `/business/wallet` | `core` | 页面与写操作必须绑定当前 `store_id`；主档/余额是否共享由方案 B 决策，流水必须按店归因 |
 
 > `门店设置` 是**混合域分组**（同时挂 `core` 和业态子项）。规则是「父节点的 `domain_code` 取 `core`，业态子项各自声明业态」——父节点不因业态过滤而消失，只剪掉不匹配的子项。
@@ -230,12 +230,12 @@
 | 支付方式 | `/business/payment-methods` | TENANT | TENANT | core | 资金与支付 | 租户级默认渠道 |
 | 储值管理 | `/business/wallet` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；保留 `payment.method.wallet` 能力门禁，写入必须记录当前门店 |
 | 脱敏权限 | `/admin/security` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
-| KTV 配置 | `/admin/ktv/config` | TENANT | **STORE** | **ktv** | 门店设置 | 需 `storeId` + 业态命中 |
+| KTV 配置 | `/admin/ktv/config` | TENANT | **TENANT/STORE** | **ktv** | 租户经营配置 | 租户/业态默认或门店覆盖；写入按目标范围授权 |
 | 运营人员 | `/admin/staff` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
 | 审计日志 | `/admin/audits` | TENANT | TENANT | core | 租户设置 | 保留 `audit.view` 门禁 |
-| **计价方案** | `/admin/pricing-plans` | **PLATFORM** | **STORE** | core | **门店设置** | **v0.2 修正：`tnt_pricing_plan.store_id NOT NULL`；path 不变** |
+| **计价方案** | `/admin/ktv/config` | **TENANT** | **TENANT/STORE** | ktv | **KTV 配置** | **P7-B：`store_id=0` 默认层，`store_id>0` 门店覆盖** |
 
-> **覆盖范围（v0.3 校正）**：本表 = **19 个 TENANT 菜单**（§1.1 实测全量）+ 1 个 PLATFORM 菜单（计价方案，迁到门店级）。
+> **覆盖范围（v0.4）**：计价方案已从平台运营菜单移除，统一由租户 KTV 配置入口承载。
 > 其中 `审计日志`（`/admin/audits`）在前端路由里**刻意没有 `meta.scope`**（`router/index.js:171-178` 有注释说明），
 > 迁移时不要顺手补，也不要把它挪进平台段。
 >
@@ -254,12 +254,12 @@ v0.1 凭语义推断归属，v0.2 按建表语句实测，发现两处判断错�
 | # | v0.1 判断 | 实测证据 | v0.2 修正 |
 | --- | --- | --- | --- |
 | 1 | 「商品管理」放**租户级**「商品与服务」——认为目录全租户共享，门店只做库存覆盖 | `V11__ord_inventory_product.sql`：`ord_product.store_id bigint unsigned NOT NULL`；`ord_product_category` 同样 `NOT NULL` | 商品是**门店级**，移入「门店商品与库存」。不新增租户级共享商品/服务菜单；`ord_catalog_item` 不作为本期用户入口 |
-| 2 | 「计价方案」从 `PLATFORM` 迁到 **`TENANT`**——认为它是租户可配的经营策略 | `V2__tnt_pricing_plan.sql`：`tnt_pricing_plan.store_id bigint unsigned NOT NULL` | 计价方案是**门店级**，移入「门店设置」。它现在挂在 `scope=PLATFORM` 的 `/admin/pricing-plans` 下，是**层级和归属双重错位** |
+| 2 | 「计价方案」从 `PLATFORM` 迁到 **`TENANT`**——认为它是租户可配的经营策略 | P7-B：`store_id=0` + `business_type` 表示租户/业态默认，`store_id>0` 表示门店覆盖 | 计价方案归入租户「KTV 配置」；读取按门店覆盖 > 业态默认 > 租户默认，仍支持单店和多店分别设置 |
 
 **连带影响：**
 
 - 修正 1 后不再新增租户级「商品与服务」域，避免与现有「门店商品与库存」重复。
-- 修正 2 后，`tnt_pricing_plan` 若要支持「租户默认价 + 门店覆盖价」，需先把 `store_id` 改为可空 —— 见 §12 缺口 1。
+- 修正 2 后，`tnt_pricing_plan` 使用 `store_id=0` 表示默认层，不改为可空；业态维度和版本/幂等字段由 P7-B 迁移补齐。
 - 两处修正均**不改变 path**，符合 §3 的硬约束。
 
 ---
@@ -437,9 +437,9 @@ CREATE TABLE `iam_menu` (
 > **没有排序字段、没有 `i18nKey`、没有权限/域字段** —— M1 用 Java 硬编码组树时至少要补
 > `domainCode` 与顺序（或按 `List.of` 声明顺序保持现状）。
 
-### 6.2 下发接口（v2）
+### 6.2 下发接口（最终 v1）
 
-`GET /admin/menus/v2?scope=TENANT`
+`GET /admin/menus?scope=TENANT`
 
 ```json
 {
@@ -481,7 +481,7 @@ CREATE TABLE `iam_menu` (
 }
 ```
 
-**服务端过滤算法（`AdminMenuApplicationService.menusV2`）：**
+**服务端过滤算法（`AdminMenuApplicationService.menus`）：**
 
 ```
 1. 取上下文 (tenantId, organizationId, storeId, businessType) 与权限集合
@@ -497,7 +497,7 @@ CREATE TABLE `iam_menu` (
 ```
 
 > **⚠️ v0.3 补注（步骤 1 的数据来源）**：`businessType` **当前不在上下文里**（`SelectContextResponse` / `ContextItem`
-> 都没有该字段，见 `02_SERVICE` §10.4）。两个选择：M2 由 `menusV2` 自己按 `storeId` 查一次 `tnt_store.business_type`；
+> 都没有该字段，见 `02_SERVICE` §10.4）。两个选择：M2 由菜单服务自己按 `storeId` 查一次 `tnt_store.business_type`；
 > 或 M4 统一把它加进上下文响应。**建议后者**（门店段头部还要显示时区，一并解决）。
 >
 > **另一处必须替换的现状**：`filterTenantMenus`（`SVC:85-98`）是**4 条 path 等值判断且不递归 children**；
@@ -508,7 +508,7 @@ CREATE TABLE `iam_menu` (
 
 **兼容策略（灰度）：**
 - `GET /admin/menus`（旧平铺）**保留**，行为不变，供回滚与老前端使用。
-- `GET /admin/menus/v2` 新增。前端按构建期环境变量 `VITE_MENU_V2=on` 切换，两版并行一个发布周期后再下线旧接口。
+- 继续使用 `GET /admin/menus` 作为唯一有效菜单接口，直接将实现替换为数据库菜单查询和声明式剪枝；不新增 v2，不增加环境变量切换。无消费者的旧兼容代码同批次删除。
 
 ### 6.3 前端改动清单
 
@@ -557,11 +557,11 @@ CREATE TABLE `iam_menu` (
 | `res_occupation` / `res_schedule` | `store_id` |
 | `ord_inventory_material` / `ord_inventory_stock` / `ord_inventory_transaction` | `store_id` |
 | `ord_product` / `ord_product_category` | **`store_id NOT NULL`** ← v0.2 修正依据 |
-| `tnt_pricing_plan` | **`store_id NOT NULL`** ← v0.2 修正依据 |
+| `tnt_pricing_plan` | `store_id=0` 租户/业态默认，`store_id>0` 门店覆盖；另有 `business_type` |
 | `pay_shift` / `pay_daily_closing` / `pay_intent` | `store_id` |
 | `pay_channel_provider` | `store_id` |
 
-### 7.3 C · 混合：租户定义 + 门店覆盖（`store_id NULL` = 租户默认）★
+### 7.3 C · 混合：租户/业态定义 + 门店覆盖（`store_id=0` = 默认层）★
 
 **这是分层能力的关键，当前只有 3 张表做到。**
 
@@ -625,7 +625,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 
 | # | 缺口 | 严重度 | 影响 | 建议 |
 | --- | --- | --- | --- | --- |
-| 1 | `tnt_pricing_plan.store_id NOT NULL` | **高** | A380 开 3 家 KTV 要配 3 遍计价方案；且它挂在 `scope=PLATFORM` 的 `/admin/pricing-plans` 下——层级和归属双重错位 | 改 `store_id NULL = 租户默认`；菜单归入门店设置 |
+| 1 | 计价方案缺少租户/业态默认层 | **已处理** | 原实现只能逐店配置，无法支持同业态多店共用一套设置 | `store_id=0` + `business_type` 三层解析；菜单归入租户 KTV 配置 |
 | 2 | 派生子表无 `store_id`（`ord_order_item` / `ord_ktv_session` / `ord_ktv_server_session` / `pay_collect` / `pay_refund` / `pay_transaction`） | **高** | 门店级权限 / 报表 / 审计无法直接收敛，必须 JOIN 回 `ord_order`。**这是「门店级菜单与权限」能否真正落地的最大障碍** | 写时冗余 `store_id + business_type`（订单创建时一起写、不可变）；读时直查 |
 | 3 | `iam_audit_log` 无 `store_id` | 中 | 门店级审计只能翻 `detail_json`，无法过滤 / 索引 | 加可空 `store_id` |
 | 4 | `mkt_campaign_scope` **「首发骨架不建」** | **高** | 优惠券的「业态及门店范围」在 `SAAS_PLATFORM_01` §营销里**承诺了但未实现**；`rule_snapshot_json` 注释直接写「不可查询」 | 补 `mkt_campaign_scope`（`scope_type` / `business_type` / `store_id`） |
@@ -640,9 +640,9 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 
 | 里程碑 | 内容 | DB 改动 | 可独立上线 | 解决 |
 | --- | --- | --- | --- | --- |
-| **M0 数据地基**（v0.2 新增） | 子表冗余 `store_id + business_type`（缺口 2）；`tnt_pricing_plan.store_id` 改可空（缺口 1）；补 `mkt_campaign_scope`（缺口 4）；`iam_audit_log` 加 `store_id`（缺口 3） | 改表 + 回填 | ⚠️ 需灰度 | P8、门店级数据可切分性 |
+| **M0 数据地基**（v0.2 新增） | 子表冗余 `store_id + business_type`（缺口 2）；补 `mkt_campaign_scope`（缺口 4）；`iam_audit_log` 加 `store_id`（缺口 3） | 改表 + 回填 | ⚠️ 需灰度 | P8、门店级数据可切分性 |
 | **M1 菜单树化** | `AdminMenuItem` 用 `children` 组装 §3 的两段式树（暂在 Java 内定义，含 v0.2 修正的商品/计价归属）；前端渲染两段式 + 分隔线 + 业态徽标 | 无 | ✅ 可回滚 | P1、P2、P7 |
-| **M2 配置外置** | `iam_menu` 建表 + 种子；`menusV2()` 查表 + 剪枝；保留旧 `/admin/menus` | `iam_menu` | ✅ 双接口并行 | P5 |
+| **M2 配置外置** | `iam_menu` 建表 + 种子；`menus()` 查表 + 剪枝；直接替换现有 `/admin/menus` 实现 | `iam_menu` | ✅ 单接口切换 | P5 |
 | **M3 权限元数据** | `iam_permission` / `iam_role` 加 `scope_level` / `domain_code` / `grantable_levels` / `menu_code`，全量回填；菜单 `required_permission` 化，删除后端 4 条硬编码 if 与前端 `MENU_ITEM_PERMISSIONS` | `iam_permission`、`iam_role` | ✅（回填脚本可重放） | P4、P5 |
 | **M4 业态维度** | 上下文下发 `businessType`；业态菜单按门店业态过滤；§5.4 方案 a 的权限聚合按业态收敛；A380 多业态门店实测 | 无（表已存在） | ✅ | P3 |
 | **M5 授权界面分层 + 交互优化** | 角色配置页改「租户级权限树 / 门店级权限树」；`grantable_levels` 非法授予拦截；批量多门店绑定接口；门店切换不整页 reload | 无 | ✅ | P4、P6 |
@@ -669,7 +669,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 - [ ] 未选门店（`contextId` 无 `storeId`）时，门店段显示「请先选择门店」空态，不显示门店级叶子。
 - [ ] 门店 `business_type=HOTEL` 时，KTV 专属分组（门店资源/服务人员/KTV 配置）**完全不可见**。
 - [ ] 门店 `business_type=KTV` 时，KTV 专属分组可见，且仅当上下文带 `storeId`。
-- [ ] 「商品管理」「计价方案」出现在**门店级段**，不出现在租户级段（v0.2 修正落点）。
+- [ ] 「商品管理」出现在**门店级段**；「KTV 配置」出现在租户级段，并允许进入门店覆盖设置。
 - [ ] 无 `tenant.currency.manage` 的账号看不到「币种」（口径与现状一致）。
 - [ ] 未授予 `payment.method.wallet` 的租户看不到「储值管理」；已授权但未选门店时也不得进入写操作页。
 - [ ] 客户、积分、储值均只在 STORE 上下文渲染；总部只显示汇总和下钻入口，不直接执行门店写操作。
@@ -680,7 +680,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 **工程验收**
 
 - [ ] `GET /admin/menus` 行为与响应结构不变（回归基线）。
-- [ ] `GET /admin/menus/v2` 有单测覆盖每个剪枝规则（a–e）与「父节点因无子被剪」。
+- [ ] `GET /admin/menus` 有单测覆盖每个剪枝规则（a–e）与「父节点因无子被剪」。
 - [ ] `iam_menu` 种子脚本可重复执行（幂等），二次执行无数据变化。
 - [ ] 权限元数据回填脚本：`scope_level='STORE'` 的权限码数量、`domain_code != 'core'` 的数量与 `SELECT` 清单一致。
 - [ ] M0 回填后：`ord_order_item` / `ord_ktv_session` / `pay_refund` 等的 `store_id` 非空率 100%，且与 `ord_order.store_id` 一致（一致性校验 SQL 纳入 CI）。
@@ -695,7 +695,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | --- | --- | --- |
 | 入口位置变化导致用户找不到 | 菜单从平铺改为分组，老用户肌肉记忆失效 | ① **path 全不变**；② 发版附「菜单新位置对照表」；③ 首版保留搜索/最近访问（后续） |
 | M0 回填期间数据不一致 | 子表补 `store_id` 需要回填历史数据，回填与新写入并存 | ① 先加可空列 + 双写；② 回填；③ 校验一致后置 `NOT NULL`。三阶段灰度 |
-| 双接口并存期数据漂移 | 旧接口与新接口各自发展 | 旧接口冻结、只读、不再加菜单；一个发布周期后删除 |
+| 菜单实现切换遗漏消费者 | 旧兼容代码仍被脚本或客户端引用 | 发布前执行全仓引用扫描；无消费者的旧代码同批次删除，保留唯一 v1 接口 |
 | 权限元数据回填错位 | 某权限 `scope_level` 判错 → 授权界面授错层 | 回填脚本产出 diff 清单人工过审；`grantable_levels` 默认取「自身及以下」保守值 |
 | 业态过滤把入口藏没了 | 业态值大小写/新增业态未登记 | 业态匹配大小写不敏感；`business_type` 不在 `tnt_business_type` 登记时保留 `core` 节点 + 记录 WARN 日志 |
 | `iam_menu` 成为第二份权限事实 | 菜单表存 `required_permission`，与 `iam_permission` 可能不一致 | 启动期/CI 校验：`iam_menu.required_permission` 中的每个码必须存在于 `iam_permission`，否则构建失败 |
@@ -708,11 +708,11 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
   `platform-marketing-service` V5（`mkt_campaign_scope`）、`platform-admin-service` V7（`iam_menu`）、
   `platform-tenant-service` V28+（权限/角色元数据与回填）。完整落位表见 `02_SERVICE` §11.5
 - 服务端：`platform-admin-service`（`AdminMenuApplicationService`、`AdminMenuController`、`AdminMenuItem`、`TenantIamDomainClient`）、`platform-tenant-service`（`IamSnapshotMapper`、`PermissionSnapshotProvider`、`IamController`、`StoreApplicationService`、`ContextDtos`）、`platform-order-service`（子表写入冗余 + 业态权威来源）、`common-payment-service`（同上）、`common-audit-service`（审计 `store_id`）、`platform-marketing-service`（`mkt_campaign_scope`）
-- OpenAPI：`GET /admin/menus/v2`、`GET/POST /admin/iam/*`（M5 批量绑定 + `INVALID_GRANT_SCOPE`）、上下文响应新增 `businessType`/`timezone`
+- OpenAPI：`GET /admin/menus`、`GET/POST /admin/iam/*`（M5 批量绑定 + `INVALID_GRANT_SCOPE`）、上下文响应新增 `businessType`/`timezone`
 - PC 后台：`gv_saas_admin`（router / stores / layout / utils）
 - 测试：`AdminMenuApplicationServiceTest`（**现有 2 个位置耦合断言必须同步改写**）、`AdminMenuControllerAuthTest`、`PermissionSnapshotProviderTest`、`IamController` 校验测试、`PermissionSnapshotCacheTest`、`menuPermission.test.js`、`stores/context.test.js`、`utils/context.test.js`
 - CI：`02_SERVICE` §4.3 四条 SQL + §9.4 六条断言
-- 部署配置：前端 `VITE_MENU_V2` 开关
+- 部署配置：不新增菜单版本开关；前后端同步使用现有 v1 菜单接口
 
 ---
 
@@ -726,7 +726,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | **D-4** | 租户级上下文（无 `storeId`）下，业态专属菜单如何处理 | **折叠为「业态配置」聚合入口**，不按业态展开（避免 A380 三业态时租户级菜单爆炸） | 租户级菜单长度 |
 | **D-5** | 前端是否保留权限兜底过滤（`filterMenusByPermission`） | **保留但清空映射表**。⚠️ v0.3 注：现状是"**未登记路径一律可见**"（`menuPermission.js:41`），与后端"未命中权限即隐藏"**方向相反**，所以"保留"意味着前端比后端宽松 —— 必须先明确要哪一侧保守，再决定是否清空映射 | 前后端口径不一致的方向 |
 | **D-6** | 平台运营进入租户上下文时，是否额外渲染「平台专属段」 | 本期**不做**，平台运营仍走 `/select` 切后台入口 | 平台运营体验 |
-| **D-7** | ~~`计价方案` 从 `PLATFORM` 迁到 `TENANT`~~ | **v0.2 已修正**：`tnt_pricing_plan.store_id NOT NULL` → 迁到 **`STORE`**；若要支持租户默认价需先改表（缺口 1） | 平台运营授权口径 |
+| **D-7** | ~~`计价方案` 从 `PLATFORM` 迁到 `TENANT`~~ | **已执行**：迁到租户「KTV 配置」；`store_id=0` 表示租户/业态默认，`store_id>0` 表示门店覆盖 | 平台运营授权口径 |
 | **D-8** | 门店切换是否在 M5 前保持整页 reload | **保持**。正确性优先于流畅度；M5 再改增量刷新 | 交互体验 |
 | **D-9** | 菜单显示名：`订单/KTV` 是否改回 `订单` | **改**。业态由上下文决定，菜单名不应带业态后缀 | 文案 |
 | **D-10**（新） | M0 是否在 M1 之前做 | **并行**：M1 不依赖 M0 可先上；但 M4/M5 必须先有 M0 | 排期与灰度成本 |
@@ -734,7 +734,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | **D-12**（v0.3 新） | `platform.operator` 维持 **44/44 全量**持有，还是收敛剔除业态码 | **维持全量**（零数据改动、零行为变化），把隐式全量改成"显式登记 + CI 断言"。完整三选项见 `02_SERVICE` §5.5.5（= S-6） | 是否动现有授权数据；平台运营体验 |
 | **D-13**（v0.3 新） | 业态的权威来源：客户端传值（现状）还是 `tnt_store.business_type` | **门店配置为权威**：入参与门店不一致时 400 或直接覆盖。否则 D-2「按门店业态过滤权限」与「订单按传值落库」会分叉（= `02_SERVICE` S-9 / §10.5） | 业态维度能否站住 |
 | **D-14**（v0.3 新） | 是否允许重命名 `AdminMenuItem.code`（`iam_menu.code` 需要唯一 + 语义化） | **允许**：现有 code 跨 scope 重名（两个 `paymethod`），唯一键强制换名；前端只当 `v-for` key 兜底，无对外承诺（= `02_SERVICE` S-8） | 与"只动分组不动 path"硬约束的边界 |
-| **D-15**（v0.3 新） | `businessType` / `timezone` 由谁提供：M2 在 `menusV2` 里自查 `tnt_store`，还是 M4 统一加进上下文响应 | **M4 统一加**（门店段头部也要显示时区，一并解决）；M2 可先自查兜底 | M2/M4 的边界与重复查询 |
+| **D-15**（v0.3 新） | `businessType` / `timezone` 由谁提供：M2 在菜单服务里自查 `tnt_store`，还是 M4 统一加进上下文响应 | **M4 统一加**（门店段头部也要显示时区，一并解决）；M2 可先自查兜底 | M2/M4 的边界与重复查询 |
 
 ---
 
@@ -743,7 +743,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 | 日期 | 版本 | 变更 |
 | --- | --- | --- |
 | 2026-09-18 | v0.1（评审稿） | 首版：现状诊断、两轴模型、菜单提案、权限元数据、5 里程碑路线、9 项决策点 |
-| 2026-09-18 | v0.2（评审稿） | ① 按 138 个 Flyway 迁移实测修正两处归属：商品管理 → 门店级、计价方案 → **门店级**（v0.1 误判为 TENANT）；② 新增 §7「通用 vs 门店独立」四类分类与决策树；③ 新增 §8 五处缺口与技术债；④ 新增 M0 数据地基里程碑；⑤ 决策点 D-7 修正，新增 D-10 / D-11 |
+| 2026-09-30 | v0.4 | 计价方案按 P7-B 纳入租户 KTV 配置，支持租户/业态默认和门店覆盖；同步修正菜单、迁移与执行方案口径。 |
 | 2026-09-22 | **v0.3（评审稿 · 实测复核）** | 按 `AdminMenuApplicationService` / `AdminMenuController` / `AdminMenuItem` / 4 个测试 + `gv_saas_admin` 六个文件逐行复核，修正 6 处事实错误并补 4 项决策点：<br>① **租户菜单 19 项不是 18**（`a057d771` 于 09-19 新增"订单管理"`/admin/orders`），§1.1 / §1.3-P1 / §3.3 / §3.4 / §9 全部同步，映射表补该行；<br>② **前端权限映射只有 1 条**（`/admin/tenant/currency`），且未登记路径"一律可见"与后端"未命中即隐藏"方向相反 ⇒ P5 表述修正；<br>③ **存量权限码 44 个、`module.resource[.action]` 2～3 段**（不是"60+、三段"），且 `module/resource/action` 不可反推 `code`；<br>④ **`platform.operator` 持有 44/44 全量**（不是 3 个 TENANT 级码）⇒ §5.3 加实测列、§5.5 矩阵重画（PLATFORM 出现在每一行）；<br>⑤ **前端与上下文都没有 `businessType`/`timezone`** ⇒ §6.3 标注后端需先加字段；<br>⑥ **`AdminLayout.vue` 无分组/分隔线/上下文标识**（两段式是新建），`menuPermission.test.js:22-25` 与 `AdminMenuApplicationServiceTest` 的 2 个位置耦合断言会被 M1 打破；<br>⑦ §8 新增缺口 6（业态双源 + 门店业态无写路径）；§11 Flyway 清单改为**按模块编号**；新增 D-12～D-15 |
 | 2026-09-28 | **v0.8（方案拆分）** | 本文件收敛为方案 A；方案 B 拆分到 `SAAS_TENANT_HEADQUARTERS_01_SERVICE.md`。菜单仍只保留现有门店商品与库存入口；客户/积分/储值的总部总览、门店操作、配置作用域和余额归属不再混入本文件。 |
 | 2026-09-28 | **v0.9（方案 B 对齐）** | 将客户/积分/储值从租户级映射改为门店级入口；租户区仅保留总部汇总/营销配置预留；补充共享余额不能按门店相加、多币种必须分组的验收约束。 |

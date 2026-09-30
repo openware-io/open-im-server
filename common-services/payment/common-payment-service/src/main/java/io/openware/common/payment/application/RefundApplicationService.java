@@ -45,12 +45,15 @@ public class RefundApplicationService {
         this(refundMapper, auditClient, null);
     }
 
-    /** 收银员申请退款：创建 PENDING 记录（幂等唯一键 uk_pay_refund_tenant_req 兜底）。 */
+    /**
+     * 收银员申请退款：创建 PENDING 记录（幂等唯一键 uk_pay_refund_tenant_req 兜底）并固化门店归因。
+     * 门店 ID 来自调用方已校验的经营上下文，不允许在支付域跨库猜测门店。
+     */
     @Transactional
-    public RefundDto requestRefund(Long tenantId, Long orderId, BigDecimal amount, String reason, Long requestedBy) {
+    public RefundDto requestRefund(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason, Long requestedBy) {
         try {
             RefundPo po = new RefundPo();
-            po.setTenantId(tenantId); po.setOrderId(orderId);
+            po.setTenantId(tenantId); po.setStoreId(storeId); po.setOrderId(orderId);
             po.setRequestId(UUID.randomUUID().toString());
             po.setRequestedAmount(amount); po.setReason(reason); po.setRequestedBy(requestedBy);
             // 币种快照（16_CURRENCY_CONVENTIONS §5/§6.3）：退款必须退**原币种**，与申请金额同事务落库。

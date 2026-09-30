@@ -54,10 +54,11 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
                 .requestInterceptor(internalAuthInterceptor).build();
     }
 
-    // —— 计价方案：tenant 服务（tnt_pricing_plan，按 store + resourceType 唯一） ——
+    // —— 计价方案：tenant 服务（三层作用域，按有效方案返回） ——
     @Override
-    public List<PricingPlan> listPricingPlans(Long storeId) {
+    public List<PricingPlan> listPricingPlans(Long storeId, String businessType) {
         String uri = storeId == null ? "/internal/pricing-plans" : "/internal/pricing-plans?storeId=" + storeId;
+        if (businessType != null && !businessType.isBlank()) uri += (uri.contains("?") ? "&" : "?") + "businessType=" + businessType;
         JsonNode node = getJson(tenantClient, uri);
         List<PricingPlan> result = new ArrayList<>();
         if (node != null && node.isArray()) {
@@ -89,6 +90,9 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         var roomNode = objectMapper.createObjectNode();
         roomNode.put("tenantId", tenantId());
         roomNode.put("storeId", storeId);
+        if (plan.businessType() != null) roomNode.put("businessType", plan.businessType());
+        if (plan.version() != null) roomNode.put("version", plan.version());
+        if (plan.idempotencyKey() != null) roomNode.put("idempotencyKey", plan.idempotencyKey());
         roomNode.put("resourceType", "KTV_ROOM");
         roomNode.put("billingUnit", plan.billingUnit() == null ? "HOUR" : plan.billingUnit());
         roomNode.put("incrementMinutes", plan.incrementMinutes() == null ? 30 : plan.incrementMinutes());
@@ -103,6 +107,9 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
             var serverNode = objectMapper.createObjectNode();
             serverNode.put("tenantId", tenantId());
             serverNode.put("storeId", storeId);
+            if (plan.businessType() != null) serverNode.put("businessType", plan.businessType());
+            if (plan.version() != null) serverNode.put("version", plan.version());
+            if (plan.idempotencyKey() != null) serverNode.put("idempotencyKey", plan.idempotencyKey());
             serverNode.put("resourceType", "KTV_SERVER");
             serverNode.put("billingUnit", plan.serverBillingUnit() == null ? "HOUR" : plan.serverBillingUnit());
             serverNode.put("incrementMinutes", plan.serverIncrementMinutes() == null ? 30 : plan.serverIncrementMinutes());
@@ -117,8 +124,13 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
 
     // —— 支付开关：转发 payment 服务 pay_channel_config（线上渠道默认关闭） ——
     @Override
-    public List<PaymentSwitchConfig> listPaymentSwitches(Long storeId) {
-        JsonNode node = getJson(paymentClient, "/admin/payment-channels?tenantId=" + tenantId());
+    public List<PaymentSwitchConfig> listPaymentSwitches(Long storeId, String businessType) {
+        String uri = "/admin/payment-channels?tenantId=" + tenantId();
+        if (storeId != null) uri += "&storeId=" + storeId;
+        TenantContext context = TenantContextHolder.get();
+        if (businessType != null && !businessType.isBlank()) uri += "&businessType=" + businessType;
+        else if (context != null && context.businessType() != null) uri += "&businessType=" + context.businessType();
+        JsonNode node = getJson(paymentClient, uri);
         List<PaymentSwitchConfig.PaymentChannelSwitch> channels = new ArrayList<>();
         if (node != null && node.isArray()) {
             for (JsonNode item : node) {
@@ -128,7 +140,7 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         if (channels.isEmpty()) {
             channels = defaultPaymentSwitches(storeId == null ? 1L : storeId).channels();
         }
-        return List.of(new PaymentSwitchConfig(1L, storeId, null, null, CurrencyResolver.currentCode(), channels));
+        return List.of(new PaymentSwitchConfig(1L, storeId, null, null, CurrencyResolver.currentCode(), channels, null, null, null));
     }
 
     @Override
@@ -138,7 +150,12 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
             if (ch == null || ch.channel() == null || ch.channel().isBlank()) continue;
             var body = objectMapper.createObjectNode();
             body.put("tenantId", tenantId());
-            body.put("storeId", storeId == null ? 0L : storeId);
+            if (storeId != null) body.put("storeId", storeId); else body.putNull("storeId");
+            TenantContext context = TenantContextHolder.get();
+            if (context != null && context.businessType() != null) body.put("businessType", context.businessType());
+            if (config.businessType() != null) body.put("businessType", config.businessType());
+            if (config.version() != null) body.put("version", config.version());
+            if (config.idempotencyKey() != null) body.put("idempotencyKey", config.idempotencyKey());
             body.put("channel", ch.channel());
             body.put("enabled", Boolean.TRUE.equals(ch.enabled()));
             body.put("merchantId", config.merchantAccountId() == null ? "" : String.valueOf(config.merchantAccountId()));
@@ -210,7 +227,10 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
                 serverItem == null ? billingUnit : serverItem.path("billingUnit").asText("HOUR"),
                 serverIncrement,
                 serverRounding,
-                serverPrice);
+                serverPrice,
+                item.path("businessType").asText(null),
+                item.has("version") ? item.path("version").asInt() : null,
+                item.path("idempotencyKey").asText(null));
     }
 
     private ServerCatalogItem toServerCatalogItem(JsonNode item) {
@@ -309,7 +329,7 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
                 12800L, 30, "CONSUMER_FAVOR",
                 0, 1.0, 120, "CEIL_MINUTE",
                 List.of(new PricingPlan.PricingPackage(1L, "欢唱 3 小时", 180, 12800L, "ENABLED")),
-                false, "HOUR", 30, "CONSUMER_FAVOR", 5000L);
+                false, "HOUR", 30, "CONSUMER_FAVOR", 5000L, null, null, null);
     }
 
     private PaymentSwitchConfig defaultPaymentSwitches(Long storeId) {
@@ -319,7 +339,7 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
                 List.of(
                         new PaymentSwitchConfig.PaymentChannelSwitch("ALIPAY", "支付宝", false, false, 1L, 500000L),
                         new PaymentSwitchConfig.PaymentChannelSwitch("WECHAT", "微信支付", false, false, 1L, 500000L),
-                        new PaymentSwitchConfig.PaymentChannelSwitch("STRIPE", "Stripe", false, false, 1L, 500000L)));
+                        new PaymentSwitchConfig.PaymentChannelSwitch("STRIPE", "Stripe", false, false, 1L, 500000L)), null, null, null);
     }
 
     private ServerCatalogItem defaultServer(Long storeId) {

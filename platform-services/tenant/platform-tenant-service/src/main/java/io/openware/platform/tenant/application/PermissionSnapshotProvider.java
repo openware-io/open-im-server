@@ -206,7 +206,7 @@ public class PermissionSnapshotProvider {
                 row.getTenantId(), row.getTenantName(),
                 row.getOrganizationId(), row.getOrganizationName(),
                 row.getStoreId(), row.getStoreName(),
-                roles, scopeType);
+                roles, scopeType, row.getBusinessType(), row.getTimezone());
     }
 
     /** 租户/组织下的启用门店；查询异常或空结果返回空列表，不影响原有上下文。 */

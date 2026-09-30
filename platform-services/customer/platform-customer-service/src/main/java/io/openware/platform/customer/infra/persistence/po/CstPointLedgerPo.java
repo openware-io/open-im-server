@@ -17,6 +17,8 @@ public class CstPointLedgerPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 本笔积分业务发生门店；积分账户本身不分店。 */
+    private Long storeId;
     private Long accountId;
     private String entryType;
     private Long points;

@@ -18,6 +18,10 @@ public class PermissionPo {
     private String resource;
     private String action;
     private String description;
+    private String scopeLevel;
+    private String domainCode;
+    private String grantableLevels;
+    private String menuCode;
     private String status;
     private Long createdBy;
     private LocalDateTime createdAt;

@@ -25,7 +25,7 @@ class RefundApplicationServiceTest {
 
   @Test
   void requestRefund_createsPendingRefund() {
-    RefundDto result = service.requestRefund(1L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
+    RefundDto result = service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
 
     assertEquals(RefundApplicationService.STATUS_PENDING, result.status());
     // 退款币种快照：订单读不到（未注入账单查询）时回退当时租户币种，缺省 USD（§1/§5）。
@@ -33,6 +33,7 @@ class RefundApplicationServiceTest {
     ArgumentCaptor<RefundPo> captor = ArgumentCaptor.forClass(RefundPo.class);
     verify(refundMapper).insert(captor.capture());
     assertEquals(RefundApplicationService.STATUS_PENDING, captor.getValue().getStatus());
+    assertEquals(77L, captor.getValue().getStoreId());
     assertEquals(0, new BigDecimal("50.00").compareTo(captor.getValue().getRequestedAmount()));
   }
 
@@ -81,7 +82,7 @@ class RefundApplicationServiceTest {
     RefundApplicationService serviceWithBilling =
         new RefundApplicationService(refundMapper, auditClient, orderBillingMapper);
 
-    RefundDto result = serviceWithBilling.requestRefund(1L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
+    RefundDto result = serviceWithBilling.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
 
     assertEquals("CNY", result.currencyCode());
   }
@@ -139,7 +140,7 @@ class RefundApplicationServiceTest {
   /** 申请退款成功：SUCCEEDED + 动作码 payment.refund.request。 */
   @Test
   void requestRefund_writesSucceededAudit() {
-    service.requestRefund(1L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
+    service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.request", record.action());
@@ -154,7 +155,7 @@ class RefundApplicationServiceTest {
         .thenThrow(new org.springframework.dao.DuplicateKeyException("uk_pay_refund_tenant_req"));
 
     assertThrows(org.springframework.dao.DuplicateKeyException.class,
-        () -> service.requestRefund(1L, 9L, new BigDecimal("50.00"), "多收退款", 7L));
+        () -> service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L));
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.request", record.action());

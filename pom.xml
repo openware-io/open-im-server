@@ -28,7 +28,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.minimum.version>3.9.16</maven.minimum.version>
-    <sdk.version>2.0.4</sdk.version>
+    <sdk.version>2.2.0</sdk.version>
     <springdoc.version>3.0.1</springdoc.version>
     <spring-cloud.version>2025.1.2</spring-cloud.version>
     <spring-cloud-alibaba.version>2025.1.0.0</spring-cloud-alibaba.version>

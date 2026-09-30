@@ -17,7 +17,9 @@ public record TenantContext(
         long accountId,
         int authorizationVersion,
         List<String> permissions,
-        String scopeType
+        String scopeType,
+        String businessType,
+        String timezone
 ) {
     public static final String HEADER = "X-Tenant-Context";
 
@@ -26,13 +28,18 @@ public record TenantContext(
 
     /** 兼容旧 5 参构造：权限与作用域缺省。 */
     public TenantContext(long tenantId, Long organizationId, Long storeId, long accountId, int authorizationVersion) {
-        this(tenantId, organizationId, storeId, accountId, authorizationVersion, List.of(), null);
+        this(tenantId, organizationId, storeId, accountId, authorizationVersion, List.of(), null, null, null);
     }
 
     /** 兼容旧 6 参构造：作用域缺省（按租户上下文处理）。 */
     public TenantContext(long tenantId, Long organizationId, Long storeId, long accountId, int authorizationVersion,
                          List<String> permissions) {
-        this(tenantId, organizationId, storeId, accountId, authorizationVersion, permissions, null);
+        this(tenantId, organizationId, storeId, accountId, authorizationVersion, permissions, null, null, null);
+    }
+
+    public TenantContext(long tenantId, Long organizationId, Long storeId, long accountId, int authorizationVersion,
+                         List<String> permissions, String scopeType) {
+        this(tenantId, organizationId, storeId, accountId, authorizationVersion, permissions, scopeType, null, null);
     }
 
     /** 是否平台作用域上下文（{@code tenantId} 允许为 0）。 */

@@ -38,8 +38,9 @@ public class KtvConfigController {
 
     // —— 计价方案 ——
     @GetMapping("/pricing-plans")
-    public List<PricingPlan> pricingPlans(@RequestParam(required = false) Long storeId) {
-        return service.pricingPlans(storeId);
+    public List<PricingPlan> pricingPlans(@RequestParam(required = false) Long storeId,
+                                          @RequestParam(required = false) String businessType) {
+        return service.pricingPlans(storeId, businessType);
     }
 
     @PostMapping("/pricing-plans")
@@ -54,8 +55,9 @@ public class KtvConfigController {
 
     // —— 支付开关 ——
     @GetMapping("/payment-switches")
-    public List<PaymentSwitchConfig> paymentSwitches(@RequestParam(required = false) Long storeId) {
-        return service.paymentSwitches(storeId);
+    public List<PaymentSwitchConfig> paymentSwitches(@RequestParam(required = false) Long storeId,
+                                                     @RequestParam(required = false) String businessType) {
+        return service.paymentSwitches(storeId, businessType);
     }
 
     @PostMapping("/payment-switches")
