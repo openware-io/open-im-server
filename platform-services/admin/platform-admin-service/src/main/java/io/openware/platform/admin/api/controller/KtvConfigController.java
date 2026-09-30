@@ -53,6 +53,11 @@ public class KtvConfigController {
         return service.savePricingPlan(plan);
     }
 
+    @PostMapping("/pricing-plans/batch")
+    public PricingPlan batchPricingPlans(@RequestBody PricingPlan.BatchCommand command) {
+        return service.savePricingPlanBatch(command);
+    }
+
     // —— 支付开关 ——
     @GetMapping("/payment-switches")
     public List<PaymentSwitchConfig> paymentSwitches(@RequestParam(required = false) Long storeId,
@@ -68,6 +73,11 @@ public class KtvConfigController {
     @PutMapping("/payment-switches/{id}")
     public PaymentSwitchConfig updatePaymentSwitch(@PathVariable Long id, @RequestBody PaymentSwitchConfig config) {
         return service.savePaymentSwitch(config);
+    }
+
+    @PostMapping("/payment-switches/batch")
+    public PaymentSwitchConfig batchPaymentSwitches(@RequestBody PaymentSwitchConfig.BatchCommand command) {
+        return service.savePaymentSwitchBatch(command);
     }
 
     // —— 服务人员 ——

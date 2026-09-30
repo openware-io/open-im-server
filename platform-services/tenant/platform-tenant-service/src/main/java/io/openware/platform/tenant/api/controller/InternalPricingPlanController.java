@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 /** 计价方案内部端点；作用域为租户默认、业态默认、门店覆盖。 */
 @RestController
@@ -114,6 +115,62 @@ public class InternalPricingPlanController {
         return PricingPlanView.from(po);
     }
 
+    @PostMapping("/batch")
+    @org.springframework.transaction.annotation.Transactional
+    public BatchPricingView createBatch(@RequestBody BatchPricingRequest req) {
+        if (req == null || req.plan() == null || req.storeIds() == null || req.storeIds().isEmpty()) {
+            throw new ApiException(400, "PRICING_BATCH_INVALID", "storeIds 和 plan 不能为空");
+        }
+        long tenantId = requireTenant();
+        CreatePricingRequest plan = req.plan();
+        String requestedType = normalize(plan.businessType());
+        String actualType = requestedType;
+        for (Long storeId : req.storeIds()) {
+            if (storeId == null || storeId <= 0 || !Objects.equals(storeMapper.selectTenantIdById(storeId), tenantId)) {
+                throw new ApiException(403, "STORE_SCOPE_FORBIDDEN", "批量门店不属于当前租户");
+            }
+            String storeType = normalize(storeMapper.selectBusinessTypeById(storeId));
+            if (storeType == null) throw new ApiException(404, "STORE_NOT_FOUND", "门店不存在");
+            if (actualType == null) actualType = storeType;
+            if (!actualType.equals(storeType)) throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "批量门店必须属于同一业态");
+        }
+        List<PricingPlanView> saved = new ArrayList<>();
+        for (Long storeId : req.storeIds()) {
+            CreatePricingRequest item = new CreatePricingRequest(tenantId, storeId, actualType, plan.resourceType(),
+                    plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(), plan.pricePerUnit(),
+                    plan.defaultSessionMinutes(), plan.overtimeRate(), plan.version(), req.idempotencyKey());
+            saved.add(create(item));
+        }
+        return new BatchPricingView(saved);
+    }
+
+    /** Admin/其他领域批量写入前的门店范围校验；只返回契约数据，不暴露门店 PO。 */
+    @PostMapping("/store-scope/validate")
+    public StoreScopeValidation validateStoreScope(@RequestBody StoreScopeRequest req) {
+        long tenantId = requireTenant();
+        if (req == null || req.storeIds() == null || req.storeIds().isEmpty()) {
+            throw new ApiException(400, "STORE_SCOPE_INVALID", "storeIds 不能为空");
+        }
+        String businessType = normalize(req.businessType());
+        List<StoreScopeItem> items = new ArrayList<>();
+        for (Long storeId : req.storeIds()) {
+            if (storeId == null || storeId <= 0 || !Objects.equals(storeMapper.selectTenantIdById(storeId), tenantId)) {
+                throw new ApiException(403, "STORE_SCOPE_FORBIDDEN", "门店不属于当前租户");
+            }
+            String actual = normalize(storeMapper.selectBusinessTypeById(storeId));
+            if (actual == null) throw new ApiException(404, "STORE_NOT_FOUND", "门店不存在");
+            if (businessType != null && !businessType.equals(actual)) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "业态与门店不匹配");
+            }
+            if (businessType == null) businessType = actual;
+            if (!businessType.equals(actual)) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "批量门店必须属于同一业态");
+            }
+            items.add(new StoreScopeItem(storeId, actual));
+        }
+        return new StoreScopeValidation(tenantId, businessType, items);
+    }
+
     private long requireTenant() {
         var context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
@@ -144,6 +201,12 @@ public class InternalPricingPlanController {
                                        String billingUnit, Integer incrementMinutes, String roundingDirection,
                                        Long pricePerUnit, Integer defaultSessionMinutes, BigDecimal overtimeRate,
                                        Integer version, String idempotencyKey) {}
+
+    public record BatchPricingRequest(CreatePricingRequest plan, List<Long> storeIds, String idempotencyKey) {}
+    public record BatchPricingView(List<PricingPlanView> items) {}
+    public record StoreScopeRequest(String businessType, List<Long> storeIds) {}
+    public record StoreScopeValidation(Long tenantId, String businessType, List<StoreScopeItem> stores) {}
+    public record StoreScopeItem(Long storeId, String businessType) {}
 
     /** 跨服务契约 DTO；禁止把租户域 PO 直接暴露给 Admin/Order。 */
     public record PricingPlanView(Long id, Long tenantId, Long storeId, String businessType, String resourceType,

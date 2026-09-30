@@ -31,6 +31,9 @@ public record PricingPlan(
         String idempotencyKey               // 写请求幂等键
 ) {
 
+    /** 多店批量覆盖命令；storeIds 为空时表示租户默认或业态默认。 */
+    public record BatchCommand(PricingPlan plan, List<Long> storeIds, String idempotencyKey) {}
+
     /** 固定时长固定价套餐（超出按标准单价续费）。 */
     public record PricingPackage(
             Long id,

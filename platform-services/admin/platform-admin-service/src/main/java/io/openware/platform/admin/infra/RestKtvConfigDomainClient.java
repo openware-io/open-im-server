@@ -122,6 +122,21 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         return toPricingPlan(roomSaved, serverSaved);
     }
 
+    @Override
+    public PricingPlan upsertPricingPlanBatch(PricingPlan.BatchCommand command) {
+        if (command == null || command.plan() == null || command.storeIds() == null || command.storeIds().isEmpty()) {
+            return upsertPricingPlan(command == null ? null : command.plan());
+        }
+        var body = objectMapper.createObjectNode();
+        body.set("plan", objectMapper.valueToTree(command.plan()));
+        body.set("storeIds", objectMapper.valueToTree(command.storeIds()));
+        body.put("idempotencyKey", command.idempotencyKey());
+        JsonNode saved = postJson(tenantClient, "/internal/pricing-plans/batch", body);
+        JsonNode first = saved.path("items").isArray() && saved.path("items").size() > 0
+                ? saved.path("items").get(0) : saved;
+        return toPricingPlan(first, null);
+    }
+
     // —— 支付开关：转发 payment 服务 pay_channel_config（线上渠道默认关闭） ——
     @Override
     public List<PaymentSwitchConfig> listPaymentSwitches(Long storeId, String businessType) {
@@ -162,6 +177,33 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
             postJson(paymentClient, "/admin/payment-channels", body);
         }
         return config;
+    }
+
+    @Override
+    public PaymentSwitchConfig upsertPaymentSwitchBatch(PaymentSwitchConfig.BatchCommand command) {
+        if (command == null || command.config() == null || command.storeIds() == null || command.storeIds().isEmpty()) {
+            return upsertPaymentSwitch(command == null ? null : command.config());
+        }
+        var body = objectMapper.createObjectNode();
+        var scope = objectMapper.createObjectNode();
+        scope.put("businessType", command.config().businessType());
+        scope.set("storeIds", objectMapper.valueToTree(command.storeIds()));
+        postJson(tenantClient, "/internal/pricing-plans/store-scope/validate", scope);
+        body.put("tenantId", tenantId());
+        body.put("businessType", command.config().businessType());
+        body.put("merchantId", command.config().merchantAccountId() == null ? "" : String.valueOf(command.config().merchantAccountId()));
+        body.set("storeIds", objectMapper.valueToTree(command.storeIds()));
+        body.put("idempotencyKey", command.idempotencyKey());
+        var toggles = objectMapper.createArrayNode();
+        for (var channel : command.config().channels()) {
+            var toggle = objectMapper.createObjectNode();
+            toggle.put("channel", channel.channel());
+            toggle.put("enabled", Boolean.TRUE.equals(channel.enabled()));
+            toggles.add(toggle);
+        }
+        body.set("config", toggles);
+        postJson(paymentClient, "/admin/payment-channels/batch", body);
+        return command.config();
     }
 
     private PaymentSwitchConfig.PaymentChannelSwitch toPaymentChannelSwitch(JsonNode item) {

@@ -39,6 +39,10 @@ public class KtvConfigApplicationService {
         return client.upsertPricingPlan(plan);
     }
 
+    public PricingPlan savePricingPlanBatch(PricingPlan.BatchCommand command) {
+        return client.upsertPricingPlanBatch(command);
+    }
+
     // —— 支付开关 ——
     public List<PaymentSwitchConfig> paymentSwitches(Long storeId) {
         return client.listPaymentSwitches(storeId, null);
@@ -50,6 +54,10 @@ public class KtvConfigApplicationService {
 
     public PaymentSwitchConfig savePaymentSwitch(PaymentSwitchConfig config) {
         return client.upsertPaymentSwitch(config);
+    }
+
+    public PaymentSwitchConfig savePaymentSwitchBatch(PaymentSwitchConfig.BatchCommand command) {
+        return client.upsertPaymentSwitchBatch(command);
     }
 
     // —— 服务人员 ——

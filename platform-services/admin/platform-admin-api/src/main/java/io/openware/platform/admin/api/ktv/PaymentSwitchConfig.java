@@ -19,6 +19,9 @@ public record PaymentSwitchConfig(
         String idempotencyKey
 ) {
 
+    /** 多店批量支付渠道覆盖命令；由所属 payment 域在单事务内展开。 */
+    public record BatchCommand(PaymentSwitchConfig config, List<Long> storeIds, String idempotencyKey) {}
+
     public record PaymentChannelSwitch(
             String channel,                // ALIPAY / WECHAT / STRIPE
             String name,                   // 支付宝 / 微信支付 / Stripe

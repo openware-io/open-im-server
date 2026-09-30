@@ -19,10 +19,12 @@ public interface KtvConfigDomainClient {
     List<PricingPlan> listPricingPlans(Long storeId, String businessType);
 
     PricingPlan upsertPricingPlan(PricingPlan plan);
+    PricingPlan upsertPricingPlanBatch(PricingPlan.BatchCommand command);
 
     List<PaymentSwitchConfig> listPaymentSwitches(Long storeId, String businessType);
 
     PaymentSwitchConfig upsertPaymentSwitch(PaymentSwitchConfig config);
+    PaymentSwitchConfig upsertPaymentSwitchBatch(PaymentSwitchConfig.BatchCommand command);
 
     List<ServerCatalogItem> listServerCatalog(Long storeId);
 
