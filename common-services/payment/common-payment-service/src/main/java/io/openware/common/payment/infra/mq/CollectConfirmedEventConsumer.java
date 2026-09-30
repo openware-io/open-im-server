@@ -1,5 +1,7 @@
 package io.openware.common.payment.infra.mq;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.openware.common.payment.infra.client.CustomerClient;
 import io.openware.common.payment.infra.persistence.mapper.PayEventConsumedMapper;
 import io.openware.common.payment.infra.persistence.po.PayEventConsumedPo;
 import io.openware.infrastructure.mq.MqConsumerFactory;
@@ -25,15 +27,17 @@ public class CollectConfirmedEventConsumer implements SmartLifecycle {
   private final MqConsumerFactory mqConsumerFactory;
   private final MqJsonCodec mqJsonCodec;
   private final PayEventConsumedMapper consumedMapper;
+  private final CustomerClient customerClient;
 
   private volatile AutoCloseable consumer;
   private volatile boolean running;
 
   public CollectConfirmedEventConsumer(MqConsumerFactory mqConsumerFactory, MqJsonCodec mqJsonCodec,
-      PayEventConsumedMapper consumedMapper) {
+      PayEventConsumedMapper consumedMapper, CustomerClient customerClient) {
     this.mqConsumerFactory = mqConsumerFactory;
     this.mqJsonCodec = mqJsonCodec;
     this.consumedMapper = consumedMapper;
+    this.customerClient = customerClient;
   }
 
   @Override
@@ -57,6 +61,22 @@ public class CollectConfirmedEventConsumer implements SmartLifecycle {
 
   private void consume(CollectConfirmedEvent event) {
     try {
+      if (event == null || event.getEventId() == null || event.getEventId().isBlank()) {
+        throw new IllegalArgumentException("payment.collect.confirmed 缺少 eventId");
+      }
+      if (consumedMapper.selectOne(new LambdaQueryWrapper<PayEventConsumedPo>()
+          .eq(PayEventConsumedPo::getEventId, event.getEventId()).last("LIMIT 1")) != null) {
+        log.info("payment.collect.confirmed 事件已消费，幂等跳过, eventId={}", event.getEventId());
+        return;
+      }
+      if (event.getTenantId() == null || event.getStoreId() == null || event.getCustomerId() == null
+          || event.getEligibleAmount() <= 0L) {
+        throw new IllegalArgumentException("payment.collect.confirmed 缺少积分获得所需上下文");
+      }
+      // Customer 侧以 payment-collect-earn:{eventId} 作为幂等键；调用失败不写 consumed，
+      // 让消息重投继续完成积分获得，避免“已消费但未加分”的不可恢复状态。
+      customerClient.earnPoints(event.getTenantId(), event.getStoreId(), event.getCustomerId(),
+          event.getEligibleAmount(), event.getOrderId(), "payment-collect-earn:" + event.getEventId());
       PayEventConsumedPo po = new PayEventConsumedPo();
       po.setTenantId(event.getTenantId());
       po.setEventId(event.getEventId());
@@ -65,7 +85,7 @@ public class CollectConfirmedEventConsumer implements SmartLifecycle {
       po.setAggregateId(event.getCollectNo());
       po.setConsumedAt(LocalDateTime.now());
       consumedMapper.insert(po);
-      log.info("消费 payment.collect.confirmed 事件成功, eventId={}, collectNo={}", event.getEventId(),
+      log.info("消费 payment.collect.confirmed 事件成功并完成积分获得, eventId={}, collectNo={}", event.getEventId(),
           event.getCollectNo());
     } catch (DuplicateKeyException duplicate) {
       log.info("payment.collect.confirmed 事件已消费，幂等跳过, eventId={}", event.getEventId());
