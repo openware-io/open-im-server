@@ -1,6 +1,7 @@
 package io.openware.platform.customer.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
@@ -16,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 
 /**
@@ -107,7 +110,7 @@ public class PointApplicationService {
             appendFact("ADJUST", account, storeId, points, balanceAfter);
             account.setAvailablePoints(balanceAfter);
             bump(account);
-            accountMapper.updateById(account);
+            updateAccountOptimistic(account, balanceAfter);
             // 积分属于会员资产：人工调整必须留痕（原因 + 变更前后余额），命令号即幂等键。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("points.adjust")
@@ -166,7 +169,7 @@ public class PointApplicationService {
         appendFact("REDEEM", account, storeId, -points, balanceAfter);
         account.setAvailablePoints(balanceAfter);
         bump(account);
-        accountMapper.updateById(account);
+        updateAccountOptimistic(account, balanceAfter);
         return account;
     }
 
@@ -190,7 +193,7 @@ public class PointApplicationService {
         appendFact("REVERSE", account, storeId, points, balanceAfter);
         account.setAvailablePoints(balanceAfter);
         bump(account);
-        accountMapper.updateById(account);
+        updateAccountOptimistic(account, balanceAfter);
         return account;
     }
 
@@ -227,8 +230,67 @@ public class PointApplicationService {
         return po;
     }
 
+    /** 支付确认后的积分获得入口；倍率、规则快照和流水失效时间均由 Customer 域决定。 */
+    @Transactional
+    public CstPointAccountPo earn(Long storeId, Long memberId, long eligibleAmountMinor,
+                                  Long orderId, String idempotencyKey) {
+        if (eligibleAmountMinor <= 0) throw new ApiException(400, "EARN_AMOUNT_INVALID", "可积分金额必须为正数");
+        if (idempotencyKey == null || idempotencyKey.isBlank()) throw new ApiException(400, "COMMAND_ID_REQUIRED", "缺少积分获得幂等键");
+        if (ledgerExists(idempotencyKey)) return requireOrCreateAccount(memberId);
+        TenantContext context = TenantContextHolder.get();
+        long tenantId = context == null ? 0L : context.tenantId();
+        PointRuleConfigApplicationService.PointRule rule = ruleService == null
+                ? PointRuleConfigApplicationService.PointRule.DEFAULT
+                : ruleService.resolve(tenantId, storeId, context == null ? null : context.businessType());
+        long points = BigDecimal.valueOf(eligibleAmountMinor).multiply(rule.earnRate())
+                .setScale(0, RoundingMode.DOWN).longValueExact();
+        CstPointAccountPo account = requireOrCreateAccount(memberId);
+        if (points <= 0) return account;
+        long balanceAfter = account.getAvailablePoints() + points;
+        String snapshot = "{\"earnRate\":" + rule.earnRate() + ",\"expiryDays\":" + rule.expiryDays()
+                + ",\"businessType\":\"" + rule.businessType() + "\"}";
+        appendLedger(storeId, account, "EARN", points, balanceAfter, "ORDER", orderId, idempotencyKey,
+                snapshot, rule.expiryDays());
+        appendFact("EARN", account, storeId, points, balanceAfter);
+        account.setAvailablePoints(balanceAfter);
+        bump(account);
+        updateAccountOptimistic(account, balanceAfter);
+        return account;
+    }
+
+    /** 收款确认事实消费的积分获得命令；payload 由消息消费者解析后调用。 */
+    public CstPointAccountPo earnFromConfirmedCollection(Long storeId, Long memberId, long collectedAmount,
+                                                         Long orderId, String eventId) {
+        return earn(storeId, memberId, collectedAmount, orderId, "payment-collect-earn:" + eventId);
+    }
+
+    /** 积分抵扣金额换算：金额为最小货币单位，返回应扣积分数，向上取整避免少扣。 */
+    public long pointsForAmount(Long storeId, long amountMinor) {
+        if (amountMinor <= 0) throw new ApiException(400, "AMOUNT_INVALID", "抵扣金额必须为正数");
+        TenantContext context = TenantContextHolder.get();
+        PointRuleConfigApplicationService.PointRule rule = ruleService == null
+                ? PointRuleConfigApplicationService.PointRule.DEFAULT
+                : ruleService.resolve(context == null ? 0L : context.tenantId(), storeId,
+                        context == null ? null : context.businessType());
+        return BigDecimal.valueOf(amountMinor).divide(rule.redeemRate(), 0, RoundingMode.CEILING).longValueExact();
+    }
+
+    private CstPointAccountPo requireOrCreateAccount(Long memberId) {
+        try { return requireAccountByMember(memberId); }
+        catch (ApiException ex) {
+            if (!"POINT_ACCOUNT_NOT_FOUND".equals(ex.getCode())) throw ex;
+            return ensureAccount(memberId);
+        }
+    }
+
     private void appendLedger(Long storeId, CstPointAccountPo account, String entryType, long points, long balanceAfter,
                               String businessType, Long businessId, String idempotencyKey) {
+        appendLedger(storeId, account, entryType, points, balanceAfter, businessType, businessId, idempotencyKey, null, 0);
+    }
+
+    private void appendLedger(Long storeId, CstPointAccountPo account, String entryType, long points, long balanceAfter,
+                              String businessType, Long businessId, String idempotencyKey, String ruleSnapshot,
+                              int expiryDays) {
         CstPointLedgerPo ledger = new CstPointLedgerPo();
         ledger.setStoreId(storeId);
         ledger.setAccountId(account.getId());
@@ -241,6 +303,8 @@ public class PointApplicationService {
         ledger.setBusinessType(businessType);
         ledger.setBusinessId(businessId);
         ledger.setIdempotencyKey(idempotencyKey);
+        ledger.setRuleSnapshotJson(ruleSnapshot);
+        ledger.setExpiresAt(expiryDays > 0 ? LocalDateTime.now().plusDays(expiryDays) : null);
         ledger.setOccurredAt(LocalDateTime.now());
         ledger.setCreatedAt(LocalDateTime.now());
         ledgerMapper.insert(ledger);
@@ -271,5 +335,17 @@ public class PointApplicationService {
     private void bump(CstPointAccountPo account) {
         account.setVersion(account.getVersion() == null ? 1 : account.getVersion() + 1);
         account.setUpdatedAt(LocalDateTime.now());
+    }
+
+    private void updateAccountOptimistic(CstPointAccountPo account, long balanceAfter) {
+        int newVersion = account.getVersion() == null ? 1 : account.getVersion();
+        int oldVersion = Math.max(0, newVersion - 1);
+        int updated = accountMapper.update(null, new LambdaUpdateWrapper<CstPointAccountPo>()
+                .eq(CstPointAccountPo::getId, account.getId())
+                .eq(CstPointAccountPo::getVersion, oldVersion)
+                .set(CstPointAccountPo::getAvailablePoints, balanceAfter)
+                .set(CstPointAccountPo::getVersion, newVersion)
+                .set(CstPointAccountPo::getUpdatedAt, account.getUpdatedAt()));
+        if (updated == 0) throw new ApiException(409, "POINT_ACCOUNT_VERSION_CONFLICT", "积分账户已被并发修改，请重试");
     }
 }

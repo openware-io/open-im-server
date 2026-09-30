@@ -122,6 +122,13 @@ public class ReservationController {
         return reservationService.confirm(id, req.expectedVersion());
     }
 
+    @PostMapping("/{id}/reschedule")
+    public ReservationPo reschedule(@PathVariable Long id, @RequestBody RescheduleReservationRequest req) {
+        PermissionGuard.require("reservation.create");
+        if (req == null) throw new ApiException(400, "RESERVATION_TIME_REQUIRED", "缺少新预约时间");
+        return reservationService.reschedule(id, req.startAt(), req.endAt(), req.expectedVersion());
+    }
+
     /** 到店：POST /business/reservations/{id}/arrival（CONFIRMED → ARRIVED，写 arrived_at 真实到店时间）。 */
     @PostMapping("/{id}/arrival")
     public ReservationPo arrival(@PathVariable Long id, @RequestBody(required = false) ArrivalReservationRequest req) {
@@ -259,6 +266,7 @@ public class ReservationController {
     public record AssignRoomRequest(Long resourceId, Boolean override) {}
 
     public record ConfirmReservationRequest(Integer expectedVersion) {}
+    public record RescheduleReservationRequest(OffsetDateTime startAt, OffsetDateTime endAt, Integer expectedVersion) {}
     public record ArrivalReservationRequest(String operatorNote) {}
     public record OpenTableReservationRequest(Integer freeWaitMinutes) {}
     public record CancelReservationRequest(String reason) {}

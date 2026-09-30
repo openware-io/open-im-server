@@ -44,6 +44,14 @@ public class CustomerClient {
                 node.path("availablePoints").asLong(), node.path("frozenPoints").asLong());
     }
 
+    public PointEarnResponse earnPoints(Long tenantId, Long storeId, Long customerId, long eligibleAmountMinor,
+                                        Long orderId, String idempotencyKey) {
+        JsonNode node = post("/internal/customer/points/earn", tenantId, storeId,
+                new PointEarnRequest(customerId, eligibleAmountMinor, orderId, idempotencyKey), idempotencyKey);
+        return new PointEarnResponse(node.path("pointAccountId").asLong(), node.path("customerId").asLong(),
+                node.path("availablePoints").asLong(), node.path("frozenPoints").asLong());
+    }
+
     /** 储值归还（组合收款失败补偿，RELEASE，幂等）。 */
     public WalletReleaseResponse releaseWallet(Long tenantId, Long storeId, Long customerId, Long amount, String currency,
                                                Long orderId, String idempotencyKey) {
@@ -138,6 +146,8 @@ public class CustomerClient {
                                        String currencyCode) {}
     public record PointRedeemRequest(Long customerId, Long points, Long orderId, String idempotencyKey) {}
     public record PointRedeemResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
+    public record PointEarnRequest(Long customerId, long eligibleAmountMinor, Long orderId, String idempotencyKey) {}
+    public record PointEarnResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
     public record WalletReleaseRequest(Long customerId, Long amount, String currency, Long orderId,
                                        String idempotencyKey) {}
     public record WalletReleaseResponse(Long walletAccountId, Long customerId, Long availableAmount, Long frozenAmount,

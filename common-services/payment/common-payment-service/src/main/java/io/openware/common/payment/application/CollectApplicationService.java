@@ -206,6 +206,9 @@ public class CollectApplicationService {
                 markConfirmed(collect, result);
             });
 
+            // 积分获得必须与收款确认形成同一可重试事实。当前收款确认后的积分入口保留在
+            // Customer 域，但不能在本地事务提交后无补偿地调用；由可靠确认事件消费者接入后再启用。
+
             // 高风险写操作（组合收款）审计：异步占位，失败仅告警不阻断收款。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)

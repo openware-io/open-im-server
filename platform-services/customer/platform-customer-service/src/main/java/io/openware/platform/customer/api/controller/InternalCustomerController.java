@@ -73,6 +73,23 @@ public class InternalCustomerController {
         return new PointReleaseResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
     }
 
+    /** 收款确认后的积分获得；仅由内部支付服务调用，收入金额由服务端账单提供。 */
+    @PostMapping("/points/earn")
+    public PointEarnResponse earnPoints(@RequestBody PointEarnRequest req) {
+        verifyInternalAuth();
+        Long storeId = requireStoreContext();
+        CstPointAccountPo po = pointService.earn(storeId, req.customerId(), req.eligibleAmountMinor(), req.orderId(), req.idempotencyKey());
+        return new PointEarnResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+    }
+
+    @GetMapping("/points/amount-to-points")
+    public AmountToPointsResponse amountToPoints(@RequestParam long amountMinor) {
+        verifyInternalAuth();
+        TenantContext context = TenantContextHolder.get();
+        Long storeId = context == null ? null : context.storeId();
+        return new AmountToPointsResponse(amountMinor, pointService.pointsForAmount(storeId, amountMinor));
+    }
+
     private Long requireStoreContext() {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
@@ -118,6 +135,9 @@ public class InternalCustomerController {
     public record PointRedeemRequest(Long customerId, Long points, Long orderId, String idempotencyKey) {}
     public record PointRedeemResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
     public record PointReleaseRequest(Long customerId, Long points, Long orderId, String idempotencyKey) {}
+    public record PointEarnRequest(Long customerId, Long eligibleAmountMinor, Long orderId, String idempotencyKey) {}
+    public record PointEarnResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
+    public record AmountToPointsResponse(long amountMinor, long points) {}
     public record PointReleaseResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
     public record WalletBalanceResponse(Long customerId, Long availableAmount, Long frozenAmount, String currencyCode) {}
     public record PointBalanceResponse(Long customerId, Long availablePoints, Long frozenPoints) {}

@@ -271,6 +271,45 @@ public class ReservationApplicationService {
         }
     }
 
+    /** 改期：仅 PENDING/CONFIRMED 可改期，规则校验旧时段窗口与新时段提前时间。 */
+    @Transactional
+    public ReservationPo reschedule(Long id, OffsetDateTime newStartAt, OffsetDateTime newEndAt,
+                                     Integer expectedVersion) {
+        try {
+            ReservationPo po = require(id);
+            if (!ReservationStatus.PENDING.name().equals(po.getStatus())
+                    && !ReservationStatus.CONFIRMED.name().equals(po.getStatus())) {
+                throw new ApiException(409, "RESERVATION_STATUS_INVALID", "仅待确认或已确认预约可改期");
+            }
+            if (newStartAt == null || newEndAt == null || !newEndAt.isAfter(newStartAt)) {
+                throw new ApiException(400, "RESERVATION_TIME_INVALID", "新预约时间无效");
+            }
+            if (reservationRuleService != null) {
+                reservationRuleService.validateReschedule(po.getTenantId(), po.getBusinessType(), po.getStoreId(),
+                        po.getStartAt(), toBusinessLocal(newStartAt));
+            }
+            assertVersion(po, expectedVersion);
+            LocalDateTime start = toBusinessLocal(newStartAt);
+            LocalDateTime end = toBusinessLocal(newEndAt);
+            int oldVersion = po.getVersion() == null ? 0 : po.getVersion();
+            int updated = reservationMapper.update(null, new LambdaUpdateWrapper<ReservationPo>()
+                    .eq(ReservationPo::getId, po.getId()).eq(ReservationPo::getVersion, oldVersion)
+                    .set(ReservationPo::getStartAt, start).set(ReservationPo::getEndAt, end)
+                    .set(ReservationPo::getVersion, oldVersion + 1).set(ReservationPo::getUpdatedBy, operatorId())
+                    .set(ReservationPo::getUpdatedAt, LocalDateTime.now()));
+            if (updated == 0) throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
+            po.setStartAt(start); po.setEndAt(end); po.setVersion(oldVersion + 1);
+            po.setUpdatedBy(operatorId()); po.setUpdatedAt(LocalDateTime.now());
+            recordReservationAudit("reservation.reschedule", "预约改期", po,
+                    "{\"afterStartAt\":" + jsonText(String.valueOf(start)) + ",\"afterEndAt\":"
+                            + jsonText(String.valueOf(end)) + "}");
+            return po;
+        } catch (RuntimeException failure) {
+            recordFailure("reservation.reschedule", id, failure);
+            throw failure;
+        }
+    }
+
     /**
      * 标记「未到店」：到店前（PENDING/CONFIRMED）且已过预约开始时间 → NO_SHOW。
      *

@@ -29,6 +29,7 @@ public class CstPointLedgerPo {
     private Long businessId;
     private String idempotencyKey;
     private String ruleSnapshotJson;
+    private LocalDateTime expiresAt;
     private LocalDateTime occurredAt;
     private Long createdBy;
     private LocalDateTime createdAt;
