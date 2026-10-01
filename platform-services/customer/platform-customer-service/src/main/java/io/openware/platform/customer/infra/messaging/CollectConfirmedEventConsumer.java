@@ -15,11 +15,13 @@ import jakarta.annotation.PreDestroy;
 import java.time.LocalDateTime;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 
 /** 收款确认后的积分获得消费者：积分成功后才登记 consumed，失败由 MQ 重投。 */
 @Component
+@ConditionalOnBean(MqConsumerFactory.class)
 @Slf4j
 public class CollectConfirmedEventConsumer implements SmartLifecycle {
     private final MqConsumerFactory mqConsumerFactory;
