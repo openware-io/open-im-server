@@ -13,7 +13,7 @@
   <packaging>pom</packaging>
   <properties>
     <domain.version>2.2.0</domain.version>
-    <common-media-api.version>2.0.2</common-media-api.version>
+    <common-media-api.version>2.2.0</common-media-api.version>
   </properties>
   <dependencyManagement>
     <dependencies>
