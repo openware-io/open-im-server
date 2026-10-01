@@ -18,12 +18,19 @@ import io.openware.platform.customer.infra.persistence.po.CstPointLedgerPo;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.mockito.ArgumentCaptor;
+import org.junit.jupiter.api.BeforeEach;
 
 /**
  * 积分账户写操作的失败留痕回归（③ 遗留）：领域服务内部的失败出口此前没有审计记录，
  * 只有 BFF 路径由拦截器兜底。这里断言「业务异常照旧抛出 + 同时落一条 FAILURE 且带稳定错误码」。
  */
 class PointApplicationServiceTest {
+
+  @BeforeEach
+  void optimisticUpdateSucceedsInUnitFixture() {
+    // 领域服务使用带 version 条件的 UPDATE；单元测试不连接数据库，显式模拟一次 CAS 成功。
+    when(accountMapper.update(any(), any())).thenReturn(1);
+  }
 
   @AfterEach
   void clearContext() { TenantContextHolder.clear(); }
