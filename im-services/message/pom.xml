@@ -14,7 +14,7 @@
   <properties>
     <domain.version>2.2.0</domain.version>
     <im.conversation-api.version>2.2.0</im.conversation-api.version>
-    <im.user-api.version>1.0.38</im.user-api.version>
+    <im.user-api.version>2.2.0</im.user-api.version>
     <common-media-api.version>2.2.0</common-media-api.version>
   </properties>
   <dependencyManagement>
