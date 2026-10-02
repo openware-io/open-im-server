@@ -8,5 +8,7 @@ import java.util.List;
  * domainCode 用于前端按业态识别入口；P1 阶段仅声明统一核心域。
  */
 public record AdminMenuItem(Long id, Long parentId, String code, String name, String path,
-                            String icon, String scope, String domainCode, List<AdminMenuItem> children) {
+                            String icon, String scope, String scopeLevel, String domainCode,
+                            String businessType, String i18nKey, String requiredPermission, String requiredGrant,
+                            List<AdminMenuItem> children) {
 }

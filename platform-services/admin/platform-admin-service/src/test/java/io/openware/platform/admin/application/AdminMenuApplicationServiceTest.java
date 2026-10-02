@@ -71,7 +71,7 @@ class AdminMenuApplicationServiceTest {
   void tenantMenusContainCurrencyEntryNearStore() {
     adminWithTenantContext();
     useMenuFixture();
-    // 未授予储值支付方式、无 iam.role.manage/audit.view：币种入口仍必须返回（它不经授权过滤）。
+    // 旧平铺 fixture 继续用于验证旧响应兼容性；V9 的声明式权限由专门的树测试覆盖。
     when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
@@ -93,7 +93,7 @@ class AdminMenuApplicationServiceTest {
     // 紧邻「门店」，保持列表可读。
     int storeIndex = indexOf(menus, "/admin/tenant/stores");
     assertTrue(storeIndex >= 0 && menus.indexOf(currency) == storeIndex + 1);
-    // 菜单项不带权限码：前端按 tenant.currency.manage 隐藏入口（后端菜单模型无权限字段）。
+    // 旧平铺 fixture 无 requiredPermission，兼容验证只确认菜单树结构；真实 V9 数据按声明权限剪枝。
   }
 
   @Test
@@ -179,6 +179,32 @@ class AdminMenuApplicationServiceTest {
       }
     }
   }
+
+  /**
+   * V9 的验收边界：租户段与门店段由真实父节点分组；没有门店上下文时，门店段必须 fail-closed。
+   * 这不是接口鉴权的替代，直接调用业务接口仍由各领域 PermissionGuard / TenantContext 守卫。
+   */
+  @Test
+  void separatesTenantAndStoreSegmentsAndFailsClosedWithoutStoreContext() {
+    adminWithTenantContext();
+    AdminMenuPo tenantGroup = menu(100, 0, "tenant.org", "组织与门店", null, "TENANT", "core");
+    AdminMenuPo stores = menu(10, 100, "store", "门店", "/admin/tenant/stores", "TENANT", "core");
+    AdminMenuPo storeGroup = menu(200, 0, "store.ops", "门店运营", null, "STORE", "core");
+    AdminMenuPo cashier = menu(13, 200, "order", "收银台", "/business/orders", "STORE", "core");
+    AdminMenuPo wallet = menu(21, 200, "wallet", "储值管理", "/business/wallet", "STORE", "core");
+    wallet.setRequiredGrant("WALLET");
+    when(menuMapper.selectList(any())).thenReturn(List.of(tenantGroup, stores, storeGroup, cashier, wallet));
+    when(tenantIamClient.permissions(1L, 100L, null, null))
+        .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
+
+    List<AdminMenuItem> menus = service.menus("TENANT");
+
+    assertEquals(List.of("tenant.org"), menus.stream().map(AdminMenuItem::code).toList());
+    assertEquals(List.of("/admin/tenant/stores"), menus.getFirst().children().stream()
+        .map(AdminMenuItem::path).toList());
+    assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/orders".equals(menu.path())));
+    assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/wallet".equals(menu.path())));
+  }
   private List<AdminMenuPo> testMenus() {
     List<AdminMenuPo> menus = new java.util.ArrayList<>();
     String[][] values = {
@@ -212,5 +238,10 @@ class AdminMenuApplicationServiceTest {
       if (path.equals(menus.get(i).path())) return i;
     }
     return -1;
+  }
+
+  private static List<AdminMenuItem> flatten(List<AdminMenuItem> menus) {
+    return menus.stream().flatMap(menu -> java.util.stream.Stream.concat(
+        java.util.stream.Stream.of(menu), flatten(menu.children()).stream())).toList();
   }
 }
