@@ -8,7 +8,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: minio-init
-          image: minio/mc:RELEASE.2024-10-08T09-37-26Z
+          image: minio/mc:RELEASE.2025-08-13T08-35-41Z
           imagePullPolicy: IfNotPresent
           command: [sh, -ec]
           args:
