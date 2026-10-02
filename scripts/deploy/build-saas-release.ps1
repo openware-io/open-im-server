@@ -67,7 +67,7 @@ function Get-LocalImageId([string]$image){
 }
 function Remove-ReplacedLocalImage([string]$oldId,[string]$newId){
   if(!$oldId -or !$newId -or $oldId -eq $newId){return}
-  $containers=(@(& docker ps -a --filter "ancestor=$oldId" --format '{{.ID}}' 2>$null)|Where-Object{$_})
+  $containers=@(& docker ps -a --filter "ancestor=$oldId" --format '{{.ID}}' 2>$null | Where-Object { $_ })
   if($containers.Count -gt 0){throw "Refusing to complete image replacement: old local image $oldId is referenced by container(s): $($containers -join ', ')"}
   & docker image rm $oldId 2>$null|Out-Null
   if($LASTEXITCODE -ne 0){throw "Unable to remove replaced local image: $oldId"}
