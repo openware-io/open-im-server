@@ -1,7 +1,7 @@
-# Local Kind only: make the local IDaaS bootstrap administrator usable in the IM
-# admin console. The account is mapped by username, not copied as a credential:
-# its BCrypt hash is read from the authoritative local group_account record.
-# Re-running the job is safe and preserves an existing IM administrator account.
+# Local Kind only: map the IDaaS bootstrap administrator into the IM admin
+# console by username.  group-idaas-service starts before this job so its
+# authoritative open_im.group_account schema and seed have completed.
+# Re-running is safe and preserves an existing IM administrator account.
 apiVersion: batch/v1
 kind: Job
 metadata: { name: im-admin-sso-bootstrap }

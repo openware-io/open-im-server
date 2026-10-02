@@ -256,7 +256,12 @@ function Set-ApplicationImage {
   $imageRef = $saasImages[$Name]
   if (!$imageRef) { throw "Approved release image missing: $Name" }
   Invoke-Kubectl -Arguments @('set', 'image', "deployment/$Name", "$Name=$imageRef", '--namespace', $Namespace)
-  $imagePullPolicy = if ($Name -in @('pc-admin', 'saas-admin') -and $env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1') { 'IfNotPresent' } elseif ($env:OPEN_IM_OFFLINE_LOCAL -eq '1') { 'IfNotPresent' } else { 'Always' }
+  # Kind imports the approved manifest image into its worker before creating a
+  # workload.  Pulling it again with Always bypasses that verified import and
+  # fails for registries whose credentials are intentionally not copied into
+  # the node.  ACK keeps Always in its own release path; Kind must use the
+  # imported, manifest-verified image.
+  $imagePullPolicy = 'IfNotPresent'
   $patch = @{
     metadata = @{ labels = @{ 'app.kubernetes.io/version' = $Tag; 'app.kubernetes.io/managed-by' = 'local-k8s-deploy' } }
     spec = @{ template = @{ metadata = @{
@@ -348,8 +353,8 @@ $infrastructureImages = @(
   'mysql:8.0',
   'redis:7-alpine',
   'mongo:7.0.12',
-  'minio/minio:RELEASE.2024-10-13T13-34-11Z',
-  'minio/mc:RELEASE.2024-10-08T09-37-26Z'
+  'minio/minio:RELEASE.2025-07-23T15-54-02Z',
+  'minio/mc:RELEASE.2025-08-13T08-35-41Z'
 )
 foreach ($image in $infrastructureImages) { Import-KubernetesRegistryImage -Image $image }
 $rocketmqImage = 'apache/rocketmq:5.3.1'
@@ -464,12 +469,14 @@ foreach ($name in $applicationDeployments) {
 
 Invoke-Kubectl -Arguments @('scale', 'deployment/im-user-service', '--namespace', $Namespace, '--replicas=1')
 Invoke-Kubectl -Arguments @('rollout', 'status', 'deployment/im-user-service', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
+Invoke-Kubectl -Arguments @('scale', 'deployment/group-idaas-service', '--namespace', $Namespace, '--replicas=1')
+Invoke-Kubectl -Arguments @('rollout', 'status', 'deployment/group-idaas-service', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 Invoke-Kubectl -Arguments @('delete', 'job/im-admin-sso-bootstrap', '--namespace', $Namespace, '--ignore-not-found=true')
 Apply-Manifest -Name 'im-admin-sso-bootstrap-job.yaml'
 Invoke-Kubectl -Arguments @('wait', '--for=condition=complete', 'job/im-admin-sso-bootstrap', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 & (Join-Path $root 'scripts\deploy\sync-oidc-client-registry.ps1') -Environment kind -Context "kind-$KindClusterName" -Namespace $Namespace -DatabaseSecret 'open-im-env' -RootDatabaseSecretKey 'DB_PASSWORD' -H5Base "http://$advertiseAddress`:30080" -AdditionalH5Origins $AdditionalH5Origins -AdditionalViteCOrigins $AdditionalViteCOrigins -AdditionalViteBOrigins $AdditionalViteBOrigins
 if ($LASTEXITCODE -ne 0) { throw 'Kind OIDC client registry synchronization failed.' }
-foreach ($deployment in ($applicationDeployments | Where-Object { $_ -ne 'im-user-service' })) {
+foreach ($deployment in ($applicationDeployments | Where-Object { $_ -notin @('im-user-service', 'group-idaas-service') })) {
   Invoke-Kubectl -Arguments @('scale', "deployment/$deployment", '--namespace', $Namespace, '--replicas=1')
   Invoke-Kubectl -Arguments @('rollout', 'status', "deployment/$deployment", '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 }

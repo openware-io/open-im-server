@@ -33,8 +33,12 @@ try {
     @{ name = 'http'; port = 80; protocol = 'TCP'; targetPort = 'http'; nodePort = $HttpNodePort }
     @{ name = 'https'; port = 443; protocol = 'TCP'; targetPort = 'https'; nodePort = $HttpsNodePort }
   ) } } | ConvertTo-Json -Compress -Depth 6
-  & kubectl --context $Context --namespace ingress-nginx patch service ingress-nginx-controller --type merge --patch $patch
-  if ($LASTEXITCODE -ne 0) { throw 'Failed to pin the ingress-nginx HTTP/HTTPS NodePorts.' }
+  $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-ingress-nodeports-" + [guid]::NewGuid().ToString() + '.json')
+  [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
+  & kubectl --context $Context --namespace ingress-nginx patch service ingress-nginx-controller --type merge --patch-file $patchFile
+  $patchExitCode = $LASTEXITCODE
+  if (Test-Path -LiteralPath $patchFile) { Remove-Item -LiteralPath $patchFile -Force }
+  if ($patchExitCode -ne 0) { throw 'Failed to pin the ingress-nginx HTTP/HTTPS NodePorts.' }
   & kubectl --context $Context --namespace ingress-nginx rollout status deployment/ingress-nginx-controller --timeout=180s
   if ($LASTEXITCODE -ne 0) { throw 'Ingress-nginx controller did not become ready.' }
   Write-Output "ingress-nginx $controllerVersion is ready on HTTP NodePort $HttpNodePort and HTTPS NodePort $HttpsNodePort."

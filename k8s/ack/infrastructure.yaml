@@ -107,7 +107,7 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+          image: minio/minio:RELEASE.2025-07-23T15-54-02Z
           imagePullPolicy: Always
           args: [server, /data]
           env:
