@@ -241,6 +241,9 @@ spec:
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+            - { name: SPRING_DATA_REDIS_HOST, value: redis }
+            - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
             # 钱包「代币数量」展示口径：读取租户代币品牌名/ratio（/internal/iam/tenant-config/{id}/wallet-token）。
             # secret 必须与 platform-tenant-service 一致，否则 401 后品牌静默回退 A380币/100。
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
