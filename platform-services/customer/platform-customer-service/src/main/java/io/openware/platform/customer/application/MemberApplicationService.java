@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -185,7 +186,18 @@ public class MemberApplicationService {
         if (originStoreId == null) {
             throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "首次创建客户必须在门店上下文中发起");
         }
-        return create(originStoreId, accountId, "客户", "", false, null, null);
+        try {
+            return create(originStoreId, accountId, "客户", "", false, null, null);
+        } catch (DuplicateKeyException race) {
+            // 两个首屏资产请求可能并发懒创建同一客户；唯一键竞争的一方重新读取赢家，保持接口幂等。
+            CstMemberPo winner = findEarliestByAccountId(accountId);
+            if (winner != null) {
+                log.debug("并发建档命中唯一键，返回已创建客户: accountId={}, memberId={}", accountId, winner.getId());
+                fillPlain(winner);
+                return winner;
+            }
+            throw race;
+        }
     }
 
     /**
