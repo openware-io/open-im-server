@@ -18,6 +18,7 @@ import io.openware.platform.order.application.KtvServerSessionApplicationService
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
+import io.openware.platform.order.application.VoidRuleApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
@@ -46,6 +47,7 @@ public class OrderController {
     private final OrderCancellationApplicationService orderCancellationService;
     private final DailySerialNumberGenerator dailySerialNumberGenerator;
     private final CustomerLookupMapper customerLookupMapper;
+    private final VoidRuleApplicationService voidRuleService;
 
     @Autowired
     public OrderController(OrderMapper orderMapper,
@@ -55,7 +57,8 @@ public class OrderController {
                            AuditClient auditClient,
                            OrderCancellationApplicationService orderCancellationService,
                            DailySerialNumberGenerator dailySerialNumberGenerator,
-                           CustomerLookupMapper customerLookupMapper) {
+                           CustomerLookupMapper customerLookupMapper,
+                           VoidRuleApplicationService voidRuleService) {
         this.orderMapper = orderMapper;
         this.ktvSessionService = ktvSessionService;
         this.ktvServerSessionService = ktvServerSessionService;
@@ -64,6 +67,7 @@ public class OrderController {
         this.orderCancellationService = orderCancellationService;
         this.dailySerialNumberGenerator = dailySerialNumberGenerator;
         this.customerLookupMapper = customerLookupMapper;
+        this.voidRuleService = voidRuleService;
     }
 
     /** 兼容既有 Web 层测试装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
@@ -74,7 +78,7 @@ public class OrderController {
                            OrderCancellationApplicationService orderCancellationService,
                            DailySerialNumberGenerator dailySerialNumberGenerator) {
         this(orderMapper, ktvSessionService, ktvServerSessionService, resourceStateClient,
-                AuditClient.disabled(), orderCancellationService, dailySerialNumberGenerator, null);
+                AuditClient.disabled(), orderCancellationService, dailySerialNumberGenerator, null, null);
     }
 
     /** 兼容既有 Web 层测试装配：带审计客户端但没有会员归属查询（读路径不做收窄）。 */
@@ -86,7 +90,20 @@ public class OrderController {
                            OrderCancellationApplicationService orderCancellationService,
                            DailySerialNumberGenerator dailySerialNumberGenerator) {
         this(orderMapper, ktvSessionService, ktvServerSessionService, resourceStateClient, auditClient,
-                orderCancellationService, dailySerialNumberGenerator, null);
+                orderCancellationService, dailySerialNumberGenerator, null, null);
+    }
+
+    /** 兼容既有 Web 层测试装配：未提供作废规则时保持旧的直接作废语义。 */
+    public OrderController(OrderMapper orderMapper,
+                           KtvSessionApplicationService ktvSessionService,
+                           KtvServerSessionApplicationService ktvServerSessionService,
+                           ResourceStateClient resourceStateClient,
+                           AuditClient auditClient,
+                           OrderCancellationApplicationService orderCancellationService,
+                           DailySerialNumberGenerator dailySerialNumberGenerator,
+                           CustomerLookupMapper customerLookupMapper) {
+        this(orderMapper, ktvSessionService, ktvServerSessionService, resourceStateClient, auditClient,
+                orderCancellationService, dailySerialNumberGenerator, customerLookupMapper, null);
     }
 
     /**
@@ -584,7 +601,18 @@ public class OrderController {
     @PostMapping("/orders/{id}/void")
     public OrderPo voidOrder(@PathVariable Long id, @RequestBody(required = false) VoidRequest req) {
         PermissionGuard.require("order.void");
+        requireApprovalWhenConfigured(id);
         return orderCancellationService.voidOrder(id, req == null ? null : req.reason());
+    }
+
+    private void requireApprovalWhenConfigured(Long id) {
+        if (voidRuleService == null) return;
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0 || context.storeId() == null) return;
+        OrderPo order = orderCancellationService.requireOrder(id);
+        if (voidRuleService.isApprovalRequired(context.tenantId(), order.getBusinessType(), order.getStoreId())) {
+            throw new ApiException(409, "VOID_APPROVAL_REQUIRED", "当前业态/门店要求先提交作废审批");
+        }
     }
 
 

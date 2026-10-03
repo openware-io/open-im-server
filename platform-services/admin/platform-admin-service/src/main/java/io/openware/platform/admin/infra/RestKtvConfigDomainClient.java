@@ -14,6 +14,7 @@ import io.openware.platform.admin.api.ktv.ServerCatalogItem;
 import io.openware.platform.admin.api.ktv.PointRuleConfig;
 import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
 import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
+import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -322,6 +323,19 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
             putJson(paymentClient, "/internal/payment/rules/daily-closing", closing);
         }
         return config;
+    }
+
+    @Override
+    public VoidRuleConfig voidRule(Long storeId, String businessType) {
+        String uri = "/internal/order/void-rules?storeId=" + (storeId == null ? "" : storeId)
+                + "&businessType=" + (businessType == null ? "" : businessType);
+        return objectMapper.convertValue(getJson(orderClient, uri), VoidRuleConfig.class);
+    }
+
+    @Override
+    public VoidRuleConfig saveVoidRule(VoidRuleConfig config) {
+        return objectMapper.convertValue(putJson(orderClient, "/internal/order/void-rules",
+                objectMapper.valueToTree(config)), VoidRuleConfig.class);
     }
 
     // —— 映射 ——

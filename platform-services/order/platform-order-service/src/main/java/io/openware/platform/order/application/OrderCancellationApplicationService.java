@@ -141,6 +141,12 @@ public class OrderCancellationApplicationService {
         return apply(orderId, normalizeReason(reason, CancelKind.VOID), CancelKind.VOID);
     }
 
+    /** 审批通过后的内部执行入口；策略已由 OrderVoidApprovalApplicationService 校验。 */
+    @Transactional
+    public OrderPo voidOrderApproved(Long orderId, String reason) {
+        return apply(orderId, normalizeReason(reason, CancelKind.VOID), CancelKind.VOID);
+    }
+
     /** 原因口径由动作类型决定：取消必填（400 CANCEL_REASON_REQUIRED），作废保留选填；长度上限一致。 */
     private static String normalizeReason(String reason, CancelKind kind) {
         return kind.reasonRequired()

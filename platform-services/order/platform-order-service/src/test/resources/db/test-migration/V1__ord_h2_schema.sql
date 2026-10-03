@@ -281,3 +281,19 @@ CREATE TABLE ord_daily_serial (
   updated_at TIMESTAMP NOT NULL,
   CONSTRAINT uk_ord_daily_serial_key UNIQUE (tenant_id, biz_type, business_date)
 );
+
+-- 作废审批规则（生产 V31__ord_void_rule_config.sql）：门店覆盖 > 业态默认 > 租户默认。
+CREATE TABLE ord_void_rule_config (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  business_type VARCHAR(64) NOT NULL DEFAULT '',
+  store_id BIGINT NOT NULL DEFAULT 0,
+  require_approval BOOLEAN NOT NULL DEFAULT FALSE,
+  version INT NOT NULL DEFAULT 0,
+  idempotency_key VARCHAR(128),
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL,
+  CONSTRAINT uk_ord_void_rule_scope UNIQUE (tenant_id, business_type, store_id),
+  CONSTRAINT uk_ord_void_rule_idem UNIQUE (tenant_id, idempotency_key)
+);

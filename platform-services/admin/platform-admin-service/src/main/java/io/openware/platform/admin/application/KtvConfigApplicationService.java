@@ -6,6 +6,7 @@ import io.openware.platform.admin.api.ktv.ServerCatalogItem;
 import io.openware.platform.admin.api.ktv.PointRuleConfig;
 import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
 import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
+import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 import io.openware.platform.admin.infra.KtvConfigDomainClient;
 import org.springframework.stereotype.Service;
 
@@ -78,4 +79,6 @@ public class KtvConfigApplicationService {
     public ReservationRuleConfig saveReservationRule(ReservationRuleConfig config) { return client.saveReservationRule(config); }
     public PaymentRuleConfig paymentRule(Long storeId, String businessType) { return client.paymentRule(storeId, businessType); }
     public PaymentRuleConfig savePaymentRule(PaymentRuleConfig config) { return client.savePaymentRule(config); }
+    public VoidRuleConfig voidRule(Long storeId, String businessType) { return client.voidRule(storeId, businessType); }
+    public VoidRuleConfig saveVoidRule(VoidRuleConfig config) { return client.saveVoidRule(config); }
 }

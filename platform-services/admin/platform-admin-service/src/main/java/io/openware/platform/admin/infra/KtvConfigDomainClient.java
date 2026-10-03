@@ -6,6 +6,7 @@ import io.openware.platform.admin.api.ktv.ServerCatalogItem;
 import io.openware.platform.admin.api.ktv.PointRuleConfig;
 import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
 import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
+import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 
 import java.util.List;
 
@@ -39,4 +40,6 @@ public interface KtvConfigDomainClient {
     ReservationRuleConfig saveReservationRule(ReservationRuleConfig config);
     PaymentRuleConfig paymentRule(Long storeId, String businessType);
     PaymentRuleConfig savePaymentRule(PaymentRuleConfig config);
+    VoidRuleConfig voidRule(Long storeId, String businessType);
+    VoidRuleConfig saveVoidRule(VoidRuleConfig config);
 }

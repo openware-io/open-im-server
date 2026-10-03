@@ -108,7 +108,7 @@ public class OrderVoidApprovalApplicationService {
         // 审批执行重试可能已经完成订单写入；识别已作废状态后只补齐审批状态，避免重复释放资源。
         OrderPo order = cancellation.requireOrder(p.getOrderId());
         if (!"VOIDED".equals(order.getStatus())) {
-            cancellation.voidOrder(p.getOrderId(), p.getReason());
+            cancellation.voidOrderApproved(p.getOrderId(), p.getReason());
         }
         LocalDateTime now = LocalDateTime.now();
         mapper.update(null, new LambdaUpdateWrapper<OrdOrderVoidApprovalPo>().eq(OrdOrderVoidApprovalPo::getId,p.getId())

@@ -2,15 +2,15 @@
 
 > 这不是方案，是**交接便签**：记录了当前进度、已定结论、待办与踩过的坑。
 > 换机器 / 换会话后，先读本文件，再读 `SAAS_MENU_PERMISSION_01_ADMIN.md` 与 `SAAS_MENU_PERMISSION_02_SERVICE.md`。
-> 最后更新：2026-09-30（v1.2：14 项决策冻结，P7-C1/C2 实施中）
+> 最后更新：2026-10-03（v1.3：P7-C1/C2 代码实现完成，进入 P8 最终验证）
 
 ## 当前工作区检查点（2026-09-28）
 
 - 仓库：`open-im-server`，当前分支：`develop/2.2.0-auth`。
 - 分支已推送：`origin/develop/2.2.0-auth`，基于远端 `main` 创建。
-- P0-P6、P7-A、P7-B 首批和 P7 批量写入已完成；P7-C1 的 Customer/Order 规则接口与交易接入正在实施，P7-C2 随后实施；P8 收口验证尚未完成。
-- 当前交付物版本：方案 A v1.1、方案 B v0.9、服务端规格 v0.4、原型 v1.1、实施主计划 v1.1。
-- 各服务 Maven 版本号本轮未锁步改为 `2.2.0`：现有工程规范按服务域独立递增；是否为本次发布建立统一版本基线，列为发布治理决策，不由本方案擅自覆盖。
+- P0-P6、P7-A、P7-B 首批、P7 批量写入和 P7-C1/C2 已完成代码实现；P8 正在执行最终测试、工程规范、Kind 部署、浏览器验收和双仓库远端同步。
+- 当前交付物版本：方案 A v1.2、方案 B v1.1、服务端规格 v0.5、原型 v1.2、实施主计划 v1.8。
+- `2.2.0-auth` 分支已按本次大版本基线创建并推送；外部接口继续使用 v1，内部规则端口也使用现有内部 v1 约定，不新增 v2 外部接口。
 - 客户/积分/储值的目标入口为 STORE；总部只提供汇总、筛选、对比和下钻，不直接替代门店写操作。
 - 余额默认按租户/法人主体共享，流水按门店归因；本次确认总部读取实时权威数据，不使用异步投影冒充实时；多币种总部金额按币种分组，不直接相加。
 
@@ -29,9 +29,9 @@
 按顺序读这四份（都在 open-im-server/docs/renovation/）：
 1. SAAS_MENU_PERMISSION_HANDOFF.md   —— 交接便签：进度、已定结论、待决策、下一步、环境坑
    （先看顶部“当前工作区检查点”和 §0.2「v0.3 复核修正了什么」——实测修正优先于更早版本）
-2. SAAS_MENU_PERMISSION_01_ADMIN.md  —— 方案 A v0.9：两轴模型、菜单结构、页面归属、权限入口迁移
-3. SAAS_MENU_PERMISSION_02_SERVICE.md —— 服务端规格 v0.3：44 个存量权限码归属、总部/门店新增权限登记、PLATFORM/platform.operator 处理（§5.5）、DDL、授予规则、下发契约、M0 数据地基、Flyway 按模块编号（§11.5）
-4. SAAS_TENANT_HEADQUARTERS_01_SERVICE.md —— 方案 B v0.3：总部总览、门店下钻、客户/积分/储值归属、三层配置作用域与决策清单
+2. SAAS_MENU_PERMISSION_01_ADMIN.md  —— 方案 A v1.2：两轴模型、菜单结构、页面归属、权限入口迁移
+3. SAAS_MENU_PERMISSION_02_SERVICE.md —— 服务端规格 v0.5：44 个存量权限码归属、总部/门店新增权限登记、PLATFORM/platform.operator 处理（§5.5）、DDL、授予规则、下发契约、M0 数据地基、Flyway 按模块编号（§11.5）
+4. SAAS_TENANT_HEADQUARTERS_01_SERVICE.md —— 方案 B v1.1：总部总览、门店下钻、客户/积分/储值归属、三层配置作用域与决策清单
 
 读完后先向我复述：
   (a) 当前进度到哪一步；
@@ -47,7 +47,7 @@
 
 其余决策点（D-1…D-15、S-1…S-10）都有建议值，别逐个来问，先说你的整体打算。
 
-代码零改动，尚未实施。可选起点：M1 菜单树化（不动 DB，可回滚）。
+代码已按 P0-P7-C2 实施；接手后从 P8 最终验证开始，不要重复创建菜单或重做已确认的客户/积分/储值归属方案。
 ```
 
 > 说明：这段引导语是**自包含**的。新会话不需要这次对话的原始记录，靠这三份文档就能接上。
@@ -56,18 +56,18 @@
 
 ## 0.1 一句话现状
 
-**方案已完成到 v1.1（方案 A）+ v0.4（服务端权限）+ v0.9（方案 B），代码已按 P0-P7-B 分批实施。** 交付物和当前进度以实施主计划为准：
+**方案已完成到 v1.2（方案 A）+ v0.5（服务端权限）+ v1.1（方案 B），代码已按 P0-P7-C2 分批实施；当前只剩 P8 验证与同步门禁。** 交付物和当前进度以实施主计划为准：
 
 | 文件 | 内容 |
 | --- | --- |
 | `docs/renovation/SAAS_MENU_PERMISSION_HANDOFF.md` | 本文，跨机续接说明 |
-| `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | 总体方案 v0.9：现状诊断、两轴模型、菜单提案、客户/积分/储值门店入口、缺口、分期、**15 项决策点（D-1…D-15）** |
-| `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | 服务端规格 v0.3：**44 个存量权限码全量归属表（实测）**、总部/门店新增权限登记、**PLATFORM 与 `platform.operator` 的正确处理（§5.5）**、`iam_permission`/`iam_role` DDL 与规则化回填、5 个预置角色实测持有量、授予合法性矩阵、业态过滤 SQL 与 8 条测试用例、菜单下发契约与剪枝、M0 四缺口 DDL 与三阶段灰度、**Flyway 按模块编号表（§11.5）**、**10 项决策点（S-1…S-10）** |
-| `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | 方案 B v0.3：总部实时总览、门店下钻、客户主档/门店关系、积分/储值流水归因、垃圾数据清理、租户/业态/门店配置优先级、多币种口径、**HQ-1…HQ-9 决策清单** |
+| `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | 总体方案 v1.2：现状诊断、两轴模型、菜单提案、客户/积分/储值门店入口、配置范围、**15 项决策点（D-1…D-15）** |
+| `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | 服务端规格 v0.5：**44 个存量权限码全量归属表（实测）**、总部/门店新增权限登记、**PLATFORM 与 `platform.operator` 的正确处理（§5.5）**、`iam_permission`/`iam_role` DDL 与规则化回填、菜单下发契约与剪枝、P7 规则端口和 **10 项决策点（S-1…S-10）** |
+| `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | 方案 B v1.1：总部实时总览、门店下钻、客户主档/门店关系、积分/储值流水归因、垃圾数据清理、租户/业态/门店配置优先级、多币种口径、**HQ-1…HQ-9 决策清单** |
 | `docs/renovation/SAAS_MENU_PERMISSION_IMPLEMENTATION_PLAN.md` | 实施主计划 v0.1：P0-P8 批次、客户端同步、实时总览、数据迁移、DDD 触碰治理、规范门禁和回滚 |
 | `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN_mockup.html` | 示意图（自包含单文件，浏览器直接打开） |
 
-**没有动过任何生产代码**，没有新增 Flyway 脚本，没有改表。
+**本轮已动生产代码并新增 Order 域 Flyway V31；当前仍需完成部署、浏览器验收和远端同步后才算发布闭环。**
 
 ### 0.2 v0.3 复核修正了什么（2026-09-22）
 

@@ -6,6 +6,7 @@ import io.openware.platform.admin.api.ktv.ServerCatalogItem;
 import io.openware.platform.admin.api.ktv.PointRuleConfig;
 import io.openware.platform.admin.api.ktv.ReservationRuleConfig;
 import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
+import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 import io.openware.platform.admin.application.KtvConfigApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -127,4 +128,13 @@ public class KtvConfigController {
 
     @PutMapping("/payment-rules")
     public PaymentRuleConfig savePaymentRule(@RequestBody PaymentRuleConfig config) { return service.savePaymentRule(config); }
+
+    @GetMapping("/void-rules")
+    public VoidRuleConfig voidRule(@RequestParam(required = false) Long storeId,
+                                   @RequestParam(required = false) String businessType) {
+        return service.voidRule(storeId, businessType);
+    }
+
+    @PutMapping("/void-rules")
+    public VoidRuleConfig saveVoidRule(@RequestBody VoidRuleConfig config) { return service.saveVoidRule(config); }
 }
