@@ -97,9 +97,18 @@ function Set-ApplicationImage {
     'release.open-im.local/deployed-at' = $deployedAt
     'release.open-im.local/image-ref' = $imageRef
   }
+  # Keep the runtime build metadata aligned with the immutable manifest. A scoped
+  # rollout must not leave INFO_BUILD_* values from the previous full deployment.
+  $env = @(
+    @{ name = 'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE'; value = 'health,info' },
+    @{ name = 'MANAGEMENT_INFO_ENV_ENABLED'; value = 'true' },
+    @{ name = 'INFO_BUILD_GIT_COMMIT'; value = $revisions[$Name] },
+    @{ name = 'INFO_BUILD_IMAGE'; value = $imageRef },
+    @{ name = 'INFO_BUILD_ARTIFACT_SHA256'; value = '' }
+  )
   $podTemplate = @{
     metadata = @{ labels = $labels; annotations = $annotations }
-    spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy }) }
+    spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy; env = $env }) }
   }
   $patch = @{ metadata = @{ labels = $labels }; spec = @{ template = $podTemplate } } | ConvertTo-Json -Compress -Depth 8
   $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
