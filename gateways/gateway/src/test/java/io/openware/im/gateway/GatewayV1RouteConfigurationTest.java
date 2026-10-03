@@ -28,4 +28,19 @@ class GatewayV1RouteConfigurationTest {
     assertTrue(routeFilters >= 19, "every v1 API route must strip /api/v1");
     assertTrue(config.contains("http://127.0.0.1:5173"));
   }
+
+  @Test
+  void tenantOverviewIsRoutedToAdminBffBeforeTenantCatchAll() throws IOException {
+    String config = Files.readString(CONFIG);
+    String overviewRoute = "id: saas-admin-tenant-overview";
+    String tenantRoute = "id: saas-tenant";
+    int overviewIndex = config.indexOf(overviewRoute);
+    int tenantIndex = config.indexOf(tenantRoute);
+    assertTrue(overviewIndex >= 0, "总部总览缺少 Admin BFF 路由");
+    assertTrue(config.contains("Path=/api/v1/admin/tenant/overview"), "总部总览缺少精确 v1 路径");
+    assertTrue(config.indexOf("PLATFORM_ADMIN_URI", overviewIndex) > overviewIndex,
+        "总部总览路由必须指向 platform-admin-service");
+    assertTrue(tenantIndex >= 0 && overviewIndex < tenantIndex,
+        "总部总览精确路由必须位于泛租户路由之前");
+  }
 }

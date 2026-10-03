@@ -223,6 +223,13 @@ spring:
          - Path=/api/v1/dev/**
         filters:
          - StripPrefix=2
+      # 总部经营总览是 platform-admin-service 的 v1 BFF；必须在泛 /admin/tenant/** 路由前精确分流。
+      - id: saas-admin-tenant-overview
+        uri: ${PLATFORM_ADMIN_URI:http://localhost:4150}
+        predicates:
+         - Path=/api/v1/admin/tenant/overview
+        filters:
+         - StripPrefix=2
       - id: saas-tenant
         uri: ${PLATFORM_TENANT_URI:http://localhost:4110}
         predicates:
