@@ -189,6 +189,18 @@ function Start-LocalNodePortProxy {
   param([string]$Service, [int]$NodePort, [int]$LocalPort = $NodePort, [int]$ServicePort = $NodePort)
   $node = (& docker ps --filter 'label=io.x-k8s.kind.role=control-plane' --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --format '{{.Names}}' | Select-Object -First 1)
   if ([string]::IsNullOrWhiteSpace($node)) { throw "Kind control-plane node was not found for cluster: $KindClusterName" }
+  $controlPlanePorts = (& docker ps --filter 'label=io.x-k8s.kind.role=control-plane' --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --format '{{.Ports}}' | Out-String).Trim()
+  $nodePortMapped = $controlPlanePorts -match ":$LocalPort(?:-|->)"
+  if (!$nodePortMapped) {
+    $portRange = [regex]::Match($controlPlanePorts, ':(\d+)-(\d+)->')
+    if ($portRange.Success) {
+      $nodePortMapped = $LocalPort -ge [int]$portRange.Groups[1].Value -and $LocalPort -le [int]$portRange.Groups[2].Value
+    }
+  }
+  if ($nodePortMapped) {
+    Write-Host "Reusing Kind control-plane NodePort mapping for $Service on local port $LocalPort."
+    return
+  }
   $proxyName = "open-im-k8s-$Service-proxy"
   $existingProxy = & docker container ls --all --filter "name=^/$proxyName`$" --quiet
   if ($existingProxy) { & docker rm --force $proxyName | Out-Null }
@@ -494,7 +506,8 @@ foreach ($name in ($saasImages.Keys | Sort-Object)) {
     if ($status.Count -ne 1 -or !$status[0].ready) {
       throw "Kind runtime image digest mismatch: $($pod.metadata.name)"
     }
-    if ([string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
+    $offlineLocal = $env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1'
+    if (!$offlineLocal -and [string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
     $containerId = ([string]$status[0].containerID) -replace '^containerd://', ''
     $nodeName = [string]$pod.spec.nodeName
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
@@ -502,7 +515,7 @@ foreach ($name in ($saasImages.Keys | Sort-Object)) {
     try { $runtime = $runtimeRaw | ConvertFrom-Json } catch { throw "Invalid Kind runtime container document: $($pod.metadata.name)" }
     $repository = $saasImages[$name] -replace ':[^:]+$', ''
     $runtimeImageRef = [string]$runtime.status.imageRef
-    if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
+    if ($offlineLocal) {
       $localImageId = (& docker image inspect $saasImages[$name] --format '{{.Id}}' 2>$null | Out-String).Trim()
       if (!$localImageId -or [string]$runtime.status.imageId -ne $localImageId) {
         throw "Kind offline runtime image mismatch: $($pod.metadata.name)"
@@ -527,7 +540,7 @@ $gatewayHealthBody = Get-HttpResponseBody -Content $gatewayHealth.Content
 if ($gatewayHealthBody -notmatch '"status"\s*:\s*"UP"') { throw "Gateway health check failed: $gatewayHealthBody" }
 $adminPage = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30080/'
 $adminPageBody = Get-HttpResponseBody -Content $adminPage.Content
-if ($adminPage.StatusCode -ne 200 -or $adminPageBody -notmatch 'id="app"') { throw 'Kubernetes admin page verification failed.' }
+if ($adminPage.StatusCode -ne 200 -or ($adminPageBody -notmatch 'id="app"' -and $adminPageBody -notmatch 'class="app-card"')) { throw 'Kubernetes admin page verification failed.' }
 Invoke-Kubectl -Arguments @('get', 'pods,services', '--namespace', $Namespace)
 Write-Host 'Kubernetes deployment is ready:'
 Write-Host "  Bind:    $LocalBindAddress"

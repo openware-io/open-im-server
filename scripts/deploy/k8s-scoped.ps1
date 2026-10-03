@@ -157,7 +157,8 @@ foreach ($name in $targets) {
     if ($pod.metadata.PSObject.Properties['deletionTimestamp']) { continue }
     $status = @($pod.status.containerStatuses | Where-Object { $_.name -eq $name })
     if ($status.Count -ne 1 -or !$status[0].ready) { throw "Kind runtime image digest mismatch: $($pod.metadata.name)" }
-    if ([string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
+    $offlineLocal = $env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1'
+    if (!$offlineLocal -and [string]$status[0].imageID -notmatch '@sha256:[a-f0-9]{64}$') { throw "Kind Pod runtime image is not resolved: $($pod.metadata.name)" }
     $containerId = ([string]$status[0].containerID) -replace '^containerd://', ''
     $nodeName = [string]$pod.spec.nodeName
     $runtimeRaw = (& docker exec $nodeName crictl inspect $containerId 2>$null | Out-String).Trim()
@@ -167,7 +168,7 @@ foreach ($name in $targets) {
     # the registry manifest digest pinned by the approved release manifest.
     $repository = $images[$name] -replace ':[^:]+$', ''
     $runtimeImageRef = [string]$runtime.status.imageRef
-    if ($env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1') {
+    if ($offlineLocal) {
       $localImageId = (& docker image inspect $images[$name] --format '{{.Id}}' 2>$null | Out-String).Trim()
       if (!$localImageId -or [string]$runtime.status.imageId -ne $localImageId) {
         throw "Kind offline runtime image mismatch: $($pod.metadata.name)"
