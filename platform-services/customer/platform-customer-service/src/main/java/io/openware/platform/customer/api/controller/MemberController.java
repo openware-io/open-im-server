@@ -119,6 +119,8 @@ public class MemberController {
     @PutMapping("/{id}/im-binding")
     public CstMemberPo bindIm(@PathVariable Long id, @RequestBody ImBindingRequest req) {
         PermissionGuard.require("member.manage");
+        // 客户档案写操作必须归因到实际门店；总部仅允许读取租户共享客户主档。
+        requireStoreContext();
         return memberService.bindIm(id, req.imAccount(), req.imUsername(), req.name());
     }
 
