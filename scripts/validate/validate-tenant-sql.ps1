@@ -2,9 +2,20 @@
 # Usage: pwsh scripts/validate/validate-tenant-sql.ps1 -Path <flyway-dir>
 # Exit: 0 = pass; 1 = tenant table missing tenant_id
 param(
-    [string]$Path = 'D:\projects\cnb\open_im_server\platform-services'
+    [string]$Path
 )
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+# Validators must be relocatable: derive the default from this repository instead
+# of a developer-specific absolute workspace path.
+if ([string]::IsNullOrWhiteSpace($Path)) {
+    $repositoryRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $Path = Join-Path $repositoryRoot 'platform-services'
+}
+if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+    throw "Flyway source directory does not exist: $Path"
+}
 
 $tenantPrefixes = @('tnt_organization','tnt_store','tnt_tenant_config','tnt_merchant_account',
   'tnt_store_payment_config','iam_role','iam_user_role',
