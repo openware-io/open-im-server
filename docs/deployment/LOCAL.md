@@ -74,8 +74,24 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 
 本地 Kind 使用一个控制平面和一个工作节点。控制平面带 `NoSchedule` 污点，业务服务、数据库与中间件均调度到工作节点；这模拟生产环境的基本隔离边界，但不替代生产所需的多控制平面和工作节点池。脚本先发布并等待基础设施，初始化本地数据库及最小访问授权，再发布业务服务、网关和管理后台，最后建立 Windows 本地访问代理。
 
+首次使用时，把 `open-chat-admin`、`open-saas-admin`、`open-saas-mobile` 与
+`open-im-server` 放在同一父目录，然后执行一个命令。脚本会检查依赖、构建后端与前端、
+生成本地发布清单、把镜像导入 Kind、按依赖顺序部署并完成健康检查：
+
 ```powershell
-.\deploy-k8s.ps1 -SaasReleaseManifestPath <逐服务ACR发布清单路径> -RegistryPullSecretName <已配置的ACR拉取Secret名称>
+.\deploy-k8s.ps1
+```
+
+默认只绑定 `127.0.0.1`，避免开发服务意外暴露到局域网。需要手机等局域网设备联调时显式传入：
+
+```powershell
+.\deploy-k8s.ps1 -LocalBindAddress 0.0.0.0
+```
+
+高级发布流程仍可直接消费已经生成并验证过的发布清单：
+
+```powershell
+.\deploy-k8s.ps1 -SaasReleaseManifestPath <逐服务发布清单路径> -RegistryPullSecretName <镜像仓库拉取Secret名称>
 ```
 
 实现脚本为 `scripts/deploy/k8s.ps1`，仓库根目录脚本仅作为兼容入口。声明式资源位于 [`k8s/local/`](../../k8s/local/)；脚本负责命名空间、从本地 `.env` 生成的 `open-im-env` Secret、本地镜像、发布顺序及 Windows 本地访问转发。
@@ -83,7 +99,8 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 常用参数：
 
 ```powershell
-.\deploy-k8s.ps1 -SaasReleaseManifestPath <逐服务ACR发布清单路径> -ValidateOnly
+.\deploy-k8s.ps1 -ReleaseManifestPath <本地发布清单路径> -SkipBuild
+.\deploy-k8s.ps1 -SaasReleaseManifestPath <远程发布清单路径> -ValidateOnly
 .\deploy-k8s.ps1 -Stop
 ```
 

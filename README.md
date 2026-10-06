@@ -72,7 +72,7 @@ OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一
 | --- | --- | --- | --- |
 | 直接运行本地进程 | 调试单个服务或 Java 断点；依赖的基础设施必须已由外部环境启动。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-local.ps1` | `http://127.0.0.1:3002` |
 | Docker Compose | 日常本地联调；Docker Desktop 负责运行全部基础设施和业务容器。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-docker.ps1` | `http://127.0.0.1:3002` |
-| 本地 Kubernetes（Kind） | 验证 Service 发现、滚动发布、镜像版本与 Pod 可追溯性；Docker Desktop 仅作为容器运行时，不使用其内置 Kubernetes。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1` | `http://127.0.0.1:30002` |
+| 本地 Kubernetes（Kind） | 一键构建并部署完整 IM + SaaS；验证 Service 发现、滚动发布与 Pod 可追溯性。 | `powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1` | `http://127.0.0.1:30080/saas/` |
 
 直接运行完整环境时，优先使用 `deploy-local.ps1`，它会按依赖顺序启动所有服务。仅调试单个服务时使用 `run-dev.ps1`，并确保外部基础设施和上游服务已先就绪：
 
