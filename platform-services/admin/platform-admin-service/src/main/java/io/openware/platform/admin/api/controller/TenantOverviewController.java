@@ -34,12 +34,12 @@ public class TenantOverviewController {
         this(customerClient, tenantIamClient, null, null, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
     public TenantOverviewController(CustomerOverviewDomainClient customerClient, TenantIamDomainClient tenantIamClient,
                                     PaymentOverviewDomainClient paymentClient) {
         this(customerClient, tenantIamClient, paymentClient, null, null);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public TenantOverviewController(CustomerOverviewDomainClient customerClient, TenantIamDomainClient tenantIamClient,
                                     PaymentOverviewDomainClient paymentClient,
                                     TenantOverviewDomainClient tenantOverviewClient,
