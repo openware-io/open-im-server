@@ -56,7 +56,7 @@ public class OrderVoidApprovalApplicationService {
 
     @Transactional
     public OrdOrderVoidApprovalPo approve(Long tenantId, Long storeId, Long approverId, Long id, String comment) {
-        OrdOrderVoidApprovalPo p = require(id, tenantId, storeId);
+        OrdOrderVoidApprovalPo p = require(tenantId, storeId, id);
         if (approverId != null && approverId.equals(p.getApplicantId()))
             throw new ApiException(403, "APPROVAL_SEPARATION_REQUIRED", "申请人不能审批自己的作废申请");
         if (REJECTED.equals(p.getStatus()) || EXECUTED.equals(p.getStatus())) return p;
@@ -76,7 +76,7 @@ public class OrderVoidApprovalApplicationService {
 
     @Transactional
     public OrdOrderVoidApprovalPo reject(Long tenantId, Long storeId, Long approverId, Long id, String comment) {
-        OrdOrderVoidApprovalPo p = require(id, tenantId, storeId);
+        OrdOrderVoidApprovalPo p = require(tenantId, storeId, id);
         if (approverId != null && approverId.equals(p.getApplicantId()))
             throw new ApiException(403, "APPROVAL_SEPARATION_REQUIRED", "申请人不能审批自己的作废申请");
         if (REJECTED.equals(p.getStatus())) return p;
