@@ -37,6 +37,8 @@ CREATE UNIQUE INDEX uk_ord_order_idem ON ord_order (tenant_id, idempotency_key);
 CREATE TABLE ord_order_item (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  store_id BIGINT,
+  business_type VARCHAR(32),
   order_id BIGINT NOT NULL,
   item_type VARCHAR(32) NOT NULL,
   catalog_item_id BIGINT,
@@ -67,6 +69,8 @@ CREATE TABLE ord_order_item (
 CREATE TABLE ord_ktv_session (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  store_id BIGINT,
+  business_type VARCHAR(32),
   order_id BIGINT NOT NULL,
   room_resource_id BIGINT NOT NULL,
   occupation_id BIGINT,

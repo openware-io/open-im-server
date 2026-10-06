@@ -154,6 +154,8 @@ public class OrderItemController {
         Long tenantId = TenantContextHolder.tenantIdOrNull();
         if (tenantId == null) { throw new io.openware.common.exception.ApiException(401, "TENANT_CONTEXT_MISSING", "缺少租户上下文"); }
         po.setTenantId(tenantId);
+        po.setStoreId(order.getStoreId());
+        po.setBusinessType(order.getBusinessType());
         po.setOrderId(orderId);
 
         // 服务端价目快照：按目录项回填名称/单价，忽略客户端传入的 name/unitPrice。

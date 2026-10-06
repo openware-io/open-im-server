@@ -145,6 +145,14 @@ public class KtvSessionApplicationService {
         LocalDateTime now = LocalDateTime.now();
         KtvSessionPo po = new KtvSessionPo();
         po.setTenantId(tenantId);
+        OrderPo order = orderMapper == null ? null : orderMapper.selectById(orderId);
+        if (order != null) {
+            if (!tenantId.equals(order.getTenantId())) {
+                throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
+            }
+            po.setStoreId(order.getStoreId());
+            po.setBusinessType(order.getBusinessType());
+        }
         po.setOrderId(orderId);
         po.setRoomResourceId(roomResourceId);
         applyRoomSnapshot(po);
@@ -538,6 +546,8 @@ public class KtvSessionApplicationService {
         OrderItemPo item = existing == null ? new OrderItemPo() : existing;
         if (existing == null) {
             item.setTenantId(session.getTenantId());
+            item.setStoreId(order.getStoreId());
+            item.setBusinessType(order.getBusinessType());
             item.setOrderId(session.getOrderId());
             item.setItemType("ROOM_FEE");
             item.setStatus("ACTIVE");
@@ -870,8 +880,9 @@ public class KtvSessionApplicationService {
         if (orderIds == null || orderIds.isEmpty()) {
             return Map.of();
         }
-        return sessionMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KtvSessionPo>()
-                        .in(KtvSessionPo::getOrderId, orderIds))
+        QueryWrapper<KtvSessionPo> query = new QueryWrapper<>();
+        query.in("order_id", orderIds);
+        return sessionMapper.selectList(query)
                 .stream()
                 .collect(java.util.stream.Collectors.toMap(KtvSessionPo::getOrderId, session -> session,
                         KtvSessionApplicationService::currentSessionOf));

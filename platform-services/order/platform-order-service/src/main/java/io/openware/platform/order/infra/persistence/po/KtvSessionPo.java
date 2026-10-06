@@ -16,6 +16,8 @@ public class KtvSessionPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    private Long storeId;
+    private String businessType;
     private Long orderId;
     private Long roomResourceId;
     /** 资源占用ID（开台占用，结台释放；取消/转台同步处理）。 */

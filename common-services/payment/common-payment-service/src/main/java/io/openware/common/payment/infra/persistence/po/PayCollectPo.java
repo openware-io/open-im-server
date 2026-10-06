@@ -17,6 +17,7 @@ public class PayCollectPo {
     private Long tenantId;
     /** 门店归因：组合收款发生的门店；历史行允许为空，后续回填后再收紧约束。 */
     private Long storeId;
+    private String businessType;
     private String collectNo;
     private Long orderId;
     private String idempotencyKey;

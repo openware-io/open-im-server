@@ -9,6 +9,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
 import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
 import io.openware.common.payment.infra.persistence.mapper.PayTransactionMapper;
@@ -405,6 +406,8 @@ public class CollectApplicationService {
         PayCollectPo collect = new PayCollectPo();
         collect.setTenantId(tenantId);
         collect.setStoreId(storeId);
+        var context = TenantContextHolder.get();
+        collect.setBusinessType(context == null ? null : context.businessType());
         collect.setCollectNo(nextCollectNo());
         collect.setOrderId(orderId);
         collect.setIdempotencyKey(idempotencyKey);
@@ -530,6 +533,8 @@ public class CollectApplicationService {
         PayTransactionPo tx = new PayTransactionPo();
         tx.setTenantId(tenantId);
         tx.setStoreId(storeId);
+        var context = TenantContextHolder.get();
+        tx.setBusinessType(context == null ? null : context.businessType());
         tx.setPaymentIntentId(po.getId());
         tx.setProvider(method);
         tx.setAmount(BigDecimal.valueOf(amount));

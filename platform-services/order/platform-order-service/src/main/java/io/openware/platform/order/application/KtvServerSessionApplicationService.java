@@ -100,6 +100,8 @@ public class KtvServerSessionApplicationService {
             LocalDateTime now = LocalDateTime.now();
             KtvServerSessionPo po = new KtvServerSessionPo();
             po.setTenantId(tenantId);
+            po.setStoreId(order.getStoreId());
+            po.setBusinessType(order.getBusinessType());
             po.setOrderId(orderId);
             po.setKtvSessionId(ktvSessionId);
             po.setServerResourceId(serverResourceId);
@@ -206,6 +208,8 @@ public class KtvServerSessionApplicationService {
         applyOptimisticUpdate(po);
         OrderItemPo item = new OrderItemPo();
         item.setTenantId(po.getTenantId());
+        item.setStoreId(po.getStoreId());
+        item.setBusinessType(po.getBusinessType());
         item.setOrderId(po.getOrderId());
         item.setItemType("SERVICE");
         item.setCatalogItemId(po.getCatalogItemId());

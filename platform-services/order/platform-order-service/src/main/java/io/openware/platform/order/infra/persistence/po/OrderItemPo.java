@@ -15,6 +15,8 @@ public class OrderItemPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    private Long storeId;
+    private String businessType;
     private Long orderId;
     private String itemType;
     private Long catalogItemId;
