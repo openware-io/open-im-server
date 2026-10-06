@@ -41,6 +41,12 @@ function Test-HealthyKindWorkload {
     $available = if ($null -eq $deployment.status.availableReplicas) { 0 } else { [int]$deployment.status.availableReplicas }
     if ($desired -lt 1 -or $available -lt $desired) { return $false }
   }
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:30080/saas/' -TimeoutSec 5
+    if ($response.StatusCode -ne 200) { return $false }
+  } catch {
+    return $false
+  }
   return $true
 }
 
