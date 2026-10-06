@@ -1,7 +1,7 @@
 package io.openware.platform.customer.application;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
@@ -100,7 +100,7 @@ public class PointApplicationService {
             if (commandId == null || commandId.isBlank()) {
                 throw new ApiException(400, "COMMAND_ID_REQUIRED", "缺少 commandId");
             }
-            CstPointAccountPo account = requireAccountByMember(memberId);
+            CstPointAccountPo account = requireOrCreateAccount(memberId);
             assertIdempotent(commandId);
             if (points < 0 && account.getAvailablePoints() < -points) {
                 throw new ApiException(422, "LEDGER_INSUFFICIENT", "积分余额不足");
@@ -340,12 +340,12 @@ public class PointApplicationService {
     private void updateAccountOptimistic(CstPointAccountPo account, long balanceAfter) {
         int newVersion = account.getVersion() == null ? 1 : account.getVersion();
         int oldVersion = Math.max(0, newVersion - 1);
-        int updated = accountMapper.update(null, new LambdaUpdateWrapper<CstPointAccountPo>()
-                .eq(CstPointAccountPo::getId, account.getId())
-                .eq(CstPointAccountPo::getVersion, oldVersion)
-                .set(CstPointAccountPo::getAvailablePoints, balanceAfter)
-                .set(CstPointAccountPo::getVersion, newVersion)
-                .set(CstPointAccountPo::getUpdatedAt, account.getUpdatedAt()));
+        int updated = accountMapper.update(null, new UpdateWrapper<CstPointAccountPo>()
+                .eq("id", account.getId())
+                .eq("version", oldVersion)
+                .set("available_points", balanceAfter)
+                .set("version", newVersion)
+                .set("updated_at", account.getUpdatedAt()));
         if (updated == 0) throw new ApiException(409, "POINT_ACCOUNT_VERSION_CONFLICT", "积分账户已被并发修改，请重试");
     }
 }
