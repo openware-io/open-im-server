@@ -22,6 +22,15 @@ public class PaymentOverviewApplicationService {
             row.getTransactionCount(), row.getAmount())).toList();
   }
 
+  public List<RefundOverviewRow> queryRefunds(long tenantId, List<Long> storeIds,
+      LocalDateTime from, LocalDateTime to) {
+    return mapper.selectRefunded(tenantId, storeIds, from, to).stream()
+        .map(row -> new RefundOverviewRow(row.getCurrencyCode(), row.getRefundCount(), row.getAmount()))
+        .toList();
+  }
+
   public record PaymentOverviewRow(String provider, String currencyCode, long transactionCount,
                                    BigDecimal amount) {}
+
+  public record RefundOverviewRow(String currencyCode, long refundCount, BigDecimal amount) {}
 }

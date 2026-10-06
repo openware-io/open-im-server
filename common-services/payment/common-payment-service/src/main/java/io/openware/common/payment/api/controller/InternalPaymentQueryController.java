@@ -71,7 +71,10 @@ public class InternalPaymentQueryController {
         }
         List<PaymentOverviewApplicationService.PaymentOverviewRow> rows = overviewService.query(
                 context.tenantId(), storeIds, fromTime, toTime);
-        return new PaymentOverviewResponse(rows == null ? List.of() : rows, java.time.Instant.now());
+        List<PaymentOverviewApplicationService.RefundOverviewRow> refunds = overviewService.queryRefunds(
+                context.tenantId(), storeIds, fromTime, toTime);
+        return new PaymentOverviewResponse(rows == null ? List.of() : rows,
+                refunds == null ? List.of() : refunds, java.time.Instant.now());
     }
 
     private static LocalDateTime parse(String value, boolean end) {
@@ -88,6 +91,7 @@ public class InternalPaymentQueryController {
     }
 
     public record PaymentOverviewResponse(List<PaymentOverviewApplicationService.PaymentOverviewRow> rows,
+                                          List<PaymentOverviewApplicationService.RefundOverviewRow> refunds,
                                           java.time.Instant updatedAt) {}
 
     private void verifyInternalAuth() {

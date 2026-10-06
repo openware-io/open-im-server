@@ -66,11 +66,17 @@ class InternalPaymentQueryControllerTest {
             java.math.BigDecimal.ZERO);
     when(overviewService.query(Mockito.eq(100L), Mockito.eq(List.of(11L)),
         Mockito.any(), Mockito.any())).thenReturn(List.of(row));
+    when(overviewService.queryRefunds(Mockito.eq(100L), Mockito.eq(List.of(11L)),
+        Mockito.any(), Mockito.any())).thenReturn(List.of(
+            new PaymentOverviewApplicationService.RefundOverviewRow("USD", 1L,
+                java.math.BigDecimal.valueOf(100))));
 
     var response = controller.overview("2026-09-01", "2026-09-30", List.of(11L));
 
     assertEquals(1, response.rows().size());
     assertEquals("CASH", response.rows().get(0).provider());
+    assertEquals(1, response.refunds().size());
+    assertEquals(1L, response.refunds().get(0).refundCount());
     verify(overviewService).query(Mockito.eq(100L), Mockito.eq(List.of(11L)),
         Mockito.any(), Mockito.any());
   }
