@@ -86,6 +86,9 @@ spec:
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, value: im_user }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: DB_PASSWORD } } }
+            - { name: SPRING_DATA_REDIS_HOST, value: redis }
+            - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: REDIS_PASSWORD } } }
             - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }

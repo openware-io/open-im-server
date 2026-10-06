@@ -162,6 +162,9 @@ spec:
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+            - { name: SPRING_DATA_REDIS_HOST, value: redis }
+            - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
           ports: [ { containerPort: 4120 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4120 }, initialDelaySeconds: 30, periodSeconds: 5 }
