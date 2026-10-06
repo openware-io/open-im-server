@@ -151,7 +151,7 @@ function Publish-Image([string]$name,[string]$tag,[bool]$AllowOverwrite,[string]
   if($SkipPush){
     $localDigest = $id
     $digestImage = "$registryPrefix/$name@$localDigest"
-    return [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$localDigest}
+    return [ordered]@{tag=$tag;registry=$registryPrefix;image=$image;digest=$localDigest;sourceRevision=$SourceRevision}
   }
   $digest=$null
   for($a=1;$a -le 10 -and !$digest;$a++){
