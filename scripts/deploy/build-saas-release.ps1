@@ -9,11 +9,23 @@ param(
   # 留空表示按既有行为构建全部服务；不能与 -FormalRelease 同时使用（正式发版用 -FormalTargets）。
   [string[]]$Targets = @(),
   [string]$Registry = 'ghcr.io/openware-io',
-  [string]$RepositoryNamespace = ''
+  [string]$RepositoryNamespace = '',
+  [string]$PcAdminProjectPath,
+  [string]$SaasAdminProjectPath,
+  [string]$SaasMobileProjectPath
 )
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$workspaceRoot = Split-Path -Parent $root
+if (!$PcAdminProjectPath) { $PcAdminProjectPath = Join-Path $workspaceRoot 'open-chat-admin' }
+if (!$SaasAdminProjectPath) { $SaasAdminProjectPath = Join-Path $workspaceRoot 'open-saas-admin' }
+if (!$SaasMobileProjectPath) { $SaasMobileProjectPath = Join-Path $workspaceRoot 'open-saas-mobile' }
 $projects = @{ 'pc-admin'='D:\projects\cnb-oss\open-chat-admin'; 'saas-admin'='D:\projects\cnb-oss\open-saas-admin'; 'saas-mobile'='D:\projects\cnb-oss\open-saas-mobile'; 'unified-portal'=(Join-Path $root 'portal') }
+$projects['pc-admin'] = $PcAdminProjectPath
+$projects['saas-admin'] = $SaasAdminProjectPath
+$projects['saas-mobile'] = $SaasMobileProjectPath
+$missingProjects = @($projects.GetEnumerator() | Where-Object { !(Test-Path -LiteralPath $_.Value) } | ForEach-Object { "$($_.Key)=$($_.Value)" })
+if ($missingProjects.Count -gt 0) { throw "Required frontend project path(s) not found. Clone them beside open-im-server or pass explicit project path parameters: $($missingProjects -join '; ')" }
 $projectSources = @{ 'pc-admin'='https://github.com/openware-io/open-chat-admin'; 'saas-admin'='https://github.com/openware-io/open-saas-admin'; 'saas-mobile'='https://github.com/openware-io/open-saas-mobile'; 'unified-portal'='https://github.com/openware-io/open-im-server' }
 $createdAt=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); $timestamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $revision=(& git -C $root rev-parse --short HEAD).Trim(); if(!$revision){throw 'Cannot resolve git revision.'}
@@ -93,7 +105,9 @@ function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
     if($code -ne 0 -or !$raw){continue}
     try{$labels=$raw|ConvertFrom-Json}catch{continue}
-    if([string]$labels.'org.opencontainers.image.title' -ne $Name -or [string]$labels.'org.opencontainers.image.version' -ne $Tag){continue}
+    $title = if($labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
+    $version = if($labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
+    if($title -ne $Name -or $version -ne $Tag){continue}
     $containers=@(& docker ps -a --filter "ancestor=$id" --format '{{.ID}}' 2>$null|Where-Object{$_})
     if($containers.Count -gt 0){throw "Dangling release image $id for ${Name}:$Tag is referenced by container(s): $($containers -join ', ')"}
     & docker image rm $id 2>$null|Out-Null
@@ -104,7 +118,9 @@ function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
     $id=$_;$saved=$ErrorActionPreference
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
     if($code -ne 0 -or !$raw){return $false};try{$labels=$raw|ConvertFrom-Json}catch{return $false}
-    return [string]$labels.'org.opencontainers.image.title' -eq $Name -and [string]$labels.'org.opencontainers.image.version' -eq $Tag
+    $title = if($labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
+    $version = if($labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
+    return $title -eq $Name -and $version -eq $Tag
   })
   if($left.Count -gt 0){throw "Release cleanup gate failed: dangling image(s) remain for ${Name}:${Tag}: $($left -join ', ')"}
 }
