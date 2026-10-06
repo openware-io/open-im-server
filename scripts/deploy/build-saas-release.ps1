@@ -102,8 +102,8 @@ function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
     if($code -ne 0 -or !$raw){continue}
     try{$labels=$raw|ConvertFrom-Json}catch{continue}
-    $title = if($labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
-    $version = if($labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
+    $title = if($labels -and $labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
+    $version = if($labels -and $labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
     if($title -ne $Name -or $version -ne $Tag){continue}
     $containers=@(& docker ps -a --filter "ancestor=$id" --format '{{.ID}}' 2>$null|Where-Object{$_})
     if($containers.Count -gt 0){throw "Dangling release image $id for ${Name}:$Tag is referenced by container(s): $($containers -join ', ')"}
@@ -115,8 +115,8 @@ function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
     $id=$_;$saved=$ErrorActionPreference
     try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $id --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
     if($code -ne 0 -or !$raw){return $false};try{$labels=$raw|ConvertFrom-Json}catch{return $false}
-    $title = if($labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
-    $version = if($labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
+    $title = if($labels -and $labels.PSObject.Properties['org.opencontainers.image.title']){[string]$labels.PSObject.Properties['org.opencontainers.image.title'].Value}else{''}
+    $version = if($labels -and $labels.PSObject.Properties['org.opencontainers.image.version']){[string]$labels.PSObject.Properties['org.opencontainers.image.version'].Value}else{''}
     return $title -eq $Name -and $version -eq $Tag
   })
   if($left.Count -gt 0){throw "Release cleanup gate failed: dangling image(s) remain for ${Name}:${Tag}: $($left -join ', ')"}
