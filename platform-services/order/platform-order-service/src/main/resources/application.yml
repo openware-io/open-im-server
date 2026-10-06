@@ -5,6 +5,12 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/open_im?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: 6379
+      password: ${REDIS_PASSWORD:}
+      database: 0
   flyway:
     enabled: true
     table: flyway_schema_history_order
