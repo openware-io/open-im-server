@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
   [switch]$SkipBuild,
+  [switch]$ForceRedeploy,
+  [switch]$ForceRebuild,
   [switch]$Stop,
   [switch]$ValidateOnly,
   [string]$ReleaseManifestPath,
@@ -28,6 +30,20 @@ function Assert-Command([string]$Name, [string]$InstallHint) {
   }
 }
 
+function Test-HealthyKindWorkload {
+  if ($ForceRedeploy) { return $false }
+  $namespaceExists = (& kubectl get namespace $Namespace --ignore-not-found -o name 2>$null | Out-String).Trim()
+  if (!$namespaceExists) { return $false }
+  $deployments = @(& kubectl get deployments --namespace $Namespace -o json 2>$null | ConvertFrom-Json).items
+  if ($LASTEXITCODE -ne 0 -or $deployments.Count -lt 10) { return $false }
+  foreach ($deployment in $deployments) {
+    $desired = [int]$deployment.spec.replicas
+    $available = if ($null -eq $deployment.status.availableReplicas) { 0 } else { [int]$deployment.status.availableReplicas }
+    if ($desired -lt 1 -or $available -lt $desired) { return $false }
+  }
+  return $true
+}
+
 if ($Stop) {
   & $k8sScript -Stop -Namespace $Namespace -KindClusterName $KindClusterName
   exit $LASTEXITCODE
@@ -40,6 +56,16 @@ Assert-Command 'kind' 'Install Kind from https://kind.sigs.k8s.io/.'
 
 $dockerReady = (& docker info --format '{{.ServerVersion}}' 2>$null | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or !$dockerReady) { throw 'Docker is installed but the Docker daemon is not running.' }
+
+if (Test-HealthyKindWorkload) {
+  Write-Host "Healthy Kind workload found in namespace '$Namespace'; reusing existing Pods."
+  & kubectl get pods --namespace $Namespace
+  if ($LASTEXITCODE -ne 0) { throw 'Existing Kind workload could not be inspected.' }
+  Write-Host 'Existing deployment reused. Use -ForceRedeploy to apply manifests again.'
+  exit 0
+}
+
+if ($ForceRebuild) { $SkipBuild = $false }
 
 if (!$ReleaseManifestPath) {
   if ($SkipBuild) { throw '-SkipBuild requires -ReleaseManifestPath.' }

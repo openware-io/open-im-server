@@ -88,6 +88,8 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 .\deploy-k8s.ps1 -LocalBindAddress 0.0.0.0
 ```
 
+再次开机执行同一命令时，脚本会先检查 `open-im-local` 中的核心 Deployment：全部就绪则直接复用现有 Pod，不重新构建、不重新部署；集群不存在、Pod 未就绪或资源不完整时才进入完整部署流程。需要强制重新应用清单时使用 `-ForceRedeploy`，需要强制重新构建镜像时使用 `-ForceRebuild`。
+
 高级发布流程仍可直接消费已经生成并验证过的发布清单：
 
 ```powershell

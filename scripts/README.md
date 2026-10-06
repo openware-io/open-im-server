@@ -22,6 +22,8 @@
 Kind 创建或复用、镜像导入、部署和健康检查。已有发布清单的维护者仍可使用
 `-SaasReleaseManifestPath` 进入严格的远程制品部署流程。
 
+部署入口具备幂等恢复策略：健康 Pod 优先复用，异常或不完整集群才重新部署；`-ForceRedeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。
+
 Docker Compose 与 Kind Kubernetes 是独立部署模式。端口、停止范围和验证命令见 [`docs/deployment/LOCAL.md`](../docs/deployment/LOCAL.md)。
 
 Kubernetes 资源声明不写入部署脚本，统一位于 `k8s/local/`；生成的 Secret 和本地镜像生命周期见 `k8s/README.md`。
