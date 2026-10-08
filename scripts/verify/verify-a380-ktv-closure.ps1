@@ -73,7 +73,7 @@ function Json([string]$method, [string]$path, [object]$body, [hashtable]$headers
   return ($content | ConvertFrom-Json)
 }
 
-$script:dbPassword = DbPassword; $script:redisPassword = RedisPassword; $script:suffix = (Get-Date).ToUniversalTime().ToString('HHmmssfff'); $script:reservationId = $null; $script:orderId = $null; $script:memberId = $null
+$script:dbPassword = DbPassword; $script:redisPassword = RedisPassword; $script:suffix = (Get-Date).ToUniversalTime().ToString('HHmmssfff'); $script:reservationId = $null; $script:orderId = $null; $script:memberId = $null; $script:testRoomTypeId = $null; $script:testRoomId = $null
 $username = "ktvgate$script:suffix"; $password = "Kt!$script:suffix-gate"
 $registration = Json 'POST' '/api/v1/auth/register' @{username=$username;password=$password;nickname='KTV Gate';email="$username@example.invalid"} @{}
 $script:imToken = $registration.access_token; if (!$script:imToken) { throw 'Disposable IM registration failed.' }
@@ -88,30 +88,37 @@ try {
   Json 'POST' '/api/v1/auth/context/select' @{contextId=$contextId} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf}|Out-Null
   $member = Json 'GET' '/api/v1/business/members/me' $null @{Cookie=$cCookie}
   $script:memberId = $member.memberId; if (!$script:memberId) { throw 'C member initialization failed.' }
-  $rooms = Json 'GET' '/api/v1/business/resources?resourceType=KTV_ROOM' $null @{Cookie=$cCookie}; $room = @($rooms)[0]; if (!$room.id) { throw 'No real KTV room returned.' }
-  $start = [DateTimeOffset]::Now.AddHours(2); $created = Json 'POST' '/api/v1/business/reservations' @{businessType='KTV';resourceId=$room.id;startAt=$start.ToString('o');endAt=$start.AddHours(2).ToString('o');partySize=2;contact='KTV Gate 13800138000'} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-$script:suffix"}
-  $script:reservationId = $created.id; if (!$script:reservationId -or $created.status -ne 'PENDING') { throw 'C reservation creation failed.' }
   $adminLogin = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/admin/auth/login" -ContentType 'application/json' -Body (@{username='a380-admin';password='e8280ac0d25d4bc0a1e1';ttlHours=1}|ConvertTo-Json)
   $adminCookie = ($adminLogin.Headers['Set-Cookie'] -split ';')[0]; $adminCsrf = (Json 'GET' '/api/v1/admin/auth/csrf' $null @{Cookie=$adminCookie}).csrfToken; $adminHeaders=@{Cookie=$adminCookie;'X-CSRF-Token'=$adminCsrf}
-  $adminContext = Json 'POST' '/api/v1/admin/context/select' @{contextId='100::'} $adminHeaders
+  $adminContext = Json 'POST' '/api/v1/admin/context/select' @{contextId='100:100:100'} $adminHeaders
   if ($adminContext.permissions -notcontains 'order.add_item') { throw 'A380 context did not receive order.add_item after IAM migration.' }
+  $script:testRoomId = [long](SqlValue "SELECT id FROM res_resource WHERE tenant_id=100 AND store_id=100 AND resource_type='KTV_ROOM' AND status='ENABLED' AND cleaning_status='IDLE' AND room_type_id IS NULL ORDER BY id LIMIT 1;")
+  if (!$script:testRoomId) { throw 'No unbound enabled KTV room is available for the disposable fixture.' }
+  $script:testRoomTypeId = [long](SqlValue "INSERT INTO res_room_type(tenant_id,store_id,code,name,capacity,unit_price,server_unit_price,sort_order,status,created_by,created_at,updated_by,updated_at) VALUES(100,100,'E2E_$script:suffix','E2E 房型 $script:suffix',8,12800,5000,999,'ACTIVE',0,NOW(3),0,NOW(3)); SELECT LAST_INSERT_ID();")
+  Sql "UPDATE res_resource SET room_type_id=$script:testRoomTypeId, updated_at=NOW(3) WHERE id=$script:testRoomId AND room_type_id IS NULL;"
+  $roomTypeId=$script:testRoomTypeId; $roomId=$script:testRoomId
+  $start = [DateTimeOffset]::Now.AddHours(2); $created = Json 'POST' '/api/v1/business/reservations' @{businessType='KTV';roomTypeId=$roomTypeId;startAt=$start.ToString('o');endAt=$start.AddHours(2).ToString('o');partySize=2;contact='KTV Gate 13800138000'} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-$script:suffix"}
+  $script:reservationId = $created.id; if (!$script:reservationId -or $created.status -ne 'PENDING') { throw 'C reservation creation failed.' }
   $reservation = @((Json 'GET' '/api/v1/admin/reservations' $null $adminHeaders) | Where-Object {$_.id -eq $script:reservationId})[0]; if (!$reservation) { throw 'Admin list did not return C reservation.' }
   $confirmed = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/confirm" @{expectedVersion=$reservation.version} $adminHeaders; if ($confirmed.status -ne 'CONFIRMED') { throw 'Confirm failed.' }
   $arrived = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/arrival" @{} $adminHeaders; if ($arrived.status -ne 'ARRIVED') { throw 'Arrival failed.' }
+  $assigned = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/assign-room" @{resourceId=$roomId;override=$false} $adminHeaders; if ($assigned.resourceId -ne $roomId) { throw 'Room assignment failed.' }
   $order = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/open-table" @{} $adminHeaders; $script:orderId=$order.id; if (!$script:orderId -or $order.status -ne 'SERVING') { throw 'Open table failed.' }
   $catalog = @((Json 'GET' "/api/v1/business/catalog/items?storeId=$($order.storeId)" $null $adminHeaders) | Where-Object { $_.status -eq 'ACTIVE' })[0]
   if (!$catalog.id) { throw 'No active catalog item is available for the payment gate.' }
   $item = Json 'POST' "/api/v1/business/orders/$script:orderId/items" @{catalogItemId=$catalog.id;quantity=1;source='MERCHANT'} $adminHeaders
   if (!$item.id -or $item.status -ne 'ACTIVE') { throw 'Admin item addition failed.' }
   $session = Json 'GET' "/api/v1/business/orders/$script:orderId/session" $null $adminHeaders; $closed = Json 'POST' "/api/v1/business/ktv/sessions/$($session.id)/close" @{} $adminHeaders; if ($closed.status -ne 'CLOSED') { throw 'Close table failed.' }
-  $settlementOrder = @((Json 'GET' '/api/v1/business/orders' $null $adminHeaders) | Where-Object {$_.id -eq $script:orderId})[0]
-  if (!$settlementOrder -or $settlementOrder.status -ne 'WAITING_SETTLEMENT') { throw 'Close table did not produce a settleable order.' }
-  $settled = Json 'POST' "/api/v1/business/orders/$script:orderId/settle" @{expectedVersion=$settlementOrder.version} $adminHeaders
-  if ($settled.status -ne 'WAITING_PAYMENT') { throw 'Admin settlement did not produce a waiting-payment order.' }
+  $settlementState = SqlValue "SELECT CONCAT(status, '|', version) FROM ord_order WHERE id=$script:orderId;"; $settlementParts=$settlementState -split '\|'
+  if ($settlementParts.Count -ne 2 -or $settlementParts[0] -notin @('WAITING_SETTLEMENT','WAITING_PAYMENT')) { throw "Close table did not produce a payable order: $settlementState" }
+  if ($settlementParts[0] -eq 'WAITING_SETTLEMENT') {
+    $settled = Json 'POST' "/api/v1/business/orders/$script:orderId/settle" @{expectedVersion=[long]$settlementParts[1]} $adminHeaders
+    if ($settled.status -ne 'WAITING_PAYMENT') { throw 'Admin settlement did not produce a waiting-payment order.' }
+  }
   $bill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}; if (!$bill -or $bill.status -ne 'WAITING_PAYMENT') { throw 'C bill is unavailable after settlement.' }
   $payable = [int64]([decimal]$bill.totalAmount - [decimal]$bill.paidAmount)
   if ($payable -le 0) { throw 'C bill has no payable amount for the payment gate.' }
-  $payment = Json 'POST' "/api/v1/business/orders/$script:orderId/collect" @{currencyCode='CNY';payable=$payable;payments=@(@{method='CASH';amount=$payable})} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-pay-$script:suffix"}
+  $payment = Json 'POST' "/api/v1/business/orders/$script:orderId/collect" @{currencyCode=$bill.currencyCode;payable=$payable;payments=@(@{method='CASH';amount=$payable})} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-pay-$script:suffix"}
   if ($payment.remainingAmount -ne 0) { throw 'C payment did not settle the full bill.' }
   $completedBill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}
   if (!$completedBill -or $completedBill.status -ne 'COMPLETED' -or [decimal]$completedBill.paidAmount -ne [decimal]$completedBill.totalAmount) { throw 'C receipt did not reach COMPLETED.' }
@@ -124,6 +131,7 @@ try {
   if ($script:orderId) { Sql "DELETE FROM pay_transaction WHERE payment_intent_id IN (SELECT id FROM pay_intent WHERE order_id=$script:orderId); DELETE FROM pay_intent WHERE order_id=$script:orderId; DELETE FROM pay_collect WHERE order_id=$script:orderId; DELETE FROM ord_ktv_server_session WHERE order_id=$script:orderId; DELETE FROM ord_ktv_session WHERE order_id=$script:orderId; DELETE FROM ord_order_item WHERE order_id=$script:orderId; DELETE FROM ord_order WHERE id=$script:orderId;" }
   if ($script:reservationId) { Sql "DELETE FROM ord_reservation WHERE id=$script:reservationId;" }
   if ($script:memberId) { Sql "DELETE FROM cst_wallet_ledger WHERE wallet_account_id IN (SELECT id FROM cst_wallet_account WHERE customer_id=$script:memberId); DELETE FROM cst_point_ledger WHERE account_id IN (SELECT id FROM cst_point_account WHERE customer_id=$script:memberId); DELETE FROM cst_wallet_account WHERE customer_id=$script:memberId; DELETE FROM cst_point_account WHERE customer_id=$script:memberId; DELETE FROM cst_member WHERE id=$script:memberId;" }
+  if ($script:testRoomId -and $script:testRoomTypeId) { Sql "UPDATE res_resource SET room_type_id=NULL, updated_at=NOW(3) WHERE id=$script:testRoomId AND room_type_id=$script:testRoomTypeId; DELETE FROM res_room_type WHERE id=$script:testRoomTypeId AND code='E2E_$script:suffix';" }
   Remove-SaasSession $cCookie
   try { Invoke-WebRequest -UseBasicParsing -Method Delete -Uri "$Gateway/api/v1/users/me" -ContentType 'application/json' -Headers @{Authorization="Bearer $script:imToken"} -Body (@{password=$password}|ConvertTo-Json)|Out-Null } catch { Write-Warning 'Disposable account cleanup failed.' }
 }

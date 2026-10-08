@@ -191,8 +191,14 @@ public class MemberApplicationService {
         } catch (DuplicateKeyException race) {
             // 两个首屏资产请求可能并发懒创建同一客户；唯一键竞争的一方重新读取赢家，保持接口幂等。
             CstMemberPo winner = findEarliestByAccountId(accountId);
+            if (winner == null) {
+                String imAccount = normalizeImAccount(memberMapper.selectImAccountByAccountId(accountId));
+                if (imAccount != null) {
+                    winner = findByImAccount(imAccount);
+                }
+            }
             if (winner != null) {
-                log.debug("并发建档命中唯一键，返回已创建客户: accountId={}, memberId={}", accountId, winner.getId());
+                log.debug("并发建档命中账号或 IM 唯一键，返回已创建客户: accountId={}, memberId={}", accountId, winner.getId());
                 fillPlain(winner);
                 return winner;
             }

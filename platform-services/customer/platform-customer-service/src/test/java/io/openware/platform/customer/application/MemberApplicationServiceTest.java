@@ -30,6 +30,7 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 客户建档的失败留痕回归（③ 遗留）+ 「防止同一 IM 用户生成多条客户」的三条路径。
@@ -158,6 +159,19 @@ class MemberApplicationServiceTest {
     ArgumentCaptor<CstMemberPo> captor = ArgumentCaptor.forClass(CstMemberPo.class);
     verify(memberMapper).insert(captor.capture());
     assertEquals(113L, captor.getValue().getAccountId());
+  }
+
+  @Test
+  void getOrCreateByAccountReturnsImWinnerAfterConcurrentUniqueConflict() {
+    CstMemberPo winner = member(12L, null, "M12");
+    winner.setImAccount("im_3");
+    when(memberMapper.selectImAccountByAccountId(113L)).thenReturn("im_3");
+    when(memberMapper.selectList(any())).thenReturn(List.of(), List.of(), List.of(), List.of(winner));
+    when(memberMapper.insert(any(CstMemberPo.class))).thenThrow(new DuplicateKeyException("tenant + im conflict"));
+
+    CstMemberPo result = service.getOrCreateByAccount(100L, 113L);
+
+    assertEquals(12L, result.getId());
   }
 
   @Test
