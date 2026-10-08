@@ -29,6 +29,8 @@ spec:
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             - { name: INTERNAL_MEDIA_SERVICE_BASE_URL, value: http://common-media-service:3600 }
             - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'im-admin-service,im-message-service,im-access-ws,im-conversation-service,platform-admin-service' }
+            - { name: CLIENT_RELEASE_ALLOW_INSECURE_LOCAL_DOWNLOADS, value: 'true' }
+            - { name: CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS, value: '__CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS__' }
           ports: [ { containerPort: 3100 } ]
           readinessProbe: &http3100 { httpGet: { path: /actuator/health, port: 3100 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 3100 }, initialDelaySeconds: 90, periodSeconds: 5 }

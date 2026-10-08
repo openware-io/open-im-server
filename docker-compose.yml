@@ -178,6 +178,8 @@ services:
       INTERNAL_USER_SERVICE_BASE_URL: http://im-user-service:3100
       INTERNAL_MESSAGE_SERVICE_BASE_URL: http://im-message-service:3200
       INTERNAL_CONVERSATION_SERVICE_BASE_URL: http://im-conversation-service:3300
+      CLIENT_RELEASE_ALLOW_INSECURE_LOCAL_DOWNLOADS: ${CLIENT_RELEASE_ALLOW_INSECURE_LOCAL_DOWNLOADS:-true}
+      CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS: ${CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS:-127.0.0.1,localhost}
     depends_on: *application_dependencies
     healthcheck: *application_healthcheck
 

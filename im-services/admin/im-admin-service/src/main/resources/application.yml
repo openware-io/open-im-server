@@ -116,6 +116,7 @@ info:
 client-release:
   enabled-platforms: ${CLIENT_RELEASE_ENABLED_PLATFORMS:android,ios,windows,macos}
   allowed-download-hosts: ${CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS:play.google.com,apps.apple.com}
+  allow-insecure-local-downloads: ${CLIENT_RELEASE_ALLOW_INSECURE_LOCAL_DOWNLOADS:false}
   supported-protocol-versions: ${CLIENT_RELEASE_SUPPORTED_PROTOCOL_VERSIONS:v1}
   minimum-server-capability-version: ${CLIENT_RELEASE_MINIMUM_SERVER_CAPABILITY_VERSION:1}
   schedule-fixed-delay-ms: ${CLIENT_RELEASE_SCHEDULE_FIXED_DELAY_MS:30000}

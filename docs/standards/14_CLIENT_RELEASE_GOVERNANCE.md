@@ -25,10 +25,10 @@
 
 ## 3. 制品安全与分发
 
-1. 所有直装制品必须经 CI 构建、签名，并记录 SHA-256、字节大小、下载 URL、包类型、目标架构和签名元数据。**Android 直装 APK 必须使用正式签名密钥签名（原名"暂不要求签名"的短期例外已于 2026-09-10 取消，正式签名密钥 `xchpro.jks` 已到位）。** 密钥库与口令只保存在本地/密钥服务，`android/key.properties` 与 `android/*.jks` 已被 `.gitignore` 排除，不得入库。缺少 `android/key.properties` 时 `flutter build apk --release` 会退化为 debug 签名，**禁止以该退化产物发布**；打包后必须用 `apksigner verify --print-certs` 核对签名证书 SHA-256 与 `27cdc427d6152d0db97b78819d1ac5ba732300e5cc48bdb8820a9ce909fee10d` 一致。
+1. 正式环境的所有直装制品必须经 CI 构建、正式签名，并记录 SHA-256、字节大小、下载 URL、包类型、目标架构和签名元数据。密钥库与口令只保存在本地或密钥服务，`android/key.properties` 与 `android/*.jks` 不得入库。开源本地环境缺少运营方密钥时，仅允许操作者显式选择未签名发布；制品必须记录 `status=unsigned`、`source=open-source-build`、`installable=false`，不得冒充可安装正式包，也不得进入公网生产渠道。禁止静默回退为 debug 签名。
 2. 发布后不得覆盖同一路径下的二进制文件；首发采用内容不可覆盖的稳定分发地址，CDN 内部迁移不得改变该地址返回的内容摘要。需要变更二进制、摘要、架构、包类型或公开地址时必须创建新的 Release，不能修改已发布 Artifact。
-3. Android 客户端直装制品必须是经正式签名密钥签名的 APK（**原"暂不要求签名"的短期例外已于 2026-09-10 取消，见上条第 1 款**）；AAB 仅可作为向商店上传的 CI 产物，客户端更新决策使用 `google-play + storeUrl` 跳转。iOS 仅按 App Store/TestFlight 能力跳转；Windows 校验 Authenticode；macOS 必须代码签名及公证；Linux 明确一种首发包格式并提供摘要校验。
-4. 下载、安装和更新必须是 HTTPS。客户端不得执行服务端下发的 shell、PowerShell、AppleScript 或任意安装脚本。
+3. Android 公网直装制品必须是经正式签名密钥签名的 APK；开源本地未签名包只用于验证构建、上传、版本治理和官网展示链路，不得引导用户安装。AAB 仅可作为向商店上传的 CI 产物，客户端更新决策使用 `google-play + storeUrl` 跳转。iOS 仅按 App Store/TestFlight 能力跳转；Windows 校验 Authenticode；macOS 必须代码签名及公证；Linux 明确一种首发包格式并提供摘要校验。
+4. 正式环境的下载、安装和更新必须是 HTTPS。开源本地部署可通过默认关闭的显式配置，仅对白名单内的 loopback、RFC1918、链路本地或 IPv6 ULA 地址允许 HTTP；商店地址和公网地址始终必须 HTTPS。客户端不得执行服务端下发的 shell、PowerShell、AppleScript 或任意安装脚本。
 5. 客户端在摘要、签名、公证或包类型校验失败时必须停止安装、保留当前可运行版本、记录脱敏诊断并允许用户重试。
 
 ## 4. 发布控制

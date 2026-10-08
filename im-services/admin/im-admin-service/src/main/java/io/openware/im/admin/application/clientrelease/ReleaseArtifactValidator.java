@@ -30,7 +30,7 @@ public class ReleaseArtifactValidator {
     if (isBlank(artifact.downloadUrl()) || !artifact.sha256().matches("[0-9a-f]{64}") || artifact.sizeBytes() == null || artifact.sizeBytes() <= 0) {
       throw invalid("Direct artifacts require an HTTPS download URL, lowercase SHA-256, and positive sizeBytes");
     }
-    requireHttps(artifact.downloadUrl());
+    requireTrustedUrl(artifact.downloadUrl());
   }
 
   private void validatePackageForPlatform(ReleasePlatform platform, PackageType type) {
@@ -45,14 +45,41 @@ public class ReleaseArtifactValidator {
   }
 
   private void requireHttps(String rawUrl) {
+    requireTrustedUrl(rawUrl, false);
+  }
+
+  private void requireTrustedUrl(String rawUrl) {
+    requireTrustedUrl(rawUrl, properties.isAllowInsecureLocalDownloads());
+  }
+
+  private void requireTrustedUrl(String rawUrl, boolean allowInsecureLocal) {
     try {
       URI uri = URI.create(rawUrl);
-      if (!"https".equalsIgnoreCase(uri.getScheme()) || isBlank(uri.getHost())) throw invalid("URL must be HTTPS");
-      if (properties.getAllowedDownloadHosts().isEmpty() || !properties.getAllowedDownloadHosts().contains(uri.getHost().toLowerCase(Locale.ROOT))) {
+      String host = uri.getHost();
+      boolean https = "https".equalsIgnoreCase(uri.getScheme());
+      boolean permittedLocalHttp = allowInsecureLocal && "http".equalsIgnoreCase(uri.getScheme()) && isLocalHost(host);
+      if (isBlank(host) || (!https && !permittedLocalHttp)) throw invalid("URL must be HTTPS");
+      if (properties.getAllowedDownloadHosts().isEmpty() || !properties.getAllowedDownloadHosts().contains(host.toLowerCase(Locale.ROOT))) {
         throw invalid("CLIENT_RELEASE_DOWNLOAD_HOST_NOT_ALLOWED", "Distribution host is not approved");
       }
     } catch (IllegalArgumentException exception) {
       throw invalid("URL is invalid");
+    }
+  }
+
+  private boolean isLocalHost(String host) {
+    if (isBlank(host)) return false;
+    String normalized = host.toLowerCase(Locale.ROOT);
+    if (normalized.equals("localhost") || normalized.equals("::1")) return true;
+    String[] octets = normalized.split("\\.", -1);
+    if (octets.length != 4) return normalized.startsWith("fc") || normalized.startsWith("fd") || normalized.startsWith("fe8") || normalized.startsWith("fe9") || normalized.startsWith("fea") || normalized.startsWith("feb");
+    try {
+      int first = Integer.parseInt(octets[0]);
+      int second = Integer.parseInt(octets[1]);
+      for (String octet : octets) if (Integer.parseInt(octet) > 255) return false;
+      return first == 10 || first == 127 || (first == 172 && second >= 16 && second <= 31) || (first == 192 && second == 168) || (first == 169 && second == 254);
+    } catch (NumberFormatException exception) {
+      return false;
     }
   }
 

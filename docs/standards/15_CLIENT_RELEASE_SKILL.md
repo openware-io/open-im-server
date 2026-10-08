@@ -10,7 +10,7 @@
 ## 0. 一句话执行
 
 ```powershell
-cd D:\projects\cnb\gv_chat_app
+cd open-chat-app
 .\tools\release.ps1 -ReleaseNotes "本次更新说明"
 ```
 
@@ -25,7 +25,7 @@ cd D:\projects\cnb\gv_chat_app
    - 错误：`flutter build appbundle --release`（那是商店包，官网下载页/App 更新用不了）
 2. **正式环境用 `prod`，不是测试包。** `prod` 构建才查 `stable` 渠道、才开 JPush 生产推送。测试包（dev/test）永远不会被正式用户更新到。
 3. **版本号默认 PATCH+1、buildNumber+1。** 团队历史全是 PATCH 递增（1.0.13→…→1.0.24→1.0.25），禁止为 bug 修复抬 MINOR。buildNumber 必须严格递增。
-4. **正式环境 APK 必须使用正式签名密钥签名**（原短期例外已于 2026-09-10 取消）。密钥库 `xchpro.jks` + `android/key.properties`（`storePassword`/`keyPassword`/`keyAlias`/`storeFile`，均已被 `.gitignore` 排除，不得入库）；缺 `key.properties` 时 `flutter build apk --release` 会退化为 debug 签名，**禁止发布该退化产物**。打包后必须验签：`apksigner verify --print-certs build\app\outputs\flutter-apk\app-release.apk`，签名证书 SHA-256 应为 `27cdc427d6152d0db97b78819d1ac5ba732300e5cc48bdb8820a9ce909fee10d`（别名 `xch`）。
+4. **正式运营必须使用运营方自己的正式签名密钥。** 密钥库与 `android/key.properties` 均不得入库。开源首次部署没有密钥时，只能显式传 `-SigningPolicy AllowUnsigned` 发布带 `signingMetadata.status=unsigned` 的不可安装制品；脚本禁止静默退化为 debug 签名。取得密钥后使用默认 `RequireRelease` 重新发版。
 5. **发布记录必须建在客户端实际查询的渠道上。** `prod` 构建查 `stable`；官网下载页固定查 `stable`。渠道建错，App 永远查不到更新。
 
 ---
@@ -39,8 +39,7 @@ cd D:\projects\cnb\gv_chat_app
 | 平台 platform | `android` |
 | 制品 packageType | `apk`（architecture=`universal`） |
 | 协议快照 | `protocolVersion=v1`, `minimumServerCapabilityVersion=1` |
-| 管理端 API 基址 | `https://api.dev.example.com/api/v1` |
-| 官网下载域名 | `https://example.com` |
+| 本地一键部署管理 API | `http://127.0.0.1:30080/api/v1` |
 | 发布产物本地路径 | `build\app\outputs\flutter-apk\app-release.apk` |
 
 ---
@@ -54,7 +53,7 @@ cd D:\projects\cnb\gv_chat_app
 ### 3.2 打正式 APK
 
 ```powershell
-cd D:\projects\cnb\gv_chat_app
+cd open-chat-app
 .\tools\build.ps1 android prod apk -JPushAppKey "YOUR_JPUSH_APPKEY"
 ```
 
@@ -70,12 +69,12 @@ cd D:\projects\cnb\gv_chat_app
 `POST /admin/client-releases/artifacts/upload`（multipart：`file`=APK 文件、`platform`=`android`），返回：
 
 ```json
-{ "downloadUrl": "https://…/release/android/wv-chat-1.0.26.apk", "sha256": "64位小写hex", "sizeBytes": 165597740 }
+{ "downloadUrl": "https://…/release/android/open-chat-2.2.0.apk", "sha256": "64位小写hex", "sizeBytes": 165597740 }
 ```
 
 对象键为 `release/<platform>/<品牌-版本>.apk`，内容不可覆盖，每版独立。下载地址是对象存储稳定 URL，不再手工 Copy-Item 到 CMS，也不用手工算摘要。
 
-> 兜底：若上传接口尚未部署，脚本可用 `-UploadMode Cms` 退回「复制到官网 `html/download/wv-chat-<版本>.apk` + 本地算 sha256/大小 + 官网 URL」的旧路径。
+> 兜底：若上传接口尚未部署，脚本可用 `-UploadMode Cms` 退回「复制到官网 `html/download/open-chat-<版本>.apk` + 本地算 sha256/大小 + 官网 URL」的路径。
 
 ### 3.4 创建发布记录（草稿 → 提交发布）
 
@@ -110,7 +109,7 @@ cd D:\projects\cnb\gv_chat_app
 
 ```powershell
 curl "https://api.dev.example.com/api/v1/client/releases/latest?platform=android&channel=stable"
-curl -I "https://example.com/download/wv-chat-<版本>.apk"
+curl -I "https://example.com/download/open-chat-<版本>.apk"
 ```
 
 两条都 200；第一条返回 `version`=`1.0.26`、`buildNumber`=`43`、`status`=`released`；下载文件大小与 sha256 与发布记录一致。

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 public class ClientReleaseProperties {
   private Set<ReleasePlatform> enabledPlatforms = EnumSet.of(ReleasePlatform.ANDROID, ReleasePlatform.IOS);
   private Set<String> allowedDownloadHosts = Set.of();
+  private boolean allowInsecureLocalDownloads;
   private Set<String> supportedProtocolVersions = Set.of("v1");
   private int minimumServerCapabilityVersion = 1;
   private long scheduleFixedDelayMs = 30_000;

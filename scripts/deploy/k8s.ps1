@@ -479,6 +479,7 @@ Apply-Manifest -Name 'mysql-saas-init-job.yaml'
 Invoke-Kubectl -Arguments @('wait', '--for=condition=complete', 'job/mysql-saas-init', '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's'))
 
 $replacements = @{}
+$replacements['__CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS__'] = "127.0.0.1,localhost,$advertiseAddress"
 foreach ($name in $saasImages.Keys) {
   $replacements['__APP_IMAGE_' + $name.Replace('-', '_').ToUpperInvariant() + '__'] = $saasImages[$name]
 }
