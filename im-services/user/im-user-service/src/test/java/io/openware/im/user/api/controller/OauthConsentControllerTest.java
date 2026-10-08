@@ -34,7 +34,7 @@ class OauthConsentControllerTest {
   @Test
   void approve_redirectsWithAuthCode() {
     when(service.approveAuthorization("request-1", List.of("profile.basic"))).thenReturn(
-        new AuthorizeResult("gvchat://oauth/callback", "code-123", "st"));
+        new AuthorizeResult("openchat://oauth/callback", "code-123", "st"));
 
     ResponseEntity<Void> response = controller.approve("request-1", List.of("profile.basic"));
 
@@ -44,7 +44,7 @@ class OauthConsentControllerTest {
   @Test
   void deny_redirectsWithAccessDenied() {
     when(service.rejectAuthorization("request-1")).thenReturn(new AuthorizationRequest("request-1", "app-1",
-        "gvchat://oauth/callback", "profile.basic", "st", "challenge", "S256", 1L,
+        "openchat://oauth/callback", "profile.basic", "st", "challenge", "S256", 1L,
         System.currentTimeMillis() + 300_000));
     ResponseEntity<Void> response = controller.deny("request-1");
 
@@ -54,7 +54,7 @@ class OauthConsentControllerTest {
   }
 
   private static ConsentView consentView() {
-    return new ConsentView("app-1", "测试应用", "gvchat://oauth/callback",
+    return new ConsentView("app-1", "测试应用", "openchat://oauth/callback",
         List.of("profile.basic", "profile.phone"), List.of("profile.basic"), List.of(),
         "st", "challenge", "S256");
   }

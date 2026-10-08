@@ -121,7 +121,7 @@ public class OauthController {
     return ResponseEntity.ok().build();
   }
 
-  /** 组装 302 重定向地址；回调可能为自定义 scheme（如 gvchat://），故手动拼接 Location 而非依赖 URI 解析。
+  /** 组装 302 重定向地址；回调可能为自定义 scheme（如 openchat://），故手动拼接 Location 而非依赖 URI 解析。
    *  code/state 做 URL 编码，避免自定义 scheme 与特殊字符破坏跳转或引入开放重定向。 */
   private ResponseEntity<Void> redirect(String redirectUri, String code, String state) {
     StringBuilder location = new StringBuilder(redirectUri);

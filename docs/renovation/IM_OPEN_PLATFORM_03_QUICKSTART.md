@@ -18,7 +18,7 @@ This doc gives the **minimal runnable flow** and copy-paste examples (PKCE S256 
 
 - 已开通 IM 开放平台访问入口。网关将 `/open/**` 与 `/oauth/**` 直达 `im-user-service`，路径**不带** `/api`。下文以占位基地址 `https://im.example.com` 表示（本地联调可换网关地址）。
 - **应用已审核通过**（`GET /open/applications/{appId}` → `APPROVED`）并已从平台安全渠道拿到 `appSecret`；密钥**只放服务端**，不要写进 H5/App。审核与交付规则见 [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md) §3.4。
-- 需要一个可登录 IM 的账号用于用户级授权，以及一个回调地址（HTTPS，或自定义 scheme 如 `gvchat://`），且与登记的 `callbackUrl` **精确一致**。
+- 需要一个可登录 IM 的账号用于用户级授权，以及一个回调地址（HTTPS，或自定义 scheme 如 `openchat://`），且与登记的 `callbackUrl` **精确一致**。
 - public client（Flutter/Electron/H5）只使用 `appId + PKCE`，**不得**内置 secret；只有 confidential 后端服务保存 `appSecret`。
 
 ---
@@ -287,4 +287,4 @@ curl -X POST "https://im.example.com/internal/admin/open-applications/app_9f3c1a
 | §4 scope 清单 | §1 scope 清单 |
 | §5 撤销与安全 | §3 revoke、§5 安全规范 |
 
-> 真实实现参考 / Implementation notes：`im-services/user/im-user-service` 的 `OauthController` / `OauthConsentController` / `OpenApplicationController`；种子应用 `saas-ktv`（`V11__init_open_platform.sql`，`appType=THIRD_PARTY`、`callbackUrl=gvchat://oauth/callback`、scope `profile.basic + profile.phone`）可作为联调样例。开发种子密钥仅存哈希，生产密钥务必由审核流程生成并安全保管。
+> 真实实现参考 / Implementation notes：`im-services/user/im-user-service` 的 `OauthController` / `OauthConsentController` / `OpenApplicationController`；种子应用 `saas-ktv`（由后续迁移统一为 `appType=THIRD_PARTY`、`callbackUrl=openchat://oauth/callback`、scope `profile.basic + profile.phone`）可作为联调样例。开发种子密钥仅存哈希，生产密钥务必由审核流程生成并安全保管。

@@ -596,11 +596,11 @@ public class OpenPlatformApplicationService {
         if (uri.getHost() == null || uri.getHost().isBlank()) {
           throw new IllegalArgumentException();
         }
-      } else if (!"gvchat".equalsIgnoreCase(scheme)) {
+      } else if (!"openchat".equalsIgnoreCase(scheme)) {
         throw new IllegalArgumentException();
       }
     } catch (IllegalArgumentException ex) {
-      throw new ApiException(HttpStatusCodes.BAD_REQUEST, "invalid_request", "callbackUrl must be HTTPS or gvchat:// without fragment");
+      throw new ApiException(HttpStatusCodes.BAD_REQUEST, "invalid_request", "callbackUrl must be HTTPS or openchat:// without fragment");
     }
   }
 

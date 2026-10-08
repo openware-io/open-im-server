@@ -77,7 +77,7 @@ class OidcTokenFlowTest {
   private static final String APP_PUB = "app-pub";
   private static final String APP_OTHER = "app-other";
   private static final String CALLBACK_CONF = "https://rp.example/cb";
-  private static final String CALLBACK_PUB = "gvchat://pubapp/cb";
+  private static final String CALLBACK_PUB = "openchat://pubapp/cb";
   private static final String CALLBACK_OTHER = "https://other.example/cb";
   private static final String CONF_SECRET = "conf-secret-value";
   private static final String OTHER_SECRET = "other-secret-value";

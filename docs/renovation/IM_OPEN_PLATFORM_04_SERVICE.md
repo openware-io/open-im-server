@@ -58,7 +58,7 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 | `id` | int | 主键，自增 |
 | `typeId` | int | 所属服务类型 `id`（外键指向 `adm_miniapp_service_type.id`） |
 | `name` | varchar(128) | 服务项名称，如「打车」 |
-| `link` | varchar(2048) | 跳转地址：小程序路径 / H5 URL / 自定义 scheme（如 `gvchat://`） |
+| `link` | varchar(2048) | 跳转地址：小程序路径 / H5 URL / 自定义 scheme（如 `openchat://`） |
 | `introduction` | text | 服务介绍（选填，可为空字符串） |
 | `icon` | varchar(2048) | 服务图标（媒体 `objectId`，选填）；后台写入字段名为 `icon` |
 | `status` | tinyint(1) | 发布状态：`1/true`=已发布（C 端可见），`0/false`=停用/下架（C 端不可见） |

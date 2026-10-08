@@ -43,7 +43,7 @@ class OpenPlatformApplicationServiceTest {
   @BeforeEach
   void setUp() {
     OpenApplication app = new OpenApplication();
-    app.restore(10L, "app-1", "测试应用", "测试主体", "THIRD_PARTY", "gvchat://oauth/callback", "hash",
+    app.restore(10L, "app-1", "测试应用", "测试主体", "THIRD_PARTY", "openchat://oauth/callback", "hash",
         OpenApplicationStatus.APPROVED, List.of("profile.basic", "profile.phone"), null, 0L, null, 0L, null, 0L, null);
     when(openApplicationRepository.findByAppId("app-1")).thenReturn(Optional.of(app));
     when(openUserAuthorizationRepository.findByApplicationAndUser(10L, 1L)).thenReturn(Optional.empty());
@@ -87,7 +87,7 @@ class OpenPlatformApplicationServiceTest {
 
   @Test
   void prepareConsent_rejectsScopeNotRegistered() {
-    ConsentQuery query = new ConsentQuery("app-1", "gvchat://oauth/callback", "profile.admin", null,
+    ConsentQuery query = new ConsentQuery("app-1", "openchat://oauth/callback", "profile.admin", null,
         "challenge", "S256", 1L);
 
     assertThrows(ApiException.class, () -> service.prepareConsent(query));
@@ -95,7 +95,7 @@ class OpenPlatformApplicationServiceTest {
 
   @Test
   void prepareConsent_requiresAuthentication() {
-    ConsentQuery query = new ConsentQuery("app-1", "gvchat://oauth/callback", "profile.basic", null,
+    ConsentQuery query = new ConsentQuery("app-1", "openchat://oauth/callback", "profile.basic", null,
         "challenge", "S256", null);
 
     assertThrows(ApiException.class, () -> service.prepareConsent(query));
@@ -115,6 +115,6 @@ class OpenPlatformApplicationServiceTest {
   }
 
   private static ConsentQuery query(String appId, String scope) {
-    return new ConsentQuery(appId, "gvchat://oauth/callback", scope, "st", "challenge", "S256", 1L);
+    return new ConsentQuery(appId, "openchat://oauth/callback", scope, "st", "challenge", "S256", 1L);
   }
 }
