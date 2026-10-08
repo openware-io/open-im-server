@@ -70,6 +70,20 @@ function Invoke-Kubectl {
   if ($LASTEXITCODE -ne 0) { throw "kubectl $($Arguments -join ' ') failed." }
 }
 
+function Initialize-MissingDeployment {
+  param([string]$Name)
+  if ($Name -ne 'open-website') { return }
+  $templatePath = Join-Path $root 'k8s\local\website.yaml'
+  $renderedPath = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-website-" + [guid]::NewGuid().ToString() + '.yaml')
+  try {
+    $content = (Get-Content -Raw -LiteralPath $templatePath).Replace('__APP_IMAGE_OPEN_WEBSITE__', $images[$Name])
+    [System.IO.File]::WriteAllText($renderedPath, $content, [System.Text.UTF8Encoding]::new($false))
+    Invoke-Kubectl -Arguments @('apply', '--namespace', $Namespace, '--filename', $renderedPath)
+  } finally {
+    if (Test-Path -LiteralPath $renderedPath) { Remove-Item -LiteralPath $renderedPath -Force }
+  }
+}
+
 function Set-LocalRecreateStrategy {
   param([string]$Name)
   $patch = '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
@@ -142,6 +156,10 @@ Write-Host "Build identity: $($manifest.buildIdentity) ($releaseType)"
 foreach ($name in $targets) {
   $existing = & kubectl get deployment $name --namespace $Namespace --ignore-not-found --output name
   if ($LASTEXITCODE -ne 0) { throw "Unable to inspect deployment: $name" }
+  if ([string]::IsNullOrWhiteSpace([string]$existing)) {
+    Initialize-MissingDeployment -Name $name
+    $existing = & kubectl get deployment $name --namespace $Namespace --ignore-not-found --output name
+  }
   if ([string]::IsNullOrWhiteSpace([string]$existing)) {
     throw "Deployment '$name' does not exist in namespace '$Namespace'. Run a full deployment (scripts/deploy/k8s.ps1) first."
   }

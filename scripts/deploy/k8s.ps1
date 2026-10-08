@@ -489,6 +489,7 @@ if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
 }
 Apply-RenderedManifest -Name 'gateway-admin.yaml' -Replacements $replacements -StartSuspended
 Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspended
+Apply-RenderedManifest -Name 'website.yaml' -Replacements $replacements -StartSuspended
 $ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"
 if ($LASTEXITCODE -ne 0) { throw 'Kind ingress-nginx installation failed.' }

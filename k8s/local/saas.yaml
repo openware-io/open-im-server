@@ -78,11 +78,6 @@ kind: Service
 metadata: { name: unified-portal }
 spec: { type: ClusterIP, selector: { app: unified-portal }, ports: [ { port: 80, targetPort: 80 } ] }
 ---
-apiVersion: v1
-kind: Service
-metadata: { name: open-website }
-spec: { type: ClusterIP, selector: { app: open-website }, ports: [ { port: 80, targetPort: 80 } ] }
----
 apiVersion: apps/v1
 kind: Deployment
 metadata: { name: platform-identity-service }
@@ -495,21 +490,3 @@ spec:
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 80 } ]
           readinessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
----
-apiVersion: apps/v1
-kind: Deployment
-metadata: { name: open-website }
-spec:
-  replicas: 1
-  selector: { matchLabels: { app: open-website } }
-  template:
-    metadata: { labels: { app: open-website } }
-    spec:
-      containers:
-        - name: open-website
-          image: __APP_IMAGE_OPEN_WEBSITE__
-          imagePullPolicy: IfNotPresent
-          ports: [ { containerPort: 80 } ]
-          readinessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
-          livenessProbe: { httpGet: { path: /healthz, port: 80 }, initialDelaySeconds: 10, periodSeconds: 15 }
-          resources: { requests: { cpu: 20m, memory: 24Mi }, limits: { cpu: 100m, memory: 96Mi } }
