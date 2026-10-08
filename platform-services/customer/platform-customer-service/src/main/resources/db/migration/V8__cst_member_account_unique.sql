@@ -16,5 +16,35 @@
 --
 -- 回滚：DROP INDEX uk_cst_member_tenant_account ON cst_member;
 
-ALTER TABLE cst_member
-    ADD UNIQUE KEY uk_cst_member_tenant_account (tenant_id, account_id);
+SET @unique_index_exists := (
+  SELECT COUNT(*)
+    FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'cst_member'
+     AND index_name = 'uk_cst_member_tenant_account'
+     AND non_unique = 0
+);
+SET @plain_index_exists := (
+  SELECT COUNT(*)
+    FROM information_schema.statistics
+   WHERE table_schema = DATABASE()
+     AND table_name = 'cst_member'
+     AND index_name = 'idx_cst_member_tenant_account'
+);
+SET @drop_plain_index_sql := IF(
+  @unique_index_exists = 0 AND @plain_index_exists > 0,
+  'ALTER TABLE cst_member DROP INDEX idx_cst_member_tenant_account',
+  'SELECT 1'
+);
+PREPARE drop_plain_index_stmt FROM @drop_plain_index_sql;
+EXECUTE drop_plain_index_stmt;
+DEALLOCATE PREPARE drop_plain_index_stmt;
+
+SET @create_unique_index_sql := IF(
+  @unique_index_exists = 0,
+  'ALTER TABLE cst_member ADD UNIQUE KEY uk_cst_member_tenant_account (tenant_id, account_id)',
+  'SELECT 1'
+);
+PREPARE create_unique_index_stmt FROM @create_unique_index_sql;
+EXECUTE create_unique_index_stmt;
+DEALLOCATE PREPARE create_unique_index_stmt;
