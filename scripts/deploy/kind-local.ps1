@@ -97,15 +97,15 @@ $previousPrivate = $env:OPEN_IM_KIND_PRIVATE_LOCAL
 try {
   $env:OPEN_IM_OFFLINE_LOCAL = '1'
   $env:OPEN_IM_KIND_PRIVATE_LOCAL = '1'
-  $deployArguments = @(
-    '-SaasReleaseManifestPath', $ReleaseManifestPath,
-    '-Namespace', $Namespace,
-    '-KindClusterName', $KindClusterName,
-    '-LocalBindAddress', $LocalBindAddress,
-    '-StartupTimeoutSeconds', $StartupTimeoutSeconds
-  )
-  if ($LocalAdvertiseAddress) { $deployArguments += @('-LocalAdvertiseAddress', $LocalAdvertiseAddress) }
-  if ($ValidateOnly) { $deployArguments += '-ValidateOnly' }
+  $deployArguments = @{
+    SaasReleaseManifestPath = $ReleaseManifestPath
+    Namespace = $Namespace
+    KindClusterName = $KindClusterName
+    LocalBindAddress = $LocalBindAddress
+    StartupTimeoutSeconds = $StartupTimeoutSeconds
+  }
+  if ($LocalAdvertiseAddress) { $deployArguments.LocalAdvertiseAddress = $LocalAdvertiseAddress }
+  if ($ValidateOnly) { $deployArguments.ValidateOnly = $true }
   Write-Host "Deploying local release to Kind cluster '$KindClusterName'..."
   & $k8sScript @deployArguments
   if ($LASTEXITCODE -ne 0) { throw 'Kind deployment failed.' }
