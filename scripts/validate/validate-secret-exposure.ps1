@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($ReportPath)) {
 $candidateExtensions = @('.env', '.properties', '.yml', '.yaml', '.ps1', '.bat', '.md', '.txt')
 $configurationAssignmentPattern = '(?i)^\s*(?!#)(?<key>[A-Za-z_][A-Za-z0-9_.-]*(?:password|secret|token|api[_-]?key)[A-Za-z0-9_.-]*)\s*[:=]\s*(?<value>.+?)\s*$'
 $powerShellAssignmentPattern = '(?i)^\s*\$(?<key>[A-Za-z_][A-Za-z0-9_]*(?:password|secret|token|api[_-]?key)[A-Za-z0-9_]*)\s*=\s*(?<value>.+?)\s*$'
-$safeValuePattern = '^(?:\$\{[^}]+\}|\$env:[A-Za-z_][A-Za-z0-9_]*|\$\$[A-Za-z_][A-Za-z0-9_]*|\$[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]+\])?|your-[\w-]+|change-me|example|todo|<[^>]+>)$'
+$safeValuePattern = '^(?:true|false|null|\d+|\$\{[^}]+\}|\$env:[A-Za-z_][A-Za-z0-9_]*|\$\$[A-Za-z_][A-Za-z0-9_]*|\$[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]+\])?|your-[\w-]+|change-me|example|todo|<[^>]+>)$'
 $powerShellCommandExpressionPattern = '^[A-Za-z][A-Za-z0-9-]*(?:\s+-[A-Za-z][A-Za-z0-9-]*\s+\$[A-Za-z_][A-Za-z0-9_]*)+$'
 $violations = [System.Collections.Generic.List[string]]::new()
 
