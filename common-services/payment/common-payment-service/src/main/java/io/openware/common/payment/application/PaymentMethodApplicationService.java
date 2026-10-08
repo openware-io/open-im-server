@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 /**
  * 支付方式可用性（统一口径，B端/C端都走这里，保证场景一致）。
  * - 目录：CASH/WALLET/POINT/ALIPAY/WECHAT/STRIPE。
- * - 租户授权（tenantAllowed）：CASH 兜底永远可用；其余需平台在 tenant_payment_method.granted=1 授权；
+ * - 租户授权（tenantAllowed）：CASH 兜底永远可用；WALLET/POINT 为租户基础能力，无记录时默认开放；线上渠道仍需显式授权；
  *   线上渠道（ALIPAY/WECHAT/STRIPE）还需 pay_channel_config 已开通（商户参数）。
  * - 用户可见（userVisible）：tenantAllowed 且租户开关 user_enabled=1（默认开）。
  */
@@ -175,10 +175,17 @@ public class PaymentMethodApplicationService {
 
     private boolean isTenantAllowed(long tenantId, Long storeId, String method, Map<String, TenantPaymentMethodPo> rows) {
         if ("CASH".equals(method)) return true;
+        // 储值与积分属于租户基础经营能力。没有历史授权行时按默认开放处理，只有明确写入 granted=0 才关闭。
+        if ("WALLET".equals(method) || "POINT".equals(method)) return grantedByDefault(rows, method);
         if (ONLINE.contains(method)) {
             return granted(rows, method) && channelService.isOnlineEnabled(tenantId, storeId, method);
         }
         return granted(rows, method);
+    }
+
+    private boolean grantedByDefault(Map<String, TenantPaymentMethodPo> rows, String method) {
+        TenantPaymentMethodPo po = rows.get(method);
+        return po == null || po.getGranted() == null || po.getGranted() == 1;
     }
 
     private boolean granted(Map<String, TenantPaymentMethodPo> rows, String method) {
