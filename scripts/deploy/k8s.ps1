@@ -469,7 +469,13 @@ Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspe
 $ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"
 if ($LASTEXITCODE -ne 0) { throw 'Kind ingress-nginx installation failed.' }
-Apply-Manifest -Name 'ingress.yaml'
+$ingressApplied = $false
+for ($attempt = 1; $attempt -le 6; $attempt++) {
+  & kubectl apply --namespace $Namespace -f (Join-Path $manifestDir 'ingress.yaml')
+  if ($LASTEXITCODE -eq 0) { $ingressApplied = $true; break }
+  if ($attempt -lt 6) { Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2)) }
+}
+if (!$ingressApplied) { throw 'Applying the local ingress manifest failed after the admission webhook readiness retries.' }
 $advertiseAddress = Get-LocalAdvertiseAddress
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-user-service', "OIDC_ISSUER=http://$advertiseAddress`:30080", '--namespace', $Namespace)
 $localOrigins = @(
