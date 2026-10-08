@@ -60,3 +60,4 @@ spec:
         paths:
           - { path: /a380(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }
           - { path: /b(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }
+          - { path: /website(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: open-website, port: { number: 80 } } } }

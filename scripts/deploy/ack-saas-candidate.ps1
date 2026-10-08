@@ -84,7 +84,7 @@ $knownServices = @(
   'platform-identity-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service',
   'common-payment-service', 'platform-admin-service', 'platform-customer-service', 'platform-marketing-service',
   'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service',
-  'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'pc-admin'
+  'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website', 'pc-admin'
 )
 $services = @($manifest.deploymentTargets | ForEach-Object { [string]$_ } | Select-Object -Unique)
 if ($services.Count -eq 0 -or @($services | Where-Object { $_ -notin $knownServices }).Count -gt 0) {

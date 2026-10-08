@@ -12,7 +12,8 @@ param(
   [string]$RepositoryNamespace = '',
   [string]$PcAdminProjectPath,
   [string]$SaasAdminProjectPath,
-  [string]$SaasMobileProjectPath
+  [string]$SaasMobileProjectPath,
+  [string]$WebsiteProjectPath
 )
 $ErrorActionPreference = 'Stop'; Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
@@ -20,10 +21,11 @@ $workspaceRoot = Split-Path -Parent $root
 if (!$PcAdminProjectPath) { $PcAdminProjectPath = Join-Path $workspaceRoot 'open-chat-admin' }
 if (!$SaasAdminProjectPath) { $SaasAdminProjectPath = Join-Path $workspaceRoot 'open-saas-admin' }
 if (!$SaasMobileProjectPath) { $SaasMobileProjectPath = Join-Path $workspaceRoot 'open-saas-mobile' }
-$projects = @{ 'pc-admin'=$PcAdminProjectPath; 'saas-admin'=$SaasAdminProjectPath; 'saas-mobile'=$SaasMobileProjectPath; 'unified-portal'=(Join-Path $root 'portal') }
+if (!$WebsiteProjectPath) { $WebsiteProjectPath = Join-Path $workspaceRoot 'open-website' }
+$projects = @{ 'pc-admin'=$PcAdminProjectPath; 'saas-admin'=$SaasAdminProjectPath; 'saas-mobile'=$SaasMobileProjectPath; 'unified-portal'=(Join-Path $root 'portal'); 'open-website'=$WebsiteProjectPath }
 $missingProjects = @($projects.GetEnumerator() | Where-Object { !(Test-Path -LiteralPath $_.Value) } | ForEach-Object { "$($_.Key)=$($_.Value)" })
 if ($missingProjects.Count -gt 0) { throw "Required frontend project path(s) not found. Clone them beside open-im-server or pass explicit project path parameters: $($missingProjects -join '; ')" }
-$projectSources = @{ 'pc-admin'='https://github.com/openware-io/open-chat-admin'; 'saas-admin'='https://github.com/openware-io/open-saas-admin'; 'saas-mobile'='https://github.com/openware-io/open-saas-mobile'; 'unified-portal'='https://github.com/openware-io/open-im-server' }
+$projectSources = @{ 'pc-admin'='https://github.com/openware-io/open-chat-admin'; 'saas-admin'='https://github.com/openware-io/open-saas-admin'; 'saas-mobile'='https://github.com/openware-io/open-saas-mobile'; 'unified-portal'='https://github.com/openware-io/open-im-server'; 'open-website'='https://github.com/openware-io/open-website' }
 $createdAt=(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'); $timestamp=(Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $revision=(& git -C $root rev-parse --short HEAD).Trim(); if(!$revision){throw 'Cannot resolve git revision.'}
 $registryPrefix = if ($RepositoryNamespace) { "$($Registry.TrimEnd('/'))/$($RepositoryNamespace.Trim('/'))" } else { $Registry.TrimEnd('/') }

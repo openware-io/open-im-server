@@ -174,7 +174,7 @@ function Import-KubernetesRegistryImage {
   }
 }
 function Stop-LocalPortForwards {
-  $services = @('gateway', 'pc-admin', 'saas-admin', 'saas-mobile', 'unified-portal', 'minio-api', 'minio-console')
+  $services = @('gateway', 'pc-admin', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website', 'minio-api', 'minio-console')
   Get-CimInstance Win32_Process -Filter "Name = 'kubectl.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -match "port-forward service/($($services -join '|'))" -and $_.CommandLine -match [regex]::Escape("--namespace $Namespace") } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
@@ -336,7 +336,7 @@ $saasTags = @{}
 $saasImages = @{}
 if ($SaasReleaseManifestPath) {
   $saasManifest = Get-Content -Raw -LiteralPath $SaasReleaseManifestPath | ConvertFrom-Json
-  foreach ($name in @('im-user-service','im-message-service','im-conversation-service','common-media-service','im-admin-service','im-access-ws','gateway','platform-identity-service','platform-tenant-service','platform-resource-service','platform-order-service','common-payment-service','platform-admin-service','platform-customer-service','platform-marketing-service','common-payment-channel-service','common-audit-service','common-sms-service','common-mail-service','group-idaas-service','saas-admin','saas-mobile','unified-portal','pc-admin')) {
+  foreach ($name in @('im-user-service','im-message-service','im-conversation-service','common-media-service','im-admin-service','im-access-ws','gateway','platform-identity-service','platform-tenant-service','platform-resource-service','platform-order-service','common-payment-service','platform-admin-service','platform-customer-service','platform-marketing-service','common-payment-channel-service','common-audit-service','common-sms-service','common-mail-service','group-idaas-service','saas-admin','saas-mobile','unified-portal','open-website','pc-admin')) {
     $property = $saasManifest.services.PSObject.Properties[$name]
     if (!$property) { throw "SaaS release manifest missing service: $name" }
     $entry = $property.Value
@@ -420,7 +420,7 @@ $localSaasImageNames = @(
   'platform-order-service', 'common-payment-service', 'platform-admin-service',
   'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service',
   'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service',
-  'saas-admin', 'saas-mobile', 'unified-portal'
+  'saas-admin', 'saas-mobile', 'unified-portal', 'open-website'
 )
 foreach ($name in $saasImages.Keys) { Import-KubernetesRegistryImage -Image $saasImages[$name] }
 foreach ($name in $localSaasImageNames | Where-Object { $_ -ne 'im-user-service' }) {
@@ -482,7 +482,7 @@ $replacements = @{}
 foreach ($name in $saasImages.Keys) {
   $replacements['__APP_IMAGE_' + $name.Replace('-', '_').ToUpperInvariant() + '__'] = $saasImages[$name]
 }
-$applicationDeployments = @('im-user-service', 'im-conversation-service', 'common-media-service', 'im-message-service', 'im-admin-service', 'im-access-ws', 'gateway', 'pc-admin', 'platform-identity-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service', 'common-payment-service', 'platform-admin-service', 'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal')
+$applicationDeployments = @('im-user-service', 'im-conversation-service', 'common-media-service', 'im-message-service', 'im-admin-service', 'im-access-ws', 'gateway', 'pc-admin', 'platform-identity-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service', 'common-payment-service', 'platform-admin-service', 'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website')
 Apply-RenderedManifest -Name 'applications.yaml' -Replacements $replacements -StartSuspended
 if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
   Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'common-media-service' -PatchName 'media-root-credentials-patch.yaml'

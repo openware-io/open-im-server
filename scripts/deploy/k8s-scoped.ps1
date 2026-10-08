@@ -32,7 +32,7 @@ $knownServices = @(
   'im-access-ws', 'gateway', 'platform-identity-service', 'platform-tenant-service', 'platform-resource-service',
   'platform-order-service', 'common-payment-service', 'platform-admin-service', 'platform-customer-service',
   'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service',
-  'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'pc-admin'
+  'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website', 'pc-admin'
 )
 
 $manifest = Get-Content -Raw -LiteralPath $SaasReleaseManifestPath | ConvertFrom-Json
