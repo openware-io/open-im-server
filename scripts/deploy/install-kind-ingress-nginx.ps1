@@ -54,5 +54,5 @@ try {
   Write-Output "ingress-nginx $controllerVersion is ready on HTTP NodePort $HttpNodePort and HTTPS NodePort $HttpsNodePort."
 }
 finally {
-  if (Test-Path -LiteralPath $tempPath) { Remove-Item -LiteralPath $tempPath -Force }
+  Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
 }
