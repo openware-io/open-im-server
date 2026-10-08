@@ -228,7 +228,8 @@
 | 客户管理 | `/business/members` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；path/code 不变；总部只看汇总/下钻 |
 | 积分管理 | `/business/points` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；余额口径与流水归因见方案 B |
 | 支付方式 | `/business/payment-methods` | TENANT | TENANT | core | 资金与支付 | 租户级默认渠道 |
-| 储值管理 | `/business/wallet` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；保留 `payment.method.wallet` 能力门禁，写入必须记录当前门店 |
+| 代币配置 | `/admin/tenant/wallet-token-config` | 新增 | TENANT | core | 资金与支付 | 仅维护租户级代币名称与展示比例；要求 `tenant.tenant.manage` |
+| 储值管理 | `/business/wallet` | TENANT | **STORE** | core | 客户与资产 | 入口下放门店上下文；储值默认开放，写入必须记录当前门店 |
 | 脱敏权限 | `/admin/security` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |
 | KTV 配置 | `/admin/ktv/config` | TENANT | **TENANT/STORE** | **ktv** | 租户经营配置 | 租户/业态默认或门店覆盖；写入按目标范围授权 |
 | 运营人员 | `/admin/staff` | TENANT | TENANT | core | 人员与权限 | 保留 `iam.role.manage` 门禁 |

@@ -20,7 +20,8 @@ import java.util.stream.Collectors;
 
 /**
  * SaaS 后台菜单 BFF：平台运营后台 + 租户后台菜单聚合。
- * 租户后台菜单按「平台已授权的支付方式」过滤：储值管理仅当授予 payment.method.wallet 时显示。
+ * 租户后台菜单按作用域、权限和需显式授权的线上支付能力过滤。
+ * 储值与积分是默认开放的基础经营能力，不依赖历史支付授权记录。
  */
 @Service
 public class AdminMenuApplicationService {
