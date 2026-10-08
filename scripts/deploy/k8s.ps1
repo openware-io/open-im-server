@@ -340,8 +340,11 @@ if ($LASTEXITCODE -ne 0) { throw "Unable to select Kind context: $expectedContex
 $namespaceName = [string](& kubectl get namespace $Namespace --ignore-not-found --output name)
 if ($LASTEXITCODE -ne 0) { throw "Unable to inspect Kubernetes namespace: $Namespace" }
 $namespaceExists = -not [string]::IsNullOrWhiteSpace($namespaceName)
-$pullResource = & kubectl get secret $RegistryPullSecretName --namespace $Namespace --ignore-not-found -o name
-if ($LASTEXITCODE -ne 0 -or !$pullResource) { throw "Configure the ACR pull secret '$RegistryPullSecretName' in namespace '$Namespace' before deployment." }
+$offlineLocal = $env:OPEN_IM_KIND_PRIVATE_LOCAL -eq '1' -or $env:OPEN_IM_OFFLINE_LOCAL -eq '1'
+if (!$offlineLocal) {
+  $pullResource = & kubectl get secret $RegistryPullSecretName --namespace $Namespace --ignore-not-found -o name
+  if ($LASTEXITCODE -ne 0 -or !$pullResource) { throw "Configure the ACR pull secret '$RegistryPullSecretName' in namespace '$Namespace' before deployment." }
+}
 
 $images = [ordered]@{
   'im-user-service' = @{ Jar = 'im-services/user/im-user-service/target/im-user-service-*.jar'; Pom = 'im-services/user/im-user-service/pom.xml' }
