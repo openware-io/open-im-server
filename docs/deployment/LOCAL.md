@@ -119,9 +119,11 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 - 统一门户：`http://<宿主机局域网IP>:30080/`
 - MinIO API/控制台：`http://<宿主机局域网IP>:30900` / `http://<宿主机局域网IP>:30901`
 
-首次部署默认监听 `0.0.0.0`，同时支持宿主机回环地址和局域网地址。脚本会自动选择带默认网关的局域网 IPv4 作为广告地址；如存在多个网卡，可通过 `-LocalAdvertiseAddress <IP>` 明确指定。旧的 `192.168.31.91` 和独立 `30002/30081/30082/30083/5173` 入口不再作为 Kind 入口。
+首次部署默认同时显式绑定 `127.0.0.1` 和自动识别的宿主机局域网 IPv4，避免 Windows/WSL localhost relay 抢占 `0.0.0.0` 后导致回环入口失效。脚本只从已连接且具有默认网关的网卡选择广告地址；如存在多个网卡，可通过 `-LocalAdvertiseAddress <IP>` 明确指定。旧的 `192.168.31.91` 和独立 `30002/30081/30082/30083/5173` 入口不再作为 Kind 入口。
 
 在 Kind 上下文中，脚本通过统一 Ingress 暴露应用入口；默认绑定 `0.0.0.0`，由宿主机防火墙控制局域网访问范围。需要仅本机访问时可显式传入 `-LocalBindAddress 127.0.0.1`。`-Stop` 只会停止本地入口并删除 Kind 集群中的 `open-im-local` 命名空间。
+
+需要允许同一局域网的其他设备访问时，请在管理员 PowerShell 中运行 `scripts\deploy\enable-kind-lan-access.ps1`。该脚本仅为 Private 网络配置入站规则，来源限制为 `LocalSubnet`，不会开放公网来源。
 
 使用 `k9s -n open-im-local` 或 `kubectl` 查看集群资源；应用的 Deployment、Pod 和 Service 均被隔离在该命名空间中。
 

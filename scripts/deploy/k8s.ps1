@@ -247,8 +247,28 @@ function Ensure-KindCluster {
   if ($LASTEXITCODE -ne 0) { throw 'Unable to query Kind clusters.' }
   if ($clusters -contains $KindClusterName) { return }
   Write-Host "Creating Kind cluster: $KindClusterName"
-  & kind create cluster --name $KindClusterName --config $kindConfigPath --wait 5m
-  if ($LASTEXITCODE -ne 0) { throw "Creating Kind cluster failed: $KindClusterName" }
+  $bindAddresses = if ($LocalBindAddress -eq '0.0.0.0') {
+    @('127.0.0.1', $advertiseAddress) | Select-Object -Unique
+  } else {
+    @($LocalBindAddress)
+  }
+  $mappingLines = foreach ($address in $bindAddresses) {
+    foreach ($port in @(30080, 30443, 30900, 30901)) {
+      "      - containerPort: $port"
+      "        hostPort: $port"
+      "        listenAddress: `"$address`""
+      '        protocol: TCP'
+    }
+  }
+  $kindConfig = (Get-Content -Raw -LiteralPath $kindConfigPath).Replace('__LOCAL_PORT_MAPPINGS__', ($mappingLines -join "`n"))
+  $renderedKindConfigPath = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-kind-" + [guid]::NewGuid().ToString() + '.yaml')
+  try {
+    [System.IO.File]::WriteAllText($renderedKindConfigPath, $kindConfig, [System.Text.UTF8Encoding]::new($false))
+    & kind create cluster --name $KindClusterName --config $renderedKindConfigPath --wait 5m
+    if ($LASTEXITCODE -ne 0) { throw "Creating Kind cluster failed: $KindClusterName" }
+  } finally {
+    if (Test-Path -LiteralPath $renderedKindConfigPath) { Remove-Item -LiteralPath $renderedKindConfigPath -Force }
+  }
 }
 
 function Remove-InactiveReplicaSets {
@@ -335,6 +355,7 @@ $revision = Get-GitRevision -ProjectPath $root
 $createdAt = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
 Write-Host "Using immutable build identity: $buildIdentity"
 
+$advertiseAddress = Get-LocalAdvertiseAddress
 Ensure-KindCluster
 $expectedContext = "kind-$KindClusterName"
 & kubectl config use-context $expectedContext
@@ -478,7 +499,6 @@ for ($attempt = 1; $attempt -le 6; $attempt++) {
   if ($attempt -lt 6) { Start-Sleep -Seconds ([Math]::Min(10, $attempt * 2)) }
 }
 if (!$ingressApplied) { throw 'Applying the local ingress manifest failed after the admission webhook readiness retries.' }
-$advertiseAddress = Get-LocalAdvertiseAddress
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/im-user-service', "OIDC_ISSUER=http://$advertiseAddress`:30080", '--namespace', $Namespace)
 $localOrigins = @(
   'http://127.0.0.1:30080', 'http://localhost:30080', 'http://10.0.2.2:30080',
