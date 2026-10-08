@@ -193,6 +193,9 @@ spec:
             - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+            - { name: SPRING_DATA_REDIS_HOST, value: redis }
+            - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
+            - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
           ports: [ { containerPort: 4130 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4130 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---

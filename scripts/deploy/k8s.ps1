@@ -211,8 +211,10 @@ function Start-LocalNodePortProxy {
 
 function Get-LocalAdvertiseAddress {
   if (-not [string]::IsNullOrWhiteSpace($LocalAdvertiseAddress)) { return $LocalAdvertiseAddress }
+  $connectedInterfaces = @(Get-NetIPInterface -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.ConnectionState -eq 'Connected' })
   $connectedIndexes = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue |
-    Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } |
+    Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address -and $_.InterfaceIndex -in $connectedInterfaces.ifIndex } |
     ForEach-Object { $_.InterfaceIndex })
   $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.InterfaceIndex -in $connectedIndexes } |
