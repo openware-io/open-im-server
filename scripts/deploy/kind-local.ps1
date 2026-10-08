@@ -8,7 +8,7 @@ param(
   [string]$ReleaseManifestPath,
   [string]$Namespace = 'open-im-local',
   [string]$KindClusterName = 'open-im-local',
-  [string]$LocalBindAddress = '127.0.0.1',
+  [string]$LocalBindAddress = '0.0.0.0',
   [string]$LocalAdvertiseAddress,
   [string]$PcAdminProjectPath,
   [string]$SaasAdminProjectPath,

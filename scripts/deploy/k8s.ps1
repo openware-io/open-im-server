@@ -211,7 +211,11 @@ function Start-LocalNodePortProxy {
 
 function Get-LocalAdvertiseAddress {
   if (-not [string]::IsNullOrWhiteSpace($LocalAdvertiseAddress)) { return $LocalAdvertiseAddress }
+  $connectedIndexes = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } |
+    ForEach-Object { $_.InterfaceIndex })
   $candidates = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.InterfaceIndex -in $connectedIndexes } |
     Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.IPAddress -notlike '198.18.*' } |
     Where-Object { $_.IPAddress -like '10.*' -or $_.IPAddress -like '172.16.*' -or $_.IPAddress -like '172.17.*' -or $_.IPAddress -like '172.18.*' -or $_.IPAddress -like '172.19.*' -or $_.IPAddress -like '172.2*.*' -or $_.IPAddress -like '192.168.*' })
   $candidate = $candidates |
@@ -535,10 +539,10 @@ Invoke-Kubectl -Arguments @('wait', '--for=condition=complete', 'job/minio-init'
 Stop-LocalPortForwards
 Start-LocalNodePortProxy -Service 'minio-api' -NodePort 30900 -ServicePort 9000
 Start-LocalNodePortProxy -Service 'minio-console' -NodePort 30901 -ServicePort 9001
-$gatewayHealth = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30080/actuator/health'
+$gatewayHealth = Invoke-HttpGetWithRetry -Uri "http://$advertiseAddress`:30080/actuator/health"
 $gatewayHealthBody = Get-HttpResponseBody -Content $gatewayHealth.Content
 if ($gatewayHealthBody -notmatch '"status"\s*:\s*"UP"') { throw "Gateway health check failed: $gatewayHealthBody" }
-$adminPage = Invoke-HttpGetWithRetry -Uri 'http://127.0.0.1:30080/'
+$adminPage = Invoke-HttpGetWithRetry -Uri "http://$advertiseAddress`:30080/"
 $adminPageBody = Get-HttpResponseBody -Content $adminPage.Content
 if ($adminPage.StatusCode -ne 200 -or ($adminPageBody -notmatch 'id="app"' -and $adminPageBody -notmatch 'class="app-card"')) { throw 'Kubernetes admin page verification failed.' }
 Invoke-Kubectl -Arguments @('get', 'pods,services', '--namespace', $Namespace)
