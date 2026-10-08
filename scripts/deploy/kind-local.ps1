@@ -78,11 +78,14 @@ if (!$ReleaseManifestPath) {
   $releaseDirectory = Join-Path $root '.outputs\releases'
   if (!(Test-Path -LiteralPath $releaseDirectory)) { New-Item -ItemType Directory -Path $releaseDirectory | Out-Null }
   $ReleaseManifestPath = Join-Path $releaseDirectory ("kind-local-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
-  $buildArguments = @('-ReleaseManifestPath', $ReleaseManifestPath, '-SkipPush')
-  if ($PcAdminProjectPath) { $buildArguments += @('-PcAdminProjectPath', $PcAdminProjectPath) }
-  if ($SaasAdminProjectPath) { $buildArguments += @('-SaasAdminProjectPath', $SaasAdminProjectPath) }
-  if ($SaasMobileProjectPath) { $buildArguments += @('-SaasMobileProjectPath', $SaasMobileProjectPath) }
   Write-Host 'Building local development images and release manifest...'
+  $buildArguments = @{
+    ReleaseManifestPath = $ReleaseManifestPath
+    SkipPush = $true
+  }
+  if ($PcAdminProjectPath) { $buildArguments.PcAdminProjectPath = $PcAdminProjectPath }
+  if ($SaasAdminProjectPath) { $buildArguments.SaasAdminProjectPath = $SaasAdminProjectPath }
+  if ($SaasMobileProjectPath) { $buildArguments.SaasMobileProjectPath = $SaasMobileProjectPath }
   & $buildScript @buildArguments
   if ($LASTEXITCODE -ne 0) { throw 'Local release build failed.' }
 }
