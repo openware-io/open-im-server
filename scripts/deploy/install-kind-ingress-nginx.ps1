@@ -16,18 +16,22 @@ $manifestSha256 = 'CB84B0EA747C9149CCE08AEF4E95B1E55F183F07299F40E7009043E960A01
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-ingress-nginx-$controllerVersion.yaml")
 
 try {
-  Invoke-WebRequest -UseBasicParsing -Uri $manifestUrl -OutFile $tempPath
-  $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $tempPath).Hash
-  if ($actualSha256 -ne $manifestSha256) {
-    throw "Ingress-nginx manifest checksum mismatch. Expected $manifestSha256, got $actualSha256."
-  }
-
   $controlPlane = (& kubectl --context $Context get nodes -o name | Where-Object { $_ -match 'control-plane$' } | Select-Object -First 1)
   if ([string]::IsNullOrWhiteSpace($controlPlane)) { throw "Kind control-plane node was not found for context $Context." }
   & kubectl --context $Context label $controlPlane ingress-ready=true --overwrite
   if ($LASTEXITCODE -ne 0) { throw 'Failed to label the Kind control-plane for ingress-nginx.' }
-  & kubectl --context $Context apply --filename $tempPath
-  if ($LASTEXITCODE -ne 0) { throw 'Failed to apply the pinned ingress-nginx manifest.' }
+  $installed = (& kubectl --context $Context --namespace ingress-nginx get deployment ingress-nginx-controller --ignore-not-found -o name 2>$null | Out-String).Trim()
+  if (!$installed) {
+    Invoke-WebRequest -UseBasicParsing -Uri $manifestUrl -OutFile $tempPath
+    $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $tempPath).Hash
+    if ($actualSha256 -ne $manifestSha256) {
+      throw "Ingress-nginx manifest checksum mismatch. Expected $manifestSha256, got $actualSha256."
+    }
+    & kubectl --context $Context apply --filename $tempPath
+    if ($LASTEXITCODE -ne 0) { throw 'Failed to apply the pinned ingress-nginx manifest.' }
+  } else {
+    Write-Host "Reusing installed ingress-nginx controller in context $Context."
+  }
 
   $patch = @{ spec = @{ ports = @(
     @{ name = 'http'; port = 80; protocol = 'TCP'; targetPort = 'http'; nodePort = $HttpNodePort }
