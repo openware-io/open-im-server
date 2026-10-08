@@ -14,6 +14,7 @@ $controllerVersion = 'v1.12.1'
 $manifestUrl = "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-$controllerVersion/deploy/static/provider/kind/deploy.yaml"
 $manifestSha256 = 'CB84B0EA747C9149CCE08AEF4E95B1E55F183F07299F40E7009043E960A0133F'
 $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-ingress-nginx-$controllerVersion.yaml")
+$bundledManifestPath = Join-Path $PSScriptRoot "ingress-nginx-kind-$controllerVersion.yaml"
 
 try {
   $controlPlane = (& kubectl --context $Context get nodes -o name | Where-Object { $_ -match 'control-plane$' } | Select-Object -First 1)
@@ -22,7 +23,12 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Failed to label the Kind control-plane for ingress-nginx.' }
   $installed = (& kubectl --context $Context --namespace ingress-nginx get deployment ingress-nginx-controller --ignore-not-found -o name 2>$null | Out-String).Trim()
   if (!$installed) {
-    Invoke-WebRequest -UseBasicParsing -Uri $manifestUrl -OutFile $tempPath
+    if (Test-Path -LiteralPath $bundledManifestPath) {
+      Copy-Item -LiteralPath $bundledManifestPath -Destination $tempPath -Force
+      Write-Host "Using bundled ingress-nginx $controllerVersion manifest."
+    } else {
+      Invoke-WebRequest -UseBasicParsing -Uri $manifestUrl -OutFile $tempPath
+    }
     $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $tempPath).Hash
     if ($actualSha256 -ne $manifestSha256) {
       throw "Ingress-nginx manifest checksum mismatch. Expected $manifestSha256, got $actualSha256."
