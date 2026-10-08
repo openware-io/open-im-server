@@ -79,6 +79,7 @@ function Initialize-MissingDeployment {
     $content = (Get-Content -Raw -LiteralPath $templatePath).Replace('__APP_IMAGE_OPEN_WEBSITE__', $images[$Name])
     [System.IO.File]::WriteAllText($renderedPath, $content, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('apply', '--namespace', $Namespace, '--filename', $renderedPath)
+    Invoke-Kubectl -Arguments @('apply', '--namespace', $Namespace, '--filename', (Join-Path $root 'k8s\local\ingress.yaml'))
   } finally {
     if (Test-Path -LiteralPath $renderedPath) { Remove-Item -LiteralPath $renderedPath -Force }
   }
