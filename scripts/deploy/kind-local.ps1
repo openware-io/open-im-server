@@ -38,7 +38,7 @@ function Test-HealthyKindWorkload {
   if ($LASTEXITCODE -ne 0 -or $deployments.Count -lt 10) { return $false }
   foreach ($deployment in $deployments) {
     $desired = [int]$deployment.spec.replicas
-    $available = if ($null -eq $deployment.status.availableReplicas) { 0 } else { [int]$deployment.status.availableReplicas }
+    $available = if ($null -eq $deployment.status -or $null -eq $deployment.status.PSObject.Properties['availableReplicas']) { 0 } else { [int]$deployment.status.availableReplicas }
     if ($desired -lt 1 -or $available -lt $desired) { return $false }
   }
   try {
