@@ -243,8 +243,15 @@ if ($Stop) {
 }
 
 function Ensure-KindCluster {
-  $clusters = @(& kind get clusters 2>$null)
-  if ($LASTEXITCODE -ne 0) { throw 'Unable to query Kind clusters.' }
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $clusters = @(& kind get clusters 2>$null)
+    $kindQueryExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($kindQueryExitCode -ne 0 -and $clusters.Count -gt 0) { throw 'Unable to query Kind clusters.' }
   if ($clusters -contains $KindClusterName) { return }
   Write-Host "Creating Kind cluster: $KindClusterName"
   $bindAddresses = if ($LocalBindAddress -eq '0.0.0.0') {

@@ -32,10 +32,18 @@ function Assert-Command([string]$Name, [string]$InstallHint) {
 
 function Test-HealthyKindWorkload {
   if ($ForceRedeploy) { return $false }
-  $namespaceExists = (& kubectl get namespace $Namespace --ignore-not-found -o name 2>$null | Out-String).Trim()
-  if (!$namespaceExists) { return $false }
-  $deployments = @(& kubectl get deployments --namespace $Namespace -o json 2>$null | ConvertFrom-Json).items
-  if ($LASTEXITCODE -ne 0 -or $deployments.Count -lt 10) { return $false }
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $namespaceExists = (& kubectl get namespace $Namespace --ignore-not-found -o name 2>$null | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or !$namespaceExists) { return $false }
+    $deploymentResult = & kubectl get deployments --namespace $Namespace -o json 2>$null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    $deployments = @($deploymentResult | ConvertFrom-Json).items
+    if ($deployments.Count -lt 10) { return $false }
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
   foreach ($deployment in $deployments) {
     $desired = [int]$deployment.spec.replicas
     $available = if ($null -eq $deployment.status -or $null -eq $deployment.status.PSObject.Properties['availableReplicas']) { 0 } else { [int]$deployment.status.availableReplicas }
