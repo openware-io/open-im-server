@@ -452,7 +452,7 @@ function Remove-ReleaseBuildWaste {
   if ($LASTEXITCODE -ne 0) { throw 'Docker dangling-image cleanup failed.' }
 }
 
-if (-not (& kubectl get namespace $Namespace 2>$null)) { & kubectl create namespace $Namespace | Out-Null }
+& kubectl create namespace $Namespace --dry-run=client -o yaml | & kubectl apply -f - | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Creating the Kubernetes namespace failed.' }
 
 $secretEnvFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-" + [guid]::NewGuid().ToString() + '.env')
