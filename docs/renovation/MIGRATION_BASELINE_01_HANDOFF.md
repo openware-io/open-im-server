@@ -279,6 +279,10 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 **为什么现在测试仍绿**：夹具缺的列，恰好是那些测试路径不写入的列（例如 `ord_event_consumed` 的审计列由 `DEFAULT` 兜底，而夹具里该表的 INSERT 由 PO 驱动、PO 不映射这些列）。所以这**不是回归，而是"测试对着比生产更旧的 schema 跑"**，会长期掩盖问题。
 **修的时候注意**：① 表是子集没问题，**只需对齐列**；② 加列会让夹具里的位置式 `INSERT ... VALUES (...)` 失效——payment 模块已因此改成显式列名，照做；③ 改完必须真跑该模块测试（H2 与 MySQL 的 DDL 行为不同，例如 `DEFAULT CURRENT_TIMESTAMP(3)` 在 H2 上的支持）。
 
+**已完成最先修的一块（`14e9af5`）**：`platform-order-service` 的 `V1__ord_h2_schema.sql` 那 8 列已补齐（H2 里用 `TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`，因为 H2 不认 `datetime(3)`），改后重跑该模块 **573 测试 / 0 失败 / 0 错误**。**customer 与 payment 两个夹具仍未对齐，下一轮照同一手法处理。**
+
+**附带发现（未修，非失败）**：该模块测试日志里有 `Table "ord_reservation" not found` 的报错噪声——夹具只建 13 张表，缺 `ord_reservation`／`ord_ktv_server_session`／`ord_order_void_approval`／`ord_reservation_rule_config`，而**生产定时任务在测试上下文里真的会去查它们**（`ReservationMapper.selectNotArrivedOverdue`）。它不影响测试结果（573/0/0，后台调度线程只记日志），但会在每次测试里刷错误栈。修法二选一：把 4 张表补进夹具，或在测试 profile 里关掉这些定时任务；**不要**为了让日志干净而删掉生产查询。
+
 11. **`im-admin` 的守卫测试是正确做法，值得抄**：合并后它把断言从"V2 存在"改成 **`assertFalse(exists(V2))`**，并加"迁移目录只允许一个文件"，而不是删掉守卫（`AdminBatchZeroArchitectureGateTest:202-207`）。message 与 user 同样处理。**遇到钉住已删文件的测试，改断言方向并加强，不要删除。**
    - **台账 34 条已完成（`83ee042`）**：`docs/mq/REGISTRY.md` 已补齐，门禁 44 → **10**，且反向漂移 0（台账里每个名字都能对上 protocol-mq 常量）。做法固化在两个提交过的工具里，**不需要再靠人工回忆**：
      1. `scripts/validate/extract-mq-semantics.ps1`（只读）→ `.outputs/quality/mq-semantics-extract.txt`：对每个引用 protocol-mq 组的类输出**类路径 / 消费组常量 / Topic 常量 / 类级 javadoc**。本仓 javadoc 会写明消费目的，事件消费者还会直接写出幂等键。
