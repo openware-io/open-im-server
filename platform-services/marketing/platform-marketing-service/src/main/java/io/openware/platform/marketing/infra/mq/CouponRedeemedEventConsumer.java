@@ -63,7 +63,12 @@ public class CouponRedeemedEventConsumer implements SmartLifecycle {
       po.setEventType(MktEventTypes.COUPON_REDEEMED);
       po.setAggregateType("coupon");
       po.setAggregateId(event.getIssuanceId() == null ? null : String.valueOf(event.getIssuanceId()));
-      po.setConsumedAt(LocalDateTime.now());
+      LocalDateTime consumedAt = LocalDateTime.now();
+      po.setConsumedAt(consumedAt);
+      // 审计列（DC-11）在基线重建后为 NOT NULL 且无数据库默认值，必须由此处显式写入，
+      // 否则插入会因 created_at/updated_at 缺少默认值而失败。去重记录只增不改，二者取同一时刻。
+      po.setCreatedAt(consumedAt);
+      po.setUpdatedAt(consumedAt);
       consumedMapper.insert(po);
       log.info("消费 coupon.redeemed 事件成功, eventId={}, issuanceId={}", event.getEventId(),
           event.getIssuanceId());

@@ -22,4 +22,6 @@ public class MktEventConsumedPo {
     private String aggregateType;
     private String aggregateId;
     private LocalDateTime consumedAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 }
