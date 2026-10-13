@@ -29,7 +29,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      * @param cap     统计上界（&gt; 0）
      * @return 匹配行数，取值区间为 {@code [0, cap]}
      */
-    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM iam_audit_log ${ew.customSqlSegment} LIMIT #{cap}) audit_count")
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM iam_audit_log ${ew.customSqlSegment} LIMIT #{cap}) audit_count") /* tenant-agnostic: 租户谓词由 TenantLineInnerInterceptor 注入进 wrapper，不落在本行 */
     long countUpTo(@Param(Constants.WRAPPER) Wrapper<IamAuditLogPo> wrapper, @Param("cap") long cap);
 
     /**
@@ -57,8 +57,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
     @Insert("INSERT INTO iam_audit_idempotency "
             + "(tenant_id, idempotency_key, audit_id, created_by, created_at, updated_by, updated_at) "
             + "SELECT #{tenantId}, #{idempotencyKey}, #{auditId}, 0, #{createdAt}, 0, #{createdAt} FROM DUAL "
-            + "WHERE NOT EXISTS (SELECT 1 FROM iam_audit_idempotency "
-            + "WHERE tenant_id = #{tenantId} AND idempotency_key = #{idempotencyKey})")
+            + "WHERE NOT EXISTS (SELECT 1 FROM iam_audit_idempotency WHERE tenant_id = #{tenantId} AND idempotency_key = #{idempotencyKey})")
     int claimIdempotencyKey(@Param("tenantId") long tenantId, @Param("idempotencyKey") String idempotencyKey,
                             @Param("auditId") long auditId,
                             @Param("createdAt") java.time.LocalDateTime createdAt);

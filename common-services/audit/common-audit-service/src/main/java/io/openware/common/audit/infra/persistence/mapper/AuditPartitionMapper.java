@@ -33,16 +33,16 @@ public interface AuditPartitionMapper {
      * <p>分区名与上界由 {@code AuditPartitionSpec} 生成并严格校验（只可能是 {@code p\d{6}} 与
      * 合法日期字面量），因此这里的拼接不引入注入面——DDL 无法使用参数占位符。
      */
-    @Update("ALTER TABLE iam_audit_log REORGANIZE PARTITION pmax INTO ("
+    @Update("ALTER TABLE iam_audit_log REORGANIZE PARTITION pmax INTO (" /* platform-wide: 分区 DDL 作用于整张表，本身没有租户维度 */
             + "PARTITION ${partitionName} VALUES LESS THAN ('${upperBound}'), "
             + "PARTITION pmax VALUES LESS THAN (MAXVALUE))")
     void reorganizePmaxInto(@Param("partitionName") String partitionName, @Param("upperBound") String upperBound);
 
     /** 指定分区的行数（巡检 pmin/pmax 是否非空）。 */
-    @Select("SELECT COUNT(*) FROM iam_audit_log PARTITION (${partitionName})")
+    @Select("SELECT COUNT(*) FROM iam_audit_log PARTITION (${partitionName})") /* platform-wide: 分区级巡检计数，跨租户统计 */
     long countInPartition(@Param("partitionName") String partitionName);
 
     /** 清理过期幂等键（按 created_at，刻意不加 LIMIT：H2/MySQL 行为不一致，靠「按小时运行」有界）。 */
-    @Delete("DELETE FROM iam_audit_idempotency WHERE created_at < #{cutoff}")
+    @Delete("DELETE FROM iam_audit_idempotency WHERE created_at < #{cutoff}") /* platform-wide: 按时间窗口的保留策略清理，对所有租户一致 */
     int deleteIdempotencyBefore(@Param("cutoff") LocalDateTime cutoff);
 }

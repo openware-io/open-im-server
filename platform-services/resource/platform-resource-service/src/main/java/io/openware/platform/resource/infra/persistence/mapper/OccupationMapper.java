@@ -25,7 +25,7 @@ public interface OccupationMapper extends BaseMapper<OccupationPo> {
 
     /** 扫描已过期 HELD 占用（跨租户，跳过租户拦截器），供过期释放定时任务消费。 */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM res_occupation WHERE status = 'HELD' AND hold_expires_at < #{now} ORDER BY id LIMIT #{limit}")
+    @Select("SELECT * FROM res_occupation WHERE status = 'HELD' AND hold_expires_at < #{now} ORDER BY id LIMIT #{limit}") /* platform-wide: 定时任务跨租户扫描预占超时，租户归属随行返回 */
     List<OccupationPo> selectExpiredHolds(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
     /**
@@ -36,7 +36,7 @@ public interface OccupationMapper extends BaseMapper<OccupationPo> {
      * 房态会一直显示「使用中」，包厢既不能被预约分配也不能再次开台——由定时任务按 end_at 兜底自愈。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM res_occupation WHERE status IN ('HELD','RESERVED','IN_USE') AND end_at < #{now} " +
+    @Select("SELECT * FROM res_occupation WHERE status IN ('HELD','RESERVED','IN_USE') AND end_at < #{now} " + /* platform-wide: 同上，按业务时段结束兜底自愈 */
             "ORDER BY id LIMIT #{limit}")
     List<OccupationPo> selectEndedOccupations(@Param("now") LocalDateTime now, @Param("limit") int limit);
 
@@ -57,7 +57,7 @@ public interface OccupationMapper extends BaseMapper<OccupationPo> {
      * {@code GREATEST(start_at, ...)} 后最坏是零长度区间 [start_at, start_at]，不会倒退。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Update("UPDATE res_occupation SET status = 'RELEASED', version = version + 1, " +
+    @Update("UPDATE res_occupation SET status = 'RELEASED', version = version + 1, " + /* tenant-agnostic: 按主键 id + version 定位单行，租户边界由上游行读取保证 */
             "end_at = GREATEST(start_at, LEAST(COALESCE(end_at, #{updatedAt}), #{updatedAt})), " +
             "updated_at = #{updatedAt} " +
             "WHERE id = #{id} AND status IN ('HELD','RESERVED','IN_USE') AND version = #{version}")
@@ -65,7 +65,7 @@ public interface OccupationMapper extends BaseMapper<OccupationPo> {
 
     /** 乐观锁取消：HELD/RESERVED 且 version 匹配才生效，返回受影响行数。 */
     @InterceptorIgnore(tenantLine = "true")
-    @Update("UPDATE res_occupation SET status = 'CANCELLED', version = version + 1, updated_at = #{updatedAt} " +
+    @Update("UPDATE res_occupation SET status = 'CANCELLED', version = version + 1, updated_at = #{updatedAt} " + /* tenant-agnostic: 同上 */
             "WHERE id = #{id} AND status IN ('HELD','RESERVED') AND version = #{version}")
     int cancelWithVersion(@Param("id") Long id, @Param("version") Integer version, @Param("updatedAt") LocalDateTime updatedAt);
 }
