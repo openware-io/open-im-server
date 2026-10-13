@@ -1,5 +1,6 @@
 -- H2 (MODE=MySQL) test schema for payment integration test.
--- Mirrors pay_collect/pay_intent/pay_transaction from production MySQL Flyway.
+-- Mirrors pay_collect/pay_intent/pay_transaction/tnt_payment_method/pay_channel_config from the production
+-- MySQL Flyway baseline `V1__pay_baseline.sql` (baseline rebuild batch 2 folded V1..V15 into one file).
 -- 注：pay_collect.request_json/response_json 在 MySQL 是 JSON，这里用 TEXT —— H2 把通过 JDBC 参数写入的
 -- 字符串按「JSON 字符串标量」保存（读回来带引号与转义），无法忠实回放 MySQL 的 JSON 文本往返，
 -- 而应用侧只按字符串读写这两列（Jackson 自行解析），故测试用 TEXT 保持与生产一致的可读回语义。
@@ -13,7 +14,7 @@ CREATE TABLE pay_collect (
   order_id BIGINT NOT NULL,
   idempotency_key VARCHAR(64) NOT NULL,
   state VARCHAR(24) NOT NULL DEFAULT 'INIT',
-  -- 币种快照（生产 V10__pay_currency_snapshot.sql）：本次组合收款/分腿/找零币种，历史行回填 USD。
+  -- 币种快照（生产 V1__pay_baseline.sql 的 pay_collect）：本次组合收款/分腿/找零币种，历史行回填 USD。
   currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
   request_json TEXT,
   response_json TEXT,
@@ -59,27 +60,34 @@ CREATE TABLE pay_transaction (
   fee_amount DECIMAL(20,6),
   status VARCHAR(24) NOT NULL,
   occurred_at TIMESTAMP NOT NULL,
-  raw_reference VARCHAR(255)
+  raw_reference VARCHAR(255),
+  -- 审计字段（镜像生产 V1__pay_baseline.sql）：created_at/updated_at 非空，写入方必须提供。
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE tenant_payment_method (
+CREATE TABLE tnt_payment_method (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
   method VARCHAR(32) NOT NULL,
   granted INT NOT NULL DEFAULT 0,
   user_enabled INT NOT NULL DEFAULT 1,
   status VARCHAR(24),
+  created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL,
-  CONSTRAINT uk_tenant_payment_method UNIQUE (tenant_id, method)
+  CONSTRAINT uk_tnt_payment_method_tenant_method UNIQUE (tenant_id, method)
 );
 
-INSERT INTO tenant_payment_method (tenant_id, method, granted, user_enabled, status, created_at, updated_at)
+INSERT INTO tnt_payment_method (tenant_id, method, granted, user_enabled, status, created_at, updated_at)
 VALUES (1001, 'WALLET', 1, 1, 'ENABLED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
        -- 线上渠道（ALIPAY）组合收款用例需要租户授权，与 tenant-payment-method 同源。
        (1001, 'ALIPAY', 1, 1, 'ENABLED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
--- 线上支付渠道配置（镜像生产 V2__pay_channel_config.sql）：
+-- 线上支付渠道配置（镜像生产 V1__pay_baseline.sql 的 pay_channel_config）：
 -- ALIPAY/WECHAT/STRIPE 走「租户授权 + 渠道已开通」双重判定，缺少本表时组合收款里的线上分腿会 500。
 CREATE TABLE pay_channel_config (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

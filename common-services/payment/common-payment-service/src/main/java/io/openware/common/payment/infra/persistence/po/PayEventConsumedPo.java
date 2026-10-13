@@ -22,4 +22,8 @@ public class PayEventConsumedPo {
     private String aggregateType;
     private String aggregateId;
     private LocalDateTime consumedAt;
+    private Long createdBy;
+    private LocalDateTime createdAt;
+    private Long updatedBy;
+    private LocalDateTime updatedAt;
 }

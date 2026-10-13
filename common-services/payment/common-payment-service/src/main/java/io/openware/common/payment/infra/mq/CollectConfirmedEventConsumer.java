@@ -84,6 +84,9 @@ public class CollectConfirmedEventConsumer implements SmartLifecycle {
       po.setAggregateType("collect");
       po.setAggregateId(event.getCollectNo());
       po.setConsumedAt(LocalDateTime.now());
+      // 审计字段（created_at/updated_at 非空且无默认值，必须由写入方提供；操作人列留默认 0）。
+      po.setCreatedAt(LocalDateTime.now());
+      po.setUpdatedAt(LocalDateTime.now());
       consumedMapper.insert(po);
       log.info("消费 payment.collect.confirmed 事件成功并完成积分获得, eventId={}, collectNo={}", event.getEventId(),
           event.getCollectNo());

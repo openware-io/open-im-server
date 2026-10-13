@@ -764,7 +764,7 @@ SELECT m.code, m.required_permission
 | 2 | 每个 ACTIVE 码的 `grantable_levels` ⊇ 强制集、且非空 | §4.3 ① | 漏配元数据（新增码默认 `STORE` 悄悄生效） |
 | 3 | 每个 ACTIVE 码至少被一个角色持有 | §4.3 ④ | 新码上线即 403（V24 的成因） |
 | 4 | `iam_menu.required_permission` 中每个码存在于 `iam_permission` | 本节上方 SQL | 菜单变成第二份权限事实 |
-| 5 | `iam_menu.required_grant` 中每个能力在 `tenant_payment_method` 语义内（见 §9.2 规则 e） | 启动期校验 | 能力开关写错导致入口永久隐藏 |
+| 5 | `iam_menu.required_grant` 中每个能力在 `tnt_payment_method` 语义内（见 §9.2 规则 e） | 启动期校验 | 能力开关写错导致入口永久隐藏 |
 | 6 | **菜单 `path` 与前端路由表一致**：叶子节点 `path` 必须命中 `gv_saas_admin/src/router/index.js` 的路由；分组节点 `path` 必须为空 | 跨仓脚本 | 菜单指向不存在的路由 / 路由无入口（违反"path 全部可达"验收项） |
 
 > 第 6 条的实测背景：现有 `AdminMenuItem` 里 PLATFORM 的 `iam`（`SVC:38`）带 `path="/admin/iam"`，

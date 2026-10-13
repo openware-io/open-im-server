@@ -29,6 +29,9 @@ public class GroupAccountPo {
   /** 状态 ENABLED/DISABLED */
   private String status;
 
+  /** 审计字段：写入方未赋值时由 MyBatis-Plus 省略该列，取库默认值 */
+  private Long createdBy;
   private LocalDateTime createdAt;
+  private Long updatedBy;
   private LocalDateTime updatedAt;
 }

@@ -52,7 +52,7 @@ class PaymentMethodChannelAuditTest {
     assertEquals("payment-method.grant", record.action());
     assertEquals("支付方式授权", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
-    assertEquals("tenant_payment_method", record.resourceType());
+    assertEquals("tnt_payment_method", record.resourceType());
     assertEquals("WALLET", record.resourceName());
   }
 

@@ -7,10 +7,10 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
 
-/** 租户支付方式授权/开关（与 common-payment-service 同表 tenant_payment_method，后台菜单权限过滤只读）。 */
+/** 租户支付方式授权/开关（与 common-payment-service 同表 tnt_payment_method，后台菜单权限过滤只读）。 */
 @Getter
 @Setter
-@TableName("tenant_payment_method")
+@TableName("tnt_payment_method")
 public class TenantPaymentMethodPo {
     @TableId(type = IdType.AUTO)
     private Long id;

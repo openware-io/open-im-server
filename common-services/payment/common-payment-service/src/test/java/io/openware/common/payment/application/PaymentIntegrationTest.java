@@ -490,12 +490,12 @@ class PaymentIntegrationTest {
 
   private void grantMethod(long tenantId, String method) {
     Integer existing = jdbc.queryForObject(
-        "SELECT COUNT(*) FROM tenant_payment_method WHERE tenant_id = ? AND method = ?",
+        "SELECT COUNT(*) FROM tnt_payment_method WHERE tenant_id = ? AND method = ?",
         Integer.class, tenantId, method);
     if (existing != null && existing > 0) {
       return;
     }
-    jdbc.update("INSERT INTO tenant_payment_method (tenant_id, method, granted, user_enabled, status,"
+    jdbc.update("INSERT INTO tnt_payment_method (tenant_id, method, granted, user_enabled, status,"
             + " created_at, updated_at) VALUES (?, ?, 1, 1, 'ENABLED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
         tenantId, method);
   }

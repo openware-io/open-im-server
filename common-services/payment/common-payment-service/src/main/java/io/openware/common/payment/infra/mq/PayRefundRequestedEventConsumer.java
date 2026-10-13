@@ -61,6 +61,9 @@ public class PayRefundRequestedEventConsumer implements SmartLifecycle {
       po.setAggregateType("refund");
       po.setAggregateId(event.getRefundNo());
       po.setConsumedAt(LocalDateTime.now());
+      // 审计字段（created_at/updated_at 非空且无默认值，必须由写入方提供；操作人列留默认 0）。
+      po.setCreatedAt(LocalDateTime.now());
+      po.setUpdatedAt(LocalDateTime.now());
       consumedMapper.insert(po);
       log.info("消费 payment.refund.requested 事件成功, eventId={}, refundNo={}", event.getEventId(),
           event.getRefundNo());

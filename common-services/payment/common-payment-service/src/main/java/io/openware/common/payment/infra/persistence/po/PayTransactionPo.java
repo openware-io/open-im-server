@@ -29,4 +29,8 @@ public class PayTransactionPo {
     private String status;
     private LocalDateTime occurredAt;
     private String rawReference;
+    private Long createdBy;
+    private LocalDateTime createdAt;
+    private Long updatedBy;
+    private LocalDateTime updatedAt;
 }

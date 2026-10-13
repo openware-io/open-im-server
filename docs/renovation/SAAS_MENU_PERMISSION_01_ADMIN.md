@@ -42,7 +42,7 @@
 | --- | --- | --- |
 | 菜单下发 | **19 个**租户菜单（不是 18）全部 `parentId=0`、`children=List.of()`，**一层平铺**；`AdminMenuItem` 支持 `children`，**PLATFORM 段的 `iam` 已在用**（2 个子项） | `AdminMenuApplicationService.java:44-71`（19 个 TENANT）、`:38-40`（PLATFORM `iam` + 2 子项） |
 | 菜单维度 | `scope` 只有 `PLATFORM` / `TENANT` **两个值**（纯 String，无枚举、无常量），没有 `STORE` / `ORGANIZATION` | `AdminMenuItem.java:9`、`SVC:36-71` |
-| 菜单可见性 | 后端 **4 条硬编码 path 判断**（储值/脱敏/运营人员/审计，`SVC:93-96`）；其中**储值那条不是权限码**，是查 `tenant_payment_method(method='WALLET', granted=1)` 表。前端映射**只有 1 条**（`/admin/tenant/currency`），且未登记路径**一律可见** | `filterTenantMenus()` `SVC:85-98`、`isWalletGranted()` `SVC:107-114`、`utils/menuPermission.js:26-43` |
+| 菜单可见性 | 后端 **4 条硬编码 path 判断**（储值/脱敏/运营人员/审计，`SVC:93-96`）；其中**储值那条不是权限码**，是查 `tnt_payment_method(method='WALLET', granted=1)` 表。前端映射**只有 1 条**（`/admin/tenant/currency`），且未登记路径**一律可见** | `filterTenantMenus()` `SVC:85-98`、`isWalletGranted()` `SVC:107-114`、`utils/menuPermission.js:26-43` |
 | 菜单元数据 | `AdminMenuItem` 共 8 字段（`id/parentId/code/name/path/icon/scope/children`），**无排序字段、无 i18nKey、无权限码字段**；`code` 存在跨 scope 重名（PLATFORM 与 TENANT 都是 `paymethod`） | `AdminMenuItem.java:9-10`、`SVC:42` 与 `SVC:65` |
 | 权限码 | `module.resource.action`，`iam_permission` 表只有 `code/module/resource/action/description/status`，**无层级、无业态归属** | `V1__tnt_iam_baseline.sql` |
 | 角色 | `iam_role` 有 `role_type`（sdk/PRESET/TENANT），**无归属层级** | 同上 |
@@ -504,7 +504,7 @@ CREATE TABLE `iam_menu` (
 > **另一处必须替换的现状**：`filterTenantMenus`（`SVC:85-98`）是**4 条 path 等值判断且不递归 children**；
 > 换成声明式剪枝时要注意它现在的三个前置行为：① 上下文为 null → 剔除全部 TENANT 项（`:86`）；
 > ② `scope=PLATFORM` 时根本不过滤（`:80`）；③ 其中"储值管理"那条**不是权限码**，是查
-> `tenant_payment_method(method='WALLET', granted=1)`（`isWalletGranted`，`:107-114`，**无缓存，每请求一次查询**）
+> `tnt_payment_method(method='WALLET', granted=1)`（`isWalletGranted`，`:107-114`，**无缓存，每请求一次查询**）
 > —— 对应新模型的 `required_grant`，且**迁移时要顺手把它纳入缓存或启动期预取**。
 
 **兼容策略（灰度）：**
@@ -595,7 +595,7 @@ store_id bigint unsigned NULL COMMENT '门店ID，NULL=租户级通用'
 
 ### 7.5 E · 平台级（无租户约束）
 
-`tenant_payment_method`（平台授予租户某项支付能力，`AdminMenuApplicationService.isWalletGranted()` 查的就是它——`required_grant` 剪枝规则的现成实现）、`pay_channel_provider`（平台侧）、`saa_admin_account`。
+`tnt_payment_method`（平台授予租户某项支付能力，`AdminMenuApplicationService.isWalletGranted()` 查的就是它——`required_grant` 剪枝规则的现成实现）、`pay_channel_provider`（平台侧）、`saa_admin_account`。
 
 ### 7.6 新增功能时的决策树（写进工程规范）
 

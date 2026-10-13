@@ -786,11 +786,11 @@ store_id bigint unsigned <span class="k">NULL</span>
 
     <div class="card" style="margin-top:16px">
       <div class="cap"><span class="dot" style="background:#909399"></span>E · 平台级（无租户约束）</div>
-      <span class="chip">tenant_payment_method</span>
+      <span class="chip">tnt_payment_method</span>
       <span class="chip">pay_channel_provider（平台侧）</span>
       <span class="chip">saa_admin_account</span>
       <div class="cat-note" style="border-top:0;padding-top:8px;margin-top:8px">
-        <code>tenant_payment_method</code> 是「平台授予租户某项支付能力」的开关，<code>AdminMenuApplicationService.isWalletGranted()</code>
+        <code>tnt_payment_method</code> 是「平台授予租户某项支付能力」的开关，<code>AdminMenuApplicationService.isWalletGranted()</code>
         就是查它来决定「储值管理」菜单是否下发 —— 这是 <code>required_grant</code> 剪枝规则的现成实现。
       </div>
     </div>
@@ -1132,7 +1132,7 @@ store_id bigint unsigned <span class="k">NULL</span>
           <div class="fstep cut">
             <span class="n">e</span>
             <div class="fc"><b>能力开关节点</b>：<code>required_grant</code> 未授予 → 剪<br>
-              <span style="color:#909399">如「储值管理」需要租户已获 <code>payment.method.wallet</code>（查 <code>tenant_payment_method</code>）</span></div>
+              <span style="color:#909399">如「储值管理」需要租户已获 <code>payment.method.wallet</code>（查 <code>tnt_payment_method</code>）</span></div>
           </div>
           <div class="fdown">▼</div>
           <div class="fstep" style="background:#f0f9eb;border-color:#c2e7b0">

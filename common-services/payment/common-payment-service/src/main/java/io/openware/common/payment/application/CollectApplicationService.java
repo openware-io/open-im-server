@@ -541,6 +541,9 @@ public class CollectApplicationService {
         tx.setCurrencyCode(currencyCode);
         tx.setStatus("SUCCEEDED");
         tx.setOccurredAt(LocalDateTime.now());
+        // 审计字段（created_at/updated_at 非空且无默认值，必须由写入方提供；操作人列留默认 0）。
+        tx.setCreatedAt(LocalDateTime.now());
+        tx.setUpdatedAt(LocalDateTime.now());
         payTransactionMapper.insert(tx);
     }
 

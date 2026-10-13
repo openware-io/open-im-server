@@ -29,7 +29,8 @@ public interface RefundMapper extends BaseMapper<RefundPo> {
    * <p><b>金额口径</b>：{@code approved_amount} 优先（实际批准金额），缺失时回退 {@code requested_amount}；
    * 一律最小货币单位整数（CNY 分 / USD cent）。
    *
-   * <p><b>币种口径</b>：取 {@code pay_refund.currency_code} 快照（{@code V10__pay_currency_snapshot.sql:22-24}，
+   * <p><b>币种口径</b>：取 {@code pay_refund.currency_code} 快照（{@code V1__pay_baseline.sql} 的 pay_refund 列，
+   * 原 {@code V10__pay_currency_snapshot.sql} 已并入该基线），
    * 退款退原币种），为空的历史行才回退订单币种快照；**禁止**按当前租户币种解释历史退款。
    *
    * @return 每个出现过的币种一行；无退款时返回空列表（由调用方按 0 处理）
