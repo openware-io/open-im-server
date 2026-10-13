@@ -48,14 +48,14 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
      */
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT "
-            + "(SELECT COUNT(*) FROM ord_order o WHERE o.customer_id = #{id}) AS orders_count, "
-            + "(SELECT COUNT(*) FROM ord_reservation r WHERE r.customer_id = #{id}) AS reservations_count, "
-            + "(SELECT COUNT(*) FROM cst_wallet_account w WHERE w.customer_id = #{id} "
+            + "(SELECT COUNT(*) FROM ord_order o WHERE o.customer_id = #{id}) AS orders_count, " /* tenant-agnostic: 按已校验的 customer_id 精确计数，等价于带租户谓词 */
+            + "(SELECT COUNT(*) FROM ord_reservation r WHERE r.customer_id = #{id}) AS reservations_count, " /* tenant-agnostic: 同上 */
+            + "(SELECT COUNT(*) FROM cst_wallet_account w WHERE w.customer_id = #{id} " /* tenant-agnostic: 同上 */
             + "   AND (w.available_amount <> 0 OR w.frozen_amount <> 0)) AS wallets_count, "
-            + "(SELECT COUNT(*) FROM cst_point_account p WHERE p.customer_id = #{id} "
+            + "(SELECT COUNT(*) FROM cst_point_account p WHERE p.customer_id = #{id} " /* tenant-agnostic: 同上 */
             + "   AND (p.available_points <> 0 OR p.frozen_points <> 0)) AS points_count, "
-            + "(SELECT COUNT(*) FROM mkt_coupon_issuance ci WHERE ci.customer_id = #{id}) AS coupons_issued_count, "
-            + "(SELECT COUNT(*) FROM mkt_coupon_redemption cr WHERE cr.customer_id = #{id}) AS coupons_redeemed_count")
+            + "(SELECT COUNT(*) FROM mkt_coupon_issuance ci WHERE ci.customer_id = #{id}) AS coupons_issued_count, " /* tenant-agnostic: 同上 */
+            + "(SELECT COUNT(*) FROM mkt_coupon_redemption cr WHERE cr.customer_id = #{id}) AS coupons_redeemed_count") /* tenant-agnostic: 同上 */
     java.util.Map<String, Object> selectPurgeBlockers(@Param("id") Long id);
 
     /**

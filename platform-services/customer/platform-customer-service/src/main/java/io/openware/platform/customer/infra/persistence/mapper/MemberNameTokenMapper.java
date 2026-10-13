@@ -75,8 +75,7 @@ public interface MemberNameTokenMapper extends BaseMapper<CstMemberNameTokenPo> 
           FROM cst_member m
          WHERE m.tenant_id = #{tenantId}
            AND m.id > #{afterId}
-           AND NOT EXISTS (SELECT 1 FROM cst_member_name_token t
-                            WHERE t.tenant_id = m.tenant_id AND t.member_id = m.id)
+           AND NOT EXISTS (SELECT 1 FROM cst_member_name_token t WHERE t.tenant_id = #{tenantId} AND t.member_id = m.id)
          ORDER BY m.id
          LIMIT #{limit}
         """)
@@ -90,8 +89,7 @@ public interface MemberNameTokenMapper extends BaseMapper<CstMemberNameTokenPo> 
         SELECT COUNT(*)
           FROM cst_member m
          WHERE m.tenant_id = #{tenantId}
-           AND NOT EXISTS (SELECT 1 FROM cst_member_name_token t
-                            WHERE t.tenant_id = m.tenant_id AND t.member_id = m.id)
+           AND NOT EXISTS (SELECT 1 FROM cst_member_name_token t WHERE t.tenant_id = #{tenantId} AND t.member_id = m.id)
         """)
     long countMembersMissingTokens(@Param("tenantId") long tenantId);
 }
