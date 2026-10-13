@@ -52,6 +52,7 @@ function Invoke-LoggedCommand {
 $validators = @(
   @{ Name = 'text-encoding'; Arguments = @('-Strict') },
   @{ Name = 'powershell-utf8-safety'; Arguments = @() },
+  @{ Name = 'powershell-ascii-only'; Arguments = @() },
   @{ Name = 'java-comment-quality'; Arguments = @() },
   @{ Name = 'java-deprecated-api-usage'; Arguments = @() },
   @{ Name = 'java-exception-logging'; Arguments = @() },

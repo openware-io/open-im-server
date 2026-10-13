@@ -5,7 +5,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $violations = [System.Collections.Generic.List[string]]::new()
 
-# 1) 源码级：遗留 JPA 依赖（业务/接入模块源码不得使用 javax.persistence）
+# 1) Source level: legacy JPA dependency (business/access modules must not use javax.persistence)
 $javaFiles = git -C $root ls-files '*src/main/java/*.java'
 foreach ($relativePath in $javaFiles) {
   if ($relativePath -notmatch '/src/main/java/') { continue }
@@ -17,7 +17,7 @@ foreach ($relativePath in $javaFiles) {
   }
 }
 
-# 2) POM 级：业务/接入模块禁止直接声明 MyBatis-Plus 底层组件与 flyway-core
+# 2) POM level: business/access modules must not declare bottom persistence components or flyway-core
 $servicePoms = git -C $root ls-files 'im-services/*/*-service/pom.xml' 'platform-services/*/*-service/pom.xml' 'common-services/*/*-service/pom.xml' 'group-services/*/*-service/pom.xml'
 $gatewayPoms = git -C $root ls-files 'gateways/*/pom.xml'
 $forbiddenBottom = @('mybatis-plus-core', 'mybatis-plus-extension', 'mybatis-plus-annotation', 'mybatis-spring', 'flyway-core')

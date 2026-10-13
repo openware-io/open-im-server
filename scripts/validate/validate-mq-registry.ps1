@@ -1,7 +1,8 @@
 # RocketMQ ledger validator (G-09).
 #
-# standards/12: "已实现资源的唯一登记来源为 MQ 资源台账" and "Topic / Producer Group / Consumer Group
-# 必须集中定义在 protocol-mq 的协议常量中；业务服务只引用常量，不得自行声明重复字面量".
+# standards/12: implemented resources have exactly one source of truth, the MQ ledger (docs/mq/REGISTRY.md);
+# topics and producer/consumer groups must be defined as protocol-mq constants, and business services may
+# only reference those constants instead of declaring duplicate literals.
 # Nothing compared the ledger with the code, so 34 live resources were missing from the ledger.
 #
 # Checks:
