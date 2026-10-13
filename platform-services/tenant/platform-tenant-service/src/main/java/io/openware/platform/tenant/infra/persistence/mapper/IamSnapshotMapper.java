@@ -39,7 +39,7 @@ public interface IamSnapshotMapper {
 
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT COUNT(1) FROM tnt_app_user_authorization
+        SELECT COUNT(1) FROM tnt_app_user_authorization /* platform-wide: app_id + account_id 全局唯一，登记于 tenant-platform-tables.txt */
         WHERE app_id = #{appId} AND account_id = #{accountId}
           AND status = 'ACTIVE'
           AND (revoked_at IS NULL)
@@ -220,7 +220,7 @@ public interface IamSnapshotMapper {
     /** 账号的 ACTIVE iam_user_role id 列表（删除运营人员时逐个撤销用；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT id FROM iam_user_role
+        SELECT id FROM iam_user_role /* tenant-agnostic: 按全局唯一 account_id 定位该账号的角色绑定 */
         WHERE account_id = #{accountId} AND status = 'ACTIVE'
         """)
     List<Long> selectUserRoleIds(@Param("accountId") Long accountId);
@@ -236,7 +236,7 @@ public interface IamSnapshotMapper {
     /** 查 iam_user_role 绑定的 account_id（撤销后逐出权限快照缓存用；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT account_id FROM iam_user_role WHERE id = #{userRoleId}
+        SELECT account_id FROM iam_user_role WHERE id = #{userRoleId} /* tenant-agnostic: 按全局唯一主键回查 account_id */
         """)
     Long selectAccountIdByUserRole(@Param("userRoleId") Long userRoleId);
 }

@@ -21,8 +21,7 @@ public interface InternalTenantConfigMapper {
     /** 租户级配置值（{@code store_id=0}）；无行时返回 null，由调用方按缺省 USD 解析。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT config_value FROM tnt_tenant_config
-        WHERE tenant_id = #{tenantId} AND store_id = 0 AND config_key = #{configKey}
+        SELECT config_value FROM tnt_tenant_config WHERE tenant_id = #{tenantId} AND store_id = 0 AND config_key = #{configKey}
         ORDER BY id LIMIT 1
         """)
     String selectTenantConfigValue(@Param("tenantId") Long tenantId, @Param("configKey") String configKey);
@@ -35,8 +34,7 @@ public interface InternalTenantConfigMapper {
      */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT config_value FROM tnt_tenant_config
-        WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND config_key = #{configKey}
+        SELECT config_value FROM tnt_tenant_config WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND config_key = #{configKey}
         ORDER BY id LIMIT 1
         """)
     String selectStoreConfigValue(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
@@ -45,8 +43,7 @@ public interface InternalTenantConfigMapper {
     /** 业态默认配置（store_id=0）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT config_value FROM tnt_tenant_config
-        WHERE tenant_id = #{tenantId} AND store_id = 0 AND business_type = #{businessType}
+        SELECT config_value FROM tnt_tenant_config WHERE tenant_id = #{tenantId} AND store_id = 0 AND business_type = #{businessType}
           AND config_key = #{configKey} AND status = 'ACTIVE'
         ORDER BY id LIMIT 1
         """)
@@ -56,8 +53,7 @@ public interface InternalTenantConfigMapper {
     /** 带业态的门店覆盖配置。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT config_value FROM tnt_tenant_config
-        WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND business_type = #{businessType}
+        SELECT config_value FROM tnt_tenant_config WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND business_type = #{businessType}
           AND config_key = #{configKey} AND status = 'ACTIVE'
         ORDER BY id LIMIT 1
         """)
