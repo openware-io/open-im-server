@@ -4,7 +4,7 @@
 # Until then migrations may be rebuilt and this gate only reports that state.
 #
 # A baseline tag is either:
-#   - a tag whose annotation message contains the word "frozen" (as written by the documented
+#   - a tag whose annotation contains a standalone "freeze: true" line (written by the documented
 #     baseline command), or
 #   - a tag named baseline-* .
 #
@@ -28,8 +28,10 @@ $violations = [System.Collections.Generic.List[string]]::new()
 $baselineTag = $null
 foreach ($tag in (git -C $root tag --list)) {
   if ($tag -like 'baseline-*') { $baselineTag = $tag; break }
-  $message = (git -C $root tag -l --format='%(contents)' $tag) -join ' '
-  if ($message -match '(?i)frozen') { $baselineTag = $tag; break }
+  # Structured marker only: a loose word match also catches annotations that DISCLAIM a freeze
+  # (for example a note saying "this tag is not a freeze point"), which silently blocks rebuilds.
+  $message = (git -C $root tag -l --format='%(contents)' $tag) -join "`n"
+  if ($message -match '(?m)^\s*freeze:\s*true\s*$') { $baselineTag = $tag; break }
 }
 
 if (-not $baselineTag) {

@@ -70,7 +70,7 @@
 4. 清库重建：销毁 Kind 命名空间与 Compose 数据卷（PR-03）→ 全新 Flyway 迁移 → 全服务启动
 5. 回归：`scripts/verify/*` 全量 + 关键链路（登录/会话/消息/媒体/KTV 预约）
 6. 门禁复验：`flyway-conventions` → 0、`tenant-sql` → 0、`secret-exposure` → 0，三个门禁从报告模式**转为阻断**（删除 `report-only-gates.txt` 中对应行）
-7. tag 收尾（DC-15/DC-10）：删除 `v2.0.0`（本地 + 远端）→ 打 `v2.2.0` 注释 tag（message 含 `frozen`）
+7. tag 收尾（DC-15/DC-10）：删除 `v2.0.0`（本地 + 远端）→ 打 `v2.2.0` 注释 tag（tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true`）
 
 ## 4.1 样板模块（已完成）：common-mail-service
 

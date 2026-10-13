@@ -218,7 +218,7 @@ common-services/
 - 未持有迁移脚本的模块，禁止仅因“以后可能会用”而预置 Flyway 依赖；需要接入时，必须同时补齐脚本、配置和职责说明
 - 持有迁移脚本的服务必须在 `application.yml` 中显式配置 `spring.flyway.enabled=true`，避免依赖存在但职责不清
 - 禁止在生产或开发主链路使用 `ddl-auto=create/update`
-- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本。**冻结点定义**：工程未正式发布前允许重建基线（须在 `docs/renovation/` 留档），冻结以显式基线 tag 为准（tag 注释含 `frozen`，或 `baseline-*` 前缀）；冻结后任何 `M`/`D` 变更由 `scripts/validate/validate-flyway-immutability.ps1` 阻断
+- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本。**冻结点定义**：工程未正式发布前允许重建基线（须在 `docs/renovation/` 留档），冻结以显式基线 tag 为准（tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true`）；冻结后任何 `M`/`D` 变更由 `scripts/validate/validate-flyway-immutability.ps1` 阻断
 - 旧式“大一统初始化脚本”可以保留为历史参考，但不得继续作为权威来源
 - 如果需要重置数据库，必须通过仓库内统一的重建脚本执行，并在 `.outputs/` 留存日志
 
