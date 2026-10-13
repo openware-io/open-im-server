@@ -86,18 +86,75 @@ foreach ($dir in $migrationDirs) {
     $name = $file.Name
     $fileRef = "${relative}/${name}"
 
-    if ($text -match '(?i)CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS') { $violations.Add("${fileRef}: CREATE TABLE IF NOT EXISTS is forbidden") }
-    if ($text -match '(?i)\bDROP\s+TABLE\b') { $violations.Add("${fileRef}: DROP TABLE is forbidden") }
-    if ($text -match '(?i)\bFOREIGN\s+KEY\b') { $violations.Add("${fileRef}: physical foreign keys are forbidden") }
-    if ($text -match '(?i)\b(PREPARE|EXECUTE|DEALLOCATE)\b') { $violations.Add("${fileRef}: dynamic DDL is forbidden") }
+    # Strip comments in ONE forward pass before parsing. Without this, a Chinese comment such as
+    # "KMS/Vault key id" is read as a real index declaration, and a commented-out "-- DROP TABLE x"
+    # is reported as a forbidden statement. A single pass is required: a "--" inside a string literal
+    # (for example COMMENT 'a -- b') must not be mistaken for a line comment and cut the statement
+    # in half. Backticks are treated as identifier quoting, NOT as string quoting, so backticked
+    # table and column names survive this pass intact.
+    #
+    # Every removed character is replaced by a space, so offsets are preserved and the table-match
+    # index stays usable against $code below.
+    $code = [System.Text.StringBuilder]::new($text.Length)
+    $index = 0
+    $quote = [char]0
+    while ($index -lt $text.Length) {
+      $char = $text[$index]
+      $next = if ($index + 1 -lt $text.Length) { $text[$index + 1] } else { [char]0 }
+      if ($quote -ne [char]0) {
+        [void]$code.Append($char)
+        if ($char -eq '\') {
+          if ($index + 1 -lt $text.Length) { [void]$code.Append($next); $index++ }
+        } elseif ($char -eq $quote) {
+          if ($next -eq $quote) { [void]$code.Append($next); $index++ } else { $quote = [char]0 }
+        }
+      } elseif ($char -eq "'" -or $char -eq '"') {
+        $quote = $char
+        [void]$code.Append($char)
+      } elseif ($char -eq '-' -and $next -eq '-') {
+        while ($index -lt $text.Length -and $text[$index] -ne "`n") { [void]$code.Append(' '); $index++ }
+        continue
+      } elseif ($char -eq '/' -and $next -eq '*') {
+        [void]$code.Append('  ')
+        $index += 2
+        while ($index -lt $text.Length -and -not ($text[$index] -eq '*' -and $index + 1 -lt $text.Length -and $text[$index + 1] -eq '/')) {
+          [void]$code.Append(' ')
+          $index++
+        }
+        if ($index -lt $text.Length) { [void]$code.Append('  '); $index += 2 }
+        continue
+      } else {
+        [void]$code.Append($char)
+      }
+      $index++
+    }
+    $code = $code.ToString()
 
-    foreach ($tableMatch in [regex]::Matches($text, '(?is)CREATE\s+TABLE\s+`?(?<table>[a-z0-9_]+)`?\s*\((?<body>.*?)\)\s*(?<tail>ENGINE[^;]*;|;)')) {
+    # Identifier checks additionally blank out string-literal contents, so that comment text or a
+    # default value can never be mistaken for a column or index name. Offsets are NOT preserved here
+    # (a literal shrinks to an empty pair of quotes), so this buffer is never used to locate tables.
+    $identCode = [regex]::Replace($code, "(?s)'(?:[^'\\]|\\.|'')*'", "''")
+
+    if ($code -match '(?i)CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS') { $violations.Add("${fileRef}: CREATE TABLE IF NOT EXISTS is forbidden") }
+    if ($code -match '(?i)\bDROP\s+TABLE\b') { $violations.Add("${fileRef}: DROP TABLE is forbidden") }
+    if ($code -match '(?i)\bFOREIGN\s+KEY\b') { $violations.Add("${fileRef}: physical foreign keys are forbidden") }
+    if ($code -match '(?i)\b(PREPARE|EXECUTE|DEALLOCATE)\b') { $violations.Add("${fileRef}: dynamic DDL is forbidden") }
+
+    # Tables are located in $identCode, NOT $code: the string-literal pass shrinks literals, so only
+    # $identCode's own offsets are self-consistent. Every check below therefore reads $identCode or a
+    # slice of it; mixing the two buffers silently mis-locates tables (it once threw on
+    # adm_app_release). $code is used only for the file-level forbidden-construct checks above.
+    foreach ($tableMatch in [regex]::Matches($identCode, '(?is)CREATE\s+TABLE\s+`?(?<table>[a-z0-9_]+)`?\s*\((?<body>.*?)\)\s*(?<tail>ENGINE[^;]*;|;)')) {
       $tableCount++
       $table = $tableMatch.Groups['table'].Value
       $body = $tableMatch.Groups['body'].Value
       $tail = $tableMatch.Groups['tail'].Value
+      # Offset-aligned slice of the same buffer, so the column window is located in the very text the
+      # table was found in.
+      $identSlice = $tableMatch.Value
+      $identBody = $body
       $where = "${fileRef}:${table}"
-      $tableNameMatch = [regex]::Match($text.Substring($tableMatch.Index), $tableBacktickPattern)
+      $tableNameMatch = [regex]::Match($identSlice, $tableBacktickPattern)
 
       # Check 11a: table name must be backticked. $tableNameMatch is an independent match of the
       # same CREATE TABLE header, so it works whether or not the identifier is backticked (the
@@ -131,10 +188,10 @@ foreach ($dir in $migrationDirs) {
       }
 
       foreach ($audit in @('created_by', 'created_at', 'updated_by', 'updated_at')) {
-        if ($body -notmatch ('(?i)`?' + $audit + '`?')) { $violations.Add("${where}: audit column '$audit' is missing") }
+        if ($identBody -notmatch ('(?i)`?' + $audit + '`?')) { $violations.Add("${where}: audit column '$audit' is missing") }
       }
       foreach ($timeColumn in @('created_at', 'updated_at')) {
-        $timeMatch = [regex]::Match($body, ('(?i)`?' + $timeColumn + '`?\s+(?<type>[a-z]+(\(\d+\))?)'))
+        $timeMatch = [regex]::Match($identBody, ('(?i)`?' + $timeColumn + '`?\s+(?<type>[a-z]+(\(\d+\))?)'))
         if ($timeMatch.Success -and $timeMatch.Groups['type'].Value.ToLowerInvariant() -ne 'datetime(3)') {
           $violations.Add("${where}: '$timeColumn' must be datetime(3) (found $($timeMatch.Groups['type'].Value))")
         }
@@ -143,7 +200,7 @@ foreach ($dir in $migrationDirs) {
       # Index name is either backticked, or bare but NOT a column definition: a bare index name is
       # followed by whitespace or '(' , whereas a column definition is followed by its type
       # (for example "name VARCHAR(255)"), so a bare identifier must not be followed by '(' or ')'.
-      foreach ($indexMatch in [regex]::Matches($body, '(?i)(?<kind>UNIQUE\s+KEY|KEY)\s+(?:`(?<name>[a-z0-9_]+)`|(?<name>[a-z0-9_]+)(?![a-z0-9_(`]))')) {
+      foreach ($indexMatch in [regex]::Matches($identBody, '(?i)(?<kind>UNIQUE\s+KEY|KEY)\s+(?:`(?<name>[a-z0-9_]+)`|(?<name>[a-z0-9_]+)(?![a-z0-9_(`]))')) {
         $indexName = $indexMatch.Groups['name'].Value
         $expectedPrefix = if ($indexMatch.Groups['kind'].Value -match '(?i)UNIQUE') { 'uk_' } else { 'idx_' }
         if (-not $indexName.StartsWith($expectedPrefix)) {
@@ -160,7 +217,7 @@ foreach ($dir in $migrationDirs) {
       # opening parenthesis and stops at the first constraint/index line, so the table-level
       # COMMENT= in the tail and constraint columns are never mistaken for column definitions.
       $openParenPattern = [regex]::Escape($tableNameMatch.Value) + '\s*\((?<window>.*)'
-      $windowMatch = [regex]::Match($text.Substring($tableMatch.Index), '(?s)' + $openParenPattern)
+      $windowMatch = [regex]::Match($identSlice, '(?s)' + $openParenPattern)
       if (-not $windowMatch.Success) {
         throw "Internal parser error: cannot locate the column window at ${where}. Fix the gate before trusting its output."
       }
