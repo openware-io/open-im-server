@@ -211,13 +211,28 @@
 > - ❌ **不可信**：**合并前打过包的模块**（payment、tenant、admin 等）那次"OK / applied=15/32/33"是**混合历史**跑出来的，**不能证明"单 V1 基线"在运行期可用**。
 > - **下轮修正**：`mvnw --offline -DskipTests package` 做一次**干净打包**（`package` 不清理 target，所以**要么先 `clean`，要么确认完成后 jar 里只剩一个文件**），逐服务校验 `jar tf | grep db/migration` **只列出 V1 基线**，再重跑本验证。
 >
+> **✅ 修正后已重做并成功（同一轮内）**：
+> 1. `mvnw --offline -B -ntp -pl common-services/payment/common-payment-service -am clean package -DskipTests` → **BUILD SUCCESS**；`target/classes/db/migration` **15 → 1**（只剩 `V1__pay_baseline.sql`），`jar tf` 确认 jar 内只有这一个迁移。
+> 2. 空库（三库、**0 张表**）上启动该干净 jar，日志：
+>    ```
+>    baseline operation skipped
+>    Migrating schema `open_im` to version "1 - pay baseline"
+>    Successfully applied 1 migration to schema `open_im`, now at version v1
+>    Tomcat started
+>    ```
+>    `open_im` 建出 **13 张表**；`flyway_schema_history_payment` 只有一行 `1 | 1 | pay baseline | 1`。
+> 3. 于是**核心结论已实测**：`baseline-on-migrate=true` + `baseline-version=0` + **单条 V1 基线**，在全新库上能正确建表并让服务启动。`common-sms-service` 提供了第二个独立证据（其 jar 内只有 `V1__sms_baseline.sql`）。
+> 4. **启动服务的最小环境变量**：`MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`、`JWT_SECRET`、`INTERNAL_SERVICE_AUTH_SECRET`；**后两者必须 ≥32 字符**，否则抛 `internal.service-auth secret must contain at least 32 characters`（这是配置校验，不是缺陷）。
+> 5. **下轮可选**：对全部 19 个服务按同一流程跑完整运行期验收（本轮做了 2 个）。
+>
 > 可复现命令：
 > ```powershell
 > docker run -d --name dsh-flyway -e MYSQL_ROOT_PASSWORD=rootpw -p 3306:3306 mysql:8.0.46
 > # 等真正可查询后建三库；注意 mysqladmin ping 会在初始化期间就返回成功，必须用 information_schema 判断
 > docker exec dsh-flyway mysql -uroot -prootpw -e "CREATE DATABASE open_im; CREATE DATABASE im_server; CREATE DATABASE open_audit;"
-> # 逐个 java -jar <service>/target/*-2.2.0-SNAPSHOT.jar --server.port=<free>
-> # 必须设 JWT_SECRET 与 INTERNAL_SERVICE_AUTH_SECRET，否则多个服务会「拒绝启动」
+> # 先 clean package，再确认 jar 内只有一个 V1 迁移，最后逐个：
+> # java -jar <service>/target/*-2.2.0-SNAPSHOT.jar --server.port=<free>
+> # 必须设 JWT_SECRET 与 INTERNAL_SERVICE_AUTH_SECRET（各 >=32 字符）
 > ```
 
 > **⚠️ 先读这条：现存的 `open-im-local` 集群是"重建前"的旧状态，不能拿它当验收基线。**
