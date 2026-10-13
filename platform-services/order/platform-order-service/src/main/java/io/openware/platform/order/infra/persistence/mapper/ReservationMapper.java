@@ -23,7 +23,7 @@ public interface ReservationMapper extends BaseMapper<ReservationPo> {
      * 逐行设上下文再写。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM ord_reservation WHERE status IN ('PENDING', 'CONFIRMED') "
+    @Select("SELECT * FROM ord_reservation WHERE status IN ('PENDING', 'CONFIRMED') " /* platform-wide: 未到店超时任务跨租户扫出，每行自带 tenantId，逐行设上下文再写 */
             + "AND start_at IS NOT NULL AND start_at < #{cutoff}")
     List<ReservationPo> selectNotArrivedOverdue(@Param("cutoff") LocalDateTime cutoff);
 }

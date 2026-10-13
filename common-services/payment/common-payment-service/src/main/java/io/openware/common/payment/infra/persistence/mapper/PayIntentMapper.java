@@ -19,8 +19,8 @@ public interface PayIntentMapper extends BaseMapper<PayIntentPo> {
    * 币种取本班次的 {@code pay_shift.currency_code} 快照，而不是当前租户设置
    * （否则改设置会重算历史班次的 expected_cash）。
    */
-  @Select("SELECT COALESCE(SUM(amount), 0) FROM pay_intent " +
-      "WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND provider = 'CASH' " +
+  @Select("SELECT COALESCE(SUM(amount), 0) FROM pay_intent WHERE tenant_id = #{tenantId} " +
+      "AND store_id = #{storeId} AND provider = 'CASH' " +
       "AND currency_code = #{currencyCode} " +
       "AND status = 'SUCCEEDED' AND created_at >= #{from} AND created_at < #{to}")
   BigDecimal sumCashSucceeded(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,

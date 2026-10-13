@@ -62,7 +62,7 @@ public interface KtvSessionMapper extends BaseMapper<KtvSessionPo> {
      * 定时任务没有租户上下文，必须忽略租户行过滤（跨租户一次扫出；每行自带 tenantId，不做跨租户写）。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM ord_ktv_session WHERE status IN ('OPEN', 'PAUSED')")
+    @Select("SELECT * FROM ord_ktv_session WHERE status IN ('OPEN', 'PAUSED')") /* platform-wide: 定时任务无租户上下文，跨租户扫出；每行自带 tenantId，逐行设上下文再写，不跨租户写 */
     List<KtvSessionPo> selectOpenSessions();
 
     /**
@@ -76,7 +76,7 @@ public interface KtvSessionMapper extends BaseMapper<KtvSessionPo> {
      * 绝不跨租户写。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM ord_ktv_session WHERE status = 'RESERVED' AND opened_at IS NULL "
+    @Select("SELECT * FROM ord_ktv_session WHERE status = 'RESERVED' AND opened_at IS NULL " /* platform-wide: 超时释放任务跨租户扫出，逐行设上下文，绝不跨租户写 */
             + "AND COALESCE(reserved_start_at, created_at) < #{cutoff}")
     List<KtvSessionPo> selectReservedOverdue(@Param("cutoff") LocalDateTime cutoff);
 }

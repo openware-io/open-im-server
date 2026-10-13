@@ -22,8 +22,8 @@ public interface InventoryStockMapper extends BaseMapper<InventoryStockPo> {
      * 以行锁判定，返回 0 行即「可用库存不足」，由调用方抛 {@code INVENTORY_INSUFFICIENT}。
      * 条件里带上下界，因此并发扣减不可能把库存扣成负数（不依赖应用层先读后判）。
      */
-    @Update("UPDATE ord_inventory_stock SET on_hand_qty = on_hand_qty - #{quantity}, version = version + 1, updated_at = #{updatedAt} "
-            + "WHERE tenant_id = #{tenantId} AND store_id = #{storeId} AND material_id = #{materialId} "
+    @Update("UPDATE ord_inventory_stock SET on_hand_qty = on_hand_qty - #{quantity}, version = version + 1, updated_at = #{updatedAt} WHERE tenant_id = #{tenantId} "
+            + "AND store_id = #{storeId} AND material_id = #{materialId} "
             + "AND on_hand_qty - reserved_qty >= #{quantity}")
     int deductAvailable(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
                         @Param("materialId") Long materialId, @Param("quantity") BigDecimal quantity,

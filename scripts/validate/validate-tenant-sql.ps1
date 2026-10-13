@@ -65,6 +65,18 @@ foreach ($domain in $roots) {
 }
 
 # --- 2) query level (raw SQL in mappers) ---
+#
+# Only statements that OPT OUT of the tenant interceptor need an explicit predicate.
+# TenantLineInnerInterceptor rewrites the SQL of every statement that does not carry
+# @InterceptorIgnore, injecting the tenant predicate at runtime; that predicate is
+# necessarily absent from the source text, so flagging those statements was a false
+# positive (and it made the marker the wrong fix: the query is tenant-scoped, not
+# tenant-agnostic). A statement is therefore "opted out" when it carries @InterceptorIgnore,
+# and that annotation also governs every continuation line of a multi-line @Select/@Update
+# or of a text block, until the statement ends.
+#
+# Consequence: an @InterceptorIgnore statement must either carry the predicate itself or
+# declare what it is doing with an explicit platform-wide / tenant-agnostic marker.
 Push-Location $root
 try {
   $mapperFiles = git -C $root ls-files '*/src/main/java/*/mapper/*.java' '*/src/main/resources/mapper/*.xml'
@@ -72,12 +84,21 @@ try {
     $path = Join-Path $root $relativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
     $lineNumber = 0
+    $statementOptedOut = $false
     foreach ($line in [System.IO.File]::ReadLines($path, [System.Text.UTF8Encoding]::new($false, $true))) {
       $lineNumber++
-      if ($line -notmatch '(?i)\b(SELECT|UPDATE|DELETE)\b.*\b(FROM|UPDATE|INTO)\b') { continue }
-      if ($line -match 'tenant_id') { continue }
-      # A platform-wide sweep may legitimately omit the tenant predicate, but only when it says so
-      # explicitly next to the statement (audit recommendation for cross-tenant scans).
+      if ($line -match '@InterceptorIgnore') { $statementOptedOut = $true; continue }
+      $isStatementLine = $line -match '(?i)\b(SELECT|UPDATE|DELETE)\b.*\b(FROM|UPDATE|INTO)\b'
+      if (-not $isStatementLine) {
+        # A line that terminates a statement resets the opt-out for the next one.
+        if ($line -match ';\s*$' -or $line -match '^\s*\)\s*;?\s*$' -or $line -match '"""?\s*\)\s*;?\s*$') { $statementOptedOut = $false }
+        continue
+      }
+      if (-not $statementOptedOut) { continue }
+      if ($line -match 'tenant_id') {
+        $statementOptedOut = $false
+        continue
+      }
       if ($line -match '(?i)platform-wide|tenant-agnostic') { continue }
       foreach ($table in $tenantScopedTables) {
         if ($line -match ('(?i)\b' + [regex]::Escape($table) + '\b')) {

@@ -36,8 +36,8 @@ public interface DailySerialMapper {
      * @return 1 = 自增成功；0 = 该「租户 + 单据类型 + 营业日」还没有行（首次发号，需要先建行）
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Update("UPDATE ord_daily_serial SET current_seq = current_seq + 1, updated_at = #{now} "
-            + "WHERE tenant_id = #{tenantId} AND biz_type = #{bizType} AND business_date = #{businessDate}")
+    @Update("UPDATE ord_daily_serial SET current_seq = current_seq + 1, updated_at = #{now} WHERE tenant_id = #{tenantId} "
+            + "AND biz_type = #{bizType} AND business_date = #{businessDate}")
     int incrementIfPresent(@Param("tenantId") Long tenantId,
                            @Param("bizType") String bizType,
                            @Param("businessDate") LocalDate businessDate,
@@ -61,8 +61,8 @@ public interface DailySerialMapper {
 
     /** 读回当前已分配到的序号（只能在自增/建行所在的那个事务内调用，否则可能读到别的会话的值）。 */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT current_seq FROM ord_daily_serial "
-            + "WHERE tenant_id = #{tenantId} AND biz_type = #{bizType} AND business_date = #{businessDate}")
+    @Select("SELECT current_seq FROM ord_daily_serial WHERE tenant_id = #{tenantId} "
+            + "AND biz_type = #{bizType} AND business_date = #{businessDate}")
     Long selectCurrentSeq(@Param("tenantId") Long tenantId,
                           @Param("bizType") String bizType,
                           @Param("businessDate") LocalDate businessDate);
