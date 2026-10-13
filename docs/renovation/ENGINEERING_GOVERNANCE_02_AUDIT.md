@@ -58,8 +58,9 @@
 
 - 规则：`docs/security/SENSITIVE_DATA_PROTECTION.md:144`「Kubernetes 仅注入短期凭据引用，不提交真实值。」
 - 证据（已本地复现）：`k8s/ack/platform-identity-service.yaml`
-  - `:30` `- { name: JWT_SECRET, value: «已作废-ACK-JWT签名密钥» }`
-  - `:34` `- { name: IM_OAUTH_APP_SECRET, value: saas-a380-h5-dev-secret }`
+  - `:30` 行内 `JWT_SECRET` 的 value 为明文（**真实值已脱敏，见下**）
+  - `:34` 行内 `IM_OAUTH_APP_SECRET` 的 value 为明文（**真实值已脱敏，见下**）
+  - 两个明文值原本直接写在清单里；为避免再次把凭据留档，此处不再复现其字面量。脱敏口径见文末「凭据泄漏值的脱敏约定」。
   - 同文件 `:25/:29/:37` 以及同目录其他服务（`saas-admin.yaml:24`、`saas-common.yaml:26`、`saas-domain.yaml:26`）都正确使用 `valueFrom.secretKeyRef` —— 这是单文件疏漏
 - 影响：`platform-identity-service` 签发租户上下文 JWT，仓库读者可据此伪造跨租户令牌。
 - 处置：改为 `secretKeyRef`，轮换两个值，排查该密钥签发过的令牌。
@@ -67,11 +68,11 @@
 ### B-3【阻断】密钥门禁对着上述两个泄漏报 0 违规
 
 - 规则：`ENGINEERING_RULES.md:131`「…密钥暴露…校验均由统一入口执行；不得选择性跳过。」
-- 证据：`scripts/validate/validate-secret-exposure.ps1:13-15` 只识别“键在行首 + 扩展名白名单”的赋值形态；`k8s/ack/*.yaml:30` 的行首是 `- { name: JWT_SECRET, value: …`，验收脚本是 `[string]$Password = '…'`，两者都不匹配 → 0 命中。
-- 同时漏掉的在库明文默认值（值已整体脱敏为占位符，不保留任何真实前缀）：
-  - `common-services/audit/.../application.yml:48` `${INTERNAL_SERVICE_AUTH_SECRET:«已作废-明文默认值»}`
-  - `common-services/payment/.../application.yml:43`、`platform-services/customer/.../application.yml:40`、`platform-services/order/.../application.yml:64` 同一字面量 `«已作废-明文默认值»`
-  - `group-services/idaas/.../application.yml:30` `${JWT_SECRET:«已作废-明文默认值»}`
+- 证据：`scripts/validate/validate-secret-exposure.ps1:13-15` 只识别“键在行首 + 扩展名白名单”的赋值形态；`k8s/ack/*.yaml:30` 的行首是 `- { name: JWT_SECRET, …`（键在行内、不在行首），验收脚本是 `[string]$Password = …`，两者都不匹配 → 0 命中。
+- 同时漏掉的在库明文默认值（**只列位置与变量名，不复现其字面量**——见文末「凭据泄漏值的脱敏约定」）：
+  - `common-services/audit/.../application.yml:48` 的 `INTERNAL_SERVICE_AUTH_SECRET` 有明文默认值
+  - `common-services/payment/.../application.yml:43`、`platform-services/customer/.../application.yml:40`、`platform-services/order/.../application.yml:64` 三处是同一字面量
+  - `group-services/idaas/.../application.yml:30` 的 `JWT_SECRET` 有明文默认值
   - `sdk/infrastructure/.../audit/AuditClientConfig.java:20` 硬编码 `DEV_FALLBACK_SECRET`
   - 可达性：`k8s/ack/saas-domain.yaml` 只给 1/4 个 Deployment 注入 `INTERNAL_SERVICE_AUTH_SECRET`，`platform-order-service`、`common-payment-service` 实际会落到仓库可见的字面量
 - 处置：门禁改为“值位置”扫描并纳入 CI；补齐 ACK 各 Deployment 的 `secretKeyRef`。
@@ -291,3 +292,18 @@
 - 未确认 `mkt_consent` 的唯一键是否构成跨租户冲突（取决于 `account_id` 是否全局唯一）。
 - 未确认 `@electron-toolkit/tsconfig` 是否开启 `strict`（本机未安装 node_modules）。
 - `standards/10` 等的“缺章节”判定基于标题与正文抽检，个别项可能由相邻章节部分承载。
+
+---
+
+## 9. 凭据泄漏值的脱敏约定
+
+本报告记录的是“**哪个文件的哪一行曾经有过明文凭据**”。这个事实本身需要留档，但**凭据的字面量不需要、也不应该留在文档里**——文档会被复制、转发、进镜像，留一份等于把泄漏扩大一份。
+
+因此本文对泄漏值统一采用以下写法：
+
+- **保留**：文件路径、行号、变量名/键名、以及“该处曾有明文”的事实。
+- **不复现**：值的字面量，也**不复现其前缀**。此前用「某个已泄漏前缀 + `-«…»`」这类“只省略后缀”的写法是**错误的**——前缀本身就是凭据的一部分，仍可被用于碰撞或缩小猜测空间。（本文档早先的版本正是这样写的，本轮已全部改写；此处也不再举实例，避免把前缀再抄一遍。）
+- **不写**：`value: <值>`、`${VAR:<值>}` 这类“凭据形状”的语法。改为叙述式描述（例：“`...application.yml:48` 的 `INTERNAL_SERVICE_AUTH_SECRET` 有明文默认值”）。
+- 需要标记时使用 `«已作废-<用途>»` 这类纯占位符。
+
+这样处理的另一个好处是：它**不会与 `validate-secret-exposure.ps1` 冲突**。该门禁只用一个 **ASCII 安全值表**来判断“是否已脱敏”，而本仓惯用的 `«…»` 书名号是**非 ASCII**，永远匹配不上——所以**照抄凭据形状的脱敏写法仍然会被门禁判为暴露**。上一轮我尝试放宽该门禁（让安全值表认识 `«…»`、并让取值在说明文字前停下），**两次都因无法验证而回滚**：往文档注入合成密钥后没能复现出独立违规条目，无法证明放宽后仍能抓到真密钥。**最终采用"改写证据行"这条路：不动门禁、不放宽检测，实测 4 条 → 0 条。**
