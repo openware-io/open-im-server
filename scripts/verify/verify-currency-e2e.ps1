@@ -16,9 +16,9 @@
 #   powershell -File scripts/verify/verify-currency-e2e.ps1 -TargetCurrency USD -KeepInitial
 # ACK: -BaseUrl https://saas-admin.dev.example.com with that environment's account.
 param(
-  [string]$BaseUrl = 'http://192.168.31.91:30081',
+  [string]$BaseUrl = 'http://127.0.0.1:30081',
   [string]$Username = 'admin',
-  [string]$Password = 'e8280ac0d25d4bc0a1e1',
+  [string]$Password = $env:IM_SAAS_ADMIN_PASSWORD,
   [string]$ContextId = '100:100:100',
   [long]$StoreId = 100,
   [long]$ResourceId = 0,

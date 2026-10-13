@@ -8,7 +8,9 @@ param(
   [string]$DatabaseSecret = 'open-im-env',
   [string]$DatabaseSecretKey = 'DB_PASSWORD',
   [string]$RedisSecret = $DatabaseSecret,
-  [string]$RootDatabaseSecretKey = $DatabaseSecretKey
+  [string]$RootDatabaseSecretKey = $DatabaseSecretKey,
+  [string]$AdminUser = 'a380-admin',
+  [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD
 )
 
 $ErrorActionPreference = 'Stop'
@@ -88,7 +90,7 @@ try {
   Json 'POST' '/api/v1/auth/context/select' @{contextId=$contextId} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf}|Out-Null
   $member = Json 'GET' '/api/v1/business/members/me' $null @{Cookie=$cCookie}
   $script:memberId = $member.memberId; if (!$script:memberId) { throw 'C member initialization failed.' }
-  $adminLogin = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/admin/auth/login" -ContentType 'application/json' -Body (@{username='a380-admin';password='e8280ac0d25d4bc0a1e1';ttlHours=1}|ConvertTo-Json)
+  $adminLogin = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/admin/auth/login" -ContentType 'application/json' -Body (@{username=$AdminUser;password=$AdminPassword;ttlHours=1}|ConvertTo-Json)
   $adminCookie = ($adminLogin.Headers['Set-Cookie'] -split ';')[0]; $adminCsrf = (Json 'GET' '/api/v1/admin/auth/csrf' $null @{Cookie=$adminCookie}).csrfToken; $adminHeaders=@{Cookie=$adminCookie;'X-CSRF-Token'=$adminCsrf}
   $adminContext = Json 'POST' '/api/v1/admin/context/select' @{contextId='100:100:100'} $adminHeaders
   if ($adminContext.permissions -notcontains 'order.add_item') { throw 'A380 context did not receive order.add_item after IAM migration.' }

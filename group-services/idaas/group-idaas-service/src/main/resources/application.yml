@@ -27,7 +27,7 @@ management:
       exposure:
         include: health,info
 jwt:
-  secret: ${JWT_SECRET:group-idaas-dev-secret-key-20260826-please-change}
+  secret: ${JWT_SECRET}
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

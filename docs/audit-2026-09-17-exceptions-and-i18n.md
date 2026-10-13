@@ -1,3 +1,5 @@
+> 注：本文档原有 5 处管理员初始口令明文（含可执行 curl 请求体）已于 2026-10-13 脱敏，对应凭据已轮换。
+
 # 跨服务只读审计报告：异常与错误处理规范性 + 国际化/文案一致性
 
 - **审计对象**：`gv_im_server`（分支 `develop/2.0.0-saas-20260826`，HEAD `9cbec066`）、`gv_saas_admin`、`gv_saas_mobile`
@@ -193,14 +195,14 @@ $ kubectl -n gv-im-local logs common-media-service-67854d859c-p2jrn --tail=12
   ```
   与 `platform-services/identity/.../handler/GlobalExceptionHandler.java:17-33`（只映射 `ApiException` 与 `IllegalArgumentException`，**没有 `IllegalStateException`，也没有 `Exception` 兜底**）
 - **现象**：`IllegalStateException` 落到 Spring 默认错误处理。
-- **影响**：登录失败前端的「账号密码错误」分支永远拿不到 401；错误统计里登录失败全部计入 5xx，掩盖真实故障率；用给定凭据 `admin/e8280ac0d25d4bc0a1e1` 直接调用该接口也是 500。
+- **影响**：登录失败前端的「账号密码错误」分支永远拿不到 401；错误统计里登录失败全部计入 5xx，掩盖真实故障率；用给定凭据 `admin/«已轮换-管理员初始口令»` 直接调用该接口也是 500。
 - **建议**：改抛 `ApiException(401, "AUTH_INVALID_CREDENTIAL", "用户名或密码错误")`；同时给该服务补 `Exception` + `HttpMessageNotReadableException` 兜底。
 - **严重度**：**高**
 
 **实测响应原文**
 
 ```
-POST http://192.168.31.91:30081/api/v1/identity/login  {"loginType":"username","loginIdentifier":"admin","credential":"e8280ac0d25d4bc0a1e1"}
+POST http://192.168.31.91:30081/api/v1/identity/login  {"loginType":"username","loginIdentifier":"admin","credential":"«已轮换-管理员初始口令»"}
   -> HTTP 500 {"timestamp":"2026-09-17T02:33:27.125Z","status":500,"error":"Internal Server Error","path":"/identity/login"}
 POST 同上（不存在的用户 + 错误密码）
   -> HTTP 500 {"timestamp":"2026-09-17T02:33:33.500Z","status":500,"error":"Internal Server Error","path":"/identity/login"}
@@ -712,7 +714,7 @@ $script | kubectl -n gv-im-local exec -i saas-admin-84d6db87df-w6rgp -- sh -s
 ```powershell
 $d = "$env:TEMP\cbn_audit"; New-Item -ItemType Directory -Force $d | Out-Null
 # 登录拿会话
-'{"username":"admin","password":"e8280ac0d25d4bc0a1e1","ttlHours":1}' |
+'{"username":"admin","password":"«已轮换-管理员初始口令»","ttlHours":1}' |
   Set-Content "$d\login.json" -Encoding ASCII -NoNewline
 curl.exe -s -c "$d\ck.txt" -X POST http://192.168.31.91:30081/api/v1/admin/auth/login `
   -H "Content-Type: application/json" -d "@$d\login.json"
@@ -733,7 +735,7 @@ curl.exe -s -i -b "$d\ck.txt" -X POST http://192.168.31.91:30002/api/v1/admin/wa
 **D. 登录失败状态码**
 
 ```powershell
-'{"loginType":"username","loginIdentifier":"admin","credential":"e8280ac0d25d4bc0a1e1"}' |
+'{"loginType":"username","loginIdentifier":"admin","credential":"«已轮换-管理员初始口令»"}' |
   Set-Content "$env:TEMP\cbn_audit\idlogin.json" -Encoding ASCII -NoNewline
 curl.exe -s -i -X POST http://192.168.31.91:30081/api/v1/identity/login `
   -H "Content-Type: application/json" -d "@$env:TEMP\cbn_audit\idlogin.json"
@@ -987,5 +989,5 @@ gv_saas_mobile: check = "npm test && npm run build && npm audit --omit=dev --aud
 ## 附录 B：审计方法与可复现性
 
 - **静态**：`read` / `grep`（ripgrep）/ `glob` 工具，排除 `target/`；`src/test` 仅用于交叉验证（本报告主结论均取自 `src/main`）。
-- **动态**：`kubectl -n gv-im-local exec saas-admin-... -- sh -s` 管道内联脚本，一次性扫全 18 个服务（避免大量 port-forward）；`gateway :30002` 与 `saas-admin :30081` 走 NodePort；管理员会话由 `POST /api/v1/admin/auth/login`（`admin` / `e8280ac0d25d4bc0a1e1`，来自 `platform-admin-service/src/main/resources/db/migration/V2__saa_admin_account_seed.sql`）取得，随后 `GET /api/v1/admin/auth/csrf` + `POST /api/v1/admin/context/select {"contextId":"100:100:100"}`。
+- **动态**：`kubectl -n gv-im-local exec saas-admin-... -- sh -s` 管道内联脚本，一次性扫全 18 个服务（避免大量 port-forward）；`gateway :30002` 与 `saas-admin :30081` 走 NodePort；管理员会话由 `POST /api/v1/admin/auth/login`（`admin` / `«已轮换-管理员初始口令»`，来自 `platform-admin-service/src/main/resources/db/migration/V2__saa_admin_account_seed.sql`）取得，随后 `GET /api/v1/admin/auth/csrf` + `POST /api/v1/admin/context/select {"contextId":"100:100:100"}`。
 - **只读确认**：除登录/选择上下文（会话态，非业务数据变更）与无效请求探针外，未创建/修改/删除任何业务数据；未执行任何写操作型业务接口；未触碰 `k8s/`（该目录在审计开始时已存在他人未提交改动：`k8s/kind/local-cluster.yaml`、`k8s/local/gateway-admin.yaml`、`k8s/local/infrastructure.yaml`、`k8s/local/ingress.yaml` —— 均为其它 agent 的工作，本审计未参与）。

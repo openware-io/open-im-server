@@ -45,7 +45,7 @@ internal:
     expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:open-im-audit-reporter}
     # k8s/ACK 的 common-audit-service Deployment 目前未注入该环境变量，回退值与
     # AuditClientConfig 的默认值一致，保证「上报方签名 = 服务端验签」；生产注入后应删除回退值。
-    secret: ${INTERNAL_SERVICE_AUTH_SECRET:open-im-audit-channel-dev-secret-0001}
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

@@ -28,8 +28,6 @@ import org.springframework.web.client.RestClient;
 public class AuditQueryClient {
   private static final String SEARCH_PATH = "/internal/audit/records/search";
   private static final String JSON_CONTENT_TYPE = "application/json";
-  /** 与 {@code AuditClientConfig} 的本地联调回退密钥保持一致（生产由环境变量覆盖）。 */
-  private static final String DEV_FALLBACK_SECRET = "open-im-audit-channel-dev-secret-0001";
 
   private final RestClient restClient;
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -38,7 +36,7 @@ public class AuditQueryClient {
 
   public AuditQueryClient(
       @Value("${app.audit-service.base-url:http://localhost:4190}") String baseUrl,
-      @Value("${internal.service-auth.secret:" + DEV_FALLBACK_SECRET + "}") String internalSecret,
+      @Value("${internal.service-auth.secret}") String internalSecret,
       @Value("${app.audit-service.reporter-source:" + AuditClient.DEFAULT_REPORTER_SOURCE + "}") String reporterSource) {
     this.restClient = RestClient.builder().baseUrl(baseUrl).build();
     this.internalSecret = internalSecret;

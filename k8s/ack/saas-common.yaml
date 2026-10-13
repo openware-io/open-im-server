@@ -65,6 +65,7 @@ spec:
           image: ghcr.io/openware-io/common-payment-channel-service:2.0.1
           imagePullPolicy: Always
           env:
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4180' }
             - { name: MYSQL_HOST, value: mysql }
@@ -96,6 +97,7 @@ spec:
           image: ghcr.io/openware-io/platform-marketing-service:2.0.1
           imagePullPolicy: Always
           env:
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4170' }
             - { name: MYSQL_HOST, value: mysql }

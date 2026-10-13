@@ -27,11 +27,11 @@ spec:
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE, value: 'platform-tenant-service,platform-admin-service,im-user-service' }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
-            - { name: JWT_SECRET, value: 80sA8SCmrQYcC6fvEtSQAmJBUNFkwZg3ICK91OqKjMQ }
+            - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             - { name: JWT_EXPIRATION_MS, value: '604800000' }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             - { name: IM_OAUTH_APP_ID, value: saas-a380-h5 }
-            - { name: IM_OAUTH_APP_SECRET, value: saas-a380-h5-dev-secret }
+            - { name: IM_OAUTH_APP_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: IM_OAUTH_APP_SECRET } } }
             - { name: REDIS_HOST, value: 192.168.247.182 }
             - { name: REDIS_PORT, value: '6379' }
             - { name: REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: REDIS_PASSWORD } } }

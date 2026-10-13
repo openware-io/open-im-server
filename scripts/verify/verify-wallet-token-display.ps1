@@ -9,7 +9,7 @@
 # PURE ASCII on purpose: Windows PowerShell 5.1 reads a BOM-less .ps1 as ANSI, so any
 # non-ASCII literal breaks parsing.
 #
-#   -Env kind  (default) : saas-admin 192.168.31.91:30081 / saas-mobile 192.168.31.91:30082
+#   -Env kind  (default) : saas-admin 127.0.0.1:30081 / saas-mobile 127.0.0.1:30082
 #   -Env ack             : saas-admin https://saas-admin.dev.example.com (curl -k required)
 #
 # Consumer-session checks (C) only run on kind: ACK exposes no saas-mobile host, so the
@@ -22,15 +22,15 @@ param(
   [string]$ContextId = '100:100:100',
   [long]$StoreId = 100,
   [string]$AdminUser = 'admin',
-  [string]$AdminPassword = 'e8280ac0d25d4bc0a1e1'
+  [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD
 )
 
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { }
 $OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
-if (-not $AdminBase) { if ($Env -eq 'ack') { $AdminBase = 'https://saas-admin.dev.example.com' } else { $AdminBase = 'http://192.168.31.91:30081' } }
-if (-not $MobileBase) { if ($Env -eq 'ack') { $MobileBase = $AdminBase } else { $MobileBase = 'http://192.168.31.91:30082' } }
+if (-not $AdminBase) { if ($Env -eq 'ack') { $AdminBase = 'https://saas-admin.dev.example.com' } else { $AdminBase = 'http://127.0.0.1:30081' } }
+if (-not $MobileBase) { if ($Env -eq 'ack') { $MobileBase = $AdminBase } else { $MobileBase = 'http://127.0.0.1:30082' } }
 $AdminBase = $AdminBase.TrimEnd('/')
 $MobileBase = $MobileBase.TrimEnd('/')
 

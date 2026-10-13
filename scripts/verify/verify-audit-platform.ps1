@@ -11,9 +11,9 @@
 # (no business change). It appends audit rows, which are append-only by design.
 # NOTE: keep this file ASCII-only (PowerShell 5.1 reads BOM-less .ps1 as ANSI and non-ASCII breaks parsing).
 param(
-  [string]$BaseUrl = 'http://192.168.31.91:30081',
+  [string]$BaseUrl = 'http://127.0.0.1:30081',
   [string]$Username = 'admin',
-  [string]$Password = 'e8280ac0d25d4bc0a1e1',
+  [string]$Password = $env:IM_SAAS_ADMIN_PASSWORD,
   [string]$ContextId = '100:100:100',
   [int]$PageSize = 10,
   [switch]$RunPlatformWrite

@@ -14,10 +14,10 @@
 # NOTE: keep this file ASCII-only: Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI and non-ASCII
 # literals can break parsing (see repo guideline).
 param(
-  [string]$AdminBaseUrl = 'http://192.168.31.91:30081',
-  [string]$ConsumerBaseUrl = 'http://192.168.31.91:30082',
+  [string]$AdminBaseUrl = 'http://127.0.0.1:30081',
+  [string]$ConsumerBaseUrl = 'http://127.0.0.1:30082',
   [string]$AdminUser = 'admin',
-  [string]$AdminPassword = 'e8280ac0d25d4bc0a1e1',
+  [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD,
   [string]$AdminContextId = '100:100:100',
   [string]$ConsumerAppId = 'saas-a380-c',
   [long]$RoomTypeId = 7,

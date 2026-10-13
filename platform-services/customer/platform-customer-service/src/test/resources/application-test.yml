@@ -20,3 +20,8 @@ member:
     rebuild-enabled: false
 jwt:
   secret: 0123456789abcdef0123456789abcdef
+
+internal:
+  service-auth:
+    # 测试专用占位密钥：仅用于加载 Spring 上下文；生产不再提供默认值，必须由环境变量注入。
+    secret: test-only-internal-service-secret

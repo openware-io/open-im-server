@@ -19,6 +19,7 @@ spec:
           imagePullPolicy: Always
           envFrom: [ { configMapRef: { name: open-im-config } }, { secretRef: { name: open-im-secret } } ]
           env:
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: TZ, value: UTC }
             - { name: PORT, value: '3002' }
             - { name: IM_USER_URI, value: http://im-user-service:3100 }

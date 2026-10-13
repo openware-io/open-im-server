@@ -22,9 +22,12 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 /** SaaS 后台账号密码登录：查账号 + BCrypt 校验 + 创建 Redis 会话。 */
 class AdminLoginApplicationServiceTest {
 
-  /** 与 V2 种子 admin 一致：密码 e8280ac0d25d4bc0a1e1 的 BCrypt 哈希。 */
-  private static final String SEED_PASSWORD = "e8280ac0d25d4bc0a1e1";
-  private static final String SEED_HASH = "$2b$10$uj5EtFLiaUGBRWv5gbSFfeC85AT5OTIJuTzYUZ7PUD/StOSsCeXtS";
+  /**
+   * 测试专属口令与哈希：运行时生成，仓库内不保留任何真实种子口令或其哈希。
+   * 种子账号的真实口令由部署引导流程设置（见 docs/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md DC-01）。
+   */
+  private static final String TEST_PASSWORD = "test-only-password";
+  private static final String TEST_HASH = new BCryptPasswordEncoder().encode(TEST_PASSWORD);
 
   private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
   private SaaAdminAccountRepository accountRepository;
@@ -40,12 +43,12 @@ class AdminLoginApplicationServiceTest {
 
   @Test
   void login_createsSessionOnCorrectPassword() {
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", SEED_HASH, "管理员", "1",
+    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-1");
 
-    AdminAuthResult result = service.login("admin", SEED_PASSWORD, SessionTtl.DEFAULT);
+    AdminAuthResult result = service.login("admin", TEST_PASSWORD, SessionTtl.DEFAULT);
 
     assertEquals("session-1", result.sessionId());
     assertEquals("admin", result.user().username());
@@ -55,7 +58,7 @@ class AdminLoginApplicationServiceTest {
 
   @Test
   void login_rejectsWrongPassword() {
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", SEED_HASH, "管理员", "1",
+    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
 

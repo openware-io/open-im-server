@@ -19,3 +19,8 @@ platform:
   order:
     outbox:
       relay-delay-ms: 3600000
+
+internal:
+  service-auth:
+    # 测试专用占位密钥：仅用于加载 Spring 上下文；生产不再提供默认值，必须由环境变量注入。
+    secret: test-only-internal-service-secret

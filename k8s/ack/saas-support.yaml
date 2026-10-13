@@ -18,6 +18,7 @@ spec:
           image: ghcr.io/openware-io/common-sms-service:2.0.1
           imagePullPolicy: Always
           env:
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4200' }
             - { name: MYSQL_HOST, value: mysql }
@@ -48,6 +49,7 @@ spec:
           image: ghcr.io/openware-io/common-mail-service:2.0.1
           imagePullPolicy: Always
           env:
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: TZ, value: UTC }
             - { name: PORT, value: '4210' }
             - { name: MYSQL_HOST, value: mysql }
