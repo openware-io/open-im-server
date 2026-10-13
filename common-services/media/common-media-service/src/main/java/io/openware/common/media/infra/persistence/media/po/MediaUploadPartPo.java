@@ -10,9 +10,9 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@TableName("support_media_upload_part")
+@TableName("media_upload_part")
 public class MediaUploadPartPo {
-  @TableId(value = "part_id", type = IdType.AUTO) private Long partId;
+  @TableId(value = "id", type = IdType.AUTO) private Long id;
   @TableField("upload_session_id") private String uploadSessionId;
   @TableField("part_number") private Integer partNumber;
   private String etag;

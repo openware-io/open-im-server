@@ -14,9 +14,10 @@ public class MediaAuditService {
   private final MediaAuditEventMapper mapper;
 
   public void record(String objectId, String eventType, long actorId, String detail) {
+    LocalDateTime now = LocalDateTime.now();
     MediaAuditEventPo event = new MediaAuditEventPo();
     event.setObjectId(objectId); event.setEventType(eventType); event.setActorId(actorId);
-    event.setDetail(detail); event.setCreatedAt(LocalDateTime.now()); mapper.insert(event);
+    event.setDetail(detail); event.setCreatedAt(now); event.setUpdatedAt(now); mapper.insert(event);
   }
 
   /** 记录「换取下载 URL」审计：requesterId、objectId、businessType、timestamp、action=ACCESS_URL_SIGNED。 */

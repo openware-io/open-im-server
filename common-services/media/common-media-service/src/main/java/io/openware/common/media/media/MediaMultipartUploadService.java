@@ -34,7 +34,7 @@ public class MediaMultipartUploadService {
     String sessionId = (String) created.get("uploadSessionId");
     int count = Math.toIntExact((request.size() + PART_SIZE - 1) / PART_SIZE);
     if (count > 1000) throw new ApiException(HttpStatusCodes.BAD_REQUEST, "分片数量超出限制");
-    MediaUploadSessionPo session = sessionMapper.selectById(sessionId);
+    MediaUploadSessionPo session = sessionByUploadSessionId(sessionId);
     if (session.getPartCount() == null) {
       session.setPartSizeBytes(PART_SIZE); session.setPartCount(count);
       session.setStorageUploadId(storage.initiateMultipartUpload(session.getBucketName(), session.getTemporaryObjectKey(),
@@ -119,6 +119,12 @@ public class MediaMultipartUploadService {
       throw new ApiException(HttpStatusCodes.CONFLICT, "上传会话不可用");
     }
     return session;
+  }
+
+  /** upload_session_id 是唯一业务列（主键已改为代理 id），按业务键取会话必须显式过滤该列。 */
+  private MediaUploadSessionPo sessionByUploadSessionId(String uploadSessionId) {
+    return sessionMapper.selectOne(Wrappers.<MediaUploadSessionPo>lambdaQuery()
+        .eq(MediaUploadSessionPo::getUploadSessionId, uploadSessionId));
   }
 
   private Map<String, Object> multipartCreated(MediaUploadSessionPo session) {

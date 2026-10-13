@@ -31,7 +31,7 @@ public class MediaReferenceService {
   @Transactional
   public void bind(BindMediaReference request) {
     long ownerId = request.ownerId();
-    MediaObjectPo object = objectMapper.selectById(request.objectId());
+    MediaObjectPo object = objectByObjectId(request.objectId());
     if (object == null || !"ACTIVE".equals(object.getStatus()) || object.getOwnerId() != ownerId) {
       throw new ApiException(HttpStatusCodes.CONFLICT, "媒体对象不可绑定");
     }
@@ -41,15 +41,16 @@ public class MediaReferenceService {
         .eq(MediaReferencePo::getBusinessId, request.businessId())
         .eq(MediaReferencePo::getReferenceRole, request.referenceRole()));
     if (existing != null) return;
+    LocalDateTime now = LocalDateTime.now();
     MediaReferencePo reference = new MediaReferencePo();
     reference.setObjectId(request.objectId()); reference.setBusinessType(request.businessType());
     reference.setBusinessId(request.businessId()); reference.setReferenceRole(request.referenceRole());
-    reference.setCreatedBy(ownerId); reference.setCreatedAt(LocalDateTime.now());
+    reference.setCreatedBy(ownerId); reference.setCreatedAt(now); reference.setUpdatedAt(now);
     referenceMapper.insert(reference);
   }
 
   public MediaObjectAuthorizationSnapshot authorize(MediaObjectAuthorizationRequest request) {
-    MediaObjectPo object = objectMapper.selectById(request.objectId());
+    MediaObjectPo object = objectByObjectId(request.objectId());
     boolean authorized = object != null && "ACTIVE".equals(object.getStatus())
         && object.getOwnerId() == request.ownerId() && object.getMediaKind().equals(request.mediaKind());
     return new MediaObjectAuthorizationSnapshot(authorized, request.objectId(),
@@ -78,7 +79,7 @@ public class MediaReferenceService {
         .eq(MediaReferencePo::getObjectId, request.objectId()).eq(MediaReferencePo::getBusinessType, request.businessType())
         .eq(MediaReferencePo::getBusinessId, request.businessId()));
     if (reference == null) throw new ApiException(HttpStatusCodes.NOT_FOUND, "媒体对象引用不存在");
-    MediaObjectPo object = objectMapper.selectById(request.objectId());
+    MediaObjectPo object = objectByObjectId(request.objectId());
     if (object == null) throw new ApiException(HttpStatusCodes.NOT_FOUND, "媒体对象不存在");
     audit.recordAccessUrlSigned(0L, object.getObjectId(), request.businessType());
     return mediaObjects.accessAuthorizedByBusiness(object);
@@ -106,6 +107,12 @@ public class MediaReferenceService {
       urls.put(request.objectId(), mediaObjects.accessAuthorizedByBusiness(object).url());
     }
     return urls;
+  }
+
+  /** object_id 是唯一业务列（主键已改为代理 id），按业务键取媒体对象必须显式过滤该列。 */
+  private MediaObjectPo objectByObjectId(String objectId) {
+    return objectMapper.selectOne(Wrappers.<MediaObjectPo>lambdaQuery()
+        .eq(MediaObjectPo::getObjectId, objectId));
   }
 
   public record BindMediaReference(long ownerId, String objectId, String businessType, String businessId,

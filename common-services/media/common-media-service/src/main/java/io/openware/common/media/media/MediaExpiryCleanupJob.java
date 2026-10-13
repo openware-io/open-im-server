@@ -32,11 +32,17 @@ public class MediaExpiryCleanupJob {
         }
       }
       session.setStatus("EXPIRED"); session.setUpdatedBy(0L); session.setUpdatedAt(now); sessionMapper.updateById(session);
-      MediaObjectPo object = objectMapper.selectById(session.getObjectId());
+      MediaObjectPo object = objectByObjectId(session.getObjectId());
       if (object != null && "PENDING".equals(object.getStatus())) {
         object.setStatus("DELETED"); object.setDeletedAt(now); object.setUpdatedBy(0L); object.setUpdatedAt(now);
         objectMapper.updateById(object);
       }
     }
+  }
+
+  /** object_id 是唯一业务列（主键已改为代理 id），按业务键取媒体对象必须显式过滤该列。 */
+  private MediaObjectPo objectByObjectId(String objectId) {
+    return objectMapper.selectOne(Wrappers.<MediaObjectPo>lambdaQuery()
+        .eq(MediaObjectPo::getObjectId, objectId));
   }
 }

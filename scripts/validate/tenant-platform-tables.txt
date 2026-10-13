@@ -21,8 +21,8 @@ idt_login_identity | identity/account platform tables: login identities are plat
 idt_oauth_link | identity/account platform tables: OAuth links are platform-global
 idt_profile_sync_record | identity/account platform tables: profile sync records are platform-global
 iam_audit_archive_manifest | audit archive manifest describes platform-wide archive jobs, not tenant business rows
-support_media_object | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
-support_media_upload_session | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
-support_media_reference | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
-support_media_upload_part | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
-support_media_audit_event | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+media_object | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+media_upload_session | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+media_reference | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+media_upload_part | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+media_audit_event | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant

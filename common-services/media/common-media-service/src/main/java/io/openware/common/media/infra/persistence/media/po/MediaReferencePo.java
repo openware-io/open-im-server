@@ -10,13 +10,14 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@TableName("support_media_reference")
+@TableName("media_reference")
 public class MediaReferencePo {
-  @TableId(value = "reference_id", type = IdType.AUTO) private Long referenceId;
+  @TableId(value = "id", type = IdType.AUTO) private Long id;
   @TableField("object_id") private String objectId;
   @TableField("business_type") private String businessType;
   @TableField("business_id") private String businessId;
   @TableField("reference_role") private String referenceRole;
   @TableField("created_by") private Long createdBy;
   @TableField("created_at") private LocalDateTime createdAt;
+  @TableField("updated_at") private LocalDateTime updatedAt;
 }

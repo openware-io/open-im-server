@@ -1,5 +1,6 @@
 package io.openware.common.media.media;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.common.media.infra.persistence.media.mapper.MediaObjectMapper;
 import io.openware.common.media.infra.persistence.media.mapper.MediaUploadSessionMapper;
 import io.openware.common.media.infra.persistence.media.po.MediaObjectPo;
@@ -27,9 +28,9 @@ public class MediaActivationService {
   @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
   @Transactional(propagation = Propagation.REQUIRES_NEW)
   public void activate(MediaUploadCompletedEvent event) {
-    MediaUploadSessionPo session = sessionMapper.selectById(event.uploadSessionId());
+    MediaUploadSessionPo session = sessionByUploadSessionId(event.uploadSessionId());
     if (session == null) return;
-    MediaObjectPo object = objectMapper.selectById(session.getObjectId());
+    MediaObjectPo object = objectByObjectId(session.getObjectId());
     if (object == null || !"COMPLETED".equals(session.getStatus()) || !"UPLOADED".equals(object.getStatus())) return;
     LocalDateTime now = LocalDateTime.now();
     if (!session.getChecksumSha256().equals(storage.sha256(session.getBucketName(), session.getTemporaryObjectKey()))
@@ -81,5 +82,17 @@ public class MediaActivationService {
   private String extensionFromContentType(String contentType) {
     String extension = contentType.substring(contentType.indexOf('/') + 1);
     return "jpeg".equals(extension) ? "jpg" : extension;
+  }
+
+  /** upload_session_id 是唯一业务列（主键已改为代理 id），按业务键取会话必须显式过滤该列。 */
+  private MediaUploadSessionPo sessionByUploadSessionId(String uploadSessionId) {
+    return sessionMapper.selectOne(Wrappers.<MediaUploadSessionPo>lambdaQuery()
+        .eq(MediaUploadSessionPo::getUploadSessionId, uploadSessionId));
+  }
+
+  /** object_id 是唯一业务列（主键已改为代理 id），按业务键取媒体对象必须显式过滤该列。 */
+  private MediaObjectPo objectByObjectId(String objectId) {
+    return objectMapper.selectOne(Wrappers.<MediaObjectPo>lambdaQuery()
+        .eq(MediaObjectPo::getObjectId, objectId));
   }
 }

@@ -85,7 +85,7 @@ public class MediaUploadSessionService {
     LocalDateTime now = LocalDateTime.now();
     session.setStatus("COMPLETED"); session.setCompletedAt(now); session.setUpdatedBy(ownerId); session.setUpdatedAt(now);
     sessionMapper.updateById(session);
-    MediaObjectPo object = objectMapper.selectById(session.getObjectId());
+    MediaObjectPo object = objectByObjectId(session.getObjectId());
     object.setStatus("UPLOADED"); object.setUpdatedBy(ownerId); object.setUpdatedAt(now);
     objectMapper.updateById(object);
     events.publishEvent(new MediaUploadCompletedEvent(sessionId));
@@ -107,7 +107,7 @@ public class MediaUploadSessionService {
     storage.deleteObject(session.getBucketName(), session.getTemporaryObjectKey());
     LocalDateTime now = LocalDateTime.now();
     session.setStatus("CANCELLED"); session.setUpdatedBy(ownerId); session.setUpdatedAt(now); sessionMapper.updateById(session);
-    MediaObjectPo object = objectMapper.selectById(session.getObjectId());
+    MediaObjectPo object = objectByObjectId(session.getObjectId());
     object.setStatus("DELETED"); object.setDeletedAt(now); object.setUpdatedBy(ownerId); object.setUpdatedAt(now);
     objectMapper.updateById(object);
   }
@@ -140,6 +140,12 @@ public class MediaUploadSessionService {
         .eq(MediaUploadSessionPo::getUploadSessionId, sessionId).eq(MediaUploadSessionPo::getOwnerId, ownerId));
     if (session == null) throw new ApiException(HttpStatusCodes.NOT_FOUND, "上传会话不存在");
     return session;
+  }
+
+  /** object_id 是唯一业务列（主键已改为代理 id），按业务键取媒体对象必须显式过滤该列。 */
+  private MediaObjectPo objectByObjectId(String objectId) {
+    return objectMapper.selectOne(Wrappers.<MediaObjectPo>lambdaQuery()
+        .eq(MediaObjectPo::getObjectId, objectId));
   }
 
   private void validateRequest(String scope, String mediaKind, String contentType, CreateUploadSession request) {

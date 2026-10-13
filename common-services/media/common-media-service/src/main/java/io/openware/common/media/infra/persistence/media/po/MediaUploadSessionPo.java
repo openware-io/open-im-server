@@ -1,5 +1,6 @@
 package io.openware.common.media.infra.persistence.media.po;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -9,9 +10,10 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@TableName("support_media_upload_session")
+@TableName("media_upload_session")
 public class MediaUploadSessionPo {
-  @TableId("upload_session_id") private String uploadSessionId;
+  @TableId(value = "id", type = IdType.AUTO) private Long id;
+  @TableField("upload_session_id") private String uploadSessionId;
   @TableField("object_id") private String objectId;
   @TableField("owner_id") private Long ownerId;
   @TableField("idempotency_key") private String idempotencyKey;

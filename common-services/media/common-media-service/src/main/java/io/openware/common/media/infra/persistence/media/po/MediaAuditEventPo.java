@@ -10,12 +10,13 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@TableName("support_media_audit_event")
+@TableName("media_audit_event")
 public class MediaAuditEventPo {
-  @TableId(value = "event_id", type = IdType.AUTO) private Long eventId;
+  @TableId(value = "id", type = IdType.AUTO) private Long id;
   @TableField("object_id") private String objectId;
   @TableField("event_type") private String eventType;
   @TableField("actor_id") private Long actorId;
   private String detail;
   @TableField("created_at") private LocalDateTime createdAt;
+  @TableField("updated_at") private LocalDateTime updatedAt;
 }
