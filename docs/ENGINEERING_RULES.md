@@ -165,6 +165,10 @@ common-services/
 | Admin | 平台管理读模型与配置 | `adm_` | 历史冻结 | `adm_system_config` |
 | Order | 预约、订单、KTV 履约（首发）、酒店/足浴（后续） | `ord_` | 历史冻结并扩展 | `ord_reservation`、`ord_order` |
 | Media | 媒体对象、上传会话、存储适配、访问授权（通用支撑域） | `media_` | 二阶段 | `media_object`、`media_upload_session` |
+| Audit | 审计事件、审计分区与归档清单（通用支撑域） | `audit_` | 预留 | 尚无表使用；`common-audit-service` 现有表沿用 `iam_audit_*`（属历史口径，`iam_` 另见 IAM 域） |
+| Mail | 邮件渠道配置、模板、发送日志（通用支撑域） | `mail_` | 二阶段 | `mail_channel_config`、`mail_template`、`mail_send_log` |
+| SMS | 短信渠道配置、模板、发送日志（通用支撑域） | `sms_` | 二阶段 | `sms_channel_config`、`sms_template`、`sms_send_log` |
+| Payment Channel | 支付渠道适配与渠道参数（通用支撑域·支付域子域） | `paych_` | 预留 | 尚无表使用；`common-payment-channel-service` 现有表用 `pay_channel_*`（与支付业务 `pay_` 同前缀） |
 | WebSocket | 长连接接入 | `ws_` | 保留 | 新建持久化表前需补充领域设计 |
 | Identity | SaaS 平台账号、登录、OAuth 绑定、资料同步 | `idt_` | 二阶段 | `idt_account`、`idt_login_identity`、`idt_oauth_link` |
 | Tenant | 租户、组织、门店、商户主体 | `tnt_` | 二阶段 | `tnt_tenant`、`tnt_store` |
