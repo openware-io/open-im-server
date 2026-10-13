@@ -282,7 +282,27 @@
 
 ### 步骤 6：冻结 tag 收尾（DC-15 / DC-10）
 
-删除 `v2.0.0`（本地 + 远端）→ 打 `v2.2.0` 注释 tag，**名字用 `baseline-` 前缀**（或注释含独立行 `freeze: true`）。
+**⚠️ 本轮核实：这一步现在不能做，且原表述有误——务必按 `ENGINEERING_GOVERNANCE_03` §5.3/§5.4 执行。**
+
+原表述"打 `v2.2.0` 注释 tag，**名字用 `baseline-` 前缀**"是**自相矛盾**的（`v2.2.0` 不是 `baseline-` 前缀）。权威来源是 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §5.3：tag 名**保持 `v2.2.0`**，靠**注释里的 `freeze: true` 独立行**表达冻结语义（门禁两种都认，但 `baseline-` 前缀会**破坏 `publish-images.yml` 的 `tags: ['v*']` 触发**）。
+
+**两个"现在不能打"的硬理由**：
+
+1. **前置未满足**：03 方案 §5.3 的处置顺序是 ① 批次 2 重建基线 → ② §5.4 版本归位 → ③ **批次 5 总闸全绿** → ④ 删 `v2.0.0` → ⑤ 打 `v2.2.0`。**③ 批次 5 尚未开始**，所以按计划此刻不该打 tag。
+2. **推送 tag 会触发镜像发布**：`git push origin v2.2.0` 会触发 `publish-images.yml` 工作流**构建并推送全部业务镜像**——这是有外部副作用的 CI 动作，且**删 `v2.0.0` 会让指向它的 Release/外部链接失效**。两者都**必须由你确认**。
+
+**本轮已核实的事实**：
+- 冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，**exit 0**。
+- 门禁语义：tag 名 `baseline-*` **或**注释含独立行 `freeze: true`；冻结后**修改/删除** tag 内已有迁移会失败，**新增迁移始终允许**。
+- 现有 tag：`pre-baseline-consolidation-20261013`、`pre-migration-rewrite-20261013`、`v2.0.0`。
+
+**待你确认后才能执行的确切命令**（来自 03 方案 §5.3，本轮未执行）：
+```powershell
+git tag -d v2.0.0
+git push origin :refs/tags/v2.0.0
+git tag -a v2.2.0 -m "开发阶段基线：本 tag 内 Flyway 迁移冻结，只增不改（见 docs/renovation/MIGRATION_BASELINE_01_DATA.md）`nfreeze: true"
+git push origin v2.2.0
+```
 
 ## 3. 已实测确认的事实（可直接引用，不必重测）
 
