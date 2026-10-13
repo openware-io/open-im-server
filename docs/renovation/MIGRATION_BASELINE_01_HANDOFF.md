@@ -52,11 +52,11 @@
 | 2 | **冻结语义是结构化的**：tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true` | 不要写"本 tag 不承担冻结语义"这类**松散词**描述。旧版门禁对注释做 `frozen` 词匹配，一句声明"自己不是冻结点"的话反而把它判成冻结点，错误阻断了批次 2。打 tag 用 `git tag -a`，命名 `baseline-*` |
 | 3 | **全仓 `.ps1` 都是无 BOM 文件，且 Windows CI 用 `powershell.exe` 执行** | 脚本内任何非 ASCII（中文注释、正则、文案）在 PS 5.1 下按 ANSI 解析，会被静默损坏。校验脚本一律英文注释。已延期到批次 4 的 6 个文件见 `scripts/validate/powershell-ascii-allowlist.txt`，**不要往该清单新增条目**（陈旧条目本身会让门禁失败） |
 | 4 | **每个模块一轮，做完即验证并提交** | 早期 378 条的上下文开销是本次交接的直接原因。按模块清单逐块推进 |
-| 7 | **子 agent 必须显式给出工作目录** | `validate-repository-hygiene.ps1` 的 G-15 会扫描**工作区根**（`D:\projects\cnb-oss`）的每一个条目，只允许 11 个仓库目录 + `.github`。某个子 agent 用了错误的 CWD，在 `D:\projects\cnb-oss\.outputs\` 写下验证产物，**直接让这条阻断门禁失败**（此后每次 `-Scope Changed` 都在 repository-hygiene 处报错）。给子 agent 的 prompt 里要写明绝对工作目录，收尾时检查工作区根 |
-| 8. **不要用 shell 循环做全仓引用扫描** | 两次自研 PowerShell 扫描都报了"0 处失效引用"，而 `grep` 工具实际找到 11 处。判据要选一个**已知存在**的引用做交叉验证，不要相信 0；全仓扫描用 grep 工具 |
-| 9 | **门禁报错时先问"这条语句/这个值是否本来就不该由它承担"** | 本轮两次因此避免了错误修改：`tenant-sql` 的 11 条误报（谓词由拦截器运行时注入，源码里本就没有）、`mq-registry` 的 10 条生产者组（值已经在 `sdk/protocol-mq` 里定义，YZML 里的是 `${ENV:默认值}` 的**默认值**）。**直接加标记/删默认值都会把"正确的写法"改坏。** |
 | 5 | **合并基线必然删除 V2..Vn，且不接受折中** | 删除后旧库无法平滑升级（Flyway 认为 V2..Vn 从未执行、校验和不一致）。这是 PR-01/PR-03 明确接受的代价（未上线、无数据），由第 4 步"清库重建"兜底。不要为兼容旧库保留 V2..Vn，也不要写补偿语句 |
 | 6 | **一份 worklist 文件是并发写目标** | `flyway-conventions-worklist.txt` 每次跑门禁都被整体重写。若并行跑多个模块（多 agent），先把"跑门禁 → 统计本模块条数"放在同一条命令里，并接受偶发的互相覆盖；判据是"某次门禁运行中本模块贡献 0 条"，不是文件某一刻的样子 |
+| 7 | **子 agent 必须显式给出工作目录** | `validate-repository-hygiene.ps1` 的 G-15 会扫描**工作区根**（`D:\projects\cnb-oss`）的每一个条目，只允许 11 个仓库目录 + `.github`。某个子 agent 用了错误的 CWD，在 `D:\projects\cnb-oss\.outputs\` 写下验证产物，**直接让这条阻断门禁失败**（此后每次 `-Scope Changed` 都在 repository-hygiene 处报错）。给子 agent 的 prompt 里要写明绝对工作目录，收尾时检查工作区根 |
+| 8 | **不要用 shell 循环做全仓引用扫描** | 两次自研 PowerShell 扫描都报了"0 处失效引用"，而 `grep` 工具实际找到 11 处。判据要选一个**已知存在**的引用做交叉验证，不要相信 0；全仓扫描用 grep 工具 |
+| 9 | **门禁报错时先问"这条语句/这个值是否本来就不该由它承担"** | 本轮两次因此避免了错误修改：`tenant-sql` 的 11 条误报（谓词由拦截器运行时注入，源码里本就没有）、`mq-registry` 的 10 条生产者组（值已经在 `sdk/protocol-mq` 里定义，YAML 里的是 `${ENV:默认值}` 的**默认值**）。**直接加标记/删默认值都会把"正确的写法"改坏。** |
 
 ## 2. 执行顺序
 
@@ -253,7 +253,7 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 - 但加 `id` 后，**`@TableId` 必须从业务键改成 `id`**，而多处代码是 `selectById(<业务键>)`（`MediaActivationService:30,32`、`MediaExpiryCleanupJob:35`、`MediaReferenceService:34,52,81`、`MediaUploadSessionService:88,110`、`MediaMultipartUploadService:37`）。MyBatis-Plus 的 `selectById` 走的是 `@TableId`，**主键一改，这些调用会把 varchar 业务键当数值主键去匹配**——纯改表名不能解决。
 - 正确做法：PO 加 `private Long id` 作 `@TableId(type=IdType.AUTO)`，业务键降为普通字段（**保留字段名**，如 `objectId`），并把上述 `selectById` 改为 `selectOne(lambdaQuery().eq(Po::getObjectId, key))`；有测试兜底（media 模块 6 个测试类）。
 - 通用判据：**只要某张表的主键要从业务键换成 `id`，就必须先 grep 全部 `selectById(` 调用点**，否则改动只是"看起来通过了门禁"。
-2. **前缀类 15 条**已按用户决定挂起（见 §2 步骤 1 表后的警示），不在本轮处理。
+2. **前缀类 7 条**已按用户决定挂起（见 §2 步骤 1 表后的警示），不在本轮处理：`open_*`×3、`saa_`×1、`group_*`/`idaas_*`×3。
 3. `MktEventConsumedPo` 的运行期缺陷已在本轮修掉（`d295e0c`）——这是"补审计列"引发的连带改动，**后续模块若给 PO 未覆盖的列补 `NOT NULL` 审计字段，必须同样检查 Java 侧是否写入**，否则插入会报 MySQL 1364。
 4. `standards/30` 已新增第 4 条门禁说明；批次 4 清理 6 个延期的非 ASCII 脚本前，需先定"脚本输出语言"策略。
 5. `.outputs/quality/powershell-ascii-only-worklist.txt` 是 ASCII 门禁自检留下的旧快照（gitignored，无影响），可随手删。
