@@ -131,7 +131,12 @@
   | 语句**确实没有**租户维度（分区 DDL、按全局唯一主键/账号定位、平台级字典或台账、按时间窗口的保留清理、跨租户定时扫描） | 加门禁认识的 `platform-wide` / `tenant-agnostic` 行尾标记，**并在标记里写清属于哪一类理由** |
 
   另外：若表已在 `scripts/validate/tenant-platform-tables.txt` 登记为平台级（如 `tnt_business_type`、`tnt_app_user_authorization`），那它就是平台级表，标记用 `platform-wide` 而不是 `tenant-agnostic`。
-- `secret-exposure` **4 处**（`.outputs/quality/secret-exposure-report.txt`）：迁移注释中的口令与应用密钥哈希随基线重建清除。
+- `secret-exposure` **6 → 4**（`.outputs/quality/secret-exposure-report.txt`）：user/idaas 合并后两处迁移文件里的历史凭据已消失；**剩余 4 条全部在 `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md`**（`:61`、`:70` 报 Inline secret，`:72`、`:74` 报 Secret config default）。
+
+  ⚠️ **这 4 条我查过但没能定性，已原样保留，不要凭猜测处理**：
+  - 该文档是**凭据清单/审计报告本体**（B-2/B-3 专题），文本必然要写出"哪个文件、哪一行曾经有过密钥"；其中真正的 `JWT_SECRET` 值**早已被脱敏**成 `«已作废-ACK-JWT签名密钥»`，明文值不在文件里。
+  - 我试过收紧门禁的取值正则（原 `[^,}\r\n]+` 会把值后面紧跟的中文说明一起吞掉，导致整段说明被当成凭据值），但**改动无法可靠验证**：`.outputs/` 被 gitignore，临时 fixture 不会被门禁扫描，"造样例验证"这条路走不通；而且实测中出现过"真密钥未被标记"的现象，我无法确认那是样例构造错误还是真实漏报。**因此我回滚了该改动**——对凭据检测做无法验证的放宽，比留一条误报危险得多。
+  - 结论与建议：要么给 `secret-exposure-allowlist.txt` 加这 4 条**并写明"历史审计证据，值已脱敏"**（但清单规则要求"可证明非凭据"，这 4 条严格说属于"文档描述凭据"而非"非凭据"，需你确认），要么把 B-2/B-3 的证据改成不含 file:line 的表述。**两条都需要决策，不要机械放行。**
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`。
 - ~~合并 `common-audit-service` 的双迁移根为单根~~ **（已核实为错误前提，废弃）**；~~history 表名统一 `<service>_schema_history`~~ **（无规则依据，本轮不做）**——两条详见 §3.1.1。
 
