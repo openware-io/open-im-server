@@ -227,6 +227,8 @@ WHERE `table_schema` = DATABASE()
 
 `release_count` 必须为 `0`，`unexpected_schema_count` 必须为 `0`，且必须已有可恢复备份。发布单记录备份标识、操作者、目标环境和查询结果。部署时先摘除旧服务实例；在空库验证 V1+V2，在结构一致演练库验证前置检查和 V2，再部署新后端/Gateway，最后切换 App 与 Admin。V2 执行后不能回滚到读取 `adm_app_release` 的旧二进制，只能回滚新应用/Gateway 并按发布单处置。
 
+> 以下脚本为**历史记录**：`V2__replace_app_release_governance.sql` 已在批次 2 并入 `V1__adm_management_domain_baseline.sql` 并被删除。当前实施以基线为准，**不要再按本文新建 V2 文件**；若要复用其中的 DDL，请对照基线确认差异（基线不再重建退役表）。
+
 以下内容为 `V2__replace_app_release_governance.sql` 的完整脚本；实施时原样创建为 UTF-8 文件，使用两空格缩进、反引号标识符和大写 SQL 关键字，执行后不可修改。
 
 ```sql
