@@ -275,8 +275,11 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 
    - 现状：`application.yml` 里是 `producer-group: ${PLATFORM_ORDER_SERVICE_MQ_PRODUCER_GROUP:platform-order-service-producer}` —— **环境变量优先、字面量是默认值**，正是 `standards/12` 要求的"服务配置中的 Producer Group 必须使用服务专属变量，变量名遵循 `<SERVICE>_MQ_PRODUCER_GROUP`"。
    - 而同一个值**已经在 `sdk/protocol-mq` 里定义了常量**（如 `ResourceMqProducerGroups.PLATFORM_RESOURCE_SERVICE`），两个模块的注册表类（`CouponMqRegistry`、`ResourceMqRegistry`）已直接引用常量。
-   - 所以门禁报的是"默认值里又写了一遍字面量"，**不是"硬编码绕过常量"**。三种处置各有取舍，**属架构决策**：① YAML 去掉默认值（`${VAR}` 必需，fail-fast，但没配环境变量的环境会启动失败）；② 保留 YAML 默认值、把门禁改成"允许默认值与同名常量一致"（改动最小，但两处仍需人工保持同步）；③ 让 MQ 配置直接注入常量、不再走 YAML（最彻底，但要改 `MqProperties`/环境变量覆盖机制）。**不要再无人决策地加标记或删默认值。**
-   - 另 34 条是补台账（`docs/mq/REGISTRY.md` 缺 34 个已实现的 Topic/Consumer Group），属可追查工作，但**属于批次 2「台账同步」步骤**，与上面 10 条是两件事。**已把 34 条提取成 worklist：`.outputs/quality/mq-registry-ledger-todo.txt`**（7 列 ×34 行，已填"类型/名称/常量文件/责任模块（部分标待核）"，留空"消费目的/顺序键/幂等键"）。
+   - **已实测的决定性证据（本轮）**：这 10 个环境变量**在仓库的部署配置里一个都没有设置**——`k8s/`、`deploy/`、`.cnb.yml`、`docker-compose.yml` 全查过，10 个 `<SERVICE>_MQ_PRODUCER_GROUP` 均为 `NOT SET ANYWHERE`。也就是说 **YAML 里的字面量默认值是生产实际生效的值**。
+   - 由此把选项收敛为两条（第三条"直接删默认值"已被证据排除）：
+     - **①（推荐）改门禁**：把"语法字面量"改成**语义重复**判定——允许 `producer-group: ${X:literal}` **当且仅当** `literal` 等于 `sdk/protocol-mq` 里对应的常量值。理由：standards/12 的原话要求是"必须使用服务专属变量，变量名遵循 `<SERVICE>_MQ_PRODUCER_GROUP`"，**这条已经满足**；门的本意是防止"绕过常量另写一份资源名"，而默认值与常量同值时并没有第二份真值。实现只需读 `*MqProducerGroups` 的 `常量 -> 字面量` 映射再比对。
+     - **② 补齐部署侧**：给 10 个服务在 k8s/compose 里真正注入这些环境变量，再删默认值（fail-fast）。语义最"纯"，但要改多个部署清单与 Secret/ConfigMap，且**没配变量的环境会启动失败**——按现在的部署配置，这条路等于连带改部署方式。
+   - **另 34 条台账已完成**（`83ee042`），与上面 10 条是两件事。
 
 10. **H2 测试夹具与生产基线已漂移（真实存在，未修，需单独一轮）**：三个模块的 `src/test/resources/db/test-migration/` 是自己的 DDL 副本（不读生产迁移），所以**夹具会悄悄落后于基线**。实测漂移：
 
