@@ -414,6 +414,11 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - **两条路线的实际代价**（都已量化，可直接选）：
      - **A. 登记前缀（改动最小）**：`table-prefixes.txt` 加 `open`/`saa`/`group`/`idaas` 四行 + `ENGINEERING_RULES.md` 前缀表加对应四行说明。**代码零改动**，门禁立即清零。代价：`saa` 这个疑似错别字会被固化；且同一模块出现多套前缀（idaas 用了 `group`+`idaas`）。
      - **B. 改名对齐（更干净、代价高）**：需同步改 **迁移文件 + Java `@TableName`/PO + 所有 SQL 引用 + 索引名**（引用数见上表，`saa_admin_account` 14 处最多）。且**会与"基线冻结只增不改"冲突**——改 V1 基线就等于还没冻结就先改基线，最好在**打冻结 tag 之前**做，否则要新增 V2 做 RENAME。
+   - **顺带核实：`table-prefixes.txt` 里有 2 个"预留但完全没用"的前缀**（本轮实测）：
+     - `audit` —— **0 张表以它开头**。审计表实际用 **`iam_audit_`**（`iam_audit_log` / `iam_audit_idempotency` / `iam_audit_archive_manifest`），即"审计表归 `iam` 前缀"的既定做法。
+     - `paych` —— **0 张表以它开头**。支付渠道表实际用 **`pay_channel_`**（`pay_channel_provider` / `pay_channel_transaction`）。
+     - 两者在 `ENGINEERING_RULES.md` 里都标了"预留"并且**有说明**，所以**门禁的两条分支都满足**（既登记了、也被文档提及），**不构成违规**。
+     - **可选清理**（属策略问题，未动）：删掉这两个登记项可减少"登记了却用不到"的噪音；但"预留前缀"本身是否该允许，是你们的口径问题。**注意顺序**：必须**先删文档表里的行、再删 `table-prefixes.txt` 的行**，否则 L63-65 会立刻报 `registered prefix ... is not documented`（这也是本轮读门禁才发现的耦合）。
    - **我的建议**：**A 用于 `saa`/`group`/`idaas`（三个都是真实域或历史既定名），`open_*` 单独判**——它和 `user_*` 同模块、语义却是"开放平台授权"，登记 `open` 会让一个模块出现两个前缀；若要收敛，`open_*` 是三个 prefix 项里唯一值得改名的（仅 3 张表、7 处 Java 引用）。**但这属于你的域命名决策，我不擅自动。**
 3. `MktEventConsumedPo` 的运行期缺陷已在本轮修掉（`d295e0c`）——这是"补审计列"引发的连带改动，**后续模块若给 PO 未覆盖的列补 `NOT NULL` 审计字段，必须同样检查 Java 侧是否写入**，否则插入会报 MySQL 1364。
 4. `standards/30` 已新增第 4 条门禁说明；批次 4 清理 6 个延期的非 ASCII 脚本前，需先定"脚本输出语言"策略。
