@@ -1,4 +1,5 @@
 -- 邮件服务基线表：渠道配置 / 模板 / 发送日志
+-- 基线重建（批次 2）：补齐 4 个审计字段；索引名统一为 <前缀>_<完整表名>_<语义>。
 CREATE TABLE mail_channel_config (
   id bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   tenant_id bigint unsigned NOT NULL COMMENT '租户ID',
@@ -8,10 +9,12 @@ CREATE TABLE mail_channel_config (
   password varchar(512) NOT NULL COMMENT 'SMTP 密码，平台加密托管占位，不落明文',
   from_address varchar(255) NULL COMMENT '发件人地址',
   enabled tinyint(1) NOT NULL DEFAULT 0 COMMENT '启用开关',
+  created_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人',
   created_at datetime(3) NOT NULL COMMENT '创建时间',
+  updated_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人',
   updated_at datetime(3) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_mail_channel_tenant_host (tenant_id, host)
+  UNIQUE KEY uk_mail_channel_config_tenant_host (tenant_id, host)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件渠道配置';
 
 CREATE TABLE mail_template (
@@ -21,7 +24,9 @@ CREATE TABLE mail_template (
   subject varchar(255) NOT NULL COMMENT '邮件主题',
   content text NOT NULL COMMENT '邮件正文',
   approval_status varchar(32) NOT NULL DEFAULT 'PENDING' COMMENT '审批状态 PENDING/APPROVED/REJECTED',
+  created_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人',
   created_at datetime(3) NOT NULL COMMENT '创建时间',
+  updated_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人',
   updated_at datetime(3) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (id),
   UNIQUE KEY uk_mail_template_tenant_code (tenant_id, code)
@@ -39,9 +44,11 @@ CREATE TABLE mail_send_log (
   provider_message_id varchar(128) NULL COMMENT '服务商发送流水',
   raw_response varchar(2048) NULL COMMENT '服务商返回原文',
   idempotency_key varchar(128) NOT NULL COMMENT '幂等键',
+  created_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人',
   created_at datetime(3) NOT NULL COMMENT '创建时间',
+  updated_by bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人',
   updated_at datetime(3) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_mail_send_idempotency (tenant_id, idempotency_key),
-  KEY idx_mail_send_query (tenant_id, template_code, created_at)
+  UNIQUE KEY uk_mail_send_log_tenant_idempotency (tenant_id, idempotency_key),
+  KEY idx_mail_send_log_query (tenant_id, template_code, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='邮件发送日志';
