@@ -433,6 +433,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | N-21 | **库名口径分裂（强化 DB-6）**：实际存在 3 个库——`im_server`（开放平台表 `open_application`）、`open_im`（`saa_admin_account`/`group_account` 等主表）、`open_audit`（审计表）；而 `.env` 的 `DB_DATABASE=im_server` 在多数服务中**未被使用**（服务读 `${MYSQL_DATABASE:open_im}`，Secret 中并无 `MYSQL_DATABASE` 键）。与 `ENGINEERING_RULES:154` 的 `gv_im`/`gv_saas` 口径亦不一致 | 批次 2（DB-6）：统一库名口径与配置键名，并同步文档、Compose/K8s 与迁移 |
 | N-22 | **移除密钥默认值必须配套测试配置**：删除 5 处 `${INTERNAL_SERVICE_AUTH_SECRET:默认值}` 后，`platform-order-service` 的 12 个 `@SpringBootTest` 类因缺少该变量而 `Failed to load ApplicationContext`（门禁自伤）。已为 payment/customer/order 的 `src/test/resources/application-test.yml` 补**测试专用占位值**（生产仍无默认值，符合 fail-fast 语义；customer 原本已有 `jwt.secret` 测试值的先例） | 已修复；作为规则写入 G-13：**移除默认值必须同时提供测试侧配置** |
 | N-23 | **本地 Kind 无持久化卷**：命名空间内 **0 个 PVC**；`mysql`/`minio` 使用 `emptyDir`（`k8s/local/infrastructure.yaml:29,111`），`mongodb` 连数据卷都没有（数据在容器层）。因此重建这三个 Pod 会**清空数据** → 轮换不能"重启一切"，必须按组件区分"服务端存储型（ALTER/changeUserPassword，不重启）"与"启动读取型（改 Secret + 重启）" | 已按此原则执行本轮轮换；批次 2 的基线重建需配合清库重建（PR-03） |
+| N-24 | **ASCII-only 只有约定、没有门禁，因此必然复发**：`standards/30:69` 自 18.2 起写明"校验脚本必须 ASCII-only"，但截至批次 2 仍有 **8 个** `scripts/**/*.ps1` 含非 ASCII 字节（2 个在 `scripts/validate` 属明文违规，6 个在 `scripts/verify`/`scripts/deploy` 为既存），其中本轮新建的门禁脚本自身就把中文规则原文粘进注释。根因是**约定未被执行**，与 N-16/N-20 同源 | 已实现 `validate-powershell-ascii-only.ps1`（阻断模式，扫描 `scripts/**/*.ps1`）：清零 2 个在册违规，其余 6 个进 `powershell-ascii-allowlist.txt` 延期至批次 4，且陈旧条目本身报错（详见 §19） |
 
 ---
 
@@ -630,4 +631,38 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | 接入 | 加入**报告模式**（清零批次 2） | `-Scope Changed` 退出码 **0** |
 
 **报告模式门禁现状（8 个）**：`flyway-conventions` 418、`java-fully-qualified-names` 192、`service-api-boundaries` 137、`standards-governance` 107、`java-silent-catch` 103、`mq-registry` 44、`tenant-sql` 41、`secret-exposure` 4 —— 合计 **1046 条**待清项，全部有 worklist 与清零批次。**批次 1 的门禁实现工作到此收尾**（G-01~G-15 全部落地）。
+
+---
+
+## 19. 批次 2 执行记录：ASCII-only 纪律固化为门禁（2026-10-13）
+
+### 19.1 背景：约定写成文字但无人执行，必复发
+
+`standards/30:69` 已写明"`scripts/validate/*.ps1` 必须保持 ASCII-only"，但该约定从 18.2 起只是文字：批次 1/2 期间仍有 2 个**新建**的校验脚本（`validate-mq-registry.ps1`、`validate-persistence-dependency-boundaries.ps1`，后者为既存）把中文规则原文粘贴进注释而无人拦下。这批非 ASCII 字节在 PS 5.1 下按 ANSI 解析，属于**解析期风险**而非风格问题。结论：靠纪律守不住的约定必须由门禁执行（N-24）。
+
+### 19.2 实现：G-10 之后新增 ASCII-only 门禁
+
+| 项 | 动作 | 结果 |
+| --- | --- | --- |
+| 新门禁 | `scripts/validate/validate-powershell-ascii-only.ps1`：逐字节扫描 `.ps1`，报告首个非 ASCII 行号与字节数；支持 `-ReportOnly`；违规写入 `.outputs/quality/powershell-ascii-only-worklist.txt`（gitignored） | 已接入统一入口，门禁数 23 → **24**，**阻断模式** |
+| 扫描范围比规范原文更宽 | 规范原文只约束 `scripts/validate/*.ps1`，但**全仓 `.ps1` 都是无 BOM 文件**且 Windows CI 用 `powershell.exe` 执行，风险面相同 → 门禁扫描 `scripts/**/*.ps1`，把 `scripts/verify`、`scripts/deploy` 与根目录脚本一并纳入 | 首次运行即暴露 **8 个**非 ASCII 文件（规范原文口径只有 2 个），证实范围放宽是必要的 |
+| 清零 2 个在册违规 | `validate-mq-registry.ps1`（52 字符）与 `validate-persistence-dependency-boundaries.ps1`（41 字符）的注释改为英文，引用规则时用英文转述并保留规则出处 | 两文件非 ASCII 归零；`mq-registry` 改写后仍正确输出 44 条 worklist，`persistence` 退出码 0（改写未伤语义） |
+| 既存 6 个走**延期清单**（非豁免） | `scripts/validate/powershell-ascii-allowlist.txt`：每条必须写 `路径 \| 清理批次 \| 原因`，缺任一段即门禁失败；**已变为纯 ASCII 而未删条目 → 同样失败**（列表只能缩短） | 6 条全部登记为批次 4，含具体字节数与"为何不能现在机械清理" |
+| 门禁自检 | T1 基线通过；T2 注入新违规文件 → 退出码 1 并精确报出文件/行号/字节数；T3 注入陈旧条目 → 退出码 1 | 三项均符合预期；未新增任何永久豁免 |
+
+### 19.3 尚未闭合（如实登记）
+
+6 个既存文件仍在延期清单内，**共 5568 个非 ASCII 字节**，全部在初始开源提交 `4971e22` 即存在，非本轮引入：
+
+| 文件 | 非 ASCII 字节 | 为何不能机械清理 |
+| --- | --- | --- |
+| `scripts/verify/e2e-ktv-smoke.ps1` | 3813（首行即含） | 中文断言/进度输出，占比最大；转换需保证测试行为不变 |
+| `scripts/deploy/build-saas-release.ps1` | 930 | 面向用户的中文输出文案，需先决定"输出是否保留中文"（保留则须加 BOM 或约定显式 UTF-8 输出） |
+| `scripts/verify/verify-unread-secret-toggle.ps1` | 393 | 全为中文注释（bug#8 场景），风险低但同属 PS 5.1 解析面 |
+| `scripts/set-domain-version.ps1` | 228 | 中文用法/帮助文本 |
+| `scripts/deploy/k8s.ps1` | 198 | 中文进度提示，且自身无门禁覆盖 |
+| `scripts/verify/verify-a380-ktv-closure.ps1` | 6 | 第 99 行 SQL 夹具的房间类型**名称字面量为中文测试数据**（N-20）；改字面量即改断言值，属行为决策 |
+
+**给批次 4 的建议**：先定"脚本输出语言"策略（中文输出 + BOM，或英文输出 + 保持无 BOM），再一次性清理前 5 个；`verify-a380-ktv-closure.ps1` 需与 KTV 验收用例的所有者确认夹具改名是否影响断言。
+
 

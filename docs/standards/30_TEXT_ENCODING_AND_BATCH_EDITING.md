@@ -73,5 +73,8 @@ Set-Content $path $text
 1. `scripts/validate/validate-text-encoding.ps1 -Strict`
 2. `scripts/validate/validate-java-comment-quality.ps1`
 3. `scripts/validate/validate-powershell-utf8-safety.ps1`
+4. `scripts/validate/validate-powershell-ascii-only.ps1`
+
+第 4 条把上述 ASCII-only 约定变成可执行的检查：默认扫描 `scripts/**/*.ps1`（原因是全仓 `.ps1` 均为无 BOM 文件，Windows CI 用 `powershell.exe` 执行，风险面比本规范原文的 `scripts/validate/*.ps1` 更宽）；既有违规文件登记在 `scripts/validate/powershell-ascii-allowlist.txt`，逐条注明清理批次与原因，且**列表只能缩短**——文件一旦变为纯 ASCII 而未删除条目，门禁同样报错。
 
 发布前统一通过[统一工程校验入口](../ENGINEERING_RULES.md)执行（`scripts/validate/invoke-engineering-validation.ps1`）。
