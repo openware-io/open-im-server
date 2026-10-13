@@ -19,12 +19,12 @@
   | `platform-marketing-service` | `d295e0c` | 4 文件 → 1 |
   | `common-mail-service`（样板，补反引号） | `d6969fe` | 1 文件 |
   | `common-sms-service`（补审计列 + 索引名） | `aafc774` | 1 文件 |
-  | `common-media-service`（`support_`→`media_` + 补 `id` 主键 + Java 侧） | 见 §3.2 | 1 文件 + 5 PO |
+  | `common-media-service`（`support_`→`media_` + 补 `id` 主键 + Java 侧改写） | `b7377be` | 1 文件 + 5 PO + 6 服务类 |
   | `platform-admin-service`（**未改表名**，前缀待定） | `e4114c4` | 11 文件 → 1 |
   | `platform-customer-service` | `d62ba0d` | 13 文件 → 1 |
   | `common-audit-service`：`migration` 根 | `a1c892a` | 4 → 2（V1+V3） |
-  | `common-audit-service`：`migration-audit` 根（**两根不合并**） | `a1c892a` | 3 文件 |
-  | `platform-tenant-service` | 见 §3.2 | 32 文件 → 1 |
+  | `common-audit-service`：`migration-audit` 根（**两根不合并**） | `a1c892a` + `a1de6c1` | 3 文件 |
+  | `platform-tenant-service` | `4a3da4a` | 32 文件 → 1 |
 
 - **剩余 7 个迁移根、257 条**：`message 57`、`user 44`、`admin(IM) 44`、`conversation 39`、`order 38`、`payment 23`、`idaas 11`，外加 `platform-admin` 的 1 条 `saa` 前缀（**已决定挂起**）。
 - 与迁移无关的门禁自伤项本轮已闭合：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内 2 个非 ASCII 脚本已清零。详见 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
@@ -53,7 +53,9 @@
 
 **当前 worklist = 378 条**，分类：审计列 192、索引命名 73、id 类型 37、PK 非 id 19、前缀 15、其他 15、反引号 14、注释 7、datetime 6。
 
-> ⚠️ **前缀类 15 条已决定暂不处理**（用户决定，待后续单独定夺）：`channel_`、`secret_chat`、`saa_`、`support_`、`open_`、`group_`、`idaas_`。它们指向同一类问题——**表用了别的域的前缀**（例如 `channel`/`secret_chat` 属会话域却未用 `conversation_`；`saa_admin_account` 属平台后台却未用 `adm_`）。**不要**简单地把这些前缀登记进登记表了事（那会让同一域出现两个前缀），也不要擅自改表名。已核实的事实：`iam_` 域的表分散在 `im-admin-service`（`adm_*` 16 张）与 `platform-admin-service`（`iam_menu`、`saa_admin_account`），`common-audit-service` 用 `iam_audit_*`，`paych_`/`audit_` 在 `table-prefixes.txt` 里已登记但**无任何表使用**。
+> ⚠️ **前缀类条目已决定暂不处理**（用户决定，待后续单独定夺）：`channel_`、`secret_chat`、`saa_`、`support_`、`open_`、`group_`、`idaas_`。它们指向同一类问题——**表用了别的域的前缀**。
+
+> ✅ **但先查一遍，有的已经不是问题了**：`conversation` 模块的后继版本 `V6__fix_channel_secret_chat_schema_conventions.sql` **早就把** `channel`→`conversation_channel`、`channel_subscription`→`conversation_channel_subscription`、`secret_chat`→`conversation_secret_chat` 重命名了，Java PO 与审计报告都按新名。worklist 里那几条 `channel`/`secret` 前缀只是**旧版本文件**贡献的——把 RENAME 折进基线后自然消失，**不需要重命名、不需要登记**。`support_media_*`→`media_*`（media 模块）同理且已完成。**判据：先看该模块最新版本里是否已经 RENAME 过，再看 worklist 行来自哪个版本文件。**
 
 ### 步骤 1：按模块重写基线（worklist 驱动，378 条）
 
@@ -121,7 +123,14 @@
 
 - 前缀改登记/改名：`support_media_*` → `media_*`（DC-04）；`mail_*` / `sms_` / `open_*` / `iam_menu` / `saa_admin_account` → `adm_` / `tenant_payment_method` → `tnt_`（后四项属挂起的前缀决策，见上文警示）。
 - 集团业务领域登记（DC-02）：`group_*` / `idaas_*` 表与目录/文档一并登记（前缀待定）。
-- `tenant-sql` worklist **41 条**（`.outputs/quality/tenant-sql-worklist.txt`）：平台级扫表补 `platform-wide` / `tenant-agnostic` 显式标注，其余补租户条件。
+- `tenant-sql` worklist **43 → 18**（`.outputs/quality/tenant-sql-worklist.txt`）：本轮已清 `customer`(8)、`audit`(5)、`resource`(4)、`tenant`(8)；剩 `order`16、`payment`1、`admin`1。**两类修法要分清**：
+
+  | 情形 | 正确做法 |
+  | --- | --- |
+  | 语句**确实带** `tenant_id`，但门禁按行判定、谓词落在**下一行**（`SELECT ... FROM t` 换行后 `WHERE tenant_id = ...`） | **把 `FROM` 与谓词放同一行**（reflow）。不要为了过门禁加 `tenant-agnostic`——那是谎报，也丢了"这行本来就带租户谓词"的信息 |
+  | 语句**确实没有**租户维度（分区 DDL、按全局唯一主键/账号定位、平台级字典或台账、按时间窗口的保留清理、跨租户定时扫描） | 加门禁认识的 `platform-wide` / `tenant-agnostic` 行尾标记，**并在标记里写清属于哪一类理由** |
+
+  另外：若表已在 `scripts/validate/tenant-platform-tables.txt` 登记为平台级（如 `tnt_business_type`、`tnt_app_user_authorization`），那它就是平台级表，标记用 `platform-wide` 而不是 `tenant-agnostic`。
 - `secret-exposure` **4 处**（`.outputs/quality/secret-exposure-report.txt`）：迁移注释中的口令与应用密钥哈希随基线重建清除。
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`。
 - ~~合并 `common-audit-service` 的双迁移根为单根~~ **（已核实为错误前提，废弃）**；~~history 表名统一 `<service>_schema_history`~~ **（无规则依据，本轮不做）**——两条详见 §3.1.1。
