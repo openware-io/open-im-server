@@ -233,6 +233,8 @@ foreach ($dir in $migrationDirs) {
 }
 
 if ($violations.Count -eq 0) {
+  # See validate-tenant-sql.ps1: a passing gate must not leave a stale worklist claiming work remains.
+  if (Test-Path -LiteralPath $worklistPath) { Remove-Item -LiteralPath $worklistPath -Force }
   Write-Host "Flyway convention validation passed. Tables checked: $tableCount, migration roots: $($migrationDirs.Count)."
   exit 0
 }

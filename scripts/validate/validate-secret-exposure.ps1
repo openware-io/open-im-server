@@ -171,7 +171,11 @@ foreach ($violation in $violations) { $report.Add($violation) }
 [System.IO.File]::WriteAllLines($ReportPath, $report, [System.Text.UTF8Encoding]::new($false))
 
 if ($violations.Count -eq 0) {
-  Write-Host "Secret exposure validation passed. Report: $ReportPath"
+  # A passing gate must not leave a stale report behind. This path used to be the report-only
+  # worklist, so the file still listed "4 potential credential assignments" long after the last one
+  # was cleared, because the success branch never touched it. See validate-tenant-sql.ps1.
+  if (Test-Path -LiteralPath $ReportPath) { Remove-Item -LiteralPath $ReportPath -Force }
+  Write-Host "Secret exposure validation passed."
   exit 0
 }
 

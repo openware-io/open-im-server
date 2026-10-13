@@ -113,6 +113,10 @@ try {
 }
 
 if ($violations.Count -eq 0) {
+  # A passing gate must not leave a stale worklist behind: the file is what operators and follow-up
+  # checks read to decide whether work remains, so a leftover from an earlier failing run would report
+  # violations that no longer exist.
+  if (Test-Path -LiteralPath $worklistPath) { Remove-Item -LiteralPath $worklistPath -Force }
   Write-Host "Tenant isolation validation passed. Tenant-scoped tables: $($tenantScopedTables.Count)."
   exit 0
 }

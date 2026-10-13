@@ -82,3 +82,5 @@
 | Consumer Group | `im-message-service-secret-chat-destroy-policy-changed-consumer` | `im-message-service` | 私密聊天销毁策略变更：对历史消息回补销毁计时 | 待核 | 待核 |
 | Consumer Group | `im-message-service-secret-destroy-consumer` | `im-message-service` | 私密消息延迟销毁命令：到期后精确销毁对应密文（仅当仍 active 且 destroyAt 已到） | 待核 | 待核 |
 | Producer Group | `im-conversation-service-producer` | `im-conversation-service` | 经 ConversationAuthorizationOutboxRelay 发布会话授权变更事件 | - | - |
+| Producer Group | `im-admin-service-producer` | `im-admin-service` | 仅由共享 MqProducer Bean 注册（该服务只消费、不发布，此 group 不发消息） | - | - |
+| Producer Group | `platform-identity-service-producer` | `platform-identity-service` | 仅由共享 MqProducer Bean 注册（该服务只消费、不发布，此 group 不发消息） | - | - |
