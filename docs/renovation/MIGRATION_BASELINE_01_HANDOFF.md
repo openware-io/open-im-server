@@ -268,6 +268,17 @@
 
 `scripts/verify/*` 全量 + 关键链路（登录 / 会话 / 消息 / 媒体 / KTV 预约）+ 统一入口 `-Scope Full` 退出码 0 + `.outputs/quality/migration-inventory-before.txt` 的 199 条可逐条复核（tag 可解析）。
 
+**✅ 199 条清单已本轮逐条复核通过（这给冻结 tag 提供了可追溯依据）：**
+
+```powershell
+$tag = 'pre-baseline-consolidation-20261013'
+# 注意：ls-tree 不做 glob！`git ls-tree -r <tag> -- "*db/migration/*.sql"` 返回 0 行（03 方案 §5.2 已实测记录）。
+# 正确写法是先全量 ls-tree、再用正则过滤路径：
+git ls-tree -r $tag | Select-String 'src/main/resources/db/migration(-audit)?/.*\.sql$'
+```
+
+**实测结果**：清单 **199 行**；从 tag 重新生成同样得 **199 行**；两者逐条比对 `Compare-Object` **差异 = 0**；**无一条"清单里有、tag 里没有"**，**SHA 不一致 = 0**。也就是说这份清单**可从 tag 精确复现**——冻结 tag 因此可以独立核验"基线里到底是哪 199 个文件、各自什么内容"。
+
 **✅ 已完成的"无需活环境"部分（本轮）**：`scripts/verify/` 共 15 个脚本，全部需要活服务或集群（网关 URL、管理员口令、kubectl 上下文、MySQL 直连），**本地跑不了**；但"合并基线有没有把它们的假设改坏"已核查完：
 
 1. **迁移文件名引用未过期**（最易藏雷处）：`AuditPartitionDdlCheck.java` 硬编码引用的三个审计迁移文件名 **全部仍然存在**（`db/migration-audit/` 的 `V1__audit_idempotency_ledger.sql` / `V2__audit_partitioned_table.sql` / `V3__audit_archive_manifest.sql`），**无失效引用**。
