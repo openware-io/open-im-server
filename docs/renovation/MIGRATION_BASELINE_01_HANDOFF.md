@@ -173,7 +173,7 @@
 
 对每个门禁：`-ReportOnly` 跑 → worklist 归零 → 删除 `scripts/validate/report-only-gates.txt` 中对应行 → 再跑一次统一入口确认阻断模式通过。
 
-⚠️ **不要顺手删 `mq-registry`**：它在 `report-only-gates.txt` 里登记的是"批次 2（台账补登记）**+** 批次 1（常量集中）"，且当前仍有 **44** 条（34 未登记 + 10 配置字面量）。只有两部分都完成才可移除该行。
+⚠️ **不要顺手删 `mq-registry`**：它在 `report-only-gates.txt` 里登记的是"批次 2（台账补登记）**+** 批次 1（常量集中）"。台账部分 34 条已完成，**当前剩 10 条**（全是 `application.yml` 的 `${ENV:默认值}` 生产者组默认值）。两部分都完成才可移除该行。
 
 ### 步骤 4：清库重建（PR-03）
 
@@ -195,7 +195,7 @@
 | 现有 tag | `pre-migration-rewrite-20261013`、`pre-baseline-consolidation-20261013`、`v2.0.0`——**都不含 `baseline-` 前缀、也不含 `freeze: true`**，故当前不冻结 |
 | `mvnw` 执行位 | `git ls-files -s mvnw` → `100755` ✅（上一轮修好了，别再动索引） |
 | 门禁总数 | **24**（`invoke-engineering-validation.ps1` 的 `$validators`） |
-| 报告模式门禁 | 8 个：`flyway-conventions` **378**、`java-fully-qualified-names` 192、`service-api-boundaries` 137、`standards-governance` 107、`java-silent-catch` 103、`mq-registry` 44、`tenant-sql` 41、`secret-exposure` 4 |
+| 报告模式门禁（批次 2 相关） | `flyway-conventions` **7**（前缀决策）、`mq-registry` **10**（生产者组默认值决策）、`secret-exposure` **4**（审计报告文档）；`tenant-sql` 已转**阻断**且 worklist 归零 |
 | ASCII 门禁 | 新增 `validate-powershell-ascii-only.ps1`（阻断模式，扫描 `scripts/**/*.ps1`）；2 个在册违规已清零；6 个既存延期至批次 4 |
 | 迁移文件总量 | 19 个迁移根 / **184** 个 SQL 文件（合并前为 199，已随 6 个模块减少） |
 | 已完成的模块 | 6 个：`resource`、`identity`、`payment-channel`、`marketing`、`mail`、`sms`（各自单 V1，worklist 归零，已提交） |
