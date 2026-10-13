@@ -183,6 +183,16 @@
 
 ### 步骤 4：清库重建（PR-03）
 
+> **⚠️ 先读这条：现存的 `open-im-local` 集群是"重建前"的旧状态，不能拿它当验收基线。**
+>
+> 本轮实测确认：
+> - 集群 31/31 deployment 就绪，但**创建时间是 `2026-10-12T01:37Z`**，而**第一个合并基线的提交是 `903033b`（`2026-10-13 17:53 +0800` = `09:53Z`）**——**集群比合并基线早约 32 小时**。
+> - 因此现网库仍是**改名前的表名**：`im_server.support_media_*`（5 张，代码里已 0 引用）、`open_im.tenant_payment_method`（代码里现在是 `tnt_payment_method`，16 处引用）、`im_server.adm_app_release_retired_v1`（基线里是 `adm_app_release`，10 处引用）。
+> - 现网 `open_audit` 只有 3 张表（`iam_audit_log` / `iam_audit_idempotency` / `iam_audit_archive_manifest`），**没有** `open_im` 里的同名旧表——印证审计双根按 profile 单库生效。
+> - 现网表数：`open_im` 94 + `im_server` 73（含 5 张 flyway 历史表）→ **实际应用表 150**；**新基线洁净重建 = 155 张**（`open_im` 152 + `open_audit` 3）。差额恰好就是上面那批改名，**方向正确**。
+>
+> **结论**：清库重建**确实必须做**，且**不能用当前集群验证迁移结果**——它跑的是旧代码+旧 schema。重建需要：重建集群 → 用**当前 HEAD** 构建镜像 → 全新库跑 Flyway。这是破坏性操作（会销毁一个已运行 34h 的可用环境），**需要你确认后再动**。
+
 > **迁移链部分已验证（本轮）**：19 个根的全部基线在全新 MySQL 8.0.46 上按序应用 **0 失败**，152 + 3 张表、无跨服务冲突、审计分区完好。**剩余未验证的是运行期部分**：`kind` 命名空间销毁/重建、各服务带 Flyway 启动（`flyway_schema_history_*` 表、`baseline-on-migrate`、服务间启动顺序）、31/31 deployment 就绪。验证方法（可复现）：
 > ```powershell
 > docker run -d --name dsh-rebuild-check -e MYSQL_ROOT_PASSWORD=rootpw -p 13306:3306 mysql:8.0.46
