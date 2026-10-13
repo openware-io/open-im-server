@@ -225,6 +225,14 @@
 > 4. **启动服务的最小环境变量**：`MYSQL_HOST`/`MYSQL_USER`/`MYSQL_PASSWORD`、`JWT_SECRET`、`INTERNAL_SERVICE_AUTH_SECRET`；**后两者必须 ≥32 字符**，否则抛 `internal.service-auth secret must contain at least 32 characters`（这是配置校验，不是缺陷）。
 > 5. **下轮可选**：对全部 19 个服务按同一流程跑完整运行期验收（本轮做了 2 个）。
 >
+> **✅✅ 全量运行期验收已完成（干净构建，18/18 通过）：**
+> - 全 reactor `clean package -DskipTests` → **BUILD SUCCESS**；**逐个校验 18 个 jar**（列出**全部**迁移，不用 `-First 1`）：17 个服务**各 1 个** `V1__*_baseline.sql`，`common-audit-service` **2 个**（`V1__iam_audit_baseline.sql` + `V3__audit_occurred_at_backfill.sql`，刻意保留）→ **陈旧 jar = 0**。
+> - 空库（三库、0 张表）上逐个真启动：**18/18 成功**，**每个服务的迁移条数都恰好符合预期**——17 个 `applied=1`、audit `applied=2`；13 张 history 表共 **26 条记录、`success=0` 的 0 条**。
+> - 最终 schema **152 张应用表**（`open_im` 97 + `im_server` 73），与手工执行 DDL（155 含审计副本）、现网（150 旧名）**三方对齐**；`media_object`/`tnt_payment_method`/`adm_app_release` **全部存在**，印证"基线只建新名、与 Java 一致"。
+> - **审计双根实测**：`SPRING_PROFILES_ACTIVE=audit-schema` 启动 → 正确切 `open_audit` + `db/migration-audit`，建出 3 张表，且 **`iam_audit_log` 的 30 个月分区完好**。
+>
+> 结论：**步骤 4 的"迁移链"部分已可视为完成**；剩下的只有"把现网环境换成新代码"这一破坏性运维动作（见下方说明），**需你确认**。
+>
 > 可复现命令：
 > ```powershell
 > docker run -d --name dsh-flyway -e MYSQL_ROOT_PASSWORD=rootpw -p 3306:3306 mysql:8.0.46
