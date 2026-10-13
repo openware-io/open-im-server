@@ -1,6 +1,6 @@
 # Fully-qualified name validator (G-05).
 #
-# ENGINEERING_RULES: "禁止使用全路径类型、全路径常量、全路径静态成员引用；必须通过 import 维护可读性".
+# ENGINEERING_RULES: fully-qualified type/constant/static-member references are forbidden; use imports.
 # Nothing enforced this before, and config/checkstyle/checkstyle.xml only enables UnusedImports --
 # which actively encourages writing fully-qualified names to dodge unused-import warnings.
 #

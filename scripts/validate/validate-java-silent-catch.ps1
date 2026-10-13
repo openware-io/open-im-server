@@ -1,6 +1,6 @@
 # Silent catch validator (G-06).
 #
-# ENGINEERING_RULES: "严禁静默吞异常；确实需要继续流程时，必须至少记录 warn 日志并说明降级语义".
+# ENGINEERING_RULES: silently swallowing exceptions is forbidden; when a flow must continue, it must log at warn level and state the degradation semantics.
 # The existing java-exception-logging gate only greps for printStackTrace(), so silently swallowed
 # exceptions were never detected.
 #
