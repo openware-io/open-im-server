@@ -69,16 +69,16 @@
 
 | 表 | 列 | 类型 | 单位口径（注释原文） | 证据 |
 |---|---|---|---|---|
-| `res_room_type` | `unit_price` | `bigint NULL` | `'房型单价（房费，最小货币单位/计费单位；NULL 回退门店级单价）'` | `platform-services/resource/platform-resource-service/src/main/resources/db/migration/V6__res_room_type_and_area.sql:23` |
+| `res_room_type` | `unit_price` | `bigint NULL` | `'房型单价（房费，最小货币单位/计费单位；NULL 回退门店级单价）'` | `platform-services/resource/platform-resource-service/src/main/resources/db/migration/V1__res_resource_baseline.sql:114` |
 | `res_room_type` | `server_unit_price` | `bigint NULL` | `'房型服务人员单价（最小货币单位/计费单位；NULL 回退门店级服务人员单价）'` | 同上 `:24` |
 | `tnt_pricing_plan` | `price_per_unit` | `bigint NOT NULL` | `'每单位单价（最小货币单位）'` | `platform-services/tenant/platform-tenant-service/src/main/resources/db/migration/V2__tnt_pricing_plan.sql:9` |
 | `tnt_pricing_plan` | `overtime_rate` | `decimal(20,6) DEFAULT 1.0` | `'超时费率'` | 同上 `:11` |
 | `tnt_pricing_plan` | `billing_unit` / `increment_minutes` / `rounding_direction` | — | 计费单位/递增/舍入 | 同上 `:8,10,12`（见文件） |
-| `res_resource` | `area_name` / `room_type_id` | — | 房型引用（决定用哪个单价） | `.../V6__res_room_type_and_area.sql:36-37` |
+| `res_resource` | `area_name` / `room_type_id` | — | 房型引用（决定用哪个单价） | `.../V1__res_resource_baseline.sql:16,19` |
 
 口径声明（同文件）：
-- `.../V6__res_room_type_and_area.sql:12` — `--    金额一律最小货币单位整数，与 tnt_pricing_plan.price_per_unit 同口径。`
-- `.../V6__res_room_type_and_area.sql:10-11` — 房型字典承载「房型单价」「房型服务人员单价」，NULL 或 <=0 回退门店级。
+- `.../V1__res_resource_baseline.sql:103` — `--    金额一律最小货币单位整数，与 tnt_pricing_plan.price_per_unit 同口径。`
+- `.../V1__res_resource_baseline.sql:100-102` — 房型字典承载「房型单价」「房型服务人员单价」，NULL 或 <=0 回退门店级。
 - 种子：`platform-services/tenant/.../V7__seed_a380_tenant.sql:26`（`INSERT INTO tnt_pricing_plan ... price_per_unit ...`）
 
 ### 1.3 租户 / 门店 / 主体币种配置（多币种的「本应唯一来源」）
@@ -818,7 +818,7 @@ C 端 `c-end/saas.js`：
 ### S3. 包厢计价（房型单价 + 服务单价，**刚改成合计口径**）
 - **触发界面**：`gv_saas_admin/src/views/tenant/ktv-config.vue:23,34,191,210`（配置）；`gv_saas_admin/src/views/tenant/resources.vue:175,181,221,224`（房型）；预约页展示 `gv_saas_admin/src/views/tenant/reservations.vue:18,24`、`gv_saas_mobile/src/b-end/views/Reservations.vue:4,32`、`c-end/app.js:494,500`
 - **接口**：`GET /business/ktv/pricing` → `KtvPricingController`（`.../api/controller/KtvPricingController.java:45`）；写侧 `POST/PUT /internal/pricing-plans`
-- **落库**：`tnt_pricing_plan.price_per_unit`（`.../V2__tnt_pricing_plan.sql:9`）、`res_room_type.unit_price / server_unit_price`（`.../V6__res_room_type_and_area.sql:23-24`）、开台时快照进 `ord_ktv_session.billing_rule_snapshot_json`（`.../V1__ord_order_baseline.sql:43`）
+- **落库**：`tnt_pricing_plan.price_per_unit`（`.../V2__tnt_pricing_plan.sql:9`）、`res_room_type.unit_price / server_unit_price`（`.../V1__res_resource_baseline.sql:114-115`）、开台时快照进 `ord_ktv_session.billing_rule_snapshot_json`（`.../V1__ord_order_baseline.sql:43`）
 - **合计口径的单一来源**：`KtvPricingPlan.combinedUnitPrice()` = `roomUnitPrice + serverUnitPrice`（`.../domain/ktv/model/KtvPricingPlan.java:20-22` 注释；`:76-80` `withSnapshotPricing`）
 - **展示**：**服务端返回的 `displayText` 里已含 `¥`**
   - 生成处：`KtvPricingController.displayText()`（`:91-119`）+ `money()`（`:121-124`）
@@ -1103,7 +1103,7 @@ C 端 `c-end/saas.js`：
 - 会话计价快照：`ord_ktv_session.billing_rule_snapshot_json`（`.../V1__ord_order_baseline.sql:43`）+ 明细快照 `ord_order_item.price_snapshot_json`（`:28`）
 - 结台后账单**不回算**：`.../application/BillApplicationService.java:94-97` — `// 结台已固化 ROOM_FEE 明细：账单直接取快照金额，不重新计算（改规则不影响历史账单）。`
 - 支付侧币种快照：`pay_collect.request_json`（`CollectApplicationService.java:317`）、`pay_intent.currency_code`（`:397`）
-- **缺口**：`pay_refund`（`.../V1__pay_baseline.sql:26`）、`pay_shift`（`:38-39`）、`pay_daily_closing`（`:46-54`）、`cst_wallet_ledger`（`.../V1__cst_customer_baseline.sql:49-65`）、`mkt_coupon_redemption`（`.../V2__mkt_coupon_redemption.sql:4-20`）、`res_room_type`（`.../V6__res_room_type_and_area.sql:23-24`）、`tnt_pricing_plan`（`.../V2__tnt_pricing_plan.sql:9`）**都没有币种列** → 如果币种是「租户/门店级设置」，改设置后这些历史记录会被**按新币种解读**。
+- **缺口**：`pay_refund`（`.../V1__pay_baseline.sql:26`）、`pay_shift`（`:38-39`）、`pay_daily_closing`（`:46-54`）、`cst_wallet_ledger`（`.../V1__cst_customer_baseline.sql:49-65`）、`mkt_coupon_redemption`（`.../V2__mkt_coupon_redemption.sql:4-20`）、`res_room_type`（`.../V1__res_resource_baseline.sql:114-115`）、`tnt_pricing_plan`（`.../V2__tnt_pricing_plan.sql:9`）**都没有币种列** → 如果币种是「租户/门店级设置」，改设置后这些历史记录会被**按新币种解读**。
 - 前端同样固化：`gv_saas_admin/src/utils/format.js:65,76,84` 输出符号与数据无关；`gv_saas_mobile/c-end/app.js:940` `bill.currencyCode || 'CNY'`。
 
 ### 5.7 【中危】源码守卫测试会把「正确的多币种实现」判为回退
@@ -1161,7 +1161,7 @@ C 端 `c-end/saas.js`：
 | **门店/租户默认币种** | 必须是「改一处、全局变」的唯一来源；现有 `tnt_store.default_currency` 是死列，应激活 | `.../V1__tnt_iam_baseline.sql:29`；`gv_saas_admin/src/views/tenant/stores.vue:28`（前端已在展示） |
 | **钱包账户币种** | 储值必须按币种隔离（唯一键已含 `currency_code`） | `.../V1__cst_customer_baseline.sql:44`；`.../application/WalletApplicationService.java:89` |
 | **支付/退款/班次币种** | `pay_intent`/`pay_transaction` 已有；`pay_refund`/`pay_shift`/`pay_daily_closing` 需补列 | `.../V1__pay_baseline.sql:6,17`（有）vs `:26,38-39,46-54`（无） |
-| **计价方案与房型单价币种** | 单价是「金额」，必须与订单币种同源，否则改币种后旧单价含义漂移 | `.../V2__tnt_pricing_plan.sql:9`；`.../V6__res_room_type_and_area.sql:23-24` |
+| **计价方案与房型单价币种** | 单价是「金额」，必须与订单币种同源，否则改币种后旧单价含义漂移 | `.../V2__tnt_pricing_plan.sql:9`；`.../V1__res_resource_baseline.sql:114-115` |
 | **优惠券面额币种** | `discount_value` 同一列承载「金额/万分数」两种口径，再加币种维会更乱 | `.../V1__mkt_marketing_baseline.sql:32` |
 | **报表汇总币种** | 报表 SQL 目前跨币种 SUM，必须由后端按币种分组或拒绝混合 | `.../ReportMapper.java:35,86-88,105,123`；`.../ReportController.java:188-190` |
 | **`displayText`** | 服务端生成的展示文案，前端无法本地化 | `KtvPricingController.java:91-124` |

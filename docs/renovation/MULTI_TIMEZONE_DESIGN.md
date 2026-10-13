@@ -879,7 +879,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | C 端单测固化 +08 行为 | `gv_saas_mobile/c-end/datetime.test.js:38-64` |
 | C 端提交预约构造时间 | `gv_saas_mobile/c-end/app.js:330-335,1196-1202`；展示 `:780,892` |
 | B 端 App `fmtTime` | `gv_saas_mobile/src/shared/utils/amount.js:32-35`；调用点 `gv_saas_mobile/src/b-end/views/Reservations.vue:31,58`；预览数据 `src/b-end/preview/saas.js:9,19,29,39` |
-| 迁移编号现状 | order `V23__ord_reservation_room_type.sql`、tenant `V26__seed_currency_permission.sql`、payment `V10__pay_currency_snapshot.sql`、resource `V7__res_public_media_url_prefix.sql` |
+| 迁移编号现状 | order `V23__ord_reservation_room_type.sql`、tenant `V26__seed_currency_permission.sql`、payment `V10__pay_currency_snapshot.sql`、resource **已合并为 `V1__res_resource_baseline.sql`（原 `V7__res_public_media_url_prefix.sql` 等内容已并入）** |
 
 ---
 

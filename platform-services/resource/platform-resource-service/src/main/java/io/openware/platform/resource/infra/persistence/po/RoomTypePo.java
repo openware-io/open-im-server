@@ -11,12 +11,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 包厢房型字典（门店级，见 V6__res_room_type_and_area.sql）。
+ * 包厢房型字典（门店级，见 V1__res_resource_baseline.sql）。
  *
  * <p>房型是「包厢分类 + 房型单价」的权威数据：包厢通过 {@code res_resource.room_type_id} 引用它，
  * 订单域开台/结台时按包厢房型取单价（缺该房型则回退门店级单价）。
  *
- * <p>房型同时是 C 端「选择包厢类型」的展示单元（见 V8__res_room_type_media.sql）：图片与主图落在
+ * <p>房型同时是 C 端「选择包厢类型」的展示单元（见同一个 V1 基线）：图片与主图落在
  * 房型本身，C 端卡片优先用它，缺图才回落到包厢样板图 / 门店占位图。
  */
 @Getter
