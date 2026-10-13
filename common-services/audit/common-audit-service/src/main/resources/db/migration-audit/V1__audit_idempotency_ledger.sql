@@ -1,8 +1,8 @@
 -- 审计写入幂等台账（方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §2.2）。
 --
 -- 本目录（db/migration-audit）是**独立 schema open_audit 的全新基线**，与 db/migration（老库 open_im 的历史）
--- 互不复用版本号：审计表迁到新库时物理设计已变（分区主表 + 台账），沿用老库 V1+V5 会在新库先建普通表、
--- 再建分区表而冲突；迁移规范也允许「确认不存在历史库时重建 V1 基线」，新库正是这种情况。
+-- 互不复用版本号：审计表迁到新库时物理设计已变（分区主表 + 台账），沿用老库「建表 + 补丁」两步会在新库
+-- 先建普通表、再建分区表而冲突；迁移规范也允许「确认不存在历史库时重建 V1 基线」，新库正是这种情况。
 -- 两个目录由 application-audit-schema.yml 按 profile 二选一（见方案 §5 批次 2c）。
 --
 -- 背景：审计主表要按 occurred_at 做月分区，而 MySQL 要求**分区表的每个唯一索引都必须包含分区列**。
@@ -16,11 +16,22 @@
 -- 该列保留 NULL 只为一处历史残留兜底：旧版本「先插主表再回填」中断时留下的空值行，
 -- 恢复路径会在补写主表后把它补回填（只补空值，不覆盖既有 ID）。
 -- 台账与主表写入在同一事务内，因此不存在「抢到键但没写主表」的中间态。
+--
+-- 主键按迁移规范收敛为代理键 `id`：幂等唯一性不变，改由唯一索引
+-- uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key) 承担——并发抢占同一键时
+-- 仍由该唯一索引抛 DuplicateKeyException，mapper 按受影响行数判定的语义不受影响。
+-- updated_at 额外带 DEFAULT CURRENT_TIMESTAMP(3)：抢占语句
+-- （IamAuditLogMapper.claimIdempotencyKey）不显式写审计列，严格模式下无默认值会 1364 拒插、幂等台账直接写不进去。
 CREATE TABLE `iam_audit_idempotency` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID（0=平台级动作）',
   `idempotency_key` varchar(128) NOT NULL COMMENT '幂等键（口径见 AuditLogApplicationService）',
   `audit_id` bigint unsigned NULL COMMENT '首次上报落库的审计记录ID（首次写入后回填）',
+  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人（缺省 0=系统）',
   `created_at` datetime(3) NOT NULL COMMENT '首次上报时间（清理依据）',
-  PRIMARY KEY (`tenant_id`, `idempotency_key`),
-  KEY `idx_iam_audit_idem_created` (`created_at`) COMMENT '按时间清理：幂等只需覆盖重试窗口'
+  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人（缺省 0=系统）',
+  `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间（未显式写入时取落库时间）',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_iam_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`) COMMENT '幂等唯一性：同一操作的重复上报只留一条',
+  KEY `idx_iam_audit_idempotency_created` (`created_at`) COMMENT '按时间清理：幂等只需覆盖重试窗口'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计写入幂等台账：唯一性职责从审计主表迁出';

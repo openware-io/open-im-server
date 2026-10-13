@@ -7,13 +7,16 @@
 --     分区等于白做。pmin / pmax 兜底保证**任何时间都写得进去**（写入失败=审计丢失=合规事故）。
 --   * 本表**没有唯一键**：MySQL 要求分区表的每个唯一索引都包含分区列，而幂等键
 --     (tenant_id, idempotency_key) 一旦被迫带上时间列，重试晚 1 毫秒就不再冲突、幂等静默失效。
---     幂等唯一性已迁到 iam_audit_idempotency（V4），本表只负责留痕。
---   * occurred_at 收紧为 NOT NULL：V3 已回填历史空值、写路径已保证非空，排序与时间过滤收敛到单列，
+--     幂等唯一性已迁到 iam_audit_idempotency（同目录 V1），本表只负责留痕。
+--   * occurred_at 收紧为 NOT NULL：新库基线不存在历史空值、写路径已保证非空，排序与时间过滤收敛到单列，
 --     不再需要 COALESCE(occurred_at, created_at) 这种无法走索引的表达式。
 --   * 索引的时间列全部对齐 occurred_at（改造前是 created_at，与真实查询谓词不一致、几乎用不上）；
---     并删掉 idx_iam_audit_query(tenant_id,action,created_at)——它与 (tenant_id,action,occurred_at) 完全同义。
+--     并删掉 (tenant_id,action,created_at) 这一与 (tenant_id,action,occurred_at) 完全同义的旧索引。
 --   * 分区覆盖到 2026-12，之后由 AuditRetentionJob 用 REORGANIZE pmax 按月追加（方案 §5 批次 4）。
 --     换机器/换环境部署晚于 2026-12 也不会丢数据：新记录落 pmax，由 job 补分区；pmax 非空会告警。
+--   * 合规补齐 DC-11 四个审计列（created_by/created_at/updated_by/updated_at）：本表写入方只有审计服务自身，
+--     created_by/updated_by 记录写入者、缺省 0=系统；updated_at 带 DEFAULT CURRENT_TIMESTAMP(3)，
+--     因为批量写路径（IamAuditLogMapper.insertBatch）不显式写这三列，严格模式下无默认值会 1364 拒插（=审计丢失）。
 CREATE TABLE `iam_audit_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键（应用侧/自增均可，分区表要求它在主键首列）',
   `tenant_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '租户ID，0=平台级动作',
@@ -38,16 +41,19 @@ CREATE TABLE `iam_audit_log` (
   `idempotency_key` varchar(128) NOT NULL COMMENT '幂等键快照（唯一性在 iam_audit_idempotency，本列供水位排查）',
   `detail_json` json NULL COMMENT '详情快照（写入前脱敏）',
   `occurred_at` datetime(3) NOT NULL COMMENT '业务发生时间（分区键，服务端收敛，不接受空值）',
+  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人（缺省 0=系统）',
   `created_at` datetime(3) NOT NULL COMMENT '落库时间',
+  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人（本表只增不改，恒为写入方）',
+  `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间（本表只增不改，等于落库时间）',
   PRIMARY KEY (`id`, `occurred_at`),
-  KEY `idx_iam_audit_time` (`occurred_at`) COMMENT '平台视角按发生时间排序分页，以及 pmin/pmax 健康检查',
-  KEY `idx_iam_audit_tenant_time` (`tenant_id`, `occurred_at`) COMMENT '租户视角按发生时间',
-  KEY `idx_iam_audit_tenant_action_time` (`tenant_id`, `action`, `occurred_at`) COMMENT '租户视角按动作+时间',
-  KEY `idx_iam_audit_action_time` (`action`, `occurred_at`) COMMENT '平台视角按动作+时间（审计页操作类型筛选）',
-  KEY `idx_iam_audit_operator_time` (`operator_id`, `occurred_at`) COMMENT '按操作人追溯',
-  KEY `idx_iam_audit_result_time` (`result`, `occurred_at`) COMMENT '只看失败（FAILURE 为少数，选择性可用）',
-  KEY `idx_iam_audit_resource` (`resource_type`, `resource_id`) COMMENT '按资源对象追溯',
-  KEY `idx_iam_audit_request` (`request_id`) COMMENT '按请求ID串联同一次操作'
+  KEY `idx_iam_audit_log_time` (`occurred_at`) COMMENT '平台视角按发生时间排序分页，以及 pmin/pmax 健康检查',
+  KEY `idx_iam_audit_log_tenant_time` (`tenant_id`, `occurred_at`) COMMENT '租户视角按发生时间',
+  KEY `idx_iam_audit_log_tenant_action_time` (`tenant_id`, `action`, `occurred_at`) COMMENT '租户视角按动作+时间',
+  KEY `idx_iam_audit_log_action_time` (`action`, `occurred_at`) COMMENT '平台视角按动作+时间（审计页操作类型筛选）',
+  KEY `idx_iam_audit_log_operator_time` (`operator_id`, `occurred_at`) COMMENT '按操作人追溯',
+  KEY `idx_iam_audit_log_result_time` (`result`, `occurred_at`) COMMENT '只看失败（FAILURE 为少数，选择性可用）',
+  KEY `idx_iam_audit_log_resource` (`resource_type`, `resource_id`) COMMENT '按资源对象追溯',
+  KEY `idx_iam_audit_log_request` (`request_id`) COMMENT '按请求ID串联同一次操作'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='通用审计日志（按 occurred_at 月分区；只增不改）'
   PARTITION BY RANGE COLUMNS(`occurred_at`) (
