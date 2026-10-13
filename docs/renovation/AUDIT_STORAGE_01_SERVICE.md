@@ -65,36 +65,49 @@ ALTER TABLE iam_audit_log
 ### 2.2 `gv_audit.iam_audit_idempotency`（幂等台账）
 
 ```sql
-CREATE TABLE iam_audit_idempotency (
-  tenant_id       bigint unsigned NOT NULL COMMENT '租户ID（0=平台级）',
-  idempotency_key varchar(128)    NOT NULL COMMENT '幂等键（口径同 AuditLogApplicationService）',
-  audit_id        bigint unsigned NOT NULL COMMENT '命中的审计记录ID',
-  created_at      datetime(3)     NOT NULL COMMENT '首次写入时间（清理依据）',
-  PRIMARY KEY (tenant_id, idempotency_key),
-  KEY idx_iam_audit_idem_created (created_at) COMMENT '按时间清理（幂等只需短窗口）'
-) COMMENT='审计写入幂等台账：唯一性职责从分区主表迁出';
+CREATE TABLE `iam_audit_idempotency` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID（0=平台级动作）',
+  `idempotency_key` varchar(128) NOT NULL COMMENT '幂等键（口径见 AuditLogApplicationService）',
+  `audit_id` bigint unsigned NULL COMMENT '首次上报落库的审计记录ID（首次写入后回填）',
+  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人（缺省 0=系统）',
+  `created_at` datetime(3) NOT NULL COMMENT '首次上报时间（清理依据）',
+  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人（缺省 0=系统）',
+  `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_iam_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`) COMMENT '幂等唯一性：同一操作的重复上报只留一条',
+  KEY `idx_iam_audit_idempotency_created` (`created_at`) COMMENT '按时间清理：幂等只需覆盖重试窗口'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计写入幂等台账：唯一性职责从审计主表迁出';
 ```
 
-- 写入顺序：`INSERT IGNORE` 台账 → 受影响行数 0 判为重复（不再写主表，返回既有 `audit_id`）→ 1 才写主表。
+> 幂等唯一性由**唯一索引** `uk_iam_audit_idempotency_tenant_key` 承担，不是主键：`ENGINEERING_RULES.md`
+> 要求非分区表主键必须是 `bigint unsigned` 自增 `id`。并发抢占同一键仍由该唯一索引抛
+> `DuplicateKeyException`，mapper 以受影响行数判定的语义不变。
+
+- 写入顺序：`INSERT ... SELECT ... WHERE NOT EXISTS` 台账 → 受影响行数 0 判为重复（不再写主表，返回既有 `audit_id`）→ 1 才写主表。四个审计列由语句显式写入，不吃列默认值。
 - 清理：保留窗口（建议 7 天，可配）后批量删除；幂等只对「重试窗口内的重复上报」负责。
 
 ### 2.3 `gv_audit.iam_audit_archive_manifest`（归档清单，合规证据）
 
 ```sql
-CREATE TABLE iam_audit_archive_manifest (
-  id            bigint unsigned NOT NULL AUTO_INCREMENT,
-  period        char(7)         NOT NULL COMMENT '归档月份 YYYY-MM',
-  partition_name varchar(64)    NOT NULL COMMENT '被归档/删除的分区名',
-  object_path   varchar(512)    NOT NULL COMMENT '归档对象路径（目录或对象键）',
-  row_count     bigint unsigned NOT NULL COMMENT '归档行数（导出时统计）',
-  checksum_sha256 char(64)      NOT NULL COMMENT '归档文件校验和（校验通过才允许删除）',
-  state         varchar(16)     NOT NULL COMMENT 'ARCHIVED/DROPPED/HELD',
-  operator_id   bigint unsigned NULL,
-  created_at    datetime(3)     NOT NULL,
-  dropped_at    datetime(3)     NULL,
-  PRIMARY KEY (id),
-  UNIQUE KEY uk_iam_audit_archive_period (period, partition_name)
-) COMMENT='审计冷归档清单：归档校验与删除的可追溯证据';
+CREATE TABLE `iam_audit_archive_manifest` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `period` char(7) NOT NULL COMMENT '归档月份 YYYY-MM',
+  `partition_name` varchar(64) NOT NULL COMMENT '被归档的分区名（如 p202508）',
+  `object_path` varchar(512) NULL COMMENT '归档对象路径（本阶段未投递时为空）',
+  `row_count` bigint unsigned NOT NULL DEFAULT 0 COMMENT '归档行数（导出时统计）',
+  `checksum_sha256` char(64) NULL COMMENT '归档文件校验和（删除前必须复核）',
+  `state` varchar(16) NOT NULL COMMENT 'ARCHIVED=已归档（超出可查范围）/DROPPED=分区已删/HELD=法律保留不动',
+  `operator_id` bigint unsigned NULL COMMENT '执行归档/删除的操作人ID',
+  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建操作人（缺省 0=系统）',
+  `created_at` datetime(3) NOT NULL COMMENT '归档时间',
+  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人（缺省 0=系统）',
+  `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间',
+  `dropped_at` datetime(3) NULL COMMENT '分区删除时间（未删除为空）',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_iam_audit_archive_manifest_period` (`period`, `partition_name`) COMMENT '归档幂等：同月重复执行只留一条',
+  KEY `idx_iam_audit_archive_manifest_state` (`state`, `period`) COMMENT '按状态取可查范围下限与待处理月份'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计冷归档清单：归档与删除的可追溯证据';
 ```
 
 ## 3. 取舍记录（为什么是「原生月分区」而不是「物理月表」）
@@ -127,7 +140,7 @@ CREATE TABLE iam_audit_archive_manifest (
      改造前的索引建在 created_at 上，而真实查询谓词、排序都用 occurred_at，这些索引基本用不上；
    - 只删可证明的重复项 `idx_iam_audit_query(tenant_id, action, created_at)`（与
      `(tenant_id, action, occurred_at)` 完全同义）；
-   - `idx_iam_audit_action_time` / `idx_iam_audit_result_time` 暂时保留（分别服务「操作类型筛选」
+   - `idx_iam_audit_log_action_time` / `idx_iam_audit_log_result_time` 暂时保留（分别服务「操作类型筛选」
      与「只看失败」两条真实查询路径），**是否进一步删减以真实慢日志 + EXPLAIN 复核为准**，
      需要时另开迁移（已执行脚本不可改）。
 
@@ -426,14 +439,14 @@ REORGANIZE pmax                    p202701 建出且 pmax 保留
 
 | 查询形态 | 分区裁剪 | 选中的索引 | 估算行 |
 | --- | --- | --- | --- |
-| `tenant_id` + `occurred_at` 区间 + `ORDER BY occurred_at DESC LIMIT 20` | `p202609` | `idx_iam_audit_time` | 491 |
-| `tenant_id` + `action` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_tenant_action_time` | 1993 |
-| 仅 `occurred_at` 区间（平台视角） | `p202609` | `idx_iam_audit_time` | 180 |
-| `action` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_action_time` | 3323 |
-| `result` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_result_time` | 200 |
-| `operator_id` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_operator_time` | 997 |
-| `resource_type` + `resource_id` | 全分区（无时间谓词，预期） | `idx_iam_audit_resource` | 3 |
-| `request_id` | 全分区（无时间谓词，预期） | `idx_iam_audit_request` | 3 |
+| `tenant_id` + `occurred_at` 区间 + `ORDER BY occurred_at DESC LIMIT 20` | `p202609` | `idx_iam_audit_log_time` | 491 |
+| `tenant_id` + `action` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_log_tenant_action_time` | 1993 |
+| 仅 `occurred_at` 区间（平台视角） | `p202609` | `idx_iam_audit_log_time` | 180 |
+| `action` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_log_action_time` | 3323 |
+| `result` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_log_result_time` | 200 |
+| `operator_id` + `occurred_at` 区间 | `p202609` | `idx_iam_audit_log_operator_time` | 997 |
+| `resource_type` + `resource_id` | 全分区（无时间谓词，预期） | `idx_iam_audit_log_resource` | 3 |
+| `request_id` | 全分区（无时间谓词，预期） | `idx_iam_audit_log_request` | 3 |
 
 **结论**：7 个索引全部被真实查询形态选中，**没有闲置索引可删**；时间谓词在 6 种形态下都成功裁剪到单个月分区。
 `tenant_id + 时间` 这一形态在小租户占比下由 `(occurred_at)` 承担（省掉一次排序），
