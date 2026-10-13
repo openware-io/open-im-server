@@ -1,15 +1,17 @@
 # 迁移基线重建交接（批次 2）
 
 > 方案集：`MIGRATION_BASELINE`；序号：`01`；前置：[01 数据重建方案](./MIGRATION_BASELINE_01_DATA.md)
-> 状态：**第 0 步完成；第 2 步进行中——worklist 415 → 257，19 个迁移根已完成 12 个**
+> 状态：**第 2 步（19 个迁移根合并）已全部完成并提交**；worklist 415 → **7**，且这 7 条全是已挂起的前缀决策
 > 目标读者：**新会话**（上一个会话上下文已接近上限，故在此交接）
 > 交接时间：2026-10-13；分支 `develop/2.2.0-auth`
 
 ## 0. 30 秒现状
 
-- **可以开工**：冻结门禁实测输出 `not frozen (no baseline tag with a freeze statement); baseline rebuild is allowed (DC-10)`，迁移重写路径畅通。
-- **第 0 步已完成**：`validate-flyway-conventions.ps1` 已补上第 11 项"标识符必须加反引号"检查（`0e10d21`），并修掉三处会让门禁读错的缺陷（见 §3 坑 4 与 §2 步骤 0）。
-- **已完成 12 个迁移根**（worklist 归零并已提交）：
+- **19/19 迁移根已合并为单 V1 基线**，全部已提交，工作区干净。剩余 `flyway-conventions` **7 条**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）——**全部是你决定挂起的前缀决策**，不是遗漏。
+- 其余批次 2 门禁现状：`tenant-sql` **18**（order 16 / payment 1 / platform-admin 1，分类见 §2）、`secret-exposure` **4**（全在审计报告文档里，需你决策，见下）、`mq-registry` 44（属批次 1 常量集中 + 批次 2 台账，未动）。
+- **可以开工**：冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，清库重建路径畅通。
+- 统一入口 `-Scope Changed` **退出码 0**（24 个门禁 + Maven 全绿；报告模式门禁不阻断）。
+- **19/19 迁移根已完成并提交**（worklist 归零；括号内为条目数 → 0）：
 
   | 模块 | 提交 | 合并前→后 |
   | --- | --- | --- |
@@ -18,16 +20,21 @@
   | `common-payment-channel-service` | `f797263` | 2 文件 → 1 |
   | `platform-marketing-service` | `d295e0c` | 4 文件 → 1 |
   | `common-mail-service`（样板，补反引号） | `d6969fe` | 1 文件 |
-  | `common-sms-service`（补审计列 + 索引名） | `aafc774` | 1 文件 |
-  | `common-media-service`（`support_`→`media_` + 补 `id` 主键 + Java 侧改写） | `b7377be` | 1 文件 + 5 PO + 6 服务类 |
-  | `platform-admin-service`（**未改表名**，前缀待定） | `e4114c4` | 11 文件 → 1 |
+  | `common-sms-service` | `aafc774` | 1 文件 |
+  | `common-media-service`（`support_`→`media_` + `id` 主键 + Java 侧） | `b7377be` | 1 文件 + 5 PO + 6 服务类 |
+  | `platform-admin-service`（**未改表名**） | `e4114c4` | 11 文件 → 1 |
   | `platform-customer-service` | `d62ba0d` | 13 文件 → 1 |
-  | `common-audit-service`：`migration` 根 | `a1c892a` | 4 → 2（V1+V3） |
-  | `common-audit-service`：`migration-audit` 根（**两根不合并**） | `a1c892a` + `a1de6c1` | 3 文件 |
+  | `common-audit-service`（两个根**分别**处理，不合并） | `a1c892a`+`a1de6c1` | 4→2 与 3 文件 |
   | `platform-tenant-service` | `4a3da4a` | 32 文件 → 1 |
+  | `im-message-service` | `0bd3953` | 13 文件 → 1（15 表 / 38 索引） |
+  | `im-conversation-service` | `e228da3` | 16 文件 → 1（9 表） |
+  | `platform-order-service` | `0b252c3` | **32 文件 → 1**（17 表 / 63 索引） |
+  | `im-user-service` | `67e4901` | 24 文件 → 1（23 表） |
+  | `im-admin-service` | `7fb4736` | 12 文件 → 1（15 表） |
+  | `common-payment-service`（含 `tenant_payment_method`→`tnt_` 跨服务改名） | `e2be171` | 15 文件 → 1（12 表） |
+  | `group-idaas-service`（**未改表名**） | `e2be171` | 2 文件 → 1（3 表） |
 
-- **剩余 7 个迁移根、257 条**：`message 57`、`user 44`、`admin(IM) 44`、`conversation 39`、`order 38`、`payment 23`、`idaas 11`，外加 `platform-admin` 的 1 条 `saa` 前缀（**已决定挂起**）。
-- 与迁移无关的门禁自伤项本轮已闭合：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内 2 个非 ASCII 脚本已清零。详见 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
+- **与迁移无关的门禁自伤项已闭合**：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内非 ASCII 脚本清零。详见 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
 
 ## 1. 开工前的 4 条硬约束（踩过，不要再踩）
 
@@ -36,7 +43,9 @@
 | 1 | **不要用 `git reset` 重置索引来"分组提交"** | 上一轮因此把 `mvnw` 的 `100755` 一起回退；Windows 上 `git add` **无法**从文件系统恢复执行位 → commit 声称"补了 100755"、实际是 `100644`，Linux CI 上 `./mvnw` 直接 Permission denied。分组提交请用 `git add <path>` / `git commit -- <path>`，动过索引后必须 `git ls-files -s mvnw` 复核为 `100755` |
 | 2 | **冻结语义是结构化的**：tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true` | 不要写"本 tag 不承担冻结语义"这类**松散词**描述。旧版门禁对注释做 `frozen` 词匹配，一句声明"自己不是冻结点"的话反而把它判成冻结点，错误阻断了批次 2。打 tag 用 `git tag -a`，命名 `baseline-*` |
 | 3 | **全仓 `.ps1` 都是无 BOM 文件，且 Windows CI 用 `powershell.exe` 执行** | 脚本内任何非 ASCII（中文注释、正则、文案）在 PS 5.1 下按 ANSI 解析，会被静默损坏。校验脚本一律英文注释。已延期到批次 4 的 6 个文件见 `scripts/validate/powershell-ascii-allowlist.txt`，**不要往该清单新增条目**（陈旧条目本身会让门禁失败） |
-| 4 | **每次提交/每轮只做一个模块** | 378 条的上下文开销是本次交接的直接原因。按 §2 步骤 1 的模块清单逐块推进，一块一轮，做完即验证并提交 |
+| 4 | **每个模块一轮，做完即验证并提交** | 早期 378 条的上下文开销是本次交接的直接原因。按模块清单逐块推进 |
+| 7 | **子 agent 必须显式给出工作目录** | `validate-repository-hygiene.ps1` 的 G-15 会扫描**工作区根**（`D:\projects\cnb-oss`）的每一个条目，只允许 11 个仓库目录 + `.github`。某个子 agent 用了错误的 CWD，在 `D:\projects\cnb-oss\.outputs\` 写下验证产物，**直接让这条阻断门禁失败**（此后每次 `-Scope Changed` 都在 repository-hygiene 处报错）。给子 agent 的 prompt 里要写明绝对工作目录，收尾时检查工作区根 |
+| 8 | **不要用 shell 循环做全仓引用扫描** | 两次自研 PowerShell 扫描都报了"0 处失效引用"，而 `grep` 工具实际找到 11 处。判据要选一个**已知存在**的引用做交叉验证，不要相信 0；全仓扫描用 grep 工具 |
 | 5 | **合并基线必然删除 V2..Vn，且不接受折中** | 删除后旧库无法平滑升级（Flyway 认为 V2..Vn 从未执行、校验和不一致）。这是 PR-01/PR-03 明确接受的代价（未上线、无数据），由第 4 步"清库重建"兜底。不要为兼容旧库保留 V2..Vn，也不要写补偿语句 |
 | 6 | **一份 worklist 文件是并发写目标** | `flyway-conventions-worklist.txt` 每次跑门禁都被整体重写。若并行跑多个模块（多 agent），先把"跑门禁 → 统计本模块条数"放在同一条命令里，并接受偶发的互相覆盖；判据是"某次门禁运行中本模块贡献 0 条"，不是文件某一刻的样子 |
 
@@ -131,6 +140,17 @@
   | 语句**确实没有**租户维度（分区 DDL、按全局唯一主键/账号定位、平台级字典或台账、按时间窗口的保留清理、跨租户定时扫描） | 加门禁认识的 `platform-wide` / `tenant-agnostic` 行尾标记，**并在标记里写清属于哪一类理由** |
 
   另外：若表已在 `scripts/validate/tenant-platform-tables.txt` 登记为平台级（如 `tnt_business_type`、`tnt_app_user_authorization`），那它就是平台级表，标记用 `platform-wide` 而不是 `tenant-agnostic`。
+
+  **order 模块的 16 条已分类但尚未改，留给下一轮**（本轮时间预算用尽，且**这属于租户语义判断，不能靠猜**）：
+
+  | 文件 | 行 | 初判 | 建议 |
+  | --- | --- | --- | --- |
+  | `KtvSessionMapper` | 65, 79 | **跨租户系统扫描**（`status IN ('OPEN','PAUSED')` / `status='RESERVED' AND opened_at IS NULL`，无任何租户或业务键限定） | 应为 `platform-wide`，但**先确认调用方是否为定时任务/全局巡检** |
+  | `ReportMapper`（platform-admin） | 496 | 平台报表的相关子查询（`ord_ktv_session k`） | 报表跨租户，`platform-wide`；需确认整条 SQL 的意图 |
+  | `KtvSessionMapper` / `KtvServerSessionMapper` / `OrderItemMapper` / `ReservationMapper` | 23,38,50,54；17,29,33；33,55；26 | 更新/查询按 `order_id`/`id`/`ktv_session_id` 等**业务键**定位 | 若该业务键全局唯一（order 模块普遍用 `@InterceptorIgnore` + 业务键作用域），应加 `tenant-agnostic` 并写明"按业务键定位"；**不要**只为了过门禁加标记 |
+  | `DailySerialMapper` 39,64 / `InventoryStockMapper` 25,42 / `PayIntentMapper` 22 | — | 多半是"先取 tenant_id、再按租户更新"的**真带租户**写法，只是谓词落在下一行 | 与 `InternalTenantConfigMapper` 一样**reflow**，不必加标记 |
+
+  **判据（本轮踩过的坑）**：先看该 mapper 是否 `@InterceptorIgnore(tenantLine)`——order 模块大量使用它，意味着租户边界由**业务键**保证而非 SQL 谓词；这类应标 `tenant-agnostic` 并写清定位键，而 `status` 全表扫描那两条才是真正的 `platform-wide`。
 - `secret-exposure` **6 → 4**（`.outputs/quality/secret-exposure-report.txt`）：user/idaas 合并后两处迁移文件里的历史凭据已消失；**剩余 4 条全部在 `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md`**（`:61`、`:70` 报 Inline secret，`:72`、`:74` 报 Secret config default）。
 
   ⚠️ **这 4 条我查过但没能定性，已原样保留，不要凭猜测处理**：
