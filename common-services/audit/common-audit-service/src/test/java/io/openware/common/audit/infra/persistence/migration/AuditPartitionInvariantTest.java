@@ -73,7 +73,7 @@ class AuditPartitionInvariantTest {
    * 幂等唯一性只能留在台账表上。
    *
    * <p>反向断言：分区主表**不得**出现 {@code (tenant_id, idempotency_key)} 这类不含分区列的唯一键
-   * ——它就是「重试晚 1ms 即失效」的那个写法，必须靠台账（V4）承担。
+   * ——它就是「重试晚 1ms 即失效」的那个写法，必须靠台账（{@code db/migration-audit} 的 V1）承担。
    */
   @Test
   void idempotencyUniquenessStaysInLedgerInsteadOfPartitionedTable() throws Exception {
@@ -82,8 +82,11 @@ class AuditPartitionInvariantTest {
 
     assertFalse(partitionedTable.matches("(?s).*unique\\s+key[^,)]*idempotency_key.*"),
         "分区主表不得保留幂等唯一键（会被迫补时间列 → 重试晚 1ms 不再冲突 → 幂等静默失效）");
-    assertTrue(ledger.contains("primary key (`tenant_id`, `idempotency_key`)"),
-        "幂等唯一键必须落在台账表 iam_audit_idempotency 上");
+    // 断言的是「唯一性职责落在台账表」，而不是「台账表主键长什么样」：
+    // ENGINEERING_RULES 与 DDL 门禁要求非分区表主键必须是 id，因此 (tenant_id, idempotency_key)
+    // 改由唯一索引承担；并发抢占仍由该唯一索引抛 DuplicateKeyException，幂等语义不变。
+    assertTrue(ledger.contains("uk_iam_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`)"),
+        "幂等唯一性必须落在台账表 iam_audit_idempotency 上（由唯一索引承担，主键为 id）");
   }
 
   /**

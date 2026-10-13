@@ -9,7 +9,8 @@
  * 校验项（每项失败都会打印具体原因）：
  *   1) 三份迁移脚本能在 MySQL 8 上执行成功（唯一键不含分区列时 MySQL 会直接拒绝该 DDL）；
  *   2) 主表是 RANGE COLUMNS 分区且分区表达式是 occurred_at，pmin/pmax 兜底分区存在；
- *   3) 主键包含 occurred_at（分区表硬约束），ledger 的唯一键是 (tenant_id, idempotency_key)；
+ *   3) 主键包含 occurred_at（分区表硬约束）；台账主键是代理键 id，幂等唯一性是命名唯一索引
+ *      uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key)；
  *   4) occurred_at 为 NOT NULL：显式写 NULL 必须被拒绝；
  *   5) 保留任务的 DDL：`REORGANIZE PARTITION pmax INTO (...)` 能追加月分区且仍保留 pmax；
  *   6) 兜底可写：远未来时间写入落进 pmax 而不是报 1526（"no partition for value"）；
@@ -125,9 +126,15 @@ public final class AuditPartitionDdlCheck {
             String ledgerKey = scalar(connection,
                     "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS"
                             + " WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" + ledgerTable
-                            + "' AND NON_UNIQUE=0");
-            check(ledgerKey != null && ledgerKey.contains("idempotency_key"),
-                    "ledger unique key keeps (tenant_id, idempotency_key) (actual: " + ledgerKey + ")");
+                            + "' AND INDEX_NAME='uk_iam_audit_idempotency_tenant_key'");
+            check("tenant_id,idempotency_key".equals(ledgerKey),
+                    "ledger unique key is uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key)"
+                            + " (actual: " + ledgerKey + ")");
+            String ledgerPk = scalar(connection,
+                    "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS"
+                            + " WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" + ledgerTable
+                            + "' AND INDEX_NAME='PRIMARY'");
+            check("id".equals(ledgerPk), "ledger primary key is the surrogate id (actual: " + ledgerPk + ")");
 
             step("4. occurred_at 为 NOT NULL（显式写 NULL 必须被拒绝）");
             String nullable = scalar(connection,
@@ -220,11 +227,11 @@ public final class AuditPartitionDdlCheck {
     private static int insertBatch(Connection connection, String table, int rows) throws Exception {
         StringBuilder sql = new StringBuilder("INSERT INTO " + table
                 + " (id, tenant_id, action, action_label, resource_type, result, idempotency_key,"
-                + " occurred_at, created_at) VALUES ");
+                + " occurred_at, created_by, created_at, updated_by, updated_at) VALUES ");
         for (int index = 0; index < rows; index++) {
             sql.append(index == 0 ? "" : ", ")
                     .append("(").append(1000 + index).append(", 1, 'audit.batch.probe', 'x', '', 'SUCCESS',")
-                    .append(" 'batch-").append(index).append("', '2026-09-15 10:00:00', NOW(3))");
+                    .append(" 'batch-").append(index).append("', '2026-09-15 10:00:00', 0, NOW(3), 0, NOW(3))");
         }
         try (Statement statement = connection.createStatement()) {
             return statement.executeUpdate(sql.toString());
@@ -256,10 +263,11 @@ public final class AuditPartitionDdlCheck {
         }
     }
 
-    /** 与 IamAuditLogMapper.claimIdempotencyKey 同形（含 audit_id 在抢占时写入）。 */
+    /** 与 IamAuditLogMapper.claimIdempotencyKey 同形（含 audit_id 在抢占时写入、DC-11 审计列显式写 0）。 */
     private static int claimLedger(Connection connection, String ledger) throws Exception {
-        String sql = "INSERT INTO " + ledger + " (tenant_id, idempotency_key, audit_id, created_at) "
-                + "SELECT ?, ?, ?, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM " + ledger
+        String sql = "INSERT INTO " + ledger
+                + " (tenant_id, idempotency_key, audit_id, created_by, created_at, updated_by, updated_at) "
+                + "SELECT ?, ?, ?, 0, ?, 0, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM " + ledger
                 + " WHERE tenant_id = ? AND idempotency_key = ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             LocalDateTime now = LocalDateTime.now();
@@ -267,26 +275,30 @@ public final class AuditPartitionDdlCheck {
             statement.setString(2, "claim-probe");
             statement.setLong(3, 555L);
             statement.setObject(4, now);
-            statement.setLong(5, 1001L);
-            statement.setString(6, "claim-probe");
+            statement.setObject(5, now);
+            statement.setLong(6, 1001L);
+            statement.setString(7, "claim-probe");
             return statement.executeUpdate();
         }
     }
 
-    /** 与 AuditArchiveManifestMapper.insertIfAbsent 同形。 */
+    /** 与 AuditArchiveManifestMapper.insertIfAbsent 同形（DC-11 审计列显式写 0）。 */
     private static int insertManifest(Connection connection, String manifest) throws Exception {
         String sql = "INSERT INTO " + manifest
-                + " (period, partition_name, object_path, row_count, checksum_sha256, state, operator_id, created_at) "
-                + "SELECT ?, ?, NULL, ?, NULL, ?, NULL, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM " + manifest
-                + " WHERE period = ? AND partition_name = ?)";
+                + " (period, partition_name, object_path, row_count, checksum_sha256, state, operator_id,"
+                + " created_by, created_at, updated_by, updated_at) "
+                + "SELECT ?, ?, NULL, ?, NULL, ?, NULL, 0, ?, 0, ? FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM "
+                + manifest + " WHERE period = ? AND partition_name = ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            LocalDateTime now = LocalDateTime.now();
             statement.setString(1, "2024-09");
             statement.setString(2, "p202409");
             statement.setLong(3, 120L);
             statement.setString(4, "ARCHIVED");
-            statement.setObject(5, LocalDateTime.now());
-            statement.setString(6, "2024-09");
-            statement.setString(7, "p202409");
+            statement.setObject(5, now);
+            statement.setObject(6, now);
+            statement.setString(7, "2024-09");
+            statement.setString(8, "p202409");
             return statement.executeUpdate();
         }
     }

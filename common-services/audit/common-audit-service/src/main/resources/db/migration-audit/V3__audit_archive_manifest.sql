@@ -5,8 +5,8 @@
 -- 届时的硬约束是：清单存在 + 校验和复核通过，才允许删除分区。
 --
 -- 每个 (period, partition_name) 唯一：同一个月重复执行归档只会留一条，归档任务可安全重跑。
--- updated_at 带 DEFAULT CURRENT_TIMESTAMP(3)：登记语句
--- （AuditArchiveManifestMapper.insertIfAbsent）不显式写审计列，严格模式下无默认值会 1364 拒插。
+-- updated_at 带 DEFAULT CURRENT_TIMESTAMP(3)：登记语句（AuditArchiveManifestMapper.insertIfAbsent）
+-- 现已显式写入四个审计列，该默认值只作为其它写入路径的兜底（无它则严格模式下 1364 拒插）。
 CREATE TABLE `iam_audit_archive_manifest` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `period` char(7) NOT NULL COMMENT '归档月份 YYYY-MM',

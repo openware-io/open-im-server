@@ -15,8 +15,9 @@
 --   * 分区覆盖到 2026-12，之后由 AuditRetentionJob 用 REORGANIZE pmax 按月追加（方案 §5 批次 4）。
 --     换机器/换环境部署晚于 2026-12 也不会丢数据：新记录落 pmax，由 job 补分区；pmax 非空会告警。
 --   * 合规补齐 DC-11 四个审计列（created_by/created_at/updated_by/updated_at）：本表写入方只有审计服务自身，
---     created_by/updated_by 记录写入者、缺省 0=系统；updated_at 带 DEFAULT CURRENT_TIMESTAMP(3)，
---     因为批量写路径（IamAuditLogMapper.insertBatch）不显式写这三列，严格模式下无默认值会 1364 拒插（=审计丢失）。
+--     created_by/updated_by 记录写入者、缺省 0=系统；批量写路径（IamAuditLogMapper.insertBatch）
+--     与单行路径均已显式提供审计列值，updated_at 的 DEFAULT CURRENT_TIMESTAMP(3) 仅作兜底，
+--     避免任何漏写列的写入方在严格模式下 1364 拒插（=审计丢失）。
 CREATE TABLE `iam_audit_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键（应用侧/自增均可，分区表要求它在主键首列）',
   `tenant_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '租户ID，0=平台级动作',

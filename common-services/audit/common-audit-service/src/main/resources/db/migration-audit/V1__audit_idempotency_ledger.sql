@@ -20,8 +20,9 @@
 -- 主键按迁移规范收敛为代理键 `id`：幂等唯一性不变，改由唯一索引
 -- uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key) 承担——并发抢占同一键时
 -- 仍由该唯一索引抛 DuplicateKeyException，mapper 按受影响行数判定的语义不受影响。
--- updated_at 额外带 DEFAULT CURRENT_TIMESTAMP(3)：抢占语句
--- （IamAuditLogMapper.claimIdempotencyKey）不显式写审计列，严格模式下无默认值会 1364 拒插、幂等台账直接写不进去。
+-- updated_at 额外带 DEFAULT CURRENT_TIMESTAMP(3)：抢占语句（IamAuditLogMapper.claimIdempotencyKey）
+-- 现已显式写入 created_by/created_at/updated_by/updated_at（审计语义不交给 DDL 默认值），
+-- 该默认值只作为其它写入路径的兜底：无它则严格模式下 1364 拒插、幂等台账直接写不进去。
 CREATE TABLE `iam_audit_idempotency` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID（0=平台级动作）',

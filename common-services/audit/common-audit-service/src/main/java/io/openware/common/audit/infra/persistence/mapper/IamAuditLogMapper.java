@@ -46,10 +46,17 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      * <p>{@code audit_id} 在抢占时就写入：主键由应用侧生成（多行批插必须插入前就知道 ID），
      * 因此不需要「先插主表再回填台账」的第二步——每条记录少一次 UPDATE。
      *
+     * <p>DC-11 的四个审计列在语句里**显式写死**，不吃列默认值：本台账的写入方只有审计服务自身
+     * （系统），因此 {@code created_by} / {@code updated_by} = {@code 0}；台账只增不改，
+     * {@code updated_at} 与 {@code created_at} 是同一时刻，取同一个入参而不是 DB 的
+     * {@code CURRENT_TIMESTAMP(3)} 默认值——否则将来有人改了默认值，审计语义会静默漂移
+     * （「谁写的、什么时候写的」不再由本语句决定）。
+     *
      * @return 插入成功 1；键已存在 0
      */
-    @Insert("INSERT INTO iam_audit_idempotency (tenant_id, idempotency_key, audit_id, created_at) "
-            + "SELECT #{tenantId}, #{idempotencyKey}, #{auditId}, #{createdAt} FROM DUAL "
+    @Insert("INSERT INTO iam_audit_idempotency "
+            + "(tenant_id, idempotency_key, audit_id, created_by, created_at, updated_by, updated_at) "
+            + "SELECT #{tenantId}, #{idempotencyKey}, #{auditId}, 0, #{createdAt}, 0, #{createdAt} FROM DUAL "
             + "WHERE NOT EXISTS (SELECT 1 FROM iam_audit_idempotency "
             + "WHERE tenant_id = #{tenantId} AND idempotency_key = #{idempotencyKey})")
     int claimIdempotencyKey(@Param("tenantId") long tenantId, @Param("idempotencyKey") String idempotencyKey,
@@ -81,6 +88,11 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      * <p>不依赖 JDBC 批处理（{@code rewriteBatchedStatements}）：那需要 BatchExecutor，
      * 与 MyBatis-Plus 的默认 SIMPLE 执行器混用会绕过 Spring 事务的会话管理；多行字面量更直接。
      *
+     * <p>DC-11 的审计列同样**显式列出**而不是靠列默认值（多行 VALUES 会显式写这些列，
+     * 依赖默认值等于把审计语义交给 DDL 默认值）：写入方只有审计服务自身（系统），
+     * {@code created_by} / {@code updated_by} = {@code 0}；本表只增不改，
+     * {@code updated_at} 与 {@code created_at} 取同一个入参，保证两列恒等。
+     *
      * @param entries 同一批待插入记录（调用方分片，单条 SQL 不超过 {@code MAX_BATCH_SIZE} 行）
      * @return 实际插入行数
      */
@@ -90,7 +102,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
               (id, tenant_id, organization_id, store_id, operator_id, operator_name, operator_account,
                operator_type, action, action_label, resource_type, resource_id, resource_name, result,
                error_code, ip, user_agent, request_id, trace_id, source_service, idempotency_key,
-               detail_json, occurred_at, created_at)
+               detail_json, occurred_at, created_by, created_at, updated_by, updated_at)
             VALUES
             <foreach collection="entries" item="entry" separator=",">
               (#{entry.id}, #{entry.tenantId}, #{entry.organizationId}, #{entry.storeId}, #{entry.operatorId},
@@ -98,7 +110,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
                #{entry.actionLabel}, #{entry.resourceType}, #{entry.resourceId}, #{entry.resourceName},
                #{entry.result}, #{entry.errorCode}, #{entry.ip}, #{entry.userAgent}, #{entry.requestId},
                #{entry.traceId}, #{entry.sourceService}, #{entry.idempotencyKey}, #{entry.detailJson},
-               #{entry.occurredAt}, #{entry.createdAt})
+               #{entry.occurredAt}, 0, #{entry.createdAt}, 0, #{entry.createdAt})
             </foreach>
             </script>
             """)

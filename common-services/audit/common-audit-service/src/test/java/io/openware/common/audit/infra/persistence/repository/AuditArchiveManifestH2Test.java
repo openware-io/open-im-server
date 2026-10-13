@@ -46,7 +46,7 @@ class AuditArchiveManifestH2Test {
         jdbcUrl = "jdbc:h2:mem:audit-manifest-" + System.nanoTime() + ";MODE=MySQL;DB_CLOSE_DELAY=-1";
         try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
              Statement statement = connection.createStatement()) {
-            // 与 db/migration-audit/V3__audit_archive_manifest.sql 同形。
+            // 与 db/migration-audit/V3__audit_archive_manifest.sql 同形（含 DC-11 四个审计列）。
             statement.execute("CREATE TABLE `iam_audit_archive_manifest` ("
                 + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
                 + "`period` varchar(7) NOT NULL,"
@@ -56,7 +56,10 @@ class AuditArchiveManifestH2Test {
                 + "`checksum_sha256` varchar(64) NULL,"
                 + "`state` varchar(16) NOT NULL,"
                 + "`operator_id` bigint NULL,"
+                + "`created_by` bigint NOT NULL DEFAULT 0,"
                 + "`created_at` timestamp(3) NOT NULL,"
+                + "`updated_by` bigint NOT NULL DEFAULT 0,"
+                + "`updated_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),"
                 + "`dropped_at` timestamp(3) NULL,"
                 + "UNIQUE (`period`, `partition_name`))");
         }
@@ -117,6 +120,32 @@ class AuditArchiveManifestH2Test {
             assertEquals(List.of("2024-09", "2024-08", "2024-07"),
                 all.stream().map(view -> view.period().toString()).toList());
             assertTrue(all.stream().allMatch(view -> AuditArchiveManifest.STATE_ARCHIVED.equals(view.state())));
+        }
+    }
+
+    /**
+     * DC-11 守卫：登记清单必须显式写审计列，而不是吃列默认值。
+     *
+     * <p>{@code created_at} 与 {@code updated_at} 都来自同一个入参（清单只增不改）：一旦有人把
+     * updated_at 从 SQL 里删掉，它会落到 DB 默认值「落库时刻」，与入参不再是同一值，用例立刻失败。
+     * 同时钉住「执行归档的人记在业务列 operator_id 上（77），审计列按 0=系统 口径」这一选择。
+     */
+    @Test
+    void insertIfAbsentWritesDc11AuditColumnsExplicitly() {
+        try (SqlSession session = sessionFactory.openSession(true)) {
+            AuditArchiveManifestRepository repository = repository(session);
+
+            repository.markArchived(YearMonth.of(2024, 9), "p202409", 120L, 77L);
+
+            assertEquals(0L, scalar("SELECT created_by FROM `iam_audit_archive_manifest`"
+                    + " WHERE period = '2024-09'"), "created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
+            assertEquals(0L, scalar("SELECT updated_by FROM `iam_audit_archive_manifest`"
+                    + " WHERE period = '2024-09'"), "updated_by 必须显式为 0");
+            assertEquals(77L, scalar("SELECT operator_id FROM `iam_audit_archive_manifest`"
+                    + " WHERE period = '2024-09'"), "执行归档的人仍记在业务列 operator_id 上");
+            assertEquals(1L, scalar("SELECT CASE WHEN created_at = updated_at THEN 1 ELSE 0 END"
+                    + " FROM `iam_audit_archive_manifest` WHERE period = '2024-09'"),
+                "created_at 与 updated_at 必须取同一入参，不得落到默认值 CURRENT_TIMESTAMP(3)");
         }
     }
 

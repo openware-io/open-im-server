@@ -49,6 +49,11 @@ class AuditIdempotencyLedgerH2Test {
   /** 主键由应用侧生成，测试里用递增序列模拟（真实实现是雪花 ID）。 */
   private static final AtomicLong NEXT_ID = new AtomicLong(900_000L);
 
+  /** 夹具时间：与 H2 列默认值 CURRENT_TIMESTAMP(3)（真实落库时刻）必然不同，用于守卫显式写入。 */
+  private static final LocalDateTime SNAPSHOT_TIME = LocalDateTime.of(2026, 9, 19, 12, 0);
+
+  private static final java.sql.Timestamp SNAPSHOT = java.sql.Timestamp.valueOf(SNAPSHOT_TIME);
+
   private SqlSessionFactory sessionFactory;
   private String jdbcUrl;
 
@@ -81,14 +86,22 @@ class AuditIdempotencyLedgerH2Test {
           + "`idempotency_key` varchar(128) NOT NULL DEFAULT '',"
           + "`detail_json` varchar(2000) NULL,"
           + "`occurred_at` timestamp(3) NULL,"
-          + "`created_at` timestamp(3) NOT NULL)");
-      // 与 V4__audit_idempotency_ledger.sql 同形（主键即幂等唯一键）。
+          + "`created_by` bigint NOT NULL DEFAULT 0,"
+          + "`created_at` timestamp(3) NOT NULL,"
+          + "`updated_by` bigint NOT NULL DEFAULT 0,"
+          + "`updated_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3))");
+      // 与 db/migration-audit/V1__audit_idempotency_ledger.sql 同形：
+      // 主键按迁移规范收敛为代理键 id，幂等唯一性改由 uk_iam_audit_idempotency_tenant_key 承担。
       statement.execute("CREATE TABLE `iam_audit_idempotency` ("
+          + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
           + "`tenant_id` bigint NOT NULL,"
           + "`idempotency_key` varchar(128) NOT NULL,"
           + "`audit_id` bigint NULL,"
+          + "`created_by` bigint NOT NULL DEFAULT 0,"
           + "`created_at` timestamp(3) NOT NULL,"
-          + "PRIMARY KEY (`tenant_id`, `idempotency_key`))");
+          + "`updated_by` bigint NOT NULL DEFAULT 0,"
+          + "`updated_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),"
+          + "UNIQUE (`tenant_id`, `idempotency_key`))");
     }
     MybatisConfiguration configuration = new MybatisConfiguration();
     configuration.setMapUnderscoreToCamelCase(true);
@@ -138,9 +151,11 @@ class AuditIdempotencyLedgerH2Test {
   void claimedButUnattachedKeyStillWritesTheRecord() throws Exception {
     try (SqlSession session = sessionFactory.openSession(true)) {
       AuditLogRepository repository = repository(session);
-      // 造出「台账有键、audit_id 为空」的异常中断残留。
+      // 造出「台账有键、audit_id 为空」的异常中断残留（按列名插入：id 走自增，审计列走默认值）。
       try (Statement statement = session.getConnection().createStatement()) {
-        statement.execute("INSERT INTO `iam_audit_idempotency` VALUES (" + TENANT_ID + ", 'req-9', NULL, NOW())");
+        statement.execute("INSERT INTO `iam_audit_idempotency`"
+            + " (`tenant_id`, `idempotency_key`, `audit_id`, `created_at`)"
+            + " VALUES (" + TENANT_ID + ", 'req-9', NULL, NOW())");
       }
 
       AuditLogRepository.SaveResult result = repository.saveIfAbsent(record(TENANT_ID, "req-9", "order.settle"));
@@ -163,7 +178,7 @@ class AuditIdempotencyLedgerH2Test {
   /** 主键由应用侧生成（多行批插要插入前就知道 ID），测试里用递增序列模拟。 */
   private static AuditLog record(long tenantId, String idempotencyKey, String action, long id) {
     AuditLog log = new AuditLog();
-    LocalDateTime now = LocalDateTime.of(2026, 9, 19, 12, 0);
+    LocalDateTime now = SNAPSHOT_TIME;
     log.setId(id);
     log.setTenantId(tenantId);
     log.setAction(action);
@@ -215,6 +230,37 @@ class AuditIdempotencyLedgerH2Test {
     }
   }
 
+  /**
+   * DC-11 守卫：两条写语句（台账抢占 {@code claimIdempotencyKey}、主表多行批插 {@code insertBatch}）
+   * 必须**显式**写审计列，而不是吃列默认值。
+   *
+   * <p>断言用的夹具时间是 2026-09-19 12:00，与 H2 列默认值 {@code CURRENT_TIMESTAMP(3)}（落库时刻）
+   * 天然不同：一旦有人把 created_by / updated_by / updated_at 从 SQL 里删掉，updated_at 会变成
+   * 「落库时刻」而不是夹具时间，用例立刻失败——这正是「不能静默依赖默认值」的守卫。
+   */
+  @Test
+  void auditColumnsAreWrittenExplicitlyInsteadOfRelyingOnColumnDefaults() {
+    try (SqlSession session = sessionFactory.openSession(true)) {
+      AuditLogRepository repository = repository(session);
+
+      // 批量路径：主表走 insertBatch（一次多行），台账仍逐条抢占。
+      repository.saveAllIfAbsent(List.of(record(TENANT_ID, "audit-cols-1", "order.settle")));
+
+      AuditColumns ledger = latestAuditColumns("iam_audit_idempotency");
+      assertEquals(0L, ledger.createdBy(), "台账 created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
+      assertEquals(0L, ledger.updatedBy(), "台账 updated_by 必须显式为 0");
+      assertEquals(SNAPSHOT, ledger.createdAt(), "台账 created_at = 首次上报时间");
+      assertEquals(ledger.createdAt(), ledger.updatedAt(), "台账只增不改：updated_at 取同一入参，不得落到默认值");
+
+      AuditColumns auditLog = latestAuditColumns("iam_audit_log");
+      assertEquals(0L, auditLog.createdBy(), "主表 created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
+      assertEquals(0L, auditLog.updatedBy(), "主表 updated_by 必须显式为 0");
+      assertEquals(SNAPSHOT, auditLog.createdAt(), "主表 created_at 必须来自入参（列顺序错位会立刻暴露）");
+      assertEquals(auditLog.createdAt(), auditLog.updatedAt(),
+          "本表只增不改：updated_at 取同一入参，不得落到默认值 CURRENT_TIMESTAMP(3)");
+    }
+  }
+
   private long countOf(String table) {
     try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
          Statement statement = connection.createStatement();
@@ -224,6 +270,26 @@ class AuditIdempotencyLedgerH2Test {
     } catch (Exception exception) {
       throw new IllegalStateException("统计失败: " + table, exception);
     }
+  }
+
+  /** 读取最新一行的 DC-11 审计列（created_by/updated_by/created_at/updated_at）。 */
+  private AuditColumns latestAuditColumns(String table) {
+    try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
+         Statement statement = connection.createStatement();
+         ResultSet rows = statement.executeQuery("SELECT created_by, updated_by, created_at, updated_at"
+             + " FROM `" + table + "` ORDER BY id DESC LIMIT 1")) {
+      if (!rows.next()) {
+        throw new IllegalStateException("未找到写入的审计行: " + table);
+      }
+      return new AuditColumns(rows.getLong(1), rows.getLong(2), rows.getTimestamp(3), rows.getTimestamp(4));
+    } catch (Exception exception) {
+      throw new IllegalStateException("读取审计列失败: " + table, exception);
+    }
+  }
+
+  /** DC-11 四个审计列里本用例关心的取值。 */
+  private record AuditColumns(long createdBy, long updatedBy, java.sql.Timestamp createdAt,
+                              java.sql.Timestamp updatedAt) {
   }
 
   private Long claimedAuditId(String idempotencyKey) {
