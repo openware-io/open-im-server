@@ -68,10 +68,10 @@
 
 - 规则：`ENGINEERING_RULES.md:131`「…密钥暴露…校验均由统一入口执行；不得选择性跳过。」
 - 证据：`scripts/validate/validate-secret-exposure.ps1:13-15` 只识别“键在行首 + 扩展名白名单”的赋值形态；`k8s/ack/*.yaml:30` 的行首是 `- { name: JWT_SECRET, value: …`，验收脚本是 `[string]$Password = '…'`，两者都不匹配 → 0 命中。
-- 同时漏掉的在库明文默认值：
-  - `common-services/audit/.../application.yml:48` `${INTERNAL_SERVICE_AUTH_SECRET:open-im-audit-channel-dev-secret-«…»}`
-  - `common-services/payment/.../application.yml:43`、`platform-services/customer/.../application.yml:40`、`platform-services/order/.../application.yml:64` 同一字面量 `open-im-internal-dev-secret-«…»`
-  - `group-services/idaas/.../application.yml:30` `${JWT_SECRET:group-idaas-dev-secret-key-«…»}`
+- 同时漏掉的在库明文默认值（值已整体脱敏为占位符，不保留任何真实前缀）：
+  - `common-services/audit/.../application.yml:48` `${INTERNAL_SERVICE_AUTH_SECRET:«已作废-明文默认值»}`
+  - `common-services/payment/.../application.yml:43`、`platform-services/customer/.../application.yml:40`、`platform-services/order/.../application.yml:64` 同一字面量 `«已作废-明文默认值»`
+  - `group-services/idaas/.../application.yml:30` `${JWT_SECRET:«已作废-明文默认值»}`
   - `sdk/infrastructure/.../audit/AuditClientConfig.java:20` 硬编码 `DEV_FALLBACK_SECRET`
   - 可达性：`k8s/ack/saas-domain.yaml` 只给 1/4 个 Deployment 注入 `INTERNAL_SERVICE_AUTH_SECRET`，`platform-order-service`、`common-payment-service` 实际会落到仓库可见的字面量
 - 处置：门禁改为“值位置”扫描并纳入 CI；补齐 ACK 各 Deployment 的 `secretKeyRef`。
