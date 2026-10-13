@@ -1,5 +1,6 @@
 package io.openware.im.user.infra.persistence.notificationsetting.repository;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.im.user.domain.notificationsetting.model.UserNotificationSetting;
 import io.openware.im.user.domain.notificationsetting.repository.UserNotificationSettingRepository;
 import io.openware.im.user.infra.persistence.notificationsetting.mapper.UserNotificationSettingMapper;
@@ -15,18 +16,31 @@ public class MybatisUserNotificationSettingRepository implements UserNotificatio
 
   @Override
   public Optional<UserNotificationSetting> findByUserId(long userId) {
-    return Optional.ofNullable(mapper.selectById(userId)).map(this::toDomain);
+    return Optional.ofNullable(selectByUserId(userId)).map(this::toDomain);
   }
 
   @Override
   public UserNotificationSetting save(UserNotificationSetting setting) {
+    UserNotificationSettingPo existing = selectByUserId(setting.getUserId());
     UserNotificationSettingPo po = toPo(setting);
-    if (mapper.selectById(setting.getUserId()) == null) {
+    if (existing == null) {
+      po.setCreatedBy(setting.getUserId());
+      po.setUpdatedBy(setting.getUserId());
       mapper.insert(po);
     } else {
+      // 主键是自增 id：改自业务键 user_id 后必须用查到的 id 走 updateById。
+      po.setId(existing.getId());
+      po.setCreatedBy(setting.getUserId());
+      po.setUpdatedBy(setting.getUserId());
       mapper.updateById(po);
     }
     return toDomain(po);
+  }
+
+  /** user_id 已从主键降为唯一键，业务查询一律走 user_id 而不是 selectById。 */
+  private UserNotificationSettingPo selectByUserId(long userId) {
+    return mapper.selectOne(Wrappers.<UserNotificationSettingPo>lambdaQuery()
+        .eq(UserNotificationSettingPo::getUserId, userId));
   }
 
   private UserNotificationSetting toDomain(UserNotificationSettingPo po) {

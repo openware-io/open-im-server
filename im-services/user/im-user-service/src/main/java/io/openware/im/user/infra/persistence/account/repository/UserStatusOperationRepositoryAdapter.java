@@ -37,6 +37,8 @@ public class UserStatusOperationRepositoryAdapter implements UserStatusOperation
     operationPo.setReason(reason);
     operationPo.setCorrelationId(operation.correlationId());
     operationPo.setRequestVersion(operation.requestVersion());
+    // 后台操作审计：操作人即 operatorId（缺省 0 = 系统）；其余审计列的默认值由 DDL 提供。
+    operationPo.setCreatedBy(operatorId == null ? 0L : operatorId);
     operationPo.setCreatedAt(operation.occurredAt());
     mapper.insert(operationPo);
   }

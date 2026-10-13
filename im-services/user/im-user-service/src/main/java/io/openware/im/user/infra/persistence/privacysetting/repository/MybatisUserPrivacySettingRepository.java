@@ -1,5 +1,6 @@
 package io.openware.im.user.infra.persistence.privacysetting.repository;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.im.user.domain.privacysetting.model.UserPrivacySetting;
 import io.openware.im.user.domain.privacysetting.repository.UserPrivacySettingRepository;
 import io.openware.im.user.infra.persistence.privacysetting.mapper.UserPrivacySettingMapper;
@@ -15,18 +16,31 @@ public class MybatisUserPrivacySettingRepository implements UserPrivacySettingRe
 
   @Override
   public Optional<UserPrivacySetting> findByUserId(long userId) {
-    return Optional.ofNullable(mapper.selectById(userId)).map(this::toDomain);
+    return Optional.ofNullable(selectByUserId(userId)).map(this::toDomain);
   }
 
   @Override
   public UserPrivacySetting save(UserPrivacySetting setting) {
+    UserPrivacySettingPo existing = selectByUserId(setting.getUserId());
     UserPrivacySettingPo po = toPo(setting);
-    if (mapper.selectById(setting.getUserId()) == null) {
+    if (existing == null) {
+      po.setCreatedBy(setting.getUserId());
+      po.setUpdatedBy(setting.getUserId());
       mapper.insert(po);
     } else {
+      // 主键是自增 id：改自业务键 user_id 后必须用查到的 id 走 updateById。
+      po.setId(existing.getId());
+      po.setCreatedBy(setting.getUserId());
+      po.setUpdatedBy(setting.getUserId());
       mapper.updateById(po);
     }
     return toDomain(po);
+  }
+
+  /** user_id 已从主键降为唯一键，业务查询一律走 user_id 而不是 selectById。 */
+  private UserPrivacySettingPo selectByUserId(long userId) {
+    return mapper.selectOne(Wrappers.<UserPrivacySettingPo>lambdaQuery()
+        .eq(UserPrivacySettingPo::getUserId, userId));
   }
 
   private UserPrivacySetting toDomain(UserPrivacySettingPo po) {

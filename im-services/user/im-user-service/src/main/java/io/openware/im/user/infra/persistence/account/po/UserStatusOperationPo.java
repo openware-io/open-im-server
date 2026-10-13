@@ -33,6 +33,12 @@ public class UserStatusOperationPo {
   private String correlationId;
   @TableField("request_version")
   private Integer requestVersion;
+  @TableField("created_by")
+  private Long createdBy;
   @TableField("created_at")
   private LocalDateTime createdAt;
+  @TableField("updated_by")
+  private Long updatedBy;
+  @TableField("updated_at")
+  private LocalDateTime updatedAt;
 }
