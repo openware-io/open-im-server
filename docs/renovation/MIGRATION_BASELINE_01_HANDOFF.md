@@ -8,6 +8,7 @@
 ## 0. 30 秒现状
 
 - **19/19 迁移根已合并为单 V1 基线**，全部已提交，工作区干净。
+- **✅ 清库重建的迁移链已在真实 MySQL 8.0.46 上验证通过**（不只是静态检查）：19 个根的全部基线按序应用到全新库，**0 失败**，产出 `open_im` **152 张表** + `open_audit` **3 张表**；跨服务**无表名冲突**（唯一同名对是已登记的 `iam_audit_log` / `iam_audit_idempotency`——两个库各一份、物理设计不同，正是 §3.1.1 记录的审计双根设计）；`iam_audit_log` 的 **30 个月分区**在合并后完好。**这证明"删掉 V2..Vn 后从 V1 重建"这条路真的能跑通。**
 - **`tenant-sql` 已从报告模式转为阻断（worklist 43 → 0）**，见 `8f87209`。统一入口 `-Scope Changed` **exit 0**（24 门禁 + Maven 全绿）。
 - **剩余三个门禁转阻断的前置条件**（都只差决策，不是差工作量）：
 
@@ -176,6 +177,15 @@
 ⚠️ **不要顺手删 `mq-registry`**：它在 `report-only-gates.txt` 里登记的是"批次 2（台账补登记）**+** 批次 1（常量集中）"。台账部分 34 条已完成，**当前剩 10 条**（全是 `application.yml` 的 `${ENV:默认值}` 生产者组默认值）。两部分都完成才可移除该行。
 
 ### 步骤 4：清库重建（PR-03）
+
+> **迁移链部分已验证（本轮）**：19 个根的全部基线在全新 MySQL 8.0.46 上按序应用 **0 失败**，152 + 3 张表、无跨服务冲突、审计分区完好。**剩余未验证的是运行期部分**：`kind` 命名空间销毁/重建、各服务带 Flyway 启动（`flyway_schema_history_*` 表、`baseline-on-migrate`、服务间启动顺序）、31/31 deployment 就绪。验证方法（可复现）：
+> ```powershell
+> docker run -d --name dsh-rebuild-check -e MYSQL_ROOT_PASSWORD=rootpw -p 13306:3306 mysql:8.0.46
+> # 等 mysqladmin ping 通过；建 open_im 与 open_audit 两个库
+> # 逐个服务 docker cp 其 db/migration 下的 .sql 再 mysql <db> < file（PowerShell 没有 '<' 重定向）
+> # 审计服务用 db/migration-audit 那个目录 + open_audit 库；老根用 db/migration + open_im
+> ```
+> 注意：`docker run` 可能因 registry TLS 超时失败，重试即可（本轮第一次失败、第二次成功）。
 
 销毁 Kind 命名空间与 Compose 数据卷（**注意 N-23：本地 mysql/minio 用 `emptyDir`、mongodb 无卷，重建即清空数据，这是预期行为**）→ 全新 Flyway 迁移 → 全服务启动（31/31 deployment）。
 
