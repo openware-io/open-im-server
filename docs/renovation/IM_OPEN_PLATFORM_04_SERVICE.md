@@ -10,7 +10,7 @@
 | 顺序号 | `04` |
 | 实施边界 | `SERVICE`（服务板块：服务类型 / 服务项 / 启用停用 / C 端公开读 + 后台管理写） |
 | 前置方案 | [IM_OPEN_PLATFORM_01_SERVICE](IM_OPEN_PLATFORM_01_SERVICE.md)（开放平台 OAuth 接入，可选叠加）、[CLIENT_INTEGRATION_01_APP](CLIENT_INTEGRATION_01_APP.md) §5.4 N-01（C 端契约）、[CLIENT_INTEGRATION_02_ADMIN](CLIENT_INTEGRATION_02_ADMIN.md) §6 AD-18/AD-19（后台契约） |
-| 目标工程 | `im-services/admin/im-admin-service`（`MiniappServiceItem` / `MiniappServiceType`、`AdminManagementController`、`V1__adm_management_domain_baseline.sql`、`V7__seed_miniapp_services.sql`）、`gateway`（`/api/v1/miniapp/**`、`/api/v1/admin/**` 路由） |
+| 目标工程 | `im-services/admin/im-admin-service`（`MiniappServiceItem` / `MiniappServiceType`、`AdminManagementController`、单一迁移基线 `V1__adm_management_domain_baseline.sql`——批次 2 已把原 `V1~V12` 合并为一个 V1，原先的 `V7__seed_miniapp_services.sql` 等已并入该基线）、`gateway`（`/api/v1/miniapp/**`、`/api/v1/admin/**` 路由） |
 
 ## 1. 定位与目标
 

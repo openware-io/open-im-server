@@ -28,8 +28,8 @@
 
 ## 5. 数据模型（Flyway）
 
-- `V3__init_channel_schema.sql` 初始化 `channel` 与 `channel_subscription`。
-- `V6__fix_channel_secret_chat_schema_conventions.sql`：表名规范化 + 审计字段（`created_by/updated_by`）+ `bigint unsigned` 主键，对齐工程数据库规范（[21 持久化栈](../standards/21_PERSISTENCE_STACK.md)）。
+- 基线 `V1__conversation_baseline.sql` 建 `conversation_channel` 与 `conversation_channel_subscription`（批次 2 已把原 `V1~V16` 合并为单一 V1）。
+- 该基线同时完成表名规范化（`channel`→`conversation_channel` 等）、审计字段（`created_by/updated_by`）与 `bigint unsigned` 主键，对齐工程数据库规范（[21 持久化栈](../standards/21_PERSISTENCE_STACK.md)）。
 
 ## 6. 接口契约
 

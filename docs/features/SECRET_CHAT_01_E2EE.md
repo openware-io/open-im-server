@@ -28,15 +28,13 @@
 
 ### 数据模型（Flyway）
 
-- `V4__init_secret_chat_schema.sql`：`secret_chat` 表（user_a/user_b + 唯一约束 + 状态 + 安全码 + 销毁策略）。
-- `V5__upgrade_secret_chat_for_e2ee.sql`：补齐 E2EE 握手字段（公钥 + handshakeState）。
-- `V6__fix_channel_secret_chat_schema_conventions.sql`：表名规范化 + 审计字段 + unsigned 主键。
+- 基线 `V1__conversation_baseline.sql`：建 `conversation_secret_chat`（user_a/user_b + 唯一约束 + 状态 + 安全码 + 销毁策略），并补齐 E2EE 握手字段（公钥 + handshakeState）。批次 2 已把该服务原 `V1~V16` 合并为单一 V1，表名规范化（`secret_chat`→`conversation_secret_chat`）、审计字段与 `unsigned` 主键都在同一条基线里。
 
 ## 3. 设备身份域（im-user-service）
 
 - `DeviceKey`：客户端生成密钥对并登记公钥与设备指纹；`register` 建立、`renew` 轮换、`restore` 供新设备恢复。
 - 接口：`POST /device-keys`、`GET /device-keys`（网关 `/api/v1/device-keys/**`）。
-- 迁移：`V3__init_user_device_key_schema.sql`。
+- 迁移：基线 `V1__user_baseline.sql` 建 `user_device_key`（批次 2 已把该服务原 `V1~V24` 合并为单一 V1）。
 
 ## 4. 密文存储域（im-message-service）
 

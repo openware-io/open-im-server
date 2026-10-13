@@ -201,7 +201,11 @@ RELEASED --withdraw--> WITHDRAWN
 
 ### 5.7 Flyway V2 与迁移执行
 
-本次无需保留历史接口或业务数据兼容，但必须遵守 Flyway “已执行迁移只增不改、迁移中不使用 `DROP TABLE`”规则。因此旧能力的运行时移除与旧物理表的不可逆清理分两步执行：同一个后端提交新增 `V2__replace_app_release_governance.sql`，将 `adm_app_release` 重命名为 `adm_app_release_retired_v1` 并创建五张新表；一个完整发布周期且备份验证后，DBA 按变更单物理清理退役表。禁止把 `DROP TABLE` 写入 V2。
+> **批次 2 更新（迁移基线重建）**：该服务原 `V1~V12` 已合并为单一基线 `V1__adm_management_domain_baseline.sql`，原先的 `V2__replace_app_release_governance.sql` **已并入该基线并被删除**。基线直接建五张新表，并**不再重建**退役表 `adm_app_release_retired_v1`（仅 V2 为跨版本保留旧表而重命名，仓库内无任何代码引用该名字）。下文关于 V2 的步骤保留为历史记录，实施以基线为准。
+>
+> 历史记录：本次无需保留历史接口或业务数据兼容，但必须遵守 Flyway “已执行迁移只增不改、迁移中不使用 `DROP TABLE`”规则。因此旧能力的运行时移除与旧物理表的不可逆清理分两步执行：同一个后端提交新增 `V2__replace_app_release_governance.sql`，将 `adm_app_release` 重命名为 `adm_app_release_retired_v1` 并创建五张新表；一个完整发布周期且备份验证后，DBA 按变更单物理清理退役表。禁止把 `DROP TABLE` 写入 V2。
+
+下文对 `V2` 的引用均应理解为“本次提交的迁移内容”；批次 2 之后新增迁移从 `V2` 起。
 
 V2 必须与本方案中的领域、Repository、Mapper、Controller、Gateway 和测试同一提交，不能单独发布。实施提交还必须新增 `scripts/release/Test-ClientReleaseCutoverPreflight.ps1`，它只读连接目标库、输出至 `.outputs/logs/`、失败即非零退出；凭据仅从受管环境变量读取。
 
