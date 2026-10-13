@@ -15,7 +15,7 @@
   | --- | --- | --- |
   | `flyway-conventions` | **7** | 全是**前缀决策**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）。**需要你决定**：改到已登记前缀，还是登记为新域（见 §3.1.1 的 `channel`/`secret_chat` 先例——先查最新版本是否已 RENAME） |
   | `secret-exposure` | **4** | 全在 `ENGINEERING_GOVERNANCE_02_AUDIT.md`（`:61`/`:70`/`:72`/`:74`）。该文档是凭据清单本体，值已脱敏；是否放行需你决定（详见 §4） |
-  | `mq-registry` | 44 | 跨批次：批次 2 补台账 34 条 + 批次 1 集中 10 处生产者组字面量。**未动** |
+  | `mq-registry` | 44 | 34 条台账 + 10 处生产者组字面量。**已查明，需要设计决策后再动**（见 §4 第 9 条） |
   | `standards-governance` / `java-silent-catch` / `java-fully-qualified-names` / `service-api-boundaries` | 107 / 103 / 192 / 137 | 属**批次 3/4**，不在批次 2 范围 |
 
 - **可以开工**：冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，清库重建路径畅通。
@@ -53,7 +53,8 @@
 | 3 | **全仓 `.ps1` 都是无 BOM 文件，且 Windows CI 用 `powershell.exe` 执行** | 脚本内任何非 ASCII（中文注释、正则、文案）在 PS 5.1 下按 ANSI 解析，会被静默损坏。校验脚本一律英文注释。已延期到批次 4 的 6 个文件见 `scripts/validate/powershell-ascii-allowlist.txt`，**不要往该清单新增条目**（陈旧条目本身会让门禁失败） |
 | 4 | **每个模块一轮，做完即验证并提交** | 早期 378 条的上下文开销是本次交接的直接原因。按模块清单逐块推进 |
 | 7 | **子 agent 必须显式给出工作目录** | `validate-repository-hygiene.ps1` 的 G-15 会扫描**工作区根**（`D:\projects\cnb-oss`）的每一个条目，只允许 11 个仓库目录 + `.github`。某个子 agent 用了错误的 CWD，在 `D:\projects\cnb-oss\.outputs\` 写下验证产物，**直接让这条阻断门禁失败**（此后每次 `-Scope Changed` 都在 repository-hygiene 处报错）。给子 agent 的 prompt 里要写明绝对工作目录，收尾时检查工作区根 |
-| 8 | **不要用 shell 循环做全仓引用扫描** | 两次自研 PowerShell 扫描都报了"0 处失效引用"，而 `grep` 工具实际找到 11 处。判据要选一个**已知存在**的引用做交叉验证，不要相信 0；全仓扫描用 grep 工具 |
+| 8. **不要用 shell 循环做全仓引用扫描** | 两次自研 PowerShell 扫描都报了"0 处失效引用"，而 `grep` 工具实际找到 11 处。判据要选一个**已知存在**的引用做交叉验证，不要相信 0；全仓扫描用 grep 工具 |
+| 9 | **门禁报错时先问"这条语句/这个值是否本来就不该由它承担"** | 本轮两次因此避免了错误修改：`tenant-sql` 的 11 条误报（谓词由拦截器运行时注入，源码里本就没有）、`mq-registry` 的 10 条生产者组（值已经在 `sdk/protocol-mq` 里定义，YZML 里的是 `${ENV:默认值}` 的**默认值**）。**直接加标记/删默认值都会把"正确的写法"改坏。** |
 | 5 | **合并基线必然删除 V2..Vn，且不接受折中** | 删除后旧库无法平滑升级（Flyway 认为 V2..Vn 从未执行、校验和不一致）。这是 PR-01/PR-03 明确接受的代价（未上线、无数据），由第 4 步"清库重建"兜底。不要为兼容旧库保留 V2..Vn，也不要写补偿语句 |
 | 6 | **一份 worklist 文件是并发写目标** | `flyway-conventions-worklist.txt` 每次跑门禁都被整体重写。若并行跑多个模块（多 agent），先把"跑门禁 → 统计本模块条数"放在同一条命令里，并接受偶发的互相覆盖；判据是"某次门禁运行中本模块贡献 0 条"，不是文件某一刻的样子 |
 
@@ -258,7 +259,14 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 5. `.outputs/quality/powershell-ascii-only-worklist.txt` 是 ASCII 门禁自检留下的旧快照（gitignored，无影响），可随手删。
 6. **`tenant_payment_method` 的归属已核实，归属 `common-payment-service`**：该表由 `common-services/payment/common-payment-service/.../V9__tenant_payment_method.sql` 创建，`@TableName("tenant_payment_method")` 同时出现在 payment 与 admin 两个服务的 PO 中（admin 用它做菜单过滤）。因此 `tnt_` 改名要放在 payment 模块的合并里，并**同步两个服务的 PO**；tenant 模块只在已删除的 V12 注释里提过它，不拥有该表。
 7. **跨域数据语句不要折进 V1 基线**：customer 模块的 V7（`UPDATE cst_member JOIN idt_login_identity`）被有意丢弃，因为把它折进 V1 会让"哪个服务先迁移"变成整个重建成功的前置条件。正确做法是移到 `scripts/migration/*.sql` 作为独立脚本（identity 模块已有先例 `scripts/migration/backfill-account-type.sql`）。**order / tenant / message 等模块若遇同类语句，照此处理。**
-8. **强烈建议每个模块都用"建两个库再 diff"验证，而不是只读 SQL**：tenant 模块（32 文件、826 行）用这种方式跑出了 **3 个静态审查完全没有发现的缺陷**——折叠进 CREATE TABLE 的 NOT NULL 列缺 `DEFAULT` 导致早期 INSERT 直接失败、我加的 `WHERE` 守卫让某次回填静默失效、以及回填语句位置变化把后续显式 `scope_level='STORE'` 覆盖掉。门禁只验形状，验不了语义；**能跑真实 MySQL 时必须跑**。
+8. **强烈建议每个模块都用"建两个库再 diff"验证，而不是只读 SQL**：tenant 模块（32 文件、826 行）用这种方式跑出了 **3 个静态审查完全没有发现的缺陷**——折叠进 CREATE TABLE 的 NOT NULL 列缺 `DEFAULT` 导致早期 INSERT 直接失败、我加的 `WHERE` 守卫让某次回填静默失效、以及回填语句位置变化把后续显式 `scope_level='STORE'` 覆盖掉。门禁只验形状，验不了语义；**能跑真实 MySQL 时必须跑**。user 模块同理（OIDC 回填顺序导致 A380 行复活、`user_oidc_scope` 成员变化）。
+
+9. **`mq-registry` 的 10 条"生产者组字面量"其实是正确写法，需要决策而非机械修**：
+
+   - 现状：`application.yml` 里是 `producer-group: ${PLATFORM_ORDER_SERVICE_MQ_PRODUCER_GROUP:platform-order-service-producer}` —— **环境变量优先、字面量是默认值**，正是 `standards/12` 要求的"服务配置中的 Producer Group 必须使用服务专属变量，变量名遵循 `<SERVICE>_MQ_PRODUCER_GROUP`"。
+   - 而同一个值**已经在 `sdk/protocol-mq` 里定义了常量**（如 `ResourceMqProducerGroups.PLATFORM_RESOURCE_SERVICE`），两个模块的注册表类（`CouponMqRegistry`、`ResourceMqRegistry`）已直接引用常量。
+   - 所以门禁报的是"默认值里又写了一遍字面量"，**不是"硬编码绕过常量"**。三种处置各有取舍，**属架构决策**：① YAML 去掉默认值（`${VAR}` 必需，fail-fast，但没配环境变量的环境会启动失败）；② 保留 YAML 默认值、把门禁改成"允许默认值与同名常量一致"（改动最小，但两处仍需人工保持同步）；③ 让 MQ 配置直接注入常量、不再走 YAML（最彻底，但要改 `MqProperties`/环境变量覆盖机制）。**不要再无人决策地加标记或删默认值。**
+   - 另 34 条是补台账（`docs/mq/REGISTRY.md` 缺 34 个已实现的 Topic/Consumer Group），属可追查工作，但**属于批次 2「台账同步」步骤**，与上面 10 条是两件事。
 
 1d. **"补审计列"是有代价的：先查 INSERT 有没有写这些列**（本轮 audit / marketing 各踩一次）。
 
