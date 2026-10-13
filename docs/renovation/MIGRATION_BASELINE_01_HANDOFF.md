@@ -267,6 +267,19 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - 而同一个值**已经在 `sdk/protocol-mq` 里定义了常量**（如 `ResourceMqProducerGroups.PLATFORM_RESOURCE_SERVICE`），两个模块的注册表类（`CouponMqRegistry`、`ResourceMqRegistry`）已直接引用常量。
    - 所以门禁报的是"默认值里又写了一遍字面量"，**不是"硬编码绕过常量"**。三种处置各有取舍，**属架构决策**：① YAML 去掉默认值（`${VAR}` 必需，fail-fast，但没配环境变量的环境会启动失败）；② 保留 YAML 默认值、把门禁改成"允许默认值与同名常量一致"（改动最小，但两处仍需人工保持同步）；③ 让 MQ 配置直接注入常量、不再走 YAML（最彻底，但要改 `MqProperties`/环境变量覆盖机制）。**不要再无人决策地加标记或删默认值。**
    - 另 34 条是补台账（`docs/mq/REGISTRY.md` 缺 34 个已实现的 Topic/Consumer Group），属可追查工作，但**属于批次 2「台账同步」步骤**，与上面 10 条是两件事。**已把 34 条提取成 worklist：`.outputs/quality/mq-registry-ledger-todo.txt`**（7 列 ×34 行，已填"类型/名称/常量文件/责任模块（部分标待核）"，留空"消费目的/顺序键/幂等键"）。
+
+10. **H2 测试夹具与生产基线已漂移（真实存在，未修，需单独一轮）**：三个模块的 `src/test/resources/db/test-migration/` 是自己的 DDL 副本（不读生产迁移），所以**夹具会悄悄落后于基线**。实测漂移：
+
+| 模块 | 夹具 | 与生产基线相比缺什么 |
+| --- | --- | --- |
+| `platform-order-service` | `V1__ord_h2_schema.sql` | `ord_event_consumed` 缺 4 个审计列、`ord_inventory_transaction` 缺 `updated_by`/`updated_at`、`ord_event_outbox` 缺 `created_by`/`updated_by`（共 8 列） |
+| `platform-customer-service` | `V1__cst_h2_schema.sql` + `V2__cst_member_h2.sql` | 只建 5/10 张表；**表是子集属正常**（夹具只建被测路径需要的表），需逐表核**列** |
+| `common-payment-service` | `V1__pay_h2_schema.sql` | 建 7/13 张表；另外夹带了 `ord_order`/`ord_order_item`（跨域夹具，非本模块表） |
+
+**为什么现在测试仍绿**：夹具缺的列，恰好是那些测试路径不写入的列（例如 `ord_event_consumed` 的审计列由 `DEFAULT` 兜底，而夹具里该表的 INSERT 由 PO 驱动、PO 不映射这些列）。所以这**不是回归，而是"测试对着比生产更旧的 schema 跑"**，会长期掩盖问题。
+**修的时候注意**：① 表是子集没问题，**只需对齐列**；② 加列会让夹具里的位置式 `INSERT ... VALUES (...)` 失效——payment 模块已因此改成显式列名，照做；③ 改完必须真跑该模块测试（H2 与 MySQL 的 DDL 行为不同，例如 `DEFAULT CURRENT_TIMESTAMP(3)` 在 H2 上的支持）。
+
+11. **`im-admin` 的守卫测试是正确做法，值得抄**：合并后它把断言从"V2 存在"改成 **`assertFalse(exists(V2))`**，并加"迁移目录只允许一个文件"，而不是删掉守卫（`AdminBatchZeroArchitectureGateTest:202-207`）。message 与 user 同样处理。**遇到钉住已删文件的测试，改断言方向并加强，不要删除。**
    - **台账 34 条已完成（`83ee042`）**：`docs/mq/REGISTRY.md` 已补齐，门禁 44 → **10**，且反向漂移 0（台账里每个名字都能对上 protocol-mq 常量）。做法固化在两个提交过的工具里，**不需要再靠人工回忆**：
      1. `scripts/validate/extract-mq-semantics.ps1`（只读）→ `.outputs/quality/mq-semantics-extract.txt`：对每个引用 protocol-mq 组的类输出**类路径 / 消费组常量 / Topic 常量 / 类级 javadoc**。本仓 javadoc 会写明消费目的，事件消费者还会直接写出幂等键。
      2. `scripts/validate/update-mq-registry-ledger.ps1` 读 `scripts/validate/mq-registry-ledger-entries.txt`（UTF-8）幂等追加行。**脚本与数据分离是刻意的**：脚本必须 ASCII-only（无 BOM 的 `.ps1` 被按 ANSI 解析——我第一版把中文写进脚本，直接解析失败），中文台账文本因此放数据文件。
