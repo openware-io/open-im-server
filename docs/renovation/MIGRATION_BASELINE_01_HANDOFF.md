@@ -183,6 +183,36 @@
 
 ### 步骤 4：清库重建（PR-03）
 
+> **✅ 运行期已实测通过（本轮）——不需要重建集群就验证了"全新库 + 当前代码 + Flyway"这条链路。**
+>
+> 做法：起一个空 `mysql:8.0.46`（建 `open_im` / `im_server` / `open_audit` 三个库，**0 张表**），然后**用当前 HEAD 构建的 19 个服务 jar 逐个真启动**（jar 已确认只含合并后的 `V1__*_baseline.sql`），让 **Flyway 自己去建表**。
+>
+> **结果：19/19 服务全部成功，142 个迁移全部 `success=1`，0 失败**（`TODO`：各服务 history 表见下），服务本身也都启动起来了（`Started ...Application`）。典型日志：
+> ```
+> Schema history table `open_im`.`flyway_schema_history_sms` does not exist yet
+> All configured schemas are empty; baseline operation skipped
+> Migrating schema `open_im` to version "1 - sms baseline"
+> Successfully applied 1 migration to schema `open_im`, now at version v1
+> ```
+> **关键确认**：空库上 Flyway 会**跳过 baseline 动作、直接执行 V1**——所以 `baseline-on-migrate` + `baseline-version=0` 在全新库上是安全且正确的。
+>
+> **最终 schema 与现网逐表一致**：新建库 152 张应用表、现网 150 张，**差值恰好只有 `open_im.iam_audit_log` / `iam_audit_idempotency` 两份冗余副本**——因为本轮没带 `audit-schema` profile，审计服务用老根在 `open_im` 里也建了一份；带该 profile 时它写 `open_audit`（现网即如此）。**没有"现网有、新库没有"的表。**
+>
+> ⚠️ **两个必须知道的事实**：
+> 1. **多版本号是正常的**：各服务历史表里能看到 33（order/tenant）、24（user）等**多个版本**，因为**老库仍然可以从旧版本平滑升级**（V2..Vn 未删）；而**空库只执行 V1 一条**。所以"合并成单 V1"没有破坏老库升级路径。
+> 2. **本轮实测的产物里表名是老名**（`support_media_object`、`tenant_payment_method`、`adm_app_release_retired_v1`），因为**生产迁移文件今天用的就是这些名字**；而**合并基线里写的是新名**（`media_*`、`tnt_payment_method`、`adm_app_release`）。两者在真实建库时**并不冲突**（改名只在基线文件里体现）。**这点仍需你确认是否有意为之**——见 §4 第 12 条。
+>
+> **仍未做的**：重建 kind 集群 + 用当前 HEAD 构建镜像 + 销毁重建现网库。现在这一步的**风险已经很低**（运行期链路实测通过），但仍会销毁一个可用环境，**需要你确认**。
+>
+> 可复现命令：
+> ```powershell
+> docker run -d --name dsh-flyway -e MYSQL_ROOT_PASSWORD=rootpw -p 3306:3306 mysql:8.0.46
+> # 等真正可查询后建三库；注意 mysqladmin ping 会在初始化期间就返回成功，必须用 information_schema 判断
+> docker exec dsh-flyway mysql -uroot -prootpw -e "CREATE DATABASE open_im; CREATE DATABASE im_server; CREATE DATABASE open_audit;"
+> # 逐个 java -jar <service>/target/*-2.2.0-SNAPSHOT.jar --server.port=<free>
+> # 必须设 JWT_SECRET 与 INTERNAL_SERVICE_AUTH_SECRET，否则多个服务会「拒绝启动」
+> ```
+
 > **⚠️ 先读这条：现存的 `open-im-local` 集群是"重建前"的旧状态，不能拿它当验收基线。**
 >
 > 本轮实测确认：
@@ -326,6 +356,13 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 **附带发现（未修，非失败）**：该模块测试日志里有 `Table "ord_reservation" not found` 的报错噪声——夹具只建 13 张表，缺 `ord_reservation`／`ord_ktv_server_session`／`ord_order_void_approval`／`ord_reservation_rule_config`，而**生产定时任务在测试上下文里真的会去查它们**（`ReservationMapper.selectNotArrivedOverdue`）。它不影响测试结果（573/0/0，后台调度线程只记日志），但会在每次测试里刷错误栈。修法二选一：把 4 张表补进夹具，或在测试 profile 里关掉这些定时任务；**不要**为了让日志干净而删掉生产查询。
 
 11. **`im-admin` 的守卫测试是正确做法，值得抄**：合并后它把断言从"V2 存在"改成 **`assertFalse(exists(V2))`**，并加"迁移目录只允许一个文件"，而不是删掉守卫（`AdminBatchZeroArchitectureGateTest:202-207`）。message 与 user 同样处理。**遇到钉住已删文件的测试，改断言方向并加强，不要删除。**
+
+12. **⚠️ 需要你确认：改名只在合并基线里，生产迁移文件今天仍是旧名**（本轮运行期实测发现）：
+    - **合并基线**写的是新名：`media_*`、`tnt_payment_method`、`adm_app_release`
+    - **实际跑起来的迁移**（= 生产文件）产出的是旧名：`support_media_object`、`tenant_payment_method`、`adm_app_release_retired_v1`
+    - 而**当前 Java 代码引用的是新名**（`media_*` 8 处、`tnt_payment_method` 16 处、`adm_app_release` 10 处；旧名 `support_media_*` 在代码里 **0 引用**）
+    - **所以现状是"新代码 + 旧表名"**：19 个服务能启动（因为启动只跑 Flyway，不改名），但**一旦有 SQL 真的去查 `media_object` / `tnt_payment_method` / `adm_app_release`，就会报表不存在**。这**不是本次合并引入的**（旧代码也这么跑），而是**早于本次的改名遗漏**。
+    - **需要你决定**：① 把改名补成正式迁移（新 V2 做 RENAME，老库可平滑升；新库直接是新名）——但会与"合并基线冻结"的目标冲突，需评估；② 或把代码/基线改回旧名；③ 或确认旧名是历史包袱、另有清理计划。**这一条会影响 `baseline-*` 冻结 tag 与 `scripts/verify/*` 的通过与否，建议先定。**
    - **台账 34 条已完成（`83ee042`）**：`docs/mq/REGISTRY.md` 已补齐，门禁 44 → **10**，且反向漂移 0（台账里每个名字都能对上 protocol-mq 常量）。做法固化在两个提交过的工具里，**不需要再靠人工回忆**：
      1. `scripts/validate/extract-mq-semantics.ps1`（只读）→ `.outputs/quality/mq-semantics-extract.txt`：对每个引用 protocol-mq 组的类输出**类路径 / 消费组常量 / Topic 常量 / 类级 javadoc**。本仓 javadoc 会写明消费目的，事件消费者还会直接写出幂等键。
      2. `scripts/validate/update-mq-registry-ledger.ps1` 读 `scripts/validate/mq-registry-ledger-entries.txt`（UTF-8）幂等追加行。**脚本与数据分离是刻意的**：脚本必须 ASCII-only（无 BOM 的 `.ps1` 被按 ANSI 解析——我第一版把中文写进脚本，直接解析失败），中文台账文本因此放数据文件。
