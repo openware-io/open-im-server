@@ -9,15 +9,17 @@
 
 - **19/19 迁移根已合并为单 V1 基线**，全部已提交，工作区干净。
 - **✅ 清库重建的迁移链已在真实 MySQL 8.0.46 上验证通过**（不只是静态检查）：19 个根的全部基线按序应用到全新库，**0 失败**，产出 `open_im` **152 张表** + `open_audit` **3 张表**；跨服务**无表名冲突**（唯一同名对是已登记的 `iam_audit_log` / `iam_audit_idempotency`——两个库各一份、物理设计不同，正是 §3.1.1 记录的审计双根设计）；`iam_audit_log` 的 **30 个月分区**在合并后完好。**这证明"删掉 V2..Vn 后从 V1 重建"这条路真的能跑通。**
-- **`tenant-sql` 已从报告模式转为阻断（worklist 43 → 0）**，见 `8f87209`。统一入口 `-Scope Changed` **exit 0**（24 门禁 + Maven 全绿）。
-- **剩余三个门禁转阻断的前置条件**（都只差决策，不是差工作量）：
+- **批次 2 的四个门禁里已有三个清零并转阻断**（`tenant-sql` 43→0、`secret-exposure` 4→0、`mq-registry` 44→0）；**报告模式门禁从 8 个降到 5 个**，其中批次 2 只剩 `flyway-conventions`：
 
   | 门禁 | 剩余 | 卡在哪 |
   | --- | --- | --- |
-  | `flyway-conventions` | **7** | 全是**前缀决策**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）。**需要你决定**：改到已登记前缀，还是登记为新域（见 §3.1.1 的 `channel`/`secret_chat` 先例——先查最新版本是否已 RENAME） |
-  | `secret-exposure` | **0** ✅ | 已清零并转**阻断**（`84879c6`）。做法是**改写证据行**（保留文件/行号/变量名，不复现值与前缀），**门禁脚本零改动**；顺带修掉了门禁漏报的一处真泄漏 |
-  | `mq-registry` | **10** | 34 条台账**已补完**（见下）；剩余 10 条全是 `application.yml` 的 `${ENV:默认值}` 生产者组**默认值**，属架构决策（见 §4 第 9 条） |
+  | `flyway-conventions` | **7** | **唯一剩下的批次 2 门禁**，7 条全是**前缀决策**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）。**你已明确挂起**（"我自己后续定"），所以这条不作弊就清不掉 |
+  | `tenant-sql` | **0** ✅ | 已转**阻断**（`8f87209`） |
+  | `secret-exposure` | **0** ✅ | 已转**阻断**（`84879c6`）。改写证据行、门禁零改动；顺带修掉门禁漏报的一处真泄漏 |
+  | `mq-registry` | **0** ✅ | 已转**阻断**（`05fc409`）。34 条台账 + 3 个生产者组常量；门禁改为**语义判定**后暴露并修掉 3 处真问题 |
   | `standards-governance` / `java-silent-catch` / `java-fully-qualified-names` / `service-api-boundaries` | 107 / 103 / 192 / 137 | 属**批次 3/4**，不在批次 2 范围 |
+
+- **⚠️ 门禁工作流自身的一个坑（本轮已修 4 个脚本）**：`validate-*.ps1` 的**成功分支原先不删除自己的 worklist/report 文件**，所以**门禁通过后仍会留下一个写着旧违规的清单**——本轮多次据此误判"还有 N 条"，实际早已清零。已给 `tenant-sql`、`secret-exposure`、`flyway-conventions`、`mq-registry` 四个脚本加上"成功即删除输出"。**已核对其他门禁**：仍留文件的都是**真的失败**的门禁（`java-silent-catch` 等），属正确行为。**判据改为看门禁 exit code 与实时运行输出，不要把 `.outputs/quality/*-worklist.txt` 的存在当真理。**
 
 - **可以开工**：冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，清库重建路径畅通。
 - **19/19 迁移根已合并为单 V1 基线并提交**（每根 worklist 归零；下表括号内为"合并前文件数 → 现文件数"）：
