@@ -7,10 +7,18 @@
 
 ## 0. 30 秒现状
 
-- **19/19 迁移根已合并为单 V1 基线**，全部已提交，工作区干净。剩余 `flyway-conventions` **7 条**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）——**全部是你决定挂起的前缀决策**，不是遗漏。
-- 其余批次 2 门禁现状：`tenant-sql` **18**（order 16 / payment 1 / platform-admin 1，分类见 §2）、`secret-exposure` **4**（全在审计报告文档里，需你决策，见下）、`mq-registry` 44（属批次 1 常量集中 + 批次 2 台账，未动）。
+- **19/19 迁移根已合并为单 V1 基线**，全部已提交，工作区干净。
+- **`tenant-sql` 已从报告模式转为阻断（worklist 43 → 0）**，见 `8f87209`。统一入口 `-Scope Changed` **exit 0**（24 门禁 + Maven 全绿）。
+- **剩余三个门禁转阻断的前置条件**（都只差决策，不是差工作量）：
+
+  | 门禁 | 剩余 | 卡在哪 |
+  | --- | --- | --- |
+  | `flyway-conventions` | **7** | 全是**前缀决策**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）。**需要你决定**：改到已登记前缀，还是登记为新域（见 §3.1.1 的 `channel`/`secret_chat` 先例——先查最新版本是否已 RENAME） |
+  | `secret-exposure` | **4** | 全在 `ENGINEERING_GOVERNANCE_02_AUDIT.md`（`:61`/`:70`/`:72`/`:74`）。该文档是凭据清单本体，值已脱敏；是否放行需你决定（详见 §4） |
+  | `mq-registry` | 44 | 跨批次：批次 2 补台账 34 条 + 批次 1 集中 10 处生产者组字面量。**未动** |
+  | `standards-governance` / `java-silent-catch` / `java-fully-qualified-names` / `service-api-boundaries` | 107 / 103 / 192 / 137 | 属**批次 3/4**，不在批次 2 范围 |
+
 - **可以开工**：冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，清库重建路径畅通。
-- 统一入口 `-Scope Changed` **退出码 0**（24 个门禁 + Maven 全绿；报告模式门禁不阻断）。
 - **19/19 迁移根已完成并提交**（worklist 归零；括号内为条目数 → 0）：
 
   | 模块 | 提交 | 合并前→后 |
@@ -141,16 +149,11 @@
 
   另外：若表已在 `scripts/validate/tenant-platform-tables.txt` 登记为平台级（如 `tnt_business_type`、`tnt_app_user_authorization`），那它就是平台级表，标记用 `platform-wide` 而不是 `tenant-agnostic`。
 
-  **order 模块的 16 条已分类但尚未改，留给下一轮**（本轮时间预算用尽，且**这属于租户语义判断，不能靠猜**）：
+  **order 模块的 18 条已全部处理完（worklist 归零）**，方法本身值得复用：
 
-  | 文件 | 行 | 初判 | 建议 |
-  | --- | --- | --- | --- |
-  | `KtvSessionMapper` | 65, 79 | **跨租户系统扫描**（`status IN ('OPEN','PAUSED')` / `status='RESERVED' AND opened_at IS NULL`，无任何租户或业务键限定） | 应为 `platform-wide`，但**先确认调用方是否为定时任务/全局巡检** |
-  | `ReportMapper`（platform-admin） | 496 | 平台报表的相关子查询（`ord_ktv_session k`） | 报表跨租户，`platform-wide`；需确认整条 SQL 的意图 |
-  | `KtvSessionMapper` / `KtvServerSessionMapper` / `OrderItemMapper` / `ReservationMapper` | 23,38,50,54；17,29,33；33,55；26 | 更新/查询按 `order_id`/`id`/`ktv_session_id` 等**业务键**定位 | 若该业务键全局唯一（order 模块普遍用 `@InterceptorIgnore` + 业务键作用域），应加 `tenant-agnostic` 并写明"按业务键定位"；**不要**只为了过门禁加标记 |
-  | `DailySerialMapper` 39,64 / `InventoryStockMapper` 25,42 / `PayIntentMapper` 22 | — | 多半是"先取 tenant_id、再按租户更新"的**真带租户**写法，只是谓词落在下一行 | 与 `InternalTenantConfigMapper` 一样**reflow**，不必加标记 |
-
-  **判据（本轮踩过的坑）**：先看该 mapper 是否 `@InterceptorIgnore(tenantLine)`——order 模块大量使用它，意味着租户边界由**业务键**保证而非 SQL 谓词；这类应标 `tenant-agnostic` 并写清定位键，而 `status` 全表扫描那两条才是真正的 `platform-wide`。
+  - **3 条**是真正的跨租户扫描（`KtvSessionMapper:65,79`、`ReservationMapper:26`，均带 `@InterceptorIgnore`，javadoc 明写"跨租户一次扫出…每行自带 tenantId，逐行设上下文再写，绝不跨租户写"）→ 加 `platform-wide` 标记。
+  - **5 条**其实**带** `tenant_id`，只是谓词落在续行（`DailySerialMapper`、`InventoryStockMapper`、`PayIntentMapper`）→ **reflow**，不加标记。
+  - **11 条是门禁误报**，根因已修：`tenant-sql` 原先对**每一行**SQL 都要求租户谓词，但 `TenantLineInnerInterceptor` 会给**没有 `@InterceptorIgnore`** 的语句在运行时注入谓词——那个谓词在源码里根本不存在。门禁改为**只判定 opt-out（带 `@InterceptorIgnore`）的语句**后，这批误报消失（见 `8f87209`）。**教训：门禁报错先问"这条语句是否需要自己写谓词"，而不是直接加标记——加标记会把"租户内查询"错写成"与租户无关"。**
 - `secret-exposure` **6 → 4**（`.outputs/quality/secret-exposure-report.txt`）：user/idaas 合并后两处迁移文件里的历史凭据已消失；**剩余 4 条全部在 `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md`**（`:61`、`:70` 报 Inline secret，`:72`、`:74` 报 Secret config default）。
 
   ⚠️ **这 4 条我查过但没能定性，已原样保留，不要凭猜测处理**：
