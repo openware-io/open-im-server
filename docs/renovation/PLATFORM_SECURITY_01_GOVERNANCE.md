@@ -213,7 +213,7 @@ TIMESTAMP
 2. 对生产和预发布数据库导出原 `flyway_schema_history`、所有域表 DDL、版本记录和 checksum，形成迁移接管清单。
 3. 对每个服务创建专属 history 表的接管脚本或受控运维步骤：只迁移该服务已确认执行的版本和 checksum，禁止简单清空历史后重新执行。
 4. 新环境从空库完整迁移；`baseline-on-migrate` 仅用于经审计的存量库接管，不能作为常态规避迁移错误。
-5. 修复 `validate-flyway-module-boundaries.ps1`：将 `user_sticker_quota`、`user_admin_status_operation` 纳入 user 域表清单，并按表类型处理审计字段规则。
+5. 修复 `validate-flyway-conventions.ps1`：将 `user_sticker_quota`、`user_admin_status_operation` 纳入 user 域表清单，并按表类型处理审计字段规则。
 6. 门禁扩展为验证迁移目录、Flyway Starter、`flyway-mysql`、`spring.flyway.enabled`、专属 history 表、表前缀、表所有权、版本单调性及已应用脚本不可修改。
 7. 新建权威库基线不使用 `CREATE TABLE IF NOT EXISTS`；遗留表兼容必须由显式的结构检测、回填与增量迁移处理。
 
@@ -333,13 +333,13 @@ TIMESTAMP
 
 1. 先将新增规则接入报告模式，生成 `.outputs/quality/` 机器可读报告。
 2. 为现存问题建立编号、责任模块、整改批次和到期条件，不接受无限期忽略。
-3. 批次 0 至批次 4 清零对应问题后，将规则改为阻断模式并接入 `release_manager/verify.bat`。
+3. 批次 0 至批次 4 清零对应问题后，将规则改为阻断模式并接入 `scripts/validate/invoke-engineering-validation.ps1`（唯一工程校验入口）。
 4. 根 POM 接入 `requireUpperBoundDeps`；`dependencyConvergence` 先报告再阻断，完成 RocketMQ 传递依赖冲突收敛后强制执行。
 5. `verify.bat` 必须输出每个脚本、Maven 阶段和 smoke test 的实际执行结果及退出码，禁止仅完成运行时预检查后静默成功。
 
 #### 验收
 
-1. `release_manager/verify.bat` 能实际串行执行静态门禁、`mvnw.cmd clean verify` 和 smoke test，并在任一步失败时返回非零退出码。
+1. `scripts/validate/invoke-engineering-validation.ps1` 能实际串行执行全部静态门禁、`mvnw.cmd clean verify` 和 smoke test，并在任一步失败时返回非零退出码。
 2. 本地与 CI 使用同一个 Wrapper、同一个入口、同一个输出目录和相同的规则版本。
 3. 每次合并请求保留构建、测试、迁移和质量报告证据。
 

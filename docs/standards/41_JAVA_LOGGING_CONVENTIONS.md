@@ -25,4 +25,4 @@
 
 1. `scripts/validate/validate-java-logging-conventions.ps1` 会拦截手写日志器声明。
 2. `scripts/validate/validate-java-exception-logging.ps1` 会拦截静默异常或无上下文异常处理。
-3. 发布前统一通过 `release_manager/verify.bat` 执行校验。
+3. 发布前统一通过[统一工程校验入口](../ENGINEERING_RULES.md)执行校验（`scripts/validate/invoke-engineering-validation.ps1`）。

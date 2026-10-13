@@ -15,8 +15,7 @@ try {
   $files = Get-ChildItem -Path $root -Recurse -File
   foreach ($file in $files) {
     $relativePath = $file.FullName.Substring($root.Length + 1).Replace('\', '/')
-    if ($relativePath -match '(^|/)(\.git|\.superpowers|target|node_modules)(/|$)' -or
-        $relativePath -like 'release_manager/python-*-embed-amd64/*') {
+    if ($relativePath -match '(^|/)(\.git|\.superpowers|target|node_modules)(/|$)') {
       continue
     }
     if ($textExtensions -notcontains [System.IO.Path]::GetExtension($relativePath).ToLowerInvariant()) {
