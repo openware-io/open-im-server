@@ -303,7 +303,7 @@
 - 已核对 `ENGINEERING_RULES.md`、`DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](./MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
 - 结论：**不改**（改名需同步 config、无门禁收益、纯churn）。若将来确有统一诉求，应先写成规范＋门禁，再一次性改。
 
-### 3.4 ⚠️ `target/classes` 会残留合并前的迁移文件（本轮踩到，务必先读）
+### 3.2 ⚠️ `target/classes` 会残留合并前的迁移文件（本轮踩到，务必先读）
 
 `mvn test` **不会**清理 `target/classes`。合并基线时删掉了源码里的 V2..Vn，但**旧的 `.sql` 仍留在 `target/classes/db/migration/` 里**，于是：
 
@@ -316,7 +316,7 @@
 2. 对**每个**服务列出 jar 里全部迁移，确认**只有一条** `V1__*_baseline.sql`（审计服务例外：老根 2 条、`migration-audit` 3 条）；
 3. **不要用 `Select-Object -First 1` 判断**——那正是本轮误判的来源（只看到 V1，漏看了后面的旧文件）。
 
-### 3.2 提交记录（本轮）
+### 3.3 提交记录（本轮）
 ```
 aafc774 fix(migration): add missing audit columns and full-table index names to sms baseline
 d6969fe refactor(migration): add backticked identifiers to mail template baseline
@@ -377,7 +377,7 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 11. **`im-admin` 的守卫测试是正确做法，值得抄**：合并后它把断言从"V2 存在"改成 **`assertFalse(exists(V2))`**，并加"迁移目录只允许一个文件"，而不是删掉守卫（`AdminBatchZeroArchitectureGateTest:202-207`）。message 与 user 同样处理。**遇到钉住已删文件的测试，改断言方向并加强，不要删除。**
 
 12. **✅ 已核实为我的误报（本轮更正）：仓库自身是一致的，不存在"新代码 + 旧表名"问题。**
-    - 我此前据"运行期实测产物用的是旧表名（`support_media_object`/`tenant_payment_method`/`adm_app_release_retired_v1`）"推断仓库里代码与基线不一致。**这个推断是错的**，根因是**`target/classes` 里的陈旧构建产物**（见 §3.4）：那次运行跑的是"新 V1 基线 + 旧的 V2..Vn"，**旧迁移文件把表名又改回去了**。
+    - 我此前据"运行期实测产物用的是旧表名（`support_media_object`/`tenant_payment_method`/`adm_app_release_retired_v1`）"推断仓库里代码与基线不一致。**这个推断是错的**，根因是**`target/classes` 里的陈旧构建产物**（见 §3.2）：那次运行跑的是"新 V1 基线 + 旧的 V2..Vn"，**旧迁移文件把表名又改回去了**。
     - **正确事实**：合并后的基线文件**只创建新名**（`media_object` 等 5 张、`tnt_payment_method`、`adm_app_release`；**源码目录里没有任何一处 `CREATE TABLE` 用旧名**），而当前 Java 代码引用的也是新名——**两者一致**。旧名只出现在 `target/` 下的历史产物里（`target/` 已被 `.gitignore:1` 忽略，不会进提交）。
     - **教训**：判断"某个服务的 jar 是不是用当前源码构建的"，**不能只看第一个匹配**——`jar tf | Select-String 'db/migration' | Select-Object -First 1` 会漏掉同目录下的旧文件。要**列出全部**并核对是否只有 V1。
    - **台账 34 条已完成（`83ee042`）**：`docs/mq/REGISTRY.md` 已补齐，门禁 44 → **10**，且反向漂移 0（台账里每个名字都能对上 protocol-mq 常量）。做法固化在两个提交过的工具里，**不需要再靠人工回忆**：
