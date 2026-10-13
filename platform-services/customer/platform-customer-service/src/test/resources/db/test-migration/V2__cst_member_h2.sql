@@ -31,7 +31,11 @@ CREATE TABLE cst_member_name_token (
   tenant_id BIGINT NOT NULL,
   member_id BIGINT NOT NULL,
   token CHAR(64) NOT NULL,
+  -- 与生产基线对齐（DC-11 审计列）：该表写入方不写这三列，故取库默认值。
+  created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT uk_cst_member_name_token UNIQUE (tenant_id, member_id, token)
 );
 

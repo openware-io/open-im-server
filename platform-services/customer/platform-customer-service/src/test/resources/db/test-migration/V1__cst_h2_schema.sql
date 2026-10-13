@@ -32,7 +32,10 @@ CREATE TABLE cst_wallet_ledger (
   idempotency_key VARCHAR(64) NOT NULL,
   occurred_at TIMESTAMP NOT NULL,
   created_by BIGINT NOT NULL DEFAULT 0,
-  created_at TIMESTAMP NOT NULL
+  created_at TIMESTAMP NOT NULL,
+  -- 与生产基线对齐（DC-11）：账本追加型，写入方不写 updated_*，故 updated_at 取库默认值。
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE cst_event_outbox (
@@ -47,6 +50,9 @@ CREATE TABLE cst_event_outbox (
   retry_count INT NOT NULL DEFAULT 0,
   next_retry_at TIMESTAMP,
   published_at TIMESTAMP,
+  -- 与生产基线对齐（DC-11 审计列）
+  created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL
 );

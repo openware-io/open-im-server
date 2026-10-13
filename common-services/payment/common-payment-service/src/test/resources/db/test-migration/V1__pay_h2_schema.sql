@@ -18,7 +18,10 @@ CREATE TABLE pay_collect (
   currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
   request_json TEXT,
   response_json TEXT,
+  -- 与生产基线对齐（DC-11 审计列）
+  created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL
 );
 
