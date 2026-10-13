@@ -1,7 +1,7 @@
 # 迁移基线重建交接（批次 2）
 
 > 方案集：`MIGRATION_BASELINE`；序号：`01`；前置：[01 数据重建方案](./MIGRATION_BASELINE_01_DATA.md)
-> 状态：**第 0 步完成；第 2 步进行中——19 个迁移根已完成 6 个，worklist 415 → 378，SQL 文件 199 → 184**
+> 状态：**第 0 步完成；第 2 步进行中——worklist 415 → 257，19 个迁移根已完成 12 个**
 > 目标读者：**新会话**（上一个会话上下文已接近上限，故在此交接）
 > 交接时间：2026-10-13；分支 `develop/2.2.0-auth`
 
@@ -9,7 +9,8 @@
 
 - **可以开工**：冻结门禁实测输出 `not frozen (no baseline tag with a freeze statement); baseline rebuild is allowed (DC-10)`，迁移重写路径畅通。
 - **第 0 步已完成**：`validate-flyway-conventions.ps1` 已补上第 11 项"标识符必须加反引号"检查（`0e10d21`），并修掉三处会让门禁读错的缺陷（见 §3 坑 4 与 §2 步骤 0）。
-- **已完成 6 个模块**（各自合并为单 V1，worklist 归零并已提交）：
+- **已完成 12 个迁移根**（worklist 归零并已提交）：
+
   | 模块 | 提交 | 合并前→后 |
   | --- | --- | --- |
   | `platform-resource-service` | `903033b` | 8 文件 → 1 |
@@ -18,7 +19,14 @@
   | `platform-marketing-service` | `d295e0c` | 4 文件 → 1 |
   | `common-mail-service`（样板，补反引号） | `d6969fe` | 1 文件 |
   | `common-sms-service`（补审计列 + 索引名） | `aafc774` | 1 文件 |
-- **剩余**：13 个迁移根、**378 条** worklist、184 个 SQL 文件。最大三块 `message 57`、`user 44`、`admin(IM) 44`。
+  | `common-media-service`（`support_`→`media_` + 补 `id` 主键 + Java 侧） | 见 §3.2 | 1 文件 + 5 PO |
+  | `platform-admin-service`（**未改表名**，前缀待定） | `e4114c4` | 11 文件 → 1 |
+  | `platform-customer-service` | `d62ba0d` | 13 文件 → 1 |
+  | `common-audit-service`：`migration` 根 | `a1c892a` | 4 → 2（V1+V3） |
+  | `common-audit-service`：`migration-audit` 根（**两根不合并**） | `a1c892a` | 3 文件 |
+  | `platform-tenant-service` | 见 §3.2 | 32 文件 → 1 |
+
+- **剩余 7 个迁移根、257 条**：`message 57`、`user 44`、`admin(IM) 44`、`conversation 39`、`order 38`、`payment 23`、`idaas 11`，外加 `platform-admin` 的 1 条 `saa` 前缀（**已决定挂起**）。
 - 与迁移无关的门禁自伤项本轮已闭合：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内 2 个非 ASCII 脚本已清零。详见 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
 
 ## 1. 开工前的 4 条硬约束（踩过，不要再踩）
@@ -62,29 +70,30 @@
 
 > ⚠️ **删除 V2..Vn 会使已存在的数据库无法再平滑升级**（Flyway 会认为 V2..Vn 从未执行、校验和不一致）。这是**本方案明确接受的代价**：PR-01/PR-03 已确认项目未上线、无生产数据，第 4 步"清库重建"就是配套动作。不要为了兼容旧库而保留 V2..Vn，也不要新增补偿语句。
 
-**逐模块清单（按条目数降序；已完成 6 个，剩余 13 个）**：条目数会随进度变化，权威值请读 `.outputs/quality/flyway-conventions-worklist.txt`。
+**逐模块清单（按条目数降序；已完成 12 个根，剩余 7 个）**：条目数会随进度变化，权威值请读 `.outputs/quality/flyway-conventions-worklist.txt`。
 
 | 状态 | 模块（迁移根） | 条目 | 迁移文件数 | 备注 |
 | --- | --- | --- | --- | --- |
 | ⬜ | `im-services/message/im-message-service` | 57 | 13 | 最大块 |
 | ⬜ | `im-services/user/im-user-service` | 44 | 24 | 含 `open_*`（前缀待定） |
 | ⬜ | `im-services/admin/im-admin-service` | 44 | 12 | `adm_*` 16 张表 |
-| ⬜ | `common-services/media/common-media-service` | 39 | 1 | 前缀 `support_media_*`→`media_*`（DC-04）；含 10 条反引号 |
 | ⬜ | `im-services/conversation/im-conversation-service` | 39 | 16 | 含 `channel_*`/`secret_chat`（前缀待定） |
 | ⬜ | `platform-services/order/platform-order-service` | 38 | 32 | |
-| ⬜ | `common-services/payment/common-payment-service` | 23 | 15 | |
-| ⬜ | `common-services/audit/common-audit-service`（`migration-audit`） | 22 | 3 | **不得与 `migration` 合并**（见下方警示）；新库 `open_audit` 基线 |
-| ⬜ | `platform-services/tenant/platform-tenant-service` | 18 | 32 | 含 `iam_approval`（前缀待定） |
-| ⬜ | `platform-services/customer/platform-customer-service` | 17 | 13 | |
-| ⬜ | `platform-services/admin/platform-admin-service` | 15 | 11 | `iam_menu`（前缀待定）、`saa_admin_account`（前缀待定） |
+| ⬜ | `common-services/payment/common-payment-service` | 23 | 15 | **`tenant_payment_method` 属本模块**：需改 `tnt_` 前缀，并同步 payment 与 admin 两处的 `@TableName`（见 §4 第 6 条） |
 | ⬜ | `group-services/idaas/group-idaas-service` | 11 | 2 | 集团业务领域登记（DC-02）；`group_*`/`idaas_*` 前缀待定 |
-| ⬜ | `common-services/audit/common-audit-service`（`migration`） | 11 | 4 | **不得与 `migration-audit` 合并**；老库 `open_im` 历史目录 |
-| ✅ | `common-services/payment-channel/common-payment-channel-service` | 0 | 1 | `f797263` |
-| ✅ | `platform-services/marketing/platform-marketing-service` | 0 | 1 | `d295e0c`；另修了 `MktEventConsumedPo` 缺审计字段的运行期缺陷 |
-| ✅ | `common-services/mail/common-mail-service` | 0 | 1 | `d6969fe`（样板补反引号） |
-| ✅ | `platform-services/identity/platform-identity-service` | 0 | 1 | `b423d1b` |
-| ✅ | `platform-services/resource/platform-resource-service` | 0 | 1 | `903033b` |
-| ✅ | `common-services/sms/common-sms-service` | 0 | 1 | `aafc774` |
+| 🔸 | `platform-services/admin/platform-admin-service` | 1 | 1 | 仅剩 `saa` 前缀（**已决定挂起**） |
+| ✅ | `platform-tenant-service` | 0 | 1 | `4a3da4a`（32 文件 → 1；执行验证发现 3 个静态审查漏掉的缺陷） |
+| ✅ | `common-audit-service`：`migration` 根 | 0 | 2 | `a1c892a`（V1+V3；V3 因 `AuditOccurredAtMigrationTest` 钉住路径而保留） |
+| ✅ | `common-audit-service`：`migration-audit` 根 | 0 | 3 | `a1c892a` + `a1de6c1`（**两根不合并**） |
+| ✅ | `common-media-service` | 0 | 1 + 5 PO | `b7377be`（`support_`→`media_` + `id` 主键 + Java 侧改写，19 测试通过） |
+| ✅ | `platform-customer-service` | 0 | 1 | `d62ba0d` |
+| ✅ | `platform-admin-service` | 0 | 1 | `e4114c4`（**未改表名**） |
+| ✅ | `common-sms-service` | 0 | 1 | `aafc774` |
+| ✅ | `common-mail-service` | 0 | 1 | `d6969fe`（样板补反引号） |
+| ✅ | `platform-marketing-service` | 0 | 1 | `d295e0c` |
+| ✅ | `platform-identity-service` | 0 | 1 | `b423d1b` |
+| ✅ | `platform-resource-service` | 0 | 1 | `903033b` |
+| ✅ | `common-payment-channel-service` | 0 | 1 | `f797263` |
 
 **分类口径（378 条）**：审计列 192、索引命名 73、id 类型 37、PK 非 id 19、前缀 15、其他 15、反引号 14、注释 7、datetime 6。
 
@@ -196,11 +205,30 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 
 ## 4. 本会话遗留（下次顺手清理）
 
-1. **旧迁移文件名失效引用（非阻塞但迟早要修）**：合并后 `docs/currency-scope-inventory-2026-09-18.md`（7 处，引用 `V6__res_room_type_and_area.sql` 等）、`docs/renovation/MULTI_TIMEZONE_DESIGN.md:882`（1 处）已指向不存在的迁移文件与行号，需改指合并后的 `V1__*_baseline.sql`；`RoomTypePo.java:14`、`PaymentChannelTransactionRecorder.java:50`、`CouponApplicationService.java:29` 的 javadoc 也引用了旧迁移文件名或已改名的索引名。**每个模块合并后都会新增同类失效引用**，建议在批次 2 收尾时统一扫一遍（判据：仓库内不得出现已删除迁移文件名）。
+1. **旧迁移文件名失效引用（已部分处理）**：本轮已清零"已删除迁移文件名"的全部引用（含 `currency-scope-inventory` 7 处、`MULTI_TIMEZONE_DESIGN`、`RoomTypePo` javadoc，见 `9ef4708`）。**但每个新合并的模块都会再产生同类引用**，收尾时再扫一遍即可：判据是"仓库内不得出现已删除迁移文件名"（`git log --diff-filter=D --name-only` 与全仓 grep 对比）。
+
+1b. **media 表名改动会连带 5 个 Java 映射 + 1 个门禁数据文件**（`support_media_*` → `media_*`）：`MediaObjectPo`/`MediaUploadSessionPo`/`MediaUploadPartPo`/`MediaReferencePo`/`MediaAuditEventPo` 的 `@TableName`，以及 `scripts/validate/tenant-platform-tables.txt` 里登记为"平台级表"的 `support_media_*` 5 行（否则 `validate-tenant-sql` 会因表名对不上而失去豁免）。合并 media 时必须一并改，否则运行期 MyBatis 会找不到表。
+
+1c. **改表名/主键时，先查 Java 侧怎么取行**（本轮 media 的实际教训，值得所有模块照做）：
+
+- 原来的 media 表**没有 `id`**：`media_object` 用 `object_id`、`media_upload_session` 用 `upload_session_id` 作主键。按 `ENGINEERING_RULES.md:192`（"所有核心表必须使用 `bigint unsigned` 自增 `id` 作主键"）它们**本就违规**，门禁报 `PK must be exactly 'id'` 是对的，所以要加 `id`。
+- 但加 `id` 后，**`@TableId` 必须从业务键改成 `id`**，而多处代码是 `selectById(<业务键>)`（`MediaActivationService:30,32`、`MediaExpiryCleanupJob:35`、`MediaReferenceService:34,52,81`、`MediaUploadSessionService:88,110`、`MediaMultipartUploadService:37`）。MyBatis-Plus 的 `selectById` 走的是 `@TableId`，**主键一改，这些调用会把 varchar 业务键当数值主键去匹配**——纯改表名不能解决。
+- 正确做法：PO 加 `private Long id` 作 `@TableId(type=IdType.AUTO)`，业务键降为普通字段（**保留字段名**，如 `objectId`），并把上述 `selectById` 改为 `selectOne(lambdaQuery().eq(Po::getObjectId, key))`；有测试兜底（media 模块 6 个测试类）。
+- 通用判据：**只要某张表的主键要从业务键换成 `id`，就必须先 grep 全部 `selectById(` 调用点**，否则改动只是"看起来通过了门禁"。
 2. **前缀类 15 条**已按用户决定挂起（见 §2 步骤 1 表后的警示），不在本轮处理。
 3. `MktEventConsumedPo` 的运行期缺陷已在本轮修掉（`d295e0c`）——这是"补审计列"引发的连带改动，**后续模块若给 PO 未覆盖的列补 `NOT NULL` 审计字段，必须同样检查 Java 侧是否写入**，否则插入会报 MySQL 1364。
 4. `standards/30` 已新增第 4 条门禁说明；批次 4 清理 6 个延期的非 ASCII 脚本前，需先定"脚本输出语言"策略。
 5. `.outputs/quality/powershell-ascii-only-worklist.txt` 是 ASCII 门禁自检留下的旧快照（gitignored，无影响），可随手删。
+6. **`tenant_payment_method` 的归属已核实，归属 `common-payment-service`**：该表由 `common-services/payment/common-payment-service/.../V9__tenant_payment_method.sql` 创建，`@TableName("tenant_payment_method")` 同时出现在 payment 与 admin 两个服务的 PO 中（admin 用它做菜单过滤）。因此 `tnt_` 改名要放在 payment 模块的合并里，并**同步两个服务的 PO**；tenant 模块只在已删除的 V12 注释里提过它，不拥有该表。
+7. **跨域数据语句不要折进 V1 基线**：customer 模块的 V7（`UPDATE cst_member JOIN idt_login_identity`）被有意丢弃，因为把它折进 V1 会让"哪个服务先迁移"变成整个重建成功的前置条件。正确做法是移到 `scripts/migration/*.sql` 作为独立脚本（identity 模块已有先例 `scripts/migration/backfill-account-type.sql`）。**order / tenant / message 等模块若遇同类语句，照此处理。**
+8. **强烈建议每个模块都用"建两个库再 diff"验证，而不是只读 SQL**：tenant 模块（32 文件、826 行）用这种方式跑出了 **3 个静态审查完全没有发现的缺陷**——折叠进 CREATE TABLE 的 NOT NULL 列缺 `DEFAULT` 导致早期 INSERT 直接失败、我加的 `WHERE` 守卫让某次回填静默失效、以及回填语句位置变化把后续显式 `scope_level='STORE'` 覆盖掉。门禁只验形状，验不了语义；**能跑真实 MySQL 时必须跑**。
+
+1d. **"补审计列"是有代价的：先查 INSERT 有没有写这些列**（本轮 audit / marketing 各踩一次）。
+
+- 门禁要求每张表都有 `created_by`/`created_at`/`updated_by`/`updated_at` 且 `NOT NULL`。若某表的写入方（mapper 的 `@Insert`、`scripts/verify/*` 探针 SQL）**没有把这些列写进 INSERT**，MySQL 8 严格模式下会以 **1364 拒插**，表现是"审计写入静默丢失"，比门禁报警严重得多。
+- 已遇两例：`mkt_event_consumed`（PO 未写 → 已补 PO 字段与消费者赋值，`d295e0c`）；audit 三张表（mapper 只写 `created_at`，未写 `updated_by`/`updated_at` → 本轮在 `updated_at` 上加 `DEFAULT CURRENT_TIMESTAMP(3)` 兜底）。
+- **两种正解的取舍**：①把列加进 INSERT（语义最明确，但要改每个写入点）；②给列加 `DEFAULT`（改动最小，但审计语义依赖默认值）。本轮用 ② 兜底、并另派任务用 ① 补齐 mapper。**后续模块务必二选一并留痕**，不要只加列不查写入方。
+- 同理检查**分区表**：分区表的每个唯一键/主键都必须包含分区列，所以主键只能是 `(id, occurred_at)`；门禁已按 DC-17 放行该形态。
 
 ## 5. 关键文件索引
 
