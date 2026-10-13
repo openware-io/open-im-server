@@ -267,8 +267,12 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - 而同一个值**已经在 `sdk/protocol-mq` 里定义了常量**（如 `ResourceMqProducerGroups.PLATFORM_RESOURCE_SERVICE`），两个模块的注册表类（`CouponMqRegistry`、`ResourceMqRegistry`）已直接引用常量。
    - 所以门禁报的是"默认值里又写了一遍字面量"，**不是"硬编码绕过常量"**。三种处置各有取舍，**属架构决策**：① YAML 去掉默认值（`${VAR}` 必需，fail-fast，但没配环境变量的环境会启动失败）；② 保留 YAML 默认值、把门禁改成"允许默认值与同名常量一致"（改动最小，但两处仍需人工保持同步）；③ 让 MQ 配置直接注入常量、不再走 YAML（最彻底，但要改 `MqProperties`/环境变量覆盖机制）。**不要再无人决策地加标记或删默认值。**
    - 另 34 条是补台账（`docs/mq/REGISTRY.md` 缺 34 个已实现的 Topic/Consumer Group），属可追查工作，但**属于批次 2「台账同步」步骤**，与上面 10 条是两件事。**已把 34 条提取成 worklist：`.outputs/quality/mq-registry-ledger-todo.txt`**（7 列 ×34 行，已填"类型/名称/常量文件/责任模块（部分标待核）"，留空"消费目的/顺序键/幂等键"）。
-   - **补台账的做法**（下一步）：对每个资源，从 `sdk/protocol-mq` 的常量找到**生产方 Outbox/Relay** 与**消费方消费者类**，据此填"责任模块/消费目的/顺序键/幂等键"，再按现有表格格式追加到 `docs/mq/REGISTRY.md`。**顺序键与幂等键必须来自实现**（standards/12 要求它们表达真实业务语义），**不要照抄 worklist 里的推断值**。
-   - 写 `REGISTRY.md` 时注意：该文件是中文无 BOM，**必须用 `[System.IO.File]::WriteAllText($p,$t,[System.Text.UTF8Encoding]::new($false))` 写**；用 `Set-Content`/`Out-File` 会按 ANSI 写坏中文（这正是 standards/30 与本次 media/docs 事件同一个坑）。
+   - **补台账的做法**（下一步）：
+     1. 跑证据采集器 `powershell -NoProfile -File scripts/validate/extract-mq-semantics.ps1` → `.outputs/quality/mq-semantics-extract.txt`（179 行）。它对每个引用了 protocol-mq 常量组的类输出：**类路径 / 消费组常量 / Topic 常量 / 类级 javadoc**。本仓的 javadoc 普遍已写明"消费目的"，且常直接写出幂等键（例如 `CollectConfirmedEventConsumer` 的 javadoc 明确写"以 eventId 为幂等键写入 pay_event_consumed，唯一键 uk_pay_event_consumed_event 兜底去重"）。
+     2. 结合 `.outputs/quality/mq-registry-ledger-todo.txt`（34 条，7 列）逐条填"责任模块/消费目的/顺序键/幂等键"。
+     3. 按现有表格格式追加到 `docs/mq/REGISTRY.md`，再重跑 `validate-mq-registry.ps1` 确认该 34 条清零。
+   - **顺序键往往不在 javadoc 里**（消息类事件通常是 `conversationId`），需要读生产方 Outbox 写入处或事件载荷类确认；**不要照抄 worklist 里的推断值**。
+   - 写 `REGISTRY.md` 时注意：该文件是中文无 BOM，**必须用 `[System.IO.File]::WriteAllText($p,$t,[System.Text.UTF8Encoding]::new($false))` 写**；用 `Set-Content`/`Out-File` 会按 ANSI 写坏中文（这正是 standards/30 与本次 media/docs 事件同一个坑）。新脚本 `extract-mq-semantics.ps1` 本身也必须 **ASCII-only**——我第一版在脚本里写了一个 `…`，PS 5.1 立刻按 ANSI 解析失败。
 
 1d. **"补审计列"是有代价的：先查 INSERT 有没有写这些列**（本轮 audit / marketing 各踩一次）。
 
