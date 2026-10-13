@@ -18,6 +18,11 @@
 #   8. no CREATE TABLE IF NOT EXISTS / DROP TABLE / dynamic DDL
 #   9. table and column COMMENT present
 #  10. audit/timestamp columns use datetime(3)
+#  11. identifiers use backticks (docs/DATABASE_MIGRATION_STANDARD.md: identifiers use backticks)
+#
+# Check 11 reports at most two items per table (table name, first offending column) so the worklist
+# stays readable while still naming every offender. A table-level COMMENT= in the tail is NOT a
+# column name, so it is explicitly excluded from the column scan.
 #
 # Usage: powershell -File scripts/validate/validate-flyway-conventions.ps1 [-ReportOnly]
 [CmdletBinding()]
@@ -33,6 +38,14 @@ $violations = [System.Collections.Generic.List[string]]::new()
 
 # Names that are singular although they end with 's'.
 $singularAllowlist = @('msg_read_status', 'iam_audit_idempotency')
+
+# Identifier backtick checks (docs/DATABASE_MIGRATION_STANDARD.md: identifiers use backticks).
+# Each pattern has two alternatives: the identifier is either backticked (group 'name') or bare
+# (group 'bare'). Do not use .NET conditional groups here: (?(name)yes|no) resolves a balancing
+# group, not a named group, so it never matches and silently disables the check.
+$tableBacktickPattern = 'CREATE\s+TABLE\s+(?:`(?<name>[a-z0-9_]+)`|(?<bare>[a-z0-9_]+)(?![a-z0-9_`]))'
+$firstColumnPattern = '(?m)^[ \t]*(?:`(?<name>[a-z][a-z0-9_]*)`|(?<bare>[a-z][a-z0-9_]*)(?![a-z0-9_`]))'
+$firstConstraintPattern = '(?m)^[ \t]*(?:PRIMARY\s+KEY|UNIQUE\s+KEY|KEY|INDEX|CONSTRAINT)\b'
 
 # --- registered prefixes ---
 $prefixFilePath = Join-Path $PSScriptRoot 'table-prefixes.txt'
@@ -84,6 +97,14 @@ foreach ($dir in $migrationDirs) {
       $body = $tableMatch.Groups['body'].Value
       $tail = $tableMatch.Groups['tail'].Value
       $where = "${fileRef}:${table}"
+      $tableNameMatch = [regex]::Match($text.Substring($tableMatch.Index), $tableBacktickPattern)
+
+      # Check 11a: table name must be backticked. $tableNameMatch is an independent match of the
+      # same CREATE TABLE header, so it works whether or not the identifier is backticked (the
+      # parsing match above uses a separate, optional-backtick pattern for backward compatibility).
+      if (-not $tableNameMatch.Groups['name'].Success) {
+        $violations.Add("${where}: table name is not backticked (identifier convention)")
+      }
 
       $prefix = ($table -split '_')[0]
       if (-not $registered.Contains($prefix)) { $violations.Add("${where}: unregistered table prefix '$prefix'") }
@@ -113,13 +134,16 @@ foreach ($dir in $migrationDirs) {
         if ($body -notmatch ('(?i)`?' + $audit + '`?')) { $violations.Add("${where}: audit column '$audit' is missing") }
       }
       foreach ($timeColumn in @('created_at', 'updated_at')) {
-        $timeMatch = [regex]::Match($body, ('(?i)`' + $timeColumn + '`\s+(?<type>[a-z]+(\(\d+\))?)'))
+        $timeMatch = [regex]::Match($body, ('(?i)`?' + $timeColumn + '`?\s+(?<type>[a-z]+(\(\d+\))?)'))
         if ($timeMatch.Success -and $timeMatch.Groups['type'].Value.ToLowerInvariant() -ne 'datetime(3)') {
           $violations.Add("${where}: '$timeColumn' must be datetime(3) (found $($timeMatch.Groups['type'].Value))")
         }
       }
 
-      foreach ($indexMatch in [regex]::Matches($body, '(?i)(?<kind>UNIQUE\s+KEY|KEY)\s+`(?<name>[a-z0-9_]+)`')) {
+      # Index name is either backticked, or bare but NOT a column definition: a bare index name is
+      # followed by whitespace or '(' , whereas a column definition is followed by its type
+      # (for example "name VARCHAR(255)"), so a bare identifier must not be followed by '(' or ')'.
+      foreach ($indexMatch in [regex]::Matches($body, '(?i)(?<kind>UNIQUE\s+KEY|KEY)\s+(?:`(?<name>[a-z0-9_]+)`|(?<name>[a-z0-9_]+)(?![a-z0-9_(`]))')) {
         $indexName = $indexMatch.Groups['name'].Value
         $expectedPrefix = if ($indexMatch.Groups['kind'].Value -match '(?i)UNIQUE') { 'uk_' } else { 'idx_' }
         if (-not $indexName.StartsWith($expectedPrefix)) {
@@ -131,6 +155,22 @@ foreach ($dir in $migrationDirs) {
 
       if ($file -and $body -notmatch 'COMMENT') { $violations.Add("${where}: column COMMENTs are missing") }
       if ($tail -notmatch '(?i)COMMENT\s*=') { $violations.Add("${where}: table COMMENT is missing") }
+
+      # Check 11b: column identifiers must be backticked. The scan window starts right after the
+      # opening parenthesis and stops at the first constraint/index line, so the table-level
+      # COMMENT= in the tail and constraint columns are never mistaken for column definitions.
+      $openParenPattern = [regex]::Escape($tableNameMatch.Value) + '\s*\((?<window>.*)'
+      $windowMatch = [regex]::Match($text.Substring($tableMatch.Index), '(?s)' + $openParenPattern)
+      if (-not $windowMatch.Success) {
+        throw "Internal parser error: cannot locate the column window at ${where}. Fix the gate before trusting its output."
+      }
+      $columnWindow = $windowMatch.Groups['window'].Value
+      $constraintMatch = [regex]::Match($columnWindow, $firstConstraintPattern)
+      if ($constraintMatch.Success) { $columnWindow = $columnWindow.Substring(0, $constraintMatch.Index) }
+      $columnMatch = [regex]::Match($columnWindow, $firstColumnPattern)
+      if ($columnMatch.Success -and -not $columnMatch.Groups['name'].Success) {
+        $violations.Add("${where}: column name '$($columnMatch.Groups['bare'].Value)' is not backticked (identifier convention)")
+      }
     }
   }
 }
