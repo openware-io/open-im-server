@@ -19,7 +19,7 @@
   | `standards-governance` / `java-silent-catch` / `java-fully-qualified-names` / `service-api-boundaries` | 107 / 103 / 192 / 137 | 属**批次 3/4**，不在批次 2 范围 |
 
 - **可以开工**：冻结门禁实测 `not frozen ... baseline rebuild is allowed (DC-10)`，清库重建路径畅通。
-- **19/19 迁移根已完成并提交**（worklist 归零；括号内为条目数 → 0）：
+- **19/19 迁移根已合并为单 V1 基线并提交**（每根 worklist 归零；下表括号内为"合并前文件数 → 现文件数"）：
 
   | 模块 | 提交 | 合并前→后 |
   | --- | --- | --- |
