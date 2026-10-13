@@ -20,6 +20,10 @@ public class MessageOutboxPo {
   @TableField("sharding_key") private String shardingKey;
   @TableField("payload_json") private String payloadJson;
   private Boolean published;
+  /** 基线重建（批次 2）补齐的审计列；写入方 {@code MessagePersistenceConverter.toPo} 显式写入 createdAt，其余由默认值兜底。 */
+  @TableField("created_by") private Long createdBy;
   @TableField("created_at") private LocalDateTime createdAt;
+  @TableField("updated_by") private Long updatedBy;
+  @TableField("updated_at") private LocalDateTime updatedAt;
   @TableField("published_at") private LocalDateTime publishedAt;
 }

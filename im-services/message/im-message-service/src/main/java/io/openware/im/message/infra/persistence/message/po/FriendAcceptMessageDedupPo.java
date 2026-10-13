@@ -17,6 +17,9 @@ public class FriendAcceptMessageDedupPo {
   @TableField("event_id") private String eventId;
   private String status;
   @TableField("msg_id") private String msgId;
+  /** 基线重建（批次 2）补齐的审计列；写入方显式写入 created_at/updated_at，created_by/updated_by 由默认值兜底。 */
+  @TableField("created_by") private Long createdBy;
   @TableField("created_at") private LocalDateTime createdAt;
+  @TableField("updated_by") private Long updatedBy;
   @TableField("updated_at") private LocalDateTime updatedAt;
 }

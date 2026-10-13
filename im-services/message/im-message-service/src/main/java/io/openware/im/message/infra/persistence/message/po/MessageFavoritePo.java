@@ -20,6 +20,10 @@ public class MessageFavoritePo {
   @TableField("peer_id") private String peerId;
   private ChatType chatType;
   @TableField("created_at") private LocalDateTime createdAt;
+  /** 基线重建（批次 2）补齐的审计列；写入方 {@code MessagePersistenceConverter.toPo} 显式写入 createdAt，其余由默认值兜底。 */
+  @TableField("created_by") private Long createdBy;
+  @TableField("updated_by") private Long updatedBy;
+  @TableField("updated_at") private LocalDateTime updatedAt;
   /** 收藏时原消息类型快照（V13 新增，可空：历史行与密聊收藏为空）。 */
   @TableField("msg_type_snapshot") private MsgType msgTypeSnapshot;
   @TableField("content_snapshot") private String contentSnapshot;

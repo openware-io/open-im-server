@@ -19,5 +19,9 @@ public class UserDeletedMessagePo {
   @TableField("msg_id") private String msgId;
   @TableField("conversation_id") private String conversationId;
   private ChatType chatType;
+  /** 基线重建（批次 2）补齐的审计列；写入方 {@code UserDeletedMessageMapper.insertIgnore} 显式写入 created_at。 */
+  @TableField("created_by") private Long createdBy;
   @TableField("created_at") private LocalDateTime createdAt;
+  @TableField("updated_by") private Long updatedBy;
+  @TableField("updated_at") private LocalDateTime updatedAt;
 }

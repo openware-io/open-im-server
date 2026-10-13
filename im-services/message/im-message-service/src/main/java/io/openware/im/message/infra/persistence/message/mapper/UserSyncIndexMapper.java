@@ -13,7 +13,18 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface UserSyncIndexMapper extends BaseMapper<UserSyncIndexPo> {
-  @Insert("INSERT IGNORE INTO msg_user_sync_sequence (user_id, last_sync_seq) VALUES (#{userId}, 0)")
+  /**
+   * 幂等初始化用户同步序列行。
+   *
+   * <p>基线重建后本表主键为代理键 {@code id}，业务键 {@code user_id} 为唯一索引；
+   * 4 个审计列均为 NOT NULL，故此处显式写入（{@code created_by}/{@code updated_by} 取 0 表示系统，
+   * 时间列取数据库时钟），避免 MySQL 8 严格模式以 1364 拒插。
+   */
+  @Insert("""
+      INSERT IGNORE INTO msg_user_sync_sequence
+        (user_id, last_sync_seq, created_by, created_at, updated_by, updated_at)
+      VALUES (#{userId}, 0, 0, NOW(3), 0, NOW(3))
+      """)
   int initializeSequence(@Param("userId") long userId);
 
   @Select("SELECT last_sync_seq FROM msg_user_sync_sequence WHERE user_id = #{userId} FOR UPDATE")

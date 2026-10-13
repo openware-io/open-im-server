@@ -1,10 +1,12 @@
 package io.openware.im.message;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class FlywayConfigurationTest {
@@ -19,14 +21,19 @@ class FlywayConfigurationTest {
 
   @Test
   void shouldContainAuthoritativeMessageConstraintsInSingleBaseline() throws IOException {
-    String migration = Files.readString(Path.of("src/main/resources/db/migration/V1__init_msg_schema.sql"));
+    String migration = Files.readString(Path.of("src/main/resources/db/migration/V1__msg_baseline.sql"));
 
     assertTrue(migration.contains("msg_conversation_sequence"));
     assertTrue(migration.contains("uk_msg_message_conversation_seq"));
     assertTrue(migration.contains("msg_user_sync_sequence"));
     assertTrue(migration.contains("msg_user_sync_index"));
     assertTrue(!migration.contains("IF NOT EXISTS"));
-    assertTrue(Files.exists(Path.of("src/main/resources/db/migration/V2__add_msg_read_status_sync_index.sql")));
+    // 基线重建（批次 2）：原 13 个迁移文件已合并为唯一的 V1，后续变更从 V2 起。
+    assertTrue(!Files.exists(Path.of("src/main/resources/db/migration/V2__add_msg_read_status_sync_index.sql")));
+    try (var files = Files.list(Path.of("src/main/resources/db/migration"))) {
+      assertEquals(List.of("V1__msg_baseline.sql"),
+          files.map(path -> path.getFileName().toString()).sorted().toList());
+    }
   }
 
   @Test
