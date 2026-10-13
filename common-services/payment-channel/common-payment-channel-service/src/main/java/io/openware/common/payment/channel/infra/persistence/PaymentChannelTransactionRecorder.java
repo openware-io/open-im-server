@@ -47,7 +47,7 @@ public class PaymentChannelTransactionRecorder {
         record(provider, transactionId, null, tenantId, orderId, amount, currency, status, callbackRaw);
     }
 
-    /** 记录渠道交易；并发重复由 uk_pay_channel_txn_provider / uk_pay_channel_txn_event 唯一键兜底，冲突视为幂等命中。 */
+    /** 记录渠道交易；并发重复由 uk_pay_channel_transaction_provider_transaction / uk_pay_channel_transaction_provider_event 唯一键兜底，冲突视为幂等命中。 */
     public void record(String provider, String transactionId, String eventId, Long tenantId, String orderId, long amount,
                        String currency, String status, String callbackRaw) {
         PayChannelTransactionPo po = new PayChannelTransactionPo();

@@ -26,7 +26,7 @@ import java.util.UUID;
 /**
  * 优惠券应用服务。金额最小货币单位整数；发放幂等、核销接订单归属+金额且不可重复。
  * 幂等兜底：唯一键 uk_mkt_coupon_issuance_customer(tenant_id, coupon_id, customer_id) 与
- * uk_mkt_coupon_issuance_idem(tenant_id, idempotency_key) 由 Flyway 保证。
+ * uk_mkt_coupon_issuance_idempotency(tenant_id, idempotency_key) 由 Flyway 保证。
  * 核销兜底：唯一键 uk_mkt_coupon_redemption_issuance(issuance_id) 保证同一发放仅核销一次。
  */
 @Service
