@@ -47,3 +47,37 @@
 | Consumer Group | `common-payment-service-collect-confirmed-consumer` | `common-payment-service` | 消费组合收款确认事件并写入消费去重表 | `tenantId` | `eventId` |
 | Consumer Group | `platform-order-service-order-settled-consumer` | `platform-order-service` | 消费订单结算事件并写入消费去重表 | `tenantId` | `eventId` |
 | Consumer Group | `common-payment-service-refund-requested-consumer` | `common-payment-service` | 消费退款申请事件并写入消费去重表 | `tenantId` | `eventId` |
+| Topic | `cst_fact_event_v1` | `platform-customer-service` | 客户域事实事件（由 CustomerEventOutboxRelay 投递） | 待核 | eventId |
+| Topic | `res_occupation_event_cancelled_v1` | `platform-resource-service` | 资源占用取消事件（由资源域 Outbox Relay 投递） | 待核 | eventId |
+| Topic | `res_occupation_event_released_v1` | `platform-resource-service` | 资源占用释放事件（由资源域 Outbox Relay 投递） | 待核 | eventId |
+| Topic | `im_conversation_event_authorization_changed_v1` | `im-conversation-service` | 会话授权变更事件，供接入层下行通知 | 待核 | eventId |
+| Topic | `im_conversation_event_secret_chat_created_v1` | `im-conversation-service` | 私密聊天创建事件，供接入层对该会话参与者下行信号 | 待核 | eventId |
+| Topic | `im_conversation_event_secret_chat_deleted_v1` | `im-conversation-service` | 私密聊天终止事件，供接入层移除会话并清空本地密文 | 待核 | eventId |
+| Topic | `im_conversation_event_secret_chat_destroy_policy_changed_v1` | `im-conversation-service` | 私密聊天销毁策略变更事件，供消息域回补销毁计时 | 待核 | eventId |
+| Topic | `im_message_command_secret_destroy_v1` | `im-access-ws` | 私密消息延迟销毁命令（RocketMQ 延迟消息） | 待核 | 待核 |
+| Topic | `im_message_event_chat_cleared_v1` | `im-message-service` | 会话记录被清空事件，通知其余成员清理端侧缓存与本地记录 | conversationId | eventId |
+| Topic | `im_message_event_edited_v1` | `im-message-service` | 消息编辑事件，下行给发送者其它设备与接收方 | conversationId | eventId |
+| Topic | `im_message_event_recalled_v1` | `im-message-service` | 消息撤回事件，供接入层下行撤回通知 | conversationId | eventId |
+| Topic | `im_message_event_secret_destroyed_v1` | `im-message-service` | 私密消息销毁事件，对在线参与方推送销毁 | 待核 | eventId |
+| Topic | `im_message_event_secret_group_stored_v1` | `im-message-service` | 私密群聊消息存储事件，供接入层对每个接收方下发轻量信号 | 待核 | eventId |
+| Topic | `im_message_event_secret_stored_v1` | `im-message-service` | 私密消息存储事件，供接入层对接收方下发轻量信号 | 待核 | eventId |
+| Topic | `im_user_event_chat_records_purged_v1` | `im-user-service` | 用户聊天记录清理事件，由各域消费者清除该用户数据 | 待核 | eventId |
+| Topic | `im_user_event_data_wipe_requested_v1` | `im-user-service` | 用户数据擦除请求事件，通知各端清理本地数据并关闭会话 | 待核 | eventId |
+| Producer Group | `platform-resource-service-producer` | `platform-resource-service` | 发布资源占用取消/释放事件 | - | - |
+| Consumer Group | `platform-customer-service-collect-confirmed-consumer` | `platform-customer-service` | 收款确认后的积分获得消费者：积分成功后才登记 consumed，失败由 MQ 重投 | 待核 | eventId |
+| Consumer Group | `platform-resource-service-occupation-consumer` | `platform-resource-service` | 资源占用事件消费（占用状态与可用性维护） | 待核 | 待核 |
+| Consumer Group | `im-access-ws-chat-cleared-notification-consumer` | `im-access-ws` | 会话记录被清空通知：通知其余成员清理端侧缓存与本地记录 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-conversation-notification-consumer` | `im-access-ws` | 会话授权变更通知：下行会话授权变化 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-data-wipe-consumer` | `im-access-ws` | 用户数据擦除请求：通知各端清理本地数据与缓存并关闭会话 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-edit-notification-consumer` | `im-access-ws` | 消息编辑通知：向发送者其它设备与接收方下行更新 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-recall-notification-consumer` | `im-access-ws` | 消息撤回通知：下行撤回 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-secret-chat-created-consumer` | `im-access-ws` | 私密聊天创建：对对方参与者推 WS 信号（仅元数据），使其同步会话列表并完成握手 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-secret-chat-deleted-consumer` | `im-access-ws` | 私密聊天终止：对对方参与者推 WS 信号（仅元数据），移除会话并清空本地密文 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-secret-destroyed-consumer` | `im-access-ws` | 私密消息销毁：对在线参与方推送销毁事件，离线端由 states 增量拉取兜底 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-secret-group-notification-consumer` | `im-access-ws` | 私密群聊消息存储：对每个在线接收方推轻量信号，后台接收方补 JPush 到达提示 | 待核 | 待核 |
+| Consumer Group | `im-access-ws-secret-notification-consumer` | `im-access-ws` | 私密消息存储：对在线接收方推轻量信号，后台接收方补 JPush 到达提示 | 待核 | 待核 |
+| Consumer Group | `im-conversation-service-chat-records-purge-consumer` | `im-conversation-service` | 用户聊天记录清理：清除该用户在会话服务的全部会话数据（账号保留） | 待核 | 待核 |
+| Consumer Group | `im-message-service-chat-records-purge-consumer` | `im-message-service` | 用户聊天记录清理：清除该用户在消息服务的全部消息数据（含密文） | 待核 | 待核 |
+| Consumer Group | `im-message-service-secret-chat-deleted-consumer` | `im-message-service` | 私密聊天终止：硬删除该会话全部密文（删除即销毁双方消息） | 待核 | 待核 |
+| Consumer Group | `im-message-service-secret-chat-destroy-policy-changed-consumer` | `im-message-service` | 私密聊天销毁策略变更：对历史消息回补销毁计时 | 待核 | 待核 |
+| Consumer Group | `im-message-service-secret-destroy-consumer` | `im-message-service` | 私密消息延迟销毁命令：到期后精确销毁对应密文（仅当仍 active 且 destroyAt 已到） | 待核 | 待核 |
