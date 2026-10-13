@@ -129,7 +129,9 @@ public class AdminProjectionQueryAdapter implements AdminProjectionQueryPort, Ad
     if (!accept(event.getEventId(), "user-status-changed")) {
       return;
     }
-    AdminUserViewPo value = adminUserViewMapper.selectById(event.getUserId());
+    // 主键已是自增 `id`，因此按唯一业务键 `user_id` 取行（不能再走 selectById）。
+    AdminUserViewPo value = adminUserViewMapper.selectOne(
+        Wrappers.<AdminUserViewPo>lambdaQuery().eq(AdminUserViewPo::getUserId, event.getUserId()));
     if (value == null) {
       value = new AdminUserViewPo();
       value.setUserId(event.getUserId());
@@ -168,7 +170,8 @@ public class AdminProjectionQueryAdapter implements AdminProjectionQueryPort, Ad
     value.setStatus("sent");
     value.setCreatedAt(localDateTime(event.getCreatedAt()));
     adminMessageViewMapper.insert(value);
-    if (adminConversationViewMapper.selectById(event.getConversationId()) == null) {
+    if (adminConversationViewMapper.selectOne(Wrappers.<AdminConversationViewPo>lambdaQuery()
+        .eq(AdminConversationViewPo::getConversationId, event.getConversationId())) == null) {
       AdminConversationViewPo conversation = new AdminConversationViewPo();
       conversation.setConversationId(event.getConversationId());
       conversation.setConversationType(event.getChatType());

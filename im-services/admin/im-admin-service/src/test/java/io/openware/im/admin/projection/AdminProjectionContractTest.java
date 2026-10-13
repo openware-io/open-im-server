@@ -22,7 +22,9 @@ class AdminProjectionContractTest {
     assertTrue(migration.contains("adm_user_view"));
     assertTrue(migration.contains("adm_message_view"));
     assertTrue(migration.contains("adm_conversation_view"));
-    assertTrue(migration.contains("PRIMARY KEY (event_id)"));
+    // 主键转换：业务键 event_id 由主键降为唯一键，幂等语义由该唯一键 + INSERT IGNORE 承担。
+    assertTrue(migration.matches("(?s).*`event_id`\\s+varchar\\(128\\)\\s+NOT\\s+NULL.*"));
+    assertTrue(migration.contains("UNIQUE KEY `uk_adm_projection_event_event_id` (`event_id`)"));
     assertTrue(projection.contains("insertIfAbsent"));
   }
 

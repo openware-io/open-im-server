@@ -1,5 +1,7 @@
 package io.openware.im.admin.infra.persistence.po;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
@@ -10,7 +12,10 @@ import lombok.Setter;
 @Setter
 @TableName("adm_message_view")
 public class AdminMessageViewPo {
-  @TableId
+  // 主键改为自增 `id`（`msg_id` 降为唯一键 uk_adm_message_view_msg_id）。
+  @TableId(type = IdType.AUTO)
+  private Long id;
+  @TableField("msg_id")
   private String msgId;
   private Long fromUserId;
   private String toId;

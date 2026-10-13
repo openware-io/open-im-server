@@ -93,16 +93,16 @@ public class AdminManagementController {
 
   @GetMapping("/admin/miniapp/service-types") public List<AdminManagementDtos.TypeResponse> types() { return service.types().stream().map(this::type).toList(); }
   @PostMapping("/admin/miniapp/service-types") public AdminManagementDtos.TypeResponse createType(@Valid @RequestBody AdminManagementDtos.TypeCreateRequest request) { return type(service.createType(request.name(),request.sortOrder(),request.hidden())); }
-  @PutMapping("/admin/miniapp/service-types/{id}") public AdminManagementDtos.TypeResponse updateType(@PathVariable Integer id,@Valid @RequestBody AdminManagementDtos.TypeUpdateRequest request) { return type(service.updateType(id,request.name(),request.sortOrder(),request.hidden())); }
-  @DeleteMapping("/admin/miniapp/service-types/{id}") public void deleteType(@PathVariable Integer id) { service.deleteType(id); }
+  @PutMapping("/admin/miniapp/service-types/{id}") public AdminManagementDtos.TypeResponse updateType(@PathVariable Long id,@Valid @RequestBody AdminManagementDtos.TypeUpdateRequest request) { return type(service.updateType(id,request.name(),request.sortOrder(),request.hidden())); }
+  @DeleteMapping("/admin/miniapp/service-types/{id}") public void deleteType(@PathVariable Long id) { service.deleteType(id); }
   @PostMapping("/admin/miniapp/service-types/sort") public Map<String,Boolean> sortTypes(@Valid @RequestBody TypeSortRequest request) { service.sortTypes(request.items().stream().map(value -> new TypeSort(value.id(),value.sortOrder())).toList()); return Map.of("ok",true); }
-  @GetMapping("/admin/miniapp/services") public PageResult<AdminManagementDtos.ItemResponse> items(@RequestParam Integer typeId,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize) { return items(service.items(typeId,page,pageSize)); }
+  @GetMapping("/admin/miniapp/services") public PageResult<AdminManagementDtos.ItemResponse> items(@RequestParam Long typeId,@RequestParam(defaultValue="1") int page,@RequestParam(defaultValue="20") int pageSize) { return items(service.items(typeId,page,pageSize)); }
   @PostMapping("/admin/miniapp/services") public AdminManagementDtos.ItemResponse createItem(@AuthenticationPrincipal SecurityUser user,@Valid @RequestBody AdminManagementDtos.ItemCreateRequest request) { return item(service.createItem(user.getId(),new ItemChange(request.typeId(),request.name(),request.link(),request.introduction(),request.icon(),request.status(),request.isTop(),request.audience(),request.hidden(),request.sortOrder()))); }
-  @PutMapping("/admin/miniapp/services/{id}") public AdminManagementDtos.ItemResponse updateItem(@AuthenticationPrincipal SecurityUser user,@PathVariable Integer id,@Valid @RequestBody AdminManagementDtos.ItemUpdateRequest request) { return item(service.updateItem(user.getId(),id,new ItemPatch(request.typeId(),request.name(),request.link(),request.introduction(),request.icon(),request.status(),request.isTop(),request.audience(),request.hidden(),request.sortOrder()))); }
-  @DeleteMapping("/admin/miniapp/services/{id}") public void deleteItem(@PathVariable Integer id) { service.deleteItem(id); }
-  @PutMapping("/admin/miniapp/services/{id}/status") public AdminManagementDtos.ItemResponse setItemStatus(@PathVariable Integer id,@Valid @RequestBody AdminManagementDtos.ItemStatusRequest request) { return item(service.setItemStatus(id,request.status())); }
-  @PutMapping("/admin/miniapp/services/{id}/hidden") public AdminManagementDtos.ItemResponse setItemHidden(@PathVariable Integer id,@Valid @RequestBody AdminManagementDtos.ItemHiddenRequest request) { return item(service.setItemHidden(id,request.hidden())); }
-  @PostMapping("/admin/miniapp/services/{id}/toggle") public AdminManagementDtos.ItemResponse toggleItem(@PathVariable Integer id) { return item(service.toggleItem(id)); }
+  @PutMapping("/admin/miniapp/services/{id}") public AdminManagementDtos.ItemResponse updateItem(@AuthenticationPrincipal SecurityUser user,@PathVariable Long id,@Valid @RequestBody AdminManagementDtos.ItemUpdateRequest request) { return item(service.updateItem(user.getId(),id,new ItemPatch(request.typeId(),request.name(),request.link(),request.introduction(),request.icon(),request.status(),request.isTop(),request.audience(),request.hidden(),request.sortOrder()))); }
+  @DeleteMapping("/admin/miniapp/services/{id}") public void deleteItem(@PathVariable Long id) { service.deleteItem(id); }
+  @PutMapping("/admin/miniapp/services/{id}/status") public AdminManagementDtos.ItemResponse setItemStatus(@PathVariable Long id,@Valid @RequestBody AdminManagementDtos.ItemStatusRequest request) { return item(service.setItemStatus(id,request.status())); }
+  @PutMapping("/admin/miniapp/services/{id}/hidden") public AdminManagementDtos.ItemResponse setItemHidden(@PathVariable Long id,@Valid @RequestBody AdminManagementDtos.ItemHiddenRequest request) { return item(service.setItemHidden(id,request.hidden())); }
+  @PostMapping("/admin/miniapp/services/{id}/toggle") public AdminManagementDtos.ItemResponse toggleItem(@PathVariable Long id) { return item(service.toggleItem(id)); }
   /**
    * 服务 Tab 数据。
    *
@@ -114,8 +114,8 @@ public class AdminManagementController {
     if (keyword != null && !keyword.isBlank()) {
       return service.searchPublishedItems(keyword.trim()).stream().map(this::publicItem).toList();
     }
-    Map<Integer, MiniappServiceType> typesById = service.types().stream().collect(java.util.stream.Collectors.toMap(MiniappServiceType::id, t -> t, (a, b) -> a, java.util.LinkedHashMap::new));
-    Map<Integer, List<MiniappServiceItem>> byType = service.publishedConsumerItems().stream().filter(item -> !item.hiddenFlag()).collect(java.util.stream.Collectors.groupingBy(MiniappServiceItem::typeId));
+    Map<Long, MiniappServiceType> typesById = service.types().stream().collect(java.util.stream.Collectors.toMap(MiniappServiceType::id, t -> t, (a, b) -> a, java.util.LinkedHashMap::new));
+    Map<Long, List<MiniappServiceItem>> byType = service.publishedConsumerItems().stream().filter(item -> !item.hiddenFlag()).collect(java.util.stream.Collectors.groupingBy(MiniappServiceItem::typeId));
     List<Map<String,Object>> result = new java.util.ArrayList<>();
     for (MiniappServiceType type : typesById.values()) {
       if (Boolean.TRUE.equals(type.hidden())) continue;
@@ -172,5 +172,5 @@ public class AdminManagementController {
   public record ReportListRequest(String status,Integer page,Integer pageSize) {}
   public record PageRequest(Integer page,Integer pageSize) {}
   public record TypeSortRequest(@NotNull @Valid List<TypeSortItem> items) {}
-  public record TypeSortItem(@NotNull Integer id,@NotNull Integer sortOrder) {}
+  public record TypeSortItem(@NotNull Long id,@NotNull Integer sortOrder) {}
 }

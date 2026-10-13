@@ -191,14 +191,20 @@ class AdminBatchZeroArchitectureGateTest {
         "src/main/resources/db/migration/V1__adm_management_domain_baseline.sql"));
     assertTrue(configuration.contains("enabled: true"));
     assertTrue(configuration.contains("baseline-version: 0"));
-    for (String table : List.of("adm_system_config", "adm_app_release", "adm_report", "adm_violation",
-        "adm_sensitive_word", "adm_miniapp_service_type", "adm_miniapp_service_item")) {
+    // 基线重建（批次 2）：V1 是 V1~V12 的累积终态；adm_app_release 已被客户端发布治理取代（原 V2 的
+    // RENAME 不再保留），历史表名以注释形式留档。
+    for (String table : List.of("adm_system_config", "adm_report", "adm_violation",
+        "adm_sensitive_word", "adm_miniapp_service_type", "adm_miniapp_service_item",
+        "adm_client_release")) {
       assertTrue(baseline.contains(table), table);
     }
+    assertTrue(baseline.contains("adm_app_release"), "retired table name must stay documented in the baseline");
     assertFalse(Files.exists(MODULE_ROOT.resolve(
         "src/main/resources/db/migration/V2__backfill_adm_management_domain.sql")));
-    assertTrue(Files.exists(MODULE_ROOT.resolve(
-        "src/main/resources/db/migration/V2__replace_app_release_governance.sql")));
+    // 合并后只允许一个迁移文件：下一个变更从 V2 起。
+    assertEquals(List.of("V1__adm_management_domain_baseline.sql"),
+        Files.list(MODULE_ROOT.resolve("src/main/resources/db/migration"))
+            .map(path -> path.getFileName().toString()).sorted().toList());
   }
 
   @Test

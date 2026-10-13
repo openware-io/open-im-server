@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 public final class AdminManagementDtos {
   private AdminManagementDtos() {}
   public record ConfigRequest(@NotBlank String configKey,@NotBlank String configValue,String description) {}
-  public record ConfigResponse(Integer id,String configKey,String configValue,String configGroup,String description,LocalDateTime createdAt,LocalDateTime updatedAt) {}
+  public record ConfigResponse(Long id,String configKey,String configValue,String configGroup,String description,LocalDateTime createdAt,LocalDateTime updatedAt) {}
   public record ReportCreateRequest(@NotNull Long targetId,@NotBlank String reason,String description,String evidence) {}
   public record ReportHandleRequest(@NotNull ReportStatus status,String remark,ViolationAction action,String content,String msgId,String violationReason) {}
   public record ReportResponse(Long id,Long reporterId,Long targetId,String reason,String description,String evidence,ReportStatus status,Long handledBy,String handleRemark,LocalDateTime handledAt,LocalDateTime createdAt,LocalDateTime updatedAt,String reporterNickname,String reporterAvatar,String targetNickname,String targetAvatar,String handledByNickname) {}
@@ -22,10 +22,10 @@ public final class AdminManagementDtos {
   public record ViolationResponse(Long id,Long userId,String reason,String content,String msgId,ViolationAction action,String remark,LocalDateTime createdAt,String userNickname,String userAvatar) {}
   public record TypeCreateRequest(@NotBlank String name,Integer sortOrder,Integer hidden) {}
   public record TypeUpdateRequest(String name,Integer sortOrder,Integer hidden) {}
-  public record TypeResponse(Integer id,String name,Integer sortOrder,Boolean hidden,LocalDateTime createdAt,LocalDateTime updatedAt) {}
-  public record ItemCreateRequest(@NotNull Integer typeId,@NotBlank String name,@NotBlank String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
-  public record ItemUpdateRequest(Integer typeId,String name,String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
-  public record ItemResponse(Integer id,Integer typeId,String name,String link,String introduction,String icon,Integer status,Boolean isTop,String audience,Boolean hidden,Integer sortOrder,LocalDateTime createdAt,LocalDateTime updatedAt) {}
+  public record TypeResponse(Long id,String name,Integer sortOrder,Boolean hidden,LocalDateTime createdAt,LocalDateTime updatedAt) {}
+  public record ItemCreateRequest(@NotNull Long typeId,@NotBlank String name,@NotBlank String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
+  public record ItemUpdateRequest(Long typeId,String name,String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
+  public record ItemResponse(Long id,Long typeId,String name,String link,String introduction,String icon,Integer status,Boolean isTop,String audience,Boolean hidden,Integer sortOrder,LocalDateTime createdAt,LocalDateTime updatedAt) {}
   public record ItemStatusRequest(@NotNull Integer status) {}
   public record ItemHiddenRequest(@NotNull Integer hidden) {}
 }

@@ -13,7 +13,7 @@ import lombok.Setter;
 @TableName("adm_system_config")
 public class AdminConfigurationPo {
   @TableId(type = IdType.AUTO)
-  private Integer id;
+  private Long id;
   @TableField("config_key")
   private String configKey;
   @TableField("config_value")

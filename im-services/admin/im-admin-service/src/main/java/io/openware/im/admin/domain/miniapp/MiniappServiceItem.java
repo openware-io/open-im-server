@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  *               仍可固定到快捷应用区。与 {@code audience} 相互独立：audience 表达面向谁，
  *               hidden 表达是否出现在列表里。
  */
-public record MiniappServiceItem(Integer id, Integer typeId, String name, String link, String introduction,
+public record MiniappServiceItem(Long id, Long typeId, String name, String link, String introduction,
                                  String icon, Boolean status, Boolean isTop, String audience, Boolean hidden,
                                  Integer sortOrder, LocalDateTime createdAt, LocalDateTime updatedAt) {
   /** 面向对象：消费者服务（固定展示 + 可搜索）。 */

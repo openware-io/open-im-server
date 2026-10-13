@@ -13,7 +13,7 @@ import lombok.Setter;
 @TableName("adm_miniapp_service_type")
 public class MiniappServiceTypePo {
   @TableId(type = IdType.AUTO)
-  private Integer id;
+  private Long id;
   private String name;
   @TableField("sort_order")
   private Integer sortOrder;

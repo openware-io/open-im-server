@@ -8,11 +8,11 @@ import java.util.Optional;
 public interface MiniappRepository {
   List<MiniappServiceType> findAllTypes();
 
-  Optional<MiniappServiceType> findTypeById(Integer id);
+  Optional<MiniappServiceType> findTypeById(Long id);
 
   MiniappServiceType saveType(MiniappServiceType type);
 
-  void deleteType(Integer id);
+  void deleteType(Long id);
 
   List<MiniappServiceItem> findPublishedConsumerItems();
 
@@ -27,13 +27,13 @@ public interface MiniappRepository {
 
   List<MiniappServiceItem> searchPublishedItems(String keyword);
 
-  List<MiniappServiceItem> findItemsByType(Integer typeId, int offset, int pageSize);
+  List<MiniappServiceItem> findItemsByType(Long typeId, int offset, int pageSize);
 
-  long countItemsByType(Integer typeId);
+  long countItemsByType(Long typeId);
 
-  Optional<MiniappServiceItem> findItemById(Integer id);
+  Optional<MiniappServiceItem> findItemById(Long id);
 
   MiniappServiceItem saveItem(MiniappServiceItem item);
 
-  void deleteItem(Integer id);
+  void deleteItem(Long id);
 }

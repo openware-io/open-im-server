@@ -10,7 +10,7 @@ class AdminManagementDtosTest {
   @Test
   void itemResponseStatusSerializesAsIntegerNotBoolean() throws Exception {
     AdminManagementDtos.ItemResponse response = new AdminManagementDtos.ItemResponse(
-        1, 2, "外卖", "https://x", "", null, 1, false, "consumer", false, 0, null, null);
+        1L, 2L, "外卖", "https://x", "", null, 1, false, "consumer", false, 0, null, null);
     ObjectMapper mapper = new ObjectMapper();
     JsonNode node = mapper.readTree(mapper.writeValueAsString(response));
     assertThat(node.get("status").isInt()).isTrue();

@@ -13,9 +13,9 @@ import lombok.Setter;
 @TableName("adm_miniapp_service_item")
 public class MiniappServiceItemPo {
   @TableId(type = IdType.AUTO)
-  private Integer id;
+  private Long id;
   @TableField("type_id")
-  private Integer typeId;
+  private Long typeId;
   private String name;
   private String link;
   private String introduction;
