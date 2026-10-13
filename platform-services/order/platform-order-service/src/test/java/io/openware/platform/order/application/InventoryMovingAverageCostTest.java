@@ -42,7 +42,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 /**
  * 入库批次单价 → 移动加权平均成本 → 库存成本 的集成测试（真跑 H2 + Flyway + MyBatis，仅 mock MQ/审计）。
  *
- * <p>覆盖 V24__ord_inventory_moving_average_cost.sql 引入的
+ * <p>覆盖 V1__ord_order_baseline.sql 引入的
  * {@code ord_inventory_transaction.unit_cost/total_cost/currency_code} 与
  * {@code ord_inventory_stock.avg_cost/currency_code}：
  * <ol>

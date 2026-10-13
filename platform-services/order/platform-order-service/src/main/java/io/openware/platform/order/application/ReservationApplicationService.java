@@ -119,7 +119,7 @@ public class ReservationApplicationService {
      * 避免转 UTC 导致前端按本地时钟展示时出现 8 小时偏移。
      *
      * <p>落库的是**门店营业本地墙上时间**（+08:00 的 LocalDateTime，见
-     * V19__ord_reservation_time_comment.sql 对 start_at/end_at 的列注释）；读出来直接就是门店本地时间，
+     * V1__ord_order_baseline.sql 对 start_at/end_at 的列注释）；读出来直接就是门店本地时间，
      * 调用方不要再做一次时区换算。
      *
      * <p>房型驱动：只写 {@code room_type_id}，{@code resource_id} 留给「到店分配包厢」。

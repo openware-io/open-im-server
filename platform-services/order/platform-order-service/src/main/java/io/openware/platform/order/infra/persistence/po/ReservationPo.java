@@ -47,7 +47,7 @@ public class ReservationPo {
     /**
      * 实际到店时间（门店营业本地时间）：由「到店登记」或「到店开台（隐含到店）」写入，未到店为 null。
      * 与 {@link #startAt}（客户预约的时段，计划时间）语义不同，后台预约列表两者分列展示。
-     * 列由 V25__ord_reservation_arrived_at.sql 新增。
+     * 列见 V1__ord_order_baseline.sql（{@code ord_reservation.arrived_at}）。
      */
     private LocalDateTime arrivedAt;
     private Integer version;

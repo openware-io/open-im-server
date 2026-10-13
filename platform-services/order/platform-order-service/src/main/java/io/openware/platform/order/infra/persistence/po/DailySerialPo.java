@@ -10,7 +10,7 @@ import lombok.Setter;
 
 /**
  * 单据号每日序号分配行（{@code ord_daily_serial}，生产迁移
- * {@code V27__ord_daily_serial.sql}）。
+ * {@code V1__ord_order_baseline.sql}）。
  *
  * <p>一行 = 一个「租户 + 单据类型 + 营业日」的序号游标；单号格式与口径见
  * {@link io.openware.platform.order.application.DailySerialNumberGenerator}。

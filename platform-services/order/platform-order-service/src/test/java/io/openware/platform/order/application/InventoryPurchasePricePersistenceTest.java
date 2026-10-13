@@ -31,7 +31,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 /**
  * 采购价落库集成测试（真跑 H2 + Flyway + MyBatis，仅 mock MQ/审计）。
  *
- * <p>覆盖 V20__ord_inventory_material_purchase_price.sql 新增的 purchase_price 列：
+ * <p>覆盖 V1__ord_order_baseline.sql 新增的 purchase_price 列：
  * 1) 新建带采购价可写入并读回，且列表接口（listMaterials）返回该字段；
  * 2) 「0 = 清空」在真实 UPDATE 语句里写成 NULL —— MyBatis-Plus 默认 NOT_NULL 会跳过 null 字段，
  *    这里用原始 JDBC 读列值来证明清空不是静默失效（PO 侧靠 updateStrategy=ALWAYS 生效）；

@@ -130,7 +130,7 @@ class ItemImagePersistenceTest {
   }
 
   /**
-   * 点单目录项多图落库（生产 V14__ord_catalog_item_images.sql）：
+   * 点单目录项多图落库（生产 V1__ord_order_baseline.sql）：
    * H2 测试 schema 必须同步这张表与两列，否则商品同步目录项的点单链路直接报错。
    */
   @Test

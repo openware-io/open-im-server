@@ -1,5 +1,5 @@
 -- H2 (MODE=MySQL) test schema for order integration test.
--- Mirrors the production MySQL Flyway schema (V1__ord_order_baseline.sql / V4/V5) minus
+-- Mirrors the production MySQL Flyway schema (V1__ord_order_baseline.sql) minus
 -- MySQL-only clauses (ENGINE/CHARSET/COLLATE/COMMENT/datetime(3)/unsigned) that H2 cannot parse.
 
 CREATE TABLE ord_order (
@@ -49,7 +49,7 @@ CREATE TABLE ord_order_item (
   discount_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   tax_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   total_amount DECIMAL(20,6) NOT NULL,
-  -- 币种快照（生产 V22__ord_currency_snapshot.sql）：明细落库时固化租户币种，历史行回填 USD。
+  -- 币种快照（生产 V1__ord_order_baseline.sql）：明细落库时固化租户币种，历史行回填 USD。
   currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
   price_snapshot_json JSON,
   status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
@@ -76,7 +76,7 @@ CREATE TABLE ord_ktv_session (
   occupation_id BIGINT,
   room_name_snapshot VARCHAR(128),
   room_code_snapshot VARCHAR(64),
-  -- 生产 V18__ord_ktv_session_party_server.sql：开台登记人数与服务人员快照（订单列表/房态看板展示）。
+  -- 生产 V1__ord_order_baseline.sql：开台登记人数与服务人员快照（订单列表/房态看板展示）。
   party_size INT,
   server_id BIGINT,
   server_name VARCHAR(64),
@@ -126,13 +126,13 @@ CREATE TABLE ord_event_consumed (
   consumed_at TIMESTAMP NOT NULL
 );
 
--- 商品/物料（生产 V11__ord_inventory_product.sql + V13__ord_product_material_images.sql + V15__ord_inventory_material_description.sql + V20__ord_inventory_material_purchase_price.sql）：
+-- 商品/物料（生产 V1__ord_order_baseline.sql）：
 -- ord_product.image_urls / main_image_url 与 ord_inventory_material 同名两列是本次多图改造新增的列；
 -- ord_inventory_material.description 是 V15 为仓库商品补的描述列（商品侧 ord_product.description 早就存在）；
 -- ord_inventory_material.purchase_price 是 V20 为「库存管理采购价」补的列，可空（未维护 = NULL）。
 -- H2 侧用 VARCHAR 承载 JSON 数组文本（MyBatis JacksonTypeHandler 读写 JSON 字符串），
 -- 避免 H2 JSON 类型与 MySQL JSON 的隐式转换差异导致单测写入失败。
--- 商品类型 / 服务人员关联（生产 V26__ord_product_item_type.sql）：
+-- 商品类型 / 服务人员关联（生产 V1__ord_order_baseline.sql）：
 -- item_type 历史行一律 PRODUCT（默认值）；server_resource_id 仅服务型商品有值，
 -- 唯一键允许「多行同为 NULL」（H2 与 MySQL 的 UNIQUE 都把 NULL 视为互不相同），所以不影响实物商品。
 CREATE TABLE ord_product (
@@ -173,9 +173,9 @@ CREATE TABLE ord_inventory_material (
   unit VARCHAR(32) NOT NULL,
   description VARCHAR(255),
   safety_stock DECIMAL(20,6) NOT NULL DEFAULT 0,
-  -- 采购价（生产 V20__ord_inventory_material_purchase_price.sql）：最小货币单位（分），可空。
+  -- 采购价（生产 V1__ord_order_baseline.sql）：最小货币单位（分），可空。
   purchase_price DECIMAL(20,6),
-  -- 采购价币种（生产 V22__ord_currency_snapshot.sql）：成本/毛利报表按它归集，历史行回填 USD。
+  -- 采购价币种（生产 V1__ord_order_baseline.sql）：成本/毛利报表按它归集，历史行回填 USD。
   currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
   image_urls VARCHAR(4000),
   main_image_url VARCHAR(512),
@@ -187,7 +187,7 @@ CREATE TABLE ord_inventory_material (
   updated_at TIMESTAMP NOT NULL
 );
 
--- 库存余额/流水（生产 V11__ord_inventory_product.sql + V24__ord_inventory_moving_average_cost.sql）：
+-- 库存余额/流水（生产 V1__ord_order_baseline.sql）：
 -- 点单目录可点性要查库存余额，库存集成场景要写入库流水，所以这两张表也必须建。
 CREATE TABLE ord_inventory_stock (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -233,7 +233,7 @@ CREATE TABLE ord_inventory_transaction (
   CONSTRAINT uk_ord_inventory_tx_idempotency UNIQUE (tenant_id, idempotency_key)
 );
 
--- 商品/服务目录（生产 V9__ord_catalog_item.sql + V11 的 product_id/stock_controlled + V14 的图片两列）：
+-- 商品/服务目录（生产 V1__ord_order_baseline.sql 的 product_id/stock_controlled 与图片两列）：
 -- 商品上架/更新会同步目录项（含图片），库存商品的目录项可用性还会反查商品与物料，所以集成测试必须建这张表。
 CREATE TABLE ord_catalog_item (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -257,7 +257,7 @@ CREATE TABLE ord_catalog_item (
   updated_at TIMESTAMP NOT NULL
 );
 
--- 商品分类字典（生产 V16__ord_product_category.sql）：商品管理页的分类 CRUD 与「被商品引用不可删」都用它。
+-- 商品分类字典（生产 V1__ord_order_baseline.sql）：商品管理页的分类 CRUD 与「被商品引用不可删」都用它。
 CREATE TABLE ord_product_category (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
@@ -272,7 +272,7 @@ CREATE TABLE ord_product_category (
   CONSTRAINT uk_ord_product_category_store_name UNIQUE (tenant_id, store_id, name)
 );
 
--- 单据号每日序号（生产 V27__ord_daily_serial.sql）：订单号 O<yyyyMMdd><seq> / 预约号 R<yyyyMMdd><seq>
+-- 单据号每日序号（生产 V1__ord_order_baseline.sql）：订单号 O<yyyyMMdd><seq> / 预约号 R<yyyyMMdd><seq>
 -- 的当日序号游标，由 DailySerialNumberGenerator 在事务内「自增 → 读回」分配：
 -- 唯一键 (tenant_id, biz_type, business_date) 既保证每日一行，也让并发首单只放行一个事务。
 CREATE TABLE ord_daily_serial (
@@ -286,7 +286,7 @@ CREATE TABLE ord_daily_serial (
   CONSTRAINT uk_ord_daily_serial_key UNIQUE (tenant_id, biz_type, business_date)
 );
 
--- 作废审批规则（生产 V31__ord_void_rule_config.sql）：门店覆盖 > 业态默认 > 租户默认。
+-- 作废审批规则（生产 V1__ord_order_baseline.sql）：门店覆盖 > 业态默认 > 租户默认。
 CREATE TABLE ord_void_rule_config (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,

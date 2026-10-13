@@ -32,12 +32,12 @@ import java.util.List;
  * <p><b>预约对象 = 房型</b>（docs/renovation/KTV_RESERVATION_ROOM_TYPE.md）：
  * 创建预约传 {@code roomTypeId}（必填），不传具体包厢；具体包厢由「到店分配包厢」写入。
  *
- * <p>时间口径（对应 ord_reservation.start_at/end_at 的列注释，见 V19__ord_reservation_time_comment.sql）：
+ * <p>时间口径（对应 ord_reservation.start_at/end_at 的列注释，见 V1__ord_order_baseline.sql）：
  * <ul>
  *   <li>入参 {@code startAt}/{@code endAt} 必须是**带时区偏移**的 ISO-8601（如 {@code 2026-09-18T20:00:00+08:00}）；
  *       服务端统一换算到 +08:00 后去掉偏移落库，不做二次时区推断。</li>
  *   <li>出参 {@code startAt}/{@code endAt} 是**门店营业本地墙上时间**（+08:00 的 LocalDateTime，无偏移信息）；
- *       前端直接按本地时钟渲染，不要再做 UTC 转换（列注释此前误写为 UTC，已由 V19 迁移纠正）。</li>
+ *       前端直接按本地时钟渲染，不要再做 UTC 转换（列注释此前误写为 UTC，基线重建时已纠正）。</li>
  * </ul>
  */
 @RestController
