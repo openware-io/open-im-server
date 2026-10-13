@@ -276,10 +276,12 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - 现状：`application.yml` 里是 `producer-group: ${PLATFORM_ORDER_SERVICE_MQ_PRODUCER_GROUP:platform-order-service-producer}` —— **环境变量优先、字面量是默认值**，正是 `standards/12` 要求的"服务配置中的 Producer Group 必须使用服务专属变量，变量名遵循 `<SERVICE>_MQ_PRODUCER_GROUP`"。
    - 而同一个值**已经在 `sdk/protocol-mq` 里定义了常量**（如 `ResourceMqProducerGroups.PLATFORM_RESOURCE_SERVICE`），两个模块的注册表类（`CouponMqRegistry`、`ResourceMqRegistry`）已直接引用常量。
    - **已实测的决定性证据（本轮）**：这 10 个环境变量**在仓库的部署配置里一个都没有设置**——`k8s/`、`deploy/`、`.cnb.yml`、`docker-compose.yml` 全查过，10 个 `<SERVICE>_MQ_PRODUCER_GROUP` 均为 `NOT SET ANYWHERE`。也就是说 **YAML 里的字面量默认值是生产实际生效的值**。
-   - 由此把选项收敛为两条（第三条"直接删默认值"已被证据排除）：
-     - **①（推荐）改门禁**：把"语法字面量"改成**语义重复**判定——允许 `producer-group: ${X:literal}` **当且仅当** `literal` 等于 `sdk/protocol-mq` 里对应的常量值。理由：standards/12 的原话要求是"必须使用服务专属变量，变量名遵循 `<SERVICE>_MQ_PRODUCER_GROUP`"，**这条已经满足**；门的本意是防止"绕过常量另写一份资源名"，而默认值与常量同值时并没有第二份真值。实现只需读 `*MqProducerGroups` 的 `常量 -> 字面量` 映射再比对。
-     - **② 补齐部署侧**：给 10 个服务在 k8s/compose 里真正注入这些环境变量，再删默认值（fail-fast）。语义最"纯"，但要改多个部署清单与 Secret/ConfigMap，且**没配变量的环境会启动失败**——按现在的部署配置，这条路等于连带改部署方式。
-   - **另 34 条台账已完成**（`83ee042`），与上面 10 条是两件事。
+   - **已按①实现并验证（`ef29e52`）**：门禁改为**语义判定**——配置里的组名只有**偏离** `protocol-mq` 已声明的常量名才算违规（比对 `*Group*.java` 的常量值）。结果 **10 → 2**，剩余 2 条是**真问题**：
+     - ✅ `im-conversation-service-producer`：**确实在生产**（有 `ConversationAuthorizationOutboxRelay` + 3 处生产者调用）却从未声明 → 已补进 `ImMqProducerGroups` 并登记台账。
+     - ⬜ `im-admin-service-producer`、`platform-identity-service-producer`：**两个服务根本不生产**（无 relay、无生产者调用、代码里连 `producerGroup`/`MqProperties` 都不引用，只消费）。但 `MqInfrastructureConfig.mqProducer` 是**每个 MQ 服务都创建的 Bean**，且 `mqConsumerFactory` 依赖它，所以这个 group 会被 RocketMQ 注册、只是**永不发布**。
+   - **这 2 条的处置需要你选**（都会改变运行期接线）：
+     - **A. 声明常量**：给这两个"无生产者"服务也在 `protocol-mq` 里登记 group，值就用现名（保留现状语义，门禁清零）。缺点：为不发布的组留下常量。
+     - **B. 删掉配置项**：让共享的 `MqProducer` Bean 走 `MqProperties` 自带默认值 `open_im_default_producer`。缺点：该值**本身违反**命名规范（应为 `<服务名>-producer`），且在 broker 上多出一个无意义的 producer group——所以 B 其实要先决定"给 MqProperties 换成什么默认值"。
 
 10. **H2 测试夹具与生产基线已漂移（真实存在，未修，需单独一轮）**：三个模块的 `src/test/resources/db/test-migration/` 是自己的 DDL 副本（不读生产迁移），所以**夹具会悄悄落后于基线**。实测漂移：
 
