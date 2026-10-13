@@ -15,7 +15,7 @@
   | 门禁 | 剩余 | 卡在哪 |
   | --- | --- | --- |
   | `flyway-conventions` | **7** | 全是**前缀决策**：`open_*`×3（user）、`saa_`×1（platform-admin）、`group_*`/`idaas_*`×3（idaas）。**需要你决定**：改到已登记前缀，还是登记为新域（见 §3.1.1 的 `channel`/`secret_chat` 先例——先查最新版本是否已 RENAME） |
-  | `secret-exposure` | **4** | 全在 `ENGINEERING_GOVERNANCE_02_AUDIT.md`（`:61`/`:70`/`:72`/`:74`）。该文档是凭据清单本体，值已脱敏；是否放行需你决定（详见 §4） |
+  | `secret-exposure` | **0** ✅ | 已清零并转**阻断**（`84879c6`）。做法是**改写证据行**（保留文件/行号/变量名，不复现值与前缀），**门禁脚本零改动**；顺带修掉了门禁漏报的一处真泄漏 |
   | `mq-registry` | **10** | 34 条台账**已补完**（见下）；剩余 10 条全是 `application.yml` 的 `${ENV:默认值}` 生产者组**默认值**，属架构决策（见 §4 第 9 条） |
   | `standards-governance` / `java-silent-catch` / `java-fully-qualified-names` / `service-api-boundaries` | 107 / 103 / 192 / 137 | 属**批次 3/4**，不在批次 2 范围 |
 
@@ -156,16 +156,15 @@
   - **3 条**是真正的跨租户扫描（`KtvSessionMapper:65,79`、`ReservationMapper:26`，均带 `@InterceptorIgnore`，javadoc 明写"跨租户一次扫出…每行自带 tenantId，逐行设上下文再写，绝不跨租户写"）→ 加 `platform-wide` 标记。
   - **5 条**其实**带** `tenant_id`，只是谓词落在续行（`DailySerialMapper`、`InventoryStockMapper`、`PayIntentMapper`）→ **reflow**，不加标记。
   - **11 条是门禁误报**，根因已修：`tenant-sql` 原先对**每一行**SQL 都要求租户谓词，但 `TenantLineInnerInterceptor` 会给**没有 `@InterceptorIgnore`** 的语句在运行时注入谓词——那个谓词在源码里根本不存在。门禁改为**只判定 opt-out（带 `@InterceptorIgnore`）的语句**后，这批误报消失（见 `8f87209`）。**教训：门禁报错先问"这条语句是否需要自己写谓词"，而不是直接加标记——加标记会把"租户内查询"错写成"与租户无关"。**
-- `secret-exposure` **6 → 4**（`.outputs/quality/secret-exposure-report.txt`）：user/idaas 合并后两处迁移文件里的历史凭据已消失；**剩余 4 条全部在 `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md`**（`:61`、`:70` 报 Inline secret，`:72`、`:74` 报 Secret config default）。
+- `secret-exposure` **6 → 4 → 0**（`.outputs/quality/secret-exposure-report.txt`）：user/idaas 合并后两处迁移文件里的历史凭据消失（6→4），剩余 4 条全在 `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md`（`:61`、`:70` 报 Inline secret，`:72`、`:74` 报 Secret config default），本轮清零。
 
-  ⚠️ **这 4 条我查过但没能定性，已原样保留，不要凭猜测处理**：
+  ✅ **已清零并转为阻断（`84879c6`）——门禁脚本一行未改（diff=0）**。做法是**改写证据行**，而不是放宽检测：
 
-  本轮做了**字节级核查**并**修掉了真正的泄漏**，同时**放弃了没验证成功的门禁放宽**：
-
-  - **真正的问题已修（`79dd7df`）**：`:72`/`:74` 原先写的是 `open-im-audit-channel-dev-secret-«…»` 这种**只省略后缀**的形式——**真实凭据的前缀被留在文档里**。已全部换成完整脱敏占位符，三个前缀在文件中出现次数 **0**。这是本轮的真实安全改进。
-  - **剩余 4 条是门禁误报，原因已定位到字节级**：门禁报的是它**自己正则捕获到的值**，而那分别是「脱敏占位符本身」和「行尾的中文说明」——都不是凭据。根因是门禁只用一个 **ASCII 安全值表**判断"已脱敏"，而本仓的脱敏约定是 **`«…»` 书名号**（非 ASCII），所以永远匹配不上。
-  - **两次门禁放宽都已回滚**（安全值表加 `«…»`；把取值限制为凭据字符以在说明文字前停下）。**回滚理由**：无法验证——往该文档注入合成密钥后**没能复现出独立的违规条目**，因此无法证明放宽后仍能抓真密钥。**对凭据检测做无法验证的放宽，比留 4 条有据可查的误报更危险。**
-  - **下一步若要清零**，需要先让"注入一个真密钥 → 门禁必须报出它"这条验证跑通（可能是注入位置/行号或报告去重的问题，本轮未能定位），再改门禁；或者接受这 4 条并写进 `secret-exposure-allowlist.txt`（该清单要求"可证明非凭据"，这 4 条现在是"文档中的脱敏占位符"，可以自证）。
+  1. **先发现了一个门禁没报的真泄漏**：审计报告 `:62` 曾把 `IM_OAUTH_APP_SECRET` 的**真实值**原样写在文档里，而门禁没报它——因为该键在 YAML 行内流式映射中、不在行首。已脱敏（该值现已不在仓库任何位置）。
+  2. **剩余 4 条按"保留事实、不复现值"改写**：仍写清**哪个文件、哪一行、哪个变量名**曾有明文，但**不再复现值的字面量或前缀，也不再用 `value: …` / `${VAR:…}` 这种"凭据形状"的语法**——门禁正是被这种形状触发。审计事实一条没丢，重复的密钥没了。
+  3. **为什么"照抄凭据形状 + 打码"过不去**：门禁只用一个 **ASCII 安全值表**判断"已脱敏"，而本仓惯用的 `«…»` 书名号是**非 ASCII**，永远匹配不上。上一轮两次尝试放宽该门禁（安全值表认 `«…»`；取值在说明文字前停下）**都因无法验证而回滚**——注入合成密钥后没能复现出独立违规条目，无法证明放宽后仍抓得到真密钥。**最终选择"不动门禁"这条路。**
+  4. 新增文末「凭据泄漏值的脱敏约定」（`ENGINEERING_GOVERNANCE_02_AUDIT.md` §9）：明确"**只省略后缀 ≠ 脱敏**，前缀本身就是凭据的一部分"。
+  5. **实测**：4 个泄漏前缀在文档中出现次数均 **0**；门禁**不带 `-ReportOnly` 也 exit 0**；`secret-exposure` 已从 `report-only-gates.txt` **删除**，统一入口运行时**不再打印 REPORT 横幅**（阻断已生效）。
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`。
 - ~~合并 `common-audit-service` 的双迁移根为单根~~ **（已核实为错误前提，废弃）**；~~history 表名统一 `<service>_schema_history`~~ **（无规则依据，本轮不做）**——两条详见 §3.1.1。
 
@@ -209,7 +208,7 @@
 | 现有 tag | `pre-migration-rewrite-20261013`、`pre-baseline-consolidation-20261013`、`v2.0.0`——**都不含 `baseline-` 前缀、也不含 `freeze: true`**，故当前不冻结 |
 | `mvnw` 执行位 | `git ls-files -s mvnw` → `100755` ✅（上一轮修好了，别再动索引） |
 | 门禁总数 | **24**（`invoke-engineering-validation.ps1` 的 `$validators`） |
-| 报告模式门禁（批次 2 相关） | `flyway-conventions` **7**（前缀决策）、`mq-registry` **10**（生产者组默认值决策）、`secret-exposure` **4**（审计报告文档）；`tenant-sql` 已转**阻断**且 worklist 归零 |
+| 报告模式门禁（批次 2 相关） | 批次 2 只剩 `flyway-conventions` **7**（前缀决策）。已转**阻断**且归零：`tenant-sql`、`secret-exposure`；`mq-registry` 由批次 2 的 34 条台账 + 批次 1 常量集中共管，现 **2** |
 | ASCII 门禁 | 新增 `validate-powershell-ascii-only.ps1`（阻断模式，扫描 `scripts/**/*.ps1`）；2 个在册违规已清零；6 个既存延期至批次 4 |
 | 迁移文件总量 | 19 个迁移根 / **184** 个 SQL 文件（合并前为 199，已随 6 个模块减少） |
 | 已完成的模块 | 6 个：`resource`、`identity`、`payment-channel`、`marketing`、`mail`、`sms`（各自单 V1，worklist 归零，已提交） |
