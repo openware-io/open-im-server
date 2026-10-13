@@ -198,6 +198,18 @@
 
 `scripts/verify/*` 全量 + 关键链路（登录 / 会话 / 消息 / 媒体 / KTV 预约）+ 统一入口 `-Scope Full` 退出码 0 + `.outputs/quality/migration-inventory-before.txt` 的 199 条可逐条复核（tag 可解析）。
 
+**✅ 已完成的"无需活环境"部分（本轮）**：`scripts/verify/` 共 15 个脚本，全部需要活服务或集群（网关 URL、管理员口令、kubectl 上下文、MySQL 直连），**本地跑不了**；但"合并基线有没有把它们的假设改坏"已核查完：
+
+1. **迁移文件名引用未过期**（最易藏雷处）：`AuditPartitionDdlCheck.java` 硬编码引用的三个审计迁移文件名 **全部仍然存在**（`db/migration-audit/` 的 `V1__audit_idempotency_ledger.sql` / `V2__audit_partitioned_table.sql` / `V3__audit_archive_manifest.sql`），**无失效引用**。
+2. **ASCII 门禁覆盖面**：`scripts/verify/*.ps1` 中 3 个含非 ASCII（`e2e-ktv-smoke.ps1` 3813 B、`verify-unread-secret-toggle.ps1` 393 B、`verify-a380-ktv-closure.ps1` 6 B）**都已在 `powershell-ascii-allowlist.txt` 正确延期到批次 4**，门禁实测通过。
+3. **审计模块的语义断言仍成立**（基线注释把 `occurred_at` 口径写成了断言，必须验证它不是空话）：
+   - 写入侧 `AuditLogApplicationService#toLog`：`occurredAt == null` 时取 `createdAt`（L139-140）✅
+   - 查询侧 `AuditLogRepositoryImpl#applyTimeRange`：`occurredAt IS NULL → createdAt` 兜底（L325-327），排序 `COALESCE(occurred_at, created_at)`（L187）✅
+   - 有测试守卫（`AuditOccurredAtMigrationTest` 等 8 个测试类涉及）；**审计模块实测 115 测试 / 0 失败** ✅
+   - `V1__iam_audit_baseline.sql` 把 `occurred_at` 定为 **NULL 是刻意的**（结构性修法在应用层，V3 只做幂等回填、空库上是空操作），三处口径一致。
+
+**真正跑一遍仍需活集群**，与步骤 4 的运行期部分同一前置条件。
+
 ### 步骤 6：冻结 tag 收尾（DC-15 / DC-10）
 
 删除 `v2.0.0`（本地 + 远端）→ 打 `v2.2.0` 注释 tag，**名字用 `baseline-` 前缀**（或注释含独立行 `freeze: true`）。
