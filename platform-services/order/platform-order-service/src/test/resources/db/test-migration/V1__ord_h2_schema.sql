@@ -112,7 +112,10 @@ CREATE TABLE ord_event_outbox (
   retry_count INT NOT NULL DEFAULT 0,
   next_retry_at TIMESTAMP,
   published_at TIMESTAMP,
+  -- 与生产基线对齐（DC-11 审计列）
+  created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL
 );
 
@@ -123,7 +126,12 @@ CREATE TABLE ord_event_consumed (
   event_type VARCHAR(64) NOT NULL,
   aggregate_type VARCHAR(32) NOT NULL,
   aggregate_id VARCHAR(64) NOT NULL,
-  consumed_at TIMESTAMP NOT NULL
+  consumed_at TIMESTAMP NOT NULL,
+  -- 与生产基线对齐（DC-11 审计列）：该表写入方只写 consumed_at，故 created_at/updated_at 取库默认值。
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 商品/物料（生产 V1__ord_order_baseline.sql）：
@@ -229,6 +237,9 @@ CREATE TABLE ord_inventory_transaction (
   reason VARCHAR(500),
   created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
+  -- 与生产基线对齐：追加型流水无 UPDATE 路径，updated_at 取库默认值，updated_by 为 0。
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   -- 与生产 V11 一致：幂等键租户内唯一，重复扣减/回放只认首次流水。
   CONSTRAINT uk_ord_inventory_tx_idempotency UNIQUE (tenant_id, idempotency_key)
 );
