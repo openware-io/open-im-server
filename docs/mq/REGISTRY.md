@@ -81,3 +81,4 @@
 | Consumer Group | `im-message-service-secret-chat-deleted-consumer` | `im-message-service` | 私密聊天终止：硬删除该会话全部密文（删除即销毁双方消息） | 待核 | 待核 |
 | Consumer Group | `im-message-service-secret-chat-destroy-policy-changed-consumer` | `im-message-service` | 私密聊天销毁策略变更：对历史消息回补销毁计时 | 待核 | 待核 |
 | Consumer Group | `im-message-service-secret-destroy-consumer` | `im-message-service` | 私密消息延迟销毁命令：到期后精确销毁对应密文（仅当仍 active 且 destroyAt 已到） | 待核 | 待核 |
+| Producer Group | `im-conversation-service-producer` | `im-conversation-service` | 经 ConversationAuthorizationOutboxRelay 发布会话授权变更事件 | - | - |

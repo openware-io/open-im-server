@@ -35,6 +35,7 @@ im_user_event_data_wipe_requested_v1 | Topic | im-user-service | 用户数据擦
 
 # --- Producer Group ---
 platform-resource-service-producer | Producer Group | platform-resource-service | 发布资源占用取消/释放事件 | - | -
+im-conversation-service-producer | Producer Group | im-conversation-service | 经 ConversationAuthorizationOutboxRelay 发布会话授权变更事件 | - | -
 
 # --- Consumer Group ---
 platform-customer-service-collect-confirmed-consumer | Consumer Group | platform-customer-service | 收款确认后的积分获得消费者：积分成功后才登记 consumed，失败由 MQ 重投 | 待核 | eventId

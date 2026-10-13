@@ -58,6 +58,24 @@ try {
   }
 
   # 3) group literals outside protocol-mq
+  #
+  # A literal is a violation when it is a SECOND source of truth - a resource name written out
+  # somewhere other than protocol-mq. A config line of the form
+  #   producer-group: ${SERVICE_MQ_PRODUCER_GROUP:<name>}
+  # is not that: standards/12 requires the service-specific variable (which this is), and when the
+  # fallback equals the protocol-mq constant the name still has exactly one definition. The check
+  # is therefore semantic - flag only literals that DIVERGE from the declared resource names.
+  $declaredGroupValues = [System.Collections.Generic.HashSet[string]]::new()
+  $groupConstantFiles = git -C $root ls-files 'sdk/protocol-mq/*Group*.java'
+  foreach ($groupFile in $groupConstantFiles) {
+    $groupPath = Join-Path $root $groupFile
+    if (-not (Test-Path -LiteralPath $groupPath -PathType Leaf)) { continue }
+    $groupText = [System.IO.File]::ReadAllText($groupPath, [System.Text.UTF8Encoding]::new($false, $true))
+    foreach ($constant in [regex]::Matches($groupText, 'static\s+final\s+String\s+[A-Z0-9_]+\s*=\s*"(?<value>[^"]+)"')) {
+      [void]$declaredGroupValues.Add($constant.Groups['value'].Value)
+    }
+  }
+
   $literalPattern = '["'']?(?<value>(?:im|platform|common|group)-[a-z0-9\-]+-(?:producer|consumer))["'']?'
   $configFiles = git -C $root ls-files '*.yml' '*.yaml' '*.properties'
   foreach ($relativePath in $configFiles) {
@@ -69,7 +87,9 @@ try {
       $lineNumber++
       if ($line -match '\$\{[A-Z_]+\}') { continue }
       foreach ($match in [regex]::Matches($line, $literalPattern)) {
-        $violations.Add("group literal declared outside protocol-mq: ${relativePath}:$lineNumber -> $($match.Groups['value'].Value)")
+        $value = $match.Groups['value'].Value
+        if ($declaredGroupValues.Contains($value)) { continue }
+        $violations.Add("group literal declared outside protocol-mq: ${relativePath}:$lineNumber -> $value")
       }
     }
   }
