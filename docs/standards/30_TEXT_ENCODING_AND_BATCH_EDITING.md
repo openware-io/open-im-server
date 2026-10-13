@@ -66,7 +66,7 @@ $text | Out-File $path
 Set-Content $path $text
 ```
 
-以上写法在 Windows PowerShell 5 下会把 UTF-8 无 BOM 文件写坏。
+以上写法在 Windows PowerShell 5 下会把 UTF-8 无 BOM 文件写坏。**读取同样必须显式指定 UTF-8**：Windows PowerShell 5.1 会把无 BOM 的 UTF-8 文件按 ANSI（GBK）解码，导致中文内容显示或匹配为乱码（本仓库曾因此得出错误结论）；脚本与审查都应使用 `[System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))` 或等效的显式 UTF-8 读取。此外，**`scripts/validate/*.ps1` 必须保持 ASCII-only**：无 BOM 的 `.ps1` 会被按 ANSI 解析，脚本内的中文正则或文案会被破坏。
 
 ## 门禁
 
@@ -74,4 +74,4 @@ Set-Content $path $text
 2. `scripts/validate/validate-java-comment-quality.ps1`
 3. `scripts/validate/validate-powershell-utf8-safety.ps1`
 
-发布前统一通过 `release_manager/verify.bat` 执行。
+发布前统一通过[统一工程校验入口](../ENGINEERING_RULES.md)执行（`scripts/validate/invoke-engineering-validation.ps1`）。

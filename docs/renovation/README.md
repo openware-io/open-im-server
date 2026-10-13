@@ -113,6 +113,15 @@ IM_OPEN_PLATFORM_05_AUTHORIZATION_GOVERNANCE_DRAFT.md  授权治理待规范（�
 IM_OPEN_PLATFORM_06_REVIEW_SOP.md  申请与审核 SOP（IM 后台「第三方接入」页操作、判定标准、驳回话术、密钥交付/重置/吊销）
 ```
 
+## 工程治理方案集
+
+```text
+ENGINEERING_GOVERNANCE_01_CONFORMANCE.md  工程规范一致性治理计划（门禁、Maven 版本所有权、CI 接入现状）
+ENGINEERING_GOVERNANCE_02_AUDIT.md        im-saas 全工程规范一致性审查报告（2026-10-12，7 阻断 / 14 高 / 中低与客户端共 100+ 项）
+ENGINEERING_GOVERNANCE_03_REMEDIATION.md  整改方案（决策登记、批次、门禁清单、git 留档、覆盖回归表）
+MIGRATION_BASELINE_01_DATA.md              迁移基线合并重建（批次 2：留档点、199 文件清单、修正范围与验收）
+```
+
 ## 版本与分支（v2.0.0）
 
 - 本次二阶段方案为**大版本更新，版本号统一升级到 2.0.0**（所有仓库）。

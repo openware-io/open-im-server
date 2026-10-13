@@ -14,7 +14,7 @@
 | Producer Group | `<服务名>-producer` | `im-access-ws-producer` |
 | Consumer Group | `<服务名>-<消费目的>-consumer` | `im-message-service-write-command-consumer` |
 
-- Topic 仅使用小写字母、数字和点号；各段表达稳定业务语义，禁止使用环境、主机、部署批次或临时需求名称。
+- Topic 仅使用小写字母、数字和下划线（与上表格式 `<领域>_<实体>_<类别>_<动作>_v<主版本>` 一致）；各段表达稳定业务语义，禁止使用环境、主机、部署批次或临时需求名称。
 - Topic 类别限定为 `command`、`event`；新增类别必须先更新本规范并完成评审。
 - Producer Group 与 Consumer Group 使用小写连字符分段；同一服务的不同消费目的必须使用不同 Consumer Group。
 - 受控缩写仅允许使用领域通用缩写：`im`（即时通讯）、`mq`（消息队列）、`ws`（WebSocket）、`dlq`（死信队列）、`acl`（访问控制列表）。除此之外的缩写必须在本规范中定义后才可使用。

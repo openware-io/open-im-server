@@ -13,7 +13,7 @@
 ## 工程结构与模块版本
 
 - 根工程只承担统一版本、依赖管理、构建插件和顶层聚合职责，不承载业务实现。
-- `sdk/` 只放不可运行的共享依赖包：`common`、协议契约和技术基础设施。共享技术可以复用，共享业务实现一律禁止。
+- `sdk/` 只放不可运行的共享依赖包：`common`、协议契约和技术基础设施。共享技术可以复用，共享业务实现一律禁止；**例外（允许项，非豁免）**：经专项规范批准的跨域语义组件可放 `sdk/infrastructure`，例如 `standards/16` 的 `Currency`/`CurrencyResolver`、时区设计中的 `StoreTimeService`、审计动作字典 `AuditActions`，须在对应专项规范或 `standards/22` 登记依据。
 - `im-services/<domain>/`、`platform-services/<domain>/`、`common-services/<domain>/` 分别是 IM 业务、平台（SaaS）业务、通用支撑三类域的父级目录。可运行服务必须放在该目录的 `*-service` 子模块中；对外 Java 契约必须放在同级 `*-api` 子模块中。
 - `*-api` 仅可公开稳定的请求/响应 DTO、内部客户端接口、领域事件、错误码和契约版本信息；禁止包含 JPA/MyBatis 实体、Mapper、Repository、业务 Service、Spring Boot 启动类或数据库迁移。
 - `*-service` 是唯一可运行与部署的模块，拥有本服务的领域实现、持久化、迁移脚本、配置和启动类。其他服务不得将其作为 Java 依赖。
@@ -21,7 +21,7 @@
 - 新服务必须以 `im-services/<domain>/<service>-api` 与 `im-services/<domain>/<service>-service`（或 `platform-services/`、`common-services/` 下同名结构）创建；仅在确实没有 Java 消费方时，API 模块可以暂不承载源码，但父 POM 和目录必须预留。
 - 每个业务域使用服务级 Maven 父 POM 聚合 API 与 Service。API 和 Service 都必须继承该父 POM，服务级父 POM再继承根 POM。
 - 根 `im-server` 的版本仅表达全仓构建基线（仅 `MAJOR` 变化）；平台库、各服务域、网关为独立版本单元，各自维护版本；跨端（后端/管理端/客户端）不再强制一致。具体所有权模型见 [20 Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 与 [Maven 版本治理实施记录](./renovation/BUILD_GOVERNANCE_01_MAVEN.md)。
-- 服务域 API 与 Service 必须继承所属服务域父 POM 的版本，叶子模块不得自行声明版本；网关独立部署制品显式维护自身版本。
+- API 叶子模块不得声明版本，一律继承服务域父 POM 版本；可部署 Service 叶子模块仅可声明 `<域基础版本>-SNAPSHOT`（`validate-maven-version-ownership.ps1` 校验其基础版本与域版本一致，正式构建恢复纯 SemVer）；网关作为独立部署单元显式维护自身版本。
 - 版本所有权由 `scripts/validate/validate-maven-version-ownership.ps1` 校验，并通过统一工程校验入口执行。
 
 当前目录模板：
@@ -129,8 +129,8 @@ common-services/
 - 提交前不仅要保证 Maven 构建成功，还要处理新增的 Java/JDT、Spring Boot YAML 配置、弃用 API 等 IDE 诊断
 - 若 IDE 仍提示 `BOOT_VERSION_VALIDATION_CODE` 或 `build file has been changed and may need reload`，需要先完成 Reload，再判断是否属于真实问题
 - 文本编码、PowerShell UTF-8 安全、Java 注释、弃用 API、日志、异常、服务边界、持久层、Flyway、RocketMQ、密钥暴露与 Maven 版本所有权校验均由统一入口执行；不得选择性跳过。
-- `.env` 是版本控制中的共享本地开发基线；环境差异通过各开发机的受管环境变量覆盖，不得将生产或共享环境凭据写入其中。
-- `.env` 的受版本控制状态和密钥校验豁免是有意设计：不得擅自将其加入 `.gitignore`、改为仅模板文件或纳入密钥扫描；如需调整，必须同步更新工程规范、校验脚本和开发环境迁移说明。
+- 仓库只提交 `.env.example` 模板；`.env` 由 `scripts/initialize-local-env.ps1` 在每台开发机生成并被 `.gitignore` 忽略，不得写入生产或共享环境凭据（本策略以 `docs/renovation/PLATFORM_SECURITY_01_GOVERNANCE.md` 的安全整改为准，取代早期"共享基线"方案）。
+- 密钥校验（`scripts/validate/validate-secret-exposure.ps1`）只扫描受版本控制的文件，`.env` 因不受版本控制天然不在扫描范围；需要比对已轮换的历史值时使用 gitignored 的 `.outputs/quality/rotated-credentials.txt`（`-RotatedCredentialFile`）。任何豁免只能通过"文件不受版本控制"或显式分类清单（`scripts/validate/secret-exposure-allowlist.txt`，每条必须写明非凭据理由）实现，禁止长期豁免。
 - 禁止在 Windows PowerShell 批量改写源码、文档、配置时裸用 `Get-Content`、`Set-Content`、`Out-File`；必须显式指定 UTF-8 或按字节读取后按 UTF-8 解码
 - 仅当验证命令真实执行并通过后，才能声明“已修复”“已完成”“已通过”
 
@@ -185,7 +185,7 @@ common-services/
   - `ENGINE=InnoDB`
   - `DEFAULT CHARSET=utf8mb4`
   - `COLLATE=utf8mb4_0900_ai_ci`
-- 所有核心表必须使用 `bigint unsigned` 自增 `id` 作为主键；附属表、关联表也默认保留 `id`，只有经设计评审确认的纯关系表可例外
+- 所有核心表必须使用 `bigint unsigned` 自增 `id` 作为主键；附属表、关联表也默认保留 `id`，只有经设计评审确认的纯关系表可例外。MySQL 分区表的主键必须包含分区列（例如 `iam_audit_log` 的 `PRIMARY KEY (id, occurred_at)`），这是数据库引擎约束而非业务例外
 - 所有表默认包含以下审计字段：
   - `created_by bigint unsigned not null default 0`
   - `created_at datetime(3) not null`
@@ -218,7 +218,7 @@ common-services/
 - 未持有迁移脚本的模块，禁止仅因“以后可能会用”而预置 Flyway 依赖；需要接入时，必须同时补齐脚本、配置和职责说明
 - 持有迁移脚本的服务必须在 `application.yml` 中显式配置 `spring.flyway.enabled=true`，避免依赖存在但职责不清
 - 禁止在生产或开发主链路使用 `ddl-auto=create/update`
-- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本
+- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本。**冻结点定义**：工程未正式发布前允许重建基线（须在 `docs/renovation/` 留档），冻结以显式基线 tag 为准（tag 注释含 `frozen`，或 `baseline-*` 前缀）；冻结后任何 `M`/`D` 变更由 `scripts/validate/validate-flyway-immutability.ps1` 阻断
 - 旧式“大一统初始化脚本”可以保留为历史参考，但不得继续作为权威来源
 - 如果需要重置数据库，必须通过仓库内统一的重建脚本执行，并在 `.outputs/` 留存日志
 

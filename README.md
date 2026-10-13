@@ -36,7 +36,7 @@ OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一
 
 ## 路由约定
 
-外部 REST API 统一使用 `/api/v1/**`。Gateway 对以下业务路由统一执行 `StripPrefix=2`，因此后端 Controller 接收的路径不包含 `/api/v1` 前缀。路由配置的唯一实现来源是 `gateways/gateway/src/main/resources/application.yml`；变更该文件时必须在同一变更中同步更新本表和[网关服务说明](./docs/im-services/gateway/README.md)。
+外部 REST API 统一使用 `/api/v1/**`。Gateway 对以下业务路由统一执行 `StripPrefix=2`，因此后端 Controller 接收的路径不包含 `/api/v1` 前缀。路由配置的唯一实现来源是 `gateways/gateway/src/main/resources/application.yml`；变更该文件时必须在同一变更中同步更新本表和[网关服务说明](./docs/services/gateway/README.md)。
 
 | 客户端请求路径 | 转发后的服务内路径 | 目标服务 | 路由标识 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -94,6 +94,10 @@ powershell ./run-dev.ps1 -Service gateway
 - [工程规范](./docs/ENGINEERING_RULES.md)
 - [10 DDD 服务工程规范](./docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ 治理规范](./docs/standards/12_ROCKETMQ_CONVENTIONS.md)
+- [13 平台媒体规范](./docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
+- [14 客户端发布与版本治理规范](./docs/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
+- [15 客户端发布操作规范](./docs/standards/15_CLIENT_RELEASE_SKILL.md)
+- [16 币种规范](./docs/standards/16_CURRENCY_CONVENTIONS.md)
 - [20 Maven 工程规范](./docs/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
 - [21 持久层技术栈标准](./docs/standards/21_PERSISTENCE_STACK.md)
 - [22 技术栈版本矩阵](./docs/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
@@ -101,11 +105,12 @@ powershell ./run-dev.ps1 -Service gateway
 - [40 可观测性规范](./docs/standards/40_OBSERVABILITY_CONVENTIONS.md)
 - [41 Java 日志规范](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](./docs/standards/42_LOGGING_AND_OUTPUTS.md)
-- [Gateway](./docs/im-services/gateway/README.md)
-- [用户服务](./docs/im-services/im-user-service/README.md)
-- [消息服务](./docs/im-services/im-message-service/README.md)
-- [会话服务](./docs/im-services/im-conversation-service/README.md)
-- [媒体支撑服务](./docs/im-services/common-media-service/README.md)
-- [订单服务](./docs/im-services/im-order-service/README.md)
-- [管理服务](./docs/im-services/im-admin-service/README.md)
-- [长连接接入层](./docs/im-services/im-access-ws/README.md)
+- [43 E2E 测试与验收规范](./docs/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [Gateway](./docs/services/gateway/README.md)
+- [用户服务](./docs/services/im-user-service/README.md)
+- [消息服务](./docs/services/im-message-service/README.md)
+- [会话服务](./docs/services/im-conversation-service/README.md)
+- [媒体支撑服务](./docs/services/common-media-service/README.md)
+- [订单服务](./platform-services/order/platform-order-service/)
+- [管理服务](./docs/services/im-admin-service/README.md)
+- [长连接接入层](./docs/services/im-access-ws/README.md)

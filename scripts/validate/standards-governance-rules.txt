@@ -1,0 +1,23 @@
+# Data file for validate-standards-governance.ps1 (G-08).
+#
+# Why a separate file: validator scripts must stay ASCII-only (Windows PowerShell 5.1 reads a
+# BOM-less .ps1 as ANSI), while the section keywords and forbidden markers below are Chinese.
+# This file is read with an explicit UTF-8 decoder, so it can hold any script.
+#
+# Format:
+#   [sections]  one requirement per line:  <id>|<label>|<keyword>|<keyword>|...
+#               a requirement is satisfied when ANY keyword appears in a HEADING of the document
+#   [forbidden] one entry per line:        <id>|<label>|<regex>
+#               every match anywhere in the document is reported (examples may need a note)
+
+[sections]
+goal|目标与适用范围|目标|适用范围|目的|非目标
+terms|术语与前置假设|术语|前置假设|定义|名词
+rules|原则与允许禁止例外|原则|允许|禁止|规则|约束
+template|模板或示例|模板|示例|样例|目录结构|代码示例
+gate|门禁与人工检查项|门禁|检查项|人工检查|校验|自动化
+acceptance|可验证的验收标准|验收|完成定义|通过标准
+relations|与其他规范的关系|关系|关联|引用|依赖
+
+[forbidden]
+todo|具体待办或占位符|待办|待补充|待完善|临时方案|TODO|FIXME|XXX

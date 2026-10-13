@@ -41,7 +41,7 @@ im-server
 本工程采用服务域独立版本模型。
 
 - 根 `im-server` 的版本仅表达全仓构建基线版本，不作为全部业务服务的发布版本；根聚合和结构聚合 POM 保持纯 SemVer，不追加 `-SNAPSHOT`。
-- `sdk/pom.xml` 维护平台 BOM 的唯一版本；平台内部模块继承该版本。
+- 平台版本由根 `pom.xml` 的 `sdk.version` 唯一持有（平台聚合 POM `sdk/pom.xml` 不承载 `dependencyManagement`）；平台内部模块继承该版本，服务域引用平台制品统一使用该属性。
 - 每个 `im-services/<domain>/pom.xml` 维护该服务域的稳定基础版本，保持纯 SemVer；开发分支的可部署叶子服务 Maven 版本使用对应基础版本的 `-SNAPSHOT` 形式，正式构建恢复为纯 SemVer。叶子版本迁移必须同步检查其父版本、依赖管理和构件坐标。
 - `gateway` 与 `im-access-ws` 是独立部署单元，可在自身 POM 声明独立版本；如未来拆出专属网关父 POM，应由该父 POM 管理网关域版本。
 - 同域 API 与 Service 的版本关系必须按实际发布边界保持一致；若叶子 API 与 Service共同作为一个服务域发布，开发阶段一起使用同一 `-SNAPSHOT` 基础版本，领域父 POM仍保持纯 SemVer。
@@ -151,7 +151,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-en
 
 ## 规范适配与改造分离
 
-- 本文只定义可复用的 Maven 原则、约束、模板、门禁与验收标准，不记录任何具体工程的存量缺陷、模块名称、整改优先级或迁移步骤。
+- 本文只定义可复用的 Maven 原则、约束、模板、门禁与验收标准，不记录任何具体工程的存量缺陷、整改优先级或迁移步骤；正文中出现的 `im-access-ws`、`gateway`、`im-services/user` 等仅用于说明规则的应用方式，属**示例**，不构成强制命名或目录要求。
 - 具体工程在采用本规范前，必须单独编写“现状评估与改造方案”，将实际 POM、脚本、模块依赖图与本规范逐项比对，并记录范围、优先级、风险、回滚与验收证据。
 - 工程案例只能用于说明规则的应用方式，案例中的组织名、模块名、版本号和路径不得被解释为规范强制要求。
 - 改造方案完成后，应将可复用结论回写到本规范或相应专项规范；项目特有决策保留在改造方案和架构决策记录中。
@@ -160,7 +160,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-en
 
 - 新增模块前，确认其属于平台、网关或业务服务域，并完成父子聚合关系。
 - 新增依赖前，检查是否已有 BOM 或 `dependencyManagement` 管理；确认 scope、所有权与替代方案。
-- 修改版本前，检查父版本、内部 BOM、发布管理器和消费方兼容性。
+- 修改版本前，检查父版本、内部 BOM、发布流程和消费方兼容性。
 - 修改插件前，优先在根 `pluginManagement` 配置，并确认每个可运行模块的继承结果。
 - 修改模块依赖、构建脚本、启动脚本或 POM 后，执行相关域 `verify`、根 Reactor `install`、Maven Reload 和 IDE Problems 检查。
 - 提交前执行统一验证入口；任一门禁失败不得以跳过、排除或降低规则等级方式合并。

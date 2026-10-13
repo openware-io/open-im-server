@@ -43,7 +43,7 @@
 | 服务域聚合 | [user 域父 POM](../../im-services/user/pom.xml) 只聚合 `im-user-api` 与 `im-user-service` | 符合服务域局部 Reactor，保留 |
 | API 与部署制品 | [API POM](../../im-services/user/im-user-api/pom.xml) 与 [Service POM](../../im-services/user/im-user-service/pom.xml) 均继承 user 域父 POM | 符合同域版本与父继承边界，保留 |
 | 持久化与迁移归属 | [Service POM](../../im-services/user/im-user-service/pom.xml) 声明 MySQL、MyBatis-Plus、Flyway；迁移由 Service 资源目录持有 | 符合权威数据服务职责，保留 |
-| 服务职责 | [服务说明](../im-services/im-user-service/README.md) 已列出账户、用户资料、设备令牌、关系链、积分和贴纸 | 作为一个用户域内的子域集合保留，暂不拆服务 |
+| 服务职责 | [服务说明](../services/im-user-service/README.md) 已列出账户、用户资料、设备令牌、关系链、积分和贴纸 | 作为一个用户域内的子域集合保留，暂不拆服务 |
 
 ### 4.2 已确认的规范偏差
 
@@ -260,7 +260,7 @@ MyBatis PO / Mapper / Repository Adapter / Redis / MQ / Security ---------- infr
 1. 先补齐第 5 节的规范缺口或批准限时例外。
 2. 执行批次 0 的行为基线和门禁建设。
 3. 按批次 1 至 3 的单一垂直切片推进；任一批次未通过验收不得并行扩大范围。
-4. 完成批次 4 后，更新 [服务说明](../im-services/im-user-service/README.md)、运行手册、测试证据和本方案的实际完成状态。
+4. 完成批次 4 后，更新 [服务说明](../services/im-user-service/README.md)、运行手册、测试证据和本方案的实际完成状态。
 
 本方案完成不以“包名已迁移”定义，而以以下事实定义：领域层不含框架和中间件依赖；Controller 不暴露领域对象；持久化模型只存在于 `infra`；同一行为的接口、数据和事件契约已验证兼容；所有约定门禁与构建验证均通过。
 

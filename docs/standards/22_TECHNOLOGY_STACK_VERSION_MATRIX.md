@@ -16,7 +16,7 @@
 | 语言运行时 | Java | 25 | 根 `pom.xml` 的 `java.version` | Maven Enforcer 要求最低 Java 25。 |
 | 构建工具 | Maven | 3.9.16 | Maven Wrapper 与 `maven.minimum.version` | 使用 `./mvnw` 或 `mvnw.cmd` 执行构建。 |
 | 构建父项 | Spring Boot Parent | 4.0.7 | 根 `pom.xml` Parent | 管理 Spring Boot、MySQL、Flyway 等生态依赖。 |
-| 平台制品 | `sdk` BOM | 1.0.5 | `sdk.version` | 服务域统一引用的平台 API 与基础设施版本。 |
+| 平台制品 | `sdk` 聚合与平台版本 | 2.2.0 | 根 `pom.xml` 的 `sdk.version` | `sdk/pom.xml` 是平台聚合 POM，平台制品版本由根 POM 的 `dependencyManagement` 统一管理（BOM 语义由根 POM 承担），服务域统一引用。 |
 | 代码规范 | Checkstyle | 10.26.1 | `checkstyle.version` | 由 Maven Checkstyle Plugin 执行。 |
 | 编译插件 | Maven Compiler Plugin | 3.14.1 | `maven-compiler-plugin.version` | 统一 Java 编译配置。 |
 | 质量门禁 | Maven Enforcer Plugin | 3.6.3 | `maven-enforcer-plugin.version` | 校验 Java、Maven 和依赖收敛。 |

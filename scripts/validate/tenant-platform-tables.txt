@@ -1,0 +1,28 @@
+# Platform-level tables that legitimately have no tenant_id (G-11 registry).
+#
+# Rule: in the SaaS/common domains every table is tenant-scoped BY DEFAULT and must carry a
+# tenant_id column. A table without tenant_id is only allowed when it is registered here with a
+# written reason. This inverts the old hard-coded prefix whitelist, under which every table that
+# happened to fall outside the list was silently unchecked.
+#
+# Format: <table> | <reason>
+
+tnt_tenant | tenant registry itself; tenant_id is the primary key
+tnt_business_type | platform-wide business type dictionary shared by all tenants
+iam_permission | platform permission dictionary shared by all tenants
+iam_role_permission | join table between platform roles and platform permissions
+iam_menu | platform menu metadata shared by all tenants
+iam_consumer_application | platform-level OAuth/OIDC client registry
+saa_admin_account | platform operation accounts, not tenant business data
+tnt_config_definition | global configuration definition registry (per-store values live in tnt_store_config)
+tnt_app_user_authorization | platform-level app/account authorization ledger (app_id + account_id are globally unique)
+idt_account | identity/account platform tables: accounts are platform-global, tenant binding happens per app
+idt_login_identity | identity/account platform tables: login identities are platform-global
+idt_oauth_link | identity/account platform tables: OAuth links are platform-global
+idt_profile_sync_record | identity/account platform tables: profile sync records are platform-global
+iam_audit_archive_manifest | audit archive manifest describes platform-wide archive jobs, not tenant business rows
+support_media_object | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+support_media_upload_session | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+support_media_reference | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+support_media_upload_part | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant
+support_media_audit_event | common support domain (media): ownership is tracked by owner_id + reference rows, not by tenant

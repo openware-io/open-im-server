@@ -61,7 +61,7 @@
 
 以下校验均通过：
 
-- `validate-flyway-module-boundaries.ps1`
+- `validate-flyway-conventions.ps1`
 - `validate-security-and-flyway-configuration.ps1`
 - `validate-tenant-sql.ps1`
 - `validate-persistence-dependency-boundaries.ps1`

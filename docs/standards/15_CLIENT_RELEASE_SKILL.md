@@ -2,7 +2,7 @@
 
 > 本文档仅适用于 **Android 直装 APK**。Windows 桌面端 EXE 发版见 [`RELEASE_RUNBOOK.md`](../RELEASE_RUNBOOK.md) 第 5.6 节；Windows 同样必须在后台创建并提交客户端发布记录。
 > 对 Android APK 而言，本文档是唯一、可执行的发版操作手册。任何 AI 或人类执行 Android 发版时，先读本文档，再直接运行快捷脚本，不要自行推断打包命令或版本规则。
-> 打包命令以 [gv_chat_app/BUILD.md](../../../gv_chat_app/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。
+> 打包命令以 [gv_chat_app/BUILD.md](../../../open-chat-app/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。
 > 治理规则（版本命名、灰度、审计、安全门禁）见 [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md)。
 
 ---
@@ -138,8 +138,8 @@ curl -I "https://example.com/download/open-chat-<版本>.apk"
 | 仓库 | 路径 | 版本文件 |
 | --- | --- | --- |
 | 客户端 Flutter | `D:\projects\cnb\gv_chat_app` | `pubspec.yaml` 的 `version: X.Y.Z+N` |
-| 后端 Java | `D:\projects\cnb\gv_im_server` | 各 `pom.xml`（按服务域独立 bump，见 [RELEASE_RUNBOOK](../../RELEASE_RUNBOOK.md)） |
+| 后端 Java | `D:\projects\cnb\gv_im_server` | 各 `pom.xml`（按服务域独立 bump，见 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md)） |
 | 管理后台 Vue | `D:\projects\cnb\gv_chat_admin` | `package.json` 的 `version` |
 | 官网静态站 | `D:\projects\cnb\open-website` | `VERSION`（仅 CMS 内容变更时 +1） |
 
-> 本文档只管客户端发版；后端/管理后台/官网部署仍按 [RELEASE_RUNBOOK](../../RELEASE_RUNBOOK.md) 第 4/6/7 节。
+> 本文档只管客户端发版；后端/管理后台/官网部署仍按 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) 第 4/6/7 节。

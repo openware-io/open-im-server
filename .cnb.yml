@@ -1,13 +1,42 @@
+# CNB pipeline: the engineering validation entry point is the ONLY gate (G-01/G-02).
+#
+# Design notes:
+#   - The base image only has to provide JDK 25 (eclipse-temurin:25-jdk). Maven 3.9.16 and
+#     PowerShell 7 are installed explicitly, so the pipeline does NOT depend on a specific
+#     "maven + jdk" image tag existing, and the Maven version can never drift below
+#     pom.xml's maven.minimum.version (3.9.16) again.
+#   - Everything runs in ONE stage: no PATH/env assumptions across stages.
+#   - The gate blocks on any non-zero exit code.
 $:
   push:
     - docker:
-        image: maven:3.9.9-eclipse-temurin-25
+        image: eclipse-temurin:25-jdk
         volumes:
           - /root/.m2:copy-on-write
       stages:
-        - name: Maven 版本
-          script: mvn -v
-        - name: 编译 + 静态检查（enforcer / checkstyle）
-          script: mvn -B compile
-        - name: 自动化测试（JUnit 5）
-          script: mvn -B test
+        - name: 工程门禁 + 构建（唯一入口）
+          script: |
+            set -euo pipefail
+
+            # --- 1) 基础工具 ---
+            apt-get update -qq
+            apt-get install -y -qq curl tar gzip
+
+            # --- 2) Maven 3.9.16（= pom.xml maven.minimum.version，显式固定）---
+            curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.tar.gz -o /tmp/maven.tgz
+            tar -xzf /tmp/maven.tgz -C /opt
+            ln -sf /opt/apache-maven-3.9.16/bin/mvn /usr/local/bin/mvn
+            mvn -v
+
+            # --- 3) PowerShell 7（校验脚本是 PowerShell 实现）---
+            PWSH_VERSION=7.4.6
+            curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-linux-x64.tar.gz" -o /tmp/pwsh.tar.gz
+            mkdir -p /opt/microsoft/powershell/7
+            tar -xzf /tmp/pwsh.tar.gz -C /opt/microsoft/powershell/7
+            chmod +x /opt/microsoft/powershell/7/pwsh
+            ln -sf /opt/microsoft/powershell/7/pwsh /usr/local/bin/pwsh
+            pwsh -NoProfile -Command '$PSVersionTable.PSVersion.ToString()'
+
+            # --- 4) 唯一工程校验入口：全部静态校验 + 根 Reactor clean verify ---
+            # 入口脚本按平台选择 pwsh/mvnw（G-02），任一门禁失败即非零退出（G-01）。
+            pwsh -NoProfile -File ./scripts/validate/invoke-engineering-validation.ps1 -Scope Full

@@ -1,0 +1,35 @@
+# Registered table prefixes for the Flyway DDL convention gate.
+#
+# SINGLE SOURCE OF TRUTH: the registry table in docs/ENGINEERING_RULES.md
+# ("table prefix registry"). This ASCII mirror exists because Windows PowerShell 5.1
+# reads BOM-less .ps1 as ANSI, so validator scripts must stay ASCII-only.
+#
+# validate-flyway-conventions.ps1 asserts that every prefix listed here still appears in
+# docs/ENGINEERING_RULES.md, so the document cannot drift away from this file.
+# When the registry gains (or renames) a domain prefix, update BOTH this file and the doc.
+#
+# One prefix per line, '#' starts a comment. Trailing underscores are optional.
+
+# --- platform / shared ---
+# (no table prefix: sdk/ is a non-runnable library, it does not own tables)
+# --- IM business domains ---
+user
+msg
+conversation
+adm
+ord
+# --- SaaS domains ---
+idt
+tnt
+iam
+res
+pay
+cst
+mkt
+# --- common support domains ---
+media
+audit
+mail
+sms
+paych
+ws

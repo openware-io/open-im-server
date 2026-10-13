@@ -1,55 +1,99 @@
+# Flyway / secret configuration validator.
+#
+# Replaces the previous version, which (a) hard-coded 5 services and (b) scanned a NON-EXISTENT
+# "services" directory for DDL problems, so that whole block was a silent no-op (finding H-11).
+# DDL conventions are now enforced by validate-flyway-conventions.ps1; this gate keeps the
+# per-service configuration and dependency assertions, discovered from the filesystem.
+#
+# Checks for every module that holds db/migration:
+#   1. application.yml enables Flyway and declares a history table
+#   2. pom.xml declares spring-boot-starter-flyway AND flyway-mysql
+#   3. no module declares Flyway dependencies without holding migrations
+#   4. no secret-typed config value may carry a literal default (DC-01/G-13)
+#
+# IMPORTANT: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI).
+#
+# Usage: powershell -File scripts/validate/validate-security-and-flyway-configuration.ps1 [-ReportOnly]
 [CmdletBinding()]
-param()
+param(
+  [switch]$ReportOnly
+)
 
 $ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$services = @(
-  @{ Name = 'user'; Path = 'im-services\user\im-user-service'; History = 'user_schema_history' },
-  @{ Name = 'message'; Path = 'im-services\message\im-message-service'; History = 'msg_schema_history' },
-  @{ Name = 'conversation'; Path = 'im-services\conversation\im-conversation-service'; History = 'conversation_schema_history' },
-  @{ Name = 'admin'; Path = 'im-services\admin\im-admin-service'; History = 'admin_schema_history' },
-  @{ Name = 'support'; Path = 'common-services\media\common-media-service'; History = 'support_schema_history' }
-)
+$worklistPath = Join-Path $root '.outputs\quality\flyway-configuration-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
+$domainRoots = @('im-services', 'platform-services', 'common-services', 'group-services')
 
-foreach ($service in $services) {
-  $yamlPath = Join-Path $root ($service.Path + '\src\main\resources\application.yml')
-  $pomPath = Join-Path $root ($service.Path + '\pom.xml')
-  $yaml = [System.IO.File]::ReadAllText($yamlPath, [System.Text.UTF8Encoding]::new($false, $true))
-  $pom = [System.IO.File]::ReadAllText($pomPath, [System.Text.UTF8Encoding]::new($false, $true))
-  if ($yaml -notmatch ('table:\s*' + [regex]::Escape($service.History))) {
-    $violations.Add("$($service.Name) Flyway history table is missing or incorrect")
+Push-Location $root
+try {
+  $tracked = git -C $root ls-files
+  $servicePoms = $tracked | Where-Object { $_ -match "^($($domainRoots -join '|'))/.+/-service/pom\.xml$" }
+
+  $migrationHolders = [System.Collections.Generic.HashSet[string]]::new()
+  foreach ($file in ($tracked | Where-Object { $_ -match '^[^/]+/.+/src/main/resources/db/migration' })) {
+    $modulePath = ($file -split '/src/main/resources/')[0]
+    [void]$migrationHolders.Add($modulePath)
   }
-  if ($yaml -notmatch 'enabled:\s*true') {
-    $violations.Add("$($service.Name) must enable Flyway")
+
+  foreach ($modulePath in ($migrationHolders | Sort-Object)) {
+    $yamlPath = "$modulePath/src/main/resources/application.yml"
+    if (-not (Test-Path -LiteralPath (Join-Path $root $yamlPath) -PathType Leaf)) {
+      $violations.Add("migration-holding module without application.yml: $modulePath")
+      continue
+    }
+    $yaml = [System.IO.File]::ReadAllText((Join-Path $root $yamlPath), [System.Text.UTF8Encoding]::new($false, $true))
+    if ($yaml -notmatch '(?m)^\s+enabled:\s*true\s*$') { $violations.Add("Flyway is not enabled: $yamlPath") }
+    if ($yaml -notmatch '(?m)^\s+table:\s*\S+') { $violations.Add("Flyway history table is not declared: $yamlPath") }
+
+    $pomPath = "$modulePath/pom.xml"
+    $pom = [System.IO.File]::ReadAllText((Join-Path $root $pomPath), [System.Text.UTF8Encoding]::new($false, $true))
+    if ($pom -notmatch '<artifactId>spring-boot-starter-flyway</artifactId>') { $violations.Add("missing spring-boot-starter-flyway: $pomPath") }
+    if ($pom -notmatch '<artifactId>flyway-mysql</artifactId>') { $violations.Add("missing flyway-mysql: $pomPath") }
   }
-  if ($pom -notmatch '<artifactId>spring-boot-starter-flyway</artifactId>' -or $pom -notmatch '<artifactId>flyway-mysql</artifactId>') {
-    $violations.Add("$($service.Name) must declare Flyway starter and flyway-mysql")
+
+  # 3) Flyway dependencies without migrations
+  foreach ($pomPath in $servicePoms) {
+    $modulePath = $pomPath.Substring(0, $pomPath.Length - '/pom.xml'.Length)
+    if ($migrationHolders.Contains($modulePath)) { continue }
+    $pom = [System.IO.File]::ReadAllText((Join-Path $root $pomPath), [System.Text.UTF8Encoding]::new($false, $true))
+    if ($pom -match 'flyway-mysql|spring-boot-starter-flyway|flyway-core') {
+      $violations.Add("Flyway dependency without a migration directory: $pomPath")
+    }
   }
-  if ($yaml -notmatch 'secret:\s*\$\{JWT_SECRET:\}') {
-    $violations.Add("$($service.Name) JWT secret must not have a default")
+
+  # 4) secret-typed literals defaults anywhere in main configuration
+  $secretDefaultPattern = '\$\{(?<key>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*(?<value>[^}]+)\}'
+  $secretKeyPattern = '(?i)(password|passwd|secret|token|api[_-]?key|credential|hmac)'
+  foreach ($yamlPath in ($tracked | Where-Object { $_ -match '^[^/]+/.+/src/main/resources/application.*\.ya?ml$' })) {
+    $lineNumber = 0
+    foreach ($line in [System.IO.File]::ReadLines((Join-Path $root $yamlPath), [System.Text.UTF8Encoding]::new($false, $true))) {
+      $lineNumber++
+      foreach ($match in [regex]::Matches($line, $secretDefaultPattern)) {
+        if ($match.Groups['key'].Value -notmatch $secretKeyPattern) { continue }
+        if ($match.Groups['value'].Value.TrimStart().StartsWith('?')) { continue }   # ${VAR:?msg} = required
+        $violations.Add("secret config default: ${yamlPath}:$lineNumber")
+      }
+    }
   }
-  if ($yaml -notmatch 'secret:\s*\$\{INTERNAL_SERVICE_AUTH_SECRET\}') {
-    $violations.Add("$($service.Name) internal HMAC secret must not have a default")
-  }
+} finally {
+  Pop-Location
 }
 
-Get-ChildItem -Path (Join-Path $root 'services') -Recurse -Filter '*.sql' | Where-Object {
-  $_.FullName -match '[\\/]src[\\/]main[\\/]resources[\\/]db[\\/]migration[\\/]'
-} | ForEach-Object {
-  $relative = $_.FullName.Substring($root.Length + 1).Replace('/', '\')
-  $sql = [System.IO.File]::ReadAllText($_.FullName, [System.Text.UTF8Encoding]::new($false, $true))
-  if ($sql -match '(?i)CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS') {
-    $violations.Add("Forward Flyway migration must not use CREATE TABLE IF NOT EXISTS: $relative")
-  }
-  if ($sql -match '(?i)\bFOREIGN\s+KEY\b|\bREFERENCES\s+`') {
-    $violations.Add("Physical foreign keys are forbidden; enforce associations in Java: $relative")
-  }
+if ($violations.Count -eq 0) {
+  Write-Host 'Security and Flyway configuration validation passed.'
+  exit 0
 }
 
-if ($violations.Count -gt 0) {
-  $violations | ForEach-Object { Write-Error $_ }
-  exit 1
+[void](New-Item -ItemType Directory -Force -Path (Split-Path -Parent $worklistPath))
+[System.IO.File]::WriteAllLines($worklistPath, [string[]]$violations, [System.Text.UTF8Encoding]::new($false))
+
+if ($ReportOnly) {
+  Write-Warning "Flyway/secret configuration: $($violations.Count) pending violation(s). Worklist: $worklistPath"
+  exit 0
 }
 
-Write-Host 'Security and Flyway configuration validation passed.'
+$violations | Select-Object -First 30 | ForEach-Object { Write-Error $_ }
+Write-Error "Flyway/secret configuration: $($violations.Count) violation(s) in total. Worklist: $worklistPath"
+exit 1

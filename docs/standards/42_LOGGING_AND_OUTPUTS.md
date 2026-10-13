@@ -28,7 +28,7 @@
 1. 构建、校验、打包和部署命令日志写入 `.outputs/logs/build/`。
 2. 服务运行日志写入 `.outputs/logs/im-services/<service-name>/`。
 3. Maven 构建产物保留在各模块的 `target/` 目录，除非发布流程明确复制到其他位置。
-4. 发布管理器产物保留在 `release_manager/build_output/`。
+4. 静态校验报告写入 `.outputs/quality/`；发布清单与访问凭据清单写入 `.outputs/releases/`。
 5. 新增工作不得在根目录产生临时的 `build_*.log`、`deploy_*.log` 等文件。
 
 ## 适用边界

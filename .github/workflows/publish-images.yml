@@ -51,7 +51,9 @@ jobs:
       - name: Maven verify
         # 发布必须经过完整的编译、Checkstyle、依赖约束和测试门禁。
         # 任何测试失败都不得继续构建或推送镜像。
-        run: mvn -B -T 1C clean verify
+        # 使用 Wrapper（唯一推荐入口）并避免并行 clean：同一工作区并行执行 clean 会删除
+        # 前置模块的 target/classes（standards/20 明确禁止）。
+        run: ./mvnw -B -ntp clean verify
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
