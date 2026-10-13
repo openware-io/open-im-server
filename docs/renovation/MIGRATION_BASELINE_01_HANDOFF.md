@@ -394,6 +394,27 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 - 正确做法：PO 加 `private Long id` 作 `@TableId(type=IdType.AUTO)`，业务键降为普通字段（**保留字段名**，如 `objectId`），并把上述 `selectById` 改为 `selectOne(lambdaQuery().eq(Po::getObjectId, key))`；有测试兜底（media 模块 6 个测试类）。
 - 通用判据：**只要某张表的主键要从业务键换成 `id`，就必须先 grep 全部 `selectById(` 调用点**，否则改动只是"看起来通过了门禁"。
 2. **前缀类 7 条**已按用户决定挂起（见 §2 步骤 1 表后的警示），不在本轮处理：`open_*`×3、`saa_`×1、`group_*`/`idaas_*`×3。
+
+   **✅ 本轮已把"怎么做"完全查清（两个门禁分支的要求 + 逐条影响），供你一次决定：**
+
+   - **门禁原文要求**（`validate-flyway-conventions.ps1`）：
+     - L167：建表前缀必须**登记在 `scripts/validate/table-prefixes.txt`**，否则报 `unregistered table prefix`（就是现在这 7 条）。
+     - L63-65：**每个已登记前缀还必须在 `docs/ENGINEERING_RULES.md` 的前缀表里出现**，否则报 `registered prefix 'x' is not documented`。
+     - → 所以"登记一个新前缀"是**两处同改**（prefixes 清单 + 规则文档表），不是一处。
+   - **当前已登记 18 个**：`user msg conversation adm ord idt tnt iam res pay cst mkt media audit mail sms paych ws`。**未登记**：`open`、`saa`、`group`、`idaas`。
+   - **逐条影响（已实测 Java 引用数）**：
+
+     | 表 | 归属 | Java 引用 | 判断 |
+     | --- | --- | --- | --- |
+     | `open_application`、`open_application_scope`、`open_user_authorization` | im-user-service | 5 / — / 2 | **像是历史命名**：同模块 21 张表用 `user_`，且 `ENGINEERING_RULES.md:162` 已把 `user` 登记为"IM 账户/社交关系/用户积分（IM 域）…历史冻结"。这 3 张是**开放平台授权**概念，与 `user` 语义不同 |
+     | `saa_admin_account` | platform-admin-service | 14 | `saa` **疑似 `saas` 漏字**（该模块业务名就是 SaaS 管理端） |
+     | `group_account`、`group_org` | group-idaas-service | 1 / 1 | 该服务无已登记前缀；`group` 是它自己的域 |
+     | `idaas_client` | group-idaas-service | 1 | 同模块第二套前缀——**一个服务用两个未登记前缀**，本身值得收敛 |
+
+   - **两条路线的实际代价**（都已量化，可直接选）：
+     - **A. 登记前缀（改动最小）**：`table-prefixes.txt` 加 `open`/`saa`/`group`/`idaas` 四行 + `ENGINEERING_RULES.md` 前缀表加对应四行说明。**代码零改动**，门禁立即清零。代价：`saa` 这个疑似错别字会被固化；且同一模块出现多套前缀（idaas 用了 `group`+`idaas`）。
+     - **B. 改名对齐（更干净、代价高）**：需同步改 **迁移文件 + Java `@TableName`/PO + 所有 SQL 引用 + 索引名**（引用数见上表，`saa_admin_account` 14 处最多）。且**会与"基线冻结只增不改"冲突**——改 V1 基线就等于还没冻结就先改基线，最好在**打冻结 tag 之前**做，否则要新增 V2 做 RENAME。
+   - **我的建议**：**A 用于 `saa`/`group`/`idaas`（三个都是真实域或历史既定名），`open_*` 单独判**——它和 `user_*` 同模块、语义却是"开放平台授权"，登记 `open` 会让一个模块出现两个前缀；若要收敛，`open_*` 是三个 prefix 项里唯一值得改名的（仅 3 张表、7 处 Java 引用）。**但这属于你的域命名决策，我不擅自动。**
 3. `MktEventConsumedPo` 的运行期缺陷已在本轮修掉（`d295e0c`）——这是"补审计列"引发的连带改动，**后续模块若给 PO 未覆盖的列补 `NOT NULL` 审计字段，必须同样检查 Java 侧是否写入**，否则插入会报 MySQL 1364。
 4. `standards/30` 已新增第 4 条门禁说明；批次 4 清理 6 个延期的非 ASCII 脚本前，需先定"脚本输出语言"策略。
 5. `.outputs/quality/powershell-ascii-only-worklist.txt` 是 ASCII 门禁自检留下的旧快照（gitignored，无影响），可随手删。
