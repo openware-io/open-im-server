@@ -66,19 +66,19 @@
 
 | 状态 | 模块（迁移根） | 条目 | 迁移文件数 | 备注 |
 | --- | --- | --- | --- | --- |
-| ⬜ | `im-services/message/im-message-service` | 57 | 13 | 最大块；history 表名 `msg_schema_history` 需统一 |
-| ⬜ | `im-services/user/im-user-service` | 44 | 24 | history 表名 `user_schema_history`；含 `open_*`（前缀待定） |
-| ⬜ | `im-services/admin/im-admin-service` | 44 | 12 | history 表名 `admin_schema_history` 需统一；`adm_*` 16 张表 |
-| ⬜ | `common-services/media/common-media-service` | 39 | 1 | 前缀 `support_media_*`→`media_*`（DC-04）；history `support_schema_history`→`media_schema_history`；含 10 条反引号 |
-| ⬜ | `im-services/conversation/im-conversation-service` | 39 | 16 | history 表名 `conversation_schema_history`；含 `channel_*`/`secret_chat`（前缀待定） |
+| ⬜ | `im-services/message/im-message-service` | 57 | 13 | 最大块 |
+| ⬜ | `im-services/user/im-user-service` | 44 | 24 | 含 `open_*`（前缀待定） |
+| ⬜ | `im-services/admin/im-admin-service` | 44 | 12 | `adm_*` 16 张表 |
+| ⬜ | `common-services/media/common-media-service` | 39 | 1 | 前缀 `support_media_*`→`media_*`（DC-04）；含 10 条反引号 |
+| ⬜ | `im-services/conversation/im-conversation-service` | 39 | 16 | 含 `channel_*`/`secret_chat`（前缀待定） |
 | ⬜ | `platform-services/order/platform-order-service` | 38 | 32 | |
 | ⬜ | `common-services/payment/common-payment-service` | 23 | 15 | |
-| ⬜ | `common-services/audit/common-audit-service`（`migration-audit`） | 22 | 3 | 双根需合并为单根（DC-17 保留分区）；表用 `iam_audit_*` |
+| ⬜ | `common-services/audit/common-audit-service`（`migration-audit`） | 22 | 3 | **不得与 `migration` 合并**（见下方警示）；新库 `open_audit` 基线 |
 | ⬜ | `platform-services/tenant/platform-tenant-service` | 18 | 32 | 含 `iam_approval`（前缀待定） |
 | ⬜ | `platform-services/customer/platform-customer-service` | 17 | 13 | |
 | ⬜ | `platform-services/admin/platform-admin-service` | 15 | 11 | `iam_menu`（前缀待定）、`saa_admin_account`（前缀待定） |
 | ⬜ | `group-services/idaas/group-idaas-service` | 11 | 2 | 集团业务领域登记（DC-02）；`group_*`/`idaas_*` 前缀待定 |
-| ⬜ | `common-services/audit/common-audit-service`（`migration`） | 11 | 4 | 与 `migration-audit` 合并成同一个根 |
+| ⬜ | `common-services/audit/common-audit-service`（`migration`） | 11 | 4 | **不得与 `migration-audit` 合并**；老库 `open_im` 历史目录 |
 | ✅ | `common-services/payment-channel/common-payment-channel-service` | 0 | 1 | `f797263` |
 | ✅ | `platform-services/marketing/platform-marketing-service` | 0 | 1 | `d295e0c`；另修了 `MktEventConsumedPo` 缺审计字段的运行期缺陷 |
 | ✅ | `common-services/mail/common-mail-service` | 0 | 1 | `d6969fe`（样板补反引号） |
@@ -110,12 +110,12 @@
 
 **同时一并处理（不在该 worklist 内）**：
 
-- 前缀改登记/改名：`support_media_*` → `media_*`（DC-04）；`mail_*` / `sms_` / `open_*` / `iam_menu` / `saa_admin_account` → `adm_` / `tenant_payment_method` → `tnt_`。
-- 集团业务领域登记（DC-02）：`group_*` / `idaas_*` 表与目录/文档一并登记。
+- 前缀改登记/改名：`support_media_*` → `media_*`（DC-04）；`mail_*` / `sms_` / `open_*` / `iam_menu` / `saa_admin_account` → `adm_` / `tenant_payment_method` → `tnt_`（后四项属挂起的前缀决策，见上文警示）。
+- 集团业务领域登记（DC-02）：`group_*` / `idaas_*` 表与目录/文档一并登记（前缀待定）。
 - `tenant-sql` worklist **41 条**（`.outputs/quality/tenant-sql-worklist.txt`）：平台级扫表补 `platform-wide` / `tenant-agnostic` 显式标注，其余补租户条件。
 - `secret-exposure` **4 处**（`.outputs/quality/secret-exposure-report.txt`）：迁移注释中的口令与应用密钥哈希随基线重建清除。
-- 合并 `common-audit-service` 的双迁移根为单根 + 分区表基线（DC-17 保留分区）；history 表名统一 `<service>_schema_history`（media 由 `support_schema_history` 改）。
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`。
+- ~~合并 `common-audit-service` 的双迁移根为单根~~ **（已核实为错误前提，废弃）**；~~history 表名统一 `<service>_schema_history`~~ **（无规则依据，本轮不做）**——两条详见 §3.1.1。
 
 ### 步骤 2：登记表与规范同步
 
@@ -165,6 +165,22 @@
 | `platform-services/tenant/platform-tenant-service` | 2 | 表名 + 列名（`iam_approval`） |
 
 已完成的模块（`resource`、`identity`、`payment-channel`、`marketing`）**表名与列名本来就已经加了反引号**，它们的条目来自审计列/索引名等问题——所以这类模块的重写主要是"合并 + 补审计列 + 改索引名"，不是补反引号。
+
+## 3.1.1 ⚠️ 两处"看似该合并、实际不能合并"的例外（已核实，务必先读）
+
+**① `common-audit-service` 的两个迁移根绝对不能合并。**
+
+- `src/main/resources/db/migration`（V1~V4）是**老库 `open_im`** 的历史目录；`db/migration-audit`（V1~V3）是**新库 `open_audit`** 的基线目录。
+- 由 profile `audit-schema` 原子切换：`application-audit-schema.yml` 同时切库名和 `spring.flyway.locations`。两者共用历史表 `flyway_schema_history_audit`，因此**目录与库必须同进同退**。
+- 两边都 `CREATE TABLE iam_audit_log` / `iam_audit_idempotency`，**物理设计不同**（老库普通表+唯一键幂等；新库 `occurred_at` 月分区主表+幂等台账），是**同名不同库**，不是重复。
+- 已有测试固化该约束：`AuditPartitionInvariantTest`（"两个迁移目录必须物理隔离"）；`application.yml:15` 原注释亦写明"两个目录**不得混用**"。
+- 结论：**分别在各自根内做规范化，保持两个根**。`[01 方案](./MIGRATION_BASELINE_01_DATA.md)` §3 里"合并双迁移根为单根"的写法是**错误前提**，应废弃（DC-17 只要求保留分区，并未要求合根）。
+
+**② history 表名"统一"不具备规则依据，本轮不做。**
+
+- 现状：多数服务用 `flyway_schema_history_<service>`；IM 四服务与 media 用 `<service>_schema_history`（`admin_`/`conversation_`/`msg_`/`user_`/`support_schema_history`）。
+- 已核对 `ENGINEERING_RULES.md`、`DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](./MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
+- 结论：**不改**（改名需同步 config、无门禁收益、纯churn）。若将来确有统一诉求，应先写成规范＋门禁，再一次性改。
 
 ### 3.2 提交记录（本轮）
 

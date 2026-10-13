@@ -59,7 +59,9 @@
 - **租户查询级 41 条**（`tenant-sql` worklist）：为平台级扫表补 `platform-wide` / `tenant-agnostic` 显式标注，其余补租户条件
 - **4 处历史凭据明文**（`secret-exposure`）：迁移注释中的口令与应用密钥哈希随基线重建清除
 - **合并 `common-audit-service` 的双迁移根**为单根 + 分区表基线（DC-17 保留分区）
+  > ⚠️ **本条前提有误，已废弃**：`db/migration`（老库 `open_im` 历史）与 `db/migration-audit`（新库 `open_audit` 基线）由 profile `audit-schema` 原子切换、共用历史表且**同名不同库**，已有 `AuditPartitionInvariantTest` 固化"必须物理隔离"。两根本轮各自规范化、**不合并**。详见 [交接书 §3.1.1](./MIGRATION_BASELINE_01_HANDOFF.md)。
 - **history 表名统一** `<service>_schema_history`（media 由 `support_schema_history` 改）
+  > ⚠️ **本条无规则依据，本轮不做**：`ENGINEERING_RULES.md` / `DATABASE_MIGRATION_STANDARD.md` / `standards/21` 均未规定 history 表命名，也无门禁检查。现状为多数服务 `flyway_schema_history_<service>`、IM 四服务与 media 用 `<service>_schema_history`。若要统一，应先立规范＋门禁再一次性改。
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`
 
 ## 4. 执行顺序
