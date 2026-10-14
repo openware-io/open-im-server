@@ -329,8 +329,14 @@ CL-A1 清 `_sticker_panel_dump.txt`/`cursor.mark` + 补 `.gitignore`｜CL-A2 修
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-engineering-validation.ps1 -Scope Full
 
 # 2. 凭据清零（DC-20：历史值只存本地 gitignored 清单，仓库内无明文）
-git grep -n -f .outputs/quality/rotated-credentials.txt        # 期望：无输出
-git grep -n -e '192\.168\.31\.'                                # 期望：无输出
+#    判据是"没有仍生效的明文/旧地址"，不是"这个词从未出现过"。两处必须排除：
+#    (a) 检测器自身——校验器为避免默认口令、为断言无第二入口，必须写下那些字面量；
+#    (b) 已明确标注为历史文档的快照——其内实测记录刻意保留，改动即篡改证据。
+#    用户裁决（2026-10-14）：历史文档标注历史后可不清理；在用文档必须清理。
+git grep -n -f .outputs/quality/rotated-credentials.txt -- ':!scripts/verify/oidc-hybrid-preflight.ps1'
+git grep -n -e '192\.168\.31\.' -- ':!docs/audit-2026-09-17-exceptions-and-i18n.md'
+#    在用文档自身必须零命中（上面已排除的只有"检测器"与"已标注历史快照"）：
+git grep -n -e '192\.168\.31\.' -- docs/deployment docs/standards docs/ENGINEERING_RULES.md docs/business
 
 # 3. 迁移冻结与规范治理（DC-10/DC-08）
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-flyway-immutability.ps1
@@ -343,10 +349,10 @@ git ls-tree -r pre-baseline-consolidation-20261013 |
 # 5. 无第二校验入口（原 G-14）
 #    权威判据（阻断门禁本身，断言仓库内真的不存在第二入口）：
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-repository-hygiene.ps1
-#    辅助 grep：必须排除校验器自身——它为执行本检查而必须写下这两个禁词字面量，否则会把检查规则
-#    本身当成违规（自命中）。排除后剩余的命中应全部是**已移除的记账行**（含"已移出/移出至/关闭/DC-18"），
-#    那些是移除动作的正确历史记录，**不清理**。判据是"没有仍存在的第二入口"，不是"这个词从未出现过"。
-git grep -n -i 'release_manager\|verify.bat' -- ':!scripts/validate/validate-repository-hygiene.ps1'
+#    辅助 grep：与第 2 项同一口径——排除 (a) 检测器自身（它必须写下这两个禁词字面量）与
+#    (b) 已标注历史文档的快照；(c) 本方案自身的记账行（记录"已移出"，即移除动作的证据）。
+#    判据是"没有仍存在的第二入口"，不是"这个词从未出现过"。
+git grep -n -i 'release_manager\|verify.bat' -- ':!scripts/validate/validate-repository-hygiene.ps1' ':!docs/audit-2026-09-17-exceptions-and-i18n.md' ':!docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md' ':!docs/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md'
 
 # 6. 根目录整洁（DC-19 / G-15）
 Get-ChildItem 'D:\projects\cnb-oss' -Force |
