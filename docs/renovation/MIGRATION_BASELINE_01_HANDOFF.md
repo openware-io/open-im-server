@@ -422,9 +422,9 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - **✅ 领域命名建议（本轮按用户给出的领域定义 + 设计文档重新推导，取代上面的 A/B 二选一）**
 
      **⚠️ 本轮推翻了我上一轮"建议改名"的结论——依据是本仓自己的规范**：`ENGINEERING_RULES.md:182` 明文"新领域、新前缀或前缀语义变更必须先完成架构确认，并在上表及对应领域设计中登记后才能创建 Flyway 表；**既有表不得仅为统一缩写而重命名**"。而 `audit_`（已登记、0 表使用、实际用 `iam_audit_*`）与 `paych_`（实际用 `pay_channel_*`）**都是照原样留档、没有改名**。所以本仓既定处置是**登记 + 差异留档**。
-     **→ 建议稿已备好（未并入）：[PREFIX_REGISTRATION_PROPOSAL.md](./PREFIX_REGISTRATION_PROPOSAL.md)**——含按登记表字母序的三行新增、与 `audit_`/`paych_` 同体例的差异说明、改名路线的实测代价（7 表 / ~23 处引用）与落地顺序。
-     **→ 完整决策材料：[DOMAIN_PREFIX_SPEC_REVIEW.md](./DOMAIN_PREFIX_SPEC_REVIEW.md)**——按用户要求梳理的"现行规范 + 领域规范 + 当前现状（19 个服务逐一的表前缀实测分布）+ 6 类偏差 + 业界规范要点 + 建议 + D1~D6 待决策清单"。**前缀相关的决策只需看这一份。**
-     **给用户的领域判断仍然成立**（只是"改名"这一步被规范挡住）：`open` 不是"开源"而是**开放平台 / OAuth 2.0 授权服务器**（证据：`OauthConsentController`、`/oauth/consent`、scope 与授权码）；`group` 与 `idaas` 是**同一限界上下文的两个名**；`saa` 是 `saas` 的截断；`iam_menu` 与 `iam_role` **分属两个上下文却共用 `iam_`**。**这些都写进登记表即可说清，不必靠改名。**
+     **→ 前缀决策的权威材料：v3（最新）[DOMAIN_PREFIX_SPEC_V3.md](./DOMAIN_PREFIX_SPEC_V3.md)**——重新设计稿：设计原则（**概念的层级 = 名字的层级，一一对应不重复**）、可直接并入的条文 3.1–3.6、全部 22 个前缀按"只认限界上下文"重新推导、7 条问题处置（P1–P7）、以及 D1–D7 决策清单。
+     **v1/v2 均已被取代**（v2 顶部已加作废说明）：v1 `DOMAIN_PREFIX_SPEC_REVIEW.md`、v2 `DOMAIN_PREFIX_SPEC_V2.md` 是过程稿，**以 v3 为准**。用户在我提交 v2 后指出两处错误：① `open` 表示**整个工程开源**，**没有语义可重定义**（对全集恒真的词无法区分任何东西）；② 我建议的 `iam_menu` → `saas_menu` 等于**把业务线名写进表前缀**，与我自己写的条文自相矛盾。v3 已纠正：**`console_` 才是域词**。
+     **另一处需你拍板的关键点（v3 §五）**：那 3 张表实为 **OAuth 2.0 授权服务器**（`OauthConsentController`、`/oauth/consent`、授权码），但 `open` 在本仓被定义为"开源"——**你的定义与事实对不上，所以问题不在前缀写法，而在"这个域叫什么"**。v3 给了 A 保留 `open_` 并写明"开放授权" / **B 改 `oauth_`（建议，7 处引用）** / C 并入 `user_` 三个选项。
 
      **用户澄清的领域语义**：`open` = 开源（本项目属性）、`group` = 集团、`idaas` = 集团认证服务（身份即服务）、`saas` = 业务核心 SaaS 域。
 
