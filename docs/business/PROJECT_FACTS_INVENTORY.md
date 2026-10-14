@@ -112,6 +112,22 @@
 | ② 待裁决 | `iam_` 是否更名以名实相符（如 `authz_`） | 涉及新增前缀 → 依 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) §182 须先架构确认 |
 | ③ 不动 | `iam_menu` 保留 | §3.1 已证为 IAM 迭代的有意结果 |
 
+### 3.3 架构分裂：认证在集团层、授权在 SaaS 层（实测）
+
+这是 §3.2 "`iam` 名不符实"的**根因**，也是本工程最需要澄清的架构事实。
+
+| 维度 | 集团层 `group-services/idaas` | SaaS 层 `platform-tenant-service` |
+| --- | --- | --- |
+| 职责 | **认证**：集团账号、组织、SSO、会话、JWT 签发 | **授权**：RBAC 角色/权限/作用域/审批 |
+| 代码证据 | 全部 19 个类无授权概念；`Role`=**0**、`Permission`=**0**、`Grant`=**0**、`Policy`=**0** | `Role`=**260** 处、`Permission`=**245** 处、`Authoriz`=57 处 |
+| 代表类/表 | `AuthController`、`AuthApplicationService`、`GroupJwtSigner`、`GroupSessionTtl`、`IdaasSessionStore`、`group_account`、`group_org`、`idaas_client` | `iam_role`、`iam_permission`、`iam_user_role`、`iam_approval` |
+
+**即**：集团层**有身份、无授权**；SaaS 层**有授权、无身份**（身份的权威在 `idt_*`/`group_account`/`user_*`）。二者都属"身份与权限"范畴，却分属两层、且各自缺一半。
+
+**这正是"`iam` 名不符实"的根因**：`iam`（Identity **and** Access Management）这个词**同时暗示身份与授权**，而工程把两者拆到了不同层——集团做身份（却叫 idaas），SaaS 做授权（却叫 iam）。**两个名字都只覆盖了自己真正职责的一半。**
+
+> **待澄清的架构问题（非缺陷，需口径）**：集团层作为"统管两条业务线"的层级，是否**应当**拥有平台级授权模型？当前设计是"集团只管理、不参与业务"，授权完全在 SaaS。这是**有意边界**还是**待演进**，需产品/架构定调——它决定 `iam` 是改名（归位到 SaaS 的授权语义）还是**未来会被集团层收编**。
+
 **门禁现状**：`validate-flyway-conventions.ps1` 报 **7 条**（= V2+V3+V4+V5 共 7 张表）。另两个耦合点：**L167** 查前缀已登记；**L63-65** 查已登记前缀必须出现在 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md)（反引号正则）。→ 登记须**两处同改**；移除须**先删文档行再删清单行**。
 
 ### 3.1 `iam_` 跨服务的历史原因（实测 git 证据）
