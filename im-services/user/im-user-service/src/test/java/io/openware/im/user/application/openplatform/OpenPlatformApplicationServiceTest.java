@@ -76,7 +76,7 @@ class OpenPlatformApplicationServiceTest {
 
   @Test
   void prepareConsent_acceptsExactUriRegisteredForCurrentEnvironment() {
-    String lanCallback = "http://192.168.31.91:30082/a380/";
+    String lanCallback = "https://h5.example.com/a380/";
     when(openApplicationRepository.isRedirectUriRegistered("app-1", lanCallback)).thenReturn(true);
 
     ConsentView view = service.prepareConsent(new ConsentQuery("app-1", lanCallback, "profile.basic", "st",
