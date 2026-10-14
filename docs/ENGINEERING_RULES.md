@@ -151,9 +151,11 @@ common-services/
 
 ## 数据库生产规范
 
-- 当前阶段所有表允许放在单库中，默认数据库名为 `gv_im`
-- 运行时代码分三类域：IM 业务（`im-services/`、`im-*`）、平台/SaaS 业务（`platform-services/`、`platform-*`）、通用支撑（`common-services/`、`common-*`，如媒体/审核/邮件/短信/支付渠道）；公共 SDK 库放 `sdk/`（`common`/`infrastructure`/`im-protocol-*`）。IM 与 SaaS 数据库独立（IM 库与 SaaS 库分设，SaaS 库名为 `gv_saas`）、代码独立、独立部署、可独立销售；公共工程规范、技术框架与公共依赖抽为公共结构共享，业务形态不耦合。SaaS 内部多租户采用共享库 + 行级租户隔离。
+- 库名与业务线一一对应（详见下文"命名空间分层与命名原则"的数据库命名条）：**IM 业务线 `open_im`（`IM_DATABASE`）**、**SaaS 业务线 `open_saas`（`SAAS_DATABASE`）**、**审计域 `open_audit`（`AUDIT_DATABASE`）**、**集团层 `open_group`（`GROUP_DATABASE`）**。当前阶段各条业务线的表集中放各自库；SaaS 内部多租户采用**共享库 + 行级租户隔离**。
+- 运行时代码分三层四区：IM 业务（`im-services/`）、SaaS 业务（`platform-services/`）、集团层（`group-services/`）、通用支撑（`common-services/`，如媒体/审核/邮件/短信/支付）；公共 SDK 库放 `sdk/`（`common`/`infrastructure`/`protocol-mq`）。IM 与 SaaS **数据库独立、代码独立、独立部署、可独立销售**；公共工程规范、技术框架与公共依赖抽为公共结构共享，业务形态不耦合。
 - 单库不等于混用。表名统一使用“已登记领域缩写前缀 + 单数业务名词”；缩写的目的在于控制表名长度，但必须语义稳定、全局唯一，禁止按开发人员偏好临时创造。
+
+> 📐 **工程结构图**（仓库划分 · 构建单元 · 依赖方向 · 服务内分层）见 [工程架构图集](./business/ARCHITECTURE_DIAGRAMS.md) §三；**领域架构图**（域 → 表前缀 → 权威服务 → 库）见同文件 §二。
 
 #### 命名空间分层与命名原则
 
