@@ -142,21 +142,7 @@ docs/common-services/        ← audit / media / mail / sms
 
 ---
 
-## 六、⚠️ 阻塞项：工作区事实清单应放哪
-
-我在 v2 里把事实清单放进了 `open-im-server/docs/business/`，但**它现在必须覆盖 10 个仓库**，放在服务端仓库里不合适。三个选项：
-
-| 选项 | 说明 |
-| --- | --- |
-| **① `.github` 仓库** | 组织级，天然跨仓库（该仓库已存在且是 git 仓库） |
-| ② `open-im-server/docs/` 保留 | 但需明确"这是工作区级文档，非本仓专属" |
-| ③ 新建工作区级文档仓库 | 最规范但需新建仓库 |
-
-**建议 ①**（`.github` 是组织级配置仓库，正合"跨仓库规范与事实清单"之用）。**请你在 E5 定。**
-
----
-
-## 七、执行清单（v3，工作区级）
+## 六、执行清单（v3，工作区级）
 
 | 步 | 动作 | 范围 | 状态 |
 | --- | --- | --- | --- |
@@ -173,7 +159,45 @@ docs/common-services/        ← audit / media / mail / sms
 
 ---
 
-## 八、决策已全部确认（执行口径）
+## 七、A（审计域归位）改名执行规格（已实证安全，可执行）
+
+**改名**：`iam_audit_` → `audit_`（纯 token 替换）
+
+**安全性已实证**：
+- `iam_audit_` 之后紧跟的字符只有 `l`(72 处)、`i`(32)、`a`(19)——即只会拼出 `audit_log` / `audit_idempotency` / `audit_archive_manifest`，**不存在 `iam_audit__` 或半个 token 的边界情况**。
+- `AuditLogMapper`、`AuditLogPo` 两个目标类名**均不存在**（无碰撞）；现有 `AuditLog.java` 在 `domain.model` 包，与 `infra.persistence.po.AuditLogPo` **不同包，不冲突**。
+- 已实测全新库上不存在名为 `audit_log` 的其他表（无表名碰撞）。
+
+**受影响的 4 类，共 5 个 SQL + 24 个代码/脚本文件**：
+
+| 类别 | 文件 | 旧名出现 |
+| --- | --- | --- |
+| **迁移 SQL** | `db/migration/V1__iam_audit_baseline.sql` | 14 |
+| | `db/migration/V3__audit_occurred_at_backfill.sql` | 2 |
+| | `db/migration-audit/V1__audit_idempotency_ledger.sql` | 4 |
+| | `db/migration-audit/V2__audit_partitioned_table.sql` | 11 |
+| | `db/migration-audit/V3__audit_archive_manifest.sql` | 3 |
+| **迁移文件名** | `V1__iam_audit_baseline.sql` → **`V1__audit_baseline.sql`** | — |
+| **PO / Mapper** | `IamAuditLogPo.java` → **`AuditLogPo.java`**（`@TableName` 同步） | 2 |
+| | `IamAuditLogMapper.java` → **`AuditLogMapper.java`** | 6 |
+| | `AuditArchiveManifestPo.java`、`AuditArchiveManifestMapper.java`（`@TableName`/`@Insert`） | 2 + 2 |
+| | `AuditPartitionMapper.java`（`ALTER TABLE`/`DELETE FROM`/`SELECT`） | 4 |
+| **原生 SQL 注解与注释** | `AuditLogView`、`AuditLogApplicationService`、`AuditArchiveManifest`、`AuditLogRepositoryImpl`、`AuditErrorCodes`、`WalletApplicationService` | 各 1–2 |
+| **测试** | `AuditIdempotencyLedgerH2Test`(13)、`AuditArchiveManifestH2Test`(8)、`AuditPartitionInvariantTest`(4)、`AuditOccurredAtMigrationTest`(4)、`AuditLogRepositoryH2QueryTest`(3)、`AuditLogApplicationServiceTest`(1) | 33 |
+| **工具/脚本** | `scripts/verify/verify-audit-storage.ps1`(12)、`scripts/verify/AuditPartitionDdlCheck.java`(12)、`scripts/verify/audit-partition-verify.sql`(9)、`scripts/migration/audit-backfill-to-gv-audit.sql`(11) | 44 |
+| **门禁/清单** | `scripts/validate/validate-flyway-conventions.ps1`(1)、`scripts/validate/tenant-platform-tables.txt`(1) | 2 |
+
+**索引名同步**（规范要求 `uk_/idx_<表名>_<语义>`）：
+`uk_iam_audit_log_tenant_idempotency` → `uk_audit_log_tenant_idempotency`；
+`idx_iam_audit_log_*`（7 个）→ `idx_audit_log_*`；
+`uk_iam_audit_idempotency_tenant_key` → `uk_audit_idempotency_tenant_key`；
+`idx_iam_audit_idempotency_created` → `idx_audit_idempotency_created`；余同。
+
+**⚠️ 不改**：
+- `flyway_schema_history_audit`（history 表名，非域表）；
+- `scripts/migration/audit-backfill-to-gv-audit.sql` 的**文件名**（改内容即可；文件名含 `gv-audit` 属旧名，可另行改名）。
+
+**执行后验证**：`mvnw --offline -B -ntp -pl common-services/audit/common-audit-service -am clean test`（审计模块 115 测试应全绿）；再跑 `validate-flyway-conventions.ps1` 确认 7→4。
 
 | # | 决策 | **结论** |
 | --- | --- | --- |
@@ -183,6 +207,11 @@ docs/common-services/        ← audit / media / mail / sms
 | **E4** | 集团库名 | ✅ **`open_group`** |
 | **E5** | 事实清单归属 | ✅ **就在后端总仓 `open-im-server`**（即工程详细文档），**并且它就是"工程详细文档"本身**——不再另建位置 |
 | **E6** | 前端文档位置 | ✅ **留在后端总仓 `open-im-server/docs/`**——后端总仓是**全局视角**，关联前端文档放这里**合适**；此结论**写入文档规范，不再重复询问** |
+## 八、决策已全部确认（执行口径）
+
+| # | 决策 | **结论** |
+| --- | --- | --- |
+
 | **E7** | 运行期标识 | ✅ **分步骤做**（与文档/注释改名分开推进） |
 
 ### 由此确定的两条文档规范（写入规范文档）
