@@ -7,8 +7,8 @@ if ([string]::IsNullOrWhiteSpace($MySql)) { $MySql = 'mysql' }
 if ([string]::IsNullOrWhiteSpace($env:DB_HOST) -or [string]::IsNullOrWhiteSpace($env:DB_USERNAME) -or [string]::IsNullOrWhiteSpace($env:DB_PASSWORD)) {
   throw 'DB_HOST, DB_USERNAME and DB_PASSWORD must be supplied by managed environment variables.'
 }
-$database = if ($env:DB_DATABASE) { $env:DB_DATABASE } else { $env:DB_NAME }
-if ([string]::IsNullOrWhiteSpace($database)) { throw 'DB_DATABASE or DB_NAME must be set.' }
+$database = if ($env:IM_DATABASE) { $env:IM_DATABASE } elseif ($env:DB_DATABASE) { $env:DB_DATABASE } else { $env:DB_NAME }
+if ([string]::IsNullOrWhiteSpace($database)) { throw 'IM_DATABASE (or the legacy DB_DATABASE/DB_NAME) must be set.' }
 $query = "SELECT COUNT(*) AS release_count FROM adm_app_release; SELECT COUNT(*) AS unexpected_schema_count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('adm_client_release','adm_client_release_artifact','adm_client_release_policy','adm_client_release_audit_log','adm_client_release_operation','adm_app_release_retired_v1');"
 $previousMySqlPassword = $env:MYSQL_PWD
 try {

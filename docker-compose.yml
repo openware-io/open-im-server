@@ -5,7 +5,7 @@ services:
       - "127.0.0.1:13306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      MYSQL_DATABASE: ${DB_DATABASE:?DB_DATABASE must be set}
+      MYSQL_DATABASE: ${IM_DATABASE:?IM_DATABASE must be set}
       MYSQL_USER: ${DB_USERNAME:?DB_USERNAME must be set}
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
     volumes:
@@ -65,7 +65,7 @@ services:
       DB_PORT: 3306
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME must be set}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      DB_DATABASE: ${DB_DATABASE:?DB_DATABASE must be set}
+      IM_DATABASE: ${IM_DATABASE:?IM_DATABASE must be set}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}

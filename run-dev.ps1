@@ -70,7 +70,7 @@ $env:IM_OUTPUT_ROOT = $outputRoot
 $env:LOG_FILE = Join-Path $serviceLogDir "application.log"
 $env:LOG_FILE_PATTERN = Join-Path $serviceLogDir "application.%d{yyyy-MM-dd}.%i.log.gz"
 
-Write-Host "Loaded env from .env (DB=$env:DB_DATABASE@$env:DB_HOST)"
+Write-Host "Loaded env from .env (DB=$(if ($env:IM_DATABASE) { $env:IM_DATABASE } else { $env:DB_DATABASE })@$env:DB_HOST)"
 Write-Host "Starting service=$Service (PORT=$env:PORT)"
 Write-Host "Application log: $env:LOG_FILE"
 

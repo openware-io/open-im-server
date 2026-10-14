@@ -135,9 +135,9 @@ function Wait-ForGatewayHealth {
 }
 
 function Reset-Database {
-  $database = Get-RequiredEnvironmentValue 'DB_DATABASE'
+  $database = Get-RequiredEnvironmentValue 'IM_DATABASE'
   if ($database -notmatch '^[A-Za-z0-9_]+$') {
-    throw 'DB_DATABASE may contain only letters, numbers, and underscores when -ResetDatabase is used.'
+    throw 'IM_DATABASE may contain only letters, numbers, and underscores when -ResetDatabase is used.'
   }
 
   $dbHost = Get-RequiredEnvironmentValue 'DB_HOST'
@@ -173,7 +173,7 @@ if ($Stop) {
 }
 
 $requiredVariables = @(
-  'DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE',
+  'DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'IM_DATABASE',
   'REDIS_HOST', 'REDIS_PORT', 'REDIS_PASSWORD',
   'MONGODB_HOST', 'MONGODB_PORT', 'MONGODB_DATABASE', 'MONGODB_USERNAME', 'MONGODB_PASSWORD',
   'ROCKETMQ_NAMESRV_ADDR', 'JWT_SECRET', 'INTERNAL_SERVICE_AUTH_SECRET',
