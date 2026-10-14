@@ -9,6 +9,20 @@
 - 版本、依赖、插件和质量门禁必须集中治理，任何例外必须可说明、可校验、可清理。
 - Maven Reactor 成功不等同于功能完整；不得以排除生产源码、跳过关键校验等方式制造“假绿”构建。
 
+## 术语与前置假设
+
+| 术语 | 定义 |
+| --- | --- |
+| 聚合 POM | 只做模块聚合、无可部署制品的父级 POM（根与各层聚合）。 |
+| 领域父 POM | 一个限界上下文内共享配置的父 POM；不承载业务实现。 |
+| 构建单元 | 产生可部署制品的最小单元（叶子服务）。 |
+| 契约模块 | `*-api`：对外发布的接口与 DTO；不得依赖 Spring 或持久层。 |
+| 版本所有权 | 每个版本号有且只有一个声明位置；其他位置只能引用，不得重复固定。 |
+| 依赖收敛 | 同一依赖在整棵依赖树中解析到单一版本。 |
+| `install` 与 `package` | `install` 写入本地仓库并同步 IDE 依赖解析；`package` 只产出制品。 |
+
+**前置假设**：使用仓库自带的 Maven Wrapper（`mvnw`/`mvnw.cmd`），不依赖本机 Maven；构建环境可访问依赖仓库；JDK 版本由根 POM 与 Enforcer 共同约束。
+
 ## 工程拓扑
 
 ```text
@@ -20,7 +34,7 @@ im-server
 │   └── infrastructure
 ├── gateways
 │   ├── gateway
-│   └── im-access-ws
+│   └── <gateway-module-2>
 └── services
     └── <domain>
         ├── <service>-api
@@ -43,7 +57,7 @@ im-server
 - 根 `im-server` 的版本仅表达全仓构建基线版本，不作为全部业务服务的发布版本；根聚合和结构聚合 POM 保持纯 SemVer，不追加 `-SNAPSHOT`。
 - 平台版本由根 `pom.xml` 的 `sdk.version` 唯一持有（平台聚合 POM `sdk/pom.xml` 不承载 `dependencyManagement`）；平台内部模块继承该版本，服务域引用平台制品统一使用该属性。
 - 每个 `im-services/<domain>/pom.xml` 维护该服务域的稳定基础版本，保持纯 SemVer；开发分支的可部署叶子服务 Maven 版本使用对应基础版本的 `-SNAPSHOT` 形式，正式构建恢复为纯 SemVer。叶子版本迁移必须同步检查其父版本、依赖管理和构件坐标。
-- `gateway` 与 `im-access-ws` 是独立部署单元，可在自身 POM 声明独立版本；如未来拆出专属网关父 POM，应由该父 POM 管理网关域版本。
+- 网关域的两个接入模块 是独立部署单元，可在自身 POM 声明独立版本；如未来拆出专属网关父 POM，应由该父 POM 管理网关域版本。
 - 同域 API 与 Service 的版本关系必须按实际发布边界保持一致；若叶子 API 与 Service共同作为一个服务域发布，开发阶段一起使用同一 `-SNAPSHOT` 基础版本，领域父 POM仍保持纯 SemVer。
 - 禁止使用 `LATEST`、`RELEASE`、版本区间或动态版本作为项目依赖版本。
 
@@ -55,10 +69,10 @@ im-server
 - 版本升级使用 Maven Versions Plugin，并在升级后检查 API 和 Service 的有效版本；开发分支叶子服务使用 `-SNAPSHOT`，正式构建使用同一基础版本的纯 SemVer：
 
 ```powershell
-.\mvnw.ps1 -f im-services/user/pom.xml versions:set -DnewVersion=1.1.0-SNAPSHOT
-.\mvnw.ps1 -f im-services/user/pom.xml versions:update-child-modules
-.\mvnw.ps1 -f im-services/user/im-user-api/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout
-.\mvnw.ps1 -f im-services/user/im-user-service/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout
+.\mvnw.ps1 -f <context-root>/pom.xml versions:set -DnewVersion=1.1.0-SNAPSHOT
+.\mvnw.ps1 -f <context-root>/pom.xml versions:update-child-modules
+.\mvnw.ps1 -f <context-root>/<svc>-api/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout
+.\mvnw.ps1 -f <context-root>/<svc>-service/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout
 ```
 
 ## 依赖治理
@@ -75,7 +89,7 @@ im-server
 ### 内部依赖边界
 
 - 业务服务可依赖平台模块、同域 API 和经批准的其他服务 API；禁止依赖其他业务服务的 `*-service`。
-- `gateway` 与 `im-access-ws` 不得依赖任何业务 `*-service`，不得承载用户、积分、营销、消息权威写入等业务实现。
+- 网关域的两个接入模块 不得依赖任何业务 `*-service`，不得承载用户、积分、营销、消息权威写入等业务实现。
 - 接入层不得声明 MyBatis-Plus、MySQL 驱动、Flyway 等关系型持久层依赖，除非其被重新定义为权威数据服务并完成架构评审。
 - 业务模块不得直接声明 MyBatis-Plus 底层组件或 `flyway-core`；持久化与迁移依赖遵循 [21 持久层技术栈标准](./21_PERSISTENCE_STACK.md)。
 
@@ -151,10 +165,57 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-en
 
 ## 规范适配与改造分离
 
-- 本文只定义可复用的 Maven 原则、约束、模板、门禁与验收标准，不记录任何具体工程的存量缺陷、整改优先级或迁移步骤；正文中出现的 `im-access-ws`、`gateway`、`im-services/user` 等仅用于说明规则的应用方式，属**示例**，不构成强制命名或目录要求。
+- 本文只定义可复用的 Maven 原则、约束、模板、门禁与验收标准，不记录任何具体工程的存量缺陷、整改优先级或迁移步骤；正文中出现的占位符（如 `<context-root>`、`<svc>-api`、`<svc>-service`）仅用于说明规则的应用方式，属**示例**，不构成强制命名或目录要求。
 - 具体工程在采用本规范前，必须单独编写“现状评估与改造方案”，将实际 POM、脚本、模块依赖图与本规范逐项比对，并记录范围、优先级、风险、回滚与验收证据。
 - 工程案例只能用于说明规则的应用方式，案例中的组织名、模块名、版本号和路径不得被解释为规范强制要求。
 - 改造方案完成后，应将可复用结论回写到本规范或相应专项规范；项目特有决策保留在改造方案和架构决策记录中。
+
+## 原则与禁止项
+
+**原则**：
+1. **单一版本所有权**：每个版本号有且只有一个声明位置，其余位置只引用不固定。
+2. **边界即部署边界**：Maven 模块依赖必须与部署单元边界一致；跨服务只能依赖对方 `*-api`。
+3. **可复现优先**：Wrapper、JDK、插件与依赖版本全部显式固定，不依赖本机隐式环境。
+4. **集中治理**：依赖、插件与质量门禁在根 POM 或 BOM 集中声明，例外须说明、可校验、可清理。
+5. **真绿才算绿**：Reactor 成功不等于功能完整，禁止以排除源码、跳过校验制造"假绿"。
+
+**禁止项**：
+- 用 `latest`、`dev`、`dirty` 或手工标签作为可部署制品版本；
+- 业务模块覆盖 Boot BOM 已管理的版本；
+- 根 POM 登记业务 API 或业务 Service 制品（会绕过服务边界）；
+- 同一平台版本散落在多个 POM；
+- 修改模块依赖、构建脚本或 POM 后不执行 Maven Reload 与 IDE 诊断检查；
+- 任一门禁失败时以跳过、排除或降低规则等级方式合并。
+
+**例外**：**无长期例外**；临时例外须在根 POM 集中声明原因与**退出计划**，并登记到期条件。
+
+## 构建与验证模板
+
+```powershell
+# 局部验证（改动所在域）
+.\mvnw.cmd -B -ntp -pl <context-root>/<svc>-service -am clean test
+
+# 涉及新增模块或协议契约变更：必须 install 以同步本地仓库与 IDE 解析
+.\mvnw.cmd -B -ntp -pl <context-root>/<svc>-service -am clean install
+
+# 全量验证（发布前）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\invoke-engineering-validation.ps1 -Scope Full
+```
+
+**新增模块的最小 POM 要素（示例）**：`parent` 指向聚合 POM、`artifactId` 与目录一致、无版本号（由父管理）、`dependencies` 只含允许的边界内依赖。
+
+## 可验证的验收标准
+
+| # | 判据 | 证据形式 |
+| --- | --- | --- |
+| 1 | 无重复版本声明：同一版本号只有一个声明位置 | 版本所有权门禁通过 |
+| 2 | 依赖收敛：同一依赖在依赖树中只有一个解析版本 | Enforcer 依赖收敛通过 |
+| 3 | 边界正确：业务实现不跨服务 Maven 依赖，跨服务只用 `*-api` | 服务依赖图门禁通过 |
+| 4 | 无违规版本标记：无 `latest`/`dev`/`dirty`/手工标签 | 制品标签校验通过 |
+| 5 | 局部 `verify` 与根 Reactor 均成功；涉及契约变更时已 `install` | 构建输出与退出码 |
+| 6 | Maven Reload 与 IDE Problems 已复查且无新增诊断 | IDE 诊断截图或记录 |
+
+**完成定义**：上表逐项有可复现证据，且统一工程校验入口在该范围退出码为 0。
 
 ## 变更检查清单
 
