@@ -9,7 +9,6 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
-flyway-conventions | batch 2 (baseline rebuild) | .outputs/quality/flyway-conventions-worklist.txt | the baseline consolidation cleared 419 -> 7, and the last 7 are all table-prefix decisions the user parked ("open_" x3, "saa_" x1, "group_"/"idaas_" x3). The gate cannot reach zero until those prefixes are either renamed or registered as domains.
 service-api-boundaries | batch 3 (layering refactor) | .outputs/quality/service-api-boundaries-worklist.txt | 137 controllers/application classes across all four domain roots (including the previously excluded platform-services) still depend on persistence implementations.
 standards-governance | batch 4 (standards cleanup) | .outputs/quality/standards-governance-worklist.txt | 107 items: 23 project module names and 5 absolute paths inside the standards layer, 11 TODO markers, and 68 missing minimal-template sections across 15 standards files.
 java-silent-catch | batch 3 (code sweep) | .outputs/quality/java-silent-catch-worklist.txt | 103 catch blocks swallow exceptions without a log call or rethrow (22 of them empty), violating "no silent exception swallowing".

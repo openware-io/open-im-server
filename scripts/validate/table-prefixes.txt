@@ -9,20 +9,22 @@
 # When the registry gains (or renames) a domain prefix, update BOTH this file and the doc.
 #
 # One prefix per line, '#' starts a comment. Trailing underscores are optional.
+# A table named `cons_*` has the prefix `cons` (prefixes carry no underscore).
 
-# --- platform / shared ---
-# (no table prefix: sdk/ is a non-runnable library, it does not own tables)
-# --- IM business domains ---
+# --- IM business line ---
 user
+open
 msg
 conversation
 adm
-ord
-# --- SaaS domains ---
+ws
+# --- SaaS business line ---
 idt
 tnt
 iam
+cons
 res
+ord
 pay
 cst
 mkt
@@ -32,4 +34,8 @@ audit
 mail
 sms
 paych
-ws
+# --- group level ---
+idaas
+# `group` is kept registered because group_account / group_org still carry it; the registry
+# documents it as the historical name being consolidated into idaas_ (see ENGINEERING_RULES.md).
+group

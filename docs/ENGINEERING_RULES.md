@@ -186,26 +186,32 @@ common-services/
 
 ### 领域与数据库表前缀登记表
 
-| 领域 | 领域职责 | 数据库表前缀 | 状态 | 示例/说明 |
-| --- | --- | --- | --- | --- |
-| User | IM 账户、社交关系、用户积分（IM 域，非 SaaS 账号） | `user` / `user_` | 历史冻结 | `user` 为主表，附属表如 `user_friend` |
-| Message | 消息、已读、同步索引 | `msg_` | 历史冻结 | `msg_message` |
-| Conversation | 群组、成员、会话投影 | `conversation_` | 历史冻结 | `conversation_group` |
-| Admin | 平台管理读模型与配置 | `adm_` | 历史冻结 | `adm_system_config` |
-| Order | 预约、订单、KTV 履约（首发）、酒店/足浴（后续） | `ord_` | 历史冻结并扩展 | `ord_reservation`、`ord_order` |
-| Media | 媒体对象、上传会话、存储适配、访问授权（通用支撑域） | `media_` | 二阶段 | `media_object`、`media_upload_session` |
-| Audit | 审计事件、审计分区与归档清单（通用支撑域） | `audit_` | 预留 | 尚无表使用；`common-audit-service` 现有表沿用 `iam_audit_*`（属历史口径，`iam_` 另见 IAM 域） |
-| Mail | 邮件渠道配置、模板、发送日志（通用支撑域） | `mail_` | 二阶段 | `mail_channel_config`、`mail_template`、`mail_send_log` |
-| SMS | 短信渠道配置、模板、发送日志（通用支撑域） | `sms_` | 二阶段 | `sms_channel_config`、`sms_template`、`sms_send_log` |
-| Payment Channel | 支付渠道适配与渠道参数（通用支撑域·支付域子域） | `paych_` | 预留 | 尚无表使用；`common-payment-channel-service` 现有表用 `pay_channel_*`（与支付业务 `pay_` 同前缀） |
-| WebSocket | 长连接接入 | `ws_` | 保留 | 新建持久化表前需补充领域设计 |
-| Identity | SaaS 平台账号、登录、OAuth 绑定、资料同步 | `idt_` | 二阶段 | `idt_account`、`idt_login_identity`、`idt_oauth_link` |
-| Tenant | 租户、组织、门店、商户主体 | `tnt_` | 二阶段 | `tnt_tenant`、`tnt_store` |
-| IAM | 身份与访问控制、角色、授权范围 | `iam_` | 二阶段 | `iam_role`、`iam_user_role` |
-| Resource | 包厢（首发）、房间、技师等经营资源及占用 | `res_` | 二阶段 | `res_resource`、`res_occupation` |
-| Payment | 收款、退款、押金、班次、日结（通用支撑域·支付域） | `pay_` | 二阶段 | `pay_intent`、`pay_refund` |
-| Customer | 租户客户、会员、积分、储值、权益 | `cst_` | 二阶段 | `cst_customer`、`cst_point_ledger` |
-| Marketing | 活动、优惠券、触达、营销同意 | `mkt_` | 二阶段 | `mkt_campaign`、`mkt_coupon` |
+**列说明**：**业务线**按代码根与库名区分（IM / SaaS / 集团 / 通用支撑）；**权威服务**指该域数据的权威写方（跨域表见行内说明）；**状态**中"预留"表示前缀已登记但尚无表使用。
+
+| 领域 | 领域职责 | 表前缀 | 业务线 | 权威服务 / 限界上下文 | 状态 | 示例/说明 |
+| --- | --- | --- | --- | --- | --- | --- |
+| User | IM 账户、社交关系、用户积分（IM 域，非 SaaS 账号） | `user` / `user_` | IM | `im-user-service` | 历史冻结 | `user` 为主表，附属表如 `user_friend` |
+| Open Platform | 第三方应用注册、scope 定义、OAuth 用户授权与授权码签发（**开放平台，非"开源"义**） | `open_` | IM | `im-user-service`（`openplatform` 子域） | 二阶段 | `open_application`、`open_application_scope`、`open_user_authorization`；实际为 OAuth 2.0 授权服务器 |
+| Message | 消息、已读、同步索引 | `msg_` | IM | `im-message-service` | 历史冻结 | `msg_message` |
+| Conversation | 群组、成员、会话投影 | `conversation_` | IM | `im-conversation-service` | 历史冻结 | `conversation_group` |
+| Admin（IM 后台） | IM 平台管理读模型与配置（**与 SaaS 后台独立**） | `adm_` | IM | `im-admin-service` | 历史冻结 | `adm_system_config`、`adm_report` |
+| Media | 媒体对象、上传会话、存储适配、访问授权（通用支撑域） | `media_` | 通用支撑 | `common-media-service` | 二阶段 | `media_object`、`media_upload_session` |
+| Audit | 审计事件、审计分区与归档清单（通用支撑域，**IM 与 SaaS 共同调用**） | `audit_` | 通用支撑 | `common-audit-service` | 二阶段 | `audit_log`、`audit_idempotency`、`audit_archive_manifest`；独立 schema `open_audit` |
+| Mail | 邮件渠道配置、模板、发送日志（通用支撑域） | `mail_` | 通用支撑 | `common-mail-service` | 二阶段 | `mail_channel_config`、`mail_template`、`mail_send_log` |
+| SMS | 短信渠道配置、模板、发送日志（通用支撑域） | `sms_` | 通用支撑 | `common-sms-service` | 二阶段 | `sms_channel_config`、`sms_template`、`sms_send_log` |
+| Payment Channel | 支付渠道适配与渠道参数（通用支撑域·支付域子域） | `paych_` | 通用支撑 | `common-payment-channel-service` | 预留 | 尚无表使用；现有表用 `pay_channel_*`（与支付业务 `pay_` 同前缀） |
+| WebSocket | 长连接接入 | `ws_` | IM | `im-access-ws` | 保留 | 无迁移根；新建持久化表前需补充领域设计 |
+| IDaaS（集团认证服务） | 集团统一账号、集团组织、SSO、会话、JWT 签发（**只管理、不参与业务**） | `idaas_` | 集团 | `group-idaas-service` | 二阶段 | `idaas_client`；`group_account` 历史口径（见末行） |
+| Identity | SaaS 平台账号、登录、OAuth 绑定、资料同步（**不是 IDaaS**） | `idt_` | SaaS | `platform-identity-service` | 二阶段 | `idt_account`、`idt_login_identity`、`idt_oauth_link` |
+| Tenant | 租户、组织、门店、商户主体、配置 | `tnt_` | SaaS | `platform-tenant-service` | 二阶段 | `tnt_tenant`、`tnt_store`。⚠️ 跨域表 `tnt_payment_method` 由 `common-payment-service` 建（支付域拥有该表） |
+| IAM（访问控制/授权） | 角色、权限、作用域授权、授权审批。**本域只做授权（Access Management）**；身份由 `idt_`（SaaS 平台账号）、`group_account`（集团）、`user_`（IM）分别承担 | `iam_` | SaaS | `platform-tenant-service`（授权事实）；`iam_menu` 为 `platform-admin-service` 的控制台呈现（IAM 迭代产物） | 二阶段 | `iam_role`、`iam_user_role`、`iam_permission`、`iam_approval`、`iam_menu` |
+| Console（运营控制台） | 控制台自身数据：后台账号、菜单/导航（**引用权限，不定义权限**） | `cons_` | SaaS | `platform-admin-service` | 二阶段 | `cons_admin_account`、`iam_menu`（菜单仍属 IAM 迭代产物） |
+| Resource | 包厢（首发）、房间、技师等经营资源及占用 | `res_` | SaaS | `platform-resource-service` | 二阶段 | `res_resource`、`res_occupation` |
+| Order | 预约、订单、明细、KTV 履约（首发）/酒店/足浴（后续）。⚠️ **业态（KTV/HOTEL/SPA/RETAIL）是 `business_type` 列，不是域** | `ord_` | SaaS | `platform-order-service` | 历史冻结并扩展 | `ord_reservation`、`ord_order` |
+| Payment | 收款、退款、押金、班次、日结（通用支撑域·支付域） | `pay_` | SaaS | `common-payment-service` | 二阶段 | `pay_intent`、`pay_refund` |
+| Customer | 租户客户、会员、积分、储值、权益 | `cst_` | SaaS | `platform-customer-service` | 二阶段 | `cst_customer`、`cst_point_ledger` |
+| Marketing | 活动、优惠券、触达、营销同意 | `mkt_` | SaaS | `platform-marketing-service` | 二阶段 | `mkt_campaign`、`mkt_coupon` |
+| ~~Group~~（已收敛） | **历史口径**：集团账号、集团组织。已收敛为 `idaas_`（`idaas_account`、`idaas_org`），本行仅为可追溯而留档 | ~~`group_`~~ | 集团 | — | **已收敛** | 旧名 `group_account`、`group_org`；采用 `idaas_` 因其与服务名/包名一致，且 `group` 是组织层级名兼 SQL 保留字 |
 
 - 通用支撑域（Common Services）承载跨业务通用运行能力：媒体（`media_`）、审核（`audit_`，预留）、邮件、短信、支付渠道（`paych_`，预留）等；各能力独立建表、独立前缀、独立登记，配置管理与审计统一进通用能力后台（角色权限控制）。支付渠道适配（`common-payment-channel-service`）与支付业务（`common-payment-service`，`pay_` 前缀）同属支付域（支撑域子域），职责分离：渠道适配 vs 资金事实。
 - 新领域、新前缀或前缀语义变更必须先完成架构确认，并在上表及对应领域设计中登记后才能创建 Flyway 表；既有表不得仅为统一缩写而重命名。
