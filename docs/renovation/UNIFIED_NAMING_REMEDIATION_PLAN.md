@@ -173,12 +173,19 @@ docs/common-services/        ← audit / media / mail / sms
 
 ---
 
-## 八、还需你定的 5 点
+## 八、决策已全部确认（执行口径）
 
-| # | 决策 | 选项 |
+| # | 决策 | **结论** |
 | --- | --- | --- |
-| **E1** | 前缀 | **`cons`（可执行）** / `csl` |
-| **E2** | 库名统一（A1）变量名与目标名 | `open_im`+`IM_DATABASE` / `open_saas`+`SAAS_DATABASE` / `open_audit` / 集团库待 E4 |
-| **E3** | D5 清单确认 | `gv_chat_app`→`open-chat-app`？`gv_chat_desktop`→`open-chat-desktop`？`gv_chat_admin`→`open-chat-admin`？`WV Chat`→？`GV_*` 环境变量→`OPEN_*`？ |
-| **E4** | 集团库名 | `open_group` / `open_idaas` / 其他 |
-| **E5** | 工作区事实清单放哪 | **`.github`（建议）** / 留 `open-im-server/docs/` / 新建仓库 |
+| **E1** | 控制台前缀 | ✅ **`cons`** |
+| **E2** | 库名统一（A1） | ✅ **`open_im`（IM）+ `IM_DATABASE`／`open_saas`（SaaS）+ `SAAS_DATABASE`／`open_audit` + `AUDIT_DATABASE`** |
+| **E3** | 客户端名映射 | ✅ `gv_chat_app`→`open-chat-app`、`gv_chat_desktop`→`open-chat-desktop`、`gv_chat_admin`→`open-chat-admin`、`gv_saas_admin`→`open-saas-admin`、`gv_saas_mobile`→`open-saas-mobile`、`gv_im_server`→`open-im-server`、`GV_*`→`OPEN_*`；**`WV Chat` → 直接写 `Open Chat`**（不再保留"WV"这一阶段关系） |
+| **E4** | 集团库名 | ✅ **`open_group`** |
+| **E5** | 事实清单归属 | ✅ **就在后端总仓 `open-im-server`**（即工程详细文档），**并且它就是"工程详细文档"本身**——不再另建位置 |
+| **E6** | 前端文档位置 | ✅ **留在后端总仓 `open-im-server/docs/`**——后端总仓是**全局视角**，关联前端文档放这里**合适**；此结论**写入文档规范，不再重复询问** |
+| **E7** | 运行期标识 | ✅ **分步骤做**（与文档/注释改名分开推进） |
+
+### 由此确定的两条文档规范（写入规范文档）
+
+1. **`open-im-server` 是后端总仓库，也是全工程的全局视角所在**；关联前端仓库（`open-chat-*`、`open-saas-*`、`open-website`）的文档**集中放在 `open-im-server/docs/`**，不迁往各自仓库。
+2. **事实清单（`docs/business/PROJECT_FACTS_INVENTORY.md`）= 工程详细文档**，负责登记**全工程事实**（跨 10 个仓库），与规范（应当如何）、改造方案（如何达标）三分。

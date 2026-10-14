@@ -157,7 +157,17 @@ common-services/
 
 #### 命名空间分层与命名原则
 
-**分层**：工程分三层——**IM 业务线**（`im-services/`、`gateways/`，IM 是开放平台本身）、**SaaS 业务线**（`platform-services/`、`common-services/`，IM 开放平台之上的垂直业务）、**集团层**（`group-services/`，统管两条业务线、只管理不参与业务）。业务线由**代码根与库名**承载；**表前缀只表达限界上下文（域）**。各层与域的当前事实见 [项目事实清单](./business/PROJECT_FACTS_INVENTORY.md)。
+**工程视角与文档归属**：
+
+> **`open-im-server` 是后端总仓库，也是整个工程的全局视角所在。** 工程分三层——**IM 业务线**（`im-services/`、`gateways/`，IM 是开放平台本身）、**SaaS 业务线**（`platform-services/`、`common-services/`，IM 开放平台之上的垂直业务）、**集团层**（`group-services/`，统管两条业务线、只管理不参与业务）。关联前端仓库（`open-chat-app`/`open-chat-desktop`/`open-chat-admin`/`open-saas-admin`/`open-saas-mobile`/`open-website`）的文档**集中登记在本仓 `docs/`**，不分散到各自仓库。
+>
+> 工程文档三分（不得混写）：
+> 1. **通用规范**（`docs/standards/*`）——应当如何做，不含项目模块名与存量缺陷；
+> 2. **项目工程规则**（本文）——本工程启用哪些规范、前缀登记表、项目级例外；
+> 3. **工程详细文档 / 事实清单**（[项目事实清单](./business/PROJECT_FACTS_INVENTORY.md)）——**当前工程实际长什么样**，覆盖全部仓库，**需随工程演进时时维护**。
+> 4. **改造方案与历史文档**（`docs/renovation/*`）——从现状到目标的方案；**已实现的方案应维护进上述 1/3 类**，其余标注为历史文档。
+
+**分层**：业务线由**代码根与库名**承载；**表前缀只表达限界上下文（域）**。
 
 **原则**（违反即为缺陷，纳入门禁或人工评审）：
 
@@ -168,7 +178,9 @@ common-services/
 5. **跨域表须显式登记**。服务若必须建其他域的表，须在本表注明"跨域共享表"与**权威写方**，否则视为违规。
 6. **预留前缀不得解释其他前缀**。允许登记尚无表的预留前缀（须注明预期启用条件），但不得用"预留"掩盖已在使用的其他前缀。
 
-> 变更任一前缀或域边界前，先更新 [项目事实清单](./business/PROJECT_FACTS_INVENTORY.md) 的对应行，再改本表与 `scripts/validate/table-prefixes.txt`——**两处必须同改**（门禁 `validate-flyway-conventions.ps1` 分别校验"前缀已登记"与"已登记前缀必须出现在本表"）；移除前缀须**先删本表行、再删清单行**。
+**数据库命名**：库名与业务线一一对应——IM 业务线 `open_im`（变量 `IM_DATABASE`）、SaaS 业务线 `open_saas`（变量 `SAAS_DATABASE`）、审计域 `open_audit`（变量 `AUDIT_DATABASE`）、集团层 `open_group`（变量 `GROUP_DATABASE`）。**不得让某业务线的服务连到另一业务线的库**（跨域表须按原则 5 显式登记）。
+
+> 变更任一前缀、域边界或库名之前，先更新 [项目事实清单](./business/PROJECT_FACTS_INVENTORY.md) 的对应行，再改本表与 `scripts/validate/table-prefixes.txt`——**两处必须同改**（门禁 `validate-flyway-conventions.ps1` 分别校验"前缀已登记"与"已登记前缀必须出现在本表"）；移除前缀须**先删本表行、再删清单行**。
 
 ### 领域与数据库表前缀登记表
 
