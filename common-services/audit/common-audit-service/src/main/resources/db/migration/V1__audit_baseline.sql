@@ -1,13 +1,17 @@
 -- ============================================================================
--- 通用审计域（common-audit-service）· 老库 open_im 迁移基线
+-- 通用审计域（common-audit-service）· 库 open_im 的审计基线（非分区普通表）
 -- 仅适用于未执行过该基线的新建数据库。
 --
+-- 本服务有**两个迁移根**，按 profile 二选一，本文件属前者：
+--   * db/migration        （默认，本文件）  -> 库 open_im，普通表 audit_log
+--   * db/migration-audit  （audit-schema）-> 库 open_audit，分区主表 + 幂等台账 + 归档清单
+--
 -- 本文件是历史三个脚本叠加后的**累积最终结构**，合并为单文件（DC-10：工程未冻结，
--- 允许重建基线；老库 open_im 将被销毁重建）：
---   * V1__audit_log.sql                  -> 建 audit_log 普通表
+-- 允许重建基线）：
+--   * V1__audit_log.sql                      -> 建 audit_log 普通表
 --   * V2__unified_audit_log.sql（加列/加索引部分）-> 已折叠进 CREATE TABLE
---   * V4__audit_idempotency_ledger.sql        -> 建 audit_idempotency 幂等台账
--- 历史数据回填仍由 V3__audit_occurred_at_backfill.sql 承担（幂等，对空库是空操作），
+--   * V4__audit_idempotency_ledger.sql       -> 建 audit_idempotency 幂等台账
+-- 历史数据回填仍由同根的 V3__audit_occurred_at_backfill.sql 承担（幂等，对空库是空操作），
 -- 因此不在此处重复，避免「结构 + 数据」两件事混在一个版本里。
 --
 -- 口径：
