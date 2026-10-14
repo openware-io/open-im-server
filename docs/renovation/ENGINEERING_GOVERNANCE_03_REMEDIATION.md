@@ -4,6 +4,9 @@
 > 配套审查报告：[ENGINEERING_GOVERNANCE_02_AUDIT.md](./ENGINEERING_GOVERNANCE_02_AUDIT.md)（同目录）
 > v1→v2 决策 → v3 无上线前提 → v4 例外归零+留档 → v5 纯开源开发阶段 → v6 全案自审 → v7 执行移出+深查 11 项 → v8 附录 C 确认 + 根目录治理 + 报告脱敏归档 → v9 附录 A.8 全部确认（无待决项）→ **v10 批次 0 执行完成（含 Kind 运行环境轮换）**
 > 定位：按 `standards/00:28`，属**改造方案**，不重写规范正文。本文件已按其自身建议归档至 `docs/renovation/`。
+>
+> **历史文档**：本文是工程治理**整改方案与执行记录**，不是现行规范或指引；其批次状态、记账行与结论**只对当时有效**。
+> 文中出现的早期内网地址与端口是**当时实测/处理对象的记录**（"曾硬编码"、"已改为 127.0.0.1"、"待批次 N 处理"），**不是当前入口或当前配置**；现行入口见[本地部署说明](../deployment/LOCAL.md)。保留这些记录是刻意的：改动整改方案的历史记账等于篡改审计轨迹。
 
 ---
 
@@ -412,7 +415,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | N-05 | `publish-images.yml:54` 裸 `mvn -T 1C clean verify` + tag 解析粗糙 | 批次 1 + G-02 |
 | N-06 | 文档分层无归属（docs 根 12 份、superpowers 11 份、根 `RELEASE-NOTES-*.md`） | 批次 4 |
 | N-07 | 一次性运维/回填脚本与游离 Java（含 0 引用的 `repair-zombie-…sql`） | 批次 4 |
-| N-08 | 4+ 个验收脚本硬编码 `192.168.31.91` | 批次 0 |
+| N-08 | 4+ 个验收脚本硬编码同一个个人局域网地址 | 批次 0 |
 | N-09 | `run-dev.ps1:2` 仅覆盖 8/20 个可部署服务 | 批次 3 |
 | N-10 | `validate-secret-exposure.ps1:20` 在"已删除未提交"文件上崩溃（本轮实测触发） | 批次 1 + G-03 |
 | N-11 | 范围界定：`.github`（组织级仓）、`.vscode`、`open-green-pass` 不属本次范围 | 记录项 |
@@ -450,7 +453,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | --- | --- | --- |
 | 1 | `AdminLoginApplicationServiceTest` 的硬编码种子口令与哈希 → 改为运行时生成（`TEST_PASSWORD`/`TEST_HASH`） | 仓库内不再出现该口令或其哈希 |
 | 2 | `docs/audit-2026-09-17-exceptions-and-i18n.md` 的 5 处明文（含可执行 curl）脱敏 | 该文件 `e828…` 残留 0 |
-| 3 | 5 个验收脚本：口令默认值 → `$env:IM_SAAS_ADMIN_PASSWORD`；个人 LAN IP `192.168.31.91` → `127.0.0.1`；`verify-a380-ktv-closure.ps1` 新增 `-AdminUser/-AdminPassword` 参数替换内联口令 | 5 文件残留 0；ASCII 纯度保持（a380 的 6 个非 ASCII 字节为既存，见 N-20） |
+| 3 | 5 个验收脚本：口令默认值 → `$env:IM_SAAS_ADMIN_PASSWORD`；个人 LAN IP → `127.0.0.1`；`verify-a380-ktv-closure.ps1` 新增 `-AdminUser/-AdminPassword` 参数替换内联口令 | 5 文件残留 0；ASCII 纯度保持（a380 的 6 个非 ASCII 字节为既存，见 N-20） |
 | 4 | `k8s/ack/platform-identity-service.yaml` 的 `JWT_SECRET`、`IM_OAUTH_APP_SECRET` → `secretKeyRef` | 全仓不再出现该 JWT 密钥值 |
 | 5 | 5 处 `${VAR:默认密钥}` → `${VAR}`（audit/payment/customer/order/idaas） | 残留 0；配套测试占位值已补（N-22） |
 | 6 | 补齐 **10 个** ACK deployment 的 `INTERNAL_SERVICE_AUTH_SECRET` 注入（edge/idaas/saas-common×2/saas-domain×3/saas-support×2） | 5 个清单 `kubectl apply --dry-run=client` 全部 OK |
@@ -490,8 +493,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | 类别 | 位置 | 处置 |
 | --- | --- | --- |
 | Flyway 种子明文（推迟） | `platform-admin-service/V2__saa_admin_account_seed.sql:1`、`V3__seed_a380_admin.sql:1`、`group-idaas-service/V2__seed_default_admin.sql:1`、`im-user-service/V11__init_open_platform.sql:45-50` | 批次 2 基线重建（checksum 约束，见 §17.3）；对应凭据已失效 |
-| 历史审计文档中的内网 IP（非凭据） | `docs/audit-2026-09-17-exceptions-and-i18n.md`（7 处 `192.168.31.91`） | 批次 4 文档分层收敛时一并处理；`docs/deployment/LOCAL.md:122` 的引用是"旧入口已废弃"的历史说明，**保留** |
-| 测试中的内网 IP | `im-services/user/im-user-service/src/test/java/.../OpenPlatformApplicationServiceTest.java:79`（`lanCallback = "http://192.168.31.91:30082/a380/"`） | 批次 3 改为参数化或示例地址 |
+| 历史审计文档中的内网 IP（非凭据） | `docs/audit-2026-09-17-exceptions-and-i18n.md`（该快照内多处实测地址） | 本文已按历史文档标注；该快照保留实测记录不改；`docs/deployment/LOCAL.md` 的弃用说明已改写为不引原值 |
+| 测试中的内网 IP | `im-services/user/im-user-service/src/test/java/.../OpenPlatformApplicationServiceTest.java` 的 `lanCallback` 夹具 | **已处理**：改为示例域名（回归断言只做回环比较，不依赖地址值） |
 | 环境级弱口令 | `.outputs/quality/rotated-credentials.txt` 中的旧值（gitignored，本地留存） | 与仓库无关；如需彻底清理可删除该文件（会失去回滚参考） |
 
 ---
