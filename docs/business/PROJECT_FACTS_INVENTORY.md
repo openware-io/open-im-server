@@ -75,7 +75,42 @@
 | **V5** | `idaas` 未登记 | 1 张：`idaas_client` | 同上 |
 | **V6** | ⚠️ **`saa_` 与 `group_` 同音同形** | `saa`=SaaS 后台、`group`=集团；`saa_admin_account` **与集团无关**（注释为"SaaS后台管理员账号"） | 全局命名空间易混淆，是本清单最需要消歧的一处 |
 | **V7** | 跨域建表 | `tnt_payment_method` 建在 `common-payment-service`；`user_conversation_mute` 建在 `im-conversation-service`；`iam_menu` 建在 `platform-admin-service`；`adm_app_release*` 已退役 | 需显式标注权威写方 |
-| **V8** | 3 个前缀登记了但 0 表 | `audit`/`paych`/`ws` | 需明确"预留"状态；**不要删**——它们是 `iam_audit_*`/`pay_channel_*` 的留档载体 |
+| **V8** | 3 个前缀登记了但 0 表 | `audit`/`paych`/`ws` | 需明确"预留"状态；⚠️ 其中 **`audit` 空着**正是 V1 的技术债之一（见 §3.2） |
+
+### 3.2 ⚠️ `iam_` 的两条技术债（实测确认）
+
+**债 A：`iam_` 名不符实——"IAM" 里没有 Identity Management。**
+
+`iam_` 下**没有任何身份/凭据表**。身份的权威在别处：`idt_*`（SaaS 平台账号，`idt_account`/`idt_login_identity`/`idt_oauth_link`）、`group_account`（集团账号）、`user_*`（IM 账号，含 `user` 主表）。而 `iam_` 的 6 张表全是**授权**语义：
+
+| 表 | 关键列 | 性质 |
+| --- | --- | --- |
+| `iam_permission` | `code`/`module`/`resource`/`action`/`scope_level`/`grantable_levels`/`menu_code` | 权限定义 |
+| `iam_role` | `code`/`role_type`/`scope_level`/`copy_from_role_id` | 角色 |
+| `iam_role_permission` | 角色↔权限 | 权限绑定 |
+| `iam_user_role` | `account_id`/`role_id`/`scope_type`/`effective_from`/`to`/`authorization_version` | 授权分配（`account_id` 仅**引用**账号） |
+| `iam_approval` | `action_type`/`approver_id`/`review_comment` | 高风险动作复核 |
+| `iam_consumer_application` | 消费端应用 | 应用注册 |
+
+→ **判据**：DDL 里找不到 identity、credential、password、subject 任何一类列。所以此前缀实际表达的是**访问控制（授权）**，不是 Identity Management。
+
+**债 B：`iam_audit_*` 属审计域却挂 `iam_` —— 真正的"一前缀多域"。**
+
+| 归属服务 | `iam_` 表 | 真实域 |
+| --- | --- | --- |
+| `platform-tenant-service` | `iam_permission`/`iam_role`/`iam_role_permission`/`iam_user_role`/`iam_approval`/`iam_consumer_application` | 访问控制 |
+| `common-audit-service` | `iam_audit_log`/`iam_audit_idempotency`/`iam_audit_archive_manifest` | **审计** |
+| `platform-admin-service` | `iam_menu` | 控制台呈现 |
+
+而**正确的 `audit` 前缀已登记、却 0 张表使用**——空着的正确名字与被占用的错误名字同时存在，是本清单里最该修的一处。
+
+**整改分级**（债 B 优先，因其目标前缀**已登记**，不需新增前缀、不需架构确认）：
+
+| 级别 | 动作 | 说明 |
+| --- | --- | --- |
+| **① 建议先做** | `iam_audit_*` → `audit_*`（`audit_log`/`audit_idempotency`/`audit_archive_manifest`） | 用上已登记的 `audit` 域；**零新增前缀**；消除"一前缀多域" |
+| ② 待裁决 | `iam_` 是否更名以名实相符（如 `authz_`） | 涉及新增前缀 → 依 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) §182 须先架构确认 |
+| ③ 不动 | `iam_menu` 保留 | §3.1 已证为 IAM 迭代的有意结果 |
 
 **门禁现状**：`validate-flyway-conventions.ps1` 报 **7 条**（= V2+V3+V4+V5 共 7 张表）。另两个耦合点：**L167** 查前缀已登记；**L63-65** 查已登记前缀必须出现在 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md)（反引号正则）。→ 登记须**两处同改**；移除须**先删文档行再删清单行**。
 
@@ -92,6 +127,7 @@
 
 - `iam` 是**一个域**，其数据按类别分属两个服务：**授权事实**（角色/权限/绑定/审批）在 `platform-tenant-service`；**控制台呈现**（菜单/导航）在 `platform-admin-service`。
 - 由此**命名原则第 1 条需要细化**：不是"一个域只能由一个服务建表"，而是"**一个域 = 一个前缀**；域内每类数据有唯一权威服务"（见 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) 命名原则第 1 条）。
+- ⚠️ **但"就近放置"只解释了 `iam_menu`，解释不了下面两条——它们是技术债**（见 §3.2）。
 
 ---
 
@@ -110,3 +146,4 @@
 | 日期 | 变更 |
 | --- | --- |
 | 2026-10-13 | 首次建立。记录三层层级、22 个域/命名空间、8 条偏差（V1–V8）、门禁现状 7 条。 |
+| 2026-10-13 | §3.1：查证 git 历史，`iam_` 跨服务源于 IAM 按迭代逐步定义、数据随消费方就近放置（撤销原 V1 判定）。§3.2：新增两条实测技术债——`iam_` 名不符实（无 Identity Management）、`iam_audit_*` 属审计域却占 `iam_`。 |
