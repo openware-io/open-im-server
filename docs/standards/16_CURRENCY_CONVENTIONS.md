@@ -33,9 +33,9 @@
 
 ## 2. 单一来源（唯一权威）
 
-- 存储：`tnt_tenant_config`（`platform-tenant-service`），`(tenant_id, store_id=0, config_key='currency')`，
+- 存储：`tnt_tenant_config`（`租户服务`），`(tenant_id, store_id=0, config_key='currency')`，
   `config_value ∈ {CNY, USD}`。缺省（无行/空值/非法值）解析为 **USD**；写入非法值返回 `400 CURRENCY_UNSUPPORTED`。
-- 读写接口（`platform-tenant-service`）：
+- 读写接口（`租户服务`）：
   - `GET  /api/v1/admin/tenant/currency` → `{ currencyCode, symbol, minorUnitDigits, supported:[{code,symbol,label}] }`
   - `PUT  /api/v1/admin/tenant/currency` body `{ "currencyCode": "USD" }` → 同 GET 结构
   - **接口一律取签名上下文租户，不接受 `tenantId` 参数**（照 `TenantConfigController` 的边界写法）；平台运营改别的租户 = 先切到目标租户上下文。
@@ -74,8 +74,8 @@
 ## 3. 传播（下游如何拿到币种）
 
 1. **签名上下文带币种**：两条签发路径都要写 JWT claim `currency`（`currencyCode` 的值）：
-   - 后台 BFF：`platform-admin-service` `POST /api/v1/admin/context/select`
-   - C 端/客户端：`platform-identity-service` `POST /api/v1/auth/context/select`
+   - 后台 BFF：`运营控制台` `POST /api/v1/admin/context/select`
+   - C 端/客户端：`身份服务` `POST /api/v1/auth/context/select`
    - `sdk/infrastructure` 侧解析该 claim（**老 token 无 claim 时回退 USD，不得 401**）；为控制改动面，
      优先用旁路 holder（与 `TenantContextHolder` 同款、同一个已验证 token 的过滤器写入/清理），不要改 `TenantContext` 规范构造器。
 2. **两条 context select 的响应体都带 `currencyCode`**（前端唯一启动来源）。
@@ -132,7 +132,7 @@ C 端报价与我的预约、B 端订单/库存/看板、App 收银/结账/班�
 ## 9. 代币（钱包品牌）与金额的关系（ratio 语义冻结）
 
 `tnt_tenant_config` 的 `wallet_brand_name` / `wallet_ratio`（读写接口 `GET|PUT /api/v1/admin/tenant/config`，
-见 `platform-tenant-service` 的 `TenantConfigController`）定义「储值/代币」的品牌展示名与兑换口径。
+见 `租户服务` 的 `TenantConfigController`）定义「储值/代币」的品牌展示名与兑换口径。
 
 | 项 | 冻结口径 |
 | --- | --- |
@@ -145,10 +145,10 @@ C 端报价与我的预约、B 端订单/库存/看板、App 收银/结账/班�
 - 落库金额（钱包账本/流水、支付、退款、班次日结）恒为最小货币单位整数；`ratio` 只出现在展示层与文案层，
   任何一处把它写进金额计算都是缺陷，评审按缺陷处理。
 - **服务端只读展示投影（冻结）**：三端展示代币数量时，统一由服务端下发，避免各端各算一套：
-  `platform-customer-service` 的钱包/流水响应带 `tokenAmount`（**字符串纯数量**，无货币符号、无币种，公式
+  `客户服务` 的钱包/流水响应带 `tokenAmount`（**字符串纯数量**，无货币符号、无币种，公式
   `最小货币单位 ÷ 100 × ratio`，HALF_UP）与 `tokenBrandName`；品牌名与 ratio 经内部接口
-  `GET /internal/iam/tenant-config/{tenantId}/wallet-token`（`platform-tenant-service`，
-  HMAC 版本 2，调用方 `platform-customer-service` 必须在 `expected-source` 白名单内）读取，
+  `GET /internal/iam/tenant-config/{tenantId}/wallet-token`（`租户服务`，
+  HMAC 版本 2，调用方 `客户服务` 必须在 `expected-source` 白名单内）读取，
   缺行/空值/非法/ratio≤0 一律回落 `A380币` + `100` 且不抛错。
 - 该投影是**展示字段**（`@TableField(exist=false)`），只读、不落库、不参与任何货币合计与对账；
   内部机器契约 `/internal/customer/wallets/*`（组合收款扣减/归还）**只有货币金额**，不带 `tokenAmount`。

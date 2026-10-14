@@ -1,5 +1,26 @@
 # 持久层技术栈标准
 
+## 目标与适用范围
+
+**目标**：明确**权威数据的归属**与持久层技术选型边界，使"哪份数据以什么为准"没有歧义，并让持久层依赖可被门禁约束。
+
+**适用范围**：所有持有持久化职责的服务（关系库服务、消息热投影服务、缓存使用者）及其依赖声明、SQL 写法与迁移脚本。
+
+**非目标**：不规定业务表结构设计（属各领域规范）；不规定迁移的版本编排流程（见 Maven 与迁移相关规范）；不解决跨域 Mapper 与实体复制问题（列为后续专项治理）。
+
+## 术语与前置假设
+
+| 术语 | 定义 |
+| --- | --- |
+| 权威库 | 业务事实与权威写入的唯一来源。本工程为 MySQL。 |
+| 热投影 | 为查询性能而生的派生数据，可重建，不承载权威事实。 |
+| 热点状态 | 短生命周期、可失效的状态；本工程由 Redis 承担。 |
+| 接入层 | 只做接入、协议转换与命令投递的组件，不拥有持久层职责。 |
+| 迁移基线 | 合并后的单文件起始迁移；后续增量从次版本起。 |
+| 物理外键 | 数据库层面的外键约束；本工程在业务表中禁止声明。 |
+
+**前置假设**：Spring Boot Parent 是 Boot 生态依赖的版本来源；服务按部署形态声明对应 Starter；迁移脚本受版本控制且不被回改。
+
 ## 权威数据与职责边界
 
 - MySQL 是系统唯一权威库，业务事实、关系数据与权威写入均以 MySQL 为准。
@@ -40,3 +61,64 @@
 
 - 本轮不解决跨域 Mapper、实体复制或数据所有权问题；这些问题列为后续专项治理范围。
 - 不得以本规范为由，将业务持久层职责迁移到接入层。
+
+## 依赖声明模板
+
+**按服务形态声明依赖（示例，版本以父 POM 管理为准）**：
+
+```xml
+<!-- 持有关系型实体与 Mapper 的服务 -->
+<dependency>
+  <groupId>com.baomidou</groupId>
+  <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
+</dependency>
+<dependency>
+  <groupId>com.mysql</groupId>
+  <artifactId>mysql-connector-j</artifactId>
+  <scope>runtime</scope>
+</dependency>
+
+<!-- 仅持有迁移脚本的服务，额外追加 -->
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-flyway</artifactId>
+</dependency>
+<dependency>
+  <groupId>org.flywaydb</groupId>
+  <artifactId>flyway-mysql</artifactId>
+</dependency>
+```
+
+**不要声明**：`mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation`、`mybatis-plus-jsqlparser-*`、`mybatis-spring`、`flyway-core`（底层组件由 Starter 传递引入）。
+
+## 门禁与人工检查项
+
+**可自动化**：
+
+| 门禁 | 判据 |
+| --- | --- |
+| 依赖边界 | 业务模块未直接声明被禁止的底层持久层组件 |
+| 迁移存在性 | 持有 `db/migration` 的服务同时声明了 Flyway Starter 与 MySQL 适配器 |
+| 迁移不可回改 | 已在任何环境执行的迁移未被修改（冻结后只增不改） |
+| 脚本编码 | 迁移脚本为 UTF-8 无 BOM |
+| 表注释与索引命名 | 新建表有中文表注释、字段有中文语义注释、索引命名稳定且带目的注释 |
+
+**人工检查项**：
+
+1. 原生注解 SQL 是否确为 MyBatis-Plus 无法安全表达的场景，并说明了业务原因与并发语义。
+2. 是否在业务表中声明了物理外键（应改为 Java 层显式维护 + 关联列索引）。
+3. 读取 Redis/MongoDB 的代码路径是否误把派生数据当权威事实使用。
+
+## 可验证的验收标准
+
+| # | 判据 | 证据形式 |
+| --- | --- | --- |
+| 1 | 持久层依赖边界门禁通过（无被禁底层组件直接声明） | `validate-persistence-dependency-boundaries.ps1` 通过 |
+| 2 | 权威、派生、缓存三类数据的归属与本规范一致 | 代码审查记录 |
+| 3 | 新建表与字段有中文注释；索引命名稳定且注明业务目的 | 迁移脚本片段 |
+| 4 | 业务表无物理外键；关联列有索引或唯一约束 | 迁移脚本与 `information_schema` 查询 |
+| 5 | 已执行迁移未被回改；变更以新增增量迁移实现 | 冻结门禁通过 / 迁移 diff |
+| 6 | 脚本为 UTF-8 无 BOM 并通过编码与迁移边界校验 | 编码门禁通过 |
+
+**完成定义**：上表逐项有可复现证据，且统一工程校验入口在该范围退出码为 0。
+
