@@ -421,6 +421,10 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
      - **可选清理**（属策略问题，未动）：删掉这两个登记项可减少"登记了却用不到"的噪音；但"预留前缀"本身是否该允许，是你们的口径问题。**注意顺序**：必须**先删文档表里的行、再删 `table-prefixes.txt` 的行**，否则 L63-65 会立刻报 `registered prefix ... is not documented`（这也是本轮读门禁才发现的耦合）。
    - **✅ 领域命名建议（本轮按用户给出的领域定义 + 设计文档重新推导，取代上面的 A/B 二选一）**
 
+     **⚠️ 本轮推翻了我上一轮"建议改名"的结论——依据是本仓自己的规范**：`ENGINEERING_RULES.md:182` 明文"新领域、新前缀或前缀语义变更必须先完成架构确认，并在上表及对应领域设计中登记后才能创建 Flyway 表；**既有表不得仅为统一缩写而重命名**"。而 `audit_`（已登记、0 表使用、实际用 `iam_audit_*`）与 `paych_`（实际用 `pay_channel_*`）**都是照原样留档、没有改名**。所以本仓既定处置是**登记 + 差异留档**。
+     **→ 建议稿已备好（未并入）：[PREFIX_REGISTRATION_PROPOSAL.md](./PREFIX_REGISTRATION_PROPOSAL.md)**——含按登记表字母序的三行新增、与 `audit_`/`paych_` 同体例的差异说明、改名路线的实测代价（7 表 / ~23 处引用）与落地顺序。
+     **给用户的领域判断仍然成立**（只是"改名"这一步被规范挡住）：`open` 不是"开源"而是**开放平台 / OAuth 2.0 授权服务器**（证据：`OauthConsentController`、`/oauth/consent`、scope 与授权码）；`group` 与 `idaas` 是**同一限界上下文的两个名**；`saa` 是 `saas` 的截断；`iam_menu` 与 `iam_role` **分属两个上下文却共用 `iam_`**。**这些都写进登记表即可说清，不必靠改名。**
+
      **用户澄清的领域语义**：`open` = 开源（本项目属性）、`group` = 集团、`idaas` = 集团认证服务（身份即服务）、`saas` = 业务核心 SaaS 域。
 
      **业界规范（DDD / 限界上下文）**：表前缀实质是一张**限界上下文 → 命名空间分配表**。由此得两条判据：
