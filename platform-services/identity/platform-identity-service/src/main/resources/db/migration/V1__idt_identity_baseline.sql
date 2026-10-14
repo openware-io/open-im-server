@@ -71,12 +71,12 @@ CREATE TABLE `idt_profile_sync_record` (
 -- （依赖 admin/tenant 域表，避免跨域 Flyway 顺序依赖）。
 
 -- A380 租户管理员的 SaaS 平台账号（idt_account），固定 id=100 与租户对齐
--- 说明：saa_admin_account（a380-admin, TENANT_ADMIN）为后台登录账号；本账号为经营作用域(iAM)挂载载体。
+-- 说明：cons_admin_account（a380-admin, TENANT_ADMIN）为后台登录账号；本账号为经营作用域(iAM)挂载载体。
 INSERT INTO `idt_account` (`id`, `status`, `created_at`, `updated_at`)
 VALUES (100, 'ACTIVE', NOW(3), NOW(3))
 ON DUPLICATE KEY UPDATE `updated_at` = `updated_at`;
 
--- 集团超管 admin 的 SaaS 平台账号（idt_account.id=1，与集团 admin / saa_admin_account 对齐）
+-- 集团超管 admin 的 SaaS 平台账号（idt_account.id=1，与集团 admin / cons_admin_account 对齐）
 -- 用途：经营 IAM（iam_user_role.account_id）挂载 platform.operator 平台级角色
 INSERT INTO `idt_account` (`id`, `status`, `created_at`, `updated_at`)
 VALUES (1, 'ACTIVE', NOW(3), NOW(3))

@@ -126,7 +126,7 @@ public class AuditLogApplicationService {
      *
      * <p><b>发生时间口径（回归修复）</b>：上报体提供了 {@code occurredAt} 就以其为准（业务真实发生时间，
      * 允许早于落库时间）；<b>未提供或为空</b>时落 {@code created_at}（同一时刻），绝不写 NULL。
-     * 历史缺陷正是「缺省写 NULL」——{@code iam_audit_log.occurred_at} 全为 NULL 后，
+     * 历史缺陷正是「缺省写 NULL」——{@code audit_log.occurred_at} 全为 NULL 后，
      * 按发生时间的筛选/排序/时间范围过滤会整段漏行。
      */
     private AuditLog toLog(AuditRecordCommand command, String sourceService) {

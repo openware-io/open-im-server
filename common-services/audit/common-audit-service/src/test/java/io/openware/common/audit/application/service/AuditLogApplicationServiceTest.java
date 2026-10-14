@@ -234,7 +234,7 @@ class AuditLogApplicationServiceTest {
   /**
    * ① 回归：上报体**不带** occurredAt 时必须落 created_at（同一时刻），绝不能写 NULL。
    *
-   * <p>现场证据：`SELECT id, action, occurred_at, created_at FROM iam_audit_log` 新写入行 occurred_at
+   * <p>现场证据：`SELECT id, action, occurred_at, created_at FROM audit_log` 新写入行 occurred_at
    * 全为 NULL，按发生时间的筛选/排序/时间范围过滤会整段漏行。
    */
   @Test

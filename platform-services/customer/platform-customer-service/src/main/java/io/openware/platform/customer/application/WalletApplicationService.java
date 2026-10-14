@@ -78,7 +78,7 @@ public class WalletApplicationService {
             }
             assertIdempotent(idempotencyKey);
             CstWalletAccountPo account = findOrCreate(customerId, Currency.parse(currency).code());
-            // 线下转账需关联凭证 referenceNo，真实实现写 iam_audit_log + 财务/店长复核
+            // 线下转账需关联凭证 referenceNo，真实实现写 audit_log + 财务/店长复核
             long balanceAfter = account.getAvailableAmount() + amount;
             appendLedger(storeId, account, "RECHARGE", amount, balanceAfter, null, idempotencyKey);
             appendFact("RECHARGE", account, storeId, amount, balanceAfter);

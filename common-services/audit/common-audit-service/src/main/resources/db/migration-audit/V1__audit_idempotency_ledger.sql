@@ -18,12 +18,12 @@
 -- 台账与主表写入在同一事务内，因此不存在「抢到键但没写主表」的中间态。
 --
 -- 主键按迁移规范收敛为代理键 `id`：幂等唯一性不变，改由唯一索引
--- uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key) 承担——并发抢占同一键时
+-- uk_audit_idempotency_tenant_key (tenant_id, idempotency_key) 承担——并发抢占同一键时
 -- 仍由该唯一索引抛 DuplicateKeyException，mapper 按受影响行数判定的语义不受影响。
--- updated_at 额外带 DEFAULT CURRENT_TIMESTAMP(3)：抢占语句（IamAuditLogMapper.claimIdempotencyKey）
+-- updated_at 额外带 DEFAULT CURRENT_TIMESTAMP(3)：抢占语句（AuditLogMapper.claimIdempotencyKey）
 -- 现已显式写入 created_by/created_at/updated_by/updated_at（审计语义不交给 DDL 默认值），
 -- 该默认值只作为其它写入路径的兜底：无它则严格模式下 1364 拒插、幂等台账直接写不进去。
-CREATE TABLE `iam_audit_idempotency` (
+CREATE TABLE `audit_idempotency` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID（0=平台级动作）',
   `idempotency_key` varchar(128) NOT NULL COMMENT '幂等键（口径见 AuditLogApplicationService）',
@@ -33,6 +33,6 @@ CREATE TABLE `iam_audit_idempotency` (
   `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '最后更新操作人（缺省 0=系统）',
   `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间（未显式写入时取落库时间）',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_iam_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`) COMMENT '幂等唯一性：同一操作的重复上报只留一条',
-  KEY `idx_iam_audit_idempotency_created` (`created_at`) COMMENT '按时间清理：幂等只需覆盖重试窗口'
+  UNIQUE KEY `uk_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`) COMMENT '幂等唯一性：同一操作的重复上报只留一条',
+  KEY `idx_audit_idempotency_created` (`created_at`) COMMENT '按时间清理：幂等只需覆盖重试窗口'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计写入幂等台账：唯一性职责从审计主表迁出';

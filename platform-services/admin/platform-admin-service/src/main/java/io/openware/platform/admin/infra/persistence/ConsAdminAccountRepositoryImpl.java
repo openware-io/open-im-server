@@ -5,33 +5,33 @@ import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.SaaAdminAccount;
 import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
 import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
-import io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo;
+import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 import java.time.LocalDateTime;
 
-/** SaaS 后台管理员账号仓储实现：MyBatis-Plus 适配 {@code saa_admin_account}。 */
+/** SaaS 后台管理员账号仓储实现：MyBatis-Plus 适配 {@code cons_admin_account}。 */
 @Repository
-public class SaaAdminAccountRepositoryImpl implements SaaAdminAccountRepository {
+public class ConsAdminAccountRepositoryImpl implements SaaAdminAccountRepository {
 
     private final SaaAdminAccountMapper mapper;
 
-    public SaaAdminAccountRepositoryImpl(SaaAdminAccountMapper mapper) {
+    public ConsAdminAccountRepositoryImpl(SaaAdminAccountMapper mapper) {
         this.mapper = mapper;
     }
 
     @Override
     public Optional<SaaAdminAccount> findByUsername(String username) {
-        SaaAdminAccountPo po = mapper.selectOne(Wrappers.<SaaAdminAccountPo>lambdaQuery()
-                .eq(SaaAdminAccountPo::getUsername, username));
+        ConsAdminAccountPo po = mapper.selectOne(Wrappers.<ConsAdminAccountPo>lambdaQuery()
+                .eq(ConsAdminAccountPo::getUsername, username));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
     @Override
     public Optional<SaaAdminAccount> findBySubject(String idaasSubject) {
-        SaaAdminAccountPo po = mapper.selectOne(Wrappers.<SaaAdminAccountPo>lambdaQuery()
-                .eq(SaaAdminAccountPo::getIdaasSubject, idaasSubject));
+        ConsAdminAccountPo po = mapper.selectOne(Wrappers.<ConsAdminAccountPo>lambdaQuery()
+                .eq(ConsAdminAccountPo::getIdaasSubject, idaasSubject));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
@@ -42,14 +42,14 @@ public class SaaAdminAccountRepositoryImpl implements SaaAdminAccountRepository 
 
     @Override
     public int updatePassword(Long accountId, String passwordHash) {
-        SaaAdminAccountPo po = new SaaAdminAccountPo();
+        ConsAdminAccountPo po = new ConsAdminAccountPo();
         po.setId(accountId);
         po.setPasswordHash(passwordHash);
         po.setUpdatedAt(LocalDateTime.now());
         return mapper.updateById(po);
     }
 
-    private SaaAdminAccount toDomain(SaaAdminAccountPo po) {
+    private SaaAdminAccount toDomain(ConsAdminAccountPo po) {
         return new SaaAdminAccount(
                 po.getId(),
                 po.getUsername(),

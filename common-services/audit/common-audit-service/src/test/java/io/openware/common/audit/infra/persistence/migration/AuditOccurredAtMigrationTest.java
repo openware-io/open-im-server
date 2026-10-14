@@ -38,16 +38,16 @@ class AuditOccurredAtMigrationTest {
     try (Connection connection = DriverManager.getConnection(
         "jdbc:h2:mem:audit-v3;MODE=MySQL;DB_CLOSE_DELAY=-1", "sa", "");
          Statement statement = connection.createStatement()) {
-      statement.execute("CREATE TABLE `iam_audit_log` ("
+      statement.execute("CREATE TABLE `audit_log` ("
           + "`id` bigint NOT NULL PRIMARY KEY,"
           + "`action` varchar(128) NOT NULL,"
           + "`created_at` timestamp(3) NOT NULL,"
           + "`occurred_at` timestamp(3) NULL)");
       LocalDateTime createdAt = LocalDateTime.of(2026, 9, 15, 12, 0);
       LocalDateTime explicit = LocalDateTime.of(2026, 8, 1, 9, 30);
-      statement.execute("INSERT INTO `iam_audit_log` VALUES (1, 'order.settle', "
+      statement.execute("INSERT INTO `audit_log` VALUES (1, 'order.settle', "
           + "'2026-09-15 12:00:00', NULL)");
-      statement.execute("INSERT INTO `iam_audit_log` VALUES (2, 'payment.collect', "
+      statement.execute("INSERT INTO `audit_log` VALUES (2, 'payment.collect', "
           + "'2026-09-15 12:00:00', '2026-08-01 09:30:00')");
 
       for (String sql : statements) {
@@ -55,7 +55,7 @@ class AuditOccurredAtMigrationTest {
       }
 
       try (ResultSet rows = statement.executeQuery(
-          "SELECT id, created_at, occurred_at FROM `iam_audit_log` ORDER BY id")) {
+          "SELECT id, created_at, occurred_at FROM `audit_log` ORDER BY id")) {
         assertTrue(rows.next());
         assertNotNull(rows.getTimestamp("occurred_at"), "历史 NULL 行迁移后 occurred_at 必须非空");
         assertEquals(Timestamp.valueOf(createdAt), rows.getTimestamp("occurred_at"));

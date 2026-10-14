@@ -9,7 +9,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
 import io.openware.common.audit.domain.model.AuditLog;
 import io.openware.common.audit.domain.repository.AuditLogRepository;
-import io.openware.common.audit.infra.persistence.mapper.IamAuditLogMapper;
+import io.openware.common.audit.infra.persistence.mapper.AuditLogMapper;
 import io.openware.common.audit.infra.persistence.mapper.OperatorNameMapper;
 import io.openware.common.audit.infra.persistence.mapper.TenantNameMapper;
 import java.sql.Connection;
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 幂等台账真库回归（H2 MySQL 兼容模式）：唯一性职责已从审计主表迁到 {@code iam_audit_idempotency}，
+ * 幂等台账真库回归（H2 MySQL 兼容模式）：唯一性职责已从审计主表迁到 {@code audit_idempotency}，
  * 因为主表要按 {@code occurred_at} 月分区，而 MySQL 不允许分区表保留不含分区列的唯一键
  * （方案 docs/renovation/AUDIT_STORAGE_01_SERVICE.md §2.2/§3）。
  *
@@ -62,7 +62,7 @@ class AuditIdempotencyLedgerH2Test {
     jdbcUrl = "jdbc:h2:mem:audit-idem-" + System.nanoTime() + ";MODE=MySQL;DB_CLOSE_DELAY=-1";
     try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
          Statement statement = connection.createStatement()) {
-      statement.execute("CREATE TABLE `iam_audit_log` ("
+      statement.execute("CREATE TABLE `audit_log` ("
           + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
           + "`tenant_id` bigint NOT NULL DEFAULT 0,"
           + "`organization_id` bigint NULL,"
@@ -91,8 +91,8 @@ class AuditIdempotencyLedgerH2Test {
           + "`updated_by` bigint NOT NULL DEFAULT 0,"
           + "`updated_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3))");
       // 与 db/migration-audit/V1__audit_idempotency_ledger.sql 同形：
-      // 主键按迁移规范收敛为代理键 id，幂等唯一性改由 uk_iam_audit_idempotency_tenant_key 承担。
-      statement.execute("CREATE TABLE `iam_audit_idempotency` ("
+      // 主键按迁移规范收敛为代理键 id，幂等唯一性改由 uk_audit_idempotency_tenant_key 承担。
+      statement.execute("CREATE TABLE `audit_idempotency` ("
           + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
           + "`tenant_id` bigint NOT NULL,"
           + "`idempotency_key` varchar(128) NOT NULL,"
@@ -105,7 +105,7 @@ class AuditIdempotencyLedgerH2Test {
     }
     MybatisConfiguration configuration = new MybatisConfiguration();
     configuration.setMapUnderscoreToCamelCase(true);
-    configuration.addMapper(IamAuditLogMapper.class);
+    configuration.addMapper(AuditLogMapper.class);
     configuration.setEnvironment(new Environment("audit-idem-h2", new JdbcTransactionFactory(),
         new UnpooledDataSource("org.h2.Driver", jdbcUrl, "sa", "")));
     sessionFactory = new MybatisSqlSessionFactoryBuilder().build(configuration);
@@ -130,7 +130,7 @@ class AuditIdempotencyLedgerH2Test {
       assertFalse(first.duplicated(), "首次上报应真正落库");
       assertTrue(second.duplicated(), "重复上报必须命中幂等台账");
       assertEquals(first.id(), second.id(), "重复上报要回执首次落库的记录 ID");
-      assertEquals(1, countOf("iam_audit_log"), "重复上报不得在主表留下第二条痕迹");
+      assertEquals(1, countOf("audit_log"), "重复上报不得在主表留下第二条痕迹");
     }
   }
 
@@ -143,7 +143,7 @@ class AuditIdempotencyLedgerH2Test {
       repository.saveIfAbsent(record(TENANT_ID, "req-2", "order.settle"));
       repository.saveIfAbsent(record(2002L, "req-1", "order.settle"));
 
-      assertEquals(3, countOf("iam_audit_log"), "幂等键按 (tenant_id, idempotency_key) 收敛，不跨租户误合并");
+      assertEquals(3, countOf("audit_log"), "幂等键按 (tenant_id, idempotency_key) 收敛，不跨租户误合并");
     }
   }
 
@@ -153,7 +153,7 @@ class AuditIdempotencyLedgerH2Test {
       AuditLogRepository repository = repository(session);
       // 造出「台账有键、audit_id 为空」的异常中断残留（按列名插入：id 走自增，审计列走默认值）。
       try (Statement statement = session.getConnection().createStatement()) {
-        statement.execute("INSERT INTO `iam_audit_idempotency`"
+        statement.execute("INSERT INTO `audit_idempotency`"
             + " (`tenant_id`, `idempotency_key`, `audit_id`, `created_at`)"
             + " VALUES (" + TENANT_ID + ", 'req-9', NULL, NOW())");
       }
@@ -161,13 +161,13 @@ class AuditIdempotencyLedgerH2Test {
       AuditLogRepository.SaveResult result = repository.saveIfAbsent(record(TENANT_ID, "req-9", "order.settle"));
 
       assertFalse(result.duplicated(), "台账有键但无记录时按未写入补写，绝不静默丢审计");
-      assertEquals(1, countOf("iam_audit_log"));
+      assertEquals(1, countOf("audit_log"));
       assertEquals(result.id(), claimedAuditId("req-9"), "补写后必须回填台账记录 ID");
     }
   }
 
   private AuditLogRepository repository(SqlSession session) {
-    return new AuditLogRepositoryImpl(session.getMapper(IamAuditLogMapper.class),
+    return new AuditLogRepositoryImpl(session.getMapper(AuditLogMapper.class),
         mock(TenantNameMapper.class), mock(OperatorNameMapper.class));
   }
 
@@ -210,7 +210,7 @@ class AuditIdempotencyLedgerH2Test {
       assertEquals(first.id(), results.get(0).id(), "重复项要回执首次落库的 ID");
       assertFalse(results.get(1).duplicated());
       assertFalse(results.get(2).duplicated());
-      assertEquals(3, countOf("iam_audit_log"), "2 条新增 + 1 条既有 = 3，重复项不得再插一行");
+      assertEquals(3, countOf("audit_log"), "2 条新增 + 1 条既有 = 3，重复项不得再插一行");
     }
   }
 
@@ -226,7 +226,7 @@ class AuditIdempotencyLedgerH2Test {
       List<AuditLogRepository.SaveResult> again = repository.saveAllIfAbsent(batch);
 
       assertTrue(again.stream().allMatch(AuditLogRepository.SaveResult::duplicated));
-      assertEquals(2, countOf("iam_audit_log"), "重复批次不得重复落库");
+      assertEquals(2, countOf("audit_log"), "重复批次不得重复落库");
     }
   }
 
@@ -246,13 +246,13 @@ class AuditIdempotencyLedgerH2Test {
       // 批量路径：主表走 insertBatch（一次多行），台账仍逐条抢占。
       repository.saveAllIfAbsent(List.of(record(TENANT_ID, "audit-cols-1", "order.settle")));
 
-      AuditColumns ledger = latestAuditColumns("iam_audit_idempotency");
+      AuditColumns ledger = latestAuditColumns("audit_idempotency");
       assertEquals(0L, ledger.createdBy(), "台账 created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
       assertEquals(0L, ledger.updatedBy(), "台账 updated_by 必须显式为 0");
       assertEquals(SNAPSHOT, ledger.createdAt(), "台账 created_at = 首次上报时间");
       assertEquals(ledger.createdAt(), ledger.updatedAt(), "台账只增不改：updated_at 取同一入参，不得落到默认值");
 
-      AuditColumns auditLog = latestAuditColumns("iam_audit_log");
+      AuditColumns auditLog = latestAuditColumns("audit_log");
       assertEquals(0L, auditLog.createdBy(), "主表 created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
       assertEquals(0L, auditLog.updatedBy(), "主表 updated_by 必须显式为 0");
       assertEquals(SNAPSHOT, auditLog.createdAt(), "主表 created_at 必须来自入参（列顺序错位会立刻暴露）");
@@ -296,7 +296,7 @@ class AuditIdempotencyLedgerH2Test {
     try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
          Statement statement = connection.createStatement();
          ResultSet rows = statement.executeQuery(
-             "SELECT audit_id FROM `iam_audit_idempotency` WHERE tenant_id = " + TENANT_ID
+             "SELECT audit_id FROM `audit_idempotency` WHERE tenant_id = " + TENANT_ID
                  + " AND idempotency_key = '" + idempotencyKey + "'")) {
       if (!rows.next()) {
         return null;

@@ -7,10 +7,10 @@ import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.Setter;
 
-/** 冷归档清单表 {@code iam_audit_archive_manifest} 的持久化对象（对应 migration-audit/V3）。 */
+/** 冷归档清单表 {@code audit_archive_manifest} 的持久化对象（对应 migration-audit/V3）。 */
 @Getter
 @Setter
-@TableName("iam_audit_archive_manifest")
+@TableName("audit_archive_manifest")
 public class AuditArchiveManifestPo {
     @TableId(type = IdType.AUTO)
     private Long id;

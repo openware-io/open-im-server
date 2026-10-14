@@ -12,10 +12,10 @@ import static org.mockito.Mockito.when;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import io.openware.common.audit.infra.persistence.mapper.IamAuditLogMapper;
+import io.openware.common.audit.infra.persistence.mapper.AuditLogMapper;
 import io.openware.common.audit.infra.persistence.mapper.OperatorNameMapper;
 import io.openware.common.audit.infra.persistence.mapper.TenantNameMapper;
-import io.openware.common.audit.infra.persistence.po.IamAuditLogPo;
+import io.openware.common.audit.infra.persistence.po.AuditLogPo;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -35,12 +35,12 @@ class AuditLogRepositoryImplTest {
   @BeforeEach
   void initTableInfo() {
     TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
-        IamAuditLogPo.class);
+        AuditLogPo.class);
   }
 
   @Test
   void timeRangeFiltersByOccurredAtAndFallsBackToCreatedAtWhenNull() {
-    LambdaQueryWrapper<IamAuditLogPo> wrapper = new LambdaQueryWrapper<>();
+    LambdaQueryWrapper<AuditLogPo> wrapper = new LambdaQueryWrapper<>();
 
     AuditLogRepositoryImpl.applyTimeRange(wrapper, LocalDateTime.of(2026, 9, 1, 0, 0),
         LocalDateTime.of(2026, 10, 1, 0, 0));
@@ -53,7 +53,7 @@ class AuditLogRepositoryImplTest {
 
   @Test
   void timeRangeIsSkippedWhenBothBoundsAreAbsent() {
-    LambdaQueryWrapper<IamAuditLogPo> wrapper = new LambdaQueryWrapper<>();
+    LambdaQueryWrapper<AuditLogPo> wrapper = new LambdaQueryWrapper<>();
 
     AuditLogRepositoryImpl.applyTimeRange(wrapper, null, null);
 
@@ -79,7 +79,7 @@ class AuditLogRepositoryImplTest {
   void operatorDisplaysDegradeToEmptyWhenAccountTableUnavailable() {
     OperatorNameMapper unavailable = mock(OperatorNameMapper.class);
     when(unavailable.selectByOperatorIds(anyList())).thenThrow(new RuntimeException("table not found"));
-    AuditLogRepositoryImpl repository = new AuditLogRepositoryImpl(mock(IamAuditLogMapper.class),
+    AuditLogRepositoryImpl repository = new AuditLogRepositoryImpl(mock(AuditLogMapper.class),
         mock(TenantNameMapper.class), unavailable);
 
     assertTrue(repository.operatorDisplays(List.of(77L)).isEmpty(), "补全失败按空值返回，不抛出");

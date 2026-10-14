@@ -4,7 +4,7 @@ import io.openware.common.audit.domain.model.AuditLog;
 import java.time.LocalDateTime;
 
 /**
- * 审计记录查询返回体（前端按此字段名对接；字段与 {@code iam_audit_log} 一一对应，另加 {@code tenantName}）。
+ * 审计记录查询返回体（前端按此字段名对接；字段与 {@code audit_log} 一一对应，另加 {@code tenantName}）。
  *
  * <p><b>{@code detailJson} 是「已脱敏的 JSON 文本」（String），不是 databind 节点对象</b>：写入时已清洗，
  * 不会包含密码/token/密钥/完整手机号；读取时原样输出，前端 {@code JSON.parse} 后即为业务对象。

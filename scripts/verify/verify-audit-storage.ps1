@@ -2,7 +2,7 @@
 #
 # Coverage (plan: docs/renovation/AUDIT_STORAGE_01_SERVICE.md):
 #   1) open_audit schema exists (created by scripts/migration/audit-schema-bootstrap.sql)
-#   2) iam_audit_log is RANGE-partitioned on occurred_at, with pmin and pmax fallbacks present
+#   2) audit_log is RANGE-partitioned on occurred_at, with pmin and pmax fallbacks present
 #   3) MySQL invariant: every unique index of a partitioned table includes the partition column
 #   4) occurred_at is NOT NULL (partition key must never be NULL, otherwise rows land in pmin)
 #   5) idempotency ledger carries the unique key (tenant_id, idempotency_key) - moved off the main table
@@ -62,33 +62,33 @@ $schema = Sql ("SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NA
 Assert ([int]$schema -eq 1) ("schema " + $AuditDatabase + " exists")
 
 Step '2. main table is RANGE-partitioned on occurred_at with pmin/pmax'
-$method = Sql ("SELECT PARTITION_METHOD FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_log' AND PARTITION_NAME IS NOT NULL LIMIT 1;")
-$expr = Sql ("SELECT PARTITION_EXPRESSION FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_log' AND PARTITION_NAME IS NOT NULL LIMIT 1;")
-$partitions = Sql ("SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_log' AND PARTITION_NAME IS NOT NULL;")
+$method = Sql ("SELECT PARTITION_METHOD FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_log' AND PARTITION_NAME IS NOT NULL LIMIT 1;")
+$expr = Sql ("SELECT PARTITION_EXPRESSION FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_log' AND PARTITION_NAME IS NOT NULL LIMIT 1;")
+$partitions = Sql ("SELECT PARTITION_NAME FROM information_schema.PARTITIONS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_log' AND PARTITION_NAME IS NOT NULL;")
 Assert ($method -eq 'RANGE COLUMNS') ("partition method is RANGE COLUMNS (actual: " + $method + ")")
 Assert ($expr -match 'occurred_at') ("partition expression uses occurred_at (actual: " + $expr + ")")
 Assert (($partitions -split "`n") -contains 'pmin') 'pmin fallback partition exists'
 Assert (($partitions -split "`n") -contains 'pmax') 'pmax fallback partition exists'
 
 Step '3. MySQL invariant: unique indexes include the partition column'
-$badKeys = Sql ("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_log' AND NON_UNIQUE=0 GROUP BY INDEX_NAME HAVING SUM(COLUMN_NAME='occurred_at')=0;")
+$badKeys = Sql ("SELECT INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_log' AND NON_UNIQUE=0 GROUP BY INDEX_NAME HAVING SUM(COLUMN_NAME='occurred_at')=0;")
 Assert ([string]::IsNullOrWhiteSpace($badKeys)) 'no unique index lacks occurred_at (a violating key makes the DDL invalid on MySQL)'
 
 Step '4. occurred_at is NOT NULL'
-$nullable = Sql ("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_log' AND COLUMN_NAME='occurred_at';")
+$nullable = Sql ("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_log' AND COLUMN_NAME='occurred_at';")
 Assert ($nullable -eq 'NO') ("occurred_at is NOT NULL (actual: " + $nullable + ")")
 
 Step '5. idempotency ledger carries the unique key'
-$ledgerKey = Sql ("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_idempotency' AND NON_UNIQUE=0;")
+$ledgerKey = Sql ("SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_idempotency' AND NON_UNIQUE=0;")
 Assert ($ledgerKey -like '*tenant_id,idempotency_key*') ("ledger unique key is (tenant_id, idempotency_key) (actual: " + $ledgerKey + ")")
 
 Step '6. archive manifest exists (evidence required before any DROP PARTITION)'
-$manifest = Sql ("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='iam_audit_archive_manifest';")
-Assert ([int]$manifest -eq 1) 'iam_audit_archive_manifest exists'
+$manifest = Sql ("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA='" + $AuditDatabase + "' AND TABLE_NAME='audit_archive_manifest';")
+Assert ([int]$manifest -eq 1) 'audit_archive_manifest exists'
 
 Step '7. fallback partitions are empty (rows there never participate in retention)'
-$minRows = [int](Sql ("SELECT COUNT(*) FROM " + $AuditDatabase + ".iam_audit_log PARTITION (pmin);"))
-$maxRows = [int](Sql ("SELECT COUNT(*) FROM " + $AuditDatabase + ".iam_audit_log PARTITION (pmax);"))
+$minRows = [int](Sql ("SELECT COUNT(*) FROM " + $AuditDatabase + ".audit_log PARTITION (pmin);"))
+$maxRows = [int](Sql ("SELECT COUNT(*) FROM " + $AuditDatabase + ".audit_log PARTITION (pmax);"))
 if ($AllowFallbackRows) {
   Write-Host ("  INFO pmin=" + $minRows + " pmax=" + $maxRows + " (rows tolerated by -AllowFallbackRows)") -ForegroundColor DarkYellow
   Pass 'fallback partition inspection executed'
@@ -103,7 +103,7 @@ $expected = 'p' + $current
 Assert (($partitions -split "`n") -contains $expected) ("partition " + $expected + " exists for the current UTC month")
 
 Step '9. archive manifest state distribution (informational)'
-$states = Sql ("SELECT state, COUNT(*) FROM " + $AuditDatabase + ".iam_audit_archive_manifest GROUP BY state;")
+$states = Sql ("SELECT state, COUNT(*) FROM " + $AuditDatabase + ".audit_archive_manifest GROUP BY state;")
 if ([string]::IsNullOrWhiteSpace($states)) {
   Write-Host '  INFO manifest is empty (nothing archived yet - expected for a fresh schema)' -ForegroundColor DarkYellow
 } else {

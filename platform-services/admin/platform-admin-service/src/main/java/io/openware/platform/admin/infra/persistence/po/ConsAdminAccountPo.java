@@ -10,8 +10,8 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
-@TableName("saa_admin_account")
-public class SaaAdminAccountPo {
+@TableName("cons_admin_account")
+public class ConsAdminAccountPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;

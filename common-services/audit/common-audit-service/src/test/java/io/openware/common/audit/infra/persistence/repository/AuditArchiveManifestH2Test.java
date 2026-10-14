@@ -47,7 +47,7 @@ class AuditArchiveManifestH2Test {
         try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
              Statement statement = connection.createStatement()) {
             // 与 db/migration-audit/V3__audit_archive_manifest.sql 同形（含 DC-11 四个审计列）。
-            statement.execute("CREATE TABLE `iam_audit_archive_manifest` ("
+            statement.execute("CREATE TABLE `audit_archive_manifest` ("
                 + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
                 + "`period` varchar(7) NOT NULL,"
                 + "`partition_name` varchar(64) NOT NULL,"
@@ -87,7 +87,7 @@ class AuditArchiveManifestH2Test {
             repository.markArchived(YearMonth.of(2024, 9), "p202409", 120L, null);
             repository.markArchived(YearMonth.of(2024, 9), "p202409", 0L, null);
 
-            assertEquals(1, countOf("iam_audit_archive_manifest"), "同一月份重复登记只留一条");
+            assertEquals(1, countOf("audit_archive_manifest"), "同一月份重复登记只留一条");
             assertEquals(120L, rowCountOf("2024-09"), "行数快照属于首次登记，不能被后来的 0 覆盖");
         }
     }
@@ -103,7 +103,7 @@ class AuditArchiveManifestH2Test {
             Set<YearMonth> archived = repository.archivedMonths();
             assertEquals(Set.of(YearMonth.of(2024, 8)), archived,
                 "HELD（法律保留）月份不得进入 archivedMonths——它必须仍然可查");
-            assertEquals(2, countOf("iam_audit_archive_manifest"), "保留月份也要留痕，便于巡检看到保留意图");
+            assertEquals(2, countOf("audit_archive_manifest"), "保留月份也要留痕，便于巡检看到保留意图");
         }
     }
 
@@ -137,14 +137,14 @@ class AuditArchiveManifestH2Test {
 
             repository.markArchived(YearMonth.of(2024, 9), "p202409", 120L, 77L);
 
-            assertEquals(0L, scalar("SELECT created_by FROM `iam_audit_archive_manifest`"
+            assertEquals(0L, scalar("SELECT created_by FROM `audit_archive_manifest`"
                     + " WHERE period = '2024-09'"), "created_by 必须显式为 0（写入方是审计服务自身，0=系统）");
-            assertEquals(0L, scalar("SELECT updated_by FROM `iam_audit_archive_manifest`"
+            assertEquals(0L, scalar("SELECT updated_by FROM `audit_archive_manifest`"
                     + " WHERE period = '2024-09'"), "updated_by 必须显式为 0");
-            assertEquals(77L, scalar("SELECT operator_id FROM `iam_audit_archive_manifest`"
+            assertEquals(77L, scalar("SELECT operator_id FROM `audit_archive_manifest`"
                     + " WHERE period = '2024-09'"), "执行归档的人仍记在业务列 operator_id 上");
             assertEquals(1L, scalar("SELECT CASE WHEN created_at = updated_at THEN 1 ELSE 0 END"
-                    + " FROM `iam_audit_archive_manifest` WHERE period = '2024-09'"),
+                    + " FROM `audit_archive_manifest` WHERE period = '2024-09'"),
                 "created_at 与 updated_at 必须取同一入参，不得落到默认值 CURRENT_TIMESTAMP(3)");
         }
     }
@@ -158,7 +158,7 @@ class AuditArchiveManifestH2Test {
     }
 
     private long rowCountOf(String period) {
-        return scalar("SELECT row_count FROM `iam_audit_archive_manifest` WHERE period = '" + period + "'");
+        return scalar("SELECT row_count FROM `audit_archive_manifest` WHERE period = '" + period + "'");
     }
 
     private long scalar(String sql) {

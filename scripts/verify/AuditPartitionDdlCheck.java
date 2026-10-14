@@ -10,7 +10,7 @@
  *   1) 三份迁移脚本能在 MySQL 8 上执行成功（唯一键不含分区列时 MySQL 会直接拒绝该 DDL）；
  *   2) 主表是 RANGE COLUMNS 分区且分区表达式是 occurred_at，pmin/pmax 兜底分区存在；
  *   3) 主键包含 occurred_at（分区表硬约束）；台账主键是代理键 id，幂等唯一性是命名唯一索引
- *      uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key)；
+ *      uk_audit_idempotency_tenant_key (tenant_id, idempotency_key)；
  *   4) occurred_at 为 NOT NULL：显式写 NULL 必须被拒绝；
  *   5) 保留任务的 DDL：`REORGANIZE PARTITION pmax INTO (...)` 能追加月分区且仍保留 pmax；
  *   6) 兜底可写：远未来时间写入落进 pmax 而不是报 1526（"no partition for value"）；
@@ -81,9 +81,9 @@ public final class AuditPartitionDdlCheck {
             pass("server version " + scalar(connection, "SELECT VERSION()"));
 
             step("1. 应用三份迁移脚本（只在临时表上）");
-            String auditTable = "iam_audit_log" + suffix;
-            String ledgerTable = "iam_audit_idempotency" + suffix;
-            String manifestTable = "iam_audit_archive_manifest" + suffix;
+            String auditTable = "audit_log" + suffix;
+            String ledgerTable = "audit_idempotency" + suffix;
+            String manifestTable = "audit_archive_manifest" + suffix;
             dropTemporaryTables(connection, auditTable, ledgerTable, manifestTable);
             for (String file : List.of("V1__audit_idempotency_ledger.sql", "V2__audit_partitioned_table.sql",
                     "V3__audit_archive_manifest.sql")) {
@@ -126,9 +126,9 @@ public final class AuditPartitionDdlCheck {
             String ledgerKey = scalar(connection,
                     "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS"
                             + " WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='" + ledgerTable
-                            + "' AND INDEX_NAME='uk_iam_audit_idempotency_tenant_key'");
+                            + "' AND INDEX_NAME='uk_audit_idempotency_tenant_key'");
             check("tenant_id,idempotency_key".equals(ledgerKey),
-                    "ledger unique key is uk_iam_audit_idempotency_tenant_key (tenant_id, idempotency_key)"
+                    "ledger unique key is uk_audit_idempotency_tenant_key (tenant_id, idempotency_key)"
                             + " (actual: " + ledgerKey + ")");
             String ledgerPk = scalar(connection,
                     "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) FROM information_schema.STATISTICS"
@@ -183,8 +183,8 @@ public final class AuditPartitionDdlCheck {
                     "manifest insert-if-absent is 1 then 0 (actual: " + firstManifest + " then " + secondManifest + ")");
         } finally {
             step("9. 清理临时表（绝不触碰真实表）");
-            dropTemporaryTables(connection, "iam_audit_log" + suffix, "iam_audit_idempotency" + suffix,
-                    "iam_audit_archive_manifest" + suffix);
+            dropTemporaryTables(connection, "audit_log" + suffix, "audit_idempotency" + suffix,
+                    "audit_archive_manifest" + suffix);
             pass("temporary tables dropped");
             connection.close();
         }
@@ -208,9 +208,9 @@ public final class AuditPartitionDdlCheck {
 
     /** 把迁移脚本里的真实表名替换成临时表名（只换名字，结构与分区定义逐字不改）。 */
     private static String rewriteTables(String sql, String audit, String ledger, String manifest) {
-        return sql.replace("`iam_audit_log`", "`" + audit + "`")
-                .replace("`iam_audit_idempotency`", "`" + ledger + "`")
-                .replace("`iam_audit_archive_manifest`", "`" + manifest + "`");
+        return sql.replace("`audit_log`", "`" + audit + "`")
+                .replace("`audit_idempotency`", "`" + ledger + "`")
+                .replace("`audit_archive_manifest`", "`" + manifest + "`");
     }
 
     private static boolean rejectsNullOccurredAt(Connection connection, String table) {
@@ -263,7 +263,7 @@ public final class AuditPartitionDdlCheck {
         }
     }
 
-    /** 与 IamAuditLogMapper.claimIdempotencyKey 同形（含 audit_id 在抢占时写入、DC-11 审计列显式写 0）。 */
+    /** 与 AuditLogMapper.claimIdempotencyKey 同形（含 audit_id 在抢占时写入、DC-11 审计列显式写 0）。 */
     private static int claimLedger(Connection connection, String ledger) throws Exception {
         String sql = "INSERT INTO " + ledger
                 + " (tenant_id, idempotency_key, audit_id, created_by, created_at, updated_by, updated_at) "

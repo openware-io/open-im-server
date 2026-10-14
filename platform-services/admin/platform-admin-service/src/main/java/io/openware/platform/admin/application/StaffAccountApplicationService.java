@@ -7,7 +7,7 @@ import io.openware.platform.admin.infra.IdentityDomainClient;
 import io.openware.platform.admin.infra.ImUserResolveClient;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
-import io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo;
+import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -40,7 +40,7 @@ public class StaffAccountApplicationService {
     }
 
     @Transactional
-    public SaaAdminAccountPo create(CreateCommand command) {
+    public ConsAdminAccountPo create(CreateCommand command) {
         String username = command.username() == null ? "" : command.username().trim();
         if (!username.matches("[A-Za-z0-9][A-Za-z0-9_.-]{2,63}")) {
             throw new ApiException(400, "STAFF_USERNAME_INVALID", "登录账号应为 3–64 位字母、数字、下划线、点或短横线");
@@ -52,7 +52,7 @@ public class StaffAccountApplicationService {
         if (command.displayName() != null && command.displayName().length() > 64) {
             throw new ApiException(400, "STAFF_DISPLAY_NAME_INVALID", "显示名不能超过 64 位");
         }
-        if (accounts.selectCount(new LambdaQueryWrapper<SaaAdminAccountPo>().eq(SaaAdminAccountPo::getUsername, username)) > 0) {
+        if (accounts.selectCount(new LambdaQueryWrapper<ConsAdminAccountPo>().eq(ConsAdminAccountPo::getUsername, username)) > 0) {
             throw new ApiException(409, "STAFF_USERNAME_EXISTS", "登录账号已存在");
         }
         String openId = null;
@@ -64,10 +64,10 @@ public class StaffAccountApplicationService {
                 ? identity.ensureAccount("SAAS_ADMIN", UUID.randomUUID().toString(), "EMPLOYEE")
                 : identity.ensureAccount("IM", openId, "EMPLOYEE");
         if (accountId <= 0) throw new IllegalStateException("Identity returned invalid account ID");
-        if (accounts.selectCount(new LambdaQueryWrapper<SaaAdminAccountPo>().eq(SaaAdminAccountPo::getPlatformAccountId, accountId)) > 0) {
+        if (accounts.selectCount(new LambdaQueryWrapper<ConsAdminAccountPo>().eq(ConsAdminAccountPo::getPlatformAccountId, accountId)) > 0) {
             throw new ApiException(409, "STAFF_IM_ALREADY_BOUND", "该 IM 账号已绑定后台账号");
         }
-        SaaAdminAccountPo account = new SaaAdminAccountPo();
+        ConsAdminAccountPo account = new ConsAdminAccountPo();
         account.setUsername(username);
         account.setPasswordHash(passwords.encode(command.password()));
         account.setDisplayName(command.displayName() == null || command.displayName().isBlank() ? username : command.displayName().trim());
@@ -87,7 +87,7 @@ public class StaffAccountApplicationService {
     }
 
     @Transactional
-    public SaaAdminAccountPo bindImAccount(SaaAdminAccountPo staff, String imAccount) {
+    public ConsAdminAccountPo bindImAccount(ConsAdminAccountPo staff, String imAccount) {
         String normalizedImAccount = imAccount == null ? "" : imAccount.trim();
         if (normalizedImAccount.isEmpty()) {
             throw new ApiException(400, "IM_ACCOUNT_REQUIRED", "请填写 IM 账号");
@@ -115,9 +115,9 @@ public class StaffAccountApplicationService {
             accounts.updateById(staff);
             return staff;
         }
-        if (accounts.selectCount(new LambdaQueryWrapper<SaaAdminAccountPo>()
-                .eq(SaaAdminAccountPo::getPlatformAccountId, targetAccountId)
-                .ne(SaaAdminAccountPo::getId, staff.getId())) > 0) {
+        if (accounts.selectCount(new LambdaQueryWrapper<ConsAdminAccountPo>()
+                .eq(ConsAdminAccountPo::getPlatformAccountId, targetAccountId)
+                .ne(ConsAdminAccountPo::getId, staff.getId())) > 0) {
             throw new ApiException(409, "STAFF_IM_ALREADY_BOUND", "该 IM 账号已绑定后台账号");
         }
         List<TenantIamDomainClient.RoleBinding> sourceBindings = iam.roleBindings(staff.getPlatformAccountId()).stream()
@@ -175,24 +175,24 @@ public class StaffAccountApplicationService {
     /**
      * 解除运营人员当前的 IM 关联（显式解绑，幂等）。
      *
-     * <p>只清 {@code saa_admin_account.im_account}：账号本体、登录凭证与角色绑定全部保留 ——
+     * <p>只清 {@code cons_admin_account.im_account}：账号本体、登录凭证与角色绑定全部保留 ——
      * 解绑的是「这个人还挂不挂某个 IM 身份」，不是收回他的运营权限。未绑定（im_account 为空）时直接返回，
      * 不发 UPDATE（重复点击不会产生多余写操作）。
      *
      * <p>{@code im_account} 上有唯一索引，但 MySQL 唯一索引允许多行为 NULL，解绑不影响其它账号。
      */
     @Transactional
-    public SaaAdminAccountPo unbindImAccount(SaaAdminAccountPo staff) {
+    public ConsAdminAccountPo unbindImAccount(ConsAdminAccountPo staff) {
         if (staff.getImAccount() == null || staff.getImAccount().isBlank()) {
             return staff;
         }
         LocalDateTime now = LocalDateTime.now();
         // MyBatis-Plus 默认的 NOT_NULL 更新策略会把 null 字段从 UPDATE 里剔除（解绑会静默失效），
         // 所以这里用 UpdateWrapper 显式把 im_account 置为 NULL。
-        accounts.update(null, new LambdaUpdateWrapper<SaaAdminAccountPo>()
-                .eq(SaaAdminAccountPo::getId, staff.getId())
-                .set(SaaAdminAccountPo::getImAccount, null)
-                .set(SaaAdminAccountPo::getUpdatedAt, now));
+        accounts.update(null, new LambdaUpdateWrapper<ConsAdminAccountPo>()
+                .eq(ConsAdminAccountPo::getId, staff.getId())
+                .set(ConsAdminAccountPo::getImAccount, null)
+                .set(ConsAdminAccountPo::getUpdatedAt, now));
         staff.setImAccount(null);
         staff.setUpdatedAt(now);
         return staff;

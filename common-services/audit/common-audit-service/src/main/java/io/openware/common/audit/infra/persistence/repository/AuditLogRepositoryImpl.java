@@ -5,10 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.audit.domain.model.AuditLog;
 import io.openware.common.audit.domain.model.OperatorDisplay;
 import io.openware.common.audit.domain.repository.AuditLogRepository;
-import io.openware.common.audit.infra.persistence.mapper.IamAuditLogMapper;
+import io.openware.common.audit.infra.persistence.mapper.AuditLogMapper;
 import io.openware.common.audit.infra.persistence.mapper.OperatorNameMapper;
 import io.openware.common.audit.infra.persistence.mapper.TenantNameMapper;
-import io.openware.common.audit.infra.persistence.po.IamAuditLogPo;
+import io.openware.common.audit.infra.persistence.po.AuditLogPo;
 import io.openware.common.audit.infra.persistence.row.OperatorNameRow;
 import io.openware.common.audit.infra.persistence.row.TenantNameRow;
 import java.time.LocalDateTime;
@@ -42,11 +42,11 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
     /** 单条多行 INSERT 的最大行数：与上报接口的单批上限一致，避免超长 SQL 与包体过大。 */
     static final int MAX_INSERT_CHUNK = 200;
 
-    private final IamAuditLogMapper mapper;
+    private final AuditLogMapper mapper;
     private final TenantNameMapper tenantNameMapper;
     private final OperatorNameMapper operatorNameMapper;
 
-    public AuditLogRepositoryImpl(IamAuditLogMapper mapper, TenantNameMapper tenantNameMapper,
+    public AuditLogRepositoryImpl(AuditLogMapper mapper, TenantNameMapper tenantNameMapper,
                                  OperatorNameMapper operatorNameMapper) {
         this.mapper = mapper;
         this.tenantNameMapper = tenantNameMapper;
@@ -58,7 +58,7 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
      *
      * <p>为什么不在主表上靠唯一键：主表要按 {@code occurred_at} 月分区，而 MySQL 要求分区表的
      * 每个唯一索引都包含分区列；唯一键一旦带上时间列，重试晚 1ms 就不再冲突、幂等静默失效。
-     * 因此唯一性职责挪到 {@code iam_audit_idempotency}（见 V4 迁移），主表只管留痕。
+     * 因此唯一性职责挪到 {@code audit_idempotency}（见 V4 迁移），主表只管留痕。
      *
      * <p>三条路径：
      * <ol>
@@ -170,7 +170,7 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
     public List<AuditLog> findPage(Query query) {
         // 排序与 LIMIT 一起放进 last()：排序必须按「有效发生时间」 COALESCE(occurred_at, created_at)，
         // LambdaQueryWrapper 只能按单列排序，无法表达该表达式。
-        LambdaQueryWrapper<IamAuditLogPo> wrapper = filter(query)
+        LambdaQueryWrapper<AuditLogPo> wrapper = filter(query)
                 .last(orderByClause(query.ascending()) + " LIMIT " + query.offset() + ", " + query.size());
         return mapper.selectList(wrapper).stream().map(this::toDomain).collect(Collectors.toList());
     }
@@ -270,20 +270,20 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
         }
     }
 
-    private LambdaQueryWrapper<IamAuditLogPo> filter(Query query) {
-        LambdaQueryWrapper<IamAuditLogPo> wrapper = Wrappers.lambdaQuery();
-        wrapper.eq(query.tenantId() != null, IamAuditLogPo::getTenantId, query.tenantId());
-        wrapper.eq(query.organizationId() != null, IamAuditLogPo::getOrganizationId, query.organizationId());
-        wrapper.eq(query.storeId() != null, IamAuditLogPo::getStoreId, query.storeId());
-        wrapper.eq(query.operatorId() != null, IamAuditLogPo::getOperatorId, query.operatorId());
-        wrapper.eq(StringUtils.hasText(query.action()), IamAuditLogPo::getAction, query.action());
-        wrapper.likeRight(StringUtils.hasText(query.actionPrefix()), IamAuditLogPo::getAction, query.actionPrefix());
-        wrapper.eq(StringUtils.hasText(query.resourceType()), IamAuditLogPo::getResourceType, query.resourceType());
-        wrapper.eq(StringUtils.hasText(query.resourceId()), IamAuditLogPo::getResourceId, query.resourceId());
-        wrapper.eq(StringUtils.hasText(query.result()), IamAuditLogPo::getResult, query.result());
-        wrapper.eq(StringUtils.hasText(query.operatorType()), IamAuditLogPo::getOperatorType, query.operatorType());
-        wrapper.eq(StringUtils.hasText(query.requestId()), IamAuditLogPo::getRequestId, query.requestId());
-        wrapper.eq(StringUtils.hasText(query.traceId()), IamAuditLogPo::getTraceId, query.traceId());
+    private LambdaQueryWrapper<AuditLogPo> filter(Query query) {
+        LambdaQueryWrapper<AuditLogPo> wrapper = Wrappers.lambdaQuery();
+        wrapper.eq(query.tenantId() != null, AuditLogPo::getTenantId, query.tenantId());
+        wrapper.eq(query.organizationId() != null, AuditLogPo::getOrganizationId, query.organizationId());
+        wrapper.eq(query.storeId() != null, AuditLogPo::getStoreId, query.storeId());
+        wrapper.eq(query.operatorId() != null, AuditLogPo::getOperatorId, query.operatorId());
+        wrapper.eq(StringUtils.hasText(query.action()), AuditLogPo::getAction, query.action());
+        wrapper.likeRight(StringUtils.hasText(query.actionPrefix()), AuditLogPo::getAction, query.actionPrefix());
+        wrapper.eq(StringUtils.hasText(query.resourceType()), AuditLogPo::getResourceType, query.resourceType());
+        wrapper.eq(StringUtils.hasText(query.resourceId()), AuditLogPo::getResourceId, query.resourceId());
+        wrapper.eq(StringUtils.hasText(query.result()), AuditLogPo::getResult, query.result());
+        wrapper.eq(StringUtils.hasText(query.operatorType()), AuditLogPo::getOperatorType, query.operatorType());
+        wrapper.eq(StringUtils.hasText(query.requestId()), AuditLogPo::getRequestId, query.requestId());
+        wrapper.eq(StringUtils.hasText(query.traceId()), AuditLogPo::getTraceId, query.traceId());
         applyTimeRange(wrapper, query.from(), query.to());
         if (StringUtils.hasText(query.operatorKeyword())) {
             String keyword = query.operatorKeyword().trim();
@@ -292,13 +292,13 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
             // 操作人关键字同时匹配姓名、账号（登录名/工号）与账号 ID：运营排查时手上可能只有其中一个。
             // 姓名/账号为空的记录靠 matchedOperatorIds 这一路命中（审计表只冗余了 operator_id）。
             wrapper.and(nested -> {
-                nested.like(IamAuditLogPo::getOperatorName, keyword)
-                        .or().like(IamAuditLogPo::getOperatorAccount, keyword);
+                nested.like(AuditLogPo::getOperatorName, keyword)
+                        .or().like(AuditLogPo::getOperatorAccount, keyword);
                 if (operatorId != null) {
-                    nested.or().eq(IamAuditLogPo::getOperatorId, operatorId);
+                    nested.or().eq(AuditLogPo::getOperatorId, operatorId);
                 }
                 if (!matchedOperatorIds.isEmpty()) {
-                    nested.or().in(IamAuditLogPo::getOperatorId, matchedOperatorIds);
+                    nested.or().in(AuditLogPo::getOperatorId, matchedOperatorIds);
                 }
             });
         }
@@ -320,16 +320,16 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
      *
      * <p>包级可见是为了让仓储层单测能断言生成的 SQL 片段（含 NULL 回退分支）。
      */
-    static void applyTimeRange(LambdaQueryWrapper<IamAuditLogPo> wrapper, LocalDateTime from, LocalDateTime to) {
+    static void applyTimeRange(LambdaQueryWrapper<AuditLogPo> wrapper, LocalDateTime from, LocalDateTime to) {
         if (from != null) {
-            wrapper.and(scope -> scope.ge(IamAuditLogPo::getOccurredAt, from)
-                    .or(fallback -> fallback.isNull(IamAuditLogPo::getOccurredAt)
-                            .ge(IamAuditLogPo::getCreatedAt, from)));
+            wrapper.and(scope -> scope.ge(AuditLogPo::getOccurredAt, from)
+                    .or(fallback -> fallback.isNull(AuditLogPo::getOccurredAt)
+                            .ge(AuditLogPo::getCreatedAt, from)));
         }
         if (to != null) {
-            wrapper.and(scope -> scope.lt(IamAuditLogPo::getOccurredAt, to)
-                    .or(fallback -> fallback.isNull(IamAuditLogPo::getOccurredAt)
-                            .lt(IamAuditLogPo::getCreatedAt, to)));
+            wrapper.and(scope -> scope.lt(AuditLogPo::getOccurredAt, to)
+                    .or(fallback -> fallback.isNull(AuditLogPo::getOccurredAt)
+                            .lt(AuditLogPo::getCreatedAt, to)));
         }
     }
 
@@ -342,8 +342,8 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
      * null 字段间接吃到默认值，两条路径的口径必须一致，否则「单条能写、批量报错」极难定位。
      * 缺省值与迁移脚本里的列默认值保持一一对应。
      */
-    private IamAuditLogPo toPo(AuditLog log) {
-        IamAuditLogPo po = new IamAuditLogPo();
+    private AuditLogPo toPo(AuditLog log) {
+        AuditLogPo po = new AuditLogPo();
         po.setId(log.getId());
         po.setTenantId(log.getTenantId() == null ? 0L : log.getTenantId());
         po.setOrganizationId(log.getOrganizationId());
@@ -371,7 +371,7 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
         return po;
     }
 
-    private AuditLog toDomain(IamAuditLogPo po) {
+    private AuditLog toDomain(AuditLogPo po) {
         AuditLog log = new AuditLog();
         log.setId(po.getId());
         log.setTenantId(po.getTenantId());

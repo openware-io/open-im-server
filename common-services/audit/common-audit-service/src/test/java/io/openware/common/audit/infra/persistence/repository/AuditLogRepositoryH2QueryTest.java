@@ -9,7 +9,7 @@ import com.baomidou.mybatisplus.core.MybatisSqlSessionFactoryBuilder;
 import io.openware.common.audit.domain.model.AuditLog;
 import io.openware.common.audit.domain.model.OperatorDisplay;
 import io.openware.common.audit.domain.repository.AuditLogRepository;
-import io.openware.common.audit.infra.persistence.mapper.IamAuditLogMapper;
+import io.openware.common.audit.infra.persistence.mapper.AuditLogMapper;
 import io.openware.common.audit.infra.persistence.mapper.OperatorNameMapper;
 import io.openware.common.audit.infra.persistence.mapper.TenantNameMapper;
 import java.sql.Connection;
@@ -48,7 +48,7 @@ class AuditLogRepositoryH2QueryTest {
     jdbcUrl = "jdbc:h2:mem:audit-query-" + System.nanoTime() + ";MODE=MySQL;DB_CLOSE_DELAY=-1";
     try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
          Statement statement = connection.createStatement()) {
-      statement.execute("CREATE TABLE `iam_audit_log` ("
+      statement.execute("CREATE TABLE `audit_log` ("
           + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
           + "`tenant_id` bigint NOT NULL DEFAULT 0,"
           + "`organization_id` bigint NULL,"
@@ -73,20 +73,20 @@ class AuditLogRepositoryH2QueryTest {
           + "`detail_json` varchar(2000) NULL,"
           + "`occurred_at` timestamp(3) NULL,"
           + "`created_at` timestamp(3) NOT NULL)");
-      // 操作人姓名补全读的是 open_im.saa_admin_account（跨 schema 只读），这里建同名结构，
+      // 操作人姓名补全读的是 open_im.cons_admin_account（跨 schema 只读），这里建同名结构，
       // 让「按姓名/登录名检索 + 姓名补全」两段真 SQL 都能在 H2 上跑。
       statement.execute("CREATE SCHEMA IF NOT EXISTS `open_im`");
-      statement.execute("CREATE TABLE `open_im`.`saa_admin_account` ("
+      statement.execute("CREATE TABLE `open_im`.`cons_admin_account` ("
           + "`id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,"
           + "`platform_account_id` bigint NULL,"
           + "`username` varchar(64) NOT NULL,"
           + "`display_name` varchar(128) NOT NULL)");
-      statement.execute("INSERT INTO `open_im`.`saa_admin_account`"
+      statement.execute("INSERT INTO `open_im`.`cons_admin_account`"
           + " (`platform_account_id`, `username`, `display_name`) VALUES (77, 'lisi', '李四')");
     }
     MybatisConfiguration configuration = new MybatisConfiguration();
     configuration.setMapUnderscoreToCamelCase(true);
-    configuration.addMapper(IamAuditLogMapper.class);
+    configuration.addMapper(AuditLogMapper.class);
     configuration.addMapper(OperatorNameMapper.class);
     configuration.setEnvironment(new Environment("audit-h2", new JdbcTransactionFactory(),
         new UnpooledDataSource("org.h2.Driver", jdbcUrl, "sa", "")));
@@ -152,7 +152,7 @@ class AuditLogRepositoryH2QueryTest {
   }
 
   private AuditLogRepository repository(SqlSession session) {
-    return new AuditLogRepositoryImpl(session.getMapper(IamAuditLogMapper.class),
+    return new AuditLogRepositoryImpl(session.getMapper(AuditLogMapper.class),
         mock(TenantNameMapper.class), session.getMapper(OperatorNameMapper.class));
   }
 
@@ -200,7 +200,7 @@ class AuditLogRepositoryH2QueryTest {
 
   /**
    * 操作人姓名补全 + 按姓名/登录名检索：审计表只冗余 {@code operator_id}，
-   * 姓名与登录名按它到 {@code open_im.saa_admin_account} 取（真 SQL，跨 schema 限定写法）。
+   * 姓名与登录名按它到 {@code open_im.cons_admin_account} 取（真 SQL，跨 schema 限定写法）。
    *
    * <p>历史数据里 {@code operator_name}/{@code operator_account} 常为空（上报方没带），
    * 这时列表既要把姓名补出来，也要能按姓名搜到——只按审计表字段匹配会一条都查不到。
@@ -209,7 +209,7 @@ class AuditLogRepositoryH2QueryTest {
   void operatorDisplayResolvesFromAccountTableByRedundantOperatorId() throws Exception {
     try (Connection connection = DriverManager.getConnection(jdbcUrl, "sa", "");
          Statement statement = connection.createStatement()) {
-      statement.execute("INSERT INTO `iam_audit_log` (`tenant_id`, `operator_id`, `operator_type`, `action`,"
+      statement.execute("INSERT INTO `audit_log` (`tenant_id`, `operator_id`, `operator_type`, `action`,"
           + " `action_label`, `resource_type`, `result`, `idempotency_key`, `occurred_at`, `created_at`)"
           + " VALUES (" + TENANT_ID + ", 77, 'TENANT', 'iam.role.create', 'IAM 角色创建', 'iam_role',"
           + " 'SUCCESS', 'iam.role.create:1', '2026-09-08 10:00:00', '2026-09-08 10:00:00')");
@@ -236,7 +236,7 @@ class AuditLogRepositoryH2QueryTest {
   }
 
   private static String insert(String action, String occurredAt, String createdAt) {
-    return "INSERT INTO `iam_audit_log` (`tenant_id`, `action`, `action_label`, `resource_type`,"
+    return "INSERT INTO `audit_log` (`tenant_id`, `action`, `action_label`, `resource_type`,"
         + " `result`, `idempotency_key`, `occurred_at`, `created_at`) VALUES (" + TENANT_ID
         + ", '" + action + "', '" + action + "', 'ord_order', 'SUCCESS', '" + action + ":1', "
         + (occurredAt == null ? "NULL" : "'" + occurredAt + "'") + ", '" + createdAt + "')";

@@ -10,7 +10,7 @@ import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.application.StaffAccountApplicationService;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
-import io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo;
+import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
@@ -36,7 +36,7 @@ class StaffControllerTest {
     void setup() {
         // 纯单元测试没有 MyBatis 上下文：先注册 TableInfo，列表筛选的 LambdaQueryWrapper 才能解析列名。
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
-                SaaAdminAccountPo.class);
+                ConsAdminAccountPo.class);
         AdminContextHolder.set(new AdminContext(1L, "admin", "admin", AdminRole.SUPER_ADMIN, 1L, "context"));
         when(tokens.verify("context")).thenReturn(new TenantContext(100L, null, null, 1L, 1));
         when(iam.permissions(1L, 100L, null, null)).thenReturn(new TenantIamDomainClient.PermissionSnapshot(
@@ -102,8 +102,8 @@ class StaffControllerTest {
     }
 
     @SuppressWarnings("unchecked")
-    private com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SaaAdminAccountPo> capturedListWrapper() {
-        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SaaAdminAccountPo>> captor =
+    private com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ConsAdminAccountPo> capturedListWrapper() {
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ConsAdminAccountPo>> captor =
                 ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class);
         verify(accounts, atLeastOnce()).selectList(captor.capture());
         return captor.getValue();
@@ -187,8 +187,8 @@ class StaffControllerTest {
         verify(accounts, never()).deleteById(anyLong());
     }
 
-    private SaaAdminAccountPo account(long id) {
-        var account = new SaaAdminAccountPo();
+    private ConsAdminAccountPo account(long id) {
+        var account = new ConsAdminAccountPo();
         account.setId(id);
         account.setPlatformAccountId(id);
         account.setRole("TENANT_ADMIN");

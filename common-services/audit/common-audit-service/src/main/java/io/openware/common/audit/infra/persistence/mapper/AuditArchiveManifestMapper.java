@@ -24,12 +24,12 @@ public interface AuditArchiveManifestMapper extends BaseMapper<AuditArchiveManif
      *
      * @return 插入成功 1；已存在 0
      */
-    @Insert("INSERT INTO iam_audit_archive_manifest "
+    @Insert("INSERT INTO audit_archive_manifest "
             + "(period, partition_name, object_path, row_count, checksum_sha256, state, operator_id, "
             + "created_by, created_at, updated_by, updated_at) "
             + "SELECT #{period}, #{partitionName}, NULL, #{rowCount}, NULL, #{state}, #{operatorId}, "
             + "0, #{createdAt}, 0, #{createdAt} "
-            + "FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM iam_audit_archive_manifest "
+            + "FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM audit_archive_manifest "
             + "WHERE period = #{period} AND partition_name = #{partitionName})")
     int insertIfAbsent(@Param("period") String period, @Param("partitionName") String partitionName,
                        @Param("rowCount") long rowCount, @Param("state") String state,

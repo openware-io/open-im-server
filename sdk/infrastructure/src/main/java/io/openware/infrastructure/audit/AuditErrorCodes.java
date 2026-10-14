@@ -4,7 +4,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 
 /**
- * 失败审计的 {@code error_code} 口径：与 {@code iam_audit_log.error_code}（varchar(64)）对齐的唯一出处。
+ * 失败审计的 {@code error_code} 口径：与 {@code audit_log.error_code}（varchar(64)）对齐的唯一出处。
  *
  * <p>取码优先级（审计要能按稳定码检索，绝不能出现空码或超长导致上报 400）：
  * <ol>
@@ -18,7 +18,7 @@ import io.openware.common.exception.BusinessException;
  */
 public final class AuditErrorCodes {
 
-  /** 与 {@code iam_audit_log.error_code} 的 varchar(64) 一致。 */
+  /** 与 {@code audit_log.error_code} 的 varchar(64) 一致。 */
   public static final int MAX_LENGTH = 64;
 
   /** 无法归类时的兜底码。 */

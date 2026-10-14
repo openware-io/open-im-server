@@ -58,7 +58,7 @@ class AuditPartitionInvariantTest {
   /** 核心不变量：分区主表的每个唯一索引（含主键）都必须包含分区列，否则 MySQL 直接拒绝该 DDL。 */
   @Test
   void everyUniqueKeyOfPartitionedTableIncludesPartitionColumn() throws Exception {
-    String definition = tableDefinition(read(PARTITIONED_MIGRATION), "iam_audit_log");
+    String definition = tableDefinition(read(PARTITIONED_MIGRATION), "audit_log");
     List<String> uniqueKeys = uniqueKeysOf(definition);
 
     assertFalse(uniqueKeys.isEmpty(),
@@ -77,7 +77,7 @@ class AuditPartitionInvariantTest {
    */
   @Test
   void idempotencyUniquenessStaysInLedgerInsteadOfPartitionedTable() throws Exception {
-    String partitionedTable = tableDefinition(read(PARTITIONED_MIGRATION), "iam_audit_log").toLowerCase(Locale.ROOT);
+    String partitionedTable = tableDefinition(read(PARTITIONED_MIGRATION), "audit_log").toLowerCase(Locale.ROOT);
     String ledger = read(LEDGER_MIGRATION).toLowerCase(Locale.ROOT);
 
     assertFalse(partitionedTable.matches("(?s).*unique\\s+key[^,)]*idempotency_key.*"),
@@ -85,8 +85,8 @@ class AuditPartitionInvariantTest {
     // 断言的是「唯一性职责落在台账表」，而不是「台账表主键长什么样」：
     // ENGINEERING_RULES 与 DDL 门禁要求非分区表主键必须是 id，因此 (tenant_id, idempotency_key)
     // 改由唯一索引承担；并发抢占仍由该唯一索引抛 DuplicateKeyException，幂等语义不变。
-    assertTrue(ledger.contains("uk_iam_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`)"),
-        "幂等唯一性必须落在台账表 iam_audit_idempotency 上（由唯一索引承担，主键为 id）");
+    assertTrue(ledger.contains("uk_audit_idempotency_tenant_key` (`tenant_id`, `idempotency_key`)"),
+        "幂等唯一性必须落在台账表 audit_idempotency 上（由唯一索引承担，主键为 id）");
   }
 
   /**

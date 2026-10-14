@@ -13,7 +13,7 @@ import java.time.Duration;
 
 /**
  * SaaS 后台 SSO 交换：用一次性票据经 IDaaS /sso/verify 换到 accountId，
- * 映射到 saa_admin_account，命中则创建 Redis 会话并返回 sessionId；未命中返回 404。
+ * 映射到 cons_admin_account，命中则创建 Redis 会话并返回 sessionId；未命中返回 404。
  */
 @Service
 public class SsoAuthApplicationService {

@@ -16,10 +16,10 @@ import static org.mockito.Mockito.when;
 
 import io.openware.common.audit.domain.model.AuditLog;
 import io.openware.common.audit.domain.repository.AuditLogRepository;
-import io.openware.common.audit.infra.persistence.mapper.IamAuditLogMapper;
+import io.openware.common.audit.infra.persistence.mapper.AuditLogMapper;
 import io.openware.common.audit.infra.persistence.mapper.OperatorNameMapper;
 import io.openware.common.audit.infra.persistence.mapper.TenantNameMapper;
-import io.openware.common.audit.infra.persistence.po.IamAuditLogPo;
+import io.openware.common.audit.infra.persistence.po.AuditLogPo;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,12 +43,12 @@ class AuditBatchInsertTest {
 
     private static final long TENANT_ID = 1001L;
 
-    private IamAuditLogMapper mapper;
+    private AuditLogMapper mapper;
     private AuditLogRepository repository;
 
     @BeforeEach
     void setUp() {
-        mapper = mock(IamAuditLogMapper.class);
+        mapper = mock(AuditLogMapper.class);
         repository = new AuditLogRepositoryImpl(mapper, mock(TenantNameMapper.class),
         mock(OperatorNameMapper.class));
         // 默认：所有幂等键都抢得到（首次上报）。
@@ -64,10 +64,10 @@ class AuditBatchInsertTest {
         assertEquals(3, results.size());
         assertTrue(results.stream().noneMatch(AuditLogRepository.SaveResult::duplicated));
 
-        ArgumentCaptor<List<IamAuditLogPo>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<AuditLogPo>> captor = ArgumentCaptor.forClass(List.class);
         verify(mapper, times(1)).insertBatch(captor.capture());
         assertEquals(3, captor.getValue().size(), "三条记录必须在同一条多行 INSERT 里");
-        verify(mapper, never()).insert(any(IamAuditLogPo.class));
+        verify(mapper, never()).insert(any(AuditLogPo.class));
         verify(mapper, times(3)).claimIdempotencyKey(anyLong(), anyString(), anyLong(), any());
     }
 
@@ -77,7 +77,7 @@ class AuditBatchInsertTest {
 
         repository.saveAllIfAbsent(entries);
 
-        ArgumentCaptor<List<IamAuditLogPo>> captor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<AuditLogPo>> captor = ArgumentCaptor.forClass(List.class);
         verify(mapper, times(2)).insertBatch(captor.capture());
         assertEquals(List.of(AuditLogRepositoryImpl.MAX_INSERT_CHUNK, 1),
                 captor.getAllValues().stream().map(List::size).toList(),
@@ -95,7 +95,7 @@ class AuditBatchInsertTest {
         assertTrue(results.stream().allMatch(AuditLogRepository.SaveResult::duplicated));
         assertEquals(4242L, results.get(0).id(), "重复项要回执首次落库的 ID");
         verify(mapper, never()).insertBatch(any());
-        verify(mapper, never()).insert(any(IamAuditLogPo.class));
+        verify(mapper, never()).insert(any(AuditLogPo.class));
     }
 
     /** 主键缺失属于编程错误：必须立刻失败，而不是让库里的自增值与台账记录不一致。 */
@@ -121,7 +121,7 @@ class AuditBatchInsertTest {
         assertFalse(result.duplicated());
         assertEquals(entry.getId(), result.id());
         verify(mapper).claimIdempotencyKey(TENANT_ID, entry.getIdempotencyKey(), entry.getId(), entry.getCreatedAt());
-        verify(mapper, times(1)).insert(any(IamAuditLogPo.class));
+        verify(mapper, times(1)).insert(any(AuditLogPo.class));
         verify(mapper, never()).attachAuditIdIfAbsent(anyLong(), anyString(), anyLong());
     }
 
@@ -135,7 +135,7 @@ class AuditBatchInsertTest {
         AuditLogRepository.SaveResult result = repository.saveIfAbsent(entry);
 
         assertFalse(result.duplicated(), "台账无记录 ID 时按未写入补写，绝不静默丢审计");
-        verify(mapper, times(1)).insert(any(IamAuditLogPo.class));
+        verify(mapper, times(1)).insert(any(AuditLogPo.class));
         verify(mapper, times(1)).attachAuditIdIfAbsent(TENANT_ID, entry.getIdempotencyKey(), entry.getId());
     }
 

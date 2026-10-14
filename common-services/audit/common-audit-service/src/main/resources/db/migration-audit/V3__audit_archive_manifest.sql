@@ -7,7 +7,7 @@
 -- 每个 (period, partition_name) 唯一：同一个月重复执行归档只会留一条，归档任务可安全重跑。
 -- updated_at 带 DEFAULT CURRENT_TIMESTAMP(3)：登记语句（AuditArchiveManifestMapper.insertIfAbsent）
 -- 现已显式写入四个审计列，该默认值只作为其它写入路径的兜底（无它则严格模式下 1364 拒插）。
-CREATE TABLE `iam_audit_archive_manifest` (
+CREATE TABLE `audit_archive_manifest` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `period` char(7) NOT NULL COMMENT '归档月份 YYYY-MM',
   `partition_name` varchar(64) NOT NULL COMMENT '被归档的分区名（如 p202508）',
@@ -22,6 +22,6 @@ CREATE TABLE `iam_audit_archive_manifest` (
   `updated_at` datetime(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最后更新时间（未显式写入时取落库时间）',
   `dropped_at` datetime(3) NULL COMMENT '分区删除时间（未删除为空）',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_iam_audit_archive_manifest_period` (`period`, `partition_name`) COMMENT '归档幂等：同月重复执行只留一条',
-  KEY `idx_iam_audit_archive_manifest_state` (`state`, `period`) COMMENT '按状态取可查范围下限与待处理月份'
+  UNIQUE KEY `uk_audit_archive_manifest_period` (`period`, `partition_name`) COMMENT '归档幂等：同月重复执行只留一条',
+  KEY `idx_audit_archive_manifest_state` (`state`, `period`) COMMENT '按状态取可查范围下限与待处理月份'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='审计冷归档清单：归档与删除的可追溯证据';

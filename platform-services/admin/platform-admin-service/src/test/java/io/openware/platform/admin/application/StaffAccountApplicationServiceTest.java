@@ -8,7 +8,7 @@ import io.openware.platform.admin.infra.IdentityDomainClient;
 import io.openware.platform.admin.infra.ImUserResolveClient;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
-import io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo;
+import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class StaffAccountApplicationServiceTest {
         // 纯单元测试没有 MyBatis 上下文：解绑用 LambdaUpdateWrapper 显式把 im_account 置 NULL，
         // 断言 SET 子句前必须先注册 TableInfo（否则列名无法解析）。
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
-                SaaAdminAccountPo.class);
+                ConsAdminAccountPo.class);
     }
 
     @Test
@@ -62,7 +62,7 @@ class StaffAccountApplicationServiceTest {
         assertThrows(ApiException.class, () -> service.create(command(null, "密".repeat(25))));
         assertThrows(ApiException.class, () -> service.create(command("missing", "TestPass123")));
         verifyNoInteractions(identity, iam);
-        verify(accounts, never()).insert(any(io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo.class));
+        verify(accounts, never()).insert(any(io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo.class));
     }
 
     @Test
@@ -74,7 +74,7 @@ class StaffAccountApplicationServiceTest {
 
     @Test
     void bindImMovesActiveRolesToExistingImIdentity() {
-        var staff = new io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo();
+        var staff = new io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo();
         staff.setId(20L);
         staff.setPlatformAccountId(51L);
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
@@ -95,7 +95,7 @@ class StaffAccountApplicationServiceTest {
 
     @Test
     void bindImAssignmentFailureDoesNotUpdateStaffAccount() {
-        var staff = new io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo();
+        var staff = new io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo();
         staff.setId(20L);
         staff.setPlatformAccountId(51L);
         var binding = new TenantIamDomainClient.RoleBinding(
@@ -116,7 +116,7 @@ class StaffAccountApplicationServiceTest {
 
     @Test
     void bindImRejectsASecondStaffAccount() {
-        var staff = new io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo();
+        var staff = new io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo();
         staff.setId(20L);
         staff.setPlatformAccountId(51L);
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
@@ -126,7 +126,7 @@ class StaffAccountApplicationServiceTest {
         assertThrows(ApiException.class, () -> service.bindImAccount(staff, "im-user"));
 
         verifyNoInteractions(iam);
-        verify(accounts, never()).updateById(any(io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo.class));
+        verify(accounts, never()).updateById(any(io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo.class));
     }
 
     private StaffAccountApplicationService.CreateCommand command(String im, String password) {
@@ -136,8 +136,8 @@ class StaffAccountApplicationServiceTest {
     // —— 换绑（旧 IM 账号已被删除）与显式解绑 ——
 
     /** 员工账号：id + 平台账号 + 当前 im_account。 */
-    private SaaAdminAccountPo staffAccount(long id, long platformAccountId, String imAccount) {
-        var staff = new SaaAdminAccountPo();
+    private ConsAdminAccountPo staffAccount(long id, long platformAccountId, String imAccount) {
+        var staff = new ConsAdminAccountPo();
         staff.setId(id);
         staff.setPlatformAccountId(platformAccountId);
         staff.setImAccount(imAccount);
@@ -201,7 +201,7 @@ class StaffAccountApplicationServiceTest {
         assertEquals("STAFF_IM_REBIND_UNBIND_FIRST", failure.getCode());
         assertEquals("old-user", staff.getImAccount());
         verify(identity, never()).ensureAccount(anyString(), anyString(), anyString());
-        verify(accounts, never()).updateById(any(SaaAdminAccountPo.class));
+        verify(accounts, never()).updateById(any(ConsAdminAccountPo.class));
     }
 
     /** fail-closed：旧 IM 存在性查询失败（IM 侧或 identity 侧）时按「旧绑定仍有效」拒绝换绑。 */
@@ -219,7 +219,7 @@ class StaffAccountApplicationServiceTest {
 
         assertEquals("STAFF_IM_REBIND_UNBIND_FIRST",
                 assertThrows(ApiException.class, () -> service.bindImAccount(imFailure, "new-user")).getCode());
-        verify(accounts, never()).updateById(any(SaaAdminAccountPo.class));
+        verify(accounts, never()).updateById(any(ConsAdminAccountPo.class));
     }
 
     /** 换绑时新 IM 账号已被另一个后台账号占用 → 仍必须是 409 STAFF_IM_ALREADY_BOUND。 */
@@ -236,7 +236,7 @@ class StaffAccountApplicationServiceTest {
         assertEquals(409, failure.getStatus());
         assertEquals("STAFF_IM_ALREADY_BOUND", failure.getCode());
         verifyNoInteractions(iam);
-        verify(accounts, never()).updateById(any(SaaAdminAccountPo.class));
+        verify(accounts, never()).updateById(any(ConsAdminAccountPo.class));
     }
 
     /** 解绑：显式把 im_account 置 NULL（默认 NOT_NULL 更新策略会静默漏掉这一列），账号与角色不动。 */
@@ -248,10 +248,10 @@ class StaffAccountApplicationServiceTest {
 
         assertNull(result.getImAccount());
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<LambdaUpdateWrapper<SaaAdminAccountPo>> captor =
+        ArgumentCaptor<LambdaUpdateWrapper<ConsAdminAccountPo>> captor =
                 ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
         verify(accounts).update(isNull(), captor.capture());
-        LambdaUpdateWrapper<SaaAdminAccountPo> wrapper = captor.getValue();
+        LambdaUpdateWrapper<ConsAdminAccountPo> wrapper = captor.getValue();
         assertTrue(wrapper.getSqlSet().contains("im_account"), wrapper.getSqlSet());
         assertTrue(wrapper.getParamNameValuePairs().values().stream().anyMatch(Objects::isNull),
                 "im_account 必须被显式置为 NULL，否则解绑会静默失效");

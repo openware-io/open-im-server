@@ -8,7 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 统一审计日志表 {@code iam_audit_log} 的持久化对象（字段与迁移脚本一一对应）。
+ * 统一审计日志表 {@code audit_log} 的持久化对象（字段与迁移脚本一一对应）。
  *
  * <p>主键策略为 {@link IdType#INPUT}：ID 由应用侧生成（{@code AuditIdGenerator}）。
  * 不能再用 {@code AUTO_INCREMENT}——批量上报走多行 {@code INSERT}，插入后无法逐条回读主键，
@@ -17,8 +17,8 @@ import lombok.Setter;
  */
 @Getter
 @Setter
-@TableName("iam_audit_log")
-public class IamAuditLogPo {
+@TableName("audit_log")
+public class AuditLogPo {
     @TableId(type = IdType.INPUT)
     private Long id;
     private Long tenantId;

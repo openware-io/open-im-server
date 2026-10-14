@@ -3,7 +3,7 @@ package io.openware.common.audit.domain.retention;
 import java.time.LocalDateTime;
 
 /**
- * 审计冷归档清单记录（对应表 {@code iam_audit_archive_manifest}）。
+ * 审计冷归档清单记录（对应表 {@code audit_archive_manifest}）。
  *
  * <p>它是「哪些月份已归档、是否允许删除分区」的**唯一可追溯证据**：本阶段只把超出热存窗口的月份
  * 标记为 {@link #STATE_ARCHIVED} 并移出可查范围，**不投递对象存储、不 DROP PARTITION**；

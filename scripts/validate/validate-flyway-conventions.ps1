@@ -37,7 +37,7 @@ $worklistPath = Join-Path $root '.outputs\quality\flyway-conventions-worklist.tx
 $violations = [System.Collections.Generic.List[string]]::new()
 
 # Names that are singular although they end with 's'.
-$singularAllowlist = @('msg_read_status', 'iam_audit_idempotency')
+$singularAllowlist = @('msg_read_status', 'audit_idempotency')
 
 # Identifier backtick checks (docs/DATABASE_MIGRATION_STANDARD.md: identifiers use backticks).
 # Each pattern has two alternatives: the identifier is either backticked (group 'name') or bare

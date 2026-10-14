@@ -1,7 +1,7 @@
--- 平台管理后台基线（platform-admin 域）：SaaS 后台管理员账号（saa_admin_account）与菜单定义（iam_menu）
+-- 平台管理后台基线（platform-admin 域）：SaaS 后台管理员账号（cons_admin_account）与菜单定义（iam_menu）
 -- 仅适用于未执行该基线的新建数据库：本文件是原 V1~V11 的累积终态，清库重建时由 Flyway 从 V1 一次性建齐。
 -- 口径依据：SAAS 后台账号体系 item 1（管理员表 + IDaaS 映射 + 后端鉴权）；SAAS_MENU_PERMISSION_02_SERVICE.md §9.1。
--- 合并来源：V1 建 saa_admin_account；V2 种子 admin；V3 种子 a380-admin；V4 +platform_account_id 并回填；
+-- 合并来源：V1 建 cons_admin_account；V2 种子 admin；V3 种子 a380-admin；V4 +platform_account_id 并回填；
 --           V5 +唯一键(platform_account_id)；V6 +im_account 与唯一键；V7 建 iam_menu 并播种 26 条菜单；
 --           V8 pricing 入口改为 KTV 配置；V9 菜单分段收口（id 改自增、补声明式权限列、重建父子关系）；
 --           V10/V11 储值管理归门店经营、代币配置归租户总部。
@@ -13,7 +13,7 @@
 -- SaaS 后台管理员账号：平台/租户运营人员的后台登录主体。idaas_subject 关联集团账号做 SSO；
 -- platform_account_id 关联 idt_account.id，是经营 IAM（iam_user_role.account_id）的账号口径；
 -- im_account 为运营人员的 IM 绑定，同一账号唯一、解绑后置空。
-CREATE TABLE `saa_admin_account` (
+CREATE TABLE `cons_admin_account` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '管理员账号ID',
   `username` varchar(64) NOT NULL COMMENT '登录用户名',
   `password_hash` varchar(100) NULL COMMENT 'BCrypt 密码哈希（SSO 映射账号可为空）',
@@ -28,10 +28,10 @@ CREATE TABLE `saa_admin_account` (
   `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '更新人',
   `updated_at` datetime(3) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_saa_admin_account_username` (`username`),
-  UNIQUE KEY `uk_saa_admin_account_im_account` (`im_account`),
-  UNIQUE KEY `uk_saa_admin_account_platform_account` (`platform_account_id`),
-  KEY `idx_saa_admin_account_idaas_subject` (`idaas_subject`)
+  UNIQUE KEY `uk_cons_admin_account_username` (`username`),
+  UNIQUE KEY `uk_cons_admin_account_im_account` (`im_account`),
+  UNIQUE KEY `uk_cons_admin_account_platform_account` (`platform_account_id`),
+  KEY `idx_cons_admin_account_idaas_subject` (`idaas_subject`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='SaaS后台管理员账号';
 
 -- 菜单定义：平台（PLATFORM）/ 租户总部（TENANT）/ 门店经营（STORE）三段作用域，一个节点一行；
@@ -63,7 +63,7 @@ CREATE TABLE `iam_menu` (
 
 -- 种子数据：本地启动所需的最小数据。管理员口令为 BCrypt 真实哈希，初始口令明文不落在迁移脚本中。
 
-INSERT INTO `saa_admin_account`
+INSERT INTO `cons_admin_account`
   (`username`, `password_hash`, `display_name`, `im_account`, `idaas_subject`, `platform_account_id`,
    `role`, `status`, `created_by`, `created_at`, `updated_by`, `updated_at`)
 VALUES

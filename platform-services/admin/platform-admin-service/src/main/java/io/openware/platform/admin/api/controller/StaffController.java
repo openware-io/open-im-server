@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.platform.admin.application.StaffAccountApplicationService;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
-import io.openware.platform.admin.infra.persistence.po.SaaAdminAccountPo;
+import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
@@ -28,7 +28,7 @@ import java.util.List;
 
 /**
  * SaaS 后台运营人员管理：把 IM 账号开通为运营人员（员工），绑定角色与作用域。
- * 数据流：identity 服务查/建 EMPLOYEE 账号 → 建 saa_admin_account → tenant 服务分配 iam_user_role。
+ * 数据流：identity 服务查/建 EMPLOYEE 账号 → 建 cons_admin_account → tenant 服务分配 iam_user_role。
  */
 @RestController
 @RequestMapping("/admin/staff")
@@ -97,13 +97,13 @@ public class StaffController {
                                 @RequestParam(required = false) String to) {
         TenantContext context = requireContext();
         TimeRange range = TimeRangeParams.parse(from, to);
-        List<SaaAdminAccountPo> accounts = saaAdminAccountMapper.selectList(new LambdaQueryWrapper<SaaAdminAccountPo>()
-                .eq(SaaAdminAccountPo::getRole, "TENANT_ADMIN")
-                .ge(range.hasFrom(), SaaAdminAccountPo::getCreatedAt, range.fromInclusive())
-                .le(range.hasTo(), SaaAdminAccountPo::getCreatedAt, range.toInclusive())
-                .orderByAsc(SaaAdminAccountPo::getId));
+        List<ConsAdminAccountPo> accounts = saaAdminAccountMapper.selectList(new LambdaQueryWrapper<ConsAdminAccountPo>()
+                .eq(ConsAdminAccountPo::getRole, "TENANT_ADMIN")
+                .ge(range.hasFrom(), ConsAdminAccountPo::getCreatedAt, range.fromInclusive())
+                .le(range.hasTo(), ConsAdminAccountPo::getCreatedAt, range.toInclusive())
+                .orderByAsc(ConsAdminAccountPo::getId));
         List<StaffView> result = new ArrayList<>();
-        for (SaaAdminAccountPo po : accounts) {
+        for (ConsAdminAccountPo po : accounts) {
             List<TenantIamDomainClient.RoleBinding> roles = List.of();
             if (po.getPlatformAccountId() != null) {
                 roles = tenantIamClient.roleBindings(po.getPlatformAccountId());
@@ -144,7 +144,7 @@ public class StaffController {
      *  禁用必须立即收回访问权）；ACTIVE 仅恢复后台账号状态（角色需重新开通时走删除+新增）。 */
     @PatchMapping("/{id}/status")
     public AccountView updateStatus(@PathVariable Long id, @RequestBody UpdateStatusRequest req) {
-        SaaAdminAccountPo po = requireStaff(id);
+        ConsAdminAccountPo po = requireStaff(id);
         String status = req.status();
         if (status == null || (!"ACTIVE".equals(status) && !"DISABLED".equals(status))) {
             throw new io.openware.common.exception.ApiException(400, "STAFF_STATUS_INVALID", "状态仅支持 ACTIVE/DISABLED");
@@ -174,7 +174,7 @@ public class StaffController {
     /** 删除运营人员（删除登录凭证 + 撤销全部角色绑定）。 */
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
-        SaaAdminAccountPo po = requireStaff(id);
+        ConsAdminAccountPo po = requireStaff(id);
         if (po.getPlatformAccountId() != null) {
             for (Long userRoleId : tenantIamClient.listUserRoleIds(po.getPlatformAccountId())) {
                 tenantIamClient.revokeUserRole(userRoleId);
@@ -183,9 +183,9 @@ public class StaffController {
         saaAdminAccountMapper.deleteById(id);
     }
 
-    private SaaAdminAccountPo requireStaff(Long id) {
+    private ConsAdminAccountPo requireStaff(Long id) {
         TenantContext context = requireContext();
-        SaaAdminAccountPo po = saaAdminAccountMapper.selectById(id);
+        ConsAdminAccountPo po = saaAdminAccountMapper.selectById(id);
         if (po == null || !"TENANT_ADMIN".equals(po.getRole()) || po.getPlatformAccountId() == null) {
             throw new io.openware.common.exception.ApiException(404, "STAFF_NOT_FOUND", "运营人员不存在");
         }
@@ -207,7 +207,7 @@ public class StaffController {
                                      Long tenantId, Long organizationId, Long storeId) {}
     public record StaffOptions(List<TenantIamDomainClient.StaffRole> roles, List<TenantIamDomainClient.StaffStore> stores) {}
     public record AccountView(Long id, String username, String displayName, Long platformAccountId, boolean imBound, String status) {}
-    private AccountView accountView(SaaAdminAccountPo account) {
+    private AccountView accountView(ConsAdminAccountPo account) {
         return new AccountView(account.getId(), account.getUsername(), account.getDisplayName(), account.getPlatformAccountId(),
                 account.getImAccount() != null && !account.getImAccount().isBlank(), account.getStatus());
     }

@@ -3,7 +3,7 @@ package io.openware.common.audit.infra.persistence.mapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
-import io.openware.common.audit.infra.persistence.po.IamAuditLogPo;
+import io.openware.common.audit.infra.persistence.po.AuditLogPo;
 import java.util.List;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
-public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
+public interface AuditLogMapper extends BaseMapper<AuditLogPo> {
 
     /**
      * 带上界的总数统计：最多证明「匹配行不少于 cap 行」。
@@ -29,8 +29,8 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      * @param cap     统计上界（&gt; 0）
      * @return 匹配行数，取值区间为 {@code [0, cap]}
      */
-    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM iam_audit_log ${ew.customSqlSegment} LIMIT #{cap}) audit_count") /* tenant-agnostic: 租户谓词由 TenantLineInnerInterceptor 注入进 wrapper，不落在本行 */
-    long countUpTo(@Param(Constants.WRAPPER) Wrapper<IamAuditLogPo> wrapper, @Param("cap") long cap);
+    @Select("SELECT COUNT(*) FROM (SELECT 1 FROM audit_log ${ew.customSqlSegment} LIMIT #{cap}) audit_count") /* tenant-agnostic: 租户谓词由 TenantLineInnerInterceptor 注入进 wrapper，不落在本行 */
+    long countUpTo(@Param(Constants.WRAPPER) Wrapper<AuditLogPo> wrapper, @Param("cap") long cap);
 
     /**
      * 抢占幂等键：唯一键在台账上（主表要分区，无法保留原唯一键）。
@@ -54,16 +54,16 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      *
      * @return 插入成功 1；键已存在 0
      */
-    @Insert("INSERT INTO iam_audit_idempotency "
+    @Insert("INSERT INTO audit_idempotency "
             + "(tenant_id, idempotency_key, audit_id, created_by, created_at, updated_by, updated_at) "
             + "SELECT #{tenantId}, #{idempotencyKey}, #{auditId}, 0, #{createdAt}, 0, #{createdAt} FROM DUAL "
-            + "WHERE NOT EXISTS (SELECT 1 FROM iam_audit_idempotency WHERE tenant_id = #{tenantId} AND idempotency_key = #{idempotencyKey})")
+            + "WHERE NOT EXISTS (SELECT 1 FROM audit_idempotency WHERE tenant_id = #{tenantId} AND idempotency_key = #{idempotencyKey})")
     int claimIdempotencyKey(@Param("tenantId") long tenantId, @Param("idempotencyKey") String idempotencyKey,
                             @Param("auditId") long auditId,
                             @Param("createdAt") java.time.LocalDateTime createdAt);
 
     /** 重复上报时取首次落库的记录 ID（未回填时返回 null，由调用方走恢复路径）。 */
-    @Select("SELECT audit_id FROM iam_audit_idempotency WHERE tenant_id = #{tenantId} "
+    @Select("SELECT audit_id FROM audit_idempotency WHERE tenant_id = #{tenantId} "
             + "AND idempotency_key = #{idempotencyKey}")
     Long findClaimedAuditId(@Param("tenantId") long tenantId, @Param("idempotencyKey") String idempotencyKey);
 
@@ -72,7 +72,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      *
      * <p>只补空值，不覆盖已有 ID：否则并发下会把别人的记录 ID 改掉。
      */
-    @Update("UPDATE iam_audit_idempotency SET audit_id = #{auditId} WHERE tenant_id = #{tenantId} "
+    @Update("UPDATE audit_idempotency SET audit_id = #{auditId} WHERE tenant_id = #{tenantId} "
             + "AND idempotency_key = #{idempotencyKey} AND audit_id IS NULL")
     int attachAuditIdIfAbsent(@Param("tenantId") long tenantId, @Param("idempotencyKey") String idempotencyKey,
                               @Param("auditId") long auditId);
@@ -97,7 +97,7 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
      */
     @Insert("""
             <script>
-            INSERT INTO iam_audit_log
+            INSERT INTO audit_log
               (id, tenant_id, organization_id, store_id, operator_id, operator_name, operator_account,
                operator_type, action, action_label, resource_type, resource_id, resource_name, result,
                error_code, ip, user_agent, request_id, trace_id, source_service, idempotency_key,
@@ -113,5 +113,5 @@ public interface IamAuditLogMapper extends BaseMapper<IamAuditLogPo> {
             </foreach>
             </script>
             """)
-    int insertBatch(@Param("entries") List<IamAuditLogPo> entries);
+    int insertBatch(@Param("entries") List<AuditLogPo> entries);
 }
