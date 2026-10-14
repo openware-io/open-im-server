@@ -50,6 +50,27 @@ foreach ($line in $changed) {
   }
 }
 
+# Committed history alone is not enough. The most common way to break a freeze is to edit a migration
+# and not commit yet, and a "$baselineTag..HEAD" diff cannot see the working tree at all - a probe that
+# appended a line to a frozen migration passed this gate before the check below existed. Compare the
+# working tree against HEAD as well, so both committed and uncommitted rewrites are caught.
+$worktree = git -C $root diff --name-status HEAD -- '*db/migration/*.sql'
+foreach ($line in $worktree) {
+  if ([string]::IsNullOrWhiteSpace($line)) { continue }
+  $parts = $line -split "`t"
+  $status = $parts[0]
+  $file = $parts[-1]
+  if ($status -match '^(M|D)') {
+    $violations.Add("${status}: $file (uncommitted migration change while frozen at $baselineTag)")
+  }
+}
+$untracked = git -C $root ls-files --others --exclude-standard -- '*db/migration/*.sql'
+foreach ($file in $untracked) {
+  if ([string]::IsNullOrWhiteSpace($file)) { continue }
+  # New migrations are allowed; they are listed for visibility only, not as violations.
+  Write-Host "New migration (allowed while frozen): $file"
+}
+
 if ($violations.Count -eq 0) {
   Write-Host "Flyway immutability: frozen at $baselineTag, no rewritten migrations detected."
   exit 0
