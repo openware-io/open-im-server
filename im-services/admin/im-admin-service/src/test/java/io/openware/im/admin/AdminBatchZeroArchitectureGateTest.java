@@ -158,7 +158,7 @@ class AdminBatchZeroArchitectureGateTest {
     String configuration = Files.readString(MODULE_ROOT.resolve("src/main/resources/application.yml"));
     String compose = Files.readString(PROJECT_ROOT.resolve("docker-compose.yml"));
 
-    assertTrue(configuration.contains("url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_DATABASE:${DB_NAME:}}"));
+    assertTrue(configuration.contains("url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${IM_DATABASE:${DB_NAME:}}"));
     assertTrue(configuration.contains("username: ${DB_USERNAME:${DB_USER:}}"));
     assertTrue(configuration.contains("password: ${DB_PASSWORD:}"));
     assertTrue(configuration.contains("host: ${REDIS_HOST:}"));
