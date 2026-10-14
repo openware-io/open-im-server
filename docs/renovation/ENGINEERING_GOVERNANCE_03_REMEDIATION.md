@@ -338,7 +338,12 @@ git ls-tree -r pre-baseline-consolidation-20261013 |
   Select-String 'src/main/resources/db/migration(-audit)?/.*\.sql$'
 
 # 5. 无第二校验入口（原 G-14）
-git grep -n -i 'release_manager\|verify.bat'                   # 期望：无输出
+#    权威判据（阻断门禁本身，断言仓库内真的不存在第二入口）：
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-repository-hygiene.ps1
+#    辅助 grep：必须排除校验器自身——它为执行本检查而必须写下这两个禁词字面量，否则会把检查规则
+#    本身当成违规（自命中）。排除后剩余的命中应全部是**已移除的记账行**（含"已移出/移出至/关闭/DC-18"），
+#    那些是移除动作的正确历史记录，**不清理**。判据是"没有仍存在的第二入口"，不是"这个词从未出现过"。
+git grep -n -i 'release_manager\|verify.bat' -- ':!scripts/validate/validate-repository-hygiene.ps1'
 
 # 6. 根目录整洁（DC-19 / G-15）
 Get-ChildItem 'D:\projects\cnb-oss' -Force |

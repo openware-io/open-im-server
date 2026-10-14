@@ -335,7 +335,8 @@ TIMESTAMP
 2. 为现存问题建立编号、责任模块、整改批次和到期条件，不接受无限期忽略。
 3. 批次 0 至批次 4 清零对应问题后，将规则改为阻断模式并接入 `scripts/validate/invoke-engineering-validation.ps1`（唯一工程校验入口）。
 4. 根 POM 接入 `requireUpperBoundDeps`；`dependencyConvergence` 先报告再阻断，完成 RocketMQ 传递依赖冲突收敛后强制执行。
-5. `verify.bat` 必须输出每个脚本、Maven 阶段和 smoke test 的实际执行结果及退出码，禁止仅完成运行时预检查后静默成功。
+5. 唯一工程校验入口（[`scripts/validate/invoke-engineering-validation.ps1`](../../scripts/validate/invoke-engineering-validation.ps1)）必须输出每个脚本、Maven 阶段和 smoke test 的实际执行结果及退出码，禁止仅完成运行时预检查后静默成功。
+   > 原文此处指的是已移除的那个批处理入口。该第二入口已按 `ENGINEERING_GOVERNANCE_03` 的 DC-18 决定移出仓库（同目录整改方案明载该项"关闭：随 DC-18 移出消失"），故本条要求已归并到上述唯一入口，**要求本身（必须输出真实执行结果与退出码）不变**。
 
 #### 验收
 
