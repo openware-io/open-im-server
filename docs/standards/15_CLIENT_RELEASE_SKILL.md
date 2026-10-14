@@ -5,6 +5,32 @@
 > 打包命令以 [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。
 > 治理规则（版本命名、灰度、审计、安全门禁）见 [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md)。
 
+## 0. 目标与适用范围
+
+**目标**：给出 Android 直装 APK 的**唯一、可执行**发版路径，使任何执行者（人或 AI）无需推断即可完成一次合规发布，并留下可核验的发布记录。
+
+**适用范围**：仅 Android 直装 APK（官网下载页与 App 内更新共用的正式制品）。
+
+**非目标**：
+- 不覆盖 Windows 桌面端 EXE 发版（见 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) 第 5.6 节）；
+- 不覆盖 Google Play 上架（AAB）；
+- 不替代打包命令的权威来源：命令以 [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) 为准；
+- 不定义治理规则本身（版本命名、灰度、审计、安全门禁见 [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md)）。
+
+## 0.1 术语与前置假设
+
+| 术语 | 定义 |
+| --- | --- |
+| APK / AAB | APK 是直装制品（官网下载页与 App 更新使用）；AAB 仅用于 Google Play 上架，**不可**用于直装发布。 |
+| 构建类型 | `prod` 为正式构建（查 `stable` 渠道、开生产推送）；`dev`/`test` 为测试包，正式用户永远不会更新到。 |
+| `buildNumber` | `pubspec.yaml` 中 `version: X.Y.Z+N` 的 `N`；必须严格递增，否则客户端不认为有新版本。 |
+| 渠道（channel） | 发布记录所属渠道。`prod` 构建与官网下载页均查 `stable`；渠道建错等于更新不可达。 |
+| `-DryRun` | 只看不执行，用于核对将要发生的版本变更与制品。 |
+| `-SkipPublish` | 只打包并上传制品，不提交上线。 |
+| `-SigningPolicy` | 签名策略：默认 `RequireRelease`（必须正式密钥）；无密钥的首次开源部署只能显式 `AllowUnsigned`，产出 `signingMetadata.status=unsigned` 的**不可安装**制品。 |
+
+**前置假设**：版本文件可写；对象存储凭据已配置；正式发布时运营方已持有自己的正式签名密钥（密钥库与 `android/key.properties` 均不入库）。
+
 ---
 
 ## 0. 一句话执行
@@ -18,7 +44,7 @@ cd open-chat-app
 
 ---
 
-## 1. 必读：反复踩坑的五条铁律
+## 1. 原则与禁止项：反复踩坑的五条铁律
 
 1. **正式环境打 APK，不是 AAB。** AAB 仅用于 Google Play 商店上架。直装发布永远是 APK。
    - 正确：`flutter build apk --release`（或 `tools\build.ps1 android prod apk`）
@@ -135,11 +161,59 @@ curl -I "https://example.com/download/open-chat-<版本>.apk"
 
 ## 5. 涉及仓库与版本文件
 
-| 仓库 | 路径 | 版本文件 |
+| 仓库 | 路径（相对工作区根） | 版本文件 |
 | --- | --- | --- |
-| 客户端 Flutter | `D:\projects\cnb\open-chat-app` | `pubspec.yaml` 的 `version: X.Y.Z+N` |
-| 后端 Java | `D:\projects\cnb\open-im-server` | 各 `pom.xml`（按服务域独立 bump，见 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md)） |
-| 管理后台 Vue | `D:\projects\cnb\open-chat-admin` | `package.json` 的 `version` |
-| 官网静态站 | `D:\projects\cnb\open-website` | `VERSION`（仅 CMS 内容变更时 +1） |
+| 客户端 Flutter | `open-chat-app/` | `pubspec.yaml` 的 `version: X.Y.Z+N` |
+| 后端 Java | `open-im-server/` | 各 `pom.xml`（按服务域独立 bump，见 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md)） |
+| 管理后台 Vue | `open-chat-admin/` | `package.json` 的 `version` |
+| 官网静态站 | `open-website/` | `VERSION`（仅 CMS 内容变更时 +1） |
 
 > 本文档只管客户端发版；后端/管理后台/官网部署仍按 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) 第 4/6/7 节。
+
+## 6. 发版操作模板
+
+**一次正式 Android 直装发布的等价步骤（示例，参数按本次填写）**：
+
+```powershell
+# 1. 干跑核对：将发生的版本变更与制品
+cd open-chat-app
+.\tools\release.ps1 -ReleaseNotes "本次更新说明" -DryRun
+
+# 2. 正式执行：读版本 → PATCH+1 / buildNumber+1 → 打 prod APK → 上传 → 建记录 → 提交发布 → 验收
+.\tools\release.ps1 -ReleaseNotes "本次更新说明"
+
+# 3. 只打包不上线（先出制品、后决定发布时）
+.\tools\release.ps1 -ReleaseNotes "本次更新说明" -SkipPublish
+```
+
+**发布记录的最小字段（示例）**：渠道 `stable`、平台 `android`、版本 `X.Y.Z+N`、制品下载地址、更新说明、是否强制更新。
+
+## 7. 门禁与人工检查项
+
+**可自动化**（发版脚本应断言，失败即中止）：
+
+| 门禁 | 判据 |
+| --- | --- |
+| 制品类型 | 产出为 APK；出现 AAB 即失败 |
+| 构建类型 | 正式发布为 `prod`；`dev`/`test` 不得提交为正式发布 |
+| 版本单调性 | `buildNumber` 严格递增；默认 PATCH+1，禁止为修复抬 MINOR |
+| 签名策略 | `RequireRelease` 下必须有正式签名；禁止静默退化 debug 签名；`AllowUnsigned` 必须显式且制品标记 `unsigned` |
+| 渠道一致性 | 发布记录渠道与客户端查询渠道一致（`prod`/官网均为 `stable`） |
+| 密钥不入库 | 密钥库与 `android/key.properties` 均不在版本控制内 |
+
+**人工检查项**（提交发布前确认）：
+
+1. 更新说明是否面向用户、无内部术语与工单号。
+2. 制品的下载地址是否可公开访问（官网下载页与 App 更新共用）。
+3. 若为强制更新，是否与治理规则（灰度、回滚）一致。
+4. `-DryRun` 输出是否与本次预期版本一致。
+
+## 8. 与其他规范的关系
+
+| 关系 | 文档 | 说明 |
+| --- | --- | --- |
+| 依赖 | [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md) | 版本命名、渠道、灰度、审计与安全门禁的规则来源 |
+| 引用 | [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) | 桌面端发版（第 5.6 节）与后端/后台/官网部署（第 4/6/7 节） |
+| 引用 | [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) | 打包命令的权威来源 |
+| 关联 | [20_MAVEN_ENGINEERING_CONVENTIONS.md](20_MAVEN_ENGINEERING_CONVENTIONS.md) | 后端版本治理；客户端与后端版本各自独立 bump |
+| 关联 | [43_E2E_TESTING_CONVENTIONS.md](43_E2E_TESTING_CONVENTIONS.md) | 发版前的端到端验收与真实设备要求 |
