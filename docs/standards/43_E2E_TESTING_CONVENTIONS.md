@@ -31,6 +31,23 @@
 | `local-integration.ps1` | 本地集成入口 |
 | `e2e-ktv-smoke.ps1` | KTV 冒烟 |
 | `verify-unread-secret-toggle.ps1` | 未读角标开关排除实景：临时写入 secret/secret_group 未读投影 → 开关 ON 计入 / OFF 排除(0/空) → finally 清理恢复（需一次性账号参数） |
+| `verify-audit-storage.ps1` | 审计独立 schema/分区/幂等台账/归档清单不变量（需数据库直连） |
+| `verify-audit-platform.ps1` | 审计平台查询与保留策略 |
+| `verify-currency-e2e.ps1` | 币种/金额展示与结算口径端到端 |
+| `verify-wallet-token-display.ps1` | 储值币（代币）与积分展示口径 |
+| `verify-reservation-room-type.ps1` | 预约房型闭环 |
+| `release-status.ps1` | 发布状态与制品哈希核对 |
+
+### 3.1 运行前置条件（**脚本不满足这些条件时失败属预期，不代表被测系统有缺陷**）
+
+每个脚本的头部注释即为该脚本的**权威用法**（参数名、默认端点、所需外部输入）。通用前置：
+
+- **外部凭据由操作者注入，不落仓库**：需要管理员口令的脚本一律从环境变量读取（如 `IM_SAAS_ADMIN_PASSWORD`），仓库内**不存在**该口令明文——这是刻意的凭据治理，**不是缺失配置**。未注入时脚本会明确报"需要提供口令"。
+- **端点按环境传入**：脚本默认端点面向**本地端口转发**约定（网关/管理端/移动端各有约定端口），与集群 **Ingress 的单一 NodePort 入口不是同一访问方式**。经 Ingress 运行时须显式传入对应参数；端口值以脚本头部默认值为准，不假设统一。
+- **需要数据库直连的脚本**（如 `verify-audit-storage.ps1`）必须先建立端口转发（用例见脚本头部 Usage），并要求本机存在对应**数据库客户端**；两者缺一即报"客户端不可用或服务不可达"。
+- **面向特定环境的脚本不得当作本地用例**：例如 `ack-auth-contract.ps1` 面向 ACK（其默认命名空间与网关域名即体现这一点），在本地 Kind 上运行属**误用**，应以该环境参数显式运行。
+- **只读与一次性数据**：不产生持久副作用；需要写入一次性数据的脚本须在 `finally` 中清理并核验无残留（见 §5）。
+
 
 外部 Playwright 项目：`D:\projects\cnb\oidc-hybrid-e2e`（H5 真实环境 C/B/存储契约用例，`OIDC_E2E_MODE=real` 指向真实部署后运行）。
 
