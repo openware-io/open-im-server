@@ -1,32 +1,39 @@
-# E8 预发布：KTV 全链路 E2E 冒烟脚本（登录链路 + 租户上下文 + 真实 DTO 字段 + 真实会话链路）
-# 覆盖：登录链路 -> 租户初始化 -> 资源 -> 开台(订单) -> 计时 -> 点服务人员 -> 结台 -> 组合收款 -> 日结
-#       -> 现金对账 -> 权限隔离 -> 租户隔离
+# E8 pre-release: KTV end-to-end smoke script (login chain + tenant context + real DTO fields + real session chain)
+# Coverage: login chain -> tenant init -> resource -> open table (order) -> timing -> assign server -> close table
+#           -> combined collection -> daily closing -> cash reconciliation -> permission isolation -> tenant isolation
 #
-# 【登录链路结论（identity 服务，网关 /api/v1/**）】
-#   POST /api/v1/identity/accounts   注册  body {loginType, loginIdentifier, credential} -> 账号 {id}（无 JWT）
-#   POST /api/v1/identity/login       登录  body {loginType, loginIdentifier, credential} -> {accountId, accessToken(JWT), expiresInSeconds}
-#   GET  /api/v1/auth/contexts        header Authorization: Bearer <accessToken> -> {items:[{contextId,tenantId,organizationId,storeId,roles,scopeType}]}
-#   POST /api/v1/auth/context/select  header Authorization: Bearer <accessToken> + body {contextId} -> {tenantContextToken(JWT/不透明占位), tenantId, ...}
-#   ★ 骨架不一致：select 返回的是 JWT/不透明 token，但各业务服务 TenantContextFilter 把 X-Tenant-Context 当 JSON 解析
-#     （{tenantId,organizationId,storeId,accountId,authorizationVersion,permissions}），故冒烟直接构造 JSON 上下文头。
-#   ★ 多租户表 INSERT/SELECT 由 TenantLineInnerInterceptor 强制要求 X-Tenant-Context（缺失抛「租户上下文缺失」）。
+# [Login chain conclusions (identity service, gateway /api/v1/**)]
+#   POST /api/v1/identity/accounts   register  body {loginType, loginIdentifier, credential} -> account {id} (no JWT)
+#   POST /api/v1/identity/login      login     body {loginType, loginIdentifier, credential} -> {accountId, accessToken(JWT), expiresInSeconds}
+#   GET  /api/v1/auth/contexts       header Authorization: Bearer <accessToken> -> {items:[{contextId,tenantId,organizationId,storeId,roles,scopeType}]}
+#   POST /api/v1/auth/context/select header Authorization: Bearer <accessToken> + body {contextId} -> {tenantContextToken(JWT/opaque placeholder), tenantId, ...}
+#   * Skeleton mismatch: select returns a JWT/opaque token, but each business service's TenantContextFilter parses
+#     X-Tenant-Context as JSON ({tenantId,organizationId,storeId,accountId,authorizationVersion,permissions}),
+#     so the smoke test builds the JSON context header directly.
+#   * Multi-tenant INSERT/SELECT is enforced by TenantLineInnerInterceptor, which requires X-Tenant-Context
+#     (a missing header raises "tenant context missing").
 #
-# 【权限/租户隔离 + 现金对账真实结论（读代码确认，非占位）】
-#   - 权限（步骤 11）：TenantContext.permissions 已接入，PermissionGuard.require(code) 缺权限抛 403 PERMISSION_DENIED。
-#     payment.collect 挂 require("payment.collect")；order.settle 挂 require("order.settle")，/orders/{id}/confirm 与
-#     /orders/{id}/settle 均受守卫。故断言：低角色 collect / settle 均 → 403 PERMISSION_DENIED。
-#   - 租户隔离（步骤 12）：TenantLineInnerInterceptor 对 tenant_id 列自动追加租户过滤，跨租户 selectById 返回 null。
-#     读路径按 selectTenantIdById（@InterceptorIgnore(tenantLine="true") 跳过租户拦截）区分「不存在」vs「跨租户」：
-#     id 命中但 tenant_id 非当前租户 → ApiException(403, TENANT_SCOPE_DENIED)；否则 404 ORDER_NOT_FOUND。
-#   - 现金对账（步骤 10）：CASH 收款走 CollectApplicationService.recordCash 写 pay_intent + pay_transaction
-#     (provider=CASH, SUCCEEDED)；/admin/reconciliations/summary 汇总 pay_transaction 按 provider 分组，
-#     断言 CASH 行 grossAmount 增量=5000（金额一致）。交班 pay_shift.difference_amount = actual_cash - expected_cash，
-#     但 expected_cash 不随收款累计（closeShift 未接 collect）→「difference_amount=0」无法经对账断言（记录 GAP）。
+# [Permission / tenant isolation + cash reconciliation conclusions (confirmed by reading the code, not placeholders)]
+#   - Permissions (step 11): TenantContext.permissions is wired; PermissionGuard.require(code) throws
+#     403 PERMISSION_DENIED when the permission is absent. payment.collect is guarded by
+#     require("payment.collect"); order.settle by require("order.settle"), and both /orders/{id}/confirm and
+#     /orders/{id}/settle are guarded. Hence the assertion: a low-privilege collect / settle both -> 403 PERMISSION_DENIED.
+#   - Tenant isolation (step 12): TenantLineInnerInterceptor appends the tenant filter to the tenant_id column,
+#     so a cross-tenant selectById returns null. The read path uses selectTenantIdById
+#     (@InterceptorIgnore(tenantLine="true") skips tenant interception) to distinguish "absent" from "cross-tenant":
+#     when the id hits but tenant_id is not the current tenant -> ApiException(403, TENANT_SCOPE_DENIED);
+#     otherwise 404 ORDER_NOT_FOUND.
+#   - Cash reconciliation (step 10): a CASH collection goes through CollectApplicationService.recordCash, writing
+#     pay_intent + pay_transaction (provider=CASH, SUCCEEDED); /admin/reconciliations/summary aggregates
+#     pay_transaction grouped by provider, and the assertion is that the CASH row grossAmount delta is 5000
+#     (amounts agree). Shift handover sets pay_shift.difference_amount = actual_cash - expected_cash, but
+#     expected_cash does not accumulate collections (closeShift is not wired to collect), so
+#     "difference_amount=0" cannot be asserted through reconciliation (recorded as a GAP).
 param(
   [string]$GatewayUrl = 'http://127.0.0.1:3002',
-  [string]$Authz = '',          # 可选：已登录 Bearer（骨架各业务服务不校验 Authorization，仅透传占位）
-  [switch]$SkipLogin = $false,  # 跳过注册/登录（改用已有账号）
-  [string]$AccountId = ''        # SkipLogin 时使用的已有账号 ID（配合 -Authz 传入已有 Bearer）
+  [string]$Authz = '',          # optional: an existing logged-in Bearer (business services do not verify Authorization, only pass it through)
+  [switch]$SkipLogin = $false,  # skip register/login (reuse an existing account)
+  [string]$AccountId = ''       # existing account ID used with SkipLogin (paired with -Authz for an existing Bearer)
 )
 
 $ErrorActionPreference = 'Continue'
@@ -44,13 +51,13 @@ function Assert([bool]$cond, [string]$msg) {
   else { $script:failed++; Write-Host ('  FAIL ' + $msg) -ForegroundColor Red }
 }
 
-# 记录骨架缺口（未接通但已按真实行为断言；不计入 FAIL）
+# Record a skeleton gap (not wired yet, but asserted against real behaviour; does not count as FAIL)
 function Note-Gap([string]$msg) {
   $script:gaps += $msg
   Write-Host ('  [GAP] ' + $msg) -ForegroundColor DarkYellow
 }
 
-# 解包统一响应 {data,requestId}；无 data 时返回整个 body
+# Unwrap the unified response {data,requestId}; with no data return the whole body
 function Data([object]$o) {
   if ($null -eq $o) { return $null }
   if ($o.PSObject.Properties['data']) { return $o.data }
@@ -81,7 +88,7 @@ function Invoke-Json {
   }
 }
 
-# 原始调用：返回 @{ status; body; ok }，用于负面断言（不抛异常）
+# Raw call: returns @{ status; body; ok } for negative assertions (does not throw)
 function Invoke-Raw {
   param([string]$Method, [string]$Path, [object]$Body = $null, [hashtable]$ExtraHeaders = @{})
   try {
@@ -110,7 +117,7 @@ function Invoke-Raw {
   }
 }
 
-# 构造 X-Tenant-Context JSON 头（TenantContextFilter 按 JSON 解析：含 permissions 数组）
+# Build the X-Tenant-Context JSON header (TenantContextFilter parses it as JSON and expects a permissions array)
 function Set-TenantContext([long]$tenantId, [long]$accountId, $organizationId, [long]$storeId, [string[]]$permissions = @()) {
   $ctx = @{ tenantId = $tenantId; organizationId = $organizationId; storeId = $storeId; accountId = $accountId; authorizationVersion = 1; permissions = @($permissions) }
   $json = $ctx | ConvertTo-Json -Compress
@@ -118,15 +125,15 @@ function Set-TenantContext([long]$tenantId, [long]$accountId, $organizationId, [
   Write-Host ('  X-Tenant-Context=' + $json) -ForegroundColor DarkGray
 }
 
-# 查询对账摘要（payment /admin/reconciliations/summary，读 pay_transaction SUCCEEDED）
+# Query the reconciliation summary (payment /admin/reconciliations/summary, reads SUCCEEDED pay_transaction rows)
 function Get-ReconSummary([long]$tenantId, [datetime]$from, [datetime]$to) {
   $fromS = [System.Uri]::EscapeDataString($from.ToString('yyyy-MM-ddTHH:mm:ss'))
   $toS = [System.Uri]::EscapeDataString($to.ToString('yyyy-MM-ddTHH:mm:ss'))
   return Invoke-Json 'GET' ("/admin/reconciliations/summary?tenantId=$tenantId&from=$fromS&to=$toS")
 }
 
-# ------------------------------------------------------------------ 登录链路
-Step '0. SaaS 登录链路（identity /identity/** + /auth/**）'
+# ------------------------------------------------------------------ login chain
+Step '0. SaaS login chain (identity /identity/** + /auth/**)'
 $accountId = $null
 $jwt = $null
 if (-not $SkipLogin) {
@@ -135,19 +142,20 @@ if (-not $SkipLogin) {
 
   $reg = Invoke-Json 'POST' '/identity/accounts' $cred
   $regId = (Data $reg).id
-  Write-Host ('  注册 account.id=' + $regId + '  loginIdentifier=' + $loginIdentifier)
+  Write-Host ('  registered account.id=' + $regId + '  loginIdentifier=' + $loginIdentifier)
 
   $login = Invoke-Json 'POST' '/identity/login' $cred
   $accountId = (Data $login).accountId
   $jwt = (Data $login).accessToken
-  Assert ($null -ne $accountId -and -not [string]::IsNullOrWhiteSpace($jwt)) '登录返回 accountId + 签名 JWT accessToken'
+  Assert ($null -ne $accountId -and -not [string]::IsNullOrWhiteSpace($jwt)) 'login returns accountId + signed JWT accessToken'
   if (-not [string]::IsNullOrWhiteSpace($jwt)) { $headers['Authorization'] = "Bearer $jwt" }
 } else {
   $accountId = $AccountId
   $jwt = $Authz
 }
 
-# 真实上下文选择链路（/auth/contexts + /auth/context/select 需 Authorization: Bearer；无 IAM user-role 时 items 为空；select 回退不透明 token）
+# Real context-selection chain (/auth/contexts + /auth/context/select need Authorization: Bearer; with no IAM
+# user-role the items array is empty; select falls back to an opaque token)
 $contexts = Invoke-Json 'GET' '/auth/contexts'
 $items = $null
 if ($null -ne $contexts) { $items = (Data $contexts).items }
@@ -155,69 +163,69 @@ $contextId = $null; $tenantFromCtx = $null
 if ($null -ne $items -and $items.Count -gt 0) {
   $contextId = $items[0].contextId
   $tenantFromCtx = $items[0].tenantId
-  Write-Host ('  可用上下文 ' + $items.Count + ' 个，首个 contextId=' + $contextId + ' tenantId=' + $tenantFromCtx)
+  Write-Host ('  available contexts: ' + $items.Count + ', first contextId=' + $contextId + ' tenantId=' + $tenantFromCtx)
 } else {
-  Write-Host '  可用上下文为空（未分配 IAM user-role；contexts 由 tenant-service /internal/iam 聚合）' -ForegroundColor DarkYellow
+  Write-Host '  available contexts are empty (no IAM user-role assigned; contexts are aggregated by tenant-service /internal/iam)' -ForegroundColor DarkYellow
 }
 if ($null -ne $accountId) {
   $sel = Invoke-Json 'POST' '/auth/context/select' @{ contextId = $contextId }
   $selData = (Data $sel)
   $tc = $selData.tenantContextToken
   Write-Host ('  select.tenantContextToken=' + $(if ($tc) { $tc.Substring(0, [Math]::Min(24, $tc.Length)) + '...' } else { '<null>' }))
-  Write-Host '  注：该 token 为 JWT/不透明占位，业务服务按 JSON 解析 X-Tenant-Context，故下方用 Set-TenantContext 构造 JSON 头' -ForegroundColor DarkGray
+  Write-Host '  note: that token is a JWT/opaque placeholder while business services parse X-Tenant-Context as JSON, so Set-TenantContext builds the JSON header below' -ForegroundColor DarkGray
 }
 
-# ------------------------------------------------------------------ 租户初始化
-Step '1. 租户初始化（幂等）'
-$tenant = Invoke-Json 'POST' '/admin/platform/tenants' @{ tenantCode = 'e2e-smoke'; name = 'E2E冒烟租户'; defaultLocale = 'zh-CN'; defaultTimezone = 'Asia/Shanghai' }
+# ------------------------------------------------------------------ tenant init
+Step '1. Tenant init (idempotent)'
+$tenant = Invoke-Json 'POST' '/admin/platform/tenants' @{ tenantCode = 'e2e-smoke'; name = 'E2E smoke tenant'; defaultLocale = 'zh-CN'; defaultTimezone = 'Asia/Shanghai' }
 $tenantId = (Data $tenant).id
-Assert ($null -ne $tenantId) 'tenant.id 非空'
-$storeId = 1   # 骨架无门店/组织创建端点，storeId 占位为 1
+Assert ($null -ne $tenantId) 'tenant.id is not null'
+$storeId = 1   # the skeleton exposes no store/organization creation endpoint, so storeId is a placeholder of 1
 Set-TenantContext -tenantId $tenantId -accountId $accountId -organizationId 1 -storeId $storeId -permissions @('payment.collect','order.settle')
 
-# ------------------------------------------------------------------ 资源
-Step '2. 创建资源（KTV_ROOM A01）'
-$room = Invoke-Json 'POST' '/admin/resources' @{ tenantId = $tenantId; storeId = $storeId; resourceType = 'KTV_ROOM'; resourceCode = 'A01'; name = 'A01包厢'; capacity = 8 }
+# ------------------------------------------------------------------ resource
+Step '2. Create a resource (KTV_ROOM A01)'
+$room = Invoke-Json 'POST' '/admin/resources' @{ tenantId = $tenantId; storeId = $storeId; resourceType = 'KTV_ROOM'; resourceCode = 'A01'; name = 'A01 room'; capacity = 8 }
 $roomId = (Data $room).id
-Assert ($null -ne $roomId) 'room.id 非空'
+Assert ($null -ne $roomId) 'room.id is not null'
 
-# ------------------------------------------------------------------ 开台（订单）
-Step '3. 快速开台（创建订单 + RESERVED 会话）'
+# ------------------------------------------------------------------ open table (order)
+Step '3. Quick open table (create order + RESERVED session)'
 $order = Invoke-Json 'POST' '/business/orders' @{ tenantId = $tenantId; organizationId = 1; storeId = $storeId; businessType = 'KTV'; currencyCode = 'CNY'; resourceId = $roomId }
 $orderId = (Data $order).id
 $sessionId = (Data $order).sessionId
-Assert ($null -ne $orderId) 'order.id 非空'
-Assert ($null -ne $sessionId) 'createOrder 返回 sessionId（已同步创建 ord_ktv_session）'
+Assert ($null -ne $orderId) 'order.id is not null'
+Assert ($null -ne $sessionId) 'createOrder returns sessionId (ord_ktv_session was created synchronously)'
 
-# ------------------------------------------------------------------ 会话（真实链路：开台→计时→点服务人员→结台）
-Step '4. 开台（session RESERVED → OPEN）'
+# ------------------------------------------------------------------ session (real chain: open -> timing -> assign server -> close)
+Step '4. Open table (session RESERVED -> OPEN)'
 $session = Invoke-Json 'POST' ("/business/ktv/sessions/$sessionId/open") @{ freeWaitMinutes = 0 }
-Assert ((Data $session).status -eq 'OPEN') '开台后 session.status=OPEN'
+Assert ((Data $session).status -eq 'OPEN') 'after opening, session.status=OPEN'
 
-Step '5. 计时（暂停/恢复）'
+Step '5. Timing (pause / resume)'
 $paused = Invoke-Json 'POST' ("/business/ktv/sessions/$sessionId/pause")
-Assert ((Data $paused).status -eq 'PAUSED') '暂停后 session.status=PAUSED'
+Assert ((Data $paused).status -eq 'PAUSED') 'after pausing, session.status=PAUSED'
 $resumed = Invoke-Json 'POST' ("/business/ktv/sessions/$sessionId/resume")
-Assert ((Data $resumed).status -eq 'OPEN') '恢复后 session.status=OPEN'
+Assert ((Data $resumed).status -eq 'OPEN') 'after resuming, session.status=OPEN'
 
-Step '6. 点服务人员（S01）'
-$serverRes = Invoke-Json 'POST' '/admin/resources' @{ tenantId = $tenantId; storeId = $storeId; resourceType = 'KTV_SERVER'; resourceCode = 'S01'; name = 'S01服务'; capacity = 1 }
+Step '6. Assign a server (S01)'
+$serverRes = Invoke-Json 'POST' '/admin/resources' @{ tenantId = $tenantId; storeId = $storeId; resourceType = 'KTV_SERVER'; resourceCode = 'S01'; name = 'S01 server'; capacity = 1 }
 $serverResourceId = (Data $serverRes).id
 $server = Invoke-Json 'POST' ("/business/orders/$orderId/servers") @{ tenantId = $tenantId; ktvSessionId = $sessionId; serverResourceId = $serverResourceId; catalogItemId = 1 }
-Assert ($null -ne (Data $server)) '点服务人员响应非空'
+Assert ($null -ne (Data $server)) 'assign-server response is not null'
 
-Step '7. 结台（session OPEN → CLOSED）'
+Step '7. Close table (session OPEN -> CLOSED)'
 $closed = Invoke-Json 'POST' ("/business/ktv/sessions/$sessionId/close")
-Assert ((Data $closed).status -eq 'CLOSED') '结台后 session.status=CLOSED'
+Assert ((Data $closed).status -eq 'CLOSED') 'after closing, session.status=CLOSED'
 
-# ------------------------------------------------------------------ 组合收款（真实实现，字段已修正）
-Step '8. 组合收款（现金，真实实现；Idempotency-Key + X-Tenant-Context + payment.collect 权限必需）'
-# 现金对账基线（collect 前）：用于步骤 10 断言 cash 落 pay_transaction 金额一致（增量=5000）
+# ------------------------------------------------------------------ combined collection (real implementation, field names corrected)
+Step '8. Combined collection (cash, real implementation; Idempotency-Key + X-Tenant-Context + payment.collect permission required)'
+# Cash reconciliation baseline (before collect): used by step 10 to assert the cash amount landed in pay_transaction (delta=5000)
 $baseNow = (Get-Date).ToUniversalTime()
 $reconBefore = Get-ReconSummary -tenantId $tenantId -from ($baseNow.AddMinutes(-30)) -to ($baseNow.AddMinutes(30))
 $grossBefore = 0
 if ($null -ne (Data $reconBefore) -and $null -ne (Data $reconBefore).total) { $grossBefore = [decimal](Data $reconBefore).total.grossAmount }
-Write-Host ('  对账基线 total.grossAmount=' + $grossBefore) -ForegroundColor DarkGray
+Write-Host ('  reconciliation baseline total.grossAmount=' + $grossBefore) -ForegroundColor DarkGray
 
 $collectBody = @{
   customerId = $null; currencyCode = 'CNY'; payable = 5000
@@ -225,15 +233,15 @@ $collectBody = @{
 }
 $idemKey = 'e2e-ktv-smoke-' + [guid]::NewGuid().ToString()
 $collect = Invoke-Json 'POST' ("/business/orders/$orderId/collect") $collectBody @{ 'Idempotency-Key' = $idemKey }
-Assert ($null -ne (Data $collect)) '组合收款响应非空（CASH 渠道默认可用；POINT/WALLET 需会员 customerId + customer 内部端点）'
+Assert ($null -ne (Data $collect)) 'combined-collection response is not null (CASH is available by default; POINT/WALLET need a member customerId plus internal customer endpoints)'
 
-# ------------------------------------------------------------------ 日结（真实实现，字段已修正）
-Step '9. 日结（submit）'
+# ------------------------------------------------------------------ daily closing (real implementation, field names corrected)
+Step '9. Daily closing (submit)'
 $closing = Invoke-Json 'POST' '/admin/daily-closings/1/submit' @{ tenantId = $tenantId; storeId = $storeId; businessDate = '2025-01-01'; submittedBy = $accountId }
-Assert ((Data $closing).status -eq 'SUBMITTED') '日结 status=SUBMITTED'
+Assert ((Data $closing).status -eq 'SUBMITTED') 'daily closing status=SUBMITTED'
 
-# ------------------------------------------------------------------ 现金对账（真实实现：cash 走 pay_transaction）
-Step '10. 现金对账（组合收款后查 reconciliation summary，断言 CASH 金额一致）'
+# ------------------------------------------------------------------ cash reconciliation (real implementation: cash goes through pay_transaction)
+Step '10. Cash reconciliation (query the reconciliation summary after collection and assert the CASH amount agrees)'
 $now = (Get-Date).ToUniversalTime()
 $reconAfter = Get-ReconSummary -tenantId $tenantId -from ($now.AddMinutes(-30)) -to ($now.AddMinutes(30))
 $reconData = (Data $reconAfter)
@@ -246,64 +254,67 @@ if ($null -ne $reconData) {
   $cashLine = @($reconData.lines) | Where-Object { $_.provider -eq 'CASH' } | Select-Object -First 1
 }
 $delta = $grossAfter - $grossBefore
-Assert (($delta -eq 5000)) ("现金收款 5000 落入 pay_transaction（对账摘要 gross 增量=" + $delta + "）")
-Assert ($null -ne $cashLine) '对账摘要存在 CASH 渠道行（provider=CASH）'
+Assert (($delta -eq 5000)) ("cash collection of 5000 lands in pay_transaction (reconciliation summary gross delta=" + $delta + ")")
+Assert ($null -ne $cashLine) 'the reconciliation summary has a CASH provider row (provider=CASH)'
 if ($null -ne $cashLine) {
-  Assert (([decimal]$cashLine.netAmount -eq [decimal]$cashLine.grossAmount)) ('CASH 无手续费 netAmount==grossAmount（' + $cashLine.grossAmount + '）')
+  Assert (([decimal]$cashLine.netAmount -eq [decimal]$cashLine.grossAmount)) ('CASH has no fee so netAmount==grossAmount (' + $cashLine.grossAmount + ')')
 }
-Note-Gap '交班对账 difference_amount=0 骨架未接通：pay_shift.expected_cash 不随收款累计（closeShift difference=actualCash-expectedCash=actualCash-0），故按 pay_transaction 渠道摘要断言金额一致'
+Note-Gap 'shift-handover reconciliation difference_amount=0 is not wired in the skeleton: pay_shift.expected_cash does not accumulate collections (closeShift difference=actualCash-expectedCash=actualCash-0), so the amount agreement is asserted from the pay_transaction provider summary'
 
-# ------------------------------------------------------------------ 权限隔离（低角色上下文）
-Step '11. 权限隔离（低角色上下文调 order.settle / payment.collect）'
-# 结论（读代码）：TenantContext.permissions 已接入；PermissionGuard.require 缺权限抛 403 PERMISSION_DENIED。
-#   payment.collect 挂 require("payment.collect")；order.settle 挂 require("order.settle")（confirm 与 settle 均受守卫）。
-$waiterAccountId = 900001   # 占位「服务员」账号：permissions 为空（低角色）
+# ------------------------------------------------------------------ permission isolation (low-privilege context)
+Step '11. Permission isolation (low-privilege context calling order.settle / payment.collect)'
+# Conclusion (from reading the code): TenantContext.permissions is wired; PermissionGuard.require throws
+#   403 PERMISSION_DENIED when the permission is missing. payment.collect is guarded by
+#   require("payment.collect") and order.settle by require("order.settle") (both confirm and settle are guarded).
+$waiterAccountId = 900001   # placeholder "waiter" account: permissions are empty (low privilege)
 Set-TenantContext -tenantId $tenantId -accountId $waiterAccountId -organizationId 1 -storeId $storeId -permissions @()
 
-# payment.collect：低角色上下文（无 payment.collect 权限）→ 应 403 PERMISSION_DENIED
+# payment.collect: low-privilege context (no payment.collect permission) -> expect 403 PERMISSION_DENIED
 $collectLow = Invoke-Raw 'POST' ("/business/orders/$orderId/collect") @{ customerId = $null; currencyCode = 'CNY'; payable = 0; payments = @() } @{ 'Idempotency-Key' = 'e2e-perm-low-' + [guid]::NewGuid().ToString() }
 $collectLowCode = $null
 if ($null -ne $collectLow.body -and $collectLow.body.PSObject.Properties['code']) { $collectLowCode = $collectLow.body.code }
-Write-Host ('  低角色 collect → HTTP ' + $collectLow.status + '  code=' + $(if ($collectLowCode) { $collectLowCode } else { '<none>' }))
-Assert (($collectLow.status -eq 403 -and $collectLowCode -eq 'PERMISSION_DENIED')) '低角色 collect 返回 403 PERMISSION_DENIED（PermissionGuard 真实拒绝）'
+Write-Host ('  low-privilege collect -> HTTP ' + $collectLow.status + '  code=' + $(if ($collectLowCode) { $collectLowCode } else { '<none>' }))
+Assert (($collectLow.status -eq 403 -and $collectLowCode -eq 'PERMISSION_DENIED')) 'low-privilege collect returns 403 PERMISSION_DENIED (PermissionGuard genuinely rejects)'
 
-# order.settle：低角色上下文（无 order.settle 权限）→ 应 403 PERMISSION_DENIED
+# order.settle: low-privilege context (no order.settle permission) -> expect 403 PERMISSION_DENIED
 $settleLow = Invoke-Raw 'POST' ("/business/orders/$orderId/settle") @{ expectedVersion = 0 }
 $settleLowCode = $null
 if ($null -ne $settleLow.body -and $settleLow.body.PSObject.Properties['code']) { $settleLowCode = $settleLow.body.code }
-Write-Host ('  低角色 settle → HTTP ' + $settleLow.status + '  code=' + $(if ($settleLowCode) { $settleLowCode } else { '<none>' }))
-Assert (($settleLow.status -eq 403 -and $settleLowCode -eq 'PERMISSION_DENIED')) '低角色 settle 返回 403 PERMISSION_DENIED（PermissionGuard 真实拒绝）'
+Write-Host ('  low-privilege settle -> HTTP ' + $settleLow.status + '  code=' + $(if ($settleLowCode) { $settleLowCode } else { '<none>' }))
+Assert (($settleLow.status -eq 403 -and $settleLowCode -eq 'PERMISSION_DENIED')) 'low-privilege settle returns 403 PERMISSION_DENIED (PermissionGuard genuinely rejects)'
 
-# 恢复租户 A 主上下文
+# Restore tenant A's primary context
 Set-TenantContext -tenantId $tenantId -accountId $accountId -organizationId 1 -storeId $storeId -permissions @('payment.collect','order.settle')
 
-# ------------------------------------------------------------------ 租户隔离
-Step '12. 租户隔离（租户 A 上下文访问租户 B 订单）'
-# 结论（读代码）：TenantLineInnerInterceptor 对 tenant_id 列自动追加租户过滤，跨租户 selectById 返回 null；
-#   读路径按 selectTenantIdById（跳过租户拦截）区分：id 命中但 tenant_id 非当前租户 → 403 TENANT_SCOPE_DENIED。
-$tenantB = Invoke-Json 'POST' '/admin/platform/tenants' @{ tenantCode = 'e2e-smoke-b'; name = 'E2E冒烟租户B'; defaultLocale = 'zh-CN'; defaultTimezone = 'Asia/Shanghai' }
+# ------------------------------------------------------------------ tenant isolation
+Step '12. Tenant isolation (tenant A context accessing a tenant B order)'
+# Conclusion (from reading the code): TenantLineInnerInterceptor appends the tenant filter to tenant_id, so a
+#   cross-tenant selectById returns null; the read path uses selectTenantIdById (which skips tenant interception)
+#   to distinguish: the id hits but tenant_id is not the current tenant -> 403 TENANT_SCOPE_DENIED.
+$tenantB = Invoke-Json 'POST' '/admin/platform/tenants' @{ tenantCode = 'e2e-smoke-b'; name = 'E2E smoke tenant B'; defaultLocale = 'zh-CN'; defaultTimezone = 'Asia/Shanghai' }
 $tenantBId = (Data $tenantB).id
-Assert ($null -ne $tenantBId) 'tenantB.id 非空'
+Assert ($null -ne $tenantBId) 'tenantB.id is not null'
 
 Set-TenantContext -tenantId $tenantBId -accountId $accountId -organizationId 1 -storeId $storeId -permissions @('payment.collect','order.settle')
 $orderB = Invoke-Json 'POST' '/business/orders' @{ tenantId = $tenantBId; organizationId = 1; storeId = $storeId; businessType = 'KTV'; currencyCode = 'CNY'; resourceId = $null }
 $orderBId = (Data $orderB).id
-Assert ($null -ne $orderBId) '租户 B 订单创建成功'
+Assert ($null -ne $orderBId) 'tenant B order was created'
 
-# 切回租户 A 上下文，settle 租户 B 订单（selectById 被 tenant_id=A 过滤为 null，selectTenantIdById 命中 → 403）
+# Switch back to tenant A and settle tenant B's order (selectById is filtered to tenant A so it returns null,
+# while selectTenantIdById hits -> 403)
 Set-TenantContext -tenantId $tenantId -accountId $accountId -organizationId 1 -storeId $storeId -permissions @('payment.collect','order.settle')
 $crossTenant = Invoke-Raw 'POST' ("/business/orders/$orderBId/settle") @{ expectedVersion = 0 }
 $crossCode = $null
 if ($null -ne $crossTenant.body -and $crossTenant.body.PSObject.Properties['code']) { $crossCode = $crossTenant.body.code }
-Write-Host ('  租户 A settle 租户 B 订单 → HTTP ' + $crossTenant.status + '  code=' + $(if ($crossCode) { $crossCode } else { '<none>' }))
-Assert (($crossTenant.status -eq 403 -and $crossCode -eq 'TENANT_SCOPE_DENIED')) '跨租户访问返回 403 TENANT_SCOPE_DENIED（selectTenantIdById 区分跨租户）'
+Write-Host ('  tenant A settling tenant B order -> HTTP ' + $crossTenant.status + '  code=' + $(if ($crossCode) { $crossCode } else { '<none>' }))
+Assert (($crossTenant.status -eq 403 -and $crossCode -eq 'TENANT_SCOPE_DENIED')) 'cross-tenant access returns 403 TENANT_SCOPE_DENIED (selectTenantIdById distinguishes cross-tenant)'
 
-# ------------------------------------------------------------------ 汇总
+# ------------------------------------------------------------------ summary
 Write-Host ''
 if ($script:gaps.Count -gt 0) {
-  Write-Host '记录的骨架缺口（未接通但已按真实行为断言，不计入 FAIL）：' -ForegroundColor DarkYellow
+  Write-Host 'Recorded skeleton gaps (not wired yet but asserted against real behaviour; not counted as FAIL):' -ForegroundColor DarkYellow
   foreach ($g in $script:gaps) { Write-Host ('  - ' + $g) -ForegroundColor DarkYellow }
   Write-Host ''
 }
-if ($script:failed -gt 0) { Write-Host ('E2E-KTV-SMOKE 完成，失败 ' + $script:failed + ' 项。') -ForegroundColor Red; exit 1 }
-else { Write-Host 'E2E-KTV-SMOKE 全部通过（开台→计时→点服务人员→结台→收款→日结→对账→权限/租户隔离为真实断言）。' -ForegroundColor Green; exit 0 }
+if ($script:failed -gt 0) { Write-Host ('E2E-KTV-SMOKE finished with ' + $script:failed + ' failing assertion(s).') -ForegroundColor Red; exit 1 }
+else { Write-Host 'E2E-KTV-SMOKE fully passed (open -> timing -> assign server -> close -> collect -> daily closing -> reconciliation -> permission/tenant isolation all asserted for real).' -ForegroundColor Green; exit 0 }
