@@ -21,11 +21,11 @@
 | `/admin/messages` | GET | `AdminMessageController` | `PageResult<Message>` |
 | `/admin/device-tokens/{userId}` | GET | `AdminDeviceTokenController` | `List<DeviceToken>` |
 | `/admin/user-stickers` | GET | `AdminUserStickerController` | `PageResult<UserSticker>` |
-| ~~`/admin/points/accounts/{userId}/balance`~~ | ~~GET~~ | 已移除（2026-09-10） | 积分能力已迁至 SaaS：见 `platform-customer-service` `MemberController` `/members/{id}/points`、`POST /members/{id}/points/adjust`，后台页面为 `gv_saas_admin` `views/tenant/points.vue` |
+| ~~`/admin/points/accounts/{userId}/balance`~~ | ~~GET~~ | 已移除（2026-09-10） | 积分能力已迁至 SaaS：见 `platform-customer-service` `MemberController` `/members/{id}/points`、`POST /members/{id}/points/adjust`，后台页面为 `open-saas-admin` `views/tenant/points.vue` |
 | ~~`/admin/points/accounts/{userId}/ledger`~~ | ~~GET~~ | 已移除（2026-09-10） | 同上；积分流水在 SaaS 侧会员积分明细 |
 | ~~`/admin/points/accounts/{userId}/credit`~~ | ~~POST~~ | 已移除（2026-09-10） | 同上；加积分统一走 SaaS `POST /members/{id}/points/adjust` |
 | ~~`/admin/points/accounts/{userId}/debit`~~ | ~~POST~~ | 已移除（2026-09-10） | 同上；扣积分统一走 SaaS `POST /members/{id}/points/adjust` |
-| ~~`/admin/coins/accounts/**`~~ | ~~GET, POST~~ | 已移除（2026-09-10） | 代币/钱包能力已迁至 SaaS：`gv_saas_admin` `views/tenant/wallet.vue` |
+| ~~`/admin/coins/accounts/**`~~ | ~~GET, POST~~ | 已移除（2026-09-10） | 代币/钱包能力已迁至 SaaS：`open-saas-admin` `views/tenant/wallet.vue` |
 | `/admin/config` | GET, PUT | `AdminConfigController` | `List<SystemConfig>`, `SystemConfig` |
 | `/admin/config/batch` | POST | `AdminConfigController` | `Map<String, Object>` |
 | `/admin/client-releases` | GET, POST | `ClientReleaseController` | `PageResult<ClientRelease>`, `{data,requestId}` |

@@ -136,8 +136,8 @@ SaaS 后台新增两个租户菜单：`仓库管理` 和 `商品管理`。仓库
 
 以下现有调用不能遗漏，否则商品上架完成后仍会出现“后台能点、客户端失败”或金额统计不一致：
 
-- `gv_chat_app` 的 `KtvTimingScreen` 目前使用本地 `_menu`（`item_001` 等字符串），没有读取真实目录；`KtvApiClient.addItems` 发送批量 `items` 结构并按 `KtvOrder` 解析响应，而 order 服务当前接口接收单个 `catalogItemId` 并返回订单明细。两端契约必须统一：保留现有单项接口语义，客户端改为读取目录并传数字目录 ID；若确需批量，新增独立 `/items/batch`，不能改变旧接口的请求/响应含义。
-- `gv_saas_mobile/c-end` 已通过目录 ID 走单项加项，但必须增加商品状态、缺货和库存不足提示；`gv_saas_admin` 订单页要移除自由名称/价格请求，目录管理改为商品/服务选择器。
+- `open-chat-app` 的 `KtvTimingScreen` 目前使用本地 `_menu`（`item_001` 等字符串），没有读取真实目录；`KtvApiClient.addItems` 发送批量 `items` 结构并按 `KtvOrder` 解析响应，而 order 服务当前接口接收单个 `catalogItemId` 并返回订单明细。两端契约必须统一：保留现有单项接口语义，客户端改为读取目录并传数字目录 ID；若确需批量，新增独立 `/items/batch`，不能改变旧接口的请求/响应含义。
+- `open-saas-mobile/c-end` 已通过目录 ID 走单项加项，但必须增加商品状态、缺货和库存不足提示；`open-saas-admin` 订单页要移除自由名称/价格请求，目录管理改为商品/服务选择器。
 - `KtvServerSessionApplicationService` 会把服务人员费用写入 `ord_order_item`；该类服务不应触发库存扣减，但仍要保留服务目录 ID、价格快照和原有计费逻辑。
 - 报表当前按 `item_type = 'ADD_ON'` 统计加项；接入库存商品后需区分“销售商品数、服务加项数、库存消耗量”，不能把库存商品改成 `ADD_ON` 后造成旧报表漏统计或重复统计。报表只读接口应通过订单服务提供的稳定查询契约获取库存汇总，禁止新增跨服务 Mapper 直连。
 - OpenAPI 文件、SaaS admin API 封装、移动端 JS API、Flutter DTO/测试、网关路由白名单和会话过滤测试都必须同步更新；任何一端未更新都不能发布。

@@ -12,7 +12,7 @@
 | 前置方案 | [SAAS_PLATFORM_01_SERVICE](SAAS_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_02_SERVICE](SAAS_PLATFORM_02_SERVICE.md)、[客户端联调基线](CLIENT_INTEGRATION_01_APP.md) |
 | 契约与技术依据 | [SAAS_PLATFORM_05_API](SAAS_PLATFORM_05_API.md)、[SAAS_PLATFORM_06_TECHNICAL](SAAS_PLATFORM_06_TECHNICAL.md)、[SAAS_PLATFORM_07_EXECUTION](SAAS_PLATFORM_07_EXECUTION.md) |
 | 交互依据 | [SAAS_PLATFORM_08_APP](SAAS_PLATFORM_08_APP.md) |
-| 目标工程 | `D:\projects\cnb\gv_chat_app`，新增 B 端独立入口与 product flavor |
+| 目标工程 | `D:\projects\cnb\open-chat-app`，新增 B 端独立入口与 product flavor |
 | 状态 | 可进入 UI/接口详细实现 |
 
 B 端 App 是一阶段 C 端 App 之外的**独立应用产品**，不与消费者 App 共用安装包、入口、导航、权限模型、推送配置或运行时依赖容器。为降低维护成本，首发可以与 C 端位于同一 Flutter 仓库并复用通用基础包；这不代表它们是同一个 App。B 端必须使用独立的入口、路由、菜单、权限、包名、签名、推送配置和构建标识。
@@ -239,7 +239,7 @@ B 端 App 首发必须同时满足：后端 OpenAPI 与错误码已冻结；权�
 
 ### 14.1 已核实的当前基线
 
-当前 `gv_chat_app` 使用 Flutter、`Provider`、`GetIt`/`injectable`、`GoRouter`、Dio、Drift 和 `gv_core`/`gv_ui` 本地包。C 端入口为 `lib/main.dart`，依赖装配为 `lib/app/app_dependencies.dart`，路由为 `lib/app_router.dart`，HTTP 客户端为 `lib/im-services/api_client.dart`，登录态为 `lib/providers/auth_provider.dart`。
+当前 `open-chat-app` 使用 Flutter、`Provider`、`GetIt`/`injectable`、`GoRouter`、Dio、Drift 和 `gv_core`/`gv_ui` 本地包。C 端入口为 `lib/main.dart`，依赖装配为 `lib/app/app_dependencies.dart`，路由为 `lib/app_router.dart`，HTTP 客户端为 `lib/im-services/api_client.dart`，登录态为 `lib/providers/auth_provider.dart`。
 
 `AppDependencies` 会初始化 IM Socket、聊天、通话、好友、群组和 C 端预约 Provider，因此 B 端不得复用它，也不得在 B 端入口初始化 `SocketService`、`ChatProvider`、`CallProvider` 或 C 端聊天路由。
 
@@ -271,7 +271,7 @@ lib/
 
 ### 14.3 入口、构建与应用标识
 
-新增 Android flavor：`consumer` 与 `business`。`consumer` 保持现有 `com.gv.chat.gv_chat_app`；`business` 使用独立 `applicationIdSuffix ".business"`、独立图标、极光 AppKey/渠道配置和版本策略。B 端启动命令：
+新增 Android flavor：`consumer` 与 `business`。`consumer` 保持现有 `com.gv.chat.open-chat-app`；`business` 使用独立 `applicationIdSuffix ".business"`、独立图标、极光 AppKey/渠道配置和版本策略。B 端启动命令：
 
 ```text
 flutter run --flavor business -t lib/main_business.dart --dart-define=APP_ENV=dev

@@ -29,7 +29,7 @@
 
 ## 二、⚠️ 修正我上一轮的错误：客户端映射
 
-我上一轮把 `gv_chat_desktop` 猜成 `pc-admin`——**错**。经代码核查，**权威映射**（出自 `open-im-server/scripts/deploy/build-saas-release.ps1:21-28` 的 `$projects` 与 `$projectSources`）：
+我上一轮把 `open-chat-desktop` 猜成 `pc-admin`——**错**。经代码核查，**权威映射**（出自 `open-im-server/scripts/deploy/build-saas-release.ps1:21-28` 的 `$projects` 与 `$projectSources`）：
 
 | k8s 应用名 | 来源仓库 | 说明 |
 | --- | --- | --- |
@@ -43,17 +43,17 @@
 
 | 旧名 | **建议新名（仓库名）** | 依据 | 置信度 |
 | --- | --- | --- | --- |
-| `gv_chat_app`（115 处） | **`open-chat-app`** | `open-chat-desktop/docs/architecture.md:7` 明确"移动端 App（`gv_chat_app`，Flutter）1:1 复刻" | **高（已核实）** |
-| `gv_chat_desktop`（33 处） | **`open-chat-desktop`** | 同上文档首行标题即 `# gv_chat_desktop 架构总览` | **高（已核实）** |
-| `gv_chat_admin`（31 处） | **`open-chat-admin`** | IM PC 管理后台，与 `pc-admin` 应用对应 | **高** |
-| `gv_saas_admin` | **`open-saas-admin`** | `open-saas-admin/docs/i18n-migration-plan.md:1` 标题即 `# gv_saas_admin 多语言落地` | **高（已核实）** |
-| `gv_saas_mobile` | **`open-saas-mobile`** | `open-saas-mobile/README.md:10` 自称"本仓库" | **高（已核实）** |
-| `gv_im_server` | **`open-im-server`** | 服务端；`open-chat-desktop/docs/architecture.md:53` 称"唯一后端为 gv_im_server" | **高（已核实）** |
-| `gv_chat`（6 处，单独出现） | **应统一为上述具体名**；当指"客户端总体"时写"IM 客户端" | 与 `gv_chat_app` 语义重叠，属**同一事物的省略写法** | **建议合并，不再单独使用** |
-| `wv_chat`（`WV Chat`） | **`Open Chat`**（IM 客户端族） | `open-chat-desktop` 自述仍写 "WV Chat"，是 `wv` 的唯一集中残留 | 需你定中文/英文名 |
+| `open-chat-app`（115 处） | **`open-chat-app`** | `open-chat-desktop/docs/architecture.md:7` 明确"移动端 App（`open-chat-app`，Flutter）1:1 复刻" | **高（已核实）** |
+| `open-chat-desktop`（33 处） | **`open-chat-desktop`** | 同上文档首行标题即 `# open-chat-desktop 架构总览` | **高（已核实）** |
+| `open-chat-admin`（31 处） | **`open-chat-admin`** | IM PC 管理后台，与 `pc-admin` 应用对应 | **高** |
+| `open-saas-admin` | **`open-saas-admin`** | `open-saas-admin/docs/i18n-migration-plan.md:1` 标题即 `# open-saas-admin 多语言落地` | **高（已核实）** |
+| `open-saas-mobile` | **`open-saas-mobile`** | `open-saas-mobile/README.md:10` 自称"本仓库" | **高（已核实）** |
+| `open-im-server` | **`open-im-server`** | 服务端；`open-chat-desktop/docs/architecture.md:53` 称"唯一后端为 open-im-server" | **高（已核实）** |
+| `open-chat`（6 处，单独出现） | **应统一为上述具体名**；当指"客户端总体"时写"IM 客户端" | 与 `open-chat-app` 语义重叠，属**同一事物的省略写法** | **建议合并，不再单独使用** |
+| `open-chat`（`Open Chat`） | **`Open Chat`**（IM 客户端族） | `open-chat-desktop` 自述仍写 "Open Chat"，是 `wv` 的唯一集中残留 | 需你定中文/英文名 |
 | `GV_API_BASE`、`GV_JPUSH_APPKEY`、`GV_TRUST_SELF_SIGNED` 等环境变量 | **`OPEN_API_BASE`、`OPEN_JPUSH_APPKEY`、`OPEN_TRUST_SELF_SIGNED`** | `open-chat-app/BUILD.md` 里的构建参数 | 需你定前缀词 |
 
-> **回答你的问题**：`gv_chat` **与 `gv_chat_app` 不是两样东西**——`gv_chat` 是同一客户端族的**省写**（6 处），`gv_chat_app` 是完整写法（115 处）。**建议统一为仓库名，`gv_chat` 不再单独出现。**
+> **回答你的问题**：`open-chat` **与 `open-chat-app` 不是两样东西**——`open-chat` 是同一客户端族的**省写**（6 处），`open-chat-app` 是完整写法（115 处）。**建议统一为仓库名，`open-chat` 不再单独出现。**
 
 ---
 
@@ -76,8 +76,8 @@
 
 | 文件 | 内容 | 判定 |
 | --- | --- | --- |
-| `open-saas-mobile/README.md:103` | `D:\projects\cnb\gv_im_server\scripts\deploy\sync-oidc-client-registry.ps1` | ❌ **旧路径 + 旧名，必须改** |
-| `open-chat-desktop/docs/architecture.md:53` | 提到 `gv_im_server` / `gv_chat_app` 的 worktree 约定 | ❌ 改 |
+| `open-saas-mobile/README.md:103` | `D:\projects\cnb\open-im-server\scripts\deploy\sync-oidc-client-registry.ps1` | ❌ **旧路径 + 旧名，必须改** |
+| `open-chat-desktop/docs/architecture.md:53` | 提到 `open-im-server` / `open-chat-app` 的 worktree 约定 | ❌ 改 |
 | `open-im-server/docs/RELEASE_RUNBOOK.md` | 15 处绝对路径 | ❌ 改（活文档） |
 | `open-im-server/docs/standards/15` | 4 处绝对路径 | ❌ 改（规范禁止） |
 
@@ -203,7 +203,7 @@ docs/common-services/        ← audit / media / mail / sms
 | --- | --- | --- |
 | **E1** | 控制台前缀 | ✅ **`cons`** |
 | **E2** | 库名统一（A1） | ✅ **`open_im`（IM）+ `IM_DATABASE`／`open_saas`（SaaS）+ `SAAS_DATABASE`／`open_audit` + `AUDIT_DATABASE`** |
-| **E3** | 客户端名映射 | ✅ `gv_chat_app`→`open-chat-app`、`gv_chat_desktop`→`open-chat-desktop`、`gv_chat_admin`→`open-chat-admin`、`gv_saas_admin`→`open-saas-admin`、`gv_saas_mobile`→`open-saas-mobile`、`gv_im_server`→`open-im-server`、`GV_*`→`OPEN_*`；**`WV Chat` → 直接写 `Open Chat`**（不再保留"WV"这一阶段关系） |
+| **E3** | 客户端名映射 | ✅ `open-chat-app`→`open-chat-app`、`open-chat-desktop`→`open-chat-desktop`、`open-chat-admin`→`open-chat-admin`、`open-saas-admin`→`open-saas-admin`、`open-saas-mobile`→`open-saas-mobile`、`open-im-server`→`open-im-server`、`GV_*`→`OPEN_*`；**`Open Chat` → 直接写 `Open Chat`**（不再保留"WV"这一阶段关系） |
 | **E4** | 集团库名 | ✅ **`open_group`** |
 | **E5** | 事实清单归属 | ✅ **就在后端总仓 `open-im-server`**（即工程详细文档），**并且它就是"工程详细文档"本身**——不再另建位置 |
 | **E6** | 前端文档位置 | ✅ **留在后端总仓 `open-im-server/docs/`**——后端总仓是**全局视角**，关联前端文档放这里**合适**；此结论**写入文档规范，不再重复询问** |

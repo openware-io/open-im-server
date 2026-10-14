@@ -180,8 +180,8 @@
   其中预约用例 47 个，新增/改写：分配包厢不改状态（含 `PENDING` 场景）、`CONFIRMED` 开台隐含到店、
   已开台重复提交幂等、`NO_SHOW` 三条（成功/未到点/已到店）、控制器 `no-show` 转发。
 - 后端 `platform-admin-service`：BFF 新增 `/admin/reservations/{id}/no-show` 转发 + 审计动作码 `reservation.no_show`。
-- 后台 `gv_saas_admin`：`npx vitest run` → **335 passed**（新增开台可见性、超时未到、时间列语义、`no-show` 接口守卫）。
-- B 端/C 端 `gv_saas_mobile`：`npx vitest run` → **111 passed**（新增 preview 的 `NO_SHOW`/`CONVERTED` 口径守卫）。
+- 后台 `open-saas-admin`：`npx vitest run` → **335 passed**（新增开台可见性、超时未到、时间列语义、`no-show` 接口守卫）。
+- B 端/C 端 `open-saas-mobile`：`npx vitest run` → **111 passed**（新增 preview 的 `NO_SHOW`/`CONVERTED` 口径守卫）。
 
 ## 6. 已知缺口（未在本次修改，需产品决策）
 
@@ -262,9 +262,9 @@
 
 - `platform-order-service`：开台房态门禁 4 例（清洁中/占用中/房态不可达/正常）、目录 `availableQuantity` 2 例。
 - `platform-resource-service`：`end_at` 到点兜底释放 2 例。
-- 后台 `gv_saas_admin`：分配候选运行态过滤、排除原因汇总、合并与源码守卫（340 passed）。
-- B 端 H5 `gv_saas_mobile`：数量上限提示与提交前校验（111 passed）。
-- App `gv_chat_app`：`KtvCatalogItem` 库存解析与加号上限（`flutter test` 5 例新增，`flutter analyze` 0 error）。
+- 后台 `open-saas-admin`：分配候选运行态过滤、排除原因汇总、合并与源码守卫（340 passed）。
+- B 端 H5 `open-saas-mobile`：数量上限提示与提交前校验（111 passed）。
+- App `open-chat-app`：`KtvCatalogItem` 库存解析与加号上限（`flutter test` 5 例新增，`flutter analyze` 0 error）。
 
 ---
 
@@ -312,10 +312,10 @@ roomName, roomCode, sessionStatus, orderElapsedSeconds, pendingCount, pendingAmo
 
 - `platform-order-service`：新增 `PendingApprovalApplicationServiceTest`（门店隔离/计数金额/混币种/revision/
   缓存命中与写后失效）+ `OrderItemControllerAuditTest` 增补幂等与并发输家用例 → 域内 `clean verify` **502 tests** 全绿。
-- `gv_saas_admin`：新增 `src/utils/pendingApprovalWiring.test.js`（数据源唯一性、三处提示与处理口接线）→ **612 tests** 全绿。
-- `gv_saas_mobile`（B 端 H5）：新增 `src/b-end/views/pendingApprovalWiring.test.js` + 纯函数用例，
+- `open-saas-admin`：新增 `src/utils/pendingApprovalWiring.test.js`（数据源唯一性、三处提示与处理口接线）→ **612 tests** 全绿。
+- `open-saas-mobile`（B 端 H5）：新增 `src/b-end/views/pendingApprovalWiring.test.js` + 纯函数用例，
   **143 tests** 全绿；`npm run build:b` 成功。
-- `gv_chat_app`（A380 收银端）：新增 `test/models/ktv_pending_approval_test.dart`（解析/混币种/乐观移除）、
+- `open-chat-app`（A380 收银端）：新增 `test/models/ktv_pending_approval_test.dart`（解析/混币种/乐观移除）、
   `test/providers/pending_approval_provider_test.dart`（快照去重/409 收敛/引用计数启停/前台补拉）、
   `test/screens/business/ktv_pending_approval_wiring_test.dart`（接线守卫）→
   `flutter test --dart-define=APP_ENV=prod` **318 tests 全绿**（含既有用例）。
@@ -330,9 +330,9 @@ roomName, roomCode, sessionStatus, orderElapsedSeconds, pendingCount, pendingAmo
 
 | 端 | 提示位 | 处理口 |
 | --- | --- | --- |
-| Web 后台 / 收银台（`gv_saas_admin`） | 侧边「收银台」角标、收银房态卡片 `待确认加项 ×N`、订单管理列 + 「只看待确认」、头部铃铛 | `PendingApprovalDrawer`（按单分组、逐条确认/拒绝、本单全部确认） |
-| B 端商户 H5（`gv_saas_mobile`） | 顶部入口条 `待确认加项 ×N｜<金额或「多币种」>｜集中处理`、列表卡片角标 | 集中处理面板 + 详情「待确认加项」区（数据源与角标同一份聚合视图） |
-| A380 收银端 App（`gv_chat_app`） | 「收银」页签角标（工作台三页都在）、看板横幅、计时加项页横幅、收银列表行 `待确认加项 ×N`、收款详情横幅 | `KtvPendingApprovalScreen`（按单分组、逐条确认/拒绝、本单全部确认） |
+| Web 后台 / 收银台（`open-saas-admin`） | 侧边「收银台」角标、收银房态卡片 `待确认加项 ×N`、订单管理列 + 「只看待确认」、头部铃铛 | `PendingApprovalDrawer`（按单分组、逐条确认/拒绝、本单全部确认） |
+| B 端商户 H5（`open-saas-mobile`） | 顶部入口条 `待确认加项 ×N｜<金额或「多币种」>｜集中处理`、列表卡片角标 | 集中处理面板 + 详情「待确认加项」区（数据源与角标同一份聚合视图） |
+| A380 收银端 App（`open-chat-app`） | 「收银」页签角标（工作台三页都在）、看板横幅、计时加项页横幅、收银列表行 `待确认加项 ×N`、收款详情横幅 | `KtvPendingApprovalScreen`（按单分组、逐条确认/拒绝、本单全部确认） |
 
 三端共用同一聚合读接口与同一处理语义（原子条件更新 + 409 收敛），只有展示形态不同：
 - App 端提醒态是**可缺省**依赖（`PendingApprovalController?`）：提醒装配缺失不得让收银/结台主流程崩掉，
@@ -363,7 +363,7 @@ roomName, roomCode, sessionStatus, orderElapsedSeconds, pendingCount, pendingAmo
 - 权限 `order.view`（挡住 C 端消费者令牌凭 orderId 猜读他人收款明细）+ 显式 `tenant_id` 条件；
 - `orderIds` 非空且 ≤ 100，超限 400 且**不查库**（避免一次拉全租户资金明细）。
 
-前端（`gv_saas_admin` 订单管理）：列表新增「收款方式」列（按抵扣顺序去重，组合支付打「组合」标签，悬浮给分腿金额），
+前端（`open-saas-admin` 订单管理）：列表新增「收款方式」列（按抵扣顺序去重，组合支付打「组合」标签，悬浮给分腿金额），
 详情抽屉新增「收款明细」区（逐笔收款 + 分腿 + 渠道流水 + 退款 + 已退款合计）；按当前页批量取，**无 N+1**。
 
 ### 15.3 顺带修掉的端点缺失
@@ -429,7 +429,7 @@ private void invalidatePendingApproval() {
 | 位置 | 改动 |
 | --- | --- |
 | `OrderItemController#invalidatePendingApproval` | 真正调用 `pendingApprovalService.invalidateCurrentStore()` |
-| `GlobalExceptionHandler#httpStatusFor` | `ORDER_ITEM_STATUS_INVALID`（并发输家/状态不符）由 default 的 **400 改为 409**，与 §11 表格、以及三端「409 即已被别人处理」的收敛口径一致（`gv_chat_app` 判 `_statusCodeOf(e) == 409`、`gv_saas_mobile` 判 `409`、Web 后台本次补齐） |
+| `GlobalExceptionHandler#httpStatusFor` | `ORDER_ITEM_STATUS_INVALID`（并发输家/状态不符）由 default 的 **400 改为 409**，与 §11 表格、以及三端「409 即已被别人处理」的收敛口径一致（`open-chat-app` 判 `_statusCodeOf(e) == 409`、`open-saas-mobile` 判 `409`、Web 后台本次补齐） |
 | `stores/pendingApproval.js` | `confirm/reject` 返回 `{ ok, error, alreadyProcessed }`，`confirmOrder` 返回 `{ ok, total, failed, alreadyProcessed }`；失败回滚改为 `refresh({ force: true })` 绕过 revision 去抖 |
 | `PendingApprovalDrawer.vue` | 结果提示收口到 `reportDecision()`：`ok` 才报成功；`alreadyProcessed` 轻提示「已被处理，已为你刷新」；其它失败交给响应拦截器的中文提示，不重复弹；批量确认在 `failed>0` 时不再谎报「全部确认」 |
 | `views/tenant/orders.vue` | 点单/加项弹窗的单条确认/拒绝收口为 `decideItemRow()`：同样只在成功时提示，并顺手刷新聚合视图（角标与收银台同屏一致） |

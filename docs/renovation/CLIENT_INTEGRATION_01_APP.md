@@ -2,7 +2,7 @@
 
 > 状态：待实施
 >
-> 适用范围：`gv_im_server`、`D:\projects\cnb\gv_chat_app`
+> 适用范围：`open-im-server`、`D:\projects\cnb\open-chat-app`
 >
 > 最后核查：2026-07-31
 >

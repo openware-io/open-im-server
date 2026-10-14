@@ -552,7 +552,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy\k8s.ps1
 | 项 | 动作 | 结果 |
 | --- | --- | --- |
 | **G-10 门禁实现** | 新增 `validate-documentation-links.ps1`：① 校验全部受版本控制 `.md` 的相对链接可解析（忽略锚点/绝对 URL/mailto）；② 断言根 `README.md` 文档索引覆盖 `docs/standards/` 全部文件 | 首次运行报 **19 条**（14 条死链 + 5 条索引缺失），与审查报告 H-13 完全一致 |
-| **修复死链** | `README.md` 11 处（`docs/im-services/<service>/` → 实际存在的 `docs/services/<service>/`；`im-order-service` 改为实际模块路径 `platform-services/order/platform-order-service/`）、`docs/renovation/USER_DOMAIN_01_DDD.md` 2 处、`docs/standards/15_CLIENT_RELEASE_SKILL.md` 3 处（`../../../gv_chat_app/` → `../../../open-chat-app/`；`../../RELEASE_RUNBOOK.md` → `../RELEASE_RUNBOOK.md`） | 已清零 |
+| **修复死链** | `README.md` 11 处（`docs/im-services/<service>/` → 实际存在的 `docs/services/<service>/`；`im-order-service` 改为实际模块路径 `platform-services/order/platform-order-service/`）、`docs/renovation/USER_DOMAIN_01_DDD.md` 2 处、`docs/standards/15_CLIENT_RELEASE_SKILL.md` 3 处（`../../../open-chat-app/` → `../../../open-chat-app/`；`../../RELEASE_RUNBOOK.md` → `../RELEASE_RUNBOOK.md`） | 已清零 |
 | **补齐索引** | `README.md` 文档索引补 `13 平台媒体规范`、`14 客户端发布与版本治理`、`15 客户端发布操作`、`16 币种规范`、`43 E2E 测试与验收规范` | 已清零 |
 | **接入为阻断门禁** | 加入统一入口（门禁数 18 → **19**） | `-Scope Changed` 退出码 **0**，`Documentation link and index validation passed.` |
 | 经验 | 上一次用命令行内联替换把脚本改坏；本轮改为把替换对写入 `.outputs/quality/link-fixes.tsv` 再由脚本读取应用（13 条规则、16 处替换） | 无损坏，可复用该做法 |

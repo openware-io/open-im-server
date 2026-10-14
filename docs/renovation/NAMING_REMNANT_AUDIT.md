@@ -10,7 +10,7 @@
 
 | 级别 | 环节 | 实测 | 处置 |
 | --- | --- | --- | --- |
-| **P0 必须改** | **活文档/规范里的库名与产品名漂移** | `ENGINEERING_RULES.md:154-155` 写"默认库 `gv_im`、SaaS 库 `gv_saas`"；`standards/16` 写 `gv_saas_admin`/`gv_saas_mobile`/`gv_chat_app`；`standards/43` 写 `gv_im_server`/`gv_chat_desktop`；`standards/15:141` 写绝对路径 `D:\projects\cnb\gv_im_server` | **改**——它们是**长期有效**的规范文档，会把错误名字继续传播给新人；且 `standards/15` 的绝对路径本身就是规范禁止项 |
+| **P0 必须改** | **活文档/规范里的库名与产品名漂移** | `ENGINEERING_RULES.md:154-155` 写"默认库 `gv_im`、SaaS 库 `gv_saas`"；`standards/16` 写 `open-saas-admin`/`open-saas-mobile`/`open-chat-app`；`standards/43` 写 `open-im-server`/`open-chat-desktop`；`standards/15:141` 写绝对路径 `D:\projects\cnb\open-im-server` | **改**——它们是**长期有效**的规范文档，会把错误名字继续传播给新人；且 `standards/15` 的绝对路径本身就是规范禁止项 |
 | **P1 代码残留** | `.env` 的 MinIO 桶名 | `MEDIA_PRIVATE_BUCKET=gv-im-local-private`（1 处） | **改**（本地桶名，改前确认无既有数据依赖） |
 | **P2 保留（历史事实）** | IM 开放平台迁移语句 | `V1__user_baseline.sql` 4 处 `gvchat://oauth/callback` → `openchat://oauth/callback` 的**迁移本身** | **不改**——它记录的是历史回调地址，改了会让迁移失效 |
 | **P3 保留（日期快照）** | 日期化审计/盘点报告 | `currency-scope-inventory-2026-09-18.md` 140 处、`audit-2026-09-17-exceptions-and-i18n.md` 71 处、`docs/renovation` 223 处（含我本轮分析稿） | **不改**——历史留档，改了就是篡改证据 |
@@ -36,15 +36,15 @@
 
 | 出处 | 写的 | 问题 |
 | --- | --- | --- |
-| `standards/16_CURRENCY_CONVENTIONS.md:3-4,83` | `gv_saas_admin`、`gv_saas_mobile`、`gv_chat_app` | 旧产品名；且该文件是**币种能力的唯一权威约定**，名字错了会长期传播 |
-| `standards/43_E2E_TESTING_CONVENTIONS.md:3` | `gv_im_server`、`gv_chat_app`、`gv_chat_desktop` | 同上，"适用对象"一篇就错 |
-| `standards/15_CLIENT_RELEASE_SKILL.md:141` | `` `D:\projects\cnb\gv_im_server` `` | **绝对路径**——`standards/10` 明确"不绑定仓库名/路径"；且它同时泄露开发者本机目录，并再次暴露旧名 |
+| `standards/16_CURRENCY_CONVENTIONS.md:3-4,83` | `open-saas-admin`、`open-saas-mobile`、`open-chat-app` | 旧产品名；且该文件是**币种能力的唯一权威约定**，名字错了会长期传播 |
+| `standards/43_E2E_TESTING_CONVENTIONS.md:3` | `open-im-server`、`open-chat-app`、`open-chat-desktop` | 同上，"适用对象"一篇就错 |
+| `standards/15_CLIENT_RELEASE_SKILL.md:141` | `` `D:\projects\cnb\open-im-server` `` | **绝对路径**——`standards/10` 明确"不绑定仓库名/路径"；且它同时泄露开发者本机目录，并再次暴露旧名 |
 
 ### 2.3 前端/客户端的实际名字（供你确认映射）
 
-代码侧目前是：`portal/`、以及 `open-im` 出现 **223 处**（生产代码）。旧名 `gv_im_server`/`gv_chat_app`/`gv_chat_desktop`/`gv_saas_admin`/`gv_saas_mobile` 仅有文档引用。
+代码侧目前是：`portal/`、以及 `open-im` 出现 **223 处**（生产代码）。旧名 `open-im-server`/`open-chat-app`/`open-chat-desktop`/`open-saas-admin`/`open-saas-mobile` 仅有文档引用。
 
-> **待你给新旧名映射表**（如 `gv_chat_app` → ?、`gv_saas_admin` → ?），我才能批量改活文档里的名字。这也是为什么我先只做排查、没动文档。
+> **待你给新旧名映射表**（如 `open-chat-app` → ?、`open-saas-admin` → ?），我才能批量改活文档里的名字。这也是为什么我先只做排查、没动文档。
 
 ---
 

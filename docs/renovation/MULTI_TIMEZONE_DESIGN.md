@@ -21,9 +21,9 @@
 
 | 仓库 | 分支 | HEAD | 用途 |
 |---|---|---|---|
-| `gv_im_server` | `develop/2.0.0-saas-20260826` | `9ef94ce8` | Java 25 / Spring Boot 4 / MyBatis-Plus / Flyway 后端 + k8s + docs |
-| `gv_saas_admin` | `develop/2.0.0-saas-20260826` | `16ce48e` | Vue3 租户/平台后台（B 端后台） |
-| `gv_saas_mobile` | `develop/2.0.0-saas-20260826` | `eeb742d` | Vue3 B 端 + C 端 H5（`src/b-end`、`c-end`） |
+| `open-im-server` | `develop/2.0.0-saas-20260826` | `9ef94ce8` | Java 25 / Spring Boot 4 / MyBatis-Plus / Flyway 后端 + k8s + docs |
+| `open-saas-admin` | `develop/2.0.0-saas-20260826` | `16ce48e` | Vue3 租户/平台后台（B 端后台） |
+| `open-saas-mobile` | `develop/2.0.0-saas-20260826` | `eeb742d` | Vue3 B 端 + C 端 H5（`src/b-end`、`c-end`） |
 
 - 调研方法：`grep` 精确扫描 + 逐文件 `read` 核验（排除 `node_modules`/`dist*`/`build`/`target`/`.git`）。所有现状论断均给 `文件:行号`。
 - 关联既有规范（本方案必须与它们对齐，不能另起一套口径）：
@@ -63,7 +63,7 @@
 | 1 | **时区字段已经齐全，且没有被使用**。`tnt_tenant.default_timezone`（`V1__tnt_iam_baseline.sql:8`）、`tnt_store.timezone`（`:28`）、`tnt_store.business_day_cutoff`（`:30`）都在建表基线里；`StorePo` 也映射了 `timezone`/`businessDayCutoff`（`StorePo.java:26,30`）。但全仓 Java 代码里 `timezone` 只出现在 PO 字段声明、`TenantController` 的创建入参和 `StoreController` 的原样返回里，**没有任何一处参与时间换算**。 | 见 §1.1 |
 | 2 | **线上同时存在三种墙上时间口径**，且区分的边界不在数据库、不在 API，而在「哪个类调用了 `LocalDateTime.now()`」。 | 见 §1.1 |
 | 3 | **预约写的是 +08:00 墙钟，系统时间写的是 JVM 默认时区墙钟**。容器与 k8s 清单都没有设 `TZ` / `-Duser.timezone`（`Dockerfile:20`、`k8s/local/saas.yaml` env 块），JDBC URL 却写 `serverTimezone=UTC`（`platform-order-service/src/main/resources/application.yml:5`）。这两者叠加会在同一个库里产生**互相不可比较的时间列**。 | 见 §1.1、§1.4 |
-| 4 | **实现与既有规范直接冲突**：规范说「转为 UTC 后判断冲突」（`SAAS_PLATFORM_05_API.md:135`）、「UTC 落库、门店时区展示」（`KTV_BUSINESS_01_SERVICE.md:148`），实现却把 +08:00 硬编码进写路径与 C 端（`ReservationApplicationService.java:719-721`、`gv_saas_mobile/c-end/datetime.js:16-17`）。**本方案的第一价值是把实现拉回规范，而不是新造规范。** | 见 §1.3 |
+| 4 | **实现与既有规范直接冲突**：规范说「转为 UTC 后判断冲突」（`SAAS_PLATFORM_05_API.md:135`）、「UTC 落库、门店时区展示」（`KTV_BUSINESS_01_SERVICE.md:148`），实现却把 +08:00 硬编码进写路径与 C 端（`ReservationApplicationService.java:719-721`、`open-saas-mobile/c-end/datetime.js:16-17`）。**本方案的第一价值是把实现拉回规范，而不是新造规范。** | 见 §1.3 |
 | 5 | **报表的「业务日期」目前是服务端 JVM 日，不是门店营业日**：`ReportController.Range.of` 用 `LocalDate.now()` 构造 `[from, to)`（`ReportController.java:337,345`），SQL 用 `DATE_FORMAT(o.created_at,'%Y-%m-%d')` 直接切日期（`ReportMapper.java:93,105`）。 | 见 §1.2 场景 5 |
 | 6 | **交班/日结的营业日由前端设备日期决定**：`shift.vue` 用 `new Date()` 取「今天」作为 `businessDate` 提交（`shift.vue:164,169-173`），后端只做落库（`CashierApplicationService.java:125-133`）。收银员在别的时区或用改过系统时间的设备，就能写入错误营业日。 | 见 §1.2 场景 4 |
 | 7 | **预约时段与开台计时实际是脱节的**：`ord_ktv_session.reserved_start_at/reserved_end_at` 在生产代码里**从未被写入**（全仓只有测试赋值：`OrderIntegrationTest.java:274-275`），`openTable` 也不把预约窗口写进会话（`ReservationApplicationService.java:326-327`）。于是 `KtvRoomFeeCalculator.standardSeconds` 永远走 `default_session_minutes` 回退（`KtvRoomFeeCalculator.java:68-71`）。这是**先于时区就存在的功能缺口**，多时区改造会把它放大成错账。 | 见 §1.2 场景 2 |
@@ -154,7 +154,7 @@
 | `platform-services/tenant/.../api/controller/StoreController.java:25-33` | 门店只有只读 `GET /admin/tenant/stores`，**没有创建/修改门店的写接口** —— 时区字段当前只能由 SQL/种子写入 |
 | `platform-services/tenant/.../api/controller/TenantController.java:41,61` | 租户创建接受 `defaultTimezone`，但**没有门店级入口** |
 | `platform-services/tenant/.../db/migration/V7__seed_a380_tenant.sql:4,12` | 种子：租户 `Asia/Shanghai`、门店 `Asia/Shanghai` |
-| `gv_saas_admin/src/views/tenant/stores.vue:36` | 后台门店列表已把 `timezone` 当只读列展示 |
+| `open-saas-admin/src/views/tenant/stores.vue:36` | 后台门店列表已把 `timezone` 当只读列展示 |
 
 #### (6) 基础设施层：没有任何地方钉住时区
 
@@ -174,8 +174,8 @@
 **场景 1：预约时段（跨时区门店）——C 端提交的小时数被硬编码偏移污染**
 
 - 触发：门店时区为 `Asia/Bangkok`（UTC+7），C 端用户选择「9月20日 19:30，3 小时」。
-- 代码依据：`gv_saas_mobile/c-end/datetime.js:16-17` 把门店偏移写死为 `8 * 60` 分钟；`:53-61` 的 `storeOffsetDateTime` 用 `Date.UTC` 拼出 `2026-09-20T19:30:00+08:00`；后端 `ReservationApplicationService.java:719-721` 又按 `+08:00` 拆成墙钟 `2026-09-20T19:30` 落库。
-- 后果：落库字符串**在这一条路径上自洽**（前端造 +08、后端按 +08 拆），所以单看预约表不会立刻出错；但一旦任何一端改用真实门店时区（或后台按门店时区重新渲染），同一条记录的**绝对时刻会平移 1 小时**。也就是说：**这个 bug 是「潜伏 + 一旦修一端就炸」的类型**，不同端会给出不同答案（B 端后台 `gv_saas_admin/src/utils/format.js:43-47` 直接切字面量 → 显示 19:30；C 端 `datetime.test.js:55-56` 显示 19:30；但一个按 `Asia/Bangkok` 渲染的新端会显示 20:30）。
+- 代码依据：`open-saas-mobile/c-end/datetime.js:16-17` 把门店偏移写死为 `8 * 60` 分钟；`:53-61` 的 `storeOffsetDateTime` 用 `Date.UTC` 拼出 `2026-09-20T19:30:00+08:00`；后端 `ReservationApplicationService.java:719-721` 又按 `+08:00` 拆成墙钟 `2026-09-20T19:30` 落库。
+- 后果：落库字符串**在这一条路径上自洽**（前端造 +08、后端按 +08 拆），所以单看预约表不会立刻出错；但一旦任何一端改用真实门店时区（或后台按门店时区重新渲染），同一条记录的**绝对时刻会平移 1 小时**。也就是说：**这个 bug 是「潜伏 + 一旦修一端就炸」的类型**，不同端会给出不同答案（B 端后台 `open-saas-admin/src/utils/format.js:43-47` 直接切字面量 → 显示 19:30；C 端 `datetime.test.js:55-56` 显示 19:30；但一个按 `Asia/Bangkok` 渲染的新端会显示 20:30）。
 
 **场景 2：开台计时 vs 预约时段（同一门店内两个口径不可比）**
 
@@ -203,7 +203,7 @@
 
 - 触发：店长用一台时区设错（或时间改过）的电脑/手机点「日结」；或门店 02:00 仍在营业。
 - 代码依据：
-  - 前端默认取设备本地「今天」：`gv_saas_admin/src/views/tenant/shift.vue:164`（`dailyForm = ref({ businessDate: today() })`）、`:169-173`（`function today()` 用 `new Date()` 的 `getFullYear/getMonth/getDate`）；
+  - 前端默认取设备本地「今天」：`open-saas-admin/src/views/tenant/shift.vue:164`（`dailyForm = ref({ businessDate: today() })`）、`:169-173`（`function today()` 用 `new Date()` 的 `getFullYear/getMonth/getDate`）；
   - 提交后后端**原样落库**，不校验：`CashierController.java:53`、`:94`、`CashierApplicationService.java:125-133`；
   - 唯一键 `(tenant_id, store_id, business_date)`：`common-services/payment/.../db/migration/V1__pay_baseline.sql:53`。
 - 后果：
@@ -376,18 +376,18 @@ GROUP BY r.store_id ORDER BY n DESC LIMIT 20;
 
 | 端 | 现状 | 问题 |
 |---|---|---|
-| 后台 B 端 | `gv_saas_admin/src/utils/format.js:27-31` `normalizeTimeText` 把 `T` 换空格；`:43-47` `formatTime` 直接 `slice(0,16)` | **对带偏移串会切出错误内容**：`"2026-09-20T19:00:00+08:00".slice(0,16)` = `"2026-09-20 19:00"` 恰好对，但 `"2026-09-20T11:00:00Z"` 会显示 `11:00` 而不是门店的 `19:00` —— **依赖「后端一定返回门店墙钟」这个隐含约定**。测试守卫 `gv_saas_admin/src/utils/admin-copy.test.js:82,92` 还规定 `function formatTime` 只能在 `format.js` 定义 |
-| C 端 H5 | `gv_saas_mobile/c-end/datetime.js:16-17` 门店偏移硬编码 `8*60`；`:68-80` `formatStoreDateTime` 对带偏移串先 `+8h` 再展示 | 时区硬编码；`+8h` 后按 UTC 读字段，**只对 UTC+8 门店正确** |
-| B 端 App（`gv_saas_mobile/src/b-end`） | `gv_saas_mobile/src/shared/utils/amount.js:32-35` `fmtTime` 字面量切片 | 同后台问题 |
-| B 端后台订单页 | `gv_saas_admin/src/views/tenant/orders.vue:812-813,877,912-921` 用 `dateValue()`/`elapsedText()` 算「已开台时长」 | 若时间串带偏移而这里按字面量 `new Date()` 解析，**在非 UTC+8 设备上会算错时长** |
+| 后台 B 端 | `open-saas-admin/src/utils/format.js:27-31` `normalizeTimeText` 把 `T` 换空格；`:43-47` `formatTime` 直接 `slice(0,16)` | **对带偏移串会切出错误内容**：`"2026-09-20T19:00:00+08:00".slice(0,16)` = `"2026-09-20 19:00"` 恰好对，但 `"2026-09-20T11:00:00Z"` 会显示 `11:00` 而不是门店的 `19:00` —— **依赖「后端一定返回门店墙钟」这个隐含约定**。测试守卫 `open-saas-admin/src/utils/admin-copy.test.js:82,92` 还规定 `function formatTime` 只能在 `format.js` 定义 |
+| C 端 H5 | `open-saas-mobile/c-end/datetime.js:16-17` 门店偏移硬编码 `8*60`；`:68-80` `formatStoreDateTime` 对带偏移串先 `+8h` 再展示 | 时区硬编码；`+8h` 后按 UTC 读字段，**只对 UTC+8 门店正确** |
+| B 端 App（`open-saas-mobile/src/b-end`） | `open-saas-mobile/src/shared/utils/amount.js:32-35` `fmtTime` 字面量切片 | 同后台问题 |
+| B 端后台订单页 | `open-saas-admin/src/views/tenant/orders.vue:812-813,877,912-921` 用 `dateValue()`/`elapsedText()` 算「已开台时长」 | 若时间串带偏移而这里按字面量 `new Date()` 解析，**在非 UTC+8 设备上会算错时长** |
 
 #### 三端统一做法（推荐）
 
 1. **后端**：出参一律带偏移 RFC3339 + 同级 `storeTimezone`（见 §2.3）。这是**唯一的机器可读真源**。
 2. **前端新增统一渲染函数**（各端一份实现，语义相同）：
-   - 后台：`gv_saas_admin/src/utils/format.js` 新增 `formatStoreTime(value, timeZone)`，`formatTime` 保留为 `formatStoreTime` 在「无 `timeZone` 且值为无偏移串」时的兼容分支；
-   - B 端 App：`gv_saas_mobile/src/shared/utils/amount.js` 的 `fmtTime` 升级为 `fmtTime(value, timeZone)`；
-   - C 端 H5：`gv_saas_mobile/c-end/datetime.js` 删除 `STORE_OFFSET_MINUTES` 常量，改为 `formatStoreDateTime(value, timeZone)`，**必须支持通过门店上下文动态传入**（`c-end/context.js` 已有门店上下文的加载方式）。
+   - 后台：`open-saas-admin/src/utils/format.js` 新增 `formatStoreTime(value, timeZone)`，`formatTime` 保留为 `formatStoreTime` 在「无 `timeZone` 且值为无偏移串」时的兼容分支；
+   - B 端 App：`open-saas-mobile/src/shared/utils/amount.js` 的 `fmtTime` 升级为 `fmtTime(value, timeZone)`；
+   - C 端 H5：`open-saas-mobile/c-end/datetime.js` 删除 `STORE_OFFSET_MINUTES` 常量，改为 `formatStoreDateTime(value, timeZone)`，**必须支持通过门店上下文动态传入**（`c-end/context.js` 已有门店上下文的加载方式）。
    - 渲染规则：`new Date(value)` 得到绝对时刻，再用 `Intl.DateTimeFormat(..., { timeZone })` 取值。**禁止 `toISOString()` 直接展示**（既有的 C 端注释 `datetime.js:5-11` 已经总结了这条）。
 3. **降级规则（必须显式写进代码，避免 silent wrong）**：
    - 值为无偏移串（历史数据/未迁移接口）→ **按门店时区解释**（而不是按设备时区）。若拿不到门店时区，按 `Asia/Shanghai` 解释并 `console.warn` 一次；
@@ -502,19 +502,19 @@ businessDate       = (localDateTime.toLocalTime() < cutoff)
 
 | # | 文件 | 改动 | 风险 |
 |---|---|---|---|
-| F1 | `gv_saas_admin/src/utils/format.js:27-31,43-47,54-60` | 新增 `formatStoreTime(value, timeZone)`；`formatTime` 保留为兼容分支并加「无偏移串按门店时区解释」策略；`normalizeTimeText` 需能识别偏移后缀 | **中** |
-| F2 | `gv_saas_admin/src/utils/admin-copy.test.js:77-95` | 守卫扩展到 `formatStoreTime`（同一次提交内改，否则测试红） | **低** |
-| F3 | `gv_saas_admin/src/views/tenant/reservations.vue:33,80` | `formatTime(row.startAt)` → `formatStoreTime(row.startAt, row.storeTimezone)` | **低** |
-| F4 | `gv_saas_admin/src/views/tenant/shift.vue:164,169-173,254-266` | 删除 `today()` 的「设备今天」语义；`businessDate` 默认取后端返回的门店营业日；提交时允许省略由服务端计算 | **中** |
-| F5 | `gv_saas_admin/src/views/tenant/orders.vue:645,812-813,877,912-921` | 时长计算（`elapsedText`）改为基于绝对时刻（带偏移解析），避免设备时区影响 | **中** |
-| F6 | `gv_saas_admin/src/views/tenant/reports.vue:64,75,95` | `businessDate` 保持展示；筛选参数改传 `from`/`to`（营业日）并在多门店时强制显式 | **低** |
-| F7 | `gv_saas_admin/src/views/tenant/stores.vue:36` | 时区列改为可编辑表单（依赖 S16） | **低** |
-| F8 | `gv_saas_mobile/c-end/datetime.js:16-17,49-61,63-80,82-88` | 删除 `STORE_OFFSET_MINUTES`；`storeOffsetDateTime(dateStr, timeStr, addHours, timeZone)`；`formatStoreDateTime(value, timeZone)` 用 `Intl.DateTimeFormat` | **中** |
-| F9 | `gv_saas_mobile/c-end/datetime.test.js:38-64` | 断言同步更新（含导出清单 `:64`）；**保留** `'...T19:30:00+08:00'` → `9月18日 19:30` 这类用例（`Asia/Shanghai` 下仍应通过） | **低** |
-| F10 | `gv_saas_mobile/c-end/app.js:330-335,780,892,1196-1202` | 提交预约时改为传「门店本地日期 + 时段」或带门店真实偏移的串（依赖 §2.3 的入参形态） | **中** |
-| F11 | `gv_saas_mobile/src/shared/utils/amount.js:32-35` | `fmtTime(value, timeZone)` | **低** |
-| F12 | `gv_saas_mobile/src/b-end/views/Reservations.vue:31,58` | 传入门店时区 | **低** |
-| F13 | `gv_saas_mobile/src/b-end/preview/saas.js:9,19,29,39` | 预览数据补 `storeTimezone`（避免预览页空白） | **低** |
+| F1 | `open-saas-admin/src/utils/format.js:27-31,43-47,54-60` | 新增 `formatStoreTime(value, timeZone)`；`formatTime` 保留为兼容分支并加「无偏移串按门店时区解释」策略；`normalizeTimeText` 需能识别偏移后缀 | **中** |
+| F2 | `open-saas-admin/src/utils/admin-copy.test.js:77-95` | 守卫扩展到 `formatStoreTime`（同一次提交内改，否则测试红） | **低** |
+| F3 | `open-saas-admin/src/views/tenant/reservations.vue:33,80` | `formatTime(row.startAt)` → `formatStoreTime(row.startAt, row.storeTimezone)` | **低** |
+| F4 | `open-saas-admin/src/views/tenant/shift.vue:164,169-173,254-266` | 删除 `today()` 的「设备今天」语义；`businessDate` 默认取后端返回的门店营业日；提交时允许省略由服务端计算 | **中** |
+| F5 | `open-saas-admin/src/views/tenant/orders.vue:645,812-813,877,912-921` | 时长计算（`elapsedText`）改为基于绝对时刻（带偏移解析），避免设备时区影响 | **中** |
+| F6 | `open-saas-admin/src/views/tenant/reports.vue:64,75,95` | `businessDate` 保持展示；筛选参数改传 `from`/`to`（营业日）并在多门店时强制显式 | **低** |
+| F7 | `open-saas-admin/src/views/tenant/stores.vue:36` | 时区列改为可编辑表单（依赖 S16） | **低** |
+| F8 | `open-saas-mobile/c-end/datetime.js:16-17,49-61,63-80,82-88` | 删除 `STORE_OFFSET_MINUTES`；`storeOffsetDateTime(dateStr, timeStr, addHours, timeZone)`；`formatStoreDateTime(value, timeZone)` 用 `Intl.DateTimeFormat` | **中** |
+| F9 | `open-saas-mobile/c-end/datetime.test.js:38-64` | 断言同步更新（含导出清单 `:64`）；**保留** `'...T19:30:00+08:00'` → `9月18日 19:30` 这类用例（`Asia/Shanghai` 下仍应通过） | **低** |
+| F10 | `open-saas-mobile/c-end/app.js:330-335,780,892,1196-1202` | 提交预约时改为传「门店本地日期 + 时段」或带门店真实偏移的串（依赖 §2.3 的入参形态） | **中** |
+| F11 | `open-saas-mobile/src/shared/utils/amount.js:32-35` | `fmtTime(value, timeZone)` | **低** |
+| F12 | `open-saas-mobile/src/b-end/views/Reservations.vue:31,58` | 传入门店时区 | **低** |
+| F13 | `open-saas-mobile/src/b-end/preview/saas.js:9,19,29,39` | 预览数据补 `storeTimezone`（避免预览页空白） | **低** |
 
 ### 4.5 定时任务与报表
 
@@ -582,7 +582,7 @@ businessDate       = (localDateTime.toLocalTime() < cutoff)
 | **3. 强制拒绝的边界** | 若请求**既无偏移、又无法确定门店**（`storeId` 为空/门店无时区）→ **400 `TIME_INPUT_AMBIGUOUS`**。宁可报错，不做猜测 |
 | **4. 双协议共存期** | `app.timezone.model` 只影响**内部读模型**（读旧列还是 UTC 列）；**对外契约永远双字段返回**（策略 1）。因此「客户端版本」与「服务端读模型」是两个正交的开关，避免发布耦合 |
 | **5. 旧 C 端兼容读路径** | `ReservationCompatController.java:53-54` 的 `reserveDate`/`reserveTimePeriod` 必须**保持旧语义输出**（门店本地日期/时间），从 UTC 反算得到。旧 C 端不感知任何变化 |
-| **6. Flutter App / 桌面端** | 本次调研范围外（`gv_chat_app`/`gv_chat_desktop`），但它们若调用同一批接口，按策略 1/2 自然兼容。**上线前必须用 `grep` 确认这两端没有任何自带时区换算**（`gv_chat_app/lib/**` 与 `gv_chat_desktop/src/**`），有则纳入批 4 |
+| **6. Flutter App / 桌面端** | 本次调研范围外（`open-chat-app`/`open-chat-desktop`），但它们若调用同一批接口，按策略 1/2 自然兼容。**上线前必须用 `grep` 确认这两端没有任何自带时区换算**（`open-chat-app/lib/**` 与 `open-chat-desktop/src/**`），有则纳入批 4 |
 | **7. 灰度与快速止损** | 按 `tenant_id` 白名单灰度；每个灰度租户上线后 24 小时内比对：①新老两套出参在**同一时刻**应指向同一 `Instant`（可写成自动化断言）；②该租户的日结与报表总额与上一营业日同量级（无 8 小时级断崖）。异常即把租户从白名单摘除，**不需要回滚代码** |
 | **8. 回滚** | 服务端：flag 切 `legacy`（旧列与双写都还在）；前端：后台与 H5 都是独立部署，前端回滚到上一版本即可（前端在 `legacy` 模式下读 `startAtLegacy`，因此**前端回滚与服务端 flag 不需要严格同步**——这是策略 1「双字段」换来的解耦） |
 
@@ -673,8 +673,8 @@ businessDate       = (localDateTime.toLocalTime() < cutoff)
 
 **A. 口径一致性**
 
-- [ ] A1：`grep -rn "ZoneOffset.ofHours(8)" --include=*.java` 在 `gv_im_server` 生产代码中**为 0 命中**（测试里允许保留历史断言）。
-- [ ] A2：`grep -rn "STORE_OFFSET_MINUTES" gv_saas_mobile/c-end`（排除测试）**为 0 命中**。
+- [ ] A1：`grep -rn "ZoneOffset.ofHours(8)" --include=*.java` 在 `open-im-server` 生产代码中**为 0 命中**（测试里允许保留历史断言）。
+- [ ] A2：`grep -rn "STORE_OFFSET_MINUTES" open-saas-mobile/c-end`（排除测试）**为 0 命中**。
 - [ ] A3：所有 `@RequestParam`/`@RequestBody` 中的时间入参类型为 `OffsetDateTime`（或校验带偏移的字符串），`LocalDateTime` 入参在对外/内部 HTTP 接口中**为 0 命中**。
 - [ ] A4：所有服务的 JDBC URL `serverTimezone` 均为 `UTC`（当前 5 处为 `Asia/Shanghai`，见 §1.1(6)）；所有 deployment 注入 `TZ=UTC`。
 - [ ] A5：`grep -rn "DATE_FORMAT(.*created_at\|DATE_FORMAT(.*occurred_at\|DATE_FORMAT(.*start_at" --include=*.java` 在报表 Mapper 中**为 0 命中**（改按 `business_date` 分组）。
@@ -764,7 +764,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 
 ## 附录 A：证据索引（文件:行号）
 
-> 相对路径以 `gv_im_server/` 为根（另有标注的三端前端以 `D:\projects\cnb\` 为根）。
+> 相对路径以 `open-im-server/` 为根（另有标注的三端前端以 `D:\projects\cnb\` 为根）。
 
 **A.1 时间口径与写路径**
 
@@ -808,7 +808,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | 币种改造已改这两张表 | `.../db/migration/V10__pay_currency_snapshot.sql:26,30` |
 | 支付时间写入 | `.../application/CollectApplicationService.java:464` |
 | 对账窗口 `[from,to)` | `.../application/ReconciliationApplicationService.java:34-38`；`.../api/controller/ReconciliationController.java:19-21` |
-| 前端日结默认取设备日期 | `gv_saas_admin/src/views/tenant/shift.vue:164,169-173,254-266` |
+| 前端日结默认取设备日期 | `open-saas-admin/src/views/tenant/shift.vue:164,169-173,254-266` |
 
 **A.4 报表**
 
@@ -819,7 +819,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | `opsKey` 以 `business_date` 为分组键 | `.../ReportController.java:192-195` |
 | SQL 用 `DATE_FORMAT` 切日 | `.../infra/persistence/mapper/ReportMapper.java:93,105,113,124,132,143,153,164` |
 | 窗口 `[from,to)` | `.../ReportMapper.java:32,48,64,83,103,122,141,162` |
-| 前端报表展示 businessDate | `gv_saas_admin/src/views/tenant/reports.vue:64,75,95` |
+| 前端报表展示 businessDate | `open-saas-admin/src/views/tenant/reports.vue:64,75,95` |
 
 **A.5 时区字段与门店**
 
@@ -831,7 +831,7 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 | 门店只读接口 | `.../api/controller/StoreController.java:25-33` |
 | 租户创建可写 defaultTimezone | `.../api/controller/TenantController.java:41,61` |
 | 种子时区 | `.../db/migration/V7__seed_a380_tenant.sql:4,12`；`V3__seed_default_init.sql:2,10` |
-| 后台门店列表展示时区 | `gv_saas_admin/src/views/tenant/stores.vue:36` |
+| 后台门店列表展示时区 | `open-saas-admin/src/views/tenant/stores.vue:36` |
 | 规范要求门店配置时区/营业日切点 | `docs/renovation/SAAS_PLATFORM_01_SERVICE.md:61,125,298`；`SAAS_PLATFORM_04_DATA.md:49,58` |
 
 **A.6 资源 / 占用 / 内部调用**
@@ -868,17 +868,17 @@ P1 地基（4~6d）  →  P2 存储与迁移（6~9d）  →  P3 写路径（6~8d
 
 | 证据 | 位置 |
 |---|---|
-| Dockerfile 无 TZ/JVM 时区 | `gv_im_server/Dockerfile:20` |
-| k8s 无 TZ 注入 | `gv_im_server/k8s/local/saas.yaml:95-113,131-137,157-162,180-182` |
+| Dockerfile 无 TZ/JVM 时区 | `open-im-server/Dockerfile:20` |
+| k8s 无 TZ 注入 | `open-im-server/k8s/local/saas.yaml:95-113,131-137,157-162,180-182` |
 | JDBC `serverTimezone=UTC` | `platform-services/order/.../src/main/resources/application.yml:5`（各服务另见 §1.1(6)） |
-| 后台 `formatTime` 字面量切片 | `gv_saas_admin/src/utils/format.js:27-31,43-47,54-60` |
-| 后台守卫「formatTime 只能在 format.js 定义」 | `gv_saas_admin/src/utils/admin-copy.test.js:77-95` |
-| 后台订单页时长计算 | `gv_saas_admin/src/views/tenant/orders.vue:645,812-813,877,912-921` |
-| 后台预约页展示 | `gv_saas_admin/src/views/tenant/reservations.vue:33,80` |
-| C 端硬编码门店偏移 | `gv_saas_mobile/c-end/datetime.js:16-17,49-61,63-80,82-88` |
-| C 端单测固化 +08 行为 | `gv_saas_mobile/c-end/datetime.test.js:38-64` |
-| C 端提交预约构造时间 | `gv_saas_mobile/c-end/app.js:330-335,1196-1202`；展示 `:780,892` |
-| B 端 App `fmtTime` | `gv_saas_mobile/src/shared/utils/amount.js:32-35`；调用点 `gv_saas_mobile/src/b-end/views/Reservations.vue:31,58`；预览数据 `src/b-end/preview/saas.js:9,19,29,39` |
+| 后台 `formatTime` 字面量切片 | `open-saas-admin/src/utils/format.js:27-31,43-47,54-60` |
+| 后台守卫「formatTime 只能在 format.js 定义」 | `open-saas-admin/src/utils/admin-copy.test.js:77-95` |
+| 后台订单页时长计算 | `open-saas-admin/src/views/tenant/orders.vue:645,812-813,877,912-921` |
+| 后台预约页展示 | `open-saas-admin/src/views/tenant/reservations.vue:33,80` |
+| C 端硬编码门店偏移 | `open-saas-mobile/c-end/datetime.js:16-17,49-61,63-80,82-88` |
+| C 端单测固化 +08 行为 | `open-saas-mobile/c-end/datetime.test.js:38-64` |
+| C 端提交预约构造时间 | `open-saas-mobile/c-end/app.js:330-335,1196-1202`；展示 `:780,892` |
+| B 端 App `fmtTime` | `open-saas-mobile/src/shared/utils/amount.js:32-35`；调用点 `open-saas-mobile/src/b-end/views/Reservations.vue:31,58`；预览数据 `src/b-end/preview/saas.js:9,19,29,39` |
 | 迁移编号现状 | order `V23__ord_reservation_room_type.sql`、tenant `V26__seed_currency_permission.sql`、payment `V10__pay_currency_snapshot.sql`、resource **已合并为 `V1__res_resource_baseline.sql`（原 `V7__res_public_media_url_prefix.sql` 等内容已并入）** |
 
 ---
@@ -1016,7 +1016,7 @@ $ kubectl -n gv-im-local logs deploy/platform-tenant-service --tail=2
 `timezone`（`StorePo.java:26`）与 `businessDayCutoff`（`StorePo.java:30`），导出快照
 `docs/contracts/openapi/platform-tenant-service.json` 的 `StorePo` schema 里两字段同样存在。
 因此「门店响应补 `timezone` / `businessDayCutoff`」在本服务**已经是既成事实**：本批没有新增/改名任何响应字段
-（避免破坏 `gv_saas_admin/src/views/tenant/stores.vue` 的既有消费），只把写入口补齐。
+（避免破坏 `open-saas-admin/src/views/tenant/stores.vue` 的既有消费），只把写入口补齐。
 读出来是 `HH:mm:ss`、写入接受 `HH:mm`，两者语义相同；前端若要 `HH:mm` 自行截断即可（后续批次可考虑在
 出参做统一，但那属于契约变更，需同步重新导出快照）。
 

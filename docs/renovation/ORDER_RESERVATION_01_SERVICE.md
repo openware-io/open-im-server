@@ -2,7 +2,7 @@
 
 ## 1. 目标与已确认决策
 
-本文定义将旧工程 `D:\projects\cnb\gv_chat_server` 的预约能力迁移至本仓库 Java 微服务架构的方案。
+本文定义将旧工程 `D:\projects\cnb\open-chat_server` 的预约能力迁移至本仓库 Java 微服务架构的方案。
 
 以下决策已确认：
 
@@ -10,7 +10,7 @@
 2. 预约是 `order` 域的首个子域，不单独拆分为 reservation 微服务。
 3. `im-order-service` 是预约业务规则、权威数据、Flyway 脚本、MyBatis 持久化、预约单号、核销、积分协作和领域事件的唯一所有者。
 4. 所有 order 域业务表统一使用 `ord_` 前缀。
-5. `im-admin-service` 继续对外提供 `/admin/reservations/**`，供既有 `gv_chat_admin` 页面使用；它仅承担后台适配与鉴权，不拥有预约表、Mapper、迁移脚本或预约业务规则。
+5. `im-admin-service` 继续对外提供 `/admin/reservations/**`，供既有 `open-chat-admin` 页面使用；它仅承担后台适配与鉴权，不拥有预约表、Mapper、迁移脚本或预约业务规则。
 6. 移动端已经按旧服务完成对接，预约公开 REST 路径、JSON 字段、状态值、校验和错误语义必须保持兼容。
 7. 当前没有存量数据需要迁移；新 order 库由 Flyway 在空库上创建。
 
@@ -29,7 +29,7 @@
 
 - 通用订单、购物车、支付、退款、库存、履约等完整订单能力。
 - 旧预约数据回灌或双写同步。
-- 重写 `gv_chat_admin` 的预约页面，或修改其既有后台请求路径。
+- 重写 `open-chat-admin` 的预约页面，或修改其既有后台请求路径。
 - 为预约重新设计移动端 API。
 
 ## 3. 目标架构与职责边界
@@ -41,7 +41,7 @@
   -> ord_* 预约表
   -> im-user-service 内部积分接口
 
-gv_chat_admin
+open-chat-admin
   -> gateway /api/admin/reservations/**
   -> im-admin-service
   -> 受服务身份保护的预约内部接口
@@ -136,7 +136,7 @@ MySQL `ENUM` 的内部序号只能由数据库使用，绝不能作为 HTTP、MQ
 
 ### 6.2 admin 对外提供、order 实际执行的后台接口
 
-| `gv_chat_admin` 既有路径 | `im-admin-service` 职责 | `im-order-service` 职责 |
+| `open-chat-admin` 既有路径 | `im-admin-service` 职责 | `im-order-service` 职责 |
 | --- | --- | --- |
 | `GET /admin/reservations` | 管理员鉴权、HTTP 映射 | 分页查询预约单 |
 | `GET /admin/reservations/{orderNo}` | 管理员鉴权、响应映射 | 订单详情、积分余额和配置查询 |
@@ -147,10 +147,10 @@ MySQL `ENUM` 的内部序号只能由数据库使用，绝不能作为 HTTP、MQ
 
 以下文件是既有后台客户端契约基线，本次不重写页面和请求形式：
 
-- `D:\projects\cnb\gv_chat_admin\src\api\reservation.js`
-- `D:\projects\cnb\gv_chat_admin\src\views\reservation\orders.vue`
-- `D:\projects\cnb\gv_chat_admin\src\views\reservation\catalog.vue`
-- `D:\projects\cnb\gv_chat_admin\src\views\reservation\config.vue`
+- `D:\projects\cnb\open-chat-admin\src\api\reservation.js`
+- `D:\projects\cnb\open-chat-admin\src\views\reservation\orders.vue`
+- `D:\projects\cnb\open-chat-admin\src\views\reservation\catalog.vue`
+- `D:\projects\cnb\open-chat-admin\src\views\reservation\config.vue`
 
 ## 7. 需保持的预约规则
 
@@ -208,7 +208,7 @@ Topic、生产者组、消费者组和载荷需在同一变更内同步登记到
 1. 新增 Maven 聚合、`im-order-api`、`im-order-service`、服务配置、服务说明和移动端网关路由。
 2. 新增 order Flyway 基线、`ord_` 表和空库持久化验证。
 3. 实现移动端预约接口，并以旧接口示例进行契约测试。
-4. 新增 order 内部后台契约，在 admin 实现兼容 Controller，不修改 `gv_chat_admin` 请求方式。
+4. 新增 order 内部后台契约，在 admin 实现兼容 Controller，不修改 `open-chat-admin` 请求方式。
 5. 扩展 user 积分命令、积分流水表、幂等能力和查询字段。
 6. 实现核销、审计日志、并发/幂等、积分不足和错误映射测试。
 7. 接入 Outbox Relay、MQ 台账、WebSocket 消费者和推送适配器。
@@ -218,7 +218,7 @@ Topic、生产者组、消费者组和载荷需在同一变更内同步登记到
 
 - `im-order-service` 可在新空库独立初始化；预约相关业务表均为 `ord_*`，Flyway 历史表为 `order_schema_history`。
 - 移动端预约接口的路径、字段类型、状态、分页和异常语义与旧服务兼容。
-- `gv_chat_admin` 预约订单、服务/门店、积分配置页面无需修改请求 URL 或请求体即可对接 Java 服务。
+- `open-chat-admin` 预约订单、服务/门店、积分配置页面无需修改请求 URL 或请求体即可对接 Java 服务。
 - `/admin/reservations/**` 继续受既有 `ADMIN` JWT 角色保护。
 - `im-admin-service` 不含 `ord_` Mapper、PO、SQL 或 Flyway 脚本。
 - order 的封闭业务状态字段使用服务私有 Java 枚举和 MySQL `ENUM`；二值开关使用受 `CHECK` 约束的 `TINYINT UNSIGNED`。不存在裸 `int` 业务状态或 `ordinal()` 持久化；对外数值编码由显式映射提供。

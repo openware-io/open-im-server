@@ -8,7 +8,7 @@
 2. 全局/私聊/群聊免打扰
 3. 删除好友后保留聊天记录
 
-每阶段必须保留兼容行为、补充回归测试、执行 `invoke-engineering-validation.ps1 -Scope Changed`，并用同一发布清单完成 Android 真机验收。真机验收使用既有设备基准和 `gv_chat_app/tools/release.ps1`，签名参数只从本机受控文件读取，不写入仓库、日志或构建产物清单。
+每阶段必须保留兼容行为、补充回归测试、执行 `invoke-engineering-validation.ps1 -Scope Changed`，并用同一发布清单完成 Android 真机验收。真机验收使用既有设备基准和 `open-chat-app/tools/release.ps1`，签名参数只从本机受控文件读取，不写入仓库、日志或构建产物清单。
 
 ## 阶段一：设备历史与在线状态
 

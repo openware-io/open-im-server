@@ -226,10 +226,10 @@ git pull            # 分支 develop/2.2.0-auth
 ⚠️ **两个会被打破的现有测试**：`AdminMenuApplicationServiceTest` 的 2 个**位置耦合断言**（`currency` 紧跟 `store`、`order-manage` 紧跟收银台），以及 `menuPermission.test.js:22-25` 的"映射全量相等"，M1 需同步改写。
 
 入口文件：
-- `gv_im_server/platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/application/AdminMenuApplicationService.java`
-- `gv_im_server/platform-services/admin/platform-admin-api/src/main/java/io/openware/platform/admin/api/menu/AdminMenuItem.java`
-- `gv_saas_admin/src/layout/AdminLayout.vue`
-- `gv_saas_admin/src/stores/menu.js`
+- `open-im-server/platform-services/admin/platform-admin-service/src/main/java/io/openware/platform/admin/application/AdminMenuApplicationService.java`
+- `open-im-server/platform-services/admin/platform-admin-api/src/main/java/io/openware/platform/admin/api/menu/AdminMenuItem.java`
+- `open-saas-admin/src/layout/AdminLayout.vue`
+- `open-saas-admin/src/stores/menu.js`
 - 测试：`AdminMenuApplicationServiceTest`、`src/utils/menuPermission.test.js`
 
 ### 路径 2：做 M0 数据地基
@@ -267,7 +267,7 @@ M0 的**设计与 DDL 已经写在 `02_SERVICE.md` §11**（建表/改列语句�
 
 4. **别用 `git add -A`**。并发进程有自己的在途改动，只 `git add` 明确的路径。
 
-5. `gv_saas_admin` 是 Vue 3 + Element Plus + Vite；`npm test`（vitest）与 `npm run build` 是既有门禁。
+5. `open-saas-admin` 是 Vue 3 + Element Plus + Vite；`npm test`（vitest）与 `npm run build` 是既有门禁。
 
 6. **⚠️ 本文的部分"本机"描述来自另一台机器（v0.3 复核时发现）**。当前这台机器上：
    - `D:\projects\cnb\.agents\notes\stash-archive\` **不存在**（§7.1 的归档没跟过来，见 §7.4）；
@@ -295,12 +295,12 @@ M0 的**设计与 DDL 已经写在 `02_SERVICE.md` §11**（建表/改列语句�
 | IAM 写接口（M5 校验落点） | `.../platform/tenant/api/controller/IamController.java`（`assignUserRole` `:166`、`assignPermissions` `:99`、`togglePermission` `:137`） |
 | 门店配置写路径（业态缺口） | `.../platform/tenant/application/StoreApplicationService.java`（只写时区/切点） |
 | 上下文 DTO（缺 businessType） | `platform-services/admin/platform-admin-api/.../api/context/ContextDtos.java` |
-| 侧边栏渲染 | `gv_saas_admin/src/layout/AdminLayout.vue` |
-| 侧栏菜单项组件 | `gv_saas_admin/src/layout/components/SidebarMenuItem.vue`（已递归） |
-| 菜单 store | `gv_saas_admin/src/stores/menu.js` |
-| 前端权限门禁 | `gv_saas_admin/src/utils/menuPermission.js` |
-| 路由表 | `gv_saas_admin/src/router/index.js`（25 条子路由，23 条带 `meta.scope`） |
-| 上下文切换 | `gv_saas_admin/src/components/TenantContextSelector.vue`、`src/stores/context.js` |
+| 侧边栏渲染 | `open-saas-admin/src/layout/AdminLayout.vue` |
+| 侧栏菜单项组件 | `open-saas-admin/src/layout/components/SidebarMenuItem.vue`（已递归） |
+| 菜单 store | `open-saas-admin/src/stores/menu.js` |
+| 前端权限门禁 | `open-saas-admin/src/utils/menuPermission.js` |
+| 路由表 | `open-saas-admin/src/router/index.js`（25 条子路由，23 条带 `meta.scope`） |
+| 上下文切换 | `open-saas-admin/src/components/TenantContextSelector.vue`、`src/stores/context.js` |
 | 账号权限模型（长期约定） | `docs/business/ACCOUNT_PERMISSION_MODEL.md` |
 | 多业态总体方案 | `docs/renovation/SAAS_PLATFORM_01_SERVICE.md` §5.1 |
 | 核心数据设计 | `docs/renovation/SAAS_PLATFORM_04_DATA.md` |
@@ -314,7 +314,7 @@ M0 的**设计与 DDL 已经写在 `02_SERVICE.md` §11**（建表/改列语句�
 
 ### 7.1 已清理：2 个 git stash
 
-`gv_im_server` 里有两个无人接续的 stash，**先归档为补丁再 `git stash drop`**：
+`open-im-server` 里有两个无人接续的 stash，**先归档为补丁再 `git stash drop`**：
 
 | 原 stash | 日期 | 内容 | 处置 |
 | --- | --- | --- | --- |
@@ -347,10 +347,10 @@ stash-archive/
 
 ### 7.4 v0.3 复核时的仓库基线（2026-09-22，当前机器）
 
-- `gv_im_server` 分支 `develop/2.0.0-saas-20260826`，HEAD = `dfad2d55`，工作区**干净**，与 `origin` 偏差 `0 0`
+- `open-im-server` 分支 `develop/2.0.0-saas-20260826`，HEAD = `dfad2d55`，工作区**干净**，与 `origin` 偏差 `0 0`
 - `git stash list` **为空**，`git reflog` 无 stash 记录
-- 工作区根 `D:\projects\cnb` 下 **8 个** git 仓库（`gv_chat_admin` / `gv_chat_app` / `gv_chat_desktop` /
-  `gv_chat_turn` / `gv_im_server` / `gv_saas_admin` / `gv_saas_mobile` / `open-website`），全部 clean
+- 工作区根 `D:\projects\cnb` 下 **8 个** git 仓库（`open-chat-admin` / `open-chat-app` / `open-chat-desktop` /
+  `open-chat_turn` / `open-im-server` / `open-saas-admin` / `open-saas-mobile` / `open-website`），全部 clean
 - 方案点名的 9 个代码入口文件**全部存在**（`AdminMenuApplicationService.java`、`AdminMenuItem.java`、
   `IamSnapshotMapper.java`、`PermissionSnapshotProvider.java`、`AdminLayout.vue`、`stores/menu.js`、
   `utils/menuPermission.js`、`router/index.js`、`TenantContextSelector.vue`）
@@ -369,6 +369,6 @@ stash-archive/
 
 ### 7.3 清理时的仓库状态（**原机器**基线，2026-09-21）
 
-- `gv_im_server` 分支 `develop/2.0.0-saas-20260826`，工作区**干净**，`git stash list` **为空**
+- `open-im-server` 分支 `develop/2.0.0-saas-20260826`，工作区**干净**，`git stash list` **为空**
 - 工作区 9 个仓库全部 clean，无未提交改动（v0.3 复核：当前机器是 **8 个**，见 §7.4）
 - 并发开发进程最后活动：2026-09-20 21:39（最后一次 ACK dev 发布），此后静默

@@ -1,6 +1,6 @@
 # 客户端版本发布治理：管理后台实施方案
 
-> 方案集：`APP_RELEASE`；序号：`03`；实施边界：`gv_chat_admin` 发布治理界面与 API Client；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)、[App 实施方案](APP_RELEASE_02_APP.md)；长期规则：[客户端发布与版本治理规范](../standards/14_CLIENT_RELEASE_GOVERNANCE.md)；状态：设计待实施。
+> 方案集：`APP_RELEASE`；序号：`03`；实施边界：`open-chat-admin` 发布治理界面与 API Client；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)、[App 实施方案](APP_RELEASE_02_APP.md)；长期规则：[客户端发布与版本治理规范](../standards/14_CLIENT_RELEASE_GOVERNANCE.md)；状态：设计待实施。
 
 ## 1. 重构范围
 

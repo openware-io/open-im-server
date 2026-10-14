@@ -36,7 +36,7 @@
 
 ### Task 3: H5 bounded recovery and error states
 
-**Files:** `gv_saas_mobile/c-end/oauth.js`, `app.js`, tests.
+**Files:** `open-saas-mobile/c-end/oauth.js`, `app.js`, tests.
 
 - Revalidate context reads, retry one time, and distinguish context failure from OAuth fallback.
 - Add typed errors and recovery copy/actions for missing access, expired session, service outage, and multiple contexts.

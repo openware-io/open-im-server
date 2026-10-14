@@ -201,7 +201,7 @@
 - 重复索引：`im-message-service/.../V1__init_msg_schema.sql:27-28` 同一列组合同时建 `uk_` 与 `idx_`
 
 ### H-13 文档治理失真
-- `standards/15_CLIENT_RELEASE_SKILL.md` 整体是项目 runbook：`:140-143` 本机绝对路径 `D:\projects\cnb\gv_chat_app`、`:37` 具体 JPush AppKey、`:27` 历史版本序列 —— 违反 `standards/00:32`「规范不得包含项目模块名称、存量缺陷、具体待办或迁移顺序」；`:5` `../../../gv_chat_app/BUILD.md`、`:141/:145` `../../RELEASE_RUNBOOK.md` 三条链接失效（正确应为 `../RELEASE_RUNBOOK.md`，同文件 `:3` 写法正确 → 自相矛盾）
+- `standards/15_CLIENT_RELEASE_SKILL.md` 整体是项目 runbook：`:140-143` 本机绝对路径 `D:\projects\cnb\open-chat-app`、`:37` 具体 JPush AppKey、`:27` 历史版本序列 —— 违反 `standards/00:32`「规范不得包含项目模块名称、存量缺陷、具体待办或迁移顺序」；`:5` `../../../open-chat-app/BUILD.md`、`:141/:145` `../../RELEASE_RUNBOOK.md` 三条链接失效（正确应为 `../RELEASE_RUNBOOK.md`，同文件 `:3` 写法正确 → 自相矛盾）
 - `standards/43` 同样含项目模块名、`D:\projects\cnb\oidc-hybrid-e2e`、AVD 名、测试账号前缀；`standards/16` 是“项目实施方案写成标准”；`standards/20:154` 自称“不记录任何具体工程的模块名称”，但 `:23/:46/:61/:78` 含 `im-access-ws`、`gateway`、`im-services/user` 等
 - `standards/00:101-111` 的七项最小模板：15 份标准中 10 份缺 3 项以上
 - 22 份文档用反引号包裹仓库路径而未做成可跳转链接（违反 `standards/00:37`）
@@ -214,7 +214,7 @@
 ### H-14 客户端仓库（详见第 6 节）
 - `open-chat-app`：根目录**跟踪** `_sticker_panel_dump.txt`（307 行源码转储，含乱码）与 `cursor.mark`；`pubspec.yaml:37,41,111` 注释真乱码（已用 UTF-8 读取复核）；自身文档声称的 `packages/gv_core`/`gv_ui` 实际为 `open_core`/`open_ui`；65 处用户可见硬编码中文（自身规范禁止）
 - `open-saas-admin`：版本源三方矛盾（`package.json:4` = 2.2.0 vs `.env.example:7`/文档 = 2.0.0），`VITE_APP_VERSION` 无消费点且发布脚本不注入；作为 `standards/14` 明确适用对象却无发布治理
-- `open-chat-desktop`：`docs/release-notes.md:24` 仍写 `2.0.3+5`（package.json 为 2.2.0）；跨仓链接 `../../gv_im_server/...` 失效；`docs/coding-guidelines.md` 声称的 `repositories/` 层与 ESLint/Prettier 均不存在
+- `open-chat-desktop`：`docs/release-notes.md:24` 仍写 `2.0.3+5`（package.json 为 2.2.0）；跨仓链接 `../../open-im-server/...` 失效；`docs/coding-guidelines.md` 声称的 `repositories/` 层与 ESLint/Prettier 均不存在
 - `open-website`：`docs/ack-static-site-deploy-guide.md:157,176` 教 `:latest` 手工 push + 手工 `kubectl`，与本仓 `k8s/deployment.yaml:30-31`「禁止 latest 和手工 set image」相矛盾
 - `open-saas-admin` 媒体上传绕过 `standards/13` 的直传协议（multipart 经网关→BFF→媒体服务），而 `docs/services/common-media-service/README.md:19` 恰好宣称“文件二进制不经过网关或业务服务”（同文 `:15-18` 又描述字节走请求体，自相矛盾）
 

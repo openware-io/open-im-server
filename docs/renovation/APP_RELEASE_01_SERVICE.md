@@ -630,7 +630,7 @@ im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/
 
 ### Phase 3.1：CI 制品清单与受控发布机器人
 
-当前 `gv_chat_app/.cnb.yml` 只执行 Flutter 校验和 Android debug 附件，不是发布流水线。本次必须新增受控 release job 与 `gv_chat_app/tools/create_client_release_manifest.dart`：输入 `platform,channel,version,buildNumber,architecture,packageType,mandatory,protocolVersion,minimumServerCapabilityVersion,releaseNotesPath,artifactPath?,storeUrl?`，读取版本库内非空发布说明和已上传制品，输出规范化 JSON；直装包计算 SHA-256、`sizeBytes`，商店包校验其商店上传产物后只输出 `storeUrl`，绝不输出 AAB 下载字段。脚本拒绝空值、非 SemVer、非正构建号和不允许的 package/platform 组合。
+当前 `open-chat-app/.cnb.yml` 只执行 Flutter 校验和 Android debug 附件，不是发布流水线。本次必须新增受控 release job 与 `open-chat-app/tools/create_client_release_manifest.dart`：输入 `platform,channel,version,buildNumber,architecture,packageType,mandatory,protocolVersion,minimumServerCapabilityVersion,releaseNotesPath,artifactPath?,storeUrl?`，读取版本库内非空发布说明和已上传制品，输出规范化 JSON；直装包计算 SHA-256、`sizeBytes`，商店包校验其商店上传产物后只输出 `storeUrl`，绝不输出 AAB 下载字段。脚本拒绝空值、非 SemVer、非正构建号和不允许的 package/platform 组合。
 
 固定发布流程为：
 

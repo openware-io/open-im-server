@@ -87,8 +87,8 @@
 - 新增/复用「审核服务」：封装云审核 SDK（文本/图片/音视频）。
 - gateway：文本消息前置审核。
 - im-message-service：发送链路接入审核结果；异步撤回能力。
-- im-admin-service / gv_chat_admin：举报工单、违法信息处置、上报台账。
-- gv_chat_app：举报入口、违规提示。
+- im-admin-service / open-chat-admin：举报工单、违法信息处置、上报台账。
+- open-chat-app：举报入口、违规提示。
 
 ### 实施步骤
 1. 接入云端内容安全 SDK（文本/图片/音视频），封装为审核服务。
@@ -120,7 +120,7 @@
 5. 商用密码合规：评估 X25519 + AES-GCM 与商用密码管理条例的兼容性；必要时引入 SM2/SM3/SM4 或完成合规评估备案。
 
 ### 涉及系统
-- gv_chat_app / gv_chat_desktop：启用 E2EE 的单独同意弹窗 + 风险告知 + 默认关闭。
+- open-chat-app / open-chat-desktop：启用 E2EE 的单独同意弹窗 + 风险告知 + 默认关闭。
 - im-conversation-service：私密会话创建校验（仅一对一、需同意标记）。
 - im-message-service / im-user-service：密钥托管/恢复预留（企业场景）。
 - 法务：密钥托管与司法协查方案评审。
@@ -154,7 +154,7 @@
 5. 版本管理与撤回：隐私政策版本化，重大变更重新同意；提供撤回同意与注销入口。
 
 ### 涉及系统
-- gv_chat_app / gv_chat_desktop：首次启动同意弹窗、单独同意、隐私政策页。
+- open-chat-app / open-chat-desktop：首次启动同意弹窗、单独同意、隐私政策页。
 - 官网 example.com：隐私政策公开页。
 - 法务：隐私政策文本审核签发。
 

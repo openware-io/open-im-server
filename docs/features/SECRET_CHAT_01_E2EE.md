@@ -10,7 +10,7 @@
 | 设备身份（DeviceKey 注册/续期/恢复） | im-user-service | ✅ 已部署 |
 | 密文存储（SecretMessage，服务端不解密） | im-message-service | ✅ 已部署 |
 | 定时销毁引擎（已读后计时 + 周期扫描） | im-message-service | ✅ 已部署 |
-| 客户端 E2EE 加解密（X25519 密钥协商 + AES-GCM） | gv_chat_app（前端） | ✅ 已实现（生产双设备链路验证通过） |
+| 客户端 E2EE 加解密（X25519 密钥协商 + AES-GCM） | open-chat-app（前端） | ✅ 已实现（生产双设备链路验证通过） |
 
 ## 2. 私密会话域（im-conversation-service）
 

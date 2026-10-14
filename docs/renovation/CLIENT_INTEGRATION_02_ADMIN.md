@@ -2,7 +2,7 @@
 
 > 状态：待实施
 >
-> 适用范围：`gv_im_server`、`D:\projects\cnb\gv_chat_admin`
+> 适用范围：`open-im-server`、`D:\projects\cnb\open-chat-admin`
 >
 > 最后核查：2026-07-31
 >
@@ -184,7 +184,7 @@ PC 管理 REST 的当前冻结版本位于本方案第 6 节；修改任何表�
 
 > 状态：实施输入，首发前冻结
 >
-> 来源：`D:\projects\cnb\gv_chat_admin\src\api\`（2026-07-31 盘点）
+> 来源：`D:\projects\cnb\open-chat-admin\src\api\`（2026-07-31 盘点）
 >
 > 排除范围：消息趋势、在线用户明细、通话监控、服务器/节点详情、日志检索；这些页面在本次新分支中不开放，后续专项另行冻结。
 

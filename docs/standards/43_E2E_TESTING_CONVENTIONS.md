@@ -1,6 +1,6 @@
 # 43 E2E 测试与验收规范（Testing & Acceptance Conventions）
 
-> 适用对象：`gv_im_server`（服务端）、`gv_chat_app`（App）、`gv_chat_desktop`（PC 客户端）、`gv_saas_mobile`/`gv_saas_admin`/`portal`（SaaS H5/后台）。本规范随实践渐进补充，改动需同步更新本文与 SDD 台账。
+> 适用对象：`open-im-server`（服务端）、`open-chat-app`（App）、`open-chat-desktop`（PC 客户端）、`open-saas-mobile`/`open-saas-admin`/`portal`（SaaS H5/后台）。本规范随实践渐进补充，改动需同步更新本文与 SDD 台账。
 
 ## 1. 测试分层
 
@@ -9,7 +9,7 @@
 | 单元测试 | 领域/应用服务与基础设施适配器的单测 | `mvnw.cmd -B -ntp -pl <模块> -am '-Dtest=...' test`；Flutter `flutter test test/...`；SaaS `npm test` |
 | 接口/契约测试 | 服务 API 契约、OpenAPI 快照、跨服务 DTO/错误码一致 | `OidcProviderContractTest`；`docs/contracts/openapi/*.json` 结构/语义审查；`validate-*` 校验脚本 |
 | 集成验证（本地 Kind 真实部署） | 完整业务闭环的真实数据验证，禁止 mock | `scripts/verify/*.ps1`（见 §3）；发布清单同 digest 部署后执行 |
-| 端到端真实设备 | Android **Emulator**（当前基准设备 `emulator-5554`）上运行 App；PC 客户端在本地安装真实安装包后测试 | `gv_chat_app/integration_test/*.dart`；`gv_chat_desktop` 安装包本地验收 |
+| 端到端真实设备 | Android **Emulator**（当前基准设备 `emulator-5554`）上运行 App；PC 客户端在本地安装真实安装包后测试 | `open-chat-app/integration_test/*.dart`；`open-chat-desktop` 安装包本地验收 |
 
 规则：mock 只能作为开发辅助；任何 CP6/CP7 验收证据必须是真实部署 + 真实数据链路，不能用 mock 结果替代（见 OIDC 计划 CP6 验收规则）。
 
@@ -37,8 +37,8 @@
 ## 4. 真实设备规范
 
 - Android：统一使用 AVD（API 35，Google APIs，x86_64，当前命名 `codex-oidc-api35`，设备 `emulator-5554`）；运行命令以 `dart run tools/run_integration_tests.dart --device=emulator-5554 ...` 为基准；App 访问 Kind 用 `http://10.0.2.2:<NodePort>`/`ws://10.0.2.2:30002/ws/im/v1`。
-- PC 客户端（`gv_chat_desktop` / `gv_chat_admin`）：本地构建安装包（`npm run build:win` 等）并**本地安装后**走核心链路（登录、会话、服务板块/WebView 打开、设置），不能只用 typecheck/build 代替。
-- 报告：集成测试报告落 `gv_chat_app/build/test-reports/<run>/report.html`；关键命令与结果记录到 SDD 台账。
+- PC 客户端（`open-chat-desktop` / `open-chat-admin`）：本地构建安装包（`npm run build:win` 等）并**本地安装后**走核心链路（登录、会话、服务板块/WebView 打开、设置），不能只用 typecheck/build 代替。
+- 报告：集成测试报告落 `open-chat-app/build/test-reports/<run>/report.html`；关键命令与结果记录到 SDD 台账。
 
 ## 5. 测试数据治理
 

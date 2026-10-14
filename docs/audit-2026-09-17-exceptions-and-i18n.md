@@ -2,7 +2,7 @@
 
 # 跨服务只读审计报告：异常与错误处理规范性 + 国际化/文案一致性
 
-- **审计对象**：`gv_im_server`（分支 `develop/2.0.0-saas-20260826`，HEAD `9cbec066`）、`gv_saas_admin`、`gv_saas_mobile`
+- **审计对象**：`open-im-server`（分支 `develop/2.0.0-saas-20260826`，HEAD `9cbec066`）、`open-saas-admin`、`open-saas-mobile`
 - **性质**：只读。未修改/创建/删除任何业务代码，未提交，未改版本号，未触碰 `k8s/`，未跑发版脚本。
 - **实测环境**：本地 kind 集群 `kind-gv-im-local`（网关 `192.168.31.91:30002`，后台 `:30081`，B 端 `:30082`；`kubectl` 直连 18 个服务 Pod + `saas-admin` Pod 内 `curl`）
 - **审计时间**：2026-09-17
@@ -12,13 +12,13 @@
 
 ## ⚠️ 0. 并发变更与勘误（务必先读）
 
-审计期间 `gv_saas_admin` 与 `gv_im_server/platform-services/order` **正被其它 agent 实时改写**，部分行号与结论在审计过程中已经发生变化。以下为**核验后的当前状态**，本报告正文中受影响处已就地标注。
+审计期间 `open-saas-admin` 与 `open-im-server/platform-services/order` **正被其它 agent 实时改写**，部分行号与结论在审计过程中已经发生变化。以下为**核验后的当前状态**，本报告正文中受影响处已就地标注。
 
 ### 0.1 已被并发修复（不要按旧结论行动）
 
 | 曾被观察到的问题 | 位置 | 当前状态（已核验） |
 |---|---|---|
-| `orders.vue` 重复声明 `formatTime` → ESM `SyntaxError`，`npm run build` 失败 | `gv_saas_admin/src/views/tenant/orders.vue` | ✅ **已修复**。当前无任何重复顶层函数声明（全 views 扫描 0 命中）；`formatTime` 现从 `@/utils/format` 导入（`:452`）并被包装函数调用（`:720`） |
+| `orders.vue` 重复声明 `formatTime` → ESM `SyntaxError`，`npm run build` 失败 | `open-saas-admin/src/views/tenant/orders.vue` | ✅ **已修复**。当前无任何重复顶层函数声明（全 views 扫描 0 命中）；`formatTime` 现从 `@/utils/format` 导入（`:452`）并被包装函数调用（`:720`） |
 | `members.vue` 金额用 `' 元'` 后缀 | `views/tenant/members.vue:150` | ✅ **已修复**，全仓已无 `+ ' 元'` |
 | `order` 服务缺少必填请求头处理（本报告 H-6 涉及 order 的部分） | `platform-services/order/.../handler/GlobalExceptionHandler.java` | ✅ **已新增** `MissingRequestHeaderException`（`:70-77` → 400 `REQUEST_HEADER_MISSING`）与 `ServletRequestBindingException`（`:80-87` → 400 `REQUEST_BINDING_INVALID`） |
 
@@ -26,7 +26,7 @@
 
 | 问题 | 位置（当前行号） | 证据 |
 |---|---|---|
-| **双货币符号 `¥ ¥ 123.45`** | `gv_saas_admin/src/views/tenant/orders.vue:410` | `<span class="collect-amount">¥ {{ fmtCents(payableMinor) }}</span>`，而 `:818` `const fmtCents = formatYuan`，`utils/format.js:21` 返回 `'¥ ' + ...`。**全仓唯一一处**（`:380` 与 `products.vue:38` 是内联 `/100`，不带前缀，正常）。快照 md5 `9B2614AAA014EBDB5F14AE8BD9AFC373` |
+| **双货币符号 `¥ ¥ 123.45`** | `open-saas-admin/src/views/tenant/orders.vue:410` | `<span class="collect-amount">¥ {{ fmtCents(payableMinor) }}</span>`，而 `:818` `const fmtCents = formatYuan`，`utils/format.js:21` 返回 `'¥ ' + ...`。**全仓唯一一处**（`:380` 与 `products.vue:38` 是内联 `/100`，不带前缀，正常）。快照 md5 `9B2614AAA014EBDB5F14AE8BD9AFC373` |
 | order 兜底 500 仍无 `code` 且英文 | `.../order/.../GlobalExceptionHandler.java:44` | `Map.of("message", "Internal error")`，**未修** |
 | order 的 `Exception.class` 仍吞掉 `NoResourceFoundException` / `HttpRequestMethodNotSupportedException` | `.../order/.../GlobalExceptionHandler.java:41` | 当前文件仍只有 `HttpMessageNotReadableException` / `MissingServletRequestParameterException` / `MissingRequestHeaderException` / `ServletRequestBindingException` 四个显式分支，**未覆盖 404/405**；实测 500 依然存在 |
 
@@ -34,15 +34,15 @@
 
 | 范围 | 可信度 |
 |---|---|
-| `gv_im_server`（除 `platform-services/order`） | 高。`git status` 仅 `k8s/*` 与 `platform-services/order/**` 有改动 |
-| `gv_im_server/platform-services/order` | **中**。15+ 个文件未提交改动中，含 `GlobalExceptionHandler.java`；引用前请重新 `grep` |
-| `gv_saas_admin` | **低**。16 个文件未提交改动中（含 4 个新增工具文件），行号在审计期间持续漂移（同一文件 10 分钟内从 1661 行 → 1701 → 1728 → 1725 行）；**引用前必须重新 `grep`** |
-| `gv_saas_mobile` | **高**。`git status` 为空，HEAD `737928e`，审计期间无变化 |
+| `open-im-server`（除 `platform-services/order`） | 高。`git status` 仅 `k8s/*` 与 `platform-services/order/**` 有改动 |
+| `open-im-server/platform-services/order` | **中**。15+ 个文件未提交改动中，含 `GlobalExceptionHandler.java`；引用前请重新 `grep` |
+| `open-saas-admin` | **低**。16 个文件未提交改动中（含 4 个新增工具文件），行号在审计期间持续漂移（同一文件 10 分钟内从 1661 行 → 1701 → 1728 → 1725 行）；**引用前必须重新 `grep`** |
+| `open-saas-mobile` | **高**。`git status` 为空，HEAD `737928e`，审计期间无变化 |
 
 ```powershell
 # 引用任何前端行号前先跑这个
-git -C D:\projects\cnb\gv_saas_admin status --porcelain
-git -C D:\projects\cnb\gv_im_server status --porcelain
+git -C D:\projects\cnb\open-saas-admin status --porcelain
+git -C D:\projects\cnb\open-im-server status --porcelain
 ```
 
 > **审计自身的只读保证**：本审计未写入上述任何仓库。上表所列改动全部由并发 agent 产生（`git status` 的 ` M` / `??` 标记），本报告对它们的描述仅用于区分「已修 / 未修」。
@@ -69,16 +69,16 @@ git -C D:\projects\cnb\gv_im_server status --porcelain
 
 ### 前端（4 条最重要）
 
-1. **两个前端都没有 i18n 基础设施**。`gv_saas_admin` 的 `package.json` 依赖只有 `element-plus / axios / pinia / vue / vue-router`，无 `vue-i18n`；两个仓库均无 `locales/`、`zh-CN.json`、`en.json` 之类文件。**任务要求的「i18n key 覆盖核对」在当前代码下不适用（N/A）**：没有 key，也就没有缺 key/多余 key，只有全量硬编码中文。
+1. **两个前端都没有 i18n 基础设施**。`open-saas-admin` 的 `package.json` 依赖只有 `element-plus / axios / pinia / vue / vue-router`，无 `vue-i18n`；两个仓库均无 `locales/`、`zh-CN.json`、`en.json` 之类文件。**任务要求的「i18n key 覆盖核对」在当前代码下不适用（N/A）**：没有 key，也就没有缺 key/多余 key，只有全量硬编码中文。
 
-2. **后台前端的错误提示工具已经「知道」后端在返回非统一体，并因此主动丢弃后端的英文消息** —— 这既是证据也是影响。`gv_saas_admin/src/utils/adminErrorMessage.js:7-11` 的注释直接写明：*「线上存在两类不带 `code/message` 的响应 … 如缺少 Idempotency-Key / 请求头缺失时 `{timestamp,status,error,path}`」*；第 64-65 行还有 `CJK_PATTERN` 白名单，**只展示含中日韩字符的服务端 message**。
+2. **后台前端的错误提示工具已经「知道」后端在返回非统一体，并因此主动丢弃后端的英文消息** —— 这既是证据也是影响。`open-saas-admin/src/utils/adminErrorMessage.js:7-11` 的注释直接写明：*「线上存在两类不带 `code/message` 的响应 … 如缺少 Idempotency-Key / 请求头缺失时 `{timestamp,status,error,path}`」*；第 64-65 行还有 `CJK_PATTERN` 白名单，**只展示含中日韩字符的服务端 message**。
    后果实测可得：`ADMIN_LOGIN_INVALID` 的消息是英文 `invalid username or password`（`AdminLoginApplicationService.java:37`），且未列入 `ERROR_CODE_MESSAGES` → 后台**把「用户名或密码错误」显示成「登录状态已失效，请重新登录。」**（状态码 401 兜底）。全量比对：后端 141 个业务码中 **120 个** 无前端映射，其中 **18 个的消息是英文**，会全部退化成状态码泛化文案。
 
-3. **储值品牌名有 4 种写法，且违反了代码里自己写下的「不得硬编码」规则。** `gv_saas_admin/src/constants/payment-methods.js:14-15` 明确注释 *「储值是品牌展示名，取租户配置 `tnt_tenant_config.wallet_brand_name`（默认 A380币），**不得硬编码**」*，但 `views/tenant/wallet.vue:114,123,140` 三处硬编码 `'A380币'`；`payments.vue:108` 与 `orders.vue:535` 又把默认值写成 `'储值'`；`payment-methods.js:4,11,22` 是 `'储值币(A380币)'` / `'储值币'` / `'储值'`。同一概念 **储值 / 储值币 / 储值币(A380币) / A380币** 四名并存。
+3. **储值品牌名有 4 种写法，且违反了代码里自己写下的「不得硬编码」规则。** `open-saas-admin/src/constants/payment-methods.js:14-15` 明确注释 *「储值是品牌展示名，取租户配置 `tnt_tenant_config.wallet_brand_name`（默认 A380币），**不得硬编码**」*，但 `views/tenant/wallet.vue:114,123,140` 三处硬编码 `'A380币'`；`payments.vue:108` 与 `orders.vue:535` 又把默认值写成 `'储值'`；`payment-methods.js:4,11,22` 是 `'储值币(A380币)'` / `'储值币'` / `'储值'`。同一概念 **储值 / 储值币 / 储值币(A380币) / A380币** 四名并存。
 
-4. **术语与金额/时间格式都在「各写各的」。** 菜单标题直接写成 `'包厢/资源'`（`gv_saas_admin/src/router/index.js:71`）—— 术语尚未定稿；「应收」25 次 vs「待收」1 次（`gv_saas_mobile/src/b-end/views/Orders.vue:58`）指同一金额；`¥` 前缀与 `元` 后缀并存（`members.vue:150` 是 `... + ' 元'`），同一仓库至少 **7 处各自实现**了元/分转换（`views/tenant/orders.vue:818,824`、`payments.vue:138`、`shift.vue:174`、`reservations.vue:75`、`members.vue:150`、`ktv-config.vue:270`），而规范实现 `src/utils/format.js:16-21` 反而没人用；「分」同时表示**货币最小单位**和**分钟**（`ktv-config.vue:65,223` 的 `递增粒度(分)` 是分钟，同文件 `:270 fenToYuan` 是分币）。日期则绝大多数**直接渲染原始值**（`platform/tenants.vue:19`、`shift.vue:64`、`ktv-config.vue:164`）。
+4. **术语与金额/时间格式都在「各写各的」。** 菜单标题直接写成 `'包厢/资源'`（`open-saas-admin/src/router/index.js:71`）—— 术语尚未定稿；「应收」25 次 vs「待收」1 次（`open-saas-mobile/src/b-end/views/Orders.vue:58`）指同一金额；`¥` 前缀与 `元` 后缀并存（`members.vue:150` 是 `... + ' 元'`），同一仓库至少 **7 处各自实现**了元/分转换（`views/tenant/orders.vue:818,824`、`payments.vue:138`、`shift.vue:174`、`reservations.vue:75`、`members.vue:150`、`ktv-config.vue:270`），而规范实现 `src/utils/format.js:16-21` 反而没人用；「分」同时表示**货币最小单位**和**分钟**（`ktv-config.vue:65,223` 的 `递增粒度(分)` 是分钟，同文件 `:270 fenToYuan` 是分币）。日期则绝大多数**直接渲染原始值**（`platform/tenants.vue:19`、`shift.vue:64`、`ktv-config.vue:164`）。
 
-5. **除风格问题外，另有 6 个确定性缺陷（可直接修，非风格偏好）。** ① `gv_saas_admin` 收银台渲染 **"¥ ¥ 123.45"**（`views/tenant/orders.vue:410` 字面 `¥` + `fmtCents` 已含 `'¥ '` 前缀）；② C 端同一 DTO 同一字段用两种金额尺度，`c-end/app.js:853` 用不除 100 的 `money()`，**显示为实际值的 100 倍**；③ C 端**钱包余额未除 100**，显示的是「分」的数值（`c-end/app.js:200,204,222,227,248,756,760`，而 `c-end/saas.js:107` 注释与 `fenToYuan` 明确契约是「分→元」；mock 数据 `data.js:16 balance: 8880` 恰好是元形状，**掩盖了这个 bug**）；④ C 端 `dateOffset` 用 `toISOString().slice(0,10)`（**UTC**），UTC+8 下本地 00:00–07:59 的「今天+N」**早一天**（`c-end/app.js:33,655`）；⑤ `c-end/app.js:314-316` 本地解析、UTC 序列化，提交的预约时间**早 8 小时**（需后端契约确认）；⑥ `formatTime` 在 admin 有 9 处本地重复实现，而 `utils/format.js` 的 `formatYuanValue` / `resourceStateText` **0 调用点**。
+5. **除风格问题外，另有 6 个确定性缺陷（可直接修，非风格偏好）。** ① `open-saas-admin` 收银台渲染 **"¥ ¥ 123.45"**（`views/tenant/orders.vue:410` 字面 `¥` + `fmtCents` 已含 `'¥ '` 前缀）；② C 端同一 DTO 同一字段用两种金额尺度，`c-end/app.js:853` 用不除 100 的 `money()`，**显示为实际值的 100 倍**；③ C 端**钱包余额未除 100**，显示的是「分」的数值（`c-end/app.js:200,204,222,227,248,756,760`，而 `c-end/saas.js:107` 注释与 `fenToYuan` 明确契约是「分→元」；mock 数据 `data.js:16 balance: 8880` 恰好是元形状，**掩盖了这个 bug**）；④ C 端 `dateOffset` 用 `toISOString().slice(0,10)`（**UTC**），UTC+8 下本地 00:00–07:59 的「今天+N」**早一天**（`c-end/app.js:33,655`）；⑤ `c-end/app.js:314-316` 本地解析、UTC 序列化，提交的预约时间**早 8 小时**（需后端契约确认）；⑥ `formatTime` 在 admin 有 9 处本地重复实现，而 `utils/format.js` 的 `formatYuanValue` / `resourceStateText` **0 调用点**。
    > 注：审计过程中曾观察到 `orders.vue` **重复声明 `formatTime` 导致构建失败**、以及 `members.vue` 的 `' 元'` 后缀 —— 这两项已被并发改动的另一个 agent 修复，见 §0.1。
 
 ---
@@ -506,26 +506,26 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 
 | 项 | 现状 | 建议 |
 |---|---|---|
-| `gv_saas_admin/src/utils/adminErrorMessage.js:15-40` | 映射 21 个码，**0 个是幽灵码**（后端都真实存在）✅；但后端 141 个码中 **120 个无映射** | 由后端导出码表（OpenAPI/常量）驱动前端映射 |
+| `open-saas-admin/src/utils/adminErrorMessage.js:15-40` | 映射 21 个码，**0 个是幽灵码**（后端都真实存在）✅；但后端 141 个码中 **120 个无映射** | 由后端导出码表（OpenAPI/常量）驱动前端映射 |
 | 其中 **18 个**「无映射 **且** 英文 message」——后台会退化成状态码泛化文案 | `ACCOUNT_REQUIRED`、`ADMIN_LOGIN_INVALID`、`ADMIN_SESSION_INVALID`、`ADMIN_SESSION_MISSING`、`AUTH_INVALID_CREDENTIAL`、`AUTH_INVALID_SESSION`、`AUTH_INVALID_TOKEN`、`AUTH_TOKEN_INVALID`、`AUTH_TOKEN_REQUIRED`、`CLIENT_RELEASE_PLATFORM_NOT_ENABLED`、`IM_BIND_CONFLICT`、`IM_OPEN_ID_MISSING`、`MEMBER_NOT_FOUND`、`PAYMENT_CHANNEL_DISABLED`、`PAYMENT_CHANNEL_UNKNOWN`、`SAAS_SESSION_REQUIRED`、`SSO_TICKET_EXPIRED`、`SSO_TICKET_INVALID` | 英文改中文 + 补映射 |
 | **实测** | `POST /api/v1/admin/auth/login`（错密码）→ `401 {"message":"invalid username or password","code":"ADMIN_LOGIN_INVALID"}` → 后台 `CJK_PATTERN` 不通过 → 走 401 兜底 → 运营看到**「登录状态已失效，请重新登录。」** | — |
-| `gv_saas_mobile/c-end/auth-errors.js:5-39` | 映射 7 个码，其中 **5 个后端从未产生**：`NO_CONSUMER_ACCESS`、`CONTEXT_SELECTION_REQUIRED`、`IM_SESSION_EXPIRED`、`IM_BRIDGE_AUTH_FAILED`、`PKCE_UNAVAILABLE`（全仓库 grep 0 命中；只有 `IAM_CONTEXT_UNAVAILABLE` 与 `SAAS_SESSION_REQUIRED` 真实存在） | 删除幽灵码或补齐后端产出 |
+| `open-saas-mobile/c-end/auth-errors.js:5-39` | 映射 7 个码，其中 **5 个后端从未产生**：`NO_CONSUMER_ACCESS`、`CONTEXT_SELECTION_REQUIRED`、`IM_SESSION_EXPIRED`、`IM_BRIDGE_AUTH_FAILED`、`PKCE_UNAVAILABLE`（全仓库 grep 0 命中；只有 `IAM_CONTEXT_UNAVAILABLE` 与 `SAAS_SESSION_REQUIRED` 真实存在） | 删除幽灵码或补齐后端产出 |
 
 ### 4.5 前端：i18n 基础设施（结论：不存在）
 
 | 仓库 | i18n 依赖 | locale 文件 | 结论 |
 |---|---|---|---|
-| `gv_saas_admin` | ❌ 无（依赖仅 `element-plus` / `axios` / `pinia` / `vue` / `vue-router`） | ❌ 无 | 全量硬编码中文；**无 key 覆盖问题可言** |
-| `gv_saas_mobile`（`src/b-end`） | ❌ 无 | ❌ 无 | 同上 |
-| `gv_saas_mobile`（`c-end`，纯 JS） | ❌ 无 | ❌ 无 | 同上；唯一「locale」痕迹是 `app.js:39,200,204,222,227,242,248,756,760` 的 `toLocaleString('zh-CN')` |
+| `open-saas-admin` | ❌ 无（依赖仅 `element-plus` / `axios` / `pinia` / `vue` / `vue-router`） | ❌ 无 | 全量硬编码中文；**无 key 覆盖问题可言** |
+| `open-saas-mobile`（`src/b-end`） | ❌ 无 | ❌ 无 | 同上 |
+| `open-saas-mobile`（`c-end`，纯 JS） | ❌ 无 | ❌ 无 | 同上；唯一「locale」痕迹是 `app.js:39,200,204,222,227,242,248,756,760` 的 `toLocaleString('zh-CN')` |
 
-**⚠️ 产品信号**：`gv_saas_admin/src/views/platform/tenants.vue:30-31` 已有 **「默认语言」「默认时区」** 两个租户配置项（`form.defaultLocale` / `form.defaultTimezone`），说明多语言是已规划的产品能力；但前端没有任何承载它的机制。**这是本次审计最需要产品决策的一项**：先定「多语言是否 2.0 范围」，再决定是引入 `vue-i18n` 抽取，还是明确只支持简体中文并把这些配置项标注为「预留」。
+**⚠️ 产品信号**：`open-saas-admin/src/views/platform/tenants.vue:30-31` 已有 **「默认语言」「默认时区」** 两个租户配置项（`form.defaultLocale` / `form.defaultTimezone`），说明多语言是已规划的产品能力；但前端没有任何承载它的机制。**这是本次审计最需要产品决策的一项**：先定「多语言是否 2.0 范围」，再决定是引入 `vue-i18n` 抽取，还是明确只支持简体中文并把这些配置项标注为「预留」。
 
 ### 4.6 前端：术语不一致
 
 出现次数（不含 `node_modules`/`dist`）：
 
-| 术语 | gv_saas_admin/src | mobile/src(b-end) | mobile/c-end |
+| 术语 | open-saas-admin/src | mobile/src(b-end) | mobile/c-end |
 |---|---|---|---|
 | 包厢 | 56 | 21 | 31 |
 | 资源 | 19 | 3 | 0 |
@@ -544,23 +544,23 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 
 | 位置 | 现状 | 建议 |
 |---|---|---|
-| `gv_saas_admin/src/router/index.js:71` | `meta: { title: '包厢/资源' }` —— **菜单标题用斜杠并列两个词**，说明术语未定稿 | 产品确认后择一（建议用户面「包厢」、代码面 `resource`） |
-| `gv_saas_mobile/src/b-end/views/Orders.vue:58` | `· 待收 ¥{{ fenToYuan(orderBill(order).payableAmount) }}`，同文件 `:111,:137,:226` 用「应收」 | 统一「应收」 |
-| `gv_saas_mobile/src/b-end/App.vue:5,49,64` | 用户可见 **「A380 商户工作台」/「A380 商户端」**，而 `orders.vue:116,425` 用「租户」、admin 用「租户后台」 | 统一（建议 B 端称「商户端」或「运营端」，并在 admin 保持一致） |
-| `gv_saas_mobile/c-end/app.js:625` | `'请联系商家开通支付方式'`（商家），同文件 `:74,:307,:453` 用「门店」 | 统一「门店」 |
-| `gv_saas_admin/src/constants/payment-methods.js:4,11,22` | `'储值币(A380币)'` / `'储值币'` / `'储值'` | 见 4.7 |
+| `open-saas-admin/src/router/index.js:71` | `meta: { title: '包厢/资源' }` —— **菜单标题用斜杠并列两个词**，说明术语未定稿 | 产品确认后择一（建议用户面「包厢」、代码面 `resource`） |
+| `open-saas-mobile/src/b-end/views/Orders.vue:58` | `· 待收 ¥{{ fenToYuan(orderBill(order).payableAmount) }}`，同文件 `:111,:137,:226` 用「应收」 | 统一「应收」 |
+| `open-saas-mobile/src/b-end/App.vue:5,49,64` | 用户可见 **「A380 商户工作台」/「A380 商户端」**，而 `orders.vue:116,425` 用「租户」、admin 用「租户后台」 | 统一（建议 B 端称「商户端」或「运营端」，并在 admin 保持一致） |
+| `open-saas-mobile/c-end/app.js:625` | `'请联系商家开通支付方式'`（商家），同文件 `:74,:307,:453` 用「门店」 | 统一「门店」 |
+| `open-saas-admin/src/constants/payment-methods.js:4,11,22` | `'储值币(A380币)'` / `'储值币'` / `'储值'` | 见 4.7 |
 
 ### 4.7 前端：储值品牌名（明确违反代码内自述规则）
 
 | 位置 | 现状 |
 |---|---|
-| `gv_saas_admin/src/constants/payment-methods.js:14-15` | **规则原文**：*「储值是品牌展示名，取租户配置 `tnt_tenant_config.wallet_brand_name`（默认 A380币），不得硬编码」* |
-| `gv_saas_admin/src/views/tenant/wallet.vue:114,123,140` | 硬编码 `'A380币'`（含 `const tokenName = ref('A380币')`、`configForm = { brandName: 'A380币', ... }`） |
-| `gv_saas_admin/src/views/tenant/wallet.vue:82` | placeholder `如 A380币` |
-| `gv_saas_admin/src/views/tenant/payments.vue:108` | `const walletBrand = ref('储值')` ← 默认值与规则不符 |
-| `gv_saas_admin/src/views/tenant/orders.vue:535` | `const walletBrand = ref('储值')` ← 同上（`:1182` 才被配置覆盖） |
-| `gv_saas_admin/src/views/tenant/ktv-config.vue:5,88,121,493`、`api/payment.js:70`、`api/ktv.js:38` | `A380币` 硬编码 |
-| `gv_saas_admin/src/router/index.js:137` | 菜单名「储值管理」 |
+| `open-saas-admin/src/constants/payment-methods.js:14-15` | **规则原文**：*「储值是品牌展示名，取租户配置 `tnt_tenant_config.wallet_brand_name`（默认 A380币），不得硬编码」* |
+| `open-saas-admin/src/views/tenant/wallet.vue:114,123,140` | 硬编码 `'A380币'`（含 `const tokenName = ref('A380币')`、`configForm = { brandName: 'A380币', ... }`） |
+| `open-saas-admin/src/views/tenant/wallet.vue:82` | placeholder `如 A380币` |
+| `open-saas-admin/src/views/tenant/payments.vue:108` | `const walletBrand = ref('储值')` ← 默认值与规则不符 |
+| `open-saas-admin/src/views/tenant/orders.vue:535` | `const walletBrand = ref('储值')` ← 同上（`:1182` 才被配置覆盖） |
+| `open-saas-admin/src/views/tenant/ktv-config.vue:5,88,121,493`、`api/payment.js:70`、`api/ktv.js:38` | `A380币` 硬编码 |
+| `open-saas-admin/src/router/index.js:137` | 菜单名「储值管理」 |
 
 **建议**：全部改为读取同一 store 中的 `walletBrand`（初值用配置或空字符串，避免首帧闪 `'储值'`）；`payment-methods.js:4` 的长名给设置页用，`methodLabel` 的默认值改为必传。
 
@@ -568,7 +568,7 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 
 | 位置 | 现状 | 问题 |
 |---|---|---|
-| `gv_saas_admin/src/utils/format.js:16-21` | `/** 最小货币单位（分）→ \`¥ 12.00\`。 */ return '¥ ' + (number / 100).toFixed(2)` | **规范实现存在** |
+| `open-saas-admin/src/utils/format.js:16-21` | `/** 最小货币单位（分）→ \`¥ 12.00\`。 */ return '¥ ' + (number / 100).toFixed(2)` | **规范实现存在** |
 | `views/tenant/orders.vue:818` | `'¥ ' + (n / 100).toFixed(2)` | 重复实现（有空格） |
 | `views/tenant/orders.vue:824` | `'¥ ' + (n / 100).toLocaleString('zh-CN', {...})` | 重复实现（带千分位）→ **同一页面两种金额格式** |
 | `views/tenant/orders.vue:376` | 模板内联 `¥{{ (Number(row.unitPrice) / 100).toFixed(2) }}` | 无空格 |
@@ -592,8 +592,8 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 | `views/platform/tenants.vue:19` | `prop="createdAt" label="创建时间"` —— **直接渲染后端原始值** |
 | `views/tenant/shift.vue:64` | `prop="businessDate" label="营业日期"` —— 原始值 |
 | `views/tenant/ktv-config.vue:164` | `prop="createdAt" label="时间"` —— 原始值 |
-| `gv_saas_mobile/src/b-end` | 全目录 **0 处** 日期格式化调用 |
-| `gv_saas_mobile/c-end/app.js` | 9 处 `toLocaleString('zh-CN')`（仅金额/数值，无显式日期格式） |
+| `open-saas-mobile/src/b-end` | 全目录 **0 处** 日期格式化调用 |
+| `open-saas-mobile/c-end/app.js` | 9 处 `toLocaleString('zh-CN')`（仅金额/数值，无显式日期格式） |
 
 **建议**：新增 `formatDateTime` / `formatDate`（`YYYY-MM-DD HH:mm` / `YYYY-MM-DD`）到共享 utils，替换所有原始值渲染；避免裸 `toLocaleString()`（无 locale 参数时依赖运行环境）。
 
@@ -617,7 +617,7 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 | 1.10 | 前端：全部金额走 `utils/format.js`；新增 `yuanToMinor`；改掉 `members.vue:150` 的「元」后缀；`「递增粒度(分)」→「递增粒度(分钟)」` | ~10 | 低（有测试兜底：`npm test`） |
 | 1.11 | 前端：储值品牌名去硬编码（`wallet.vue:114,123,140,82`；`payments.vue:108`、`orders.vue:535` 默认值） | 3 | 低 |
 | 1.12 | 前端：日期统一走 `formatDateTime`；`c-end/auth-errors.js` 删除 5 个幽灵码 | ~6 | 低 |
-| 1.13 | **`gv_saas_admin/src/views/tenant/orders.vue:410` 删除字面 `¥ `**（`fmtCents` 已带符号）→ 消除 "¥ ¥ 123.45" | 1 | 极低（唯一确定性的 UI 文案缺陷） |
+| 1.13 | **`open-saas-admin/src/views/tenant/orders.vue:410` 删除字面 `¥ `**（`fmtCents` 已带符号）→ 消除 "¥ ¥ 123.45" | 1 | 极低（唯一确定性的 UI 文案缺陷） |
 | 1.14 | **C 端金额尺度**：`c-end/app.js:853` 改用 `minorMoney(...)`；`:200,204,222,227,248,756,760` 补 `/100`（或统一走一个 `walletBalance()`）；删除死代码 `:240-242 fenToYuanStr` | 1 | 中（涉及金额，改后须人工核对 mock 与真机各一次） |
 | 1.15 | **C 端 UTC 日期**：`c-end/app.js:33`、`:655` 弃用 `toISOString().slice(0,10)`，改本地拼装（抄 `admin/views/tenant/shift.vue:161-163`）；`:314-316` 的 `scheduleAt` 需与后端确认时区语义后再改 | 1 | 中（`:314-316` 待契约确认） |
 | 1.16 | 前端文案去重：5 份 `'服务端未返回 CSRF token'` → 1 常量；`b-end/App.vue:82` 不再透传 `e.message`，改走 code→中文映射 | ~6 | 低 |
@@ -665,7 +665,7 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 | 3.1 | SaaS 面 54 条英文 message 批量改中文（4.2 表；im-* 112+55+47 条可另立 IM 专项，若 IM 客户端确为纯技术面则改用 `code` 为主、message 可为英文但需产品确认） |
 | 3.2 | 上下文类 5 码收敛（4.1 表） |
 | 3.3 | 修正 `CollectApplicationService.java:202` 的码/消息矛盾 |
-| 3.4 | 从后端导出错误码清单（OpenAPI/常量类）驱动 `gv_saas_admin` 的 `ERROR_CODE_MESSAGES`，消除 120 个未映射码 |
+| 3.4 | 从后端导出错误码清单（OpenAPI/常量类）驱动 `open-saas-admin` 的 `ERROR_CODE_MESSAGES`，消除 120 个未映射码 |
 | 3.5 | 新增门禁 `scripts/validate/validate-exception-handling.ps1`：校验每个可部署服务存在 `GlobalExceptionHandler` 且包含 `Exception` 兜底 + `log.error(..., ex)` + `code` 字段；校验对外 message 不含 ASCII-only 文案（白名单机制）；登记到 `invoke-engineering-validation.ps1` 的 `$validators`（当前 16 个脚本**没有一个**覆盖异常出口） |
 
 ### 可执行验证命令
@@ -673,7 +673,7 @@ POST /api/v1/business/coupons/999999999/issue  （不带 Idempotency-Key）
 **A. 仓库既有门禁（只跑与异常/日志相关的 3 个子脚本，秒级）**
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb\open-im-server
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-java-logging-conventions.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-java-exception-logging.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate\validate-secret-exposure.ps1
@@ -755,8 +755,8 @@ kubectl -n gv-im-local logs im-admin-service-77596c844b-2b942 --since=2m | Selec
 **F. 前端检查**
 
 ```powershell
-cd D:\projects\cnb\gv_saas_admin; npm test; npm run build
-cd D:\projects\cnb\gv_saas_mobile; npm test          # 仓库根即有 test 脚本
+cd D:\projects\cnb\open-saas-admin; npm test; npm run build
+cd D:\projects\cnb\open-saas-mobile; npm test          # 仓库根即有 test 脚本
 # 金额/时间格式回归（应只剩 utils/format.js 一个实现）
 Select-String -Path 'src\**\*.vue','src\**\*.ts' -Pattern "/ 100|\* 100"
 # 硬编码品牌名回归（应为 0）
@@ -766,8 +766,8 @@ Select-String -Path 'src\**\*.vue','src\**\*.ts' -Pattern "A380币|储值币"
 **F2. 本次新发现的前端确定性缺陷（修复前后都能跑，用来确认）**
 
 ```powershell
-$admin = 'D:\projects\cnb\gv_saas_admin'
-$mobile = 'D:\projects\cnb\gv_saas_mobile'
+$admin = 'D:\projects\cnb\open-saas-admin'
+$mobile = 'D:\projects\cnb\open-saas-mobile'
 
 # F2.1 双货币符号：期望修复后 0 命中
 Select-String -Path "$admin\src\views\**\*.vue" -Pattern '¥\s*\{\{\s*(fmtCents|formatYuan|formatYuanValue|fmtCentsCompact)\('
@@ -800,7 +800,7 @@ Select-String -Path "$admin\src","$mobile\src","$mobile\c-end" -Include *.vue,*.
 **G. 后端敏感日志 / 静默吞异常回归（静态，秒级）**
 
 ```powershell
-cd D:\projects\cnb\gv_im_server
+cd D:\projects\cnb\open-im-server
 # G1 明文验证码 / 重置链接 / 手机号（期望修复后 0 命中）
 git grep -n -E 'would send reset link to|code=\{\}", mask\(phone\)|to=\{\}.*", phone|tenant.*to=\{\}' -- '*.java'
 # 更精确：
@@ -903,22 +903,22 @@ Get-ChildItem -Recurse -Filter GlobalExceptionHandler.java | Where-Object { $_.F
 
 | # | 位置（行号随并发改动漂移，请重新 grep） | 现状 | 影响 |
 |---|---|---|---|
-| 1 | `gv_saas_admin/src/views/tenant/orders.vue:410` | `¥ {{ fmtCents(payableMinor) }}` + `:818 const fmtCents = formatYuan`（`formatYuan` 返回 `'¥ ' + ...`） | 渲染 **"¥ ¥ 123.45"**。**已按当前文件核验仍存在**（md5 `9B2614AAA014EBDB5F14AE8BD9AFC373`） |
-| 2 | `gv_saas_mobile/c-end/app.js:853` vs `:809` | `'金额：' + money(it.totalAmount)`（`money` **不除 100**）vs `minorMoney(o.totalAmount, ...)`（除 100） | 同一 DTO 同一字段两种尺度，L853 **显示为实际值的 100 倍** |
-| 3 | `gv_saas_mobile/c-end/app.js:200,204,222,227,756,760`（`:248` 账本同理） | `el.textContent = Number(w.availableAmount \|\| 0).toLocaleString('zh-CN')` —— **未除 100** | 钱包余额显示为**分的数值**（如余额 88.80 元显示为 `8880`）。而 `c-end/saas.js:107` 注释与 `:108-111 fenToYuan` 明确契约是「分 → 元」；mock 数据 `data.js:16 balance: 8880` 是**元形状**，恰好掩盖了该 bug |
-| 4 | `gv_saas_mobile/c-end/app.js:33`（`dateOffset`）与 `:655` | `date.toISOString().slice(0,10)` | `toISOString()` 是 **UTC**；UTC+8 下本地 00:00–07:59 时「今天+N」标签**早一天** |
-| 5 | `gv_saas_mobile/c-end/app.js:314-316` | `new Date(\`${dateStr}T${timeStr}:00\`).toISOString()` | 按**本地**解析、按 **UTC** 序列化 → 提交的时间比预期早 8 小时（预约时间是**功能性**缺陷，需后端契约确认） |
-| 6 | `gv_saas_mobile/c-end/app.js:240-242` | `fenToYuanStr(v)` 除 100 —— **0 调用点**（死代码） | C 端因此有 **3 个并存**的金额渲染器（`money` 不除、`minorMoney` 除+Intl、裸 `toLocaleString`）+ 1 个死函数 |
+| 1 | `open-saas-admin/src/views/tenant/orders.vue:410` | `¥ {{ fmtCents(payableMinor) }}` + `:818 const fmtCents = formatYuan`（`formatYuan` 返回 `'¥ ' + ...`） | 渲染 **"¥ ¥ 123.45"**。**已按当前文件核验仍存在**（md5 `9B2614AAA014EBDB5F14AE8BD9AFC373`） |
+| 2 | `open-saas-mobile/c-end/app.js:853` vs `:809` | `'金额：' + money(it.totalAmount)`（`money` **不除 100**）vs `minorMoney(o.totalAmount, ...)`（除 100） | 同一 DTO 同一字段两种尺度，L853 **显示为实际值的 100 倍** |
+| 3 | `open-saas-mobile/c-end/app.js:200,204,222,227,756,760`（`:248` 账本同理） | `el.textContent = Number(w.availableAmount \|\| 0).toLocaleString('zh-CN')` —— **未除 100** | 钱包余额显示为**分的数值**（如余额 88.80 元显示为 `8880`）。而 `c-end/saas.js:107` 注释与 `:108-111 fenToYuan` 明确契约是「分 → 元」；mock 数据 `data.js:16 balance: 8880` 是**元形状**，恰好掩盖了该 bug |
+| 4 | `open-saas-mobile/c-end/app.js:33`（`dateOffset`）与 `:655` | `date.toISOString().slice(0,10)` | `toISOString()` 是 **UTC**；UTC+8 下本地 00:00–07:59 时「今天+N」标签**早一天** |
+| 5 | `open-saas-mobile/c-end/app.js:314-316` | `new Date(\`${dateStr}T${timeStr}:00\`).toISOString()` | 按**本地**解析、按 **UTC** 序列化 → 提交的时间比预期早 8 小时（预约时间是**功能性**缺陷，需后端契约确认） |
+| 6 | `open-saas-mobile/c-end/app.js:240-242` | `fenToYuanStr(v)` 除 100 —— **0 调用点**（死代码） | C 端因此有 **3 个并存**的金额渲染器（`money` 不除、`minorMoney` 除+Intl、裸 `toLocaleString`）+ 1 个死函数 |
 
 ### 7.2 硬编码英文 / 裸枚举进入用户界面
 
 | 位置 | 现状 | 建议 |
 |---|---|---|
-| `gv_saas_admin/src/views/platform/iam/roles.vue:41,42` | `<el-option label="PLATFORM" .../>` / `label="TENANT"` —— 下拉直接显示英文枚举，而**同一枚举在别处已翻译**（`views/tenant/staff.vue:161` → `{ TENANT: '租户级', STORE: '门店级', ORGANIZATION: '组织级', PLATFORM: '平台级', SELF: '本人' }`） | 复用 `staff.vue` 的映射 |
-| `gv_saas_admin/src/views/tenant/ktv-config.vue:219,220,232,233,234` | `label="小时 HOUR"` / `"半小时 HALF_HOUR"` / `"让利消费者 CONSUMER_FAVOR"` / `"向上取整 ROUND_UP"` / `"封顶 FLOOR_BLOCK"` —— **5 处裸枚举拼在中文后** | 中文放 `label`，枚举放 `value` |
-| `gv_saas_mobile/c-end/oauth.js:253,255` | `oauthError('IM_SESSION_EXPIRED', 'IM login session has expired')` / `'IM bridge authorization failed'` —— 英文；但 `c-end/auth-errors.js:26,31` 已有对应中文 | 改中文 |
-| `gv_saas_mobile/src/b-end/App.vue:82` | `errorDescription.value = e?.code ? (e.message \|\| '请稍后重试…') : '…'` —— **任何带 code 的错误都直接渲染原始 `e.message`**，而这些生产者是英文：`b-end/oauth.js:148 'OAuth state mismatch'`、`:170 'missing pkce verifier'`、`:178/:236 'bind failed'`、`c-end/oauth.js:302/:317 'session not established'` | 改走 code→中文映射（对齐 `c-end/auth-errors.js`） |
-| `gv_saas_admin/src/views/platform/tenants.vue:30,31` | `placeholder="zh-CN"` / `"Asia/Shanghai"` | 输入示例，可接受 |
+| `open-saas-admin/src/views/platform/iam/roles.vue:41,42` | `<el-option label="PLATFORM" .../>` / `label="TENANT"` —— 下拉直接显示英文枚举，而**同一枚举在别处已翻译**（`views/tenant/staff.vue:161` → `{ TENANT: '租户级', STORE: '门店级', ORGANIZATION: '组织级', PLATFORM: '平台级', SELF: '本人' }`） | 复用 `staff.vue` 的映射 |
+| `open-saas-admin/src/views/tenant/ktv-config.vue:219,220,232,233,234` | `label="小时 HOUR"` / `"半小时 HALF_HOUR"` / `"让利消费者 CONSUMER_FAVOR"` / `"向上取整 ROUND_UP"` / `"封顶 FLOOR_BLOCK"` —— **5 处裸枚举拼在中文后** | 中文放 `label`，枚举放 `value` |
+| `open-saas-mobile/c-end/oauth.js:253,255` | `oauthError('IM_SESSION_EXPIRED', 'IM login session has expired')` / `'IM bridge authorization failed'` —— 英文；但 `c-end/auth-errors.js:26,31` 已有对应中文 | 改中文 |
+| `open-saas-mobile/src/b-end/App.vue:82` | `errorDescription.value = e?.code ? (e.message \|\| '请稍后重试…') : '…'` —— **任何带 code 的错误都直接渲染原始 `e.message`**，而这些生产者是英文：`b-end/oauth.js:148 'OAuth state mismatch'`、`:170 'missing pkce verifier'`、`:178/:236 'bind failed'`、`c-end/oauth.js:302/:317 'session not established'` | 改走 code→中文映射（对齐 `c-end/auth-errors.js`） |
+| `open-saas-admin/src/views/platform/tenants.vue:30,31` | `placeholder="zh-CN"` / `"Asia/Shanghai"` | 输入示例，可接受 |
 
 **负向结论（重要）**：两个仓库**没有任何** `ElMessage.*('English…')` / `alert('English…')` / `showToast('English…')` / 英文表头 / 英文按钮。所有 sink 的事实用语都是简体中文 —— **问题在「全量硬编码」与「少量裸枚举/透传 message」，不在 sink 层的中英混排**。
 
@@ -949,15 +949,15 @@ Get-ChildItem -Recurse -Filter GlobalExceptionHandler.java | Where-Object { $_.F
 
 ### 7.5 前端无任何质量门禁
 
-`gv_saas_admin` / `gv_saas_mobile` **都不存在** `.github/`、`scripts/`、`tools/`、`.husky/`、`eslint.config.*`、`.eslintrc*`、`.prettierrc*`、`.editorconfig`、`.stylelintrc*`，也无 `lint` / `lint:i18n` 脚本。唯一的自动门禁是：
+`open-saas-admin` / `open-saas-mobile` **都不存在** `.github/`、`scripts/`、`tools/`、`.husky/`、`eslint.config.*`、`.eslintrc*`、`.prettierrc*`、`.editorconfig`、`.stylelintrc*`，也无 `lint` / `lint:i18n` 脚本。唯一的自动门禁是：
 
 ```
-gv_saas_admin:  check = "npm test && npm run build && npm audit --omit=dev --audit-level=high"
-gv_saas_mobile: check = "npm test && npm run build && npm audit --omit=dev --audit-level=high"
+open-saas-admin:  check = "npm test && npm run build && npm audit --omit=dev --audit-level=high"
+open-saas-mobile: check = "npm test && npm run build && npm audit --omit=dev --audit-level=high"
 ```
 
 **但现有测试事实上是「文案锁」** —— 任何改词都会让它们失败，必须一并更新：
-`gv_saas_admin/src/utils/format.test.js:19,20,31,32,42,43`（`'¥ 123.45'`、`'¥ 0.00'`、`'人民币（元）'`、`'整单折扣'`、`'优惠券'`）、`src/utils/ktv-config.test.js:10`（`expect(source).not.toContain('BFF 骨架回显')`）、`gv_saas_mobile/c-end/auth-errors.test.js:13,14,15,26,36,47,48,60`、`c-end/context.test.js:16,29,30`。
+`open-saas-admin/src/utils/format.test.js:19,20,31,32,42,43`（`'¥ 123.45'`、`'¥ 0.00'`、`'人民币（元）'`、`'整单折扣'`、`'优惠券'`）、`src/utils/ktv-config.test.js:10`（`expect(source).not.toContain('BFF 骨架回显')`）、`open-saas-mobile/c-end/auth-errors.test.js:13,14,15,26,36,47,48,60`、`c-end/context.test.js:16,29,30`。
 
 ---
 

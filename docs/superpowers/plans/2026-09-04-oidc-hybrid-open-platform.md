@@ -4,7 +4,7 @@
 
 **Goal:** 将现有 OAuth 骨架、多套身份和 Hybrid 客户端收敛为可验证、可撤销、可按租户授权的 OAuth 2.0 + OIDC 开放平台。
 
-**Architecture:** `gv_im_server` 内既有 User 服务提供唯一 OIDC Provider，Gateway 提供 Resource Server 入口，Tenant/IAM 服务提供企业安装与权限事实；SaaS 后端作为 BFF 保存 confidential 凭据并签发按应用隔离的 HttpOnly Session；Flutter/Electron 只通过受 origin 约束的 Bridge 获取一次性授权码。
+**Architecture:** `open-im-server` 内既有 User 服务提供唯一 OIDC Provider，Gateway 提供 Resource Server 入口，Tenant/IAM 服务提供企业安装与权限事实；SaaS 后端作为 BFF 保存 confidential 凭据并签发按应用隔离的 HttpOnly Session；Flutter/Electron 只通过受 origin 约束的 Bridge 获取一次性授权码。
 
 **Tech Stack:** Spring Boot 4、Spring Security、Redis、MySQL/Flyway、Flutter WebView、Windows WebView2、Electron、Vue/Vite、Playwright、JUnit、Flutter integration_test。
 
@@ -197,16 +197,16 @@ Expected: 旧 bearer 入口不可用，C/B 会话和企业权限交集测试全�
 ### Task 3: 重构 Flutter/Electron Hybrid 容器与 Bridge
 
 **Files:**
-- Modify: `gv_chat_app/lib/screens/protocol_webview_screen.dart`
-- Modify: `gv_chat_app/lib/services/im_oauth_service.dart`
-- Modify: `gv_chat_app/lib/core/config.dart`
-- Modify: `gv_chat_app/lib/screens/services_screen.dart`
-- Create: `gv_chat_app/lib/services/bridge/bridge_dispatcher.dart`
-- Create: `gv_chat_app/lib/services/bridge/bridge_contract.dart`
-- Modify: `gv_chat_app/pubspec.yaml`
-- Modify: `gv_chat_desktop/src/main/index.ts`
-- Create: `gv_chat_desktop/src/main/saas-window.ts`
-- Create: `gv_chat_app/integration_test/hybrid_bridge_security_test.dart`
+- Modify: `open-chat-app/lib/screens/protocol_webview_screen.dart`
+- Modify: `open-chat-app/lib/services/im_oauth_service.dart`
+- Modify: `open-chat-app/lib/core/config.dart`
+- Modify: `open-chat-app/lib/screens/services_screen.dart`
+- Create: `open-chat-app/lib/services/bridge/bridge_dispatcher.dart`
+- Create: `open-chat-app/lib/services/bridge/bridge_contract.dart`
+- Modify: `open-chat-app/pubspec.yaml`
+- Modify: `open-chat-desktop/src/main/index.ts`
+- Create: `open-chat-desktop/src/main/saas-window.ts`
+- Create: `open-chat-app/integration_test/hybrid_bridge_security_test.dart`
 
 **Interfaces:**
 - Consumes: 服务目录中的已审核 `appId/origins/redirectUri/scopes/version` 元数据和 BFF callback。
@@ -238,7 +238,7 @@ Electron 使用隔离 `BrowserWindow/WebContentsView` 和受限 preload；如果
 
 - [ ] **Step 7: Run client tests**
 
-Run: `flutter test integration_test/hybrid_bridge_security_test.dart`；`pnpm --dir gv_chat_desktop test`。
+Run: `flutter test integration_test/hybrid_bridge_security_test.dart`；`pnpm --dir open-chat-desktop test`。
 
 Expected: 恶意页面无法借用 IM 登录态，C/B profile 无法互读，客户端构建产物不包含 secret。
 
@@ -247,15 +247,15 @@ Expected: 恶意页面无法借用 IM 登录态，C/B profile 无法互读，客
 ### Task 4: H5、Gateway 和端到端安全验收
 
 **Files:**
-- Modify: `gv_saas_mobile/src/c-end/oauth.js`
-- Modify: `gv_saas_mobile/src/b-end/oauth.js`
-- Modify: `gv_saas_mobile/docs/backend-security-contract.md`
-- Modify: `gv_saas_mobile/nginx.conf`
+- Modify: `open-saas-mobile/src/c-end/oauth.js`
+- Modify: `open-saas-mobile/src/b-end/oauth.js`
+- Modify: `open-saas-mobile/docs/backend-security-contract.md`
+- Modify: `open-saas-mobile/nginx.conf`
 - Modify: `gateways/gateway/src/main/resources/application.yml`
 - Modify: `../open-website/html/developer.html`
 - Modify: `../open-website/html/js/i18n.js`
-- Modify: `../gv_chat_admin/src/views/open-platform/applications.vue`
-- Create: `gv_saas_mobile/e2e/oauth-hybrid.spec.js`
+- Modify: `../open-chat-admin/src/views/open-platform/applications.vue`
+- Create: `open-saas-mobile/e2e/oauth-hybrid.spec.js`
 - Create: `scripts/verify/oidc-hybrid-preflight.ps1`
 - Modify: `docs/renovation/IM_OPEN_PLATFORM_05_AUTHORIZATION_GOVERNANCE_DRAFT.md`
 - Review/Modify: `docs/business/ACCOUNT_PERMISSION_MODEL.md`
@@ -300,11 +300,11 @@ Expected: 恶意页面无法借用 IM 登录态，C/B profile 无法互读，客
 
 - [ ] **Step 8: Align admin application governance**
 
-在 `gv_chat_admin/src/views/open-platform/applications.vue` 与 `gv_chat_admin/src/api/openPlatform.js` 中确认应用申请、审核、回调 origin、scope、密钥轮换、企业安装和撤销页面均调用 v1 管理接口；普通用户访问返回 403，操作带 `Idempotency-Key` 并留下审计记录。
+在 `open-chat-admin/src/views/open-platform/applications.vue` 与 `open-chat-admin/src/api/openPlatform.js` 中确认应用申请、审核、回调 origin、scope、密钥轮换、企业安装和撤销页面均调用 v1 管理接口；普通用户访问返回 403，操作带 `Idempotency-Key` 并留下审计记录。
 
 - [ ] **Step 9: Run Kind + Android Emulator local security preflight and build candidate**
 
-在本机 Kind 环境执行：`powershell -ExecutionPolicy Bypass -File .\\scripts\\verify\\oidc-hybrid-preflight.ps1`；`npm --prefix gv_saas_mobile test`；`npm --prefix gv_saas_mobile run build`；相关 Maven/Flutter/Electron/Admin 测试与构建；真实 Flyway 迁移演练；OpenAPI snapshot diff；产物 secret 扫描。随后使用 Android Emulator 完成真实登录、Bridge 重定向、C/B profile 隔离、权限上下文选择、越权拒绝、撤销和重新登录测试。所有日志保存到既有 `.outputs/logs/build/<yyyyMMdd>/` 目录，生成 CP6 发布候选报告。
+在本机 Kind 环境执行：`powershell -ExecutionPolicy Bypass -File .\\scripts\\verify\\oidc-hybrid-preflight.ps1`；`npm --prefix open-saas-mobile test`；`npm --prefix open-saas-mobile run build`；相关 Maven/Flutter/Electron/Admin 测试与构建；真实 Flyway 迁移演练；OpenAPI snapshot diff；产物 secret 扫描。随后使用 Android Emulator 完成真实登录、Bridge 重定向、C/B profile 隔离、权限上下文选择、越权拒绝、撤销和重新登录测试。所有日志保存到既有 `.outputs/logs/build/<yyyyMMdd>/` 目录，生成 CP6 发布候选报告。
 
 Expected: Kind 预检、H5 单测、构建、E2E、迁移、产物扫描和 Android Emulator 实测全部通过；任何 P0/P1 风险、未执行检查、设备失败或证据缺失都阻止推送 ACK。
 

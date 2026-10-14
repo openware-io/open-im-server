@@ -9,7 +9,7 @@
 
 ## 代码级验证
 
-- `gv_saas_admin`: `npm test`：4 个测试文件、14 个测试通过；`npm run build` 通过。
+- `open-saas-admin`: `npm test`：4 个测试文件、14 个测试通过；`npm run build` 通过。
 - `platform-admin-service`：定向安全测试 9 个通过；此前管理员模块全量测试 20 个通过，租户及依赖模块 Maven 测试通过；使用 Kind Redis 的真实会话测试 3 个通过。
 - `invoke-engineering-validation.ps1 -Scope Changed`：18:27 完整通过；历史 `.outputs/ui*.xml` BOM 已规范化。后续代码改动仍需重新检查。
 - Flutter secret 消息测试 11 个通过；生产配置测试使用 `--dart-define=APP_ENV=prod` 通过，未修改 App 生产逻辑。

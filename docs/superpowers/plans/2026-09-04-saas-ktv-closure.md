@@ -58,7 +58,7 @@
 
 ### Task 5: Align frontend interaction contracts
 
-**Files:** `gv_saas_mobile` C/B clients/views and `gv_saas_admin` APIs/views/stores/tests.
+**Files:** `open-saas-mobile` C/B clients/views and `open-saas-admin` APIs/views/stores/tests.
 
 - [ ] Add failing Vitest tests for fixed idempotency keys, CSRF refresh, context selection, and no mock/default writes.
 - [ ] Make multi-store selection explicit and remove `?? 100`, deleted `tenantContext()`, and editable payable.

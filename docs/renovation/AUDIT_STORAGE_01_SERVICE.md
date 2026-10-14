@@ -1,7 +1,7 @@
 # 审计日志存储改造：独立 schema + 月分区 + 冷归档
 
 > 方案集：`AUDIT_STORAGE`；序号：`01`；实施边界：`common-audit-service`（表结构 / 迁移 / 仓储 / 归档任务）、
-> `gv_saas_admin`（列表分页契约）、`k8s/local`（本地 Kind，验证与运维主路径）/ `k8s/ack`（建库授权与归档投递）；
+> `open-saas-admin`（列表分页契约）、`k8s/local`（本地 Kind，验证与运维主路径）/ `k8s/ack`（建库授权与归档投递）；
 > 状态：**实施中**（编号进度见 §9）；不变量依据：[21 持久层技术栈标准](../standards/21_PERSISTENCE_STACK.md)、
 > [数据库迁移脚本规范](../DATABASE_MIGRATION_STANDARD.md)、[CHINA_COMPLIANCE](../compliance/CHINA_COMPLIANCE.md)、
 > [PLATFORM_SECURITY_01_GOVERNANCE](../renovation/PLATFORM_SECURITY_01_GOVERNANCE.md)。
@@ -164,7 +164,7 @@ FROM gv_saas.iam_audit_log GROUP BY m ORDER BY m DESC LIMIT 24;
 ### 批次 1：查询成本（后端 + 前端，不动表）
 
 - 后端：`AuditQueryRequest` 增 `skipCount` / `countCap`；`AuditPageView` 增 `totalCapped`；仓储 `count` 改带上界。
-- 前端：`gv_saas_admin/src/views/tenant/audits.vue` 翻页时回传 `skipCount` 并沿用上一页总数；`totalCapped` 显示「10万+」。
+- 前端：`open-saas-admin/src/views/tenant/audits.vue` 翻页时回传 `skipCount` 并沿用上一页总数；`totalCapped` 显示「10万+」。
 - 回退：纯增量参数，缺省行为与现状完全一致，回退只需回滚镜像。
 
 ### 批次 2a：幂等台账（**已实现**，不动表结构以外的东西）
@@ -354,7 +354,7 @@ FROM gv_saas.iam_audit_log GROUP BY m ORDER BY m DESC LIMIT 24;
 
 | # | 事项 | 对应批次 | 状态 | 证据 / 产物 |
 | --- | --- | --- | --- | --- |
-| 1 | 列表 count 收敛（`skipCount` + `countCap`，后端 + 前端） | 1 | ✅ | `AuditQueryApplicationService` / `AuditPageView.totalCapped` / `gv_saas_admin` 审计页；用例 17 条 |
+| 1 | 列表 count 收敛（`skipCount` + `countCap`，后端 + 前端） | 1 | ✅ | `AuditQueryApplicationService` / `AuditPageView.totalCapped` / `open-saas-admin` 审计页；用例 17 条 |
 | 2 | 幂等台账 `iam_audit_idempotency` + 台账优先写入 | 2a | ✅ | `db/migration/V4` + `AuditLogRepositoryImpl.saveIfAbsent`；`AuditIdempotencyLedgerH2Test` 5 条（真 SQL） |
 | 3 | 真实多行批插（应用侧雪花 ID、`IdType.INPUT`、多行 `INSERT`、NOT NULL 缺省值） | 2b | ✅ | `AuditIdGenerator` / `IamAuditLogMapper.insertBatch`；`AuditBatchInsertTest` 6 条（**数 mapper 调用次数**） |
 | 4 | 独立 schema `gv_audit`：建库授权 + profile 原子切换 + 两个迁移目录隔离 | 2c | ✅ | `application-audit-schema.yml` / `scripts/migration/audit-schema-bootstrap.sql` / `k8s/local/mysql-saas-init-job.yaml` |
@@ -364,7 +364,7 @@ FROM gv_saas.iam_audit_log GROUP BY m ORDER BY m DESC LIMIT 24;
 | 8 | 保留与归档清单（预建分区、`pmin`/`pmax` 巡检、24 月可查下限、法律保留、自留审计） | 4 | ✅ | `AuditRetentionPolicy` / `AuditRetentionApplicationService` / `AuditRetentionJob`；用例 16 条 |
 | 9 | 文档与部署说明收尾（审计服务 README、`.env.example`、profile 与自留审计上报地址） | 5 | ✅ | `docs/im-services/audit/README.md`、`.env.example` §1.1 |
 | 10 | 归档清单**真库**幂等用例（清单是删除前唯一证据，重复登记不得覆盖行数快照） | 4 | ✅ | `AuditArchiveManifestH2Test` 3 条（H2 真 SQL） |
-| 11 | 前端消费 `retentionFloor`（归档月份不能表现为「查不到」）+ 一键验收脚本 | 4/5 | ✅ | `gv_saas_admin` 审计页提示 + `parseAuditListResponse.retentionFloor`（用例 26 条）；`scripts/verify/verify-audit-storage.ps1`（9 组断言） |
+| 11 | 前端消费 `retentionFloor`（归档月份不能表现为「查不到」）+ 一键验收脚本 | 4/5 | ✅ | `open-saas-admin` 审计页提示 + `parseAuditListResponse.retentionFloor`（用例 26 条）；`scripts/verify/verify-audit-storage.ps1`（9 组断言） |
 | 12 | ACK 建库授权路径：**决策 B（运维受控步骤）** | 5 | ✅ | 决策与落地步骤见 §8-5（`__DB_USERNAME__` 换 `im_user` 后执行 `audit-schema-bootstrap.sql`，再切 profile）；不新增 k8s 资源 |
 | 13 | 冷归档投递 + `DROP PARTITION` + 清单置 `DROPPED` | —— | ⏸ 按决定不做 | 你已明确「冷归档先不管」：本阶段清单只登记 `ARCHIVED`/`HELD`，`objectPath`/`checksumSha256` 恒空、不删任何分区 |
 | 14 | 上线前容量实测（行/月、detail 均值、索引占比 → 复核分区粒度与窗口） | 0 | ⛔ 待生产数据 | SQL 见 §5 批次 0；**本地 Kind 已能执行该口径**（本轮已在 kind 上跑通全部真库校验），但真实体量只能取生产/准生产库的数，未实测前不改分区粒度 |
@@ -384,7 +384,7 @@ common-audit-service  90 tests  BUILD SUCCESS
   AuditRetentionApplicationServiceTest 8  不重复建 / 补缺 / pmin·pmax 巡检 / 归档 / 保留 / 幂等清理
   AuditQueryApplicationServiceTest 17 含归档月份被下限排除、区间不被扩大、无归档不设下限
   AuditLogRepositoryH2QueryTest 4     时间过滤与带上界 count（H2 真 SQL）
-gv_saas_admin         audit utils 26 tests  passed（含 retentionFloor 归一化）
+open-saas-admin         audit utils 26 tests  passed（含 retentionFloor 归一化）
 工程验证 -Scope Changed  16/16 门禁全绿
 反向验证               注入违规唯一键 → 分区不变量用例如期失败 → 已还原
 ```

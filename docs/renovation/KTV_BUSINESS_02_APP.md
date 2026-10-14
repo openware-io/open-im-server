@@ -12,7 +12,7 @@
 | 实施边界 | `APP`（B 端门店运营 App） |
 | 前置方案 | [KTV_BUSINESS_01_SERVICE](KTV_BUSINESS_01_SERVICE.md)、[SAAS_PLATFORM_03_APP](SAAS_PLATFORM_03_APP.md)、[SAAS_PLATFORM_08_APP](SAAS_PLATFORM_08_APP.md) |
 | 后置方案 | [KTV_BUSINESS_03_ADMIN](KTV_BUSINESS_03_ADMIN.md)、[KTV_BUSINESS_04_TEST](KTV_BUSINESS_04_TEST.md) |
-| 目标工程 | `D:\projects\cnb\gv_chat_app`，B 端独立入口/flavor（沿用 SAAS_PLATFORM_03 §14 工程落地） |
+| 目标工程 | `D:\projects\cnb\open-chat-app`，B 端独立入口/flavor（沿用 SAAS_PLATFORM_03 §14 工程落地） |
 
 ## 1. 范围与原则
 

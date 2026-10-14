@@ -2,7 +2,7 @@
 
 **状态：** 已完成联合审查与 2026-09-04 权限基线复核，待实施评审；在阻断问题关闭前不得宣称已具备完整 OIDC/B 端企业授权能力
 
-**范围：** `gv_im_server`、`gv_chat_app`、`gv_chat_desktop`、`gv_saas_mobile`、`gv_saas_admin`、`gv_chat_admin`
+**范围：** `open-im-server`、`open-chat-app`、`open-chat-desktop`、`open-saas-mobile`、`open-saas-admin`、`open-chat-admin`
 
 ## 0. 规范优先级与遵循矩阵
 
@@ -14,9 +14,9 @@
 | 数据库 | `DATABASE_MIGRATION_STANDARD.md`、各服务 Flyway 规范 | MySQL 为权威库；Redis 只存授权码/会话/缓存/限流/幂等；Mongo 只存消息投影；新表必须使用领域前缀、审计字段和统一字符集；不使用物理外键或 JSON 核心查询字段 | Flyway 校验、迁移演练、Schema Review |
 | Maven/发布 | `20_MAVEN_ENGINEERING_CONVENTIONS.md`、发布 Runbook | 版本由服务域父 POM 所有；依赖先经 BOM；协议模块变更后执行 `install`；发布沿用现有 Runbook、ACK 和版本规则 | `invoke-engineering-validation.ps1`、CI Full、发布检查单 |
 | API 契约 | `docs/contracts/openapi/README.md` | Java DTO、OpenAPI snapshot、Bridge、Flutter、Electron、H5 和官网示例必须同源核对；禁止只维护手工 Markdown 契约 | OpenAPI 导出/差异检查、契约测试 |
-| Flutter | `gv_chat_app/docs/architecture.md`、`project-conventions.md` | 非 UI 抽象进 `packages/gv_core`，UI 基础进 `packages/gv_ui`；业务留在 services/repositories/providers/screens；依赖经 `AppInjectionModule` 注册；文案进入中英文 ARB | generator、`dart format`、`flutter analyze`、相关测试 |
-| Electron | `gv_chat_desktop/docs/architecture.md`、`coding-guidelines.md`、`contracts.md` | 渲染层按 views → stores → services → repositories → models；Node 能力只在主进程；preload 仅白名单 `contextBridge`；密钥使用既有安全存储 | lint、单测、契约检查 |
-| Web/H5/后台/官网 | `gv_chat_admin` 前端规范与错误码规范、SaaS security contract、官网 i18n/发布规范 | 同源 `/api/v1`、HttpOnly/CSRF、服务端租户上下文；后台遵循既有页面组件、分页、字段和错误码映射；官网中英双语且只描述已验收能力 | error-message 校验、构建、E2E、静态站发布检查 |
+| Flutter | `open-chat-app/docs/architecture.md`、`project-conventions.md` | 非 UI 抽象进 `packages/gv_core`，UI 基础进 `packages/gv_ui`；业务留在 services/repositories/providers/screens；依赖经 `AppInjectionModule` 注册；文案进入中英文 ARB | generator、`dart format`、`flutter analyze`、相关测试 |
+| Electron | `open-chat-desktop/docs/architecture.md`、`coding-guidelines.md`、`contracts.md` | 渲染层按 views → stores → services → repositories → models；Node 能力只在主进程；preload 仅白名单 `contextBridge`；密钥使用既有安全存储 | lint、单测、契约检查 |
+| Web/H5/后台/官网 | `open-chat-admin` 前端规范与错误码规范、SaaS security contract、官网 i18n/发布规范 | 同源 `/api/v1`、HttpOnly/CSRF、服务端租户上下文；后台遵循既有页面组件、分页、字段和错误码映射；官网中英双语且只描述已验收能力 | error-message 校验、构建、E2E、静态站发布检查 |
 
 上述规范文件是实施时的唯一解释来源；若规范文件后续升级，本设计和执行计划必须同步修订后再开发。
 

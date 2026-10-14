@@ -765,7 +765,7 @@ SELECT m.code, m.required_permission
 | 3 | 每个 ACTIVE 码至少被一个角色持有 | §4.3 ④ | 新码上线即 403（V24 的成因） |
 | 4 | `iam_menu.required_permission` 中每个码存在于 `iam_permission` | 本节上方 SQL | 菜单变成第二份权限事实 |
 | 5 | `iam_menu.required_grant` 中每个能力在 `tnt_payment_method` 语义内（见 §9.2 规则 e） | 启动期校验 | 能力开关写错导致入口永久隐藏 |
-| 6 | **菜单 `path` 与前端路由表一致**：叶子节点 `path` 必须命中 `gv_saas_admin/src/router/index.js` 的路由；分组节点 `path` 必须为空 | 跨仓脚本 | 菜单指向不存在的路由 / 路由无入口（违反"path 全部可达"验收项） |
+| 6 | **菜单 `path` 与前端路由表一致**：叶子节点 `path` 必须命中 `open-saas-admin/src/router/index.js` 的路由；分组节点 `path` 必须为空 | 跨仓脚本 | 菜单指向不存在的路由 / 路由无入口（违反"path 全部可达"验收项） |
 
 > 第 6 条的实测背景：现有 `AdminMenuItem` 里 PLATFORM 的 `iam`（`SVC:38`）带 `path="/admin/iam"`，
 > 而前端**没有**这条路由（只有 `/admin/iam/roles`、`/admin/iam/permissions`）。旧实现靠
@@ -1016,7 +1016,7 @@ v0.1 在 `01_ADMIN` §11 写的 `V28__order_children_store_scope.sql` / `V29__se
 | **M2** | `platform-admin-service` | `iam_menu` 建表 + 种子（V7）；现有 `GET /admin/menus` 直接改为查表 + 剪枝；无消费者的旧兼容代码删除，不新增 v2 |
 | **M3** | `platform-tenant-service` | `iam_permission` / `iam_role` 加列 + 回填（§4）；`grantable_levels` 按 §4.2 规则生成；菜单 `required_permission` 化 |
 | **M4** | `platform-admin-service`（上下文补字段）、`platform-tenant-service`（业态过滤 + 失效点）、`platform-order-service` / `platform-resource-service`（业态权威来源） | **前置**：§10.4 上下文补 `businessType`/`timezone`；§10.5 业态权威来源校验/覆盖。**主体**：§7 业态过滤 + §10.3 业态变更失效点 |
-| **M5** | `platform-tenant-service`（`IamController`）、`gv_saas_admin`（授权界面） | §8.3 的 3 个写路径校验 + `INVALID_GRANT_SCOPE` 错误码 + 批量多门店绑定 `POST /admin/iam/bindings` |
+| **M5** | `platform-tenant-service`（`IamController`）、`open-saas-admin`（授权界面） | §8.3 的 3 个写路径校验 + `INVALID_GRANT_SCOPE` 错误码 + 批量多门店绑定 `POST /admin/iam/bindings` |
 | **贯穿** | CI | §9.4 的 6 条断言 + §4.3 的 4 条 SQL，作为构建期/发布门禁 |
 
 ### 测试清单（v0.2 补细节）

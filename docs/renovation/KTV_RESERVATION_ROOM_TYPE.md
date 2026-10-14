@@ -46,5 +46,5 @@
 ## 6. 交付与约束
 
 - 按发版规范发布（不升版本、同 tag 覆盖），kind 与 ACK 同一份 manifest；与币种能力可同批发布。
-- 涉及仓库：`gv_im_server`（order 模块为主，resource 模块只读复用房型/包厢接口）、`gv_saas_admin`、`gv_saas_mobile`（C 端 + B 端）。
+- 涉及仓库：`open-im-server`（order 模块为主，resource 模块只读复用房型/包厢接口）、`open-saas-admin`、`open-saas-mobile`（C 端 + B 端）。
 - 每个仓库一个中文提交；不改版本号、不 push、不碰 k8s 用户 WIP 文件。

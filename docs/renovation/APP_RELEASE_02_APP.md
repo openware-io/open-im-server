@@ -1,6 +1,6 @@
 # 客户端版本发布治理：App 实施方案
 
-> 方案集：`APP_RELEASE`；序号：`02`；实施边界：`gv_chat_app` Flutter 客户端；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)；后置：[管理后台方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../standards/14_CLIENT_RELEASE_GOVERNANCE.md)；实现规范：`gv_chat_app/docs/coding_guidelines.md`、`gv_chat_app/docs/architecture.md`、`gv_chat_app/docs/multi_environment_build_commands.md`；状态：设计待实施。
+> 方案集：`APP_RELEASE`；序号：`02`；实施边界：`open-chat-app` Flutter 客户端；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)；后置：[管理后台方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../standards/14_CLIENT_RELEASE_GOVERNANCE.md)；实现规范：`open-chat-app/docs/coding_guidelines.md`、`open-chat-app/docs/architecture.md`、`open-chat-app/docs/multi_environment_build_commands.md`；状态：设计待实施。
 
 ## 1. 范围和一次性切换原则
 
@@ -23,7 +23,7 @@ Web 和 HarmonyOS 不属于本次客户端版本治理：App 运行时必须将�
 
 ### 1.2 必须执行 Flutter 代码生成技能
 
-实施本方案中任何 `gv_chat_app` 的 Dart/Flutter 改动前，开发者和自动化代理必须读取并遵循 `gv_chat_app/docs/generate-gv-chat-flutter/SKILL.md` 及其 `references/project-conventions.md`。该技能是本方案的强制工程规范，不是可选参考；它要求先检索并复用既有实现，保持 `Widget -> Provider/ViewModel -> Repository/Service -> API/Socket/Storage` 数据流，并在修改后检查生成差异。
+实施本方案中任何 `open-chat-app` 的 Dart/Flutter 改动前，开发者和自动化代理必须读取并遵循 `open-chat-app/docs/generate-gv-chat-flutter/SKILL.md` 及其 `references/project-conventions.md`。该技能是本方案的强制工程规范，不是可选参考；它要求先检索并复用既有实现，保持 `Widget -> Provider/ViewModel -> Repository/Service -> API/Socket/Storage` 数据流，并在修改后检查生成差异。
 
 本功能的生成源与命令固定如下：
 
@@ -185,7 +185,7 @@ class ReleaseCheckRequest {
 
 ### 7.3 App 工程门禁命令
 
-在 `gv_chat_app` 根目录执行，命令顺序遵循现有工程规范：
+在 `open-chat-app` 根目录执行，命令顺序遵循现有工程规范：
 
 ```powershell
 dart run build_runner build
