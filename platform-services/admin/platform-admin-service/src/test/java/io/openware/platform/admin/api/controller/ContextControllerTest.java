@@ -7,7 +7,7 @@ import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import jakarta.servlet.http.Cookie;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -24,7 +24,7 @@ class ContextControllerTest {
     void savesAuthorizedSelectionAndRejectsUnknownTenant() {
         var iam = mock(TenantIamDomainClient.class);
         var signer = mock(AdminTenantContextTokenSigner.class);
-        var sessions = mock(SaaAdminSessionStore.class);
+        var sessions = mock(ConsAdminSessionStore.class);
         var controller = new ContextController(iam, signer, sessions);
         AdminContextHolder.set(new AdminContext(1L, "admin", "admin", AdminRole.SUPER_ADMIN, 1L, null));
         when(iam.contexts(1L)).thenReturn(List.of(new TenantIamDomainClient.Context(
@@ -45,7 +45,7 @@ class ContextControllerTest {
     void signsAndReturnsCnyWhenTargetTenantIsConfiguredAsCny() {
         var iam = mock(TenantIamDomainClient.class);
         var signer = mock(AdminTenantContextTokenSigner.class);
-        var sessions = mock(SaaAdminSessionStore.class);
+        var sessions = mock(ConsAdminSessionStore.class);
         var controller = new ContextController(iam, signer, sessions);
         AdminContextHolder.set(new AdminContext(1L, "admin", "admin", AdminRole.SUPER_ADMIN, 1L, null));
         when(iam.contexts(1L)).thenReturn(List.of(new TenantIamDomainClient.Context(
@@ -68,7 +68,7 @@ class ContextControllerTest {
     void signsAndReturnsUsdWhenTargetTenantHasNoCurrencyConfig() {
         var iam = mock(TenantIamDomainClient.class);
         var signer = mock(AdminTenantContextTokenSigner.class);
-        var sessions = mock(SaaAdminSessionStore.class);
+        var sessions = mock(ConsAdminSessionStore.class);
         var controller = new ContextController(iam, signer, sessions);
         AdminContextHolder.set(new AdminContext(1L, "admin", "admin", AdminRole.SUPER_ADMIN, 1L, null));
         when(iam.contexts(1L)).thenReturn(List.of(new TenantIamDomainClient.Context(

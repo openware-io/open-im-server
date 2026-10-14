@@ -2,8 +2,8 @@ package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.domain.model.AdminRole;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -17,19 +17,19 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class AdminPasswordApplicationServiceTest {
-    private SaaAdminAccountRepository accounts;
+    private ConsAdminAccountRepository accounts;
     private BCryptPasswordEncoder passwords;
     private AdminPasswordApplicationService service;
     private String oldHash;
 
     @BeforeEach
     void setUp() {
-        accounts = mock(SaaAdminAccountRepository.class);
+        accounts = mock(ConsAdminAccountRepository.class);
         passwords = new BCryptPasswordEncoder();
         service = new AdminPasswordApplicationService(accounts, passwords);
         oldHash = passwords.encode("OldPass123");
-        when(accounts.findById(1L)).thenReturn(Optional.of(new SaaAdminAccount(1L, "admin", oldHash,
-                "Admin", null, AdminRole.SUPER_ADMIN, SaaAdminAccount.STATUS_ACTIVE, LocalDateTime.now(), LocalDateTime.now())));
+        when(accounts.findById(1L)).thenReturn(Optional.of(new ConsAdminAccount(1L, "admin", oldHash,
+                "Admin", null, AdminRole.SUPER_ADMIN, ConsAdminAccount.STATUS_ACTIVE, LocalDateTime.now(), LocalDateTime.now())));
         when(accounts.updatePassword(eq(1L), anyString())).thenReturn(1);
     }
 

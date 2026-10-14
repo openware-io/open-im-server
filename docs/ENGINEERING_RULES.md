@@ -201,7 +201,7 @@ common-services/
 | SMS | 短信渠道配置、模板、发送日志（通用支撑域） | `sms_` | 通用支撑 | `common-sms-service` | 二阶段 | `sms_channel_config`、`sms_template`、`sms_send_log` |
 | Payment Channel | 支付渠道适配与渠道参数（通用支撑域·支付域子域） | `paych_` | 通用支撑 | `common-payment-channel-service` | 预留 | 尚无表使用；现有表用 `pay_channel_*`（与支付业务 `pay_` 同前缀） |
 | WebSocket | 长连接接入 | `ws_` | IM | `im-access-ws` | 保留 | 无迁移根；新建持久化表前需补充领域设计 |
-| IDaaS（集团认证服务） | 集团统一账号、集团组织、SSO、会话、JWT 签发（**只管理、不参与业务**） | `idaas_` | 集团 | `group-idaas-service` | 二阶段 | `idaas_client`；`group_account` 历史口径（见末行） |
+| IDaaS（集团认证服务） | 集团统一账号、集团组织、SSO、会话、JWT 签发（**只管理、不参与业务**） | `idaas_` | 集团 | `group-idaas-service` | 二阶段 | `idaas_client`、`idaas_account`、`idaas_org`（后两者原为 `group_*`，已收敛，见下） |
 | Identity | SaaS 平台账号、登录、OAuth 绑定、资料同步（**不是 IDaaS**） | `idt_` | SaaS | `platform-identity-service` | 二阶段 | `idt_account`、`idt_login_identity`、`idt_oauth_link` |
 | Tenant | 租户、组织、门店、商户主体、配置 | `tnt_` | SaaS | `platform-tenant-service` | 二阶段 | `tnt_tenant`、`tnt_store`。⚠️ 跨域表 `tnt_payment_method` 由 `common-payment-service` 建（支付域拥有该表） |
 | IAM（访问控制/授权） | 角色、权限、作用域授权、授权审批。**本域只做授权（Access Management）**；身份由 `idt_`（SaaS 平台账号）、`group_account`（集团）、`user_`（IM）分别承担 | `iam_` | SaaS | `platform-tenant-service`（授权事实）；`iam_menu` 为 `platform-admin-service` 的控制台呈现（IAM 迭代产物） | 二阶段 | `iam_role`、`iam_user_role`、`iam_permission`、`iam_approval`、`iam_menu` |
@@ -211,7 +211,8 @@ common-services/
 | Payment | 收款、退款、押金、班次、日结（通用支撑域·支付域） | `pay_` | SaaS | `common-payment-service` | 二阶段 | `pay_intent`、`pay_refund` |
 | Customer | 租户客户、会员、积分、储值、权益 | `cst_` | SaaS | `platform-customer-service` | 二阶段 | `cst_customer`、`cst_point_ledger` |
 | Marketing | 活动、优惠券、触达、营销同意 | `mkt_` | SaaS | `platform-marketing-service` | 二阶段 | `mkt_campaign`、`mkt_coupon` |
-| ~~Group~~（已收敛） | **历史口径**：集团账号、集团组织。已收敛为 `idaas_`（`idaas_account`、`idaas_org`），本行仅为可追溯而留档 | ~~`group_`~~ | 集团 | — | **已收敛** | 旧名 `group_account`、`group_org`；采用 `idaas_` 因其与服务名/包名一致，且 `group` 是组织层级名兼 SQL 保留字 |
+
+> **已收敛的历史前缀（仅为可追溯留档，不在 `table-prefixes.txt` 中登记）**：`group_` —— 原用于集团账号与组织（`group_account`、`group_org`）。因**一个域只能有一个前缀**，且 `group` 是组织层级名兼 SQL 保留字，已收敛为 `idaas_account`、`idaas_org`（与该服务名 `group-idaas-service`、包名 `io.openware.group.idaas` 一致）。**注意**：包名与目录名中的 `group` 是**组织结构**（集团层级），不是表前缀，故保留不变。
 
 - 通用支撑域（Common Services）承载跨业务通用运行能力：媒体（`media_`）、审核（`audit_`，预留）、邮件、短信、支付渠道（`paych_`，预留）等；各能力独立建表、独立前缀、独立登记，配置管理与审计统一进通用能力后台（角色权限控制）。支付渠道适配（`common-payment-channel-service`）与支付业务（`common-payment-service`，`pay_` 前缀）同属支付域（支撑域子域），职责分离：渠道适配 vs 资金事实。
 - 新领域、新前缀或前缀语义变更必须先完成架构确认，并在上表及对应领域设计中登记后才能创建 Flyway 表；既有表不得仅为统一缩写而重命名。

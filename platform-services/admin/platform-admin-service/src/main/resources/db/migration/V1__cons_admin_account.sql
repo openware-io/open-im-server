@@ -19,7 +19,7 @@ CREATE TABLE `cons_admin_account` (
   `password_hash` varchar(100) NULL COMMENT 'BCrypt 密码哈希（SSO 映射账号可为空）',
   `display_name` varchar(128) NOT NULL COMMENT '展示名',
   `im_account` varchar(64) NULL COMMENT '绑定的 IM 账号（运营人员，解绑后置空）',
-  `idaas_subject` varchar(128) NULL COMMENT '集团 IDaaS group_account.id（SSO 映射键）',
+  `idaas_subject` varchar(128) NULL COMMENT '集团 IDaaS idaas_account.id（SSO 映射键）',
   `platform_account_id` bigint unsigned NULL COMMENT '关联 SaaS 平台账号 idt_account.id',
   `role` varchar(32) NOT NULL DEFAULT 'SUPER_ADMIN' COMMENT 'SUPER_ADMIN/PLATFORM_ADMIN/TENANT_ADMIN',
   `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE/SUSPENDED/CLOSED',

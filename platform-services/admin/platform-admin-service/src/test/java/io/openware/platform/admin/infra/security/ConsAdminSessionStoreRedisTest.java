@@ -14,10 +14,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfEnvironmentVariable(named = "SAAS_TEST_REDIS_PORT", matches = "[0-9]+")
-class SaaAdminSessionStoreRedisTest {
+class ConsAdminSessionStoreRedisTest {
     private LettuceConnectionFactory connection;
     private StringRedisTemplate redis;
-    private SaaAdminSessionStore sessions;
+    private ConsAdminSessionStore sessions;
     private String sessionId;
 
     @BeforeEach
@@ -28,7 +28,7 @@ class SaaAdminSessionStoreRedisTest {
         connection = new LettuceConnectionFactory(configuration);
         connection.afterPropertiesSet();
         redis = new StringRedisTemplate(connection);
-        sessions = new SaaAdminSessionStore(redis, new AdminTenantContextTokenSigner(jwtProperties()));
+        sessions = new ConsAdminSessionStore(redis, new AdminTenantContextTokenSigner(jwtProperties()));
         sessionId = sessions.createSession(new AdminContext(1L, "context-regression", "Test",
                 AdminRole.SUPER_ADMIN, 1L, null), Duration.ofMinutes(2));
     }

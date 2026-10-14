@@ -3,7 +3,7 @@ param(
   [string]$Gateway = 'http://127.0.0.1:30002',
   [string]$KubeContext = 'kind-open-im-local',
   [string]$Namespace = 'open-im-local',
-  [string]$Database = 'im_server',
+  [string]$Database = 'open_im',
   [string]$Username,
   [string]$Password
 )

@@ -2,9 +2,9 @@ package io.openware.platform.admin.infra.persistence;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.admin.domain.model.AdminRole;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
-import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.springframework.stereotype.Repository;
 
@@ -13,30 +13,30 @@ import java.time.LocalDateTime;
 
 /** SaaS 后台管理员账号仓储实现：MyBatis-Plus 适配 {@code cons_admin_account}。 */
 @Repository
-public class ConsAdminAccountRepositoryImpl implements SaaAdminAccountRepository {
+public class ConsAdminAccountRepositoryImpl implements ConsAdminAccountRepository {
 
-    private final SaaAdminAccountMapper mapper;
+    private final ConsAdminAccountMapper mapper;
 
-    public ConsAdminAccountRepositoryImpl(SaaAdminAccountMapper mapper) {
+    public ConsAdminAccountRepositoryImpl(ConsAdminAccountMapper mapper) {
         this.mapper = mapper;
     }
 
     @Override
-    public Optional<SaaAdminAccount> findByUsername(String username) {
+    public Optional<ConsAdminAccount> findByUsername(String username) {
         ConsAdminAccountPo po = mapper.selectOne(Wrappers.<ConsAdminAccountPo>lambdaQuery()
                 .eq(ConsAdminAccountPo::getUsername, username));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
     @Override
-    public Optional<SaaAdminAccount> findBySubject(String idaasSubject) {
+    public Optional<ConsAdminAccount> findBySubject(String idaasSubject) {
         ConsAdminAccountPo po = mapper.selectOne(Wrappers.<ConsAdminAccountPo>lambdaQuery()
                 .eq(ConsAdminAccountPo::getIdaasSubject, idaasSubject));
         return Optional.ofNullable(po).map(this::toDomain);
     }
 
     @Override
-    public Optional<SaaAdminAccount> findById(Long accountId) {
+    public Optional<ConsAdminAccount> findById(Long accountId) {
         return Optional.ofNullable(mapper.selectById(accountId)).map(this::toDomain);
     }
 
@@ -49,8 +49,8 @@ public class ConsAdminAccountRepositoryImpl implements SaaAdminAccountRepository
         return mapper.updateById(po);
     }
 
-    private SaaAdminAccount toDomain(ConsAdminAccountPo po) {
-        return new SaaAdminAccount(
+    private ConsAdminAccount toDomain(ConsAdminAccountPo po) {
+        return new ConsAdminAccount(
                 po.getId(),
                 po.getUsername(),
                 po.getPasswordHash(),

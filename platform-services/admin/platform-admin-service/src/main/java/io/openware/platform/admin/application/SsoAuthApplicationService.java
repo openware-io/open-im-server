@@ -2,11 +2,11 @@ package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.IdaasSsoClient;
 import io.openware.platform.admin.infra.security.AdminContext;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -18,13 +18,13 @@ import java.time.Duration;
 @Service
 public class SsoAuthApplicationService {
 
-    private final SaaAdminAccountRepository accountRepository;
+    private final ConsAdminAccountRepository accountRepository;
     private final IdaasSsoClient idaasSsoClient;
-    private final SaaAdminSessionStore sessionStore;
+    private final ConsAdminSessionStore sessionStore;
 
-    public SsoAuthApplicationService(SaaAdminAccountRepository accountRepository,
+    public SsoAuthApplicationService(ConsAdminAccountRepository accountRepository,
                                      IdaasSsoClient idaasSsoClient,
-                                     SaaAdminSessionStore sessionStore) {
+                                     ConsAdminSessionStore sessionStore) {
         this.accountRepository = accountRepository;
         this.idaasSsoClient = idaasSsoClient;
         this.sessionStore = sessionStore;
@@ -53,13 +53,13 @@ public class SsoAuthApplicationService {
             }
             effectiveTtl = Duration.ofMillis(Math.min(ttl.toMillis(), remainingMillis));
         }
-        SaaAdminAccount account = accountRepository.findBySubject(String.valueOf(user.accountId()))
+        ConsAdminAccount account = accountRepository.findBySubject(String.valueOf(user.accountId()))
                 .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "SaaS_ADMIN_ACCOUNT_NOT_FOUND",
                         "集团账号未关联平台后台账号: " + user.accountId()));
         return toResult(account, effectiveTtl);
     }
 
-    private AdminAuthResult toResult(SaaAdminAccount account, Duration ttl) {
+    private AdminAuthResult toResult(ConsAdminAccount account, Duration ttl) {
         AdminContext ctx = new AdminContext(account.id(), account.username(), account.displayName(), account.role(),
                 account.platformAccountId());
         String sessionId = sessionStore.createSession(ctx, ttl);

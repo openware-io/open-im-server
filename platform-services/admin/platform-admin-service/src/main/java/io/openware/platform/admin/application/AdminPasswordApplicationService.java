@@ -1,8 +1,8 @@
 package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -11,18 +11,18 @@ import java.nio.charset.StandardCharsets;
 /** SaaS 后台账号自助修改密码。仅更新 SaaS 管理账号凭据，不触碰 IM/IAM 授权。 */
 @Service
 public class AdminPasswordApplicationService {
-    private final SaaAdminAccountRepository accounts;
+    private final ConsAdminAccountRepository accounts;
     private final PasswordEncoder passwords;
 
-    public AdminPasswordApplicationService(SaaAdminAccountRepository accounts, PasswordEncoder passwords) {
+    public AdminPasswordApplicationService(ConsAdminAccountRepository accounts, PasswordEncoder passwords) {
         this.accounts = accounts;
         this.passwords = passwords;
     }
 
     public void changePassword(Long accountId, String currentPassword, String newPassword) {
         if (accountId == null) throw new ApiException(401, "ADMIN_SESSION_MISSING", "缺少平台账号会话");
-        SaaAdminAccount account = accounts.findById(accountId)
-                .filter(SaaAdminAccount::active)
+        ConsAdminAccount account = accounts.findById(accountId)
+                .filter(ConsAdminAccount::active)
                 .orElseThrow(() -> new ApiException(401, "ADMIN_SESSION_INVALID", "平台账号会话已失效"));
         if (currentPassword == null || account.passwordHash() == null || !passwords.matches(currentPassword, account.passwordHash())) {
             throw new ApiException(400, "ADMIN_CURRENT_PASSWORD_INVALID", "当前密码不正确");

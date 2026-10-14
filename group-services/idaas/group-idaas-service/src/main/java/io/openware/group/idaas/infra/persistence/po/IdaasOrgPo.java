@@ -8,23 +8,20 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 集团管理员账号（统一登录主体）。
+ * 集团组织（当前仅一级，parentId 暂不使用）。
  */
 @Getter
 @Setter
-@TableName("group_account")
-public class GroupAccountPo {
+@TableName("idaas_org")
+public class IdaasOrgPo {
   @TableId(type = IdType.AUTO)
   private Long id;
 
-  /** 用户名（唯一） */
-  private String username;
+  private String name;
+  private String code;
 
-  /** BCrypt 密码哈希 */
-  private String password;
-
-  /** 显示名 */
-  private String displayName;
+  /** 父组织ID（当前仅一级，可空暂不使用） */
+  private Long parentId;
 
   /** 状态 ENABLED/DISABLED */
   private String status;

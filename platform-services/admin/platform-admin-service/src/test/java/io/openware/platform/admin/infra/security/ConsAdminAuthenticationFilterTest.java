@@ -15,15 +15,15 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 /** SaaS 后台会话鉴权过滤器：放行/401/白名单。 */
-class SaaAdminAuthenticationFilterTest {
+class ConsAdminAuthenticationFilterTest {
 
-  private SaaAdminSessionStore sessionStore;
-  private SaaAdminAuthenticationFilter filter;
+  private ConsAdminSessionStore sessionStore;
+  private ConsAdminAuthenticationFilter filter;
 
   @BeforeEach
   void setUp() {
-    sessionStore = mock(SaaAdminSessionStore.class);
-    filter = new SaaAdminAuthenticationFilter(sessionStore);
+    sessionStore = mock(ConsAdminSessionStore.class);
+    filter = new ConsAdminAuthenticationFilter(sessionStore);
   }
 
   @Test

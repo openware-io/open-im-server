@@ -13,8 +13,8 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.group.idaas.api.dto.AuthDtos.LoginRequest;
 import io.openware.group.idaas.api.dto.AuthDtos.LoginResponse;
-import io.openware.group.idaas.infra.persistence.mapper.GroupAccountMapper;
-import io.openware.group.idaas.infra.persistence.po.GroupAccountPo;
+import io.openware.group.idaas.infra.persistence.mapper.IdaasAccountMapper;
+import io.openware.group.idaas.infra.persistence.po.IdaasAccountPo;
 import io.openware.group.idaas.infra.security.GroupSessionTtl;
 import io.openware.group.idaas.infra.security.IdaasSessionStore;
 import java.time.Duration;
@@ -29,14 +29,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
  */
 class AuthApplicationServiceTest {
 
-  private GroupAccountMapper accountMapper;
+  private IdaasAccountMapper accountMapper;
   private PasswordEncoder passwordEncoder;
   private IdaasSessionStore sessionStore;
   private AuthApplicationService service;
 
   @BeforeEach
   void setUp() {
-    accountMapper = mock(GroupAccountMapper.class);
+    accountMapper = mock(IdaasAccountMapper.class);
     passwordEncoder = new BCryptPasswordEncoder();
     sessionStore = mock(IdaasSessionStore.class);
     service = new AuthApplicationService(accountMapper, passwordEncoder, sessionStore);
@@ -44,7 +44,7 @@ class AuthApplicationServiceTest {
 
   @Test
   void login_createsSessionWhenPasswordMatches() {
-    GroupAccountPo account = new GroupAccountPo();
+    IdaasAccountPo account = new IdaasAccountPo();
     account.setId(1L);
     account.setUsername("admin");
     account.setPassword(passwordEncoder.encode("admin123"));
@@ -62,7 +62,7 @@ class AuthApplicationServiceTest {
 
   @Test
   void login_rejectsWhenPasswordMismatch() {
-    GroupAccountPo account = new GroupAccountPo();
+    IdaasAccountPo account = new IdaasAccountPo();
     account.setId(1L);
     account.setUsername("admin");
     account.setPassword(passwordEncoder.encode("admin123"));
@@ -79,7 +79,7 @@ class AuthApplicationServiceTest {
   /** 门户「登录有效时长」：白名单档位必须真的落到会话 TTL 上（30 天 = 720 小时）。 */
   @Test
   void login_honoursWhitelistedTtlHours() {
-    GroupAccountPo account = enabledAccount();
+    IdaasAccountPo account = enabledAccount();
     when(accountMapper.selectOne(any())).thenReturn(account);
     when(sessionStore.createSession(any(Long.class), any(String.class), any(Duration.class))).thenReturn("session-30d");
     when(sessionStore.sessionExpiresAt("session-30d"))
@@ -98,7 +98,7 @@ class AuthApplicationServiceTest {
   /** 非白名单值（例如客户端伪造 9999 小时）回退默认 24 小时，不得放行超长会话。 */
   @Test
   void login_fallsBackToDefaultForNonWhitelistedTtlHours() {
-    GroupAccountPo account = enabledAccount();
+    IdaasAccountPo account = enabledAccount();
     when(accountMapper.selectOne(any())).thenReturn(account);
     when(sessionStore.createSession(1L, "admin")).thenReturn("session-default");
 
@@ -110,8 +110,8 @@ class AuthApplicationServiceTest {
     verify(sessionStore, never()).createSession(any(Long.class), any(String.class), any(Duration.class));
   }
 
-  private GroupAccountPo enabledAccount() {
-    GroupAccountPo account = new GroupAccountPo();
+  private IdaasAccountPo enabledAccount() {
+    IdaasAccountPo account = new IdaasAccountPo();
     account.setId(1L);
     account.setUsername("admin");
     account.setPassword(passwordEncoder.encode("admin123"));

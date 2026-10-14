@@ -3,7 +3,7 @@ package io.openware.platform.admin.api.controller;
 import io.openware.platform.admin.application.AdminPasswordApplicationService;
 import io.openware.platform.admin.infra.security.AdminSessionCookie;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -17,11 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/auth")
 public class AdminSessionController {
 
-    private final SaaAdminSessionStore sessionStore;
+    private final ConsAdminSessionStore sessionStore;
     private final AdminPasswordApplicationService passwordService;
     private final boolean plainCookie;
 
-    public AdminSessionController(SaaAdminSessionStore sessionStore,
+    public AdminSessionController(ConsAdminSessionStore sessionStore,
                                   AdminPasswordApplicationService passwordService,
                                   @Value("${saas.cookie.plain:false}") boolean plainCookie) {
         this.sessionStore = sessionStore;

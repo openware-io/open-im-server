@@ -60,7 +60,7 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
 
     /**
      * 批量取「IM 侧真实账号」：以**客户档案为驱动表**，从统一账号模型的 IM 登录标识（形如 {@code im_<id>}）
-     * 或档案上的 {@code im_account} 解析出 IM 用户 id，再取 {@code im_server.user.username / nickname}。
+     * 或档案上的 {@code im_account} 解析出 IM 用户 id，再取 {@code open_im.user.username / nickname}。
      * 客户管理「IM 账号」列显示的就是它。
      *
      * <p>「IM 账号已删除」（{@code deleted=1}）的口径：IM 用户行缺失。IM 管理员删除是硬删除，
@@ -79,7 +79,7 @@ public interface MemberMapper extends BaseMapper<CstMemberPo> {
             + "FROM cst_member m "
             + "LEFT JOIN idt_login_identity li ON li.account_id = m.account_id "
             + "AND li.login_type = 'IM' AND li.status = 'ACTIVE' "
-            + "LEFT JOIN im_server.user u ON u.id = COALESCE("
+            + "LEFT JOIN open_im.user u ON u.id = COALESCE("
             + "CASE WHEN li.login_identifier REGEXP '^im_[0-9]+$' "
             + "THEN CAST(SUBSTRING(li.login_identifier, 4) AS UNSIGNED) END, "
             + "CASE WHEN m.im_account REGEXP '^im_[0-9]+$' "

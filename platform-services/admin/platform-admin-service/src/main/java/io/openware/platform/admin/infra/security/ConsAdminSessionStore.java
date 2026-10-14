@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  * SaaS 后台登录态存储（Redis）：登录/SSO 后服务端持有会话，浏览器仅持有 HttpOnly Cookie 的 sessionId。
  */
 @Component
-public class SaaAdminSessionStore {
+public class ConsAdminSessionStore {
 
   private static final String PREFIX = "saas-admin:session:";
   private static final String CSRF_PREFIX = "saas-admin:csrf:";
@@ -33,7 +33,7 @@ public class SaaAdminSessionStore {
   private final AdminTenantContextTokenSigner platformTokens;
   private final ObjectMapper objectMapper = new ObjectMapper();
 
-  public SaaAdminSessionStore(StringRedisTemplate redisTemplate, AdminTenantContextTokenSigner platformTokens) {
+  public ConsAdminSessionStore(StringRedisTemplate redisTemplate, AdminTenantContextTokenSigner platformTokens) {
     this.redisTemplate = redisTemplate;
     this.platformTokens = platformTokens;
   }

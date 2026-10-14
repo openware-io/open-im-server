@@ -22,7 +22,7 @@ function DbPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64Strin
 function RedisPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-Cluster @('get','secret',$RedisSecret,'-o','jsonpath={.data.REDIS_PASSWORD}')).Trim())) }
 function Sql([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL cleanup failed.' } }
 function SqlValue([string]$query) { $out = Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-N','-B','-e',$query); if ($LASTEXITCODE) { throw 'MySQL assertion failed.' }; return ($out | Select-Object -Last 1).ToString().Trim() }
-function SqlIm([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'im_server','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL identity command failed.' } }
+function SqlIm([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL identity command failed.' } }
 function Remove-SaasSession([string]$cookie) {
   if ([string]::IsNullOrWhiteSpace($cookie)) { return }
   $sessionId = ($cookie -split '=', 2)[1]

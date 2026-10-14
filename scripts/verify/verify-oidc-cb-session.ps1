@@ -17,7 +17,7 @@ function Get-RedisPassword {
 }
 
 function Invoke-MySql([string]$sql) {
-  kubectl --context kind-open-im-local -n open-im-local exec deploy/mysql -- mysql -u root "-p$script:dbPassword" im_server -e $sql | Out-Null
+  kubectl --context kind-open-im-local -n open-im-local exec deploy/mysql -- mysql -u root "-p$script:dbPassword" open_im -e $sql | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'MySQL command failed.' }
 }
 

@@ -36,6 +36,3 @@ sms
 paych
 # --- group level ---
 idaas
-# `group` is kept registered because group_account / group_org still carry it; the registry
-# documents it as the historical name being consolidated into idaas_ (see ENGINEERING_RULES.md).
-group

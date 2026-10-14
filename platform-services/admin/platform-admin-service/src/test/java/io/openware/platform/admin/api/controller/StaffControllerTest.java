@@ -9,7 +9,7 @@ import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.application.StaffAccountApplicationService;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
+import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class StaffControllerTest {
-    private final SaaAdminAccountMapper accounts = mock(SaaAdminAccountMapper.class);
+    private final ConsAdminAccountMapper accounts = mock(ConsAdminAccountMapper.class);
     private final TenantIamDomainClient iam = mock(TenantIamDomainClient.class);
     private final AdminTenantContextTokenSigner tokens = mock(AdminTenantContextTokenSigner.class);
     private final StaffAccountApplicationService identity = mock(StaffAccountApplicationService.class);

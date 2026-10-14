@@ -12,7 +12,7 @@ spring:
  application:
   name: im-admin-service
  datasource:
-  url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_DATABASE:${DB_NAME:}}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
+  url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${IM_DATABASE:open_im}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
   username: ${DB_USERNAME:${DB_USER:}}
   password: ${DB_PASSWORD:}
   driver-class-name: com.mysql.cj.jdbc.Driver

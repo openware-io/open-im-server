@@ -7,7 +7,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.infra.IdentityDomainClient;
 import io.openware.platform.admin.infra.ImUserResolveClient;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
+import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Objects;
 
 class StaffAccountApplicationServiceTest {
-    private final SaaAdminAccountMapper accounts = mock(SaaAdminAccountMapper.class);
+    private final ConsAdminAccountMapper accounts = mock(ConsAdminAccountMapper.class);
     private final IdentityDomainClient identity = mock(IdentityDomainClient.class);
     private final ImUserResolveClient imUsers = mock(ImUserResolveClient.class);
     private final TenantIamDomainClient iam = mock(TenantIamDomainClient.class);

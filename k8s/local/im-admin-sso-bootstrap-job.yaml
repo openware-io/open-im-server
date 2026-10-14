@@ -1,6 +1,6 @@
 # Local Kind only: map the IDaaS bootstrap administrator into the IM admin
 # console by username.  group-idaas-service starts before this job so its
-# authoritative open_im.group_account schema and seed have completed.
+# authoritative open_im.idaas_account schema and seed have completed.
 # Re-running is safe and preserves an existing IM administrator account.
 apiVersion: batch/v1
 kind: Job
@@ -21,9 +21,9 @@ spec:
             - >-
               until mysqladmin ping -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" --silent; do sleep 2; done;
               mysql -h mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e
-              "INSERT INTO im_server.user
+              "INSERT INTO open_im.user
               (username, nickname, avatar, password, email, phone, signature, status, role, created_by, created_at, updated_by, updated_at)
               SELECT username, display_name, '', password, NULL, NULL, '', 'active', 'admin', 0, NOW(3), 0, NOW(3)
-              FROM open_im.group_account
+              FROM open_im.idaas_account
               WHERE username = 'admin' AND status = 'ENABLED'
               ON DUPLICATE KEY UPDATE role = IF(user.role = 'admin', user.role, VALUES(role)), updated_at = NOW(3);"

@@ -10,10 +10,10 @@ import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.domain.model.AdminRole;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.IdaasSsoClient;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import io.openware.platform.admin.infra.security.SessionTtl;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -25,23 +25,23 @@ import org.mockito.ArgumentCaptor;
 /** SaaS 后台 SSO 交换：一次性票据 → 按 idaas_subject 映射 → 创建 Redis 会话。 */
 class SsoAuthApplicationServiceTest {
 
-  private SaaAdminAccountRepository accountRepository;
+  private ConsAdminAccountRepository accountRepository;
   private IdaasSsoClient idaasSsoClient;
-  private SaaAdminSessionStore sessionStore;
+  private ConsAdminSessionStore sessionStore;
   private SsoAuthApplicationService service;
 
   @BeforeEach
   void setUp() {
-    accountRepository = mock(SaaAdminAccountRepository.class);
+    accountRepository = mock(ConsAdminAccountRepository.class);
     idaasSsoClient = mock(IdaasSsoClient.class);
-    sessionStore = mock(SaaAdminSessionStore.class);
+    sessionStore = mock(ConsAdminSessionStore.class);
     service = new SsoAuthApplicationService(accountRepository, idaasSsoClient, sessionStore);
   }
 
   @Test
   void exchange_mapsIdaasSubjectToAdminAccount() {
     when(idaasSsoClient.verifyTicket("ticket-1")).thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true));
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", "hash", "管理员", "1",
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-1");
@@ -82,7 +82,7 @@ class SsoAuthApplicationServiceTest {
     long groupExpiresAt = System.currentTimeMillis() + Duration.ofDays(30).toMillis();
     when(idaasSsoClient.verifyTicket("ticket-30d"))
         .thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true, groupExpiresAt));
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", "hash", "管理员", "1",
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-30d");
@@ -103,7 +103,7 @@ class SsoAuthApplicationServiceTest {
     long groupExpiresAt = System.currentTimeMillis() + Duration.ofMinutes(5).toMillis();
     when(idaasSsoClient.verifyTicket("ticket-5m"))
         .thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true, groupExpiresAt));
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", "hash", "管理员", "1",
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-5m");

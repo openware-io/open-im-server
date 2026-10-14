@@ -2,10 +2,10 @@ package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.security.AdminContext;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -15,13 +15,13 @@ import java.time.Duration;
 @Service
 public class AdminLoginApplicationService {
 
-    private final SaaAdminAccountRepository accountRepository;
+    private final ConsAdminAccountRepository accountRepository;
     private final PasswordEncoder passwordEncoder;
-    private final SaaAdminSessionStore sessionStore;
+    private final ConsAdminSessionStore sessionStore;
 
-    public AdminLoginApplicationService(SaaAdminAccountRepository accountRepository,
+    public AdminLoginApplicationService(ConsAdminAccountRepository accountRepository,
                                         PasswordEncoder passwordEncoder,
-                                        SaaAdminSessionStore sessionStore) {
+                                        ConsAdminSessionStore sessionStore) {
         this.accountRepository = accountRepository;
         this.passwordEncoder = passwordEncoder;
         this.sessionStore = sessionStore;
@@ -29,8 +29,8 @@ public class AdminLoginApplicationService {
 
     /** 登录：校验用户名/密码（BCrypt），按用户选择的有效期创建 Redis 会话。 */
     public AdminAuthResult login(String username, String password, Duration ttl) {
-        SaaAdminAccount account = accountRepository.findByUsername(username)
-                .filter(SaaAdminAccount::active)
+        ConsAdminAccount account = accountRepository.findByUsername(username)
+                .filter(ConsAdminAccount::active)
                 .orElseThrow(() -> new ApiException(HttpStatusCodes.UNAUTHORIZED, "ADMIN_LOGIN_INVALID",
                         "用户名或密码错误"));
         if (account.passwordHash() == null || !passwordEncoder.matches(password, account.passwordHash())) {

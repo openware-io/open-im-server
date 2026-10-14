@@ -88,8 +88,8 @@ class AdminMenuControllerAuthTest {
 
   /**
    * 既有语义不变：会话有效但**未选择**运营上下文时不是 401，只下发平台段菜单
-   * （缺失会话本身由 {@code SaaAdminAuthenticationFilter} 回 401 {@code ADMIN_SESSION_MISSING}，
-   * 见 {@code SaaAdminAuthenticationFilterTest.missingSessionReturns401}）。
+   * （缺失会话本身由 {@code ConsAdminAuthenticationFilter} 回 401 {@code ADMIN_SESSION_MISSING}，
+   * 见 {@code ConsAdminAuthenticationFilterTest.missingSessionReturns401}）。
    */
   @Test
   void sessionWithoutSelectedContextStillReturnsPlatformMenus() throws Exception {

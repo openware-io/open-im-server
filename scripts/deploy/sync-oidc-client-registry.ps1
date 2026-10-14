@@ -106,9 +106,9 @@ WHERE app_id IN ('saas-a380-c', 'saas-a380-h5');
 DELETE FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5');
 INSERT INTO user_oidc_redirect_uri (client_id, redirect_uri) VALUES $(Values 'saas-a380-c' $cUris),$(Values 'saas-a380-h5' $bUris);
 "@
-Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, 'im_server', '-e', $sql) | Out-Null
+Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, 'open_im', '-e', $sql) | Out-Null
 
-$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'im_server', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5') ORDER BY client_id, redirect_uri;")
+$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'open_im', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5') ORDER BY client_id, redirect_uri;")
 $actual = @($registered | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 $expected = @(
   $cUris | ForEach-Object { "saas-a380-c`t$_" }

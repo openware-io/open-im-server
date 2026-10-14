@@ -10,7 +10,7 @@ import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminSessionCookie;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -30,10 +30,10 @@ public class ContextController {
 
     private final TenantIamDomainClient tenantIamClient;
     private final AdminTenantContextTokenSigner tokenSigner;
-    private final SaaAdminSessionStore sessionStore;
+    private final ConsAdminSessionStore sessionStore;
 
     public ContextController(TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner tokenSigner,
-                             SaaAdminSessionStore sessionStore) {
+                             ConsAdminSessionStore sessionStore) {
         this.tenantIamClient = tenantIamClient;
         this.tokenSigner = tokenSigner;
         this.sessionStore = sessionStore;

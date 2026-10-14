@@ -6,7 +6,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.infra.IdentityDomainClient;
 import io.openware.platform.admin.infra.ImUserResolveClient;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
+import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -24,13 +24,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @Service
 public class StaffAccountApplicationService {
-    private final SaaAdminAccountMapper accounts;
+    private final ConsAdminAccountMapper accounts;
     private final IdentityDomainClient identity;
     private final ImUserResolveClient imUsers;
     private final TenantIamDomainClient iam;
     private final PasswordEncoder passwords;
 
-    public StaffAccountApplicationService(SaaAdminAccountMapper accounts, IdentityDomainClient identity,
+    public StaffAccountApplicationService(ConsAdminAccountMapper accounts, IdentityDomainClient identity,
                                          ImUserResolveClient imUsers, TenantIamDomainClient iam, PasswordEncoder passwords) {
         this.accounts = accounts;
         this.identity = identity;

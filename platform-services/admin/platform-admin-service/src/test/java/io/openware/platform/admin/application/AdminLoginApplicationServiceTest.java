@@ -8,9 +8,9 @@ import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.domain.model.AdminRole;
-import io.openware.platform.admin.domain.model.SaaAdminAccount;
-import io.openware.platform.admin.domain.port.SaaAdminAccountRepository;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import io.openware.platform.admin.infra.security.SessionTtl;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -30,20 +30,20 @@ class AdminLoginApplicationServiceTest {
   private static final String TEST_HASH = new BCryptPasswordEncoder().encode(TEST_PASSWORD);
 
   private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
-  private SaaAdminAccountRepository accountRepository;
-  private SaaAdminSessionStore sessionStore;
+  private ConsAdminAccountRepository accountRepository;
+  private ConsAdminSessionStore sessionStore;
   private AdminLoginApplicationService service;
 
   @BeforeEach
   void setUp() {
-    accountRepository = mock(SaaAdminAccountRepository.class);
-    sessionStore = mock(SaaAdminSessionStore.class);
+    accountRepository = mock(ConsAdminAccountRepository.class);
+    sessionStore = mock(ConsAdminSessionStore.class);
     service = new AdminLoginApplicationService(accountRepository, passwordEncoder, sessionStore);
   }
 
   @Test
   void login_createsSessionOnCorrectPassword() {
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-1");
@@ -58,7 +58,7 @@ class AdminLoginApplicationServiceTest {
 
   @Test
   void login_rejectsWrongPassword() {
-    SaaAdminAccount account = new SaaAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
         AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
 

@@ -1,7 +1,7 @@
 package io.openware.platform.admin.config;
 
-import io.openware.platform.admin.infra.security.SaaAdminAuthenticationFilter;
-import io.openware.platform.admin.infra.security.SaaAdminSessionStore;
+import io.openware.platform.admin.infra.security.ConsAdminAuthenticationFilter;
+import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,10 +18,10 @@ public class AdminSecurityConfig {
     }
 
     @Bean
-    public FilterRegistrationBean<SaaAdminAuthenticationFilter> saaAdminAuthenticationFilter(
-            SaaAdminSessionStore sessionStore) {
-        FilterRegistrationBean<SaaAdminAuthenticationFilter> reg =
-                new FilterRegistrationBean<>(new SaaAdminAuthenticationFilter(sessionStore));
+    public FilterRegistrationBean<ConsAdminAuthenticationFilter> saaAdminAuthenticationFilter(
+            ConsAdminSessionStore sessionStore) {
+        FilterRegistrationBean<ConsAdminAuthenticationFilter> reg =
+                new FilterRegistrationBean<>(new ConsAdminAuthenticationFilter(sessionStore));
         reg.addUrlPatterns("/admin/*", "/business/*");
         reg.setOrder(2);
         return reg;

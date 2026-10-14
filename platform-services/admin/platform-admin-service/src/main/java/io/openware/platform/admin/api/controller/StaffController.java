@@ -3,7 +3,7 @@ package io.openware.platform.admin.api.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.platform.admin.application.StaffAccountApplicationService;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.SaaAdminAccountMapper;
+import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.time.TimeRangeParams;
@@ -34,12 +34,12 @@ import java.util.List;
 @RequestMapping("/admin/staff")
 public class StaffController {
 
-    private final SaaAdminAccountMapper saaAdminAccountMapper;
+    private final ConsAdminAccountMapper saaAdminAccountMapper;
     private final TenantIamDomainClient tenantIamClient;
     private final AdminTenantContextTokenSigner contextTokens;
     private final StaffAccountApplicationService staffAccounts;
 
-    public StaffController(SaaAdminAccountMapper saaAdminAccountMapper,
+    public StaffController(ConsAdminAccountMapper saaAdminAccountMapper,
                            TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
                            StaffAccountApplicationService staffAccounts) {
         this.saaAdminAccountMapper = saaAdminAccountMapper;

@@ -57,7 +57,7 @@ public class CstMemberPo {
     @TableField(exist = false)
     private String accountType;
     /**
-     * 非持久化展示字段：IM 侧**真实账号**（{@code im_server.user.username}，如 user600）；
+     * 非持久化展示字段：IM 侧**真实账号**（{@code open_im.user.username}，如 user600）；
      * 界面上「IM 账号」列应显示它，而不是登录标识 {@code im_<id>}。
      */
     @TableField(exist = false)

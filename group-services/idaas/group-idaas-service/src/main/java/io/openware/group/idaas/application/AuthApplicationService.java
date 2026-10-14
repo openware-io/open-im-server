@@ -7,8 +7,8 @@ import io.openware.group.idaas.api.dto.AuthDtos.LoginResponse;
 import io.openware.group.idaas.api.dto.AuthDtos.SessionResponse;
 import io.openware.group.idaas.api.dto.AuthDtos.SsoTicketResponse;
 import io.openware.group.idaas.api.dto.AuthDtos.SsoVerifyResponse;
-import io.openware.group.idaas.infra.persistence.mapper.GroupAccountMapper;
-import io.openware.group.idaas.infra.persistence.po.GroupAccountPo;
+import io.openware.group.idaas.infra.persistence.mapper.IdaasAccountMapper;
+import io.openware.group.idaas.infra.persistence.po.IdaasAccountPo;
 import io.openware.group.idaas.infra.security.IdaasSessionStore;
 import io.openware.group.idaas.infra.security.GroupSessionTtl;
 import java.time.Duration;
@@ -26,11 +26,11 @@ public class AuthApplicationService {
   private static final String ACCOUNT_ENABLED = "ENABLED";
   private static final Duration TICKET_TTL = Duration.ofSeconds(60);
 
-  private final GroupAccountMapper accountMapper;
+  private final IdaasAccountMapper accountMapper;
   private final PasswordEncoder passwordEncoder;
   private final IdaasSessionStore sessionStore;
 
-  public AuthApplicationService(GroupAccountMapper accountMapper, PasswordEncoder passwordEncoder,
+  public AuthApplicationService(IdaasAccountMapper accountMapper, PasswordEncoder passwordEncoder,
       IdaasSessionStore sessionStore) {
     this.accountMapper = accountMapper;
     this.passwordEncoder = passwordEncoder;
@@ -39,8 +39,8 @@ public class AuthApplicationService {
 
   /** 登录：校验 BCrypt 后创建 Redis 会话，返回 sessionId。 */
   public LoginResponse login(LoginRequest request) {
-    GroupAccountPo account = accountMapper.selectOne(
-        new QueryWrapper<GroupAccountPo>().eq("username", request.username()));
+    IdaasAccountPo account = accountMapper.selectOne(
+        new QueryWrapper<IdaasAccountPo>().eq("username", request.username()));
     if (account == null || !ACCOUNT_ENABLED.equals(account.getStatus())
         || !passwordEncoder.matches(request.password(), account.getPassword())) {
       log.warn("IDaaS login rejected, username={}", maskUsername(request.username()));

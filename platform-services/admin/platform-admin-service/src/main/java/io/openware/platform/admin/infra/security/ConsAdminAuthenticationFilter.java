@@ -16,13 +16,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 /** SaaS 后台会话鉴权过滤器：校验 Redis 会话（HttpOnly Cookie），命中则写入 AdminContextHolder，否则 401。 */
 @Slf4j
-public class SaaAdminAuthenticationFilter extends OncePerRequestFilter {
+public class ConsAdminAuthenticationFilter extends OncePerRequestFilter {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final SaaAdminSessionStore sessionStore;
+    private final ConsAdminSessionStore sessionStore;
 
-    public SaaAdminAuthenticationFilter(SaaAdminSessionStore sessionStore) {
+    public ConsAdminAuthenticationFilter(ConsAdminSessionStore sessionStore) {
         this.sessionStore = sessionStore;
     }
 
