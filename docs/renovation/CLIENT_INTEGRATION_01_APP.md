@@ -25,7 +25,7 @@
 
 ### 2.1 HTTP
 
-App 已集中使用 Dio，并在 `AppConfig` 中通过 `GV_API_BASE` 组合 `/api` 前缀。这是正确的集中入口，但当前默认地址及 HTTP、WebSocket 复用同一个 base 的假设不适合首发 v1 联调。
+App 已集中使用 Dio，并在 `AppConfig` 中通过 `OPEN_API_BASE` 组合 `/api` 前缀。这是正确的集中入口，但当前默认地址及 HTTP、WebSocket 复用同一个 base 的假设不适合首发 v1 联调。
 
 已确认的首批 REST 差异：
 
@@ -74,32 +74,32 @@ UI 和 Provider 不直接理解 WebSocket 帧、URL、认证参数或服务端 D
 
 | 构建参数 | 示例 | 用途 |
 | --- | --- | --- |
-| `GV_API_BASE` | `http://10.0.2.2:3002` | Gateway HTTP 根地址，不含 `/api` |
-| `GV_WS_URI` | `ws://10.0.2.2:3002/ws/im/v1` | Gateway 原生 WebSocket v1 端点 |
-| `GV_MEDIA_BASE` | `https://media.example.com` | 可选；媒体与 API 域名拆分时使用 |
-| `GV_JPUSH_APPKEY` | 构建环境提供 | 保留现有推送配置方式 |
+| `OPEN_API_BASE` | `http://10.0.2.2:3002` | Gateway HTTP 根地址，不含 `/api` |
+| `OPEN_WS_URI` | `ws://10.0.2.2:3002/ws/im/v1` | Gateway 原生 WebSocket v1 端点 |
+| `OPEN_MEDIA_BASE` | `https://media.example.com` | 可选；媒体与 API 域名拆分时使用 |
+| `OPEN_JPUSH_APPKEY` | 构建环境提供 | 保留现有推送配置方式 |
 
 默认值只用于明确的本地开发基线；家庭电脑、办公电脑、Android 模拟器、真机和 CI 通过 `--dart-define` 或受管构建配置覆盖。不得将某一台电脑 IP、端口映射或临时隧道地址提交为全局默认值。
 
 示例：
 
 ```powershell
-flutter run --dart-define=GV_API_BASE=http://10.0.2.2:3002 --dart-define=GV_WS_URI=ws://10.0.2.2:3002/ws/im/v1 --dart-define=GV_MEDIA_BASE=http://10.0.2.2:9000
+flutter run --dart-define=OPEN_API_BASE=http://10.0.2.2:3002 --dart-define=OPEN_WS_URI=ws://10.0.2.2:3002/ws/im/v1 --dart-define=OPEN_MEDIA_BASE=http://10.0.2.2:9000
 ```
 
 ### 4.2 媒体 URL
 
-媒体解析只接受由服务端返回的绝对媒体 URL，并且必须属于 `GV_MEDIA_BASE` 的受管域名；不得自行拼接 `/uploads/`、Gateway 或服务内部地址。开发环境使用与生产相同 URL/权限语义的本地媒体模拟实现；Release 不允许默认跳过证书校验。
+媒体解析只接受由服务端返回的绝对媒体 URL，并且必须属于 `OPEN_MEDIA_BASE` 的受管域名；不得自行拼接 `/uploads/`、Gateway 或服务内部地址。开发环境使用与生产相同 URL/权限语义的本地媒体模拟实现；Release 不允许默认跳过证书校验。
 
-本地 `GV_MEDIA_BASE` 指向 Docker MinIO 的本地受管域名，预发布和生产分别指向真实 OSS 的独立媒体域名；App 不感知 Bucket、Endpoint、Region 或访问密钥。每次发布前必须在预发布的真实 OSS 环境验证上传、私有媒体签名访问、公共媒体缓存、删除与跨端预览，不能只以 MinIO 测试结果作为上线依据。
+本地 `OPEN_MEDIA_BASE` 指向 Docker MinIO 的本地受管域名，预发布和生产分别指向真实 OSS 的独立媒体域名；App 不感知 Bucket、Endpoint、Region 或访问密钥。每次发布前必须在预发布的真实 OSS 环境验证上传、私有媒体签名访问、公共媒体缓存、删除与跨端预览，不能只以 MinIO 测试结果作为上线依据。
 
-`GV_MEDIA_BASE`、`GV_API_BASE` 和 `GV_WS_URI` 仅来自 Flutter `--dart-define` 或受管构建参数；服务端 `.env` 不会自动注入 Flutter 进程。本地真机使用开发机 LAN 可访问地址，Android 模拟器使用对应宿主机可访问地址，预发布和生产使用 HTTPS 受管域名。它们不得写死在源码或提交个人 IP；App 不读取任何 `IM_MEDIA_*`、Bucket 或 OSS 密钥参数。
+`OPEN_MEDIA_BASE`、`OPEN_API_BASE` 和 `OPEN_WS_URI` 仅来自 Flutter `--dart-define` 或受管构建参数；服务端 `.env` 不会自动注入 Flutter 进程。本地真机使用开发机 LAN 可访问地址，Android 模拟器使用对应宿主机可访问地址，预发布和生产使用 HTTPS 受管域名。它们不得写死在源码或提交个人 IP；App 不读取任何 `IM_MEDIA_*`、Bucket 或 OSS 密钥参数。
 
 ## 5. REST 改造设计
 
 ### 5.1 API Client
 
-1. 将 `AppConfig.apiPrefix` 从硬编码 `/api` 改为固定 `/api/v1`；一次性改造不保留 `GV_API_CONTRACT`、无版本路径或版本选择分支。
+1. 将 `AppConfig.apiPrefix` 从硬编码 `/api` 改为固定 `/api/v1`；一次性改造不保留 `OPEN_API_CONTRACT`、无版本路径或版本选择分支。
 2. 请求统一附带 `Authorization: Bearer <token>`、`x-lang`、`X-Client-Contract: im-v1`、客户端版本和平台。
 3. 将 v1 错误结构转换为单一 `ApiFailure`，包含 HTTP 状态、业务错误码、可展示消息、请求关联 ID 和是否需要重新登录。
 4. 401 清除本地 token、用户快照和实时连接；403 保留登录态并显示无权限；网络错误不清除会话。
@@ -266,12 +266,12 @@ App 从 `/config/client` 或单独的能力契约读取 v1 能力状态。既有
 
 | 位置 | 改造内容 |
 | --- | --- |
-| `lib/core/env_config.dart`、`lib/core/config.dart` | 移除个人 IP 与 `/api`/Socket 复用默认值；新增独立 `GV_API_BASE`、`GV_WS_URI`、`GV_MEDIA_BASE` 的 dart-define 解析，并固定 REST `/api/v1` |
+| `lib/core/env_config.dart`、`lib/core/config.dart` | 移除个人 IP 与 `/api`/Socket 复用默认值；新增独立 `OPEN_API_BASE`、`OPEN_WS_URI`、`OPEN_MEDIA_BASE` 的 dart-define 解析，并固定 REST `/api/v1` |
 | `lib/im-services/api_client.dart` | v1 base path、公共头、统一 `ApiFailure`、401/403 与认证失效处理 |
 | `lib/im-services/generated_im_api_client.dart`、`.g.dart` | 按 OpenAPI v1 更新 Retrofit 注解和 DTO，运行 build_runner 重新生成；覆盖积分、ICE、预约与所有 REST 路径 |
 | `lib/im-services/im_api.dart`、`lib/repositories/*.dart` | REST v1 路由与 DTO converter、分页、预约和媒体解析；移除同一业务 REST/WS 双调用 |
 | `lib/im-services/socket_service.dart` | 以原生 `ImRealtimeClient` 替换 Socket.IO；保留 `GvSocketClient` 仅作 App 内部抽象，不能保留 Socket.IO 协议行为 |
-| `packages/gv_core/lib/src/media/media_url.dart` 及调用点 | 保留 OSS 绝对 URL；拒绝相对媒体路径，改用 `GV_MEDIA_BASE` 仅校验受管域名，不以 API Base 重写 |
+| `packages/gv_core/lib/src/media/media_url.dart` 及调用点 | 保留 OSS 绝对 URL；拒绝相对媒体路径，改用 `OPEN_MEDIA_BASE` 仅校验受管域名，不以 API Base 重写 |
 | `lib/providers/call_provider.dart` | 解包 WS v1 信封并按 `rtc:signal` Schema 处理一对一音视频通话 |
 | `lib/providers/chat_provider.dart` | 对接事件流；实现 ACK、去重、重连同步和发送失败状态 |
 | `lib/providers/call_provider.dart` | 仅在 RTC v1 契约完成后替换信令；未完成前由能力开关关闭 |

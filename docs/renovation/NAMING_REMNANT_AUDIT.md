@@ -11,7 +11,7 @@
 | 级别 | 环节 | 实测 | 处置 |
 | --- | --- | --- | --- |
 | **P0 必须改** | **活文档/规范里的库名与产品名漂移** | `ENGINEERING_RULES.md:154-155` 写"默认库 `gv_im`、SaaS 库 `gv_saas`"；`standards/16` 写 `open-saas-admin`/`open-saas-mobile`/`open-chat-app`；`standards/43` 写 `open-im-server`/`open-chat-desktop`；`standards/15:141` 写绝对路径 `D:\projects\cnb\open-im-server` | **改**——它们是**长期有效**的规范文档，会把错误名字继续传播给新人；且 `standards/15` 的绝对路径本身就是规范禁止项 |
-| **P1 代码残留** | `.env` 的 MinIO 桶名 | `MEDIA_PRIVATE_BUCKET=gv-im-local-private`（1 处） | **改**（本地桶名，改前确认无既有数据依赖） |
+| **P1 代码残留** | `.env` 的 MinIO 桶名 | `MEDIA_PRIVATE_BUCKET=open-im-local-private`（1 处） | **改**（本地桶名，改前确认无既有数据依赖） |
 | **P2 保留（历史事实）** | IM 开放平台迁移语句 | `V1__user_baseline.sql` 4 处 `gvchat://oauth/callback` → `openchat://oauth/callback` 的**迁移本身** | **不改**——它记录的是历史回调地址，改了会让迁移失效 |
 | **P3 保留（日期快照）** | 日期化审计/盘点报告 | `currency-scope-inventory-2026-09-18.md` 140 处、`audit-2026-09-17-exceptions-and-i18n.md` 71 处、`docs/renovation` 223 处（含我本轮分析稿） | **不改**——历史留档，改了就是篡改证据 |
 | **已干净** | 其余全部生产环节 | `k8s` `deploy` `scripts` `config` `sdk` `gateways` `common-services` `platform-services` `group-services` `portal` `.github` —— **均 0 处** | 无需处理 |

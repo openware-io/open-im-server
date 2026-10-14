@@ -218,7 +218,7 @@ Expected: 旧 bearer 入口不可用，C/B 会话和企业权限交集测试全�
 
 - [ ] **Step 2: Remove client secret and local bearer fallback**
 
-删除 `GV_IM_OAUTH_APP_SECRET` 的客户端读取；删除 KTV 直接 `/oauth/token`；禁止 `biz_token` 和 C token 作为 B 端回退凭据。
+删除 `OPEN_IM_OAUTH_APP_SECRET` 的客户端读取；删除 KTV 直接 `/oauth/token`；禁止 `biz_token` 和 C token 作为 B 端回退凭据。
 
 - [ ] **Step 3: Implement Bridge dispatcher**
 

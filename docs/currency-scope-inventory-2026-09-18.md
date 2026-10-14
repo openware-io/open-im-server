@@ -760,7 +760,7 @@ C 端 `c-end/saas.js`：
 `git grep -c` 在 `src/`（84 个跟踪文件）：
 - `amount` / `Amount` / `price` / `Price` / `money` / `Money` / `balance` / `wallet` / `redPacket` / `红包` / `Order` / `currency` → **全部 0**
 - `formatMoney` / `formatCurrency` / `formatAmount` / `toFixed` / `Intl.NumberFormat` / `minorUnits` / `fen` → **全部 0**
-- `¥` / `￥` / `元` / `CNY` / `RMB` / `USD` → **0**（`¥` 仅 `src/renderer/src/assets/wv-chat-icon.png` 二进制误命中）
+- `¥` / `￥` / `元` / `CNY` / `RMB` / `USD` → **0**（`¥` 仅 `src/renderer/src/assets/open-chat-icon.png` 二进制误命中）
 - `$` 作为货币：用 `\$[0-9]` 精确匹配 → **0**（`$` 全为 TS 模板插值 `${...}`）
 - `recharge` / `topup` / `top-up` / `shop` / `mall` / `coupon` / `coin` / `points` / `vip` / `purchase` / `bill` / `invoice` → **0**（`fee` 1 条是 `BlacklistView.vue:48` 的 `feedback`）
 - `order` 21 个文件命中全为 SQL `ORDER BY`：`src/main/db/database.ts:100`（`ORDER BY`）、`:124`（`... ORDER BY pinned DESC, last_time DESC`）等（`git grep -F "order" | Where-Object { $_ -notmatch 'border' }` → 0 条）

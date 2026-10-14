@@ -110,7 +110,7 @@ class ReleaseCheckRequest {
 - `ClientReleaseScope` 必须先于 `ClientReleaseContext` 判定范围：Android/iOS 且 CI release define 完整时为 `managed`，构造完整请求并执行 POST；Windows/macOS/Linux 为 `deferredDesktop`，本轮不生成 installationId、不发请求、不阻断业务；Web、HarmonyOS、Fuchsia 和未知平台为 `outOfScope`，同样不发请求、不阻断业务。任何跳过都不得伪装成 Android/iOS，也不得把网络失败混同为跳过。
 - `platform` 仅在 `managed` 后由 Flutter `defaultTargetPlatform` 映射；未知映射属于本地构建/实现错误，绝不向服务端上报为 Android。
 - `version/buildNumber` 从 `PackageInfo.fromPlatform()` 获取，并在空值、非数字或 `buildNumber <= 0` 时视为构建错误，不发出伪造 `0`。
-- `channel`、`architecture` 和 `protocolVersion` 由 CI 以 `GV_RELEASE_CHANNEL`、`GV_RELEASE_ARCHITECTURE`、`GV_PROTOCOL_VERSION` 注入；仅 `managed` 的 release 构建缺少任一值时，`ClientReleaseContext` 必须本地报构建配置错误。`deferredDesktop/outOfScope` 不读取这些值。不得用运行时 CPU 推断架构，避免 macOS Rosetta 等兼容层误判。
+- `channel`、`architecture` 和 `protocolVersion` 由 CI 以 `OPEN_RELEASE_CHANNEL`、`OPEN_RELEASE_ARCHITECTURE`、`OPEN_PROTOCOL_VERSION` 注入；仅 `managed` 的 release 构建缺少任一值时，`ClientReleaseContext` 必须本地报构建配置错误。`deferredDesktop/outOfScope` 不读取这些值。不得用运行时 CPU 推断架构，避免 macOS Rosetta 等兼容层误判。
 - `installationId` 仅在 `managed` 范围内首次启动时由 `InstallationIdStore` 生成 UUID。现有 `LocalStorage`/`SharedPreferences` 只用于普通偏好，严禁保存该值；本轮先完成 Android KeyStore、iOS Keychain 的安全存储适配验证。仓库没有现成实现时，先进行 `flutter_secure_storage`（最终锁定版本以实施 PR 为准）及原生能力 PoC，再将经过审查的依赖和各平台配置同 PR 提交，不能为赶工降级为账号 ID、MAC、机器序列号或其它硬件标识。Windows Credential Manager、macOS Keychain、Linux Secret Service 随各 PC 平台实施方案和 updater 一并启用。
 
 ### 3.2 响应模型与界面状态
@@ -157,7 +157,7 @@ class ReleaseCheckRequest {
 
 ## 6. 与后端、Gateway 和动态配置的协作
 
-- 唯一更新检查接口是 `POST /api/v1/client/release-check`；客户端从 `GV_API_BASE` 调用它，不直接访问 `im-admin-service`。
+- 唯一更新检查接口是 `POST /api/v1/client/release-check`；客户端从 `OPEN_API_BASE` 调用它，不直接访问 `im-admin-service`。
 - 在 `ApiClient` 的统一请求拦截器中补齐 `X-Client-Platform`、`X-Client-Channel`、`X-Client-Build-Number`、`X-Client-Protocol-Version`；保留现有 `X-Client-Version` 的兼容观测含义，不能让各 Repository 分别写 Header。Header 缺失或伪造不能成为权限来源。
 - `managed` 范围内 WebSocket 在版本检查通过后才申请 ticket 并建立连接；`deferredDesktop/outOfScope` 保持既有业务启动顺序。首发阶段无需改变现有 ticket 协议。未来服务端版本硬拦截时，必须同步扩展 ticket 绑定与接入层校验，不能只拦 REST。
 - `GET /config/client` 继续负责动态 Feature Flag。Release check 只给兼容基线，不能缓存或替代动态业务开关。

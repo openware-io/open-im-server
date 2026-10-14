@@ -51,7 +51,7 @@
 | `open-im-server` | **`open-im-server`** | 服务端；`open-chat-desktop/docs/architecture.md:53` 称"唯一后端为 open-im-server" | **高（已核实）** |
 | `open-chat`（6 处，单独出现） | **应统一为上述具体名**；当指"客户端总体"时写"IM 客户端" | 与 `open-chat-app` 语义重叠，属**同一事物的省略写法** | **建议合并，不再单独使用** |
 | `open-chat`（`Open Chat`） | **`Open Chat`**（IM 客户端族） | `open-chat-desktop` 自述仍写 "Open Chat"，是 `wv` 的唯一集中残留 | 需你定中文/英文名 |
-| `GV_API_BASE`、`GV_JPUSH_APPKEY`、`GV_TRUST_SELF_SIGNED` 等环境变量 | **`OPEN_API_BASE`、`OPEN_JPUSH_APPKEY`、`OPEN_TRUST_SELF_SIGNED`** | `open-chat-app/BUILD.md` 里的构建参数 | 需你定前缀词 |
+| `OPEN_API_BASE`、`OPEN_JPUSH_APPKEY`、`OPEN_TRUST_SELF_SIGNED` 等环境变量 | **`OPEN_API_BASE`、`OPEN_JPUSH_APPKEY`、`OPEN_TRUST_SELF_SIGNED`** | `open-chat-app/BUILD.md` 里的构建参数 | 需你定前缀词 |
 
 > **回答你的问题**：`open-chat` **与 `open-chat-app` 不是两样东西**——`open-chat` 是同一客户端族的**省写**（6 处），`open-chat-app` 是完整写法（115 处）。**建议统一为仓库名，`open-chat` 不再单独出现。**
 
@@ -154,7 +154,7 @@ docs/common-services/        ← audit / media / mail / sms
 | 6 | **错位修正 + A1 库名统一**（IM/SaaS/审计/集团四库 + 全部连接配置 + k8s init job） | 全工作区 | 待 E2/E4 |
 | 7 | **旧名批量改名**（`gv_*`/`wv_*`/`GV_*`/`WV_*` → `open-*`）**含前端生产代码** | **7 个前端仓库 + open-im-server** | 待 D5 确认 |
 | 8 | 文档三分法 + `docs/` 目录收敛 + 绝对路径清理 | 全工作区 | 待 E5 |
-| 9 | `.env` 桶名 `gv-im-local-private` → `open-im-local-private` | `open-im-server` | 待确认 |
+| 9 | `.env` 桶名 `open-im-local-private` → `open-im-local-private` | `open-im-server` | 待确认 |
 | 10 | 门禁 **7 → 0** 并转阻断；每步跑受影响模块测试 | `open-im-server` | 待执行 |
 
 ---

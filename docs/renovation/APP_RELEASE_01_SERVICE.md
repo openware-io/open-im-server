@@ -635,9 +635,9 @@ im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/
 固定发布流程为：
 
 1. 仅由受保护的 release 触发器运行；其输入与后端 `enabled-platforms` 交叉校验，初始矩阵只允许 Android/iOS，PC 三端仅保留 manifest schema 和后续矩阵项。
-2. 调用 App 的统一 `tools/build.ps1`，显式注入 `APP_ENV`、`GV_RELEASE_CHANNEL`、`GV_RELEASE_ARCHITECTURE`、`GV_PROTOCOL_VERSION`、version 和 buildNumber；构建、签名/公证后先上传到 `allowed-download-hosts` 的内容不可覆盖路径。
+2. 调用 App 的统一 `tools/build.ps1`，显式注入 `APP_ENV`、`OPEN_RELEASE_CHANNEL`、`OPEN_RELEASE_ARCHITECTURE`、`OPEN_PROTOCOL_VERSION`、version 和 buildNumber；构建、签名/公证后先上传到 `allowed-download-hosts` 的内容不可覆盖路径。
 3. 运行 manifest 脚本，保存其 JSON 和 SHA-256 到 CI 制品；Android 商店包使用 `google-play + storeUrl`，iOS 使用 `app-store + storeUrl`，不将 AAB 作为客户端下载 Artifact。
-4. CI 仅使用专用、受管的 `GV_RELEASE_ADMIN_TOKEN` 调用 `POST/PUT /api/v1/admin/client-releases` 创建或编辑草稿；Token 对应非个人的现有 `ROLE_ADMIN` 发布机器人账户，存于 CNB 加密变量，按发布角色轮换，绝不出现在日志、manifest 或 App 包。
+4. CI 仅使用专用、受管的 `OPEN_RELEASE_ADMIN_TOKEN` 调用 `POST/PUT /api/v1/admin/client-releases` 创建或编辑草稿；Token 对应非个人的现有 `ROLE_ADMIN` 发布机器人账户，存于 CNB 加密变量，按发布角色轮换，绝不出现在日志、manifest 或 App 包。
 5. 返回的 Release ID、requestId、manifest SHA-256 与 CI 构建号共同归档。管理员在 Admin 工作台只负责查看草稿、提交、灰度、暂停、恢复、撤回和策略变更。
 
 在 IAM 尚未提供细粒度服务账户前，`ROLE_ADMIN` 是首发可执行但权限较宽的过渡方案；它必须使用独立账户、受保护流水线和审计，不能使用任何员工个人 Token。引入 IAM 后再收敛为最小发布权限，不改变 Release API 或制品清单格式。

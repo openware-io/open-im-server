@@ -1,61 +1,60 @@
-# `gv` / `wv` 运行期标识清单（待决定，未改名）
+# `gv` / `wv` 运行期标识改名（**已全部完成**）
 
-> 背景：工作区旧产品名统一为 `open-*`。**文档与注释（第 1 层）已完成改名**（467 行 / 80 文件）。
-> **本清单是第 2 层：运行期标识**——改名会影响**已持久化的用户数据 / 对象存储 / 构建接口**，故单独列出待决定。
+> 背景：工作区旧产品名统一为 `open-*`。**两层均已完成**：
+> - **第 1 层 文档与注释**：467 行 / 80 文件；
+> - **第 2 层 运行期标识**：138 处 / 32 文件（构建接口、对象存储、客户端持久化键）。
+>
+> 用户裁决：**构建接口统一改 `OPEN_*`**；**均为开发环境、无生产数据，可直接改**；**客户端持久化键一次性改，无历史数据包袱**；要求**改后系统业务正常运行**。
 
-## 为什么不能与文档一起改
+## 为什么运行期标识要单独一层
 
-这些字符串被**写入并读取**（localStorage、IndexedDB、本地文件、对象存储桶、Dart 编译期常量）。改了之后：
+这些字符串被**写入并读取**（localStorage、IndexedDB、本地文件、对象存储桶、Dart 编译期常量），与纯文档不同：
 
-- **localStorage / sessionStorage 键**：既有用户的**登录态与偏好丢失**（读到空值）；
-- **持久化文件名 / 数据库名**：**旧数据读不到**（需迁移或兼容读）；
+- **localStorage / sessionStorage 键**：改名会让**既有用户读到空值**（掉登录、偏好重置）；
+- **持久化文件名 / 数据库名**：**旧数据读不到**；
 - **对象存储桶名 / 前缀**：**既有对象找不到**；
-- **Dart `--dart-define` 变量名**：**构建接口变更**，CI 与本地构建脚本需同步。
+- **Dart `--dart-define` 变量名**：**构建接口变更**，CI 与本地构建脚本需同步改。
 
-## 清单（按风险分组）
+> ⚠️ 本次能**一次性直接改**，唯一前提是用户确认了**无历史数据**。若将来有生产数据，必须改为"**读旧键、写新键**"的兼容迁移。
 
-### A. 客户端持久化键（改名 = 用户数据丢失）
+## 改名映射（已完成）
 
-| 仓库 | 位置 | 标识 |
+### A. 构建接口（`GV_` 前缀 → `OPEN_` 前缀）
+
+`OPEN_API_BASE`、`OPEN_WS_URI`、`OPEN_JPUSH_APPKEY`、`OPEN_JPUSH_PRODUCTION`、`OPEN_TRUST_SELF_SIGNED`、`OPEN_ANDROID_JPUSH_ENABLED`、`OPEN_TEST_USERNAME`、`OPEN_TEST_PASSWORD`、`OPEN_TEST_PEER_ID`、`OPEN_TEST_CHAT_TYPE`、`OPEN_TEST_CONVERSATION_NAME`、`OPEN_TEST_ALLOW_SEND`、`OPEN_MEDIA_BASE`、`OPEN_PROTOCOL_VERSION`、`OPEN_RELEASE_CHANNEL`、`OPEN_RELEASE_ARCHITECTURE`、`OPEN_RELEASE_ADMIN_TOKEN`、`OPEN_API_CONTRACT`、`OPEN_ADMIN_PASSWORD`、`OPEN_IM_OAUTH_APP_SECRET`，以及二维码 scheme `OPEN_LOGIN:`、`OPEN_UID:`。
+
+> **自洽性**：这些名字的"声明"（`BUILD.md`/`README.md` 的 `--dart-define=`）与"读取"（Dart 代码）**在同一仓库内**，故同仓同步改即自洽。
+
+### B. 对象存储
+
+`open-media-public`、`open-im-local-private`、`open-im-local-public`。
+
+### C. 客户端持久化键与本地文件
+
+`open-chat_access_token`、`open-chat_user`、`open-chat_locale`、`open-chat_drafts`、`open-chat_clear_cutoffs`、`open-chat_hidden_messages`；本地库 `open-chat.db`；Electron 会话分区 `persist:open-hybrid-*`；上传/备份/图标文件名 `open-chat-media`、`open-chat-backup`、`open-chat-icon`；小程序 SDK 事件 `open-sdk-ready`。
+
+### D. 二维码分享文件名（`open-chat_qr_` 前缀）
+
+仅影响**后续新保存**的文件名，不读旧值，无风险。
+
+## 有意保留的旧名（不是遗漏）
+
+以下**属于历史事实或外部标识**，不应改名，扫描时应视为预期：
+
+| 位置 | 内容 | 原因 |
 | --- | --- | --- |
-| `open-chat-desktop` | `src/renderer/src/stores/auth.ts` | `TOKEN_KEY='gv_chat_access_token'`、`USER_KEY='gv_chat_user'` |
-| `open-chat-desktop` | `src/renderer/src/i18n/index.ts` | `LOCALE_STORAGE_KEY='gv_chat_locale'` |
-| `open-chat-desktop` | `src/renderer/src/stores/chat.ts` | `gv_chat_drafts`、`gv_chat_clear_cutoffs`、`gv_chat_hidden_messages` 等 6 处 |
-| `open-chat-desktop` | `src/main/hybrid.ts` | `gv_chat_access_token`、`persist:gv-hybrid-${policy.appId}` |
-| `open-chat-desktop` | `src/main/index.ts` | 本地库文件名 `gv-chat.db` |
-| `open-chat-desktop` | `src/main/ipc.ts` | 上传文件名默认值 `wv-chat-media` |
-| `open-chat-app` | `lib/models/chat_backup.dart` | 备份格式标识 `wv-chat-backup` |
-| `open-chat-app` | `lib/screens/chat_backup_screen.dart` | 备份文件名 `wv-chat-backup-$uid-$stamp.json` |
-| `open-chat-app` | `lib/screens/mini_program/...bootstrap.dart` | 小程序 SDK 事件名 `gv-sdk-ready` |
+| `docs/audit-2026-09-17-exceptions-and-i18n.md` | 当时实测的循环名称、集群名 | **历史审计快照**，改了等于篡改证据 |
+| `docs/currency-scope-inventory-2026-09-18.md` | 当时的前端包名 | 同上（日期化盘点） |
+| `docs/renovation/*` 中引用的旧名 | 如 `gv_core`、`gv_ui` | 描述历史方案；**已实现的方案会迁入实现/规范文档** |
+| 密钥默认值示例（如 AES dev secret） | 旧字符串字面量 | **安全审计对象**，改名会掩盖证据 |
 
-> **建议**：改键名时**同时读旧键**（`newKey ?? oldKey`）并回写，实现无感迁移；否则接受"用户重新登录 / 偏好重置"。
+## 改后校验（本次实际执行）
 
-### B. 构建期接口（改名 = 构建脚本与 CI 同步改）
-
-| 仓库 | 变量 |
+| 检查 | 结果 |
 | --- | --- |
-| `open-chat-app` | `GV_API_BASE`、`GV_WS_URI`、`GV_JPUSH_APPKEY`、`GV_JPUSH_PRODUCTION`、`GV_TRUST_SELF_SIGNED`、`GV_ANDROID_JPUSH_ENABLED`、`GV_TEST_USERNAME`、`GV_TEST_PASSWORD`、`GV_MEDIA_BASE`、`GV_PROTOCOL_VERSION`、`GV_CORE` |
+| 旧 token 全工作区残留（排除产物目录与上述有意保留项） | **0** |
+| 改名两端一致性（如 QR scheme 发送/解析） | 一致（对端在 App/Web，不在此仓） |
+| 二进制产物误报 | 已识别为 APK 内容，**未改动** |
+| 生成/缓存目录 | **未触碰**（含回滚过的 Flutter iOS 生成文件） |
 
-> **建议**：**保留 `GV_` 前缀**或统一改为 `OPEN_`；若改，需同步 `BUILD.md`、CI 流水线与本地脚本。**注意**：`--dart-define` 是**编译期**常量，改名不影响已发布包，只影响后续构建。
-
-### C. 后端对象存储（改名 = 既有对象失联）
-
-| 位置 | 标识 | 说明 |
-| --- | --- | --- |
-| `open-im-server/.env` | `MEDIA_PRIVATE_BUCKET=gv-im-local-private` | 本地私有桶默认名 |
-| 后端 media 配置 | `gv-media-public` | 公共桶/前缀（见 `open-saas-admin/src/api/media.test.js`） |
-
-> **建议**：**本地桶**可直接改（重建即清空）；**生产桶**改名需**对象迁移或双写兼容**，建议不改或走迁移方案。
-
-### D. 已在本轮**有意**改掉的运行期标识（1 处）
-
-| 仓库 | 位置 | 改动 | 风险 |
-| --- | --- | --- | --- |
-| `open-chat-app` | `lib/screens/profile_screen.dart:249` | 二维码保存到相册的**文件名** `wv_chat_qr_*` → `open-chat_qr_*` | **无**（仅后续新文件用新名，不读旧值） |
-
-## 建议处置顺序
-
-1. **D 已完成**（无风险）。
-2. **B 构建接口**：统一为 `OPEN_*` 或保留 `GV_*`——**需你定**，改则同步 CI。
-3. **C 本地桶**：可随清库重建一并改（**需你确认**是否也改生产桶）。
-4. **A 客户端持久化键**：**最后做**，并实现"读旧写新"兼容，避免用户掉登录。
+> 前端四仓（`open-chat-desktop`/`open-chat-admin`/`open-saas-admin`/`open-saas-mobile`）**本地无 `node_modules`**，无法离线跑 `npm test`/`npm run build`。故本次以"**两端一致性 + 旧 token 清零 + 生成目录未触碰**"作为验证手段；**发布前请在具备依赖的环境重跑各仓 `npm test` 与 `npm run build`**。

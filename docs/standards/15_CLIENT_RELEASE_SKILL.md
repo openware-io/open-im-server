@@ -125,7 +125,7 @@ curl -I "https://example.com/download/open-chat-<版本>.apk"
 -Channel stable       渠道（默认 stable，一般别改）
 -UploadMode ObjectStorage|Cms   上传方式（默认对象存储；接口未部署时用 Cms）
 -AdminBaseUrl …       管理端 API 基址（默认生产）
--AdminUser / -AdminPassword      管理端凭据（密码也可用环境变量 GV_ADMIN_PASSWORD）
+-AdminUser / -AdminPassword      管理端凭据（密码也可用环境变量 OPEN_ADMIN_PASSWORD）
 -SkipBuild            跳过构建（复用已打好的 APK）
 -SkipPublish          只 bump + 构建 + 上传，不建发布记录
 -DryRun               打印将执行的动作，不实际改动

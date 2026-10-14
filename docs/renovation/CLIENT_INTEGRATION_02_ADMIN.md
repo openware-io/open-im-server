@@ -146,7 +146,7 @@ PC 管理 REST 的当前冻结版本位于本方案第 6 节；修改任何表�
 
 | 环境 | 存储实现 | Bucket 与域名 | 配置与启动 |
 | --- | --- | --- | --- |
-| 本地开发 | Docker MinIO（S3 兼容模拟） | 独立 `gv-im-local-public`、`gv-im-local-private` Bucket；本地媒体域名 | 在 `docker-compose.yml` 增加 `media-local` profile，提供 `minio`（API `9000`、仅本机控制台 `9001`）和 `minio-init` 服务；初始化服务创建 Bucket、设置 CORS 与生命周期规则 |
+| 本地开发 | Docker MinIO（S3 兼容模拟） | 独立 `open-im-local-public`、`open-im-local-private` Bucket；本地媒体域名 | 在 `docker-compose.yml` 增加 `media-local` profile，提供 `minio`（API `9000`、仅本机控制台 `9001`）和 `minio-init` 服务；初始化服务创建 Bucket、设置 CORS 与生命周期规则 |
 | 集成/预发布 | 真实 OSS | 与生产隔离的 Bucket、受管测试域名 | 由受管密钥注入；每次发布执行真实 OSS 冒烟测试 |
 | 正式生产 | 真实 OSS | 独立生产 Bucket、HTTPS 媒体域名 | 仅部署平台注入密钥；客户端和仓库均不可获得 Bucket 写密钥 |
 
