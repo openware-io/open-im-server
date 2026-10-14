@@ -68,7 +68,7 @@
 
 | # | 偏差 | 事实 | 影响 |
 | --- | --- | --- | --- |
-| **V1** | `iam_` 被两个域共用 | `platform-tenant-service` 建 6 张（`iam_role`/`iam_permission`/`iam_user_role`/`iam_role_permission`/`iam_approval`/`iam_consumer_application`）；`platform-admin-service` 建 `iam_menu`（菜单/导航模型） | 违反"一前缀一域"；门禁查不出 |
+| **V1** | `iam_` 跨两个服务 | 授权模型 5 张（`iam_role`/`iam_permission`/`iam_user_role`/`iam_role_permission`/`iam_approval`）+ `iam_consumer_application` 在 `platform-tenant-service`；**`iam_menu`** 在 `platform-admin-service` | **有历史原因，非单纯缺陷**——见 §3.1 |
 | **V2** | `open` 未登记 | 3 张表：`open_application`、`open_application_scope`、`open_user_authorization` | 门禁报"未登记前缀" |
 | **V3** | `saa` 未登记 | 1 张：`saa_admin_account` | 同上 |
 | **V4** | `group` 未登记 | 2 张：`group_account`、`group_org` | 同上 |
@@ -78,6 +78,20 @@
 | **V8** | 3 个前缀登记了但 0 表 | `audit`/`paych`/`ws` | 需明确"预留"状态；**不要删**——它们是 `iam_audit_*`/`pay_channel_*` 的留档载体 |
 
 **门禁现状**：`validate-flyway-conventions.ps1` 报 **7 条**（= V2+V3+V4+V5 共 7 张表）。另两个耦合点：**L167** 查前缀已登记；**L63-65** 查已登记前缀必须出现在 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md)（反引号正则）。→ 登记须**两处同改**；移除须**先删文档行再删清单行**。
+
+### 3.1 `iam_` 跨服务的历史原因（实测 git 证据）
+
+`iam` 是**按迭代逐步定义**的域：**初衷是"身份即服务"**，但按业务迭代逐步实现，**数据随消费方就近放置**，因此跨了两个服务。证据：
+
+| 时间 | 提交 | 事实 |
+| --- | --- | --- |
+| 2026-09-21 | `4971e22` 初始开源提交 | `iam_role`/`iam_permission`/`iam_user_role`/`iam_role_permission` **已在 `platform-tenant-service`**（`V1__tnt_iam_baseline.sql`）；`iam_approval` 另立 `V5__tnt_iam_approval.sql`。**授权模型从第一天就在 tenant 侧。** |
+| 2026-09-30 | `998f4f8` `feat(auth): implement tenant menu permissions and headquarters operations` | **`V7__create_iam_menu.sql`（在 `platform-admin-service`）与 tenant 的 `V28__iam_scope_metadata.sql` 同一次提交落地**——"菜单 + 总部运营"是 **IAM 迭代的下一步**，菜单按**使用它的控制台所在模块**放置。 |
+
+**结论**：`iam_menu` 放在 `platform-admin-service` **是"消费方就近"的有意结果**，不是把表放错了域。因此：
+
+- `iam` 是**一个域**，其数据按类别分属两个服务：**授权事实**（角色/权限/绑定/审批）在 `platform-tenant-service`；**控制台呈现**（菜单/导航）在 `platform-admin-service`。
+- 由此**命名原则第 1 条需要细化**：不是"一个域只能由一个服务建表"，而是"**一个域 = 一个前缀**；域内每类数据有唯一权威服务"（见 [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) 命名原则第 1 条）。
 
 ---
 
