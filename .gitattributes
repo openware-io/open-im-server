@@ -1,0 +1,8 @@
+# Shell scripts executed inside Linux containers/CI must keep LF endings.
+# Without this, core.autocrlf=true converts them to CRLF on Windows checkout and the
+# container fails with a shebang error. Applies to every repository that ships one.
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+mvnw text eol=lf
+*.sh text eol=lf
