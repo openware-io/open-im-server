@@ -419,7 +419,33 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
      - `paych` —— **0 张表以它开头**。支付渠道表实际用 **`pay_channel_`**（`pay_channel_provider` / `pay_channel_transaction`）。
      - 两者在 `ENGINEERING_RULES.md` 里都标了"预留"并且**有说明**，所以**门禁的两条分支都满足**（既登记了、也被文档提及），**不构成违规**。
      - **可选清理**（属策略问题，未动）：删掉这两个登记项可减少"登记了却用不到"的噪音；但"预留前缀"本身是否该允许，是你们的口径问题。**注意顺序**：必须**先删文档表里的行、再删 `table-prefixes.txt` 的行**，否则 L63-65 会立刻报 `registered prefix ... is not documented`（这也是本轮读门禁才发现的耦合）。
-   - **我的建议**：**A 用于 `saa`/`group`/`idaas`（三个都是真实域或历史既定名），`open_*` 单独判**——它和 `user_*` 同模块、语义却是"开放平台授权"，登记 `open` 会让一个模块出现两个前缀；若要收敛，`open_*` 是三个 prefix 项里唯一值得改名的（仅 3 张表、7 处 Java 引用）。**但这属于你的域命名决策，我不擅自动。**
+   - **✅ 领域命名建议（本轮按用户给出的领域定义 + 设计文档重新推导，取代上面的 A/B 二选一）**
+
+     **用户澄清的领域语义**：`open` = 开源（本项目属性）、`group` = 集团、`idaas` = 集团认证服务（身份即服务）、`saas` = 业务核心 SaaS 域。
+
+     **业界规范（DDD / 限界上下文）**：表前缀实质是一张**限界上下文 → 命名空间分配表**。由此得两条判据：
+     1. **一个前缀对应一个限界上下文**——不能按"受众/版本/形态"切；
+     2. **前缀必须来自领域词汇表（Ubiquitous Language），不能来自项目属性**。
+
+     **逐条结论**：
+
+     | 现存前缀 | 问题 | 建议 | 依据 |
+     | --- | --- | --- | --- |
+     | `open_`（3 表） | **判据 2 违反**：`open` 是"开源"这一**项目属性**。在本仓库里"一切皆开源"，故**零区分度**（同理不该有 `free_`/`oss_`） | → **`oauth_`** | 实测这 3 张表属**真正的 OAuth 2.0 授权服务器**：`OauthConsentController`、`/oauth/consent`、scope 勾选、签发授权码、`open_user_authorization` = 用户对应用的授权。业界该上下文名为 **Authorization Server / 开放授权**（GitHub OAuth Apps、微信开放平台即此类） |
+     | `group_` + `idaas_`（3 表） | **判据 1 违反**：`group`（集团）与 `idaas`（集团认证服务）是**同一限界上下文的两个名**，一个服务占两套前缀 | 合并为 **`idaas_`** | 3 张表同属 `group.idaas` 包；`group_org` 与 SaaS 的 `tnt_organization` 语义不同（前者是集团 IdP 的组织目录），故**并入 `idaas_` 而非 `tnt_`** |
+     | `saa_`（1 表） | 拼写截断，非领域词 | → **`saas_`** | 设计文档 `SAAS_PLATFORM_09_SERVICE.md:28` 明列限界上下文 **`saas-admin` = SaaS Admin BFF**；该表正是这个上下文的后台账号 |
+     | `iam_`（跨上下文） | **判据 1 违反**：`platform-admin-service` 的 `iam_menu` 与 `platform-tenant-service` 的 `iam_role`/`iam_permission`/`iam_user_role`/`iam_approval` 分属**两个不同上下文**却共用 `iam_` | 见下"一致性缺口" | 设计文档 L30：**Tenant Access 权威维护 IAM 角色/权限/范围**；L28：`saas-admin` 是 BFF，"不拥有上述任一领域权威写表" |
+
+     **一致性缺口（本轮新发现，比前缀本身更值得处理）**：既然 `Tenant Access` 权威拥有 IAM 授权模型，而 `saas-admin` **不拥有任何权威写表**，那么 `platform-admin-service` 里的 `iam_menu` 与 `saa_admin_account` 都**不在它该在的上下文里**——`iam_menu` 语义上属 Tenant Access（或它是后端**本地菜单视图**，那就该命名为 `saas_menu`）。
+     建议：**`iam_` 保留给 Tenant Access 的授权模型**；SaaS 后台自己的表统一用 **`saas_`**（`saa_admin_account`→`saas_admin_account`、`iam_menu`→`saas_menu`）。这样 `iam_` / `saas_` / `tnt_` 三者各归一个上下文，不再重叠。
+
+     **顺带清理（可选）**：`audit_` 已登记却 0 张表用——审计表实际是 `iam_audit_*`。按判据 1，审计是**独立上下文**，用 `audit_*`（`audit_log`/`audit_idempotency`/`audit_archive_manifest`）比挂在 `iam_` 下更合规，且正好用上已登记的前缀。
+
+     **不推荐的做法**：把 `open`/`group` 直接登记进 `table-prefixes.txt`。那样门禁会绿，但等于**把"按项目属性命名"和"同一上下文两个前缀"固化成规范**，之后更难改。
+
+     **改动代价**（实测 Java 引用）：`saa_admin_account` 14、`open_application` 5、`open_user_authorization` 2、`group_account` 1、`group_org` 1、`idaas_client` 1。共 7 张表、约 23 处引用，需同步改**迁移文件 + PO `@TableName` + SQL + 索引名**。**必须在打冻结 tag 之前做**，否则只能新增 V2 做 RENAME。
+
+     **落地顺序建议**：① 你确认上表映射 → ② 改 `ENGINEERING_RULES.md` 前缀表（写明每个前缀对应哪个限界上下文，这是根治点）→ ③ 同步改 `table-prefixes.txt` → ④ 改名（迁移+代码）→ ⑤ `flyway-conventions` 自然归零并转阻断。
 3. `MktEventConsumedPo` 的运行期缺陷已在本轮修掉（`d295e0c`）——这是"补审计列"引发的连带改动，**后续模块若给 PO 未覆盖的列补 `NOT NULL` 审计字段，必须同样检查 Java 侧是否写入**，否则插入会报 MySQL 1364。
 4. `standards/30` 已新增第 4 条门禁说明；批次 4 清理 6 个延期的非 ASCII 脚本前，需先定"脚本输出语言"策略。
 5. `.outputs/quality/powershell-ascii-only-worklist.txt` 是 ASCII 门禁自检留下的旧快照（gitignored，无影响），可随手删。
