@@ -96,6 +96,20 @@ public class ConsAdminAccountRepositoryImpl implements ConsAdminAccountRepositor
         return mapper.deleteById(accountId) > 0;
     }
 
+    /**
+     * 解绑 IM 账号。
+     *
+     * <p>用显式 SET 而不是"把字段置空后 updateById"：MyBatis-Plus 默认 NOT_NULL 更新策略会把 null 字段
+     * 从 UPDATE 中剔除，那样解绑会静默失效（这也是本方法必须独立存在的原因）。
+     */
+    @Override
+    public boolean clearImAccount(Long accountId) {
+        return mapper.update(null, Wrappers.<ConsAdminAccountPo>lambdaUpdate()
+                .eq(ConsAdminAccountPo::getId, accountId)
+                .set(ConsAdminAccountPo::getImAccount, null)
+                .set(ConsAdminAccountPo::getUpdatedAt, LocalDateTime.now())) > 0;
+    }
+
     @Override
     public int updatePassword(Long accountId, String passwordHash) {
         ConsAdminAccountPo po = new ConsAdminAccountPo();

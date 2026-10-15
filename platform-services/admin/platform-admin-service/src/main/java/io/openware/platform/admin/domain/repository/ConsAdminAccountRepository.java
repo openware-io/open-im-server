@@ -55,6 +55,15 @@ public interface ConsAdminAccountRepository {
     /** 按标识删除账号，返回是否确实删除了一行。 */
     boolean deleteById(Long accountId);
 
+    /**
+     * 清空 IM 绑定，返回是否确实更新了一行。
+     *
+     * <p>必须是**独立方法**，不能在 {@link #save} 里靠"字段为空"表达：MyBatis-Plus 默认的更新策略会把
+     * null 字段从 UPDATE 语句中剔除，于是"解绑"会静默失效。解绑与"不改这个字段"是两件不同的事，
+     * 端口必须能把二者区分开。
+     */
+    boolean clearImAccount(Long accountId);
+
     /** 更新密码哈希，返回受影响行数。 */
     int updatePassword(Long accountId, String passwordHash);
 }
