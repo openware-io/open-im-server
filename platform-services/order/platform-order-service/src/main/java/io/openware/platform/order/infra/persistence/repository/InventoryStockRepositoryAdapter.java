@@ -2,7 +2,7 @@ package io.openware.platform.order.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
-import io.openware.platform.order.domain.inventory.port.InventoryStockRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
 import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
 import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
 import java.math.BigDecimal;

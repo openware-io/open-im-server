@@ -263,6 +263,71 @@
 - 领域事件对象不得包含 PO、Mapper、HTTP DTO、完整敏感正文或技术框架类型；事件负载只保留消费者所需的稳定业务事实。
 - 外部事件消费者必须以 `eventId` 幂等；同一会话的顺序事件必须使用约定的顺序分片键。
 
+### 领域模型与只读投影的边界
+
+写路径与读路径的建模要求不同，必须显式区分，避免两种错误：把只读报表硬套成领域模型（过度设计），或让 PO 继续充当读模型（违反隔离）。
+
+判定标准是**该查询结果是否参与状态变更决策**：
+
+| 场景 | 建模要求 | 放置位置 |
+| --- | --- | --- |
+| 写路径：结果会参与状态变更、需要维护不变量 | 领域模型（聚合根 / 实体 / 值对象） | `domain.<ctx>.model` |
+| 只读聚合查询：报表、列表、导出、统计，结果不参与决策 | 只读投影类型 | `domain.<ctx>.readmodel` 或 `application.query` |
+
+- 只读投影**不得复用 PO 类型**，也不得返回裸 `Map`／`Object[]` 而无类型；必须是有名字的投影类型。
+- 只读投影**不得**定义业务行为、不得被写路径当作实体使用；一旦某查询结果开始参与状态变更，必须升级为领域模型。
+- 端口返回只读投影时，方法名应体现“查询”语义（如 `searchOrders`），与写路径的聚合获取（`findById`）区分。
+
+### 端口命名与契约
+
+- Repository 接口一律位于 `domain.repository`；**不再使用 `domain.port`**。既有的 `domain.port` 在改造中迁入 `domain.repository`。
+- 端口以**聚合为单位**定义，方法名表达业务意图，禁止暴露技术查询语法：
+
+| 必须 | 禁止 |
+| --- | --- |
+| `findById`、`save`、`findForUpdate`、按业务语义命名的查询 | MyBatis `Wrapper`、`PO`、`Mapper`、`IPage`、`Example` |
+| 返回业务结果（如 `boolean deductAvailable`） | 返回受影响行数让调用方自行解释 |
+| 加锁读用显式命名并说明锁的持有范围 | 隐含加锁，或在应用层拼接查询条件 |
+
+- **原子性/一致性契约必须写进端口 Javadoc**：说明该操作依赖哪种数据库原子性（如单条带上下界的条件更新），以及若改为“先读后判再写”会产生什么后果。这是防止后续实现静默退化的唯一手段。
+- 需要数据库原子性的操作必须由**单条语句**完成，不得在应用层先查后判。
+
+### 聚合装配与持久化契约
+
+- 领域模型**不得**包含持久化注解（`@TableName`、`@TableId`、`@TableField`、`@Entity`）或序列化注解。
+- 领域模型**保留** `id` 与 `version`：前者是聚合标识，后者是并发语义，二者都是业务可见的。
+- **审计字段（`createdBy`、`createdAt`、`updatedBy`、`updatedAt`）不属于领域模型**：它们是记账信息而非业务事实，由适配器或统一拦截器填充。领域模型携带它们会迫使领域层理解持久化语义。
+- `save` 语义统一为：`id == null` 时新增，否则更新；乐观锁冲突由适配器抛出明确异常，**不得静默覆盖**。
+- 领域对象与 PO 的转换只允许发生在 `infra.persistence`；`PO` 不得穿过 Repository 实现边界。
+
+### 转换层职责切分
+
+| 层 | 职责 | 禁止 |
+| --- | --- | --- |
+| `api.converter` | DTO 与 Command / Result 互转 | 触碰领域对象或 PO |
+| `application.assembler` | Command 到领域对象所需数据的组装 | 直接 new 领域对象后逐字段 setter |
+| `infra.persistence.converter` | 领域对象与 PO 双向转换 | 承载业务规则 |
+
+- 领域对象创建必须经工厂方法、构造器或聚合行为完成，装配层只准备入参。
+- MapStruct 仅用于**无业务语义**的字段映射；涉及默认值、权限、状态流转、不变量与聚合装配时必须显式编码。
+
+### 跨上下文读取
+
+- **同服务内跨聚合**：通过对方**领域端口**读取，不得直接取用对方的 PO 或 Mapper。
+- **跨服务**：只经对方 `*-api` 契约或版本化领域事件；远程 DTO 不得进入领域层。
+- 只读的跨上下文查询可以定义**专用只读端口**，但端口归属**调用方**（`domain.<ctx>.repository`），不得反向依赖被调用方的持久化实现。
+
+### 领域规范门禁
+
+规范必须可执行，否则会在迭代中被绕过。下列门禁固化上述规则，治理完成后均为**阻断**模式：
+
+| 门禁 | 判据 |
+| --- | --- |
+| `service-api-boundaries` | 控制器与应用层不得依赖持久化实现；`*-api` 模块只含契约 |
+| `domain-model-purity` | `domain` 包内不得出现 `@TableName`/`@TableId`/`@TableField`/`@Entity`/`@Data`，不得 import `infra.*` 或 `*.persistence.*` |
+| `port-contract` | `domain.repository` 接口不得暴露 `Wrapper`/`PO`/`Mapper`/`IPage`，返回类型不得是 PO |
+| `po-containment` | `infra.persistence.po.*` 不得被 `api`/`application`/`domain` import |
+
 ## 应用服务规则
 
 - 每个公开方法对应一个明确用例，例如 `createGroup`、`inviteMember`、`removeMember`，禁止把大量无关流程堆入单个 Application Service。

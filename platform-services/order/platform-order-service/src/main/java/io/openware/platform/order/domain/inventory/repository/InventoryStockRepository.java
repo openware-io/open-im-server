@@ -1,4 +1,4 @@
-package io.openware.platform.order.domain.inventory.port;
+package io.openware.platform.order.domain.inventory.repository;
 
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import java.math.BigDecimal;
