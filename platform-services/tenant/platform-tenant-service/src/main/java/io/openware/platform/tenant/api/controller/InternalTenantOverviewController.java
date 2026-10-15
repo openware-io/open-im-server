@@ -5,7 +5,7 @@ import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.TenantOverviewApplicationService;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
+import io.openware.platform.tenant.domain.store.model.Store;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.Arrays;
@@ -37,9 +37,9 @@ public class InternalTenantOverviewController {
       throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
     }
     List<Long> ids = parseStoreIds(storeIds);
-    List<StorePo> stores = overviewService.stores(context.tenantId(), ids, businessType);
-    List<StoreOverview> result = stores.stream().map(store -> new StoreOverview(store.getId(), store.getCode(),
-        store.getName(), store.getBusinessType(), store.getStatus())).toList();
+    List<Store> stores = overviewService.stores(context.tenantId(), ids, businessType);
+    List<StoreOverview> result = stores.stream().map(store -> new StoreOverview(store.id(), store.code(),
+        store.name(), store.businessType(), store.status())).toList();
     return new TenantOverviewResponse(context.tenantId(), result, Instant.now());
   }
 

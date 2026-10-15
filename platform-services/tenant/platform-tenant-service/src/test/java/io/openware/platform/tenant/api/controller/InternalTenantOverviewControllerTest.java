@@ -11,7 +11,7 @@ import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.TenantOverviewApplicationService;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
+import io.openware.platform.tenant.domain.store.model.Store;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -54,12 +54,8 @@ class InternalTenantOverviewControllerTest {
   void returnsTenantScopedStoresAndBusinessType() {
     authenticated();
     TenantContextHolder.set(tenantContext());
-    StorePo store = new StorePo();
-    store.setId(11L);
-    store.setCode("S11");
-    store.setName("Main");
-    store.setBusinessType("RETAIL");
-    store.setStatus("ACTIVE");
+    Store store = new Store(11L, 100L, 1L, "S11", "Main", "RETAIL", null, null, null, null, null, null,
+        null, Store.STATUS_ACTIVE);
     when(service.stores(100L, List.of(11L), "retail")).thenReturn(List.of(store));
 
     var response = controller.overview("11", "retail");

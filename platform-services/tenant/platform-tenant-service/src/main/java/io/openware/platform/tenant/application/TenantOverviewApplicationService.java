@@ -1,33 +1,30 @@
 package io.openware.platform.tenant.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
-import java.util.List;
 import io.openware.common.exception.ApiException;
+import io.openware.platform.tenant.domain.store.model.Store;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
+import java.util.List;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 /** Tenant 域总部门店总览用例；查询仅访问 Tenant 域门店事实。 */
 @Service
 public class TenantOverviewApplicationService {
-  private final StoreMapper storeMapper;
+  private final StoreRepository storeRepository;
 
-  public TenantOverviewApplicationService(StoreMapper storeMapper) {
-    this.storeMapper = storeMapper;
+  public TenantOverviewApplicationService(StoreRepository storeRepository) {
+    this.storeRepository = storeRepository;
   }
 
-  public List<StorePo> stores(long tenantId, List<Long> storeIds, String businessType) {
-    QueryWrapper<StorePo> query = new QueryWrapper<>();
-    query.eq("tenant_id", tenantId);
-    if (storeIds != null && !storeIds.isEmpty()) query.in("id", storeIds);
+  public List<Store> stores(long tenantId, List<Long> storeIds, String businessType) {
+    String normalized = null;
     if (businessType != null && !businessType.isBlank()) {
-      String normalized = businessType.trim().toUpperCase(java.util.Locale.ROOT);
-      if (storeMapper.selectActiveBusinessType(normalized) == null) {
+      normalized = businessType.trim().toUpperCase(Locale.ROOT);
+      // 业态取值的权威来源是字典表：字典里没有（或已停用）即拒绝，而不是静默返回空列表。
+      if (storeRepository.findActiveBusinessTypeCode(normalized) == null) {
         throw new ApiException(400, "BUSINESS_TYPE_INVALID", "业态筛选无效");
       }
-      query.eq("business_type", normalized);
     }
-    query.orderByAsc("id");
-    return storeMapper.selectList(query);
+    return storeRepository.listByTenant(tenantId, storeIds, normalized);
   }
 }
