@@ -215,6 +215,9 @@ public class WechatChannel implements PaymentChannelProvider {
                     parseLong(resp.getOrDefault("total_fee", "0")),
                     defaultCurrency(resp.getOrDefault("fee_type", "CNY")));
         } catch (Exception e) {
+            // 解析响应失败会被归结为 FAILED：真实付款可能已成功，因此必须留痕以便对账时区分
+            // "渠道明确失败"与"本侧解析失败"。
+            log.warn("failed to parse wechat trade response, reporting FAILED: orderId={}", request.orderId(), e);
             return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, "CNY");
         }
     }
@@ -353,6 +356,8 @@ public class WechatChannel implements PaymentChannelProvider {
                     toLong(amount.get("total")),
                     defaultCurrency(str(amount, "currency")));
         } catch (Exception e) {
+            // 同上：解析失败即报 FAILED 会掩盖可能已成功的付款，必须留痕。
+            log.warn("failed to parse wechat v3 amount response, reporting FAILED: orderId={}", request.orderId(), e);
             return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, "CNY");
         }
     }
@@ -483,6 +488,9 @@ public class WechatChannel implements PaymentChannelProvider {
         try {
             return Long.parseLong(String.valueOf(value));
         } catch (NumberFormatException e) {
+            // 本方法解析 amount.total 等金额字段：解析失败按 0 会让下游看到"零元"，
+            // 属资金相关，必须留痕并保留原值以便对账。
+            log.warn("wechat value is not numeric, treating as 0: raw={}", value, e);
             return 0L;
         }
     }
@@ -507,6 +515,8 @@ public class WechatChannel implements PaymentChannelProvider {
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException e) {
+            // 用于解析 total_fee（以分为单位的金额）：失败按 0 会静默变成"零元"，必须留痕。
+            log.warn("wechat numeric field is not numeric, treating as 0: raw={}", value, e);
             return 0L;
         }
     }

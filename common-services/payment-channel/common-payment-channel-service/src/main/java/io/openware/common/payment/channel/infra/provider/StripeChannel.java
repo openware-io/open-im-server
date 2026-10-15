@@ -148,6 +148,9 @@ public class StripeChannel implements PaymentChannelProvider {
                     toLong(json.get("amount")),
                     str(json, "currency"));
         } catch (Exception e) {
+            // 解析响应失败会被归结为 FAILED：真实付款可能已成功，因此必须留痕以便对账时区分
+            // "渠道明确失败"与"本侧解析失败"。
+            log.warn("failed to parse stripe order response, reporting FAILED: orderId={}", request.orderId(), e);
             return new QueryOrderResult("stripe", "", request.orderId(), "FAILED", 0L, "usd");
         }
     }
@@ -262,6 +265,9 @@ public class StripeChannel implements PaymentChannelProvider {
         try {
             return Long.parseLong(String.valueOf(value));
         } catch (NumberFormatException e) {
+            // 本方法解析金额与 tenant_id：解析失败按 0 会让下游看到"零元"或丢失租户上下文，
+            // 属资金相关，必须留痕并保留原值以便对账。
+            log.warn("stripe value is not numeric, treating as 0: raw={}", value, e);
             return 0L;
         }
     }
