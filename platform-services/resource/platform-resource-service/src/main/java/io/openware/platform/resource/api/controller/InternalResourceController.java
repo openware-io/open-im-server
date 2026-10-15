@@ -8,7 +8,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.application.OccupationApplicationService;
 import io.openware.platform.resource.application.ResourceStateApplicationService;
 import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.mapper.RoomTypeMapper;
+import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.infra.persistence.po.OccupationPo;
 import io.openware.platform.resource.infra.persistence.po.ResourcePo;
 import org.springframework.web.bind.annotation.*;
@@ -26,16 +26,16 @@ import java.util.List;
 @RequestMapping("/internal/resources")
 public class InternalResourceController {
     private final ResourceMapper resourceMapper;
-    private final RoomTypeMapper roomTypeMapper;
+    private final RoomTypeApplicationService roomTypeService;
     private final OccupationApplicationService occupationService;
     private final ResourceStateApplicationService resourceStateService;
 
     public InternalResourceController(ResourceMapper resourceMapper,
-                                      RoomTypeMapper roomTypeMapper,
+                                      RoomTypeApplicationService roomTypeService,
                                       OccupationApplicationService occupationService,
                                       ResourceStateApplicationService resourceStateService) {
         this.resourceMapper = resourceMapper;
-        this.roomTypeMapper = roomTypeMapper;
+        this.roomTypeService = roomTypeService;
         this.occupationService = occupationService;
         this.resourceStateService = resourceStateService;
     }
@@ -67,7 +67,8 @@ public class InternalResourceController {
             throw new BusinessException("RESOURCE_NOT_FOUND", "资源不存在");
         }
         if (resource.getRoomTypeId() != null) {
-            ResourceController.applyRoomType(resource, roomTypeMapper.selectById(resource.getRoomTypeId()));
+            // 房型快照经应用服务读取（返回领域模型），不再直接查房型 mapper
+            ResourceController.applyRoomType(resource, roomTypeService.findInStore(resource.getRoomTypeId()));
         }
         return resource;
     }

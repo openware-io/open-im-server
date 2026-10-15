@@ -1,9 +1,10 @@
 package io.openware.platform.resource.api.controller;
 
 import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.platform.resource.api.converter.RoomTypeConverter;
+import io.openware.platform.resource.api.dto.RoomTypeView;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.application.RoomTypeApplicationService.RoomTypeCommand;
-import io.openware.platform.resource.infra.persistence.po.RoomTypePo;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,23 +35,23 @@ public class ResourceTypeController {
 
     /** 房型列表（ADM，可选 storeId/status；租户与门店边界由上下文与租户拦截器保证）。 */
     @GetMapping
-    public List<RoomTypePo> list(@RequestParam(required = false) Long storeId,
-                                 @RequestParam(required = false) String status) {
-        return roomTypeService.list(storeId, status);
+    public List<RoomTypeView> list(@RequestParam(required = false) Long storeId,
+                                   @RequestParam(required = false) String status) {
+        return roomTypeService.list(storeId, status).stream().map(RoomTypeConverter::toView).toList();
     }
 
     /** 新建房型（ADM）：编码/名称门店内唯一，重复返回 409。 */
     @PostMapping
-    public RoomTypePo create(@RequestBody RoomTypeRequest request) {
+    public RoomTypeView create(@RequestBody RoomTypeRequest request) {
         PermissionGuard.require("resource.manage");
-        return roomTypeService.create(toCommand(request));
+        return RoomTypeConverter.toView(roomTypeService.create(toCommand(request)));
     }
 
     /** 编辑房型（ADM）：编码/名称/容量/图片/房型单价/服务人员单价/排序/状态。 */
     @PutMapping("/{id}")
-    public RoomTypePo update(@PathVariable Long id, @RequestBody RoomTypeRequest request) {
+    public RoomTypeView update(@PathVariable Long id, @RequestBody RoomTypeRequest request) {
         PermissionGuard.require("resource.manage");
-        return roomTypeService.update(id, toCommand(request));
+        return RoomTypeConverter.toView(roomTypeService.update(id, toCommand(request)));
     }
 
     /** 删除房型（ADM）：仍被包厢引用时返回 409，需先把包厢改到其他房型。 */

@@ -5,10 +5,10 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.sql.SqlScriptUtils;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import io.openware.platform.resource.application.ResourceMedia;
+import io.openware.platform.resource.domain.roomtype.model.RoomType;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
 import io.openware.platform.resource.infra.persistence.po.ResourcePo;
-import io.openware.platform.resource.infra.persistence.po.RoomTypePo;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.PermissionGuard;
@@ -300,22 +300,22 @@ public class ResourceController {
         if (roomTypeIds.isEmpty()) {
             return resources;
         }
-        Map<Long, RoomTypePo> byId = roomTypeService.listByIds(roomTypeIds).stream()
-                .collect(Collectors.toMap(RoomTypePo::getId, Function.identity(), (first, second) -> first));
+        Map<Long, RoomType> byId = roomTypeService.listByIds(roomTypeIds).stream()
+                .collect(Collectors.toMap(RoomType::id, Function.identity(), (first, second) -> first));
         for (ResourcePo resource : resources) {
             applyRoomType(resource, byId.get(resource.getRoomTypeId()));
         }
         return resources;
     }
 
-    static void applyRoomType(ResourcePo resource, RoomTypePo roomType) {
+    static void applyRoomType(ResourcePo resource, RoomType roomType) {
         if (resource == null || roomType == null) {
             return;
         }
-        resource.setRoomTypeCode(roomType.getCode());
-        resource.setRoomTypeName(roomType.getName());
-        resource.setRoomTypeUnitPrice(roomType.getUnitPrice());
-        resource.setRoomTypeServerUnitPrice(roomType.getServerUnitPrice());
+        resource.setRoomTypeCode(roomType.code());
+        resource.setRoomTypeName(roomType.name());
+        resource.setRoomTypeUnitPrice(roomType.unitPrice());
+        resource.setRoomTypeServerUnitPrice(roomType.serverUnitPrice());
     }
 
     private TenantContext requireContext() {
