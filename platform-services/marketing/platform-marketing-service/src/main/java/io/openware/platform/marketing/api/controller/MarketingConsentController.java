@@ -1,7 +1,8 @@
 package io.openware.platform.marketing.api.controller;
 
+import io.openware.platform.marketing.api.converter.MarketingConverter;
+import io.openware.platform.marketing.api.dto.ConsentView;
 import io.openware.platform.marketing.application.ConsentApplicationService;
-import io.openware.platform.marketing.infra.persistence.po.MktConsentPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,15 +24,15 @@ public class MarketingConsentController {
 
     /** 查询账号营销同意记录。 */
     @GetMapping
-    public List<MktConsentPo> list(@RequestParam Long accountId) {
-        return consentService.list(accountId);
+    public List<ConsentView> list(@RequestParam Long accountId) {
+        return consentService.list(accountId).stream().map(MarketingConverter::toView).toList();
     }
 
     /** 设置/撤回营销同意（upsert）。 */
     @PutMapping
-    public MktConsentPo upsert(@RequestBody UpsertConsentRequest req) {
-        return consentService.upsert(req.accountId(), req.consentType(), req.channel(),
-                req.granted(), req.policyVersion(), req.source());
+    public ConsentView upsert(@RequestBody UpsertConsentRequest req) {
+        return MarketingConverter.toView(consentService.upsert(req.accountId(), req.consentType(), req.channel(),
+                req.granted(), req.policyVersion(), req.source()));
     }
 
     public record UpsertConsentRequest(Long accountId, String consentType, String channel,

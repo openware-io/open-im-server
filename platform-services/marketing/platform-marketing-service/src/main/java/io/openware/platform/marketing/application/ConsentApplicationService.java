@@ -1,10 +1,9 @@
 package io.openware.platform.marketing.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.marketing.infra.persistence.mapper.ConsentMapper;
-import io.openware.platform.marketing.infra.persistence.po.MktConsentPo;
+import io.openware.platform.marketing.domain.consent.model.MktConsent;
+import io.openware.platform.marketing.domain.consent.repository.MktConsentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,61 +12,51 @@ import java.util.List;
 
 /**
  * 营销同意应用服务（脚手架）。营销授权与履约通知按 consent_type 分开。
+ *
+ * <p>持久化经领域端口；类型／渠道／政策版本／来源的回退口径与授予-撤回的状态迁移（含版本自增、
+ * 撤回时间维护）都由领域模型负责，应用层只做编排与事务边界。
  */
 @Service
 public class ConsentApplicationService {
-    private final ConsentMapper consentMapper;
+    private final MktConsentRepository consentRepository;
 
-    public ConsentApplicationService(ConsentMapper consentMapper) { this.consentMapper = consentMapper; }
+    public ConsentApplicationService(MktConsentRepository consentRepository) {
+        this.consentRepository = consentRepository;
+    }
 
-    public List<MktConsentPo> list(Long accountId) {
+    public List<MktConsent> list(Long accountId) {
         if (accountId == null) throw new ApiException(400, "ACCOUNT_REQUIRED", "缺少 accountId");
-        LambdaQueryWrapper<MktConsentPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(MktConsentPo::getAccountId, accountId).orderByDesc(MktConsentPo::getId);
-        return consentMapper.selectList(qw);
+        return consentRepository.listByAccount(accountId);
     }
 
     @Transactional
-    public MktConsentPo upsert(Long accountId, String consentType, String channel, Boolean granted,
-                               String policyVersion, String source) {
+    public MktConsent upsert(Long accountId, String consentType, String channel, Boolean granted,
+                             String policyVersion, String source) {
         if (accountId == null) throw new ApiException(400, "ACCOUNT_REQUIRED", "缺少 accountId");
-        String type = consentType == null || consentType.isBlank() ? "MARKETING" : consentType;
-        String chan = channel == null || channel.isBlank() ? "APP" : channel;
-        boolean grant = granted == null || granted;
         // 审计占位：consent 变更(grant/withdraw)需写入审计轨迹（或 Outbox 事件），真实实现见 SAAS_PLATFORM_06_TECHNICAL.md §8
-        MktConsentPo existing = find(accountId, type, chan);
+        boolean grant = granted == null || granted;
+        LocalDateTime now = LocalDateTime.now();
+        MktConsent existing = consentRepository
+                .findUnique(accountId, resolveType(consentType), resolveChannel(channel))
+                .orElse(null);
         if (existing != null) {
-            existing.setGranted(grant ? 1 : 0);
-            existing.setPolicyVersion(policyVersion);
-            existing.setWithdrawnAt(grant ? null : LocalDateTime.now());
-            existing.setVersion(existing.getVersion() == null ? 1 : existing.getVersion() + 1);
-            existing.setUpdatedAt(LocalDateTime.now());
-            consentMapper.updateById(existing);
-            return existing;
+            return consentRepository.save(existing.changeGrant(grant, policyVersion, now));
         }
-        MktConsentPo po = new MktConsentPo();
-        po.setAccountId(accountId);
-        po.setTenantId(TenantContextHolder.tenantIdOrNull());
-        po.setConsentType(type);
-        po.setChannel(chan);
-        po.setPolicyVersion(policyVersion == null ? "1.0" : policyVersion);
-        po.setGranted(grant ? 1 : 0);
-        po.setSource(source == null ? "BUSINESS" : source);
-        po.setOccurredAt(LocalDateTime.now());
-        po.setWithdrawnAt(grant ? null : LocalDateTime.now());
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        consentMapper.insert(po);
-        return po;
+        return consentRepository.save(MktConsent.record(accountId, TenantContextHolder.tenantIdOrNull(),
+                consentType, channel, policyVersion, source, grant, now));
     }
 
-    private MktConsentPo find(Long accountId, String consentType, String channel) {
-        LambdaQueryWrapper<MktConsentPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(MktConsentPo::getAccountId, accountId)
-          .eq(MktConsentPo::getConsentType, consentType)
-          .eq(MktConsentPo::getChannel, channel)
-          .last("LIMIT 1");
-        return consentMapper.selectOne(qw);
+    /**
+     * upsert 的查找键必须与实际写入的口径一致。
+     *
+     * <p>写入走领域工厂做回退（空值→默认），因此查找也必须先回退，否则空值入参会查不到已存在的记录，
+     * 从而插入第二条（同一账号+类型+渠道）记录。
+     */
+    private static String resolveType(String consentType) {
+        return consentType == null || consentType.isBlank() ? MktConsent.TYPE_MARKETING : consentType;
+    }
+
+    private static String resolveChannel(String channel) {
+        return channel == null || channel.isBlank() ? MktConsent.CHANNEL_APP : channel;
     }
 }
