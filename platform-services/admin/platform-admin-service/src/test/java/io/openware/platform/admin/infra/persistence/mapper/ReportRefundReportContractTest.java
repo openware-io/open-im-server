@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
 import io.openware.platform.admin.api.controller.ReportController;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
@@ -21,7 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * 退款报表口径回归：{@code ReportMapper#selectRefunds} 必须按 {@code pay_refund} 的**真实终态**过滤。
+ * 退款报表口径回归：{@code reportRepository#selectRefunds} 必须按 {@code pay_refund} 的**真实终态**过滤。
  *
  * <p>背景（本条是修真 bug）：历史 SQL 写的是 {@code r.status = 'SUCCEEDED'}，而 {@code pay_refund}
  * 的状态机只有 {@code PENDING / APPROVED / REJECTED / REFUNDED}
@@ -43,8 +45,8 @@ class ReportRefundReportContractTest {
     private static final long TENANT_ID = 1001L;
     private static final long STORE_ID = 2501L;
 
-    private final ReportMapper reportMapper = mock(ReportMapper.class);
-    private final ReportController controller = new ReportController(reportMapper);
+    private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
+    private final ReportController controller = new ReportController(reportRepository);
 
     @AfterEach
     void clearTenant() {
@@ -73,8 +75,8 @@ class ReportRefundReportContractTest {
     @Test
     void operationsReportShowsRefundRowWithOrderCurrencySnapshot() {
         setTenant();
-        when(reportMapper.selectOperations(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectOperations(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(refund("2026-01-15", "CNY", 2, "1500")));
 
         ReportController.OperationsReport report = controller.operations(
@@ -91,8 +93,8 @@ class ReportRefundReportContractTest {
     @Test
     void paymentsReportShowsRefundRowWithOrderCurrencySnapshot() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(refund("2026-01-15", "USD", 1, "700")));
 
         ReportController.PaymentsReport report = controller.payments(

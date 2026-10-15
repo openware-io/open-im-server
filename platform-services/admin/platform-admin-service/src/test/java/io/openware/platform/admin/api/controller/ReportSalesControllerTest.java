@@ -20,7 +20,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.ReportTimeBuckets;
 import io.openware.infrastructure.time.TimeRangeParams;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -48,8 +48,8 @@ class ReportSalesControllerTest {
     private static final long TENANT_ID = 1001L;
     private static final long STORE_ID = 2501L;
 
-    private final ReportMapper reportMapper = mock(ReportMapper.class);
-    private final ReportController controller = new ReportController(reportMapper);
+    private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
+    private final ReportController controller = new ReportController(reportRepository);
 
     @AfterEach
     void clearTenant() {
@@ -132,7 +132,7 @@ class ReportSalesControllerTest {
         setTenant();
         stubBuckets(List.of(sales("2026-09-19", "USD", 1, "25000", "0", "0", 0, "0")), List.of(), List.of());
         stubDetails(1, List.of(detail(77L, "2026-09-19T18:30:00", "2026-09-20", "USD", "WAITING_SETTLEMENT")));
-        when(reportMapper.selectOrderPaymentComposition(any(), eq(List.of(77L)))).thenReturn(List.of(
+        when(reportRepository.selectOrderPaymentComposition(any(), eq(List.of(77L)))).thenReturn(List.of(
                 composition(77L, "CASH", "20000"),
                 composition(77L, "POINT", "3000"),
                 composition(77L, "WALLET", "2000")));
@@ -163,12 +163,12 @@ class ReportSalesControllerTest {
         stubDetails(500, List.of());
 
         controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null, 3, 500);
-        verify(reportMapper).selectSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull(),
+        verify(reportRepository).selectSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull(),
                 eq(100), eq(200L), eq(ReportTimeBuckets.BUSINESS_DAY_SHIFT_SECONDS));
-        verify(reportMapper).countSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull());
+        verify(reportRepository).countSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull());
 
         controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null, 0, 0);
-        verify(reportMapper).selectSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull(),
+        verify(reportRepository).selectSalesDetails(eq(TENANT_ID), eq(STORE_ID), any(), any(), isNull(),
                 eq(20), eq(0L), eq(ReportTimeBuckets.BUSINESS_DAY_SHIFT_SECONDS));
     }
 
@@ -185,8 +185,8 @@ class ReportSalesControllerTest {
 
         assertTrue(report.details().records().isEmpty());
         assertEquals(0, report.details().total());
-        verify(reportMapper, never()).selectOrderPaymentComposition(any(), any());
-        verify(reportMapper, never()).selectSalesDetails(any(), any(), any(), any(), any(), anyInt(), anyLong(),
+        verify(reportRepository, never()).selectOrderPaymentComposition(any(), any());
+        verify(reportRepository, never()).selectSalesDetails(any(), any(), any(), any(), any(), anyInt(), anyLong(),
                 anyInt());
     }
 
@@ -196,8 +196,8 @@ class ReportSalesControllerTest {
     void explicitStatusFiltersDetails() {
         setTenant();
         stubBuckets(List.of(), List.of(), List.of());
-        when(reportMapper.countSalesDetails(any(), any(), any(), any(), eq("VOIDED"))).thenReturn(1L);
-        when(reportMapper.selectSalesDetails(any(), any(), any(), any(), eq("VOIDED"), anyInt(), anyLong(), anyInt()))
+        when(reportRepository.countSalesDetails(any(), any(), any(), any(), eq("VOIDED"))).thenReturn(1L);
+        when(reportRepository.selectSalesDetails(any(), any(), any(), any(), eq("VOIDED"), anyInt(), anyLong(), anyInt()))
                 .thenReturn(List.of(detail(9L, "2026-09-19T10:00:00", "2026-09-19", "USD", "VOIDED")));
 
         ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null,
@@ -308,7 +308,7 @@ class ReportSalesControllerTest {
 
         LocalDateTime expectedFrom = ReportTimeBuckets.windowFrom(java.time.LocalDate.of(2026, 9, 1));
         LocalDateTime expectedTo = ReportTimeBuckets.windowToExclusive(java.time.LocalDate.of(2026, 9, 30));
-        verify(reportMapper).countSalesDetails(eq(TENANT_ID), eq(STORE_ID), eq(expectedFrom), eq(expectedTo),
+        verify(reportRepository).countSalesDetails(eq(TENANT_ID), eq(STORE_ID), eq(expectedFrom), eq(expectedTo),
                 isNull());
     }
 
@@ -343,15 +343,15 @@ class ReportSalesControllerTest {
 
     private void stubBuckets(List<Map<String, Object>> orders, List<Map<String, Object>> refunds,
                              List<Map<String, Object>> payments) {
-        when(reportMapper.selectSalesOrders(any(), any(), any(), any(), anyInt())).thenReturn(orders);
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(refunds);
-        when(reportMapper.selectSalesPayments(any(), any(), any(), any(), anyInt())).thenReturn(payments);
+        when(reportRepository.selectSalesOrders(any(), any(), any(), any(), anyInt())).thenReturn(orders);
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(refunds);
+        when(reportRepository.selectSalesPayments(any(), any(), any(), any(), anyInt())).thenReturn(payments);
     }
 
     private void stubDetails(long total, List<Map<String, Object>> records) {
-        when(reportMapper.countSalesDetails(any(), any(), any(), any(), any())).thenReturn(total);
+        when(reportRepository.countSalesDetails(any(), any(), any(), any(), any())).thenReturn(total);
         if (total > 0) {
-            when(reportMapper.selectSalesDetails(any(), any(), any(), any(), any(), anyInt(), anyLong(), anyInt()))
+            when(reportRepository.selectSalesDetails(any(), any(), any(), any(), any(), anyInt(), anyLong(), anyInt()))
                     .thenReturn(records);
         }
     }

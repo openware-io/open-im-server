@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -26,15 +26,15 @@ import org.junit.jupiter.api.Test;
  *
  * <p>只验证应用层聚合：成本 = 净售出数量 × 移动加权平均成本、毛利 / 毛利率、收入为 0 的边界、
  * 以及**跨币种不静默求和**（同一 (门店, 统计桶, 币种) 才合并，混币种时信封 currencyCode=null、
- * mixedCurrency=true）。SQL 本身由 ReportMapper 承载，此处按 mapper 契约造数据。
+ * mixedCurrency=true）。SQL 本身由 reportRepository 承载，此处按 mapper 契约造数据。
  */
 class ReportInventoryGrossProfitControllerTest {
 
     private static final long TENANT_ID = 1001L;
     private static final long STORE_ID = 2501L;
 
-    private final ReportMapper reportMapper = mock(ReportMapper.class);
-    private final ReportController controller = new ReportController(reportMapper);
+    private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
+    private final ReportController controller = new ReportController(reportRepository);
 
     @AfterEach
     void clearTenant() {
@@ -45,9 +45,9 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void singleCurrencyComputesCostGrossProfitAndMargin() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(revenue("2026-01-15", "CNY", "10000")));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "400", "2")));
 
         ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
@@ -71,10 +71,10 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void mixedCurrencyKeepsRowsSeparateAndFlagsEnvelope() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 revenue("2026-01-15", "CNY", "10000"),
                 revenue("2026-01-15", "USD", "5000")));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 cost("2026-01-15", "CNY", "400", "2"),
                 cost("2026-01-15", "USD", "1000", "1")));
 
@@ -99,8 +99,8 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void zeroRevenueReturnsNullMarginRate() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "400", "2")));
 
         ReportController.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
@@ -116,9 +116,9 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void missingAverageCostIsReportedAsUncostedQuantity() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(revenue("2026-01-15", "USD", "900")));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "USD", "0", "3")));
 
         ReportController.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
@@ -133,9 +133,9 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void revertedQuantityNetsAgainstSoldQuantity() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(revenue("2026-01-15", "CNY", "3000")));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "500", "4"),
                         cost("2026-01-15", "CNY", "500", "-1")));
 
@@ -151,9 +151,9 @@ class ReportInventoryGrossProfitControllerTest {
     void nullCurrencySnapshotFallsBackToUsd() {
         setTenant();
         Map<String, Object> blankCurrency = revenue("2026-01-15", null, "100");
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(blankCurrency));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of());
 
         ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
@@ -167,12 +167,12 @@ class ReportInventoryGrossProfitControllerTest {
     @Test
     void weeklyGranularityMergesDaysOfSameIsoWeek() {
         setTenant();
-        when(reportMapper.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectItemRevenue(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 revenue("2026-09-14", "CNY", "100"),
                 revenue("2026-09-15", "CNY", "200"),
                 revenue("2026-09-20", "CNY", "300"),
                 revenue("2026-09-21", "CNY", "400")));
-        when(reportMapper.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of());
 
         ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(

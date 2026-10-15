@@ -14,7 +14,7 @@ import static org.mockito.Mockito.when;
 
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -34,13 +34,13 @@ import org.mockito.ArgumentCaptor;
  */
 class ReportSalesItemsControllerTest {
 
-    private ReportMapper reportMapper;
+    private ReportQueryRepository reportRepository;
     private ReportController controller;
 
     @BeforeEach
     void setUp() {
-        reportMapper = mock(ReportMapper.class);
-        controller = new ReportController(reportMapper);
+        reportRepository = mock(ReportQueryRepository.class);
+        controller = new ReportController(reportRepository);
         TenantContextHolder.set(new TenantContext(100L, null, null, 0L, 0));
     }
 
@@ -67,7 +67,7 @@ class ReportSalesItemsControllerTest {
     @Test
     @DisplayName("排行：按销售额降序返回明细名/品类/销量/金额/折扣/订单数/门店数")
     void mapsRankingRows() {
-        when(reportMapper.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(
                         row("PRODUCT", "青岛啤酒", "CNY", "12", "360.00", "40.00", 2, 5),
                         row("ROOM_FEE", "包厢费（含 1 名服务人员）", "CNY", "3", "240.00", "0.00", 1, 3)));
@@ -94,7 +94,7 @@ class ReportSalesItemsControllerTest {
     @Test
     @DisplayName("混币种：占比按各自币种的合计算，不跨币种相加；信封 mixedCurrency=true")
     void shareIsPerCurrency() {
-        when(reportMapper.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(
                         row("PRODUCT", "洋酒", "USD", "1", "100.00", "0.00", 1, 1),
                         row("SERVICE", "点歌服务", "USD", "3", "300.00", "0.00", 1, 2),
@@ -112,29 +112,29 @@ class ReportSalesItemsControllerTest {
     @Test
     @DisplayName("品类参数：小写归一为大写；未登记的值按「全部」处理（不返回空表）")
     void normalisesItemType() {
-        when(reportMapper.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         controller.salesItems(null, null, null, "product", null);
-        verify(reportMapper).selectSalesItems(anyLong(), any(), any(), any(), eq("PRODUCT"), anyInt());
+        verify(reportRepository).selectSalesItems(anyLong(), any(), any(), any(), eq("PRODUCT"), anyInt());
 
         controller.salesItems(null, null, null, "SERVICE", null);
-        verify(reportMapper).selectSalesItems(anyLong(), any(), any(), any(), eq("SERVICE"), anyInt());
+        verify(reportRepository).selectSalesItems(anyLong(), any(), any(), any(), eq("SERVICE"), anyInt());
 
         controller.salesItems(null, null, null, "NOT_A_CATEGORY", null);
-        verify(reportMapper).selectSalesItems(anyLong(), any(), any(), any(), isNull(), anyInt());
+        verify(reportRepository).selectSalesItems(anyLong(), any(), any(), any(), isNull(), anyInt());
     }
 
     @Test
     @DisplayName("topN：默认 20，上限 200，下限 1")
     void clampsTopN() {
-        when(reportMapper.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         controller.salesItems(null, null, null, null, null);
         controller.salesItems(null, null, null, null, 500);
         controller.salesItems(null, null, null, null, 0);
 
         ArgumentCaptor<Integer> limit = ArgumentCaptor.forClass(Integer.class);
-        verify(reportMapper, org.mockito.Mockito.times(3))
+        verify(reportRepository, org.mockito.Mockito.times(3))
                 .selectSalesItems(anyLong(), any(), any(), any(), any(), limit.capture());
         assertEquals(List.of(20, 200, 1), limit.getAllValues());
     }
@@ -142,7 +142,7 @@ class ReportSalesItemsControllerTest {
     @Test
     @DisplayName("空结果：rows/totals 都为空数组，不报错")
     void emptyResult() {
-        when(reportMapper.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
+        when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(new ArrayList<>());
 
         ReportController.SalesItemsReport report = controller.salesItems(null, "2026-09-01", "2026-09-02", null, null);

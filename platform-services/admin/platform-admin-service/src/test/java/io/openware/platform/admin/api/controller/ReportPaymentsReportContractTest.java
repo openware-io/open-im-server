@@ -14,7 +14,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -51,8 +51,8 @@ class ReportPaymentsReportContractTest {
     private static final long TENANT_ID = 1001L;
     private static final long STORE_ID = 2501L;
 
-    private final ReportMapper reportMapper = mock(ReportMapper.class);
-    private final ReportController controller = new ReportController(reportMapper);
+    private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
+    private final ReportController controller = new ReportController(reportRepository);
 
     @AfterEach
     void clearTenant() {
@@ -64,10 +64,10 @@ class ReportPaymentsReportContractTest {
     @DisplayName("同 (门店, 桶) 多币种：分行返回而不是 NPE 500")
     void sameStoreSameBucketDifferentCurrenciesDoNotThrow() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection("2026-09-19", "USD", 3, "30000"),
                 collection("2026-09-19", "CNY", 1, "8800")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", null),
@@ -85,9 +85,9 @@ class ReportPaymentsReportContractTest {
     @DisplayName("收款行带上自身的币种快照（不再恒为 null）")
     void collectionRowsKeepTheirOwnCurrencySnapshot() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection("2026-09-19", "USD", 2, "20000")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport.Row row = controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", null).rows().get(0);
@@ -103,9 +103,9 @@ class ReportPaymentsReportContractTest {
     @DisplayName("退款并入同键行，币种保持收款行的快照")
     void refundMergesIntoCollectionRowKeepingCurrency() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection("2026-09-19", "CNY", 2, "20000")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 refund("2026-09-19", "CNY", 1, "3000")));
 
         ReportController.PaymentsReport report = controller.payments(
@@ -124,10 +124,10 @@ class ReportPaymentsReportContractTest {
     @DisplayName("币种快照为 null 的行排序不抛异常（nullsLast）")
     void nullCurrencySortingIsNullSafe() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection(2501L, "2026-09-19", null, 1, "100"),
                 collection(2502L, "2026-09-19", null, 1, "200")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
                 null, "2026-09-01", "2026-09-30", null));
@@ -141,11 +141,11 @@ class ReportPaymentsReportContractTest {
     @DisplayName("granularity=WEEK：同周两天并成一行，桶标签按 ISO 周")
     void weeklyGranularityMergesSameWeekDays() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection("2026-09-14", "USD", 1, "100"),
                 collection("2026-09-20", "USD", 2, "200"),
                 collection("2026-09-21", "USD", 4, "400")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", "WEEK");
@@ -162,10 +162,10 @@ class ReportPaymentsReportContractTest {
     @DisplayName("granularity=MONTH：跨月数据分成两个自然月桶")
     void monthlyGranularitySplitsByCalendarMonth() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 collection("2026-08-31", "USD", 1, "100"),
                 collection("2026-09-01", "USD", 1, "100")));
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-08-01", "2026-09-30", "MONTH");
@@ -221,8 +221,8 @@ class ReportPaymentsReportContractTest {
     @DisplayName("不传 from/to：默认最近 30 天，响应回显生效区间")
     void defaultRangeIsThirtyDays() {
         setTenant();
-        when(reportMapper.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
-        when(reportMapper.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
+        when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
         ReportController.PaymentsReport report = controller.payments(null, null, null, null);
 

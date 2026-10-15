@@ -8,7 +8,7 @@ import io.openware.infrastructure.time.ReportTimeBuckets;
 import io.openware.infrastructure.time.ReportTimeBuckets.TimeBucket;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -104,10 +104,10 @@ public class ReportController {
     /** 营业日标签用的门店/租户时区文本（响应里显式声明，前端提示「营业日」口径）。 */
     private static final String BUSINESS_ZONE = ReportTimeBuckets.REPORT_TIMEZONE;
 
-    private final ReportMapper reportMapper;
+    private final ReportQueryRepository reportRepository;
 
-    public ReportController(ReportMapper reportMapper) {
-        this.reportMapper = reportMapper;
+    public ReportController(ReportQueryRepository reportRepository) {
+        this.reportRepository = reportRepository;
     }
 
     /** 员工业绩（D-13）：按员工（收银/服务人员）× 统计桶聚合开单数/服务时长/收款额/加项数。 */
@@ -120,22 +120,22 @@ public class ReportController {
         Long tenantId = requireTenant();
         Scope scope = Scope.of(from, to, granularity);
         Map<String, EmployeeAgg> byKey = new LinkedHashMap<>();
-        for (Map<String, Object> m : reportMapper.selectCashierOpenOrders(tenantId, storeId, scope.from(),
+        for (Map<String, Object> m : reportRepository.selectCashierOpenOrders(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds())) {
             EmployeeAgg agg = byKey.computeIfAbsent(employeeKey("CASHIER", m, scope), k -> cashier(m, scope));
             agg.openOrderCount += longVal(m, "open_order_count");
         }
-        for (Map<String, Object> m : reportMapper.selectCashierCollections(tenantId, storeId, scope.from(),
+        for (Map<String, Object> m : reportRepository.selectCashierCollections(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds())) {
             EmployeeAgg agg = byKey.computeIfAbsent(employeeKey("CASHIER", m, scope), k -> cashier(m, scope));
             agg.collectedAmount = agg.collectedAmount.add(decimalVal(m, "collected_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectCashierAddOns(tenantId, storeId, scope.from(),
+        for (Map<String, Object> m : reportRepository.selectCashierAddOns(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds())) {
             EmployeeAgg agg = byKey.computeIfAbsent(employeeKey("CASHIER", m, scope), k -> cashier(m, scope));
             agg.addOnCount += longVal(m, "add_on_count");
         }
-        for (Map<String, Object> m : reportMapper.selectServerPerformance(tenantId, storeId, scope.from(),
+        for (Map<String, Object> m : reportRepository.selectServerPerformance(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds())) {
             EmployeeAgg agg = byKey.computeIfAbsent(employeeKey("SERVER", m, scope), k -> server(m, scope));
             agg.serviceSeconds += longVal(m, "service_seconds");
@@ -165,7 +165,7 @@ public class ReportController {
         Long tenantId = requireTenant();
         Scope scope = Scope.of(from, to, granularity);
         Map<String, OperationsAgg> byKey = new LinkedHashMap<>();
-        for (Map<String, Object> m : reportMapper.selectOperations(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectOperations(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             OperationsAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> operations(m, scope));
             agg.orderCount += longVal(m, "order_count");
@@ -173,10 +173,10 @@ public class ReportController {
             agg.paid = agg.paid.add(decimalVal(m, "paid_amount"));
             agg.discount = agg.discount.add(decimalVal(m, "discount_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             // 退款按 (门店, 桶, 币种) 独立成行：币种不同绝不并入同一行（跨币种禁止静默求和）。
-            // 状态口径由 SQL 侧锁定为终态 REFUNDED（见 ReportMapper#selectRefunds），待审批/已驳回不计入。
+            // 状态口径由 SQL 侧锁定为终态 REFUNDED（见 ReportQueryRepositoryAdapter 委托的 ReportMapper#selectRefunds），待审批/已驳回不计入。
             OperationsAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> operations(m, scope));
             agg.refundCount += longVal(m, "refund_count");
             agg.refund = agg.refund.add(decimalVal(m, "refund_amount"));
@@ -214,13 +214,13 @@ public class ReportController {
         Long tenantId = requireTenant();
         Scope scope = Scope.of(from, to, granularity);
         Map<String, PaymentsAgg> byKey = new LinkedHashMap<>();
-        for (Map<String, Object> m : reportMapper.selectCollections(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectCollections(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             PaymentsAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> payments(m, scope));
             agg.collectionCount += longVal(m, "collection_count");
             agg.collected = agg.collected.add(decimalVal(m, "collected_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             // 同经营报表：退款按 (门店, 桶, 币种) 独立成行，跨币种不并入；口径同为终态 REFUNDED。
             PaymentsAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> payments(m, scope));
@@ -244,7 +244,7 @@ public class ReportController {
      * <p><b>历史缺陷（已修，ACK 环境实测）</b>：占用窗口是开台时写死的 {@code now → now + 24h}，
      * 结台不回缩 {@code end_at}；旧实现把同一包厢同一天的占用窗口相加，开 4 次台就显示 96h。
      * 现在只按**会话**出数，多次开台 = 多行，各算各的（SQL 侧口径见
-     * {@link io.openware.platform.admin.infra.persistence.mapper.ReportMapper#selectResourceUtilization}）。
+     * {@link ReportQueryRepository#selectResourceUtilization}）。
      *
      * <p><b>字段口径（与 {@link ResourceUtilizationReport} 的注释、测试一一对应）</b>：
      * <ul>
@@ -265,7 +265,7 @@ public class ReportController {
             @RequestParam(required = false) String granularity) {
         Long tenantId = requireTenant();
         Scope scope = Scope.of(from, to, granularity);
-        List<Map<String, Object>> sessions = reportMapper.selectResourceUtilization(tenantId, storeId, scope.from(),
+        List<Map<String, Object>> sessions = reportRepository.selectResourceUtilization(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds());
         // 利用率的分母取「包厢 + 营业日」的会话时长合计（不是占用窗口）：先汇总，再给该包厢当日的每一行同一个值。
         Map<String, Long> roomDaySeconds = new LinkedHashMap<>();
@@ -325,12 +325,12 @@ public class ReportController {
         Long tenantId = requireTenant();
         Scope scope = Scope.of(from, to, granularity);
         Map<String, GrossProfitAgg> byKey = new LinkedHashMap<>();
-        for (Map<String, Object> m : reportMapper.selectItemRevenue(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectItemRevenue(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             GrossProfitAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> grossProfit(m, scope));
             agg.revenueAmount = agg.revenueAmount.add(decimalVal(m, "revenue_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectInventoryConsumptionCost(tenantId, storeId, scope.from(),
+        for (Map<String, Object> m : reportRepository.selectInventoryConsumptionCost(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds())) {
             GrossProfitAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> grossProfit(m, scope));
             // 数量与平均成本都是定点值：金额 = 数量 × 平均成本，保留 6 位（与 decimal(20,6) 一致）。
@@ -395,7 +395,7 @@ public class ReportController {
         String detailStatus = normalizeStatus(status);
 
         Map<String, SalesAgg> byKey = new LinkedHashMap<>();
-        for (Map<String, Object> m : reportMapper.selectSalesOrders(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectSalesOrders(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             SalesAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> sales(m, scope));
             agg.orderCount += longVal(m, "order_count");
@@ -405,13 +405,13 @@ public class ReportController {
             agg.voidedCount += longVal(m, "voided_count");
             agg.voidedAmount = agg.voidedAmount.add(decimalVal(m, "voided_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectRefunds(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             SalesAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> sales(m, scope));
             agg.refundCount += longVal(m, "refund_count");
             agg.refundAmount = agg.refundAmount.add(decimalVal(m, "refund_amount"));
         }
-        for (Map<String, Object> m : reportMapper.selectSalesPayments(tenantId, storeId, scope.from(), scope.to(),
+        for (Map<String, Object> m : reportRepository.selectSalesPayments(tenantId, storeId, scope.from(), scope.to(),
                 scope.shiftSeconds())) {
             SalesAgg agg = byKey.computeIfAbsent(bucketKey(m, scope), k -> sales(m, scope));
             BigDecimal amount = decimalVal(m, "payment_amount");
@@ -441,9 +441,9 @@ public class ReportController {
 
         int size = clampPageSize(pageSize);
         long current = Math.max(DEFAULT_PAGE, page == null ? DEFAULT_PAGE : page);
-        long total = reportMapper.countSalesDetails(tenantId, storeId, scope.from(), scope.to(), detailStatus);
+        long total = reportRepository.countSalesDetails(tenantId, storeId, scope.from(), scope.to(), detailStatus);
         List<Map<String, Object>> detailRows = total == 0 ? List.of()
-                : reportMapper.selectSalesDetails(tenantId, storeId, scope.from(), scope.to(), detailStatus, size,
+                : reportRepository.selectSalesDetails(tenantId, storeId, scope.from(), scope.to(), detailStatus, size,
                         (current - 1) * size, scope.shiftSeconds());
         Map<Long, SalesReport.PaymentComposition> compositions = loadPaymentCompositions(tenantId, detailRows);
         List<SalesReport.DetailRow> records = new ArrayList<>();
@@ -471,7 +471,7 @@ public class ReportController {
      *
      * <p>回答「哪些商品/服务卖得好、各占多少」。口径与销售报表同源：同一套 {@code storeId/from/to}、
      * 排除已取消/已作废订单、只算已生效明细（待确认/被拒的加项不计入），详见
-     * {@link ReportMapper#selectSalesItems}。
+     * {@link ReportQueryRepository#selectSalesItems}。
      *
      * <p>{@code itemType} 取 {@code PRODUCT}（商品）/ {@code SERVICE}（服务）/ {@code ROOM_FEE}（包厢费）/
      * {@code ADD_ON}（加项：目录项类型取不到时的兜底），空 = 全部；{@code topN} 默认 20、上限 200。
@@ -491,7 +491,7 @@ public class ReportController {
         Scope scope = Scope.of(from, to, null);
         String category = normalizeItemCategory(itemType);
         int limit = clampTopN(topN);
-        List<Map<String, Object>> itemRows = reportMapper.selectSalesItems(tenantId, storeId, scope.from(),
+        List<Map<String, Object>> itemRows = reportRepository.selectSalesItems(tenantId, storeId, scope.from(),
                 scope.to(), category, limit);
 
         Map<String, BigDecimal> totalsByCurrency = new LinkedHashMap<>();
@@ -572,7 +572,7 @@ public class ReportController {
         for (Long orderId : orderIds) {
             result.put(orderId, SalesReport.PaymentComposition.empty());
         }
-        for (Map<String, Object> m : reportMapper.selectOrderPaymentComposition(tenantId, orderIds)) {
+        for (Map<String, Object> m : reportRepository.selectOrderPaymentComposition(tenantId, orderIds)) {
             Long orderId = longOrNull(m, "order_id");
             SalesReport.PaymentComposition current = result.get(orderId);
             if (current == null) {

@@ -15,7 +15,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.ReportTimeBuckets;
-import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
+import io.openware.platform.admin.domain.port.ReportQueryRepository;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
  * 报表又按 (门店, 包厢, 营业日) 把这些窗口求和 —— 实测包厢 1015 开出 4 条占用显示 96h、
  * 1017 开出 2 条显示 48h，而 1017 的真实消费只有 336 分 + 4 分。
  *
- * <p>本测试把修复后的口径钉死（与 {@code ReportMapper#selectResourceUtilization}、
+ * <p>本测试把修复后的口径钉死（与 {@code reportRepository#selectResourceUtilization}、
  * {@code ResourceUtilizationReport.Row} 的注释一一对应）：
  * <ol>
  *   <li><b>一次开台一行</b>：同一包厢同一天多次开台 = 多行，各行只算自己那次时长（不是求和、不是 24h）；</li>
@@ -57,8 +57,8 @@ class ReportResourceUtilizationControllerTest {
     /** 营业日可用时长（秒），与后端 {@code BUSINESS_DAY_AVAILABLE_SECONDS} 同口径。 */
     private static final long DAY_SECONDS = 24L * 60 * 60;
 
-    private final ReportMapper reportMapper = mock(ReportMapper.class);
-    private final ReportController controller = new ReportController(reportMapper);
+    private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
+    private final ReportController controller = new ReportController(reportRepository);
 
     @AfterEach
     void clearTenant() {
@@ -175,7 +175,7 @@ class ReportResourceUtilizationControllerTest {
 
         LocalDateTime expectedFrom = ReportTimeBuckets.windowFrom(LocalDate.of(2026, 9, 1));
         LocalDateTime expectedTo = ReportTimeBuckets.windowToExclusive(LocalDate.of(2026, 9, 30));
-        verify(reportMapper).selectResourceUtilization(eq(TENANT_ID), eq(STORE_ID), eq(expectedFrom), eq(expectedTo),
+        verify(reportRepository).selectResourceUtilization(eq(TENANT_ID), eq(STORE_ID), eq(expectedFrom), eq(expectedTo),
                 eq(ReportTimeBuckets.BUSINESS_DAY_SHIFT_SECONDS));
     }
 
@@ -229,7 +229,7 @@ class ReportResourceUtilizationControllerTest {
     }
 
     private void stubSessions(List<Map<String, Object>> rows) {
-        when(reportMapper.selectResourceUtilization(any(), any(), any(), any(), anyInt())).thenReturn(rows);
+        when(reportRepository.selectResourceUtilization(any(), any(), any(), any(), anyInt())).thenReturn(rows);
     }
 
     /**
