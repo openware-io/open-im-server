@@ -15,9 +15,9 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
+import io.openware.platform.resource.domain.roomtype.model.RoomType;
 import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
 import io.openware.platform.resource.infra.persistence.po.ResourcePo;
-import io.openware.platform.resource.infra.persistence.po.RoomTypePo;
 import java.util.List;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
@@ -63,11 +63,8 @@ class ResourceAuditTest {
       return 1;
     });
     // 房型必须属于本门店：控制器会对入参房型做归属校验。
-    RoomTypePo roomType = new RoomTypePo();
-    roomType.setId(31L);
-    roomType.setStoreId(100L);
-    roomType.setCode("VIP");
-    roomType.setName("VIP 大包");
+    RoomType roomType = new RoomType(31L, 1L, 100L, "VIP", "VIP 大包", 10, List.of(), null,
+        100L, 0L, 1, RoomType.STATUS_ENABLED);
     when(roomTypeService.findInStore(31L)).thenReturn(roomType);
 
     controller.create(new ResourceController.CreateResourceRequest(1L, 100L, "KTV_ROOM", "A-101", "A101",

@@ -11,9 +11,10 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.handler.GlobalExceptionHandler;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.mapper.RoomTypeMapper;
-import io.openware.platform.resource.infra.persistence.po.RoomTypePo;
+import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
+import io.openware.platform.resource.domain.roomtype.model.RoomType;
+import io.openware.platform.resource.domain.roomtype.repository.RoomTypeRepository;
+
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,13 +31,13 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
  */
 class ResourceTypeControllerTest {
   private MockMvc mockMvc;
-  private RoomTypeMapper roomTypeMapper;
+  private RoomTypeRepository roomTypeRepository;
 
   @BeforeEach
   void setUp() {
-    roomTypeMapper = mock(RoomTypeMapper.class);
+    roomTypeRepository = mock(RoomTypeRepository.class);
     RoomTypeApplicationService service =
-        new RoomTypeApplicationService(roomTypeMapper, mock(ResourceMapper.class));
+        new RoomTypeApplicationService(roomTypeRepository, mock(ResourceRepository.class));
     mockMvc = MockMvcBuilders.standaloneSetup(new ResourceTypeController(service))
         .setControllerAdvice(new GlobalExceptionHandler())
         .build();
@@ -51,7 +52,7 @@ class ResourceTypeControllerTest {
   /** 前端「房型管理」列表的真实调用：不带 status → 200 + 全部房型（不再 500 NPE）。 */
   @Test
   void listWithoutStatusReturnsAllTypesWith200() throws Exception {
-    when(roomTypeMapper.selectList(any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包"),
+    when(roomTypeRepository.listInStore(any(), any(), any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包"),
         roomType(32L, "SMALL", "小包")));
 
     mockMvc.perform(get("/admin/resources/types"))
@@ -64,7 +65,7 @@ class ResourceTypeControllerTest {
   /** status= 空串按「不过滤」处理，同样 200 返回全部。 */
   @Test
   void listWithBlankStatusReturnsAllTypesWith200() throws Exception {
-    when(roomTypeMapper.selectList(any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
+    when(roomTypeRepository.listInStore(any(), any(), any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
 
     mockMvc.perform(get("/admin/resources/types").param("status", ""))
         .andExpect(status().isOk())
@@ -73,7 +74,7 @@ class ResourceTypeControllerTest {
 
   @Test
   void listWithActiveStatusReturns200() throws Exception {
-    when(roomTypeMapper.selectList(any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
+    when(roomTypeRepository.listInStore(any(), any(), any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
 
     mockMvc.perform(get("/admin/resources/types").param("status", "ACTIVE"))
         .andExpect(status().isOk())
@@ -82,7 +83,7 @@ class ResourceTypeControllerTest {
 
   @Test
   void listWithDisabledStatusReturns200() throws Exception {
-    when(roomTypeMapper.selectList(any())).thenReturn(List.of());
+    when(roomTypeRepository.listInStore(any(), any(), any())).thenReturn(List.of());
 
     mockMvc.perform(get("/admin/resources/types").param("status", "DISABLED"))
         .andExpect(status().isOk())
@@ -106,16 +107,8 @@ class ResourceTypeControllerTest {
         .andExpect(jsonPath("$.code").value("STORE_SCOPE_DENIED"));
   }
 
-  private static RoomTypePo roomType(Long id, String code, String name) {
-    RoomTypePo po = new RoomTypePo();
-    po.setId(id);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setCode(code);
-    po.setName(name);
-    po.setCapacity(20);
-    po.setSortOrder(0);
-    po.setStatus("ACTIVE");
-    return po;
+  private static RoomType roomType(Long id, String code, String name) {
+    return new RoomType(id, 1L, 100L, code, name, 20, List.of(), null, null, null, 0,
+        RoomType.STATUS_ENABLED);
   }
 }
