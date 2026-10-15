@@ -248,6 +248,8 @@ public class AlipayChannel implements PaymentChannelProvider {
         try {
             return URLDecoder.decode(value, StandardCharsets.UTF_8);
         } catch (Exception e) {
+            // 解码失败时原样返回：属降级，但保留 DEBUG 以便区分"本就未编码"和"编码被破坏"。
+            log.debug("alipay callback value is not url-encoded, using it as-is", e);
             return value;
         }
     }
@@ -269,6 +271,9 @@ public class AlipayChannel implements PaymentChannelProvider {
         try {
             return new BigDecimal(yuan).movePointRight(2).longValue();
         } catch (NumberFormatException e) {
+            // 金额无法解析时按 0 分处理会让下游看到"零元"，因此必须留痕而不是静默；
+            // 保留原始值以便对账时定位是上游报文问题还是本侧解析问题。
+            log.warn("alipay amount is not numeric, treating as 0 cents: raw={}", yuan, e);
             return 0L;
         }
     }
@@ -315,6 +320,9 @@ public class AlipayChannel implements PaymentChannelProvider {
         try {
             return Long.parseLong(value);
         } catch (NumberFormatException e) {
+            // 用于解析回传上下文（passback_params）；失败按 0 处理会让调用方拿不到租户上下文，
+            // 因此保留 DEBUG 而不是完全静默。
+            log.debug("alipay passback value is not numeric, using 0: raw={}", value);
             return 0L;
         }
     }
