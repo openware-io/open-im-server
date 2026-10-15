@@ -61,7 +61,12 @@ public class PermissionSnapshotCache {
 
     public void evict(String key) {
         local.remove(key);
-        try { redis.delete(KEY_PREFIX + key); } catch (Exception ignored) { }
+        try {
+            redis.delete(KEY_PREFIX + key);
+        } catch (Exception ignored) {
+            // 本地缓存已逐出，redis 逐出失败只影响其他副本的失效时机，属降级但仍需可追溯。
+            log.debug("failed to evict permission snapshot from redis for key {}", key, ignored);
+        }
     }
 
     public void evictByPrefix(String prefix) {
