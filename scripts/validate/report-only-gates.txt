@@ -11,4 +11,3 @@
 
 service-api-boundaries | batch 3 (layering refactor) | .outputs/quality/service-api-boundaries-worklist.txt | 137 controllers/application classes across all four domain roots (including the previously excluded platform-services) still depend on persistence implementations.
 java-silent-catch | batch 3 (code sweep) | .outputs/quality/java-silent-catch-worklist.txt | 103 catch blocks swallow exceptions without a log call or rethrow (22 of them empty), violating "no silent exception swallowing".
-java-fully-qualified-names | batch 3 (code sweep) | .outputs/quality/java-fully-qualified-names-worklist.txt | 192 fully-qualified references inside method bodies; the rule requires imports, and checkstyle only enables UnusedImports (which encourages the opposite).
