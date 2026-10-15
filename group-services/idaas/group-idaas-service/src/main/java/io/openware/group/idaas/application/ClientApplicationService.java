@@ -1,57 +1,46 @@
 package io.openware.group.idaas.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.group.idaas.api.dto.ClientDtos.CreateClientRequest;
 import io.openware.group.idaas.api.dto.ClientDtos.IdaasClientDto;
-import io.openware.group.idaas.infra.persistence.mapper.IdaasClientMapper;
-import io.openware.group.idaas.infra.persistence.po.IdaasClientPo;
-import java.time.LocalDateTime;
+import io.openware.group.idaas.domain.client.model.IdaasClient;
+import io.openware.group.idaas.domain.client.repository.IdaasClientRepository;
 import java.util.Arrays;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
  * 授权域：接入方（OAuth client）注册与查询，client_id 唯一键提供幂等。
+ *
+ * <p>持久化经领域端口；新建接入方走领域工厂（状态固定为 ENABLED）。
  */
 @Service
 public class ClientApplicationService {
 
-  private static final String CLIENT_ENABLED = "ENABLED";
+  private final IdaasClientRepository clientRepository;
 
-  private final IdaasClientMapper clientMapper;
-
-  public ClientApplicationService(IdaasClientMapper clientMapper) {
-    this.clientMapper = clientMapper;
+  public ClientApplicationService(IdaasClientRepository clientRepository) {
+    this.clientRepository = clientRepository;
   }
 
   /** 列出全部接入方。 */
   public List<IdaasClientDto> list() {
-    return clientMapper.selectList(new QueryWrapper<IdaasClientPo>().orderByAsc("id"))
-        .stream().map(this::toDto).toList();
+    return clientRepository.listAll().stream().map(this::toDto).toList();
   }
 
   /** 创建接入方：client_id 已存在时幂等返回已有接入方。 */
   public IdaasClientDto create(CreateClientRequest request) {
-    IdaasClientPo existing = clientMapper.selectOne(
-        new QueryWrapper<IdaasClientPo>().eq("client_id", request.clientId()));
+    IdaasClient existing = clientRepository.findByClientId(request.clientId()).orElse(null);
     if (existing != null) {
       return toDto(existing);
     }
-    IdaasClientPo po = new IdaasClientPo();
-    po.setName(request.name());
-    po.setClientId(request.clientId());
-    po.setClientSecret(request.clientSecret());
-    po.setRedirectUris(join(request.redirectUris()));
-    po.setStatus(CLIENT_ENABLED);
-    po.setCreatedAt(LocalDateTime.now());
-    po.setUpdatedAt(LocalDateTime.now());
-    clientMapper.insert(po);
-    return toDto(po);
+    IdaasClient created = clientRepository.save(IdaasClient.register(
+        request.name(), request.clientId(), request.clientSecret(), join(request.redirectUris())));
+    return toDto(created);
   }
 
-  private IdaasClientDto toDto(IdaasClientPo po) {
-    return new IdaasClientDto(po.getId(), po.getName(), po.getClientId(), po.getStatus(),
-        split(po.getRedirectUris()));
+  private IdaasClientDto toDto(IdaasClient client) {
+    return new IdaasClientDto(client.id(), client.name(), client.clientId(), client.status(),
+        split(client.redirectUris()));
   }
 
   private static String join(List<String> uris) {
