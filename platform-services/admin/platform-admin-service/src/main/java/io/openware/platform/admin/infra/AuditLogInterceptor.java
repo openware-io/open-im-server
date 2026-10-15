@@ -144,6 +144,7 @@ public class AuditLogInterceptor implements HandlerInterceptor {
         try {
             return objectMapper.writeValueAsString(detail);
         } catch (Exception serializationFailure) {
+            log.debug("admin audit field could not be extracted, continuing without it", serializationFailure);
             return null;
         }
     }

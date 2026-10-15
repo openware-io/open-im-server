@@ -27,6 +27,7 @@ public class RedisPasswordResetTokenStore implements PasswordResetTokenStore {
     }
     try {
       return Optional.of(Long.parseLong(raw));
+    // degradation: unusable stored token means no principal (fail-closed)
     } catch (NumberFormatException ex) {
       return Optional.empty();
     }
@@ -36,4 +37,4 @@ public class RedisPasswordResetTokenStore implements PasswordResetTokenStore {
   public void remove(String token) {
     redisTemplate.delete(RedisKeys.PASSWORD_RESET_TOKEN + token);
   }
-}
+        }

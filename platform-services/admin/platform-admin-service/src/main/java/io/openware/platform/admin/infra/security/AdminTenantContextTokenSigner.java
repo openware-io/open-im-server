@@ -16,9 +16,11 @@ import java.util.List;
 import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 import io.openware.infrastructure.tenant.TenantContext;
+import lombok.extern.slf4j.Slf4j;
 
 /** Issues the same short-lived, audience-bound tenant context token as identity service. */
 @Component
+@Slf4j
 public class AdminTenantContextTokenSigner {
   /** 运营上下文 Token 不可用的统一业务码（与 StaffController / MediaImageController 保持一致）。 */
   private static final String CONTEXT_INVALID_CODE = "SAAS_CONTEXT_INVALID";
@@ -165,6 +167,7 @@ public class AdminTenantContextTokenSigner {
     try {
       return Long.valueOf(subject);
     } catch (NumberFormatException exception) {
+        log.debug("tenant context token could not be parsed", exception);
       return null;
     }
   }

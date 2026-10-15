@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 内部服务鉴权（鉴权版本 2）：canonical request + HMAC-SHA256。
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component;
  * 共用同一实现，避免两侧口径漂移导致的 401。
  */
 @Component
+@Slf4j
 public class InternalServiceAuthentication {
   public static final String SOURCE_HEADER = "X-IM-Service-Source";
   public static final String VERSION_HEADER = "X-IM-Service-Auth-Version";
@@ -41,6 +43,7 @@ public class InternalServiceAuthentication {
     try {
       timestampValue = Long.parseLong(timestamp);
     } catch (NumberFormatException e) {
+        log.debug("unparsable timestamp, rejecting the request (fail-closed)", e);
       return false;
     }
     if (Math.abs(System.currentTimeMillis() - timestampValue) > properties.getMaxClockSkewMs()) {

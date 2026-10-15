@@ -75,6 +75,7 @@ public class EventOutboxRelay {
       outboxMapper.updateById(row);
       log.info("订单 Outbox 事件转发成功, eventId={}, topic={}, shardingKey={}", row.getEventId(), topic, shardingKey);
     } catch (Exception exception) {
+        log.debug("outbox relay failed, marking the row for retry", exception);
       markFailed(row, now, exception);
     }
   }

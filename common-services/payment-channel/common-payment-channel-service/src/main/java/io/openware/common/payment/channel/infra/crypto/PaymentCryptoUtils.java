@@ -69,6 +69,7 @@ public final class PaymentCryptoUtils {
             signature.initVerify(parsePublicKey(publicKeyPem));
             signature.update(content.getBytes(StandardCharsets.UTF_8));
             return signature.verify(Base64.getDecoder().decode(sign));
+        // degradation: signature verification failure means reject (fail-closed); the boolean already carries the outcome
         } catch (Exception e) {
             return false;
         }
@@ -129,4 +130,4 @@ public final class PaymentCryptoUtils {
         }
         return sb.toString();
     }
-}
+        }

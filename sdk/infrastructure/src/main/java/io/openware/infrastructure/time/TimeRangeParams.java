@@ -147,6 +147,7 @@ public final class TimeRangeParams {
         }
         try {
             return LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE);
+        // degradation: date parsing walks a list of formats; an unparsable one is skipped and the next is tried
         } catch (DateTimeParseException ignored) {
             return null;
         }
@@ -191,4 +192,4 @@ public final class TimeRangeParams {
             return fromInclusive == null && toInclusive == null;
         }
     }
-}
+        }

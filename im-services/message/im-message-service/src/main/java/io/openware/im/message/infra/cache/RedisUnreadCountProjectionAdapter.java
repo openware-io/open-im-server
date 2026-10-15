@@ -20,6 +20,7 @@ public class RedisUnreadCountProjectionAdapter implements UnreadCountProjectionP
     }
     try {
       return OptionalLong.of(Long.parseLong(value));
+    // degradation: unread projection degrades to an empty count so the API keeps responding, by contract
     } catch (NumberFormatException ex) {
       invalidate(userId);
       return OptionalLong.empty();
@@ -39,4 +40,4 @@ public class RedisUnreadCountProjectionAdapter implements UnreadCountProjectionP
   private String unreadKey(long userId) {
     return RedisKeys.UNREAD_COUNT + userId;
   }
-}
+        }

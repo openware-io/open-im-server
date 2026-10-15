@@ -93,6 +93,7 @@ public class ConversationUserMentionResolverAdapter implements MentionResolverPo
   private Long parseId(String value) {
     try {
       return Long.parseLong(value);
+    // degradation: mention resolution degrades to null so the message is sent without the mention list, by contract
     } catch (NumberFormatException ex) {
       return null;
     }
@@ -140,4 +141,4 @@ public class ConversationUserMentionResolverAdapter implements MentionResolverPo
     }
     return null;
   }
-}
+        }

@@ -88,6 +88,7 @@ public class TenantPricingPlanClient {
                 return Optional.empty();
             }
             return Optional.of(new TenantPricingPlan(room, server));
+        // degradation: remote lookup degrades to an empty optional so the caller can use its configured default
         } catch (Exception e) {
             return Optional.empty();
         }
@@ -146,4 +147,4 @@ public class TenantPricingPlanClient {
 
     /** 门店计价方案：包厢为主，服务人员可选。 */
     public record TenantPricingPlan(RoomPlan room, RoomPlan server) {}
-}
+        }

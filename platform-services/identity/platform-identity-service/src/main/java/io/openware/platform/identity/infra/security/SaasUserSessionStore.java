@@ -59,6 +59,7 @@ public class SaasUserSessionStore {
       String contextToken = value.path("tenantContextToken").asText(null);
       String appId = value.path("appId").asText(null);
       return Optional.of(new UserSession(accountId, contextToken, appId));
+    // degradation: unusable stored session means no principal (fail-closed)
     } catch (Exception exception) {
       return Optional.empty();
     }
@@ -122,4 +123,4 @@ public class SaasUserSessionStore {
       this(accountId, tenantContextToken, null);
     }
   }
-}
+        }

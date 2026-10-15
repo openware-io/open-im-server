@@ -29,6 +29,7 @@ import java.util.Objects;
 import java.util.Set;
 import io.openware.infrastructure.currency.Currency;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 收银/支付/交班/日结/退款 只读查询应用服务。
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
  * {@code business_date}，因此按「日期边界」比较（端点各取日期部分）。
  */
 @Service
+@Slf4j
 public class PaymentQueryApplicationService {
     /** 已确认收款（钱确实收到）才计入收款明细；INIT/HOLD/FAILED 是尝试，不是收款。 */
     private static final String STATE_CONFIRMED = "CONFIRMED";
@@ -285,6 +287,7 @@ public class PaymentQueryApplicationService {
         try {
             return objectMapper.readValue(json, CollectSnapshot.class);
         } catch (RuntimeException | java.io.IOException e) {
+            log.debug("payment record could not be read", e);
             return null;
         }
     }
@@ -298,6 +301,7 @@ public class PaymentQueryApplicationService {
         try {
             result = objectMapper.readValue(json, CollectApplicationService.CollectResult.class);
         } catch (RuntimeException | java.io.IOException e) {
+            log.debug("payment list could not be read", e);
             return List.of();
         }
         if (result == null || result.collectedByMethod() == null) {

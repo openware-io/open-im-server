@@ -74,6 +74,7 @@ public class EventOutboxRelay {
       log.info("营销 Outbox 事件转发成功, eventId={}, topic={}, shardingKey={}", row.getEventId(),
           MktMqTopics.COUPON_REDEEMED_EVENT, shardingKey);
     } catch (Exception exception) {
+        log.debug("outbox relay failed, marking the row for retry", exception);
       markFailed(row, now, exception);
     }
   }

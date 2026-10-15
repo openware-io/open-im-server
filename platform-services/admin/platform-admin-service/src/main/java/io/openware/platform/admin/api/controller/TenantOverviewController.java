@@ -20,10 +20,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.beans.factory.annotation.Autowired;
+import lombok.extern.slf4j.Slf4j;
 
 /** 总部只读经营总览 BFF；Customer 只是第一个领域分项，后续按同一契约追加其他领域。 */
 @RestController
 @RequestMapping("/admin/tenant/overview")
+@Slf4j
 public class TenantOverviewController {
     private final CustomerOverviewDomainClient customerClient;
     private final TenantIamDomainClient tenantIamClient;
@@ -89,6 +91,7 @@ public class TenantOverviewController {
             failures.put(domain, exception.getCode() == null ? "DOMAIN_QUERY_FAILED" : exception.getCode());
             return Map.of();
         } catch (RuntimeException exception) {
+            log.debug("domain overview query failed, recording the failure for that domain", exception);
             failures.put(domain, "DOMAIN_QUERY_TIMEOUT");
             return Map.of();
         }

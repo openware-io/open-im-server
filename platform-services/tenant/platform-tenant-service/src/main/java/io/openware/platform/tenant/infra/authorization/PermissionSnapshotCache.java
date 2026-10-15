@@ -38,6 +38,7 @@ public class PermissionSnapshotCache {
         local.put(key, new LocalEntry(value, System.nanoTime() + TTL.toNanos()));
         try {
             redis.opsForValue().set(KEY_PREFIX + key, objectMapper.writeValueAsString(value), TTL);
+        // degradation: redis unavailable degrades to the local cache, which is the designed two-tier behaviour
         } catch (Exception ignored) { /* redis 不可用时依赖本地缓存 */ }
     }
 
@@ -55,6 +56,7 @@ public class PermissionSnapshotCache {
                 local.put(key, new LocalEntry(snapshot, System.nanoTime() + TTL.toNanos()));
                 return snapshot;
             }
+        // degradation: unreadable cached snapshot is treated as a miss and reloaded
         } catch (Exception ignored) { /* 反序列化失败视为未命中 */ }
         return null;
     }
@@ -74,6 +76,7 @@ public class PermissionSnapshotCache {
         try {
             Set<String> keys = scan(KEY_PREFIX + prefix + "*");
             if (keys != null && !keys.isEmpty()) redis.delete(keys);
+        // degradation: redis unavailable degrades to the local cache, which is the designed two-tier behaviour
         } catch (Exception ignored) { /* redis 不可用时依赖本地缓存 */ }
     }
 
@@ -82,6 +85,7 @@ public class PermissionSnapshotCache {
         try {
             Set<String> keys = scan(KEY_PREFIX + "*");
             if (keys != null && !keys.isEmpty()) redis.delete(keys);
+        // degradation: redis unavailable degrades to clearing the local cache only, by contract
         } catch (Exception ignored) { /* redis 不可用时仅清本地缓存 */ }
     }
 
@@ -97,4 +101,4 @@ public class PermissionSnapshotCache {
     }
 
     private record LocalEntry(PermissionSnapshot snapshot, long expiresAtNanos) {}
-}
+        }

@@ -66,6 +66,7 @@ public class InternalOpenPlatformAdminController {
     }
     try {
       return OpenApplicationStatus.valueOf(value.toUpperCase());
+    // degradation: optional lookup returns null when absent; the caller branches on it
     } catch (IllegalArgumentException e) {
       return null;
     }
@@ -73,4 +74,4 @@ public class InternalOpenPlatformAdminController {
 
   public record RejectRequest(String reason) {
   }
-}
+        }

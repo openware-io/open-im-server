@@ -30,9 +30,11 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class AdminReadClient {
   private static final ParameterizedTypeReference<PageResult<AdminUserResponse>> USER_PAGE = new ParameterizedTypeReference<>() {};
   private static final ParameterizedTypeReference<PageResult<AdminFriendResponse>> FRIEND_PAGE = new ParameterizedTypeReference<>() {};
@@ -159,6 +161,7 @@ public class AdminReadClient {
       return java.util.Arrays.stream(summaries)
           .collect(Collectors.toMap(UserProfileSummary::userId, summary -> summary, (left, right) -> left));
     } catch (RuntimeException exception) {
+        log.debug("admin read lookup failed, returning an empty result", exception);
       return Map.of();
     }
   }

@@ -100,6 +100,7 @@ public class InternalServiceAuthenticationFilter extends OncePerRequestFilter {
           "1",
           Duration.ofMillis(authentication.getRequestIdTtlMs())));
     } catch (RuntimeException e) {
+        log.debug("replay guard could not store the idempotency key, rejecting the request", e);
       return false;
     }
   }

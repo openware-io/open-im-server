@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 /** Customer Outbox Relay：复用仓内 PENDING/FAILED + 指数退避投递规范。 */
 @Component
 @ConditionalOnBean(MqProducer.class)
+@Slf4j
 public class CustomerEventOutboxRelay {
     private final CustomerEventOutboxMapper outboxMapper;
     private final MqProducer mqProducer;
@@ -48,6 +50,7 @@ public class CustomerEventOutboxRelay {
                 row.setUpdatedAt(now);
                 outboxMapper.updateById(row);
             } catch (Exception failure) {
+                log.debug("outbox relay failed, marking the row for retry", failure);
                 int retries = (row.getRetryCount() == null ? 0 : row.getRetryCount()) + 1;
                 row.setRetryCount(retries);
                 row.setStatus(retries >= maxRetryCount ? "DEAD" : "FAILED");

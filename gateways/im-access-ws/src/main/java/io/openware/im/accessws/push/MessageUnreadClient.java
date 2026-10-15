@@ -6,9 +6,11 @@ import java.util.Map;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import lombok.extern.slf4j.Slf4j;
 
 /** 查询 message-service 的服务端权威未读总数（供极光绝对角标）。 */
 @Component
+@Slf4j
 public class MessageUnreadClient {
   private static final String DEFAULT_BASE_URL = "http://im-message-service:3200";
   private static final ParameterizedTypeReference<Map<String, Object>> RESPONSE_TYPE =
@@ -39,6 +41,7 @@ public class MessageUnreadClient {
     try {
       return Long.parseLong(String.valueOf(count));
     } catch (NumberFormatException ex) {
+        log.debug("unread count could not be read, treating it as zero", ex);
       return 0;
     }
   }

@@ -123,6 +123,7 @@ public class IdaasSessionStore {
         }
       }
       return Optional.of(new IdaasUser(accountId, username, expiresAt));
+    // degradation: unusable stored session means no principal (fail-closed)
     } catch (NumberFormatException ex) {
       return Optional.empty();
     }
@@ -130,4 +131,4 @@ public class IdaasSessionStore {
 
   /** 会话/票据解析出的用户。 */
   public record IdaasUser(long accountId, String username, long expiresAt) {}
-}
+        }

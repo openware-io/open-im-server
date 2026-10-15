@@ -2,6 +2,7 @@ package io.openware.platform.tenant.application;
 
 import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 租户级钱包代币展示配置（品牌展示名 + 兑换比例）的唯一读取口径。
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
  * 管理端读路径各自负责边界），只暴露只读求值。
  */
 @Service
+@Slf4j
 public class WalletTokenConfigApplicationService {
 
     /** 租户配置键：代币品牌展示名（非币种）。 */
@@ -69,6 +71,7 @@ public class WalletTokenConfigApplicationService {
             long ratio = Long.parseLong(raw.trim());
             return ratio > 0 ? ratio : DEFAULT_RATIO;
         } catch (NumberFormatException invalid) {
+            log.debug("wallet token ratio could not be read, using the configured default", invalid);
             return DEFAULT_RATIO;
         }
     }

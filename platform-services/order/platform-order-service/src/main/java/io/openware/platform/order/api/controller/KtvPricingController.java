@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 
 /**
@@ -28,6 +29,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/business/ktv/pricing")
+@Slf4j
 public class KtvPricingController {
 
     private final DefaultKtvPricingPlanProvider pricingPlanProvider;
@@ -126,6 +128,7 @@ public class KtvPricingController {
         try {
             return roomTypeCatalogClient.roomType(storeId, roomTypeId).orElse(null);
         } catch (RuntimeException e) {
+            log.debug("ktv pricing lookup could not be resolved", e);
             return null;
         }
     }

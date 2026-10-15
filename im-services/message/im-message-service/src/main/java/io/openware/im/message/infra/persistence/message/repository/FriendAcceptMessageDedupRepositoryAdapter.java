@@ -33,6 +33,7 @@ public class FriendAcceptMessageDedupRepositoryAdapter implements FriendAcceptMe
     try {
       mapper.insert(po);
       return true;
+    // degradation: dedup lookup failure means treat as not-yet-processed (fail-closed, avoids skipping a message)
     } catch (DuplicateKeyException duplicate) {
       return false;
     }
@@ -54,4 +55,4 @@ public class FriendAcceptMessageDedupRepositoryAdapter implements FriendAcceptMe
   private Record toRecord(FriendAcceptMessageDedupPo po) {
     return new Record(po.getRequestId(), po.getEventId(), po.getStatus(), po.getMsgId());
   }
-}
+        }

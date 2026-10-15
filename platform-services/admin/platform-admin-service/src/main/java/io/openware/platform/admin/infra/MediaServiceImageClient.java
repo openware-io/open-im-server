@@ -107,6 +107,7 @@ public class MediaServiceImageClient {
     try {
       return String.valueOf(response.getStatusCode());
     } catch (Exception exception) {
+        log.debug("media content type could not be resolved, using the fallback label", exception);
       return "unknown";
     }
   }
@@ -128,6 +129,7 @@ public class MediaServiceImageClient {
     try {
       return new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
     } catch (Exception exception) {
+        log.debug("media file extension could not be resolved, using the fallback value", exception);
       return "";
     }
   }
@@ -139,6 +141,7 @@ public class MediaServiceImageClient {
     try {
       return objectMapper.readTree(body);
     } catch (Exception exception) {
+        log.debug("media metadata could not be read, continuing without it", exception);
       return null;
     }
   }
@@ -151,6 +154,7 @@ public class MediaServiceImageClient {
     try {
       return MediaType.parseMediaType(contentType);
     } catch (InvalidMediaTypeException exception) {
+        log.debug("media content type could not be resolved, defaulting to octet-stream", exception);
       return MediaType.APPLICATION_OCTET_STREAM;
     }
   }

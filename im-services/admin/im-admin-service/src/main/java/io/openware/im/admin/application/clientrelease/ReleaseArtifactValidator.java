@@ -78,6 +78,7 @@ public class ReleaseArtifactValidator {
       int second = Integer.parseInt(octets[1]);
       for (String octet : octets) if (Integer.parseInt(octet) > 255) return false;
       return first == 10 || first == 127 || (first == 172 && second >= 16 && second <= 31) || (first == 192 && second == 168) || (first == 169 && second == 254);
+    // degradation: artifact metadata cannot be read means validation fails (fail-closed)
     } catch (NumberFormatException exception) {
       return false;
     }
@@ -87,4 +88,4 @@ public class ReleaseArtifactValidator {
   private boolean isBlank(String value) { return value == null || value.isBlank(); }
   private ApiException invalid(String message) { return invalid("CLIENT_RELEASE_INVALID_REQUEST", message); }
   private ApiException invalid(String code, String message) { return new ApiException(HttpStatusCodes.BAD_REQUEST, code, message); }
-}
+        }

@@ -74,6 +74,7 @@ public class ResourceStateClient {
             JsonNode node = objectMapper.readTree(resp);
             return Optional.of(toSnapshot(node));
         } catch (Exception e) {
+            log.debug("resource state lookup failed, reporting no state", e);
             return Optional.empty();
         }
     }
@@ -174,6 +175,7 @@ public class ResourceStateClient {
                     node.path("state").asText(""), node.path("unavailableReason").asText(null),
                     node.path("name").asText(null)));
         } catch (Exception e) {
+            log.debug("resource state lookup failed, reporting no state", e);
             return Optional.empty();
         }
     }

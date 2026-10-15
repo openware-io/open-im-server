@@ -53,10 +53,11 @@ public class MediaReferenceClient {
       Map<String, String> urls = client().post().uri("/internal/media/references/access-urls/batch")
           .body(requests).retrieve().body(new ParameterizedTypeReference<Map<String, String>>() {});
       return urls == null ? Map.of() : urls;
+    // degradation: media reference lookup degrades to no URLs so the caller renders without them, by contract
     } catch (RuntimeException exception) {
       return Map.of();
     }
   }
 
   private RestClient client() { return restClientBuilder.clone().baseUrl(properties.getBaseUrl()).requestInterceptor(authenticationInterceptor).build(); }
-}
+        }

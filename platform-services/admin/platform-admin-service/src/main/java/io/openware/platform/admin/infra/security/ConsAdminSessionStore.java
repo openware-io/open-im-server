@@ -105,6 +105,7 @@ public class ConsAdminSessionStore {
           AdminRole.valueOf(node.path("role").asText("")),
           platformAccountId,
           node.path("tenantContextToken").asText(null)));
+    // degradation: unusable stored session means no principal (fail-closed)
     } catch (Exception e) {
       return Optional.empty();
     }
@@ -163,4 +164,4 @@ public class ConsAdminSessionStore {
     }
     return Duration.ofMillis(remaining);
   }
-}
+        }

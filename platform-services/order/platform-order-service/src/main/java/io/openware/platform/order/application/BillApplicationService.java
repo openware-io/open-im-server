@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 客户消费账单（只读）：GET /business/orders/{id}/bill。
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
  * </ul>
  */
 @Service
+@Slf4j
 public class BillApplicationService {
     /** 包厢费行金额来源：开台中实时估算（随计费时长增长）。 */
     static final String SOURCE_LIVE = "LIVE";
@@ -229,6 +231,7 @@ public class BillApplicationService {
         try {
             return KtvSessionApplicationService.planFromSnapshot(snapshot);
         } catch (RuntimeException invalidSnapshot) {
+            log.debug("bill figure could not be resolved", invalidSnapshot);
             return null;
         }
     }

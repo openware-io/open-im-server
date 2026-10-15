@@ -58,8 +58,9 @@ public class WebSocketSecurityProperties {
           && uri.getFragment() == null
           && uri.getUserInfo() == null
           && uri.getPath().isEmpty();
+    // degradation: security setting cannot be read means deny (fail-closed); the boolean already carries the outcome
     } catch (IllegalArgumentException exception) {
       return false;
     }
   }
-}
+        }

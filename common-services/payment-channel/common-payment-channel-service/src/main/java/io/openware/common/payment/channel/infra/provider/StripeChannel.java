@@ -200,6 +200,7 @@ public class StripeChannel implements PaymentChannelProvider {
                 return false;
             }
         } catch (NumberFormatException e) {
+            log.debug("event timestamp is not numeric, rejecting the webhook (fail-closed anti-replay)", e);
             return false;
         }
         String expected = PaymentCryptoUtils.hmacSha256Hex(timestamp + "." + rawBody, secret);

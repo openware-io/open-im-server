@@ -12,9 +12,11 @@ import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminMonitorApplicationService {
   private final StringRedisTemplate redisTemplate;
   private final AdminReadClient adminReadClient;
@@ -63,6 +65,7 @@ public class AdminMonitorApplicationService {
       return Map.of("userId", userId, "username", user.getUsername(), "nickname", user.getNickname(),
           "avatar", user.getAvatar() == null ? "" : user.getAvatar(), "socketCount", sockets == null ? 0 : sockets);
     } catch (RuntimeException ex) {
+        log.debug("monitor row field could not be read, keeping the identifier as the label", ex);
       return Map.of("userId", member, "username", member, "nickname", member, "avatar", "", "socketCount", 0);
     }
   }
@@ -71,6 +74,7 @@ public class AdminMonitorApplicationService {
     try {
       return InetAddress.getLocalHost().getHostName();
     } catch (Exception ex) {
+        log.debug("monitor metric could not be resolved, using the fallback label", ex);
       return "unknown";
     }
   }

@@ -6,9 +6,11 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class AuthenticationUserProjection {
   private static final String SEPARATOR = "|";
 
@@ -40,6 +42,7 @@ public class AuthenticationUserProjection {
           Boolean.parseBoolean(fields[2]),
           Long.parseLong(fields[3])));
     } catch (IllegalArgumentException exception) {
+        log.debug("unusable token yields no principal, which is the fail-closed outcome", exception);
       return Optional.empty();
     }
   }

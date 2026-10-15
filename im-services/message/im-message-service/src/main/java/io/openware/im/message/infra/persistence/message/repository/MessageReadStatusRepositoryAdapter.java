@@ -27,6 +27,7 @@ public class MessageReadStatusRepositoryAdapter implements MessageReadStatusRepo
     try {
       mapper.insert(po);
       return true;
+    // degradation: read-status lookup failure falls back to the default answer by contract
     } catch (DuplicateKeyException ex) {
       return false;
     }
@@ -46,4 +47,4 @@ public class MessageReadStatusRepositoryAdapter implements MessageReadStatusRepo
   public void deleteByMsgId(String msgId) {
     mapper.delete(Wrappers.<MessageReadStatusPo>lambdaQuery().eq(MessageReadStatusPo::getMsgId, msgId));
   }
-}
+        }

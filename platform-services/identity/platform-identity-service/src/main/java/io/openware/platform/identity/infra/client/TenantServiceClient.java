@@ -96,6 +96,7 @@ public class TenantServiceClient {
                     .retrieve()
                     .body(TenantCurrency.class);
             return currency == null ? null : currency.currencyCode();
+        // degradation: remote lookup helper returns null when the value is unavailable; the caller branches on it
         } catch (RuntimeException e) {
             return null;
         }
@@ -112,4 +113,4 @@ public class TenantServiceClient {
     /** tenant-service 内部权限快照（内部契约 DTO，非 PO）。 */
     public record PermissionSnapshot(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                      int authorizationVersion, List<String> permissions) {}
-}
+        }

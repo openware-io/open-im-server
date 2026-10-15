@@ -3,6 +3,7 @@ package io.openware.common.payment.application;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 营业日结汇总（{@code pay_daily_closing.summary_json} 的唯一结构定义）：**按币种分组**落库，
@@ -28,6 +29,7 @@ import java.util.List;
  * @param mixedCurrency 是否出现多种币种（true 时调用方必须按 {@code currencies[].currencyCode} 分别展示）
  * @param currencies    按币种代码升序的分组明细（至少一条，空营业日为一条全 0 分组）
  */
+@Slf4j
 public record DailyClosingSummary(String businessDate, Long storeId, String currencyCode, boolean mixedCurrency,
                                   List<CurrencyLine> currencies) {
 
@@ -111,6 +113,7 @@ public record DailyClosingSummary(String businessDate, Long storeId, String curr
         try {
             return MAPPER.readValue(json, DailyClosingSummary.class);
         } catch (Exception ex) {
+            log.debug("daily closing entry could not be read", ex);
             return null;
         }
     }

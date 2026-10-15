@@ -45,6 +45,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 CurrencyContextHolder.set(Currency.parse(claims.get("currency", String.class)));
             }
             chain.doFilter(request, response);
+        // degradation: invalid tenant context claims are rejected with 401, so the response already carries the verdict
         } catch (JwtException | IllegalArgumentException exception) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid tenant context");
         } finally {
@@ -91,4 +92,4 @@ public class TenantContextFilter extends OncePerRequestFilter {
         Number value = claims.get(name, Number.class);
         return value == null ? null : value.longValue();
     }
-}
+        }

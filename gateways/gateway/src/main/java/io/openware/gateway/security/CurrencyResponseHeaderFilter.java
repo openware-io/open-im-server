@@ -67,6 +67,7 @@ public final class CurrencyResponseHeaderFilter implements GlobalFilter, Ordered
       JsonNode node = objectMapper.readTree(payload);
       String currency = node == null ? null : node.path("currency").asText(null);
       return normalize(currency);
+    // degradation: missing or unparsable currency claim falls back to the default currency by contract
     } catch (Exception ex) {
       return DEFAULT_CURRENCY;
     }
@@ -80,4 +81,4 @@ public final class CurrencyResponseHeaderFilter implements GlobalFilter, Ordered
     String trimmed = currency.trim().toUpperCase(java.util.Locale.ROOT);
     return "CNY".equals(trimmed) || "USD".equals(trimmed) ? trimmed : DEFAULT_CURRENCY;
   }
-}
+        }

@@ -150,6 +150,7 @@ public class TenantIamDomainClient {
                     .body(String.class);
             JsonNode node = objectMapper.readTree(resp);
             return node == null ? null : text(node, "currencyCode");
+        // degradation: remote lookup helper returns null when the value is unavailable; the caller branches on it
         } catch (Exception e) {
             return null;
         }
@@ -296,4 +297,4 @@ public class TenantIamDomainClient {
     /** tenant-service 内部角色绑定视图（内部契约 DTO，非 PO）。 */
     public record RoleBinding(Long roleId, Long tenantId, Long organizationId, Long storeId, String roleCode, String roleName, String scopeType,
                               String tenantName, String storeName, String status) {}
-}
+        }

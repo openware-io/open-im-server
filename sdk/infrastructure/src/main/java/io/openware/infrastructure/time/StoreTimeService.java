@@ -143,6 +143,7 @@ public final class StoreTimeService {
         try {
             ZoneId zone = ZoneId.of(raw.trim());
             return zone instanceof ZoneOffset ? null : zone;
+        // degradation: time parsing degrades to null so the caller can fall back, by contract
         } catch (DateTimeException ignored) {
             return null;
         }
@@ -197,6 +198,7 @@ public final class StoreTimeService {
     private static LocalTime parseCutoff(String raw) {
         try {
             return LocalTime.parse(raw).truncatedTo(ChronoUnit.MINUTES);
+        // degradation: time parsing degrades to null so the caller can fall back, by contract
         } catch (DateTimeParseException failure) {
             return null;
         }
@@ -273,4 +275,4 @@ public final class StoreTimeService {
         ZoneId zone = Objects.requireNonNull(storeZone, "storeZone");
         return moment.toInstant(ZoneOffset.UTC).atZone(zone).toOffsetDateTime();
     }
-}
+        }

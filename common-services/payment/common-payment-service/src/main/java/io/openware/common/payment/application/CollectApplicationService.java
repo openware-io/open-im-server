@@ -338,6 +338,7 @@ public class CollectApplicationService {
             try {
                 result = deserializeResult(json);
             } catch (RuntimeException ignored) {
+                log.debug("skipping a settlement leg that cannot be read", ignored);
                 continue;
             }
             if (result.collectedByMethod() == null) {
@@ -692,6 +693,7 @@ public class CollectApplicationService {
         try {
             return objectMapper.readValue(json, FailureSnapshot.class);
         } catch (Exception e) {
+            log.debug("settlement leg could not be resolved", e);
             return null;
         }
     }

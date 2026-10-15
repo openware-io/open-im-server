@@ -62,6 +62,7 @@ public class AdminManagementApplicationService {
   public int configurationInt(String key, int defaultValue) {
     return configurationRepository.findByKey(key)
         .map(AdminConfiguration::configValue)
+        // degradation: optional lookup falls back to the caller-supplied default value
         .map(value -> { try { return Integer.parseInt(value.trim()); } catch (NumberFormatException e) { return defaultValue; } })
         .orElse(defaultValue);
   }
@@ -116,4 +117,4 @@ public class AdminManagementApplicationService {
   public record TypeSort(Long id,Integer sortOrder) {}
   public record ItemChange(Long typeId,String name,String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
   public record ItemPatch(Long typeId,String name,String link,String introduction,String icon,Integer status,Integer isTop,String audience,Integer hidden,Integer sortOrder) {}
-}
+        }

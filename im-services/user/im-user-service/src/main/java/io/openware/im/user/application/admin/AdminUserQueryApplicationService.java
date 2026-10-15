@@ -203,6 +203,7 @@ public class AdminUserQueryApplicationService {
     }
     try {
       return Long.parseLong(keyword);
+    // degradation: lookup helper returns null when the optional value is absent; the caller branches on it
     } catch (NumberFormatException ignored) {
       return null;
     }
@@ -224,4 +225,4 @@ public class AdminUserQueryApplicationService {
       throw new IllegalStateException("SHA-256 is unavailable", exception);
     }
   }
-}
+        }

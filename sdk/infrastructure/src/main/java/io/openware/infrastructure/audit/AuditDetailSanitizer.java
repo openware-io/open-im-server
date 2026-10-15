@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 审计详情脱敏器：把任意「详情」转成**合法 JSON**，并清掉隐私与凭据字段。
@@ -22,6 +23,7 @@ import java.util.Set;
  *   <li>无法解析的入参按纯文本处理（包装成 JSON 字符串），**绝不抛异常**，避免因为详情格式问题丢审计。</li>
  * </ul>
  */
+@Slf4j
 public final class AuditDetailSanitizer {
 
   /** 详情 JSON 长度上限（字符），与审计表 detail_json 的实际使用规模匹配。 */
@@ -61,9 +63,11 @@ public final class AuditDetailSanitizer {
         sanitized = MAPPER.writeValueAsString(scrub(node));
       }
     } catch (Exception parseFailure) {
+        log.debug("audit detail could not be parsed as JSON, wrapping it as text", parseFailure);
       try {
         sanitized = MAPPER.writeValueAsString(new TextNode(raw));
       } catch (Exception serializationFailure) {
+          log.debug("audit detail could not be serialized, dropping it", serializationFailure);
         return null;
       }
     }

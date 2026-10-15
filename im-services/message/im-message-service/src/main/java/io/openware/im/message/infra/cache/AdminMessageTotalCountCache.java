@@ -23,6 +23,7 @@ public class AdminMessageTotalCountCache implements AdminMessageTotalCountPort {
     }
     try {
       return Long.parseLong(value);
+    // degradation: cache invalidation is best-effort: the entry expires on its own TTL if the delete fails
     } catch (NumberFormatException ex) {
       redisTemplate.delete(RedisKeys.ADMIN_MESSAGE_TOTAL);
       return null;
@@ -32,4 +33,4 @@ public class AdminMessageTotalCountCache implements AdminMessageTotalCountPort {
   public void put(long total) {
     redisTemplate.opsForValue().set(RedisKeys.ADMIN_MESSAGE_TOTAL, Long.toString(total), TTL);
   }
-}
+        }

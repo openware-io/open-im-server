@@ -140,6 +140,7 @@ public class DevSaasSessionController {
                 try {
                     int second = Integer.parseInt(parts[1]);
                     return second >= 16 && second <= 31;
+                // degradation: session probe cannot be evaluated means treat as absent (fail-closed)
                 } catch (NumberFormatException ignored) {
                     return false;
                 }
@@ -150,4 +151,4 @@ public class DevSaasSessionController {
 
     public record DevSessionResponse(boolean authenticated, long accountId, String appId) {
     }
-}
+        }
