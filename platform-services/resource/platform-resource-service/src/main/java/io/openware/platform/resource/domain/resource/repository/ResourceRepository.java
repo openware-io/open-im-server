@@ -30,6 +30,30 @@ public interface ResourceRepository {
   Resource save(Resource resource);
 
   /**
+   * 更新基础信息列（名称、区域、容量、描述），返回是否确实更新了一行。
+   *
+   * <p>「编辑用例按提交才更新」的语义在这里落成分组方法，而不是传一列列名：调用方表达的是
+   * 「这几类信息要改」，不是「往某几张列写值」。空值（如把区域清空）**必须真的写 NULL**——
+   * 这正是不能用 {@code updateById} 的原因（NOT_NULL 策略会整列跳过，出现"只清了响应没清库"）。
+   */
+  boolean updateDetails(Long resourceId, String name, String areaName, Integer capacity, String description);
+
+  /**
+   * 更新图片列（列表 + 主图），返回是否确实更新了一行。
+   *
+   * <p>图片是 JSON 列；类型处理器归适配器，不在调用方出现。
+   */
+  boolean updateMedia(Long resourceId, java.util.List<String> imageUrls, String mainImageUrl);
+
+  /**
+   * 更新房型绑定，返回是否确实更新了一行。
+   *
+   * <p>{@code roomTypeId} 为 {@code null} 表示解绑。也可以用 {@link #clearRoomTypeBinding} 表达同一结果；
+   * 二者并存是因为编辑用例需要"把房型改到另一个"与"清空"是同一列的一次写入。
+   */
+  boolean updateRoomTypeBinding(Long resourceId, Long roomTypeId);
+
+  /**
    * 解绑房型（把 {@code room_type_id} 置为 NULL），返回是否确实更新了一行。
    *
    * <p><b>必须独立于 {@link #save}</b>，不能用"把 {@code roomTypeId} 置空后保存"表达：MyBatis-Plus 默认的

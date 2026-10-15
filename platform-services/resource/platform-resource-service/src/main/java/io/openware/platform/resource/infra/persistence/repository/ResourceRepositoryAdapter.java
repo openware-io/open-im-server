@@ -1,5 +1,7 @@
 package io.openware.platform.resource.infra.persistence.repository;
 
+import com.baomidou.mybatisplus.core.toolkit.sql.SqlScriptUtils;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.resource.domain.resource.model.Resource;
 import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
@@ -24,6 +26,14 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public class ResourceRepositoryAdapter implements ResourceRepository {
+
+  /**
+   * image_urls 是 JSON 列：{@code set(...)} 生成的 {@code #{}} 占位符按运行时参数类型找 TypeHandler，
+   * {@code List} 没有内置处理器，必须显式带上与 {@code ResourcePo.imageUrls} 同款的
+   * {@link JacksonTypeHandler}，否则更新会在参数绑定时报「找不到 TypeHandler」。
+   */
+  private static final String IMAGE_URLS_TYPE_HANDLER =
+      SqlScriptUtils.mappingTypeHandler(JacksonTypeHandler.class);
 
   private final ResourceMapper mapper;
 
@@ -59,6 +69,43 @@ public class ResourceRepositoryAdapter implements ResourceRepository {
       mapper.updateById(po);
     }
     return toDomain(po);
+  }
+
+  /**
+   * 更新基础信息列。空值同样进 SET（清空区域/描述必须真的写 NULL），这是显式列集的意义。
+   */
+  @Override
+  public boolean updateDetails(Long resourceId, String name, String areaName, Integer capacity,
+                               String description) {
+    return mapper.update(null, Wrappers.<ResourcePo>lambdaUpdate()
+        .eq(ResourcePo::getId, resourceId)
+        .set(ResourcePo::getName, name)
+        .set(ResourcePo::getAreaName, areaName)
+        .set(ResourcePo::getCapacity, capacity)
+        .set(ResourcePo::getDescription, description)
+        .set(ResourcePo::getUpdatedAt, LocalDateTime.now())) > 0;
+  }
+
+  /**
+   * 更新图片列。{@code image_urls} 是 JSON 列：{@code set(...)} 的占位符按运行时参数类型找 TypeHandler，
+   * {@code List} 没有内置处理器，必须显式带上与 {@link ResourcePo#getImageUrls()} 同款的
+   * {@link JacksonTypeHandler}，否则参数绑定会报「找不到 TypeHandler」。
+   */
+  @Override
+  public boolean updateMedia(Long resourceId, List<String> imageUrls, String mainImageUrl) {
+    return mapper.update(null, Wrappers.<ResourcePo>lambdaUpdate()
+        .eq(ResourcePo::getId, resourceId)
+        .set(ResourcePo::getImageUrls, imageUrls, IMAGE_URLS_TYPE_HANDLER)
+        .set(ResourcePo::getMainImageUrl, mainImageUrl)
+        .set(ResourcePo::getUpdatedAt, LocalDateTime.now())) > 0;
+  }
+
+  @Override
+  public boolean updateRoomTypeBinding(Long resourceId, Long roomTypeId) {
+    return mapper.update(null, Wrappers.<ResourcePo>lambdaUpdate()
+        .eq(ResourcePo::getId, resourceId)
+        .set(ResourcePo::getRoomTypeId, roomTypeId)
+        .set(ResourcePo::getUpdatedAt, LocalDateTime.now())) > 0;
   }
 
   /**
