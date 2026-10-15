@@ -40,6 +40,14 @@ public class OauthLinkRepositoryAdapter implements OauthLinkRepository {
   }
 
   @Override
+  public List<OauthLink> findAllByProviderAccount(String provider, String providerAccountId) {
+    return mapper.selectList(new LambdaQueryWrapper<OauthLinkPo>()
+            .eq(OauthLinkPo::getProvider, provider)
+            .eq(OauthLinkPo::getProviderAccountId, providerAccountId))
+        .stream().map(this::toDomain).toList();
+  }
+
+  @Override
   public OauthLink save(OauthLink link) {
     LocalDateTime now = LocalDateTime.now();
     OauthLinkPo po = new OauthLinkPo();

@@ -10,8 +10,13 @@ import org.springframework.stereotype.Repository;
 /**
  * {@link ProfileSyncRecordRepository} 的持久化适配器。
  *
- * <p>{@code occurredAt} 是业务时间，由领域模型携带并原样落库；本表没有 created_by/at 与 updated_by/at
- * 记账列（见 idt_profile_sync_record 建表），因此无需填充审计字段。
+ * <p>{@code occurredAt} 是业务时间，由领域模型携带并原样落库。{@code event_id} 允许为空
+ * （建表注释：bind 拉取为空），bind 路径不传即可。
+ *
+ * <p><b>已知缺陷（既存，本次重构未改变其行为）</b>：{@code idt_profile_sync_record} 的建表语句包含
+ * created_by/created_at/updated_by/updated_at 四个 NOT NULL 列，但持久化对象 {@code ProfileSyncRecordPo}
+ * 并未映射它们，因此该表的 INSERT 在 NOT NULL 无默认值的列上缺值。本适配器保持与原服务一致的写法
+ * （只写映射到的列），未擅自补列或改表：这属于需要单独判断的迁移问题，不夹带在分层重构里。
  *
  * <p>幂等判据由 {@code event_id} 上的唯一性约束保证：{@link #existsByEventId} 是查询视图，
  * 真正防重复依赖插入时的唯一键冲突，调用方需处理该冲突。

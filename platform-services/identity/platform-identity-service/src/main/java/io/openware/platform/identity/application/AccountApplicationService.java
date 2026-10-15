@@ -61,7 +61,7 @@ public class AccountApplicationService {
     @Transactional
     public IdentityAccount ensureAccount(String loginType, String loginIdentifier, String accountType) {
         LoginIdentity li = loginIdentityRepository
-                .findByLoginIdentifier(loginType, loginIdentifier).orElse(null);
+                .findUniqueByLoginIdentifier(loginType, loginIdentifier).orElse(null);
         if (IM_LOGIN_TYPE.equals(loginType)) {
             OauthLink link = oauthLinkRepository
                     .findByProviderAccount(IM_OAUTH_PROVIDER, loginIdentifier).orElse(null);

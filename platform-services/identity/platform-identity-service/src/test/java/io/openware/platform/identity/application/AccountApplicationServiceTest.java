@@ -119,7 +119,7 @@ class AccountApplicationServiceTest {
   void ensureImReusesAccountCreatedByOAuth() {
     when(oauthLinkRepository.findByProviderAccount("IM", "im_71"))
         .thenReturn(Optional.of(OauthLink.bind(71L, "IM", "im_71", null)));
-    when(loginIdentityRepository.findByLoginIdentifier("IM", "im_71")).thenReturn(Optional.empty());
+    when(loginIdentityRepository.findUniqueByLoginIdentifier("IM", "im_71")).thenReturn(Optional.empty());
     when(loginIdentityRepository.save(any(LoginIdentity.class))).thenAnswer(i -> i.getArgument(0));
     when(accountRepository.findById(71L)).thenReturn(Optional.of(new IdentityAccount(71L,
         IdentityAccount.STATUS_ACTIVE, IdentityAccount.TYPE_CUSTOMER)));

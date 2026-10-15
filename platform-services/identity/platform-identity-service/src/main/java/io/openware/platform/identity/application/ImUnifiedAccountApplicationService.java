@@ -1,12 +1,10 @@
 package io.openware.platform.identity.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import io.openware.platform.identity.infra.persistence.mapper.IdentityAccountMapper;
-import io.openware.platform.identity.infra.persistence.mapper.LoginIdentityMapper;
-import io.openware.platform.identity.infra.persistence.mapper.OauthLinkMapper;
-import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
-import io.openware.platform.identity.infra.persistence.po.LoginIdentityPo;
-import io.openware.platform.identity.infra.persistence.po.OauthLinkPo;
+import io.openware.platform.identity.domain.account.model.IdentityAccount;
+import io.openware.platform.identity.domain.account.model.LoginIdentity;
+import io.openware.platform.identity.domain.account.repository.IdentityAccountRepository;
+import io.openware.platform.identity.domain.account.repository.LoginIdentityRepository;
+import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +16,9 @@ import org.springframework.stereotype.Service;
  * <p>该服务仅提供统一身份侧的查询能力；IM 用户删除不得跨业务域物理删除 SaaS 或审计数据。
  *
  * <p>身份解绑由各业务的独立流程处理，本服务不作为 IM 删除的级联入口。
+ *
+ * <p>只读视图按 standards/10 走端口：查询条件是业务语义（"某 IM 用户名下的登录标识"），不再在应用层
+ * 拼接 Wrapper，也不直接承载持久化对象。
  */
 @Service
 @RequiredArgsConstructor
@@ -26,34 +27,34 @@ public class ImUnifiedAccountApplicationService {
 
   /** IM 登录标识类型与对应的 OAuth provider（两者取值都是 {@code IM}）。 */
   public static final String IM_LOGIN_TYPE = "IM";
-  private final IdentityAccountMapper accountMapper;
-  private final LoginIdentityMapper loginIdentityMapper;
-  private final OauthLinkMapper oauthLinkMapper;
+  private final IdentityAccountRepository accountRepository;
+  private final LoginIdentityRepository loginIdentityRepository;
+  private final OauthLinkRepository oauthLinkRepository;
 
   /** 按 IM 用户名（{@code im_<id>}）查统一账号；不存在返回 {@code found=false}。 */
   public ImAccountView findByImUsername(String username) {
-    List<LoginIdentityPo> identities = imIdentities(username);
+    List<LoginIdentity> identities = imIdentities(username);
     if (identities.isEmpty()) {
       return new ImAccountView(false, null, null, 0, 0);
     }
-    Long accountId = identities.get(0).getAccountId();
-    IdentityAccountPo account = accountId == null ? null : accountMapper.selectById(accountId);
-    return new ImAccountView(true, accountId, account == null ? null : account.getAccountType(),
+    Long accountId = identities.get(0).accountId();
+    IdentityAccount account = accountId == null ? null : accountRepository.findById(accountId).orElse(null);
+    return new ImAccountView(true, accountId, account == null ? null : account.accountType(),
         identities.size(), countImOauthLinks(username));
   }
 
-  private List<LoginIdentityPo> imIdentities(String username) {
+  private List<LoginIdentity> imIdentities(String username) {
     if (username == null || username.isBlank()) {
       return List.of();
     }
-    return loginIdentityMapper.selectList(new QueryWrapper<LoginIdentityPo>()
-        .eq("login_type", IM_LOGIN_TYPE).eq("login_identifier", username.trim()));
+    return loginIdentityRepository.findAllByLoginIdentifier(IM_LOGIN_TYPE, username.trim());
   }
 
   private long countImOauthLinks(String username) {
-    Long count = oauthLinkMapper.selectCount(new QueryWrapper<OauthLinkPo>()
-        .eq("provider", IM_LOGIN_TYPE).eq("provider_account_id", username.trim()));
-    return count == null ? 0 : count;
+    if (username == null || username.isBlank()) {
+      return 0;
+    }
+    return oauthLinkRepository.findAllByProviderAccount(IM_LOGIN_TYPE, username.trim()).size();
   }
 
   /**

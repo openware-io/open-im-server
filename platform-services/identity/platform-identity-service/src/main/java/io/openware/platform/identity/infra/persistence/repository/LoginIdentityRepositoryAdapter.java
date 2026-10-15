@@ -26,10 +26,18 @@ public class LoginIdentityRepositoryAdapter implements LoginIdentityRepository {
   }
 
   @Override
-  public Optional<LoginIdentity> findByLoginIdentifier(String loginType, String loginIdentifier) {
+  public Optional<LoginIdentity> findUniqueByLoginIdentifier(String loginType, String loginIdentifier) {
     return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<LoginIdentityPo>()
         .eq(LoginIdentityPo::getLoginType, loginType)
         .eq(LoginIdentityPo::getLoginIdentifier, loginIdentifier))).map(this::toDomain);
+  }
+
+  @Override
+  public List<LoginIdentity> findAllByLoginIdentifier(String loginType, String loginIdentifier) {
+    return mapper.selectList(new LambdaQueryWrapper<LoginIdentityPo>()
+            .eq(LoginIdentityPo::getLoginType, loginType)
+            .eq(LoginIdentityPo::getLoginIdentifier, loginIdentifier))
+        .stream().map(this::toDomain).toList();
   }
 
   @Override

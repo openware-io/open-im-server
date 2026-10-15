@@ -1,22 +1,21 @@
 package io.openware.platform.identity.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.common.port.TokenProvider;
 import io.openware.infrastructure.security.JwtProperties;
+import io.openware.platform.identity.domain.account.model.IdentityAccount;
+import io.openware.platform.identity.domain.account.model.LoginIdentity;
+import io.openware.platform.identity.domain.account.model.OauthLink;
+import io.openware.platform.identity.domain.account.model.ProfileSyncRecord;
+import io.openware.platform.identity.domain.account.repository.IdentityAccountRepository;
+import io.openware.platform.identity.domain.account.repository.LoginIdentityRepository;
+import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
+import io.openware.platform.identity.domain.account.repository.ProfileSyncRecordRepository;
 import io.openware.platform.identity.infra.oauth.ImOAuthClient;
 import io.openware.platform.identity.infra.oauth.ImOAuthUserInfo;
-import io.openware.platform.identity.infra.persistence.mapper.IdentityAccountMapper;
-import io.openware.platform.identity.infra.persistence.mapper.LoginIdentityMapper;
-import io.openware.platform.identity.infra.persistence.mapper.OauthLinkMapper;
-import io.openware.platform.identity.infra.persistence.mapper.ProfileSyncRecordMapper;
-import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
-import io.openware.platform.identity.infra.persistence.po.LoginIdentityPo;
-import io.openware.platform.identity.infra.persistence.po.OauthLinkPo;
-import io.openware.platform.identity.infra.persistence.po.ProfileSyncRecordPo;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -33,6 +32,8 @@ import java.util.Map;
  * <p>流程：用 im_access_token 调 IM /oauth/userinfo 拿 open_id + 资料，
  * 按 open_id 找或建 SaaS 账号，写入 oauth_link + login_identity + profile_sync_record。
  * 幂等：同一 open_id 重复 bind 返回已有账号；provider+provider_account_id 唯一键冲突时查回。</p>
+ *
+ * <p>持久化经领域端口完成；账号与登录标识的创建走领域工厂，状态与类型由领域固定。
  */
 @Service
 public class OAuthImBindApplicationService {
@@ -41,24 +42,27 @@ public class OAuthImBindApplicationService {
 
     private final OAuthImBindApplicationService self;
     private final ImOAuthClient imOAuthClient;
-    private final IdentityAccountMapper accountMapper;
-    private final LoginIdentityMapper loginIdentityMapper;
-    private final OauthLinkMapper oauthLinkMapper;
-    private final ProfileSyncRecordMapper profileSyncRecordMapper;
+    private final IdentityAccountRepository accountRepository;
+    private final LoginIdentityRepository loginIdentityRepository;
+    private final OauthLinkRepository oauthLinkRepository;
+    private final ProfileSyncRecordRepository profileSyncRecordRepository;
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
     private final TenantServiceClient tenantServiceClient;
 
     public OAuthImBindApplicationService(@Lazy OAuthImBindApplicationService self, ImOAuthClient imOAuthClient,
-                                         IdentityAccountMapper accountMapper, LoginIdentityMapper loginIdentityMapper,
-                                         OauthLinkMapper oauthLinkMapper, ProfileSyncRecordMapper profileSyncRecordMapper,
-                                         TokenProvider tokenProvider, JwtProperties jwtProperties, TenantServiceClient tenantServiceClient) {
+                                         IdentityAccountRepository accountRepository,
+                                         LoginIdentityRepository loginIdentityRepository,
+                                         OauthLinkRepository oauthLinkRepository,
+                                         ProfileSyncRecordRepository profileSyncRecordRepository,
+                                         TokenProvider tokenProvider, JwtProperties jwtProperties,
+                                         TenantServiceClient tenantServiceClient) {
         this.self = self;
         this.imOAuthClient = imOAuthClient;
-        this.accountMapper = accountMapper;
-        this.loginIdentityMapper = loginIdentityMapper;
-        this.oauthLinkMapper = oauthLinkMapper;
-        this.profileSyncRecordMapper = profileSyncRecordMapper;
+        this.accountRepository = accountRepository;
+        this.loginIdentityRepository = loginIdentityRepository;
+        this.oauthLinkRepository = oauthLinkRepository;
+        this.profileSyncRecordRepository = profileSyncRecordRepository;
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
         this.tenantServiceClient = tenantServiceClient;
@@ -87,19 +91,19 @@ public class OAuthImBindApplicationService {
         if (openId == null || openId.isBlank()) {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "IM_OPEN_ID_MISSING", "IM 用户信息缺少 open_id");
         }
-        OauthLinkPo existing = findLink(openId);
+        OauthLink existing = findLink(openId);
         if (existing != null) {
-            return bindResult(existing.getAccountId(), openId);
+            return bindResult(existing.accountId(), openId);
         }
         try {
             Long accountId = self.createAccountAndBind(openId, info);
             return bindResult(accountId, openId);
         } catch (DuplicateKeyException ex) {
-            OauthLinkPo raced = findLink(openId);
+            OauthLink raced = findLink(openId);
             if (raced == null) {
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
-            return bindResult(raced.getAccountId(), openId);
+            return bindResult(raced.accountId(), openId);
         }
     }
 
@@ -112,46 +116,23 @@ public class OAuthImBindApplicationService {
     @Transactional
     public Long createAccountAndBind(String openId, ImOAuthUserInfo info) {
         LocalDateTime now = LocalDateTime.now();
-        IdentityAccountPo account = new IdentityAccountPo();
-        account.setStatus("ACTIVE");
         // IM OAuth 授权进入的默认是普通用户/潜在消费者（客户类型）；员工须由管理员在后台开通并标记 EMPLOYEE。
-        account.setAccountType("CUSTOMER");
-        account.setCreatedAt(now);
-        account.setUpdatedAt(now);
-        accountMapper.insert(account);
+        // 状态与类型由领域工厂固定，审计字段由适配器填充。
+        IdentityAccount account = accountRepository.save(IdentityAccount.register());
 
-        LoginIdentityPo loginIdentity = new LoginIdentityPo();
-        loginIdentity.setAccountId(account.getId());
-        loginIdentity.setLoginType(PROVIDER_IM);
-        loginIdentity.setLoginIdentifier(openId);
-        loginIdentity.setStatus("ACTIVE");
-        loginIdentity.setCreatedAt(now);
-        loginIdentity.setUpdatedAt(now);
-        loginIdentityMapper.insert(loginIdentity);
-
-        OauthLinkPo link = new OauthLinkPo();
-        link.setAccountId(account.getId());
-        link.setProvider(PROVIDER_IM);
-        link.setProviderAccountId(openId);
-        link.setScope(info.scope());
-        link.setStatus("ACTIVE");
-        link.setCreatedAt(now);
-        link.setUpdatedAt(now);
-        oauthLinkMapper.insert(link);
-
-        ProfileSyncRecordPo record = new ProfileSyncRecordPo();
-        record.setAccountId(account.getId());
-        record.setProvider(PROVIDER_IM);
-        record.setProfileJson(toProfileJson(info));
-        record.setOccurredAt(now);
-        profileSyncRecordMapper.insert(record);
-        return account.getId();
+        loginIdentityRepository.save(
+                LoginIdentity.forLogin(account.id(), PROVIDER_IM, openId, null));
+        oauthLinkRepository.save(
+                OauthLink.bind(account.id(), PROVIDER_IM, openId, info.scope()));
+        // event_id 为空是既定口径（建表注释：bind 拉取为空），仅事件消费路径才带幂等键。
+        profileSyncRecordRepository.save(new ProfileSyncRecord(
+                null, null, account.id(), PROVIDER_IM, toProfileJson(info), now));
+        return account.id();
     }
 
-    private OauthLinkPo findLink(String openId) {
-        QueryWrapper<OauthLinkPo> qw = new QueryWrapper<>();
-        qw.eq("provider", PROVIDER_IM).eq("provider_account_id", openId);
-        return oauthLinkMapper.selectOne(qw);
+    private OauthLink findLink(String openId) {
+        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, openId).stream()
+                .findFirst().orElse(null);
     }
 
     private String toProfileJson(ImOAuthUserInfo info) {
