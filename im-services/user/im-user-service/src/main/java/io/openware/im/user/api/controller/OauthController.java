@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +35,7 @@ import io.openware.common.exception.ApiException;
 @Tag(name = "OAuth 2.0")
 @RequestMapping("/oauth")
 @RequiredArgsConstructor
+@Slf4j
 public class OauthController {
   private final OpenPlatformApplicationService openPlatformApplicationService;
 
@@ -152,6 +154,9 @@ public class OauthController {
       return separator < 0 ? new String[] {null, null}
           : new String[] {decoded.substring(0, separator), decoded.substring(separator + 1)};
     } catch (IllegalArgumentException ex) {
+      // 畸形 Basic 头一律按"未提供凭据"处理；下游 authenticateApplication 对 null secret 返回
+      // 401（fail-closed），故不存在绕过。保留 DEBUG 以便发现异常客户端或探测行为。
+      log.debug("malformed basic authorization header, treating as absent", ex);
       return new String[] {null, null};
     }
   }

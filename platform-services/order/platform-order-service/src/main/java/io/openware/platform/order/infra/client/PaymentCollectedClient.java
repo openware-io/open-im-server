@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -18,6 +19,7 @@ import java.util.Optional;
  * 绝不让账单读取失败影响主流程。
  */
 @Component
+@Slf4j
 public class PaymentCollectedClient {
     private final RestClient restClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -47,6 +49,9 @@ public class PaymentCollectedClient {
             return Optional.of(new CollectedBreakdown(
                     node.path("cash").asLong(), node.path("wallet").asLong(), node.path("points").asLong()));
         } catch (Exception e) {
+            // 按类注释的既定降级：退回"已收合计记现金"口径，不阻断账单读取。
+            // 但本方法承载已收金额，故保留 DEBUG 以便区分"确实未收款"与"payment 调用失败"。
+            log.debug("failed to read collected breakdown for orderId={}, falling back to total-as-cash", orderId, e);
             return Optional.empty();
         }
     }
