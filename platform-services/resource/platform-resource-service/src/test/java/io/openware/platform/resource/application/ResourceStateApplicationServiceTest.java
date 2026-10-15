@@ -1,7 +1,9 @@
 package io.openware.platform.resource.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,170 +11,141 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.openware.platform.resource.application.ResourceStateApplicationService.ResourceView;
+import io.openware.platform.resource.domain.resource.model.Resource;
+import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
+import io.openware.platform.resource.domain.roomtype.model.RoomType;
+import io.openware.platform.resource.domain.roomtype.repository.RoomTypeReader;
 import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.mapper.RoomTypeMapper;
-import io.openware.platform.resource.infra.persistence.po.ResourcePo;
-import io.openware.platform.resource.infra.persistence.po.RoomTypePo;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * /business/resources 响应契约：B 端房态看板与 C 端选包厢要拿到主图/多图/描述；
- * 历史数据（迁移前创建的包厢）无图无描述时不能报错。
+ * 资源运行状态视图。
+ *
+ * <p>替身是**领域端口**：测试不再构造 MyBatis PO，也不再依赖 mapper 的查询形状
+ * （standards/10“测试规则”）。占用判定仍走 OccupationMapper 的专用查询。
  */
 class ResourceStateApplicationServiceTest {
 
-  private ResourceMapper resourceMapper;
+  private ResourceRepository resourceRepository;
   private OccupationMapper occupationMapper;
-  private RoomTypeMapper roomTypeMapper;
+  private RoomTypeReader roomTypeReader;
   private ResourceStateApplicationService service;
 
   @BeforeEach
   void setUp() {
-    resourceMapper = mock(ResourceMapper.class);
+    resourceRepository = mock(ResourceRepository.class);
     occupationMapper = mock(OccupationMapper.class);
-    roomTypeMapper = mock(RoomTypeMapper.class);
-    when(roomTypeMapper.selectBatchIds(any())).thenReturn(List.of());
-    service = new ResourceStateApplicationService(resourceMapper, occupationMapper, roomTypeMapper);
+    roomTypeReader = mock(RoomTypeReader.class);
+    when(roomTypeReader.findByIds(any())).thenReturn(List.of());
+    service = new ResourceStateApplicationService(resourceRepository, occupationMapper, roomTypeReader);
   }
 
   @Test
-  void listWithStateReturnsImagesMainImageAndDescription() {
-    ResourcePo room = room(30L, "V01", "VIP 01");
-    room.setImageUrls(List.of("/api/v1/media-public/a.png", "/api/v1/media-public/b.png"));
-    room.setMainImageUrl("/api/v1/media-public/b.png");
-    room.setDescription("可容纳 12 人");
-    when(resourceMapper.selectList(any())).thenReturn(List.of(room));
+  void listWithStateReturnsAvailableRoom() {
+    when(resourceRepository.listEnabledByType(any(), any())).thenReturn(List.of(room(30L, "V01", "VIP 01")));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
 
-    List<ResourceView> views = service.listWithState("KTV_ROOM", 1L);
+    List<ResourceView> views = service.listWithState("ROOM", 1L);
 
     assertEquals(1, views.size());
-    assertEquals(List.of("/api/v1/media-public/a.png", "/api/v1/media-public/b.png"), views.get(0).imageUrls());
-    assertEquals("/api/v1/media-public/b.png", views.get(0).mainImageUrl());
-    assertEquals("可容纳 12 人", views.get(0).description());
-    assertTrue(views.get(0).available());
+    assertEquals("IDLE", views.getFirst().state());
+    assertTrue(views.getFirst().available());
   }
 
   @Test
-  void listWithStateToleratesLegacyRowsWithoutImages() {
-    ResourcePo legacy = room(31L, "V02", "老包厢");
-    when(resourceMapper.selectList(any())).thenReturn(List.of(legacy));
+  void legacyRoomWithoutMediaFallsBackToEmptyListAndNull() {
+    when(resourceRepository.listEnabledByType(any(), any())).thenReturn(List.of(room(31L, "V02", "老包厢")));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
 
-    List<ResourceView> views = service.listWithState("KTV_ROOM", 1L);
+    List<ResourceView> views = service.listWithState("ROOM", 1L);
 
-    assertEquals(1, views.size());
-    // 空列表 + null：前端走占位图与空描述分支，不因缺字段抛错
-    assertTrue(views.get(0).imageUrls().isEmpty());
-    assertNull(views.get(0).mainImageUrl());
-    assertNull(views.get(0).description());
+    assertEquals(List.of(), views.getFirst().imageUrls());
+    assertNull(views.getFirst().mainImageUrl());
+    assertNull(views.getFirst().description());
   }
 
   @Test
-  void listWithStateKeepsStateFlagsAlongsideImages() {
-    ResourcePo cleaning = room(32L, "V03", "清洁中包厢");
-    cleaning.setCleaningStatus("CLEANING");
-    cleaning.setImageUrls(List.of("/api/v1/media-public/clean.png"));
-    cleaning.setMainImageUrl("/api/v1/media-public/clean.png");
-    when(resourceMapper.selectList(any())).thenReturn(List.of(cleaning));
+  void cleaningRoomIsUnavailableWithReason() {
+    Resource cleaning = room(32L, "V03", "清洁中包厢").withCleaning(true, LocalDateTime.now());
+    when(resourceRepository.listEnabledByType(any(), any())).thenReturn(List.of(cleaning));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
 
-    List<ResourceView> views = service.listWithState("KTV_ROOM", 1L);
+    List<ResourceView> views = service.listWithState("ROOM", 1L);
 
-    assertEquals("CLEANING", views.get(0).state());
-    assertEquals("清洁中", views.get(0).unavailableReason());
-    assertEquals("/api/v1/media-public/clean.png", views.get(0).mainImageUrl());
+    assertEquals("CLEANING", views.getFirst().state());
+    assertEquals("清洁中", views.getFirst().unavailableReason());
+    assertFalse(views.getFirst().available());
   }
 
   @Test
-  void viewOfLegacyRoomWithoutImagesDoesNotFail() {
-    ResourcePo legacy = room(33L, "V04", "老包厢");
-    when(resourceMapper.selectById(33L)).thenReturn(legacy);
-    when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
+  void occupiedRoomIsUnavailableWithReason() {
+    when(resourceRepository.findById(33L)).thenReturn(Optional.of(room(33L, "V04", "老包厢")));
+    when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of(33L));
 
     ResourceView view = service.view(33L, 1L);
 
-    assertTrue(view.imageUrls().isEmpty());
-    assertNull(view.mainImageUrl());
+    assertEquals("OCCUPIED", view.state());
+    assertEquals("使用中", view.unavailableReason());
   }
 
-  /** B 端房态看板要显示包厢区域与房型：区域直接取列，房型按 room_type_id 批量回填名称。 */
   @Test
-  void listWithStateReturnsAreaAndRoomTypeName() {
-    ResourcePo withType = room(40L, "V10", "VIP 10");
-    withType.setAreaName("三楼 A 区");
-    withType.setRoomTypeId(31L);
-    ResourcePo withoutType = room(41L, "V11", "VIP 11");
-    when(resourceMapper.selectList(any())).thenReturn(List.of(withType, withoutType));
+  void roomTypeSnapshotIsFilledInBulk() {
+    Resource withType = room(40L, "V10", "VIP 10", 31L);
+    Resource withoutType = room(41L, "V11", "VIP 11");
+    when(resourceRepository.listEnabledByType(any(), any())).thenReturn(List.of(withType, withoutType));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
-    when(roomTypeMapper.selectBatchIds(any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
+    when(roomTypeReader.findByIds(any())).thenReturn(List.of(roomType(31L, "VIP", "VIP 大包")));
 
-    List<ResourceView> views = service.listWithState("KTV_ROOM", 1L);
+    List<ResourceView> views = service.listWithState("ROOM", 1L);
 
-    assertEquals("三楼 A 区", views.get(0).areaName());
-    assertEquals(31L, views.get(0).roomTypeId());
     assertEquals("VIP 大包", views.get(0).roomTypeName());
     assertEquals("VIP", views.get(0).roomTypeCode());
-    assertNull(views.get(1).areaName());
-    assertNull(views.get(1).roomTypeId());
+    // 未设置房型的资源三个字段均为 null（前端按「未设置」展示）
     assertNull(views.get(1).roomTypeName());
+    assertNull(views.get(1).roomTypeCode());
   }
 
-  /** 未设置房型（历史包厢）时视图字段全为 null，不因缺房型报错。 */
   @Test
-  void viewToleratesRoomWithoutRoomType() {
-    ResourcePo legacy = room(42L, "V12", "老包厢");
-    when(resourceMapper.selectById(42L)).thenReturn(legacy);
+  void singleViewWithoutRoomTypeKeepsFieldsNull() {
+    when(resourceRepository.findById(42L)).thenReturn(Optional.of(room(42L, "V12", "老包厢")));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
 
     ResourceView view = service.view(42L, 1L);
 
-    assertNull(view.roomTypeId());
     assertNull(view.roomTypeName());
-    assertNull(view.areaName());
+    assertNull(view.roomTypeCode());
   }
 
-  /** 未装配房型 Mapper（兼容既有装配）时不能因房型查询抛错。 */
+  /** 未装配房型读取（兼容既有装配）时不能因房型查询抛错。 */
   @Test
-  void listWithStateWorksWithoutRoomTypeMapper() {
-    ResourceStateApplicationService legacyService =
-        new ResourceStateApplicationService(resourceMapper, occupationMapper);
-    ResourcePo withType = room(43L, "V13", "VIP 13");
-    withType.setRoomTypeId(31L);
-    when(resourceMapper.selectList(any())).thenReturn(List.of(withType));
+  void listWithStateWorksWithoutRoomTypeReader() {
+    ResourceStateApplicationService withoutRoomTypes =
+        new ResourceStateApplicationService(resourceRepository, occupationMapper);
+    when(resourceRepository.listEnabledByType(any(), any())).thenReturn(List.of(room(43L, "V13", "VIP 13", 31L)));
     when(occupationMapper.selectActiveResourceIds(eq(1L))).thenReturn(List.of());
 
-    List<ResourceView> views = legacyService.listWithState("KTV_ROOM", 1L);
+    List<ResourceView> views = withoutRoomTypes.listWithState("ROOM", 1L);
 
     assertEquals(1, views.size());
-    assertNull(views.get(0).roomTypeName());
+    assertNull(views.getFirst().roomTypeName());
+    assertNotNull(views.getFirst().name());
   }
 
-  private static RoomTypePo roomType(Long id, String code, String name) {
-    RoomTypePo po = new RoomTypePo();
-    po.setId(id);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setCode(code);
-    po.setName(name);
-    po.setStatus("ACTIVE");
-    return po;
+  private static RoomType roomType(Long id, String code, String name) {
+    return new RoomType(id, 1L, 1L, code, name, 10, List.of(), null, 100L, 0L, 1, RoomType.STATUS_ENABLED);
   }
 
-  private static ResourcePo room(Long id, String code, String name) {
-    ResourcePo po = new ResourcePo();
-    po.setId(id);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setResourceType("KTV_ROOM");
-    po.setResourceCode(code);
-    po.setName(name);
-    po.setCapacity(8);
-    po.setStatus("ENABLED");
-    po.setCleaningStatus("IDLE");
-    return po;
+  private static Resource room(Long id, String code, String name) {
+    return room(id, code, name, null);
+  }
+
+  private static Resource room(Long id, String code, String name, Long roomTypeId) {
+    return new Resource(id, 1L, 1L, "ROOM", code, name, "A 区", null, 10, roomTypeId,
+        Resource.STATUS_ENABLED, Resource.CLEANING_IDLE, null, List.of(), null, null,
+        null, null, null, null);
   }
 }

@@ -15,12 +15,12 @@ import io.openware.infrastructure.audit.AuditActions;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.resource.domain.resource.model.Resource;
+import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
+import io.openware.platform.resource.domain.roomtype.repository.RoomTypeReader;
 import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.mapper.RoomTypeMapper;
-import io.openware.platform.resource.infra.persistence.po.ResourcePo;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,26 +32,29 @@ import org.mockito.ArgumentCaptor;
  * <p>背景：清洁状态是「包厢能不能卖」的门禁之一（清洁中不可开台、不可预约），
  * 后台房态看板的「清洁完成」按钮此前不留痕——出现「包厢莫名不可用/莫名可用」时
  * 无法回溯是谁、什么时候切的。这里固化：真正变更才留痕（幂等 no-op 不留）、失败也留痕。
+ *
+ * <p>替身是**领域端口**：不再构造 MyBatis PO。
  */
 class ResourceCleaningAuditTest {
 
     private static final long TENANT_ID = 1L;
     private static final Long STORE_ID = 3L;
 
-    private ResourceMapper resourceMapper;
+    private ResourceRepository resourceRepository;
     private OccupationMapper occupationMapper;
-    private RoomTypeMapper roomTypeMapper;
+    private RoomTypeReader roomTypeReader;
     private AuditClient auditClient;
     private ResourceStateApplicationService service;
 
     @BeforeEach
     void setUp() {
-        resourceMapper = mock(ResourceMapper.class);
+        resourceRepository = mock(ResourceRepository.class);
         occupationMapper = mock(OccupationMapper.class);
-        roomTypeMapper = mock(RoomTypeMapper.class);
+        roomTypeReader = mock(RoomTypeReader.class);
         auditClient = mock(AuditClient.class);
-        service = new ResourceStateApplicationService(resourceMapper, occupationMapper, roomTypeMapper, auditClient);
+        service = new ResourceStateApplicationService(resourceRepository, occupationMapper, roomTypeReader, auditClient);
         when(occupationMapper.selectActiveResourceIds(any())).thenReturn(List.of());
+        when(resourceRepository.save(any(Resource.class))).thenAnswer(invocation -> invocation.getArgument(0));
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
     }
 
@@ -62,7 +65,7 @@ class ResourceCleaningAuditTest {
 
     @Test
     void markingCleaningWritesSucceededAudit() {
-        when(resourceMapper.selectById(30L)).thenReturn(room(30L, "IDLE"));
+        when(resourceRepository.findById(30L)).thenReturn(Optional.of(room(30L, Resource.CLEANING_IDLE)));
 
         service.setCleaning(30L, true);
 
@@ -83,7 +86,7 @@ class ResourceCleaningAuditTest {
 
     @Test
     void finishingCleaningWritesSucceededAudit() {
-        when(resourceMapper.selectById(30L)).thenReturn(room(30L, "CLEANING"));
+        when(resourceRepository.findById(30L)).thenReturn(Optional.of(room(30L, Resource.CLEANING_IN_PROGRESS)));
 
         service.setCleaning(30L, false);
 
@@ -97,17 +100,17 @@ class ResourceCleaningAuditTest {
     /** 幂等 no-op（状态本来就一致）不算一次变更：重复点「清洁完成」不该刷出一串审计噪声。 */
     @Test
     void idempotentCallWritesNoAudit() {
-        when(resourceMapper.selectById(30L)).thenReturn(room(30L, "CLEANING"));
+        when(resourceRepository.findById(30L)).thenReturn(Optional.of(room(30L, Resource.CLEANING_IN_PROGRESS)));
 
         service.setCleaning(30L, true);
 
         verify(auditClient, never()).recordAsync(any());
-        verify(resourceMapper, never()).updateById(any(ResourcePo.class));
+        verify(resourceRepository, never()).save(any(Resource.class));
     }
 
     @Test
     void missingResourceWritesFailureAudit() {
-        when(resourceMapper.selectById(99L)).thenReturn(null);
+        when(resourceRepository.findById(99L)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.setCleaning(99L, true));
 
@@ -120,16 +123,9 @@ class ResourceCleaningAuditTest {
         assertNull(record.idempotencyKey());
     }
 
-    private static ResourcePo room(Long id, String cleaningStatus) {
-        ResourcePo po = new ResourcePo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setResourceCode("V01");
-        po.setName("VIP 01");
-        po.setCleaningStatus(cleaningStatus);
-        po.setUpdatedAt(LocalDateTime.now());
-        return po;
+    private static Resource room(Long id, String cleaningStatus) {
+        return new Resource(id, TENANT_ID, STORE_ID, "ROOM", "V01", "VIP 01", "A 区", null, 10, null,
+            Resource.STATUS_ENABLED, cleaningStatus, null, List.of(), null, null, null, null, null, null);
     }
 
     private AuditClient.AuditRecord captured() {
