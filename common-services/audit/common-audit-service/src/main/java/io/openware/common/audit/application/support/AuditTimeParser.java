@@ -60,12 +60,16 @@ public final class AuditTimeParser {
     private static LocalDateTime parseIso(String value, String field) {
         try {
             return LocalDateTime.ofInstant(OffsetDateTime.parse(value).toInstant(), ZoneId.systemDefault());
-        } catch (DateTimeParseException ignored) {
+        }
+        // degradation: 该形态解析失败属预期，继续尝试不带偏移量的形态
+        catch (DateTimeParseException ignored) {
             // 继续尝试不带偏移量的形态
         }
         try {
             return LocalDateTime.ofInstant(Instant.parse(value), ZoneId.systemDefault());
-        } catch (DateTimeParseException ignored) {
+        }
+        // degradation: 该形态解析失败属预期，继续尝试本地时间形态
+        catch (DateTimeParseException ignored) {
             // 继续尝试本地时间形态
         }
         try {

@@ -219,7 +219,9 @@ public class AuditQueryApplicationService {
             // 先确认是合法 JSON：合法就原样输出（不改写既有数据格式，也不做二次序列化）。
             objectMapper.readTree(raw);
             return raw;
-        } catch (Exception exception) {
+        }
+        // degradation: 非 JSON 文本包成 JSON 字符串字面量，前端 JSON.parse 得到原字符串，属预期降级而非异常
+        catch (Exception exception) {
             // 非 JSON 文本：包成 JSON 字符串字面量（"原始文本"），前端 JSON.parse 得到原字符串。
             return objectMapper.getNodeFactory().textNode(raw).toString();
         }

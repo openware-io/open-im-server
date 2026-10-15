@@ -156,7 +156,9 @@ public final class TimeRangeParams {
         for (DateTimeFormatter formatter : FORMATTERS) {
             try {
                 return LocalDateTime.parse(value, formatter);
-            } catch (DateTimeParseException ignored) {
+            }
+            // degradation: 该形态解析失败属预期，继续尝试下一种形态
+            catch (DateTimeParseException ignored) {
                 // 继续尝试下一种形态
             }
         }

@@ -82,7 +82,9 @@ public final class CollectResponseLegs {
     JsonNode legs;
     try {
       legs = MAPPER.readTree(responseJson).path(FIELD_LEGS);
-    } catch (Exception ex) {
+    }
+    // degradation: 损坏/非 JSON 的历史快照跳过并计 0，不让日结整体失败
+    catch (Exception ex) {
       // 损坏/非 JSON 的历史快照：跳过并计 0，不让日结整体失败。
       return List.of();
     }

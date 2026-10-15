@@ -23,7 +23,9 @@ public class MessageFavoriteRepositoryAdapter implements MessageFavoriteReposito
       mapper.insert(po);
       favorite.assignId(po.getId());
       return true;
-    } catch (DuplicateKeyException ex) {
+    }
+    // degradation: 命中 (user_id, msg_id) 唯一约束说明重复收藏，幂等返回
+    catch (DuplicateKeyException ex) {
       // 命中 (user_id, msg_id) 唯一约束：重复收藏幂等，不重复插入。
       return false;
     }

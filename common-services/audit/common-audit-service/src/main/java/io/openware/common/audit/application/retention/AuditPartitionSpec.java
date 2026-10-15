@@ -43,7 +43,9 @@ public final class AuditPartitionSpec {
         }
         try {
             return YearMonth.of(Integer.parseInt(matcher.group(1)), Integer.parseInt(matcher.group(2)));
-        } catch (RuntimeException exception) {
+        }
+        // degradation: 形如 p202613 的非法月份（NumberFormatException / DateTimeException）当作非月分区处理，绝不让它进入 DDL 拼接。
+        catch (RuntimeException exception) {
             // 形如 p202613 的非法月份（NumberFormatException / DateTimeException）：
             // 当作非月分区处理，绝不让它进入 DDL 拼接。
             return null;

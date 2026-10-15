@@ -151,7 +151,9 @@ public class CustomerClient {
             JsonNode node = objectMapper.readTree(e.getResponseBodyAsString());
             if (node.hasNonNull("code")) code = node.get("code").asText();
             if (node.hasNonNull("message")) message = node.get("message").asText();
-        } catch (Exception ignored) {
+        }
+        // degradation: 响应体非 JSON 时退回默认信息，属预期降级
+        catch (Exception ignored) {
             // 响应体非 JSON 时退回默认信息
         }
         return new ApiException(e.getStatusCode().value(), code, message);

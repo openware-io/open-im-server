@@ -146,7 +146,9 @@ public class ProductApplicationService {
                     }
                 }
             }
-        } catch (RuntimeException ignored) {
+        }
+        // degradation: 读路径降级，名称缺失不影响 serverResourceId 与其它字段的展示
+        catch (RuntimeException ignored) {
             // 读路径降级：名称缺失不影响 serverResourceId 与其它字段的展示
         }
         for (ProductPo product : products) {

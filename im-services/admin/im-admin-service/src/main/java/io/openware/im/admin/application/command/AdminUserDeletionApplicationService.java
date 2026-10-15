@@ -83,7 +83,9 @@ public class AdminUserDeletionApplicationService {
     detail.put("cascade", result.cascade());
     try {
       return OBJECT_MAPPER.writeValueAsString(detail);
-    } catch (Exception exception) {
+    }
+    // degradation: 序列化失败不能让删除回滚，退化成最小可读 JSON（审计详情为辅助信息）
+    catch (Exception exception) {
       // 序列化失败不能让删除回滚：退化成最小可读 JSON（审计详情是辅助信息，不是业务事实来源）。
       return "{\"username\":\"" + result.username() + "\",\"imDataPurged\":true}";
     }

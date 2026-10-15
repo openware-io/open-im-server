@@ -300,7 +300,9 @@ public class ResourceStateClient {
                     .body(objectMapper.writeValueAsString(Map.of("cleaning", cleaning)))
                     .retrieve()
                     .toBodilessEntity();
-        } catch (Exception ignored) {
+        }
+        // degradation: 清洁状态写失败不阻断结台，门店可在资源页手工置位
+        catch (Exception ignored) {
             // 降级：清洁状态写失败不阻断结台，门店可在资源页手工置位
         }
     }
@@ -320,7 +322,9 @@ public class ResourceStateClient {
                     .header(SIGNATURE_HEADER, simpleSignature(timestamp))
                     .retrieve()
                     .toBodilessEntity();
-        } catch (Exception ignored) {
+        }
+        // degradation: 占用释放失败由资源侧 HELD 超时兜底
+        catch (Exception ignored) {
             // 降级：占用释放失败由资源侧 HELD 超时兜底
         }
     }

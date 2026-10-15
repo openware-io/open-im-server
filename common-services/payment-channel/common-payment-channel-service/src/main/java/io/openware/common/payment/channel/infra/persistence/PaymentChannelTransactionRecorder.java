@@ -65,7 +65,9 @@ public class PaymentChannelTransactionRecorder {
         po.setUpdatedAt(now);
         try {
             transactionMapper.insert(po);
-        } catch (DuplicateKeyException ignored) {
+        }
+        // degradation: 并发重复回调由唯一键兜底，视为幂等命中
+        catch (DuplicateKeyException ignored) {
             // 并发重复回调由唯一键兜底，视为幂等命中
         }
     }
