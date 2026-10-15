@@ -12,7 +12,6 @@ import io.openware.platform.admin.domain.model.ConsAdminAccount;
 import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import io.openware.platform.admin.infra.security.SessionTtl;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +42,7 @@ class AdminLoginApplicationServiceTest {
 
   @Test
   void login_createsSessionOnCorrectPassword() {
-    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
-        AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", null, "1", 100L, AdminRole.SUPER_ADMIN, "ACTIVE");
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-1");
 
@@ -58,8 +56,7 @@ class AdminLoginApplicationServiceTest {
 
   @Test
   void login_rejectsWrongPassword() {
-    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", "1",
-        AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", TEST_HASH, "管理员", null, "1", 100L, AdminRole.SUPER_ADMIN, "ACTIVE");
     when(accountRepository.findByUsername("admin")).thenReturn(Optional.of(account));
 
     ApiException ex = assertThrows(ApiException.class, () -> service.login("admin", "wrong-password", SessionTtl.DEFAULT));

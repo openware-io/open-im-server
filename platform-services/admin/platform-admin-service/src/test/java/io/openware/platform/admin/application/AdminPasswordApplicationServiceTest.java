@@ -29,7 +29,7 @@ class AdminPasswordApplicationServiceTest {
         service = new AdminPasswordApplicationService(accounts, passwords);
         oldHash = passwords.encode("OldPass123");
         when(accounts.findById(1L)).thenReturn(Optional.of(new ConsAdminAccount(1L, "admin", oldHash,
-                "Admin", null, AdminRole.SUPER_ADMIN, ConsAdminAccount.STATUS_ACTIVE, LocalDateTime.now(), LocalDateTime.now())));
+                "Admin", null, null, 100L, AdminRole.SUPER_ADMIN, ConsAdminAccount.STATUS_ACTIVE)));
         when(accounts.updatePassword(eq(1L), anyString())).thenReturn(1);
     }
 

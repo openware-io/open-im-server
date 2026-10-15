@@ -16,7 +16,6 @@ import io.openware.platform.admin.infra.IdaasSsoClient;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import io.openware.platform.admin.infra.security.SessionTtl;
 import java.time.Duration;
-import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,8 +40,7 @@ class SsoAuthApplicationServiceTest {
   @Test
   void exchange_mapsIdaasSubjectToAdminAccount() {
     when(idaasSsoClient.verifyTicket("ticket-1")).thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true));
-    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
-        AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", null, "1", 100L, AdminRole.SUPER_ADMIN, "ACTIVE");
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-1");
 
@@ -82,8 +80,7 @@ class SsoAuthApplicationServiceTest {
     long groupExpiresAt = System.currentTimeMillis() + Duration.ofDays(30).toMillis();
     when(idaasSsoClient.verifyTicket("ticket-30d"))
         .thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true, groupExpiresAt));
-    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
-        AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", null, "1", 100L, AdminRole.SUPER_ADMIN, "ACTIVE");
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-30d");
 
@@ -103,8 +100,7 @@ class SsoAuthApplicationServiceTest {
     long groupExpiresAt = System.currentTimeMillis() + Duration.ofMinutes(5).toMillis();
     when(idaasSsoClient.verifyTicket("ticket-5m"))
         .thenReturn(new IdaasSsoClient.SsoUser(1L, "admin", true, groupExpiresAt));
-    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", "1",
-        AdminRole.SUPER_ADMIN, "ACTIVE", LocalDateTime.now(), LocalDateTime.now());
+    ConsAdminAccount account = new ConsAdminAccount(1L, "admin", "hash", "管理员", null, "1", 100L, AdminRole.SUPER_ADMIN, "ACTIVE");
     when(accountRepository.findBySubject("1")).thenReturn(Optional.of(account));
     when(sessionStore.createSession(any(), any())).thenReturn("session-5m");
 
