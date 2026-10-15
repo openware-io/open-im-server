@@ -17,6 +17,14 @@ public interface LoginIdentityRepository {
   /** 按登录类型 + 登录标识读取（登录流程的唯一权威入口）。 */
   Optional<LoginIdentity> findByLoginIdentifier(String loginType, String loginIdentifier);
 
+  /**
+   * 按登录类型 + 登录标识读取**处于可用状态**的登录标识（登录用例入口）。
+   *
+   * <p>状态过滤刻意收进端口：登录语义要求"仅可用标识可登录"，把它留给调用方拼接查询条件，正是
+   * standards/10 禁止的"在应用层构造查询条件"。
+   */
+  Optional<LoginIdentity> findActiveByLoginIdentifier(String loginType, String loginIdentifier);
+
   /** 列出某账号下的全部登录标识。 */
   List<LoginIdentity> findByAccountId(Long accountId);
 

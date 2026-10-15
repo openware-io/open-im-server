@@ -33,6 +33,14 @@ public class LoginIdentityRepositoryAdapter implements LoginIdentityRepository {
   }
 
   @Override
+  public Optional<LoginIdentity> findActiveByLoginIdentifier(String loginType, String loginIdentifier) {
+    return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<LoginIdentityPo>()
+        .eq(LoginIdentityPo::getLoginType, loginType)
+        .eq(LoginIdentityPo::getLoginIdentifier, loginIdentifier)
+        .eq(LoginIdentityPo::getStatus, LoginIdentity.STATUS_ACTIVE))).map(this::toDomain);
+  }
+
+  @Override
   public List<LoginIdentity> findByAccountId(Long accountId) {
     return mapper.selectList(new LambdaQueryWrapper<LoginIdentityPo>()
             .eq(LoginIdentityPo::getAccountId, accountId))

@@ -31,6 +31,16 @@ public record IdentityAccount(Long id, String status, String accountType) {
   }
 
   /**
+   * 按指定类型开通账号（内部端点供运营开通使用）：初始为可用状态，尚未落库。
+   *
+   * <p>类型为空时回退为消费者类型——这是开通用例的规则，因此收在这里，而不是散落在应用层的三元表达式里。
+   */
+  public static IdentityAccount ofType(String accountType) {
+    String resolved = (accountType == null || accountType.isBlank()) ? TYPE_CUSTOMER : accountType;
+    return new IdentityAccount(null, STATUS_ACTIVE, resolved);
+  }
+
+  /**
    * 修正账号类型（例如运营人员把已有账号标记为 EMPLOYEE）。
    *
    * @throws IllegalStateException 账号尚未落库，或类型为空
