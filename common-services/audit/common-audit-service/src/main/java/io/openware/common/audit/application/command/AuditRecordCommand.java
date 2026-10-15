@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 审计上报命令：内部接口 {@code POST /internal/audit/records} 的入参契约与校验。
@@ -23,6 +24,7 @@ import java.util.regex.Pattern;
  *   <li>{@code detailJson} 统一脱敏并保证是合法 JSON，无法解析的按纯文本包装。</li>
  * </ul>
  */
+@Slf4j
 public record AuditRecordCommand(
         Long tenantId,
         Long organizationId,
@@ -182,6 +184,9 @@ public record AuditRecordCommand(
         try {
             return AuditDetailSanitizer.sanitize(OBJECT_MAPPER.writeValueAsString(raw));
         } catch (Exception exception) {
+            // 审计详情无法序列化：按契约退化为可读哨兵 JSON，但必须留痕，
+            // 否则审计内容静默降级将无法与"确实没有详情"区分。
+            log.debug("audit detail is not serializable, using the sentinel JSON", exception);
             return "{\"detailUnserializable\":true}";
         }
     }

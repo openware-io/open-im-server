@@ -10,6 +10,7 @@ import java.time.YearMonth;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Repository;
  * <p>幂等由「先查后插」与唯一键双重保证：任务按小时运行，同一月份重复处理只会保留一条清单行。
  */
 @Repository
+@Slf4j
 public class AuditArchiveManifestRepositoryImpl implements AuditArchiveManifestRepository {
 
     private final AuditArchiveManifestMapper mapper;
@@ -67,6 +69,9 @@ public class AuditArchiveManifestRepositoryImpl implements AuditArchiveManifestR
         try {
             return period == null || period.isBlank() ? null : YearMonth.parse(period.trim());
         } catch (RuntimeException exception) {
+            // 按类注释的既定口径按「无法识别」跳过而不是让整次查询失败；
+            // 预留 DEBUG 以便发现写坏清单的来源，而不是让它无声消失。
+            log.debug("archive manifest period is not a valid YYYY-MM, skipping it: raw={}", period, exception);
             return null;
         }
     }

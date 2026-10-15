@@ -41,6 +41,9 @@ public class MediaContentValidator {
       }
       return ValidationResult.allow();
     } catch (Exception exception) {
+      // 图片解码失败即拒绝上传：这是有意义的安全判定，需可观测以便区分
+      // "用户上传了损坏图片"与"解码器本身异常"。
+      log.debug("image decoding failed, rejecting the upload", exception);
       return ValidationResult.deny("Image decoding failed");
     }
   }
@@ -66,6 +69,8 @@ public class MediaContentValidator {
       object.setDurationMs(durationMs);
       return ValidationResult.allow();
     } catch (Exception exception) {
+      // 探测不可用即拒绝：需可观测以区分"介质本身不可解析"与"探测工具缺席/故障"。
+      log.debug("audio/video probing failed, rejecting the upload", exception);
       return ValidationResult.deny("Audio/video probing is unavailable");
     } finally {
       if (temporaryFile != null) {
@@ -84,6 +89,7 @@ public class MediaContentValidator {
   }
 
   private Double parseNumber(String value) {
+    // degradation: 纯解析助手，合法数字以外的输入按"无值"返回，调用方据此拒绝或跳过
     try { return Double.valueOf(value); } catch (NumberFormatException exception) { return null; }
   }
 

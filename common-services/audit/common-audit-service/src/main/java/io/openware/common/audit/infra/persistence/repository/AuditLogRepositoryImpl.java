@@ -149,7 +149,9 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
         try {
             return mapper.claimIdempotencyKey(entry.getTenantId(), entry.getIdempotencyKey(), entry.getId(),
                     entry.getCreatedAt()) > 0;
-        } catch (DuplicateKeyException concurrent) {
+        }
+        // degradation: 并发抢同幂等键时由主键兜底，败者按重复处理属预期，不记为异常
+        catch (DuplicateKeyException concurrent) {
             return false;
         }
     }

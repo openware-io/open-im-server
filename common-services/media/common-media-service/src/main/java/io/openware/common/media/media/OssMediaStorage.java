@@ -83,7 +83,11 @@ public class OssMediaStorage implements MediaStoragePort {
     try (InputStream content = open(bucket, objectKey)) {
       byte[] header = content.readNBytes(12);
       return MediaSignatures.matches(contentType, header);
-    } catch (Exception exception) { return false; }
+    }
+    // degradation: 读不到对象头即判定不匹配（fail-closed 拒绝该对象），调用方按校验结果处理
+    catch (Exception exception) {
+      return false;
+    }
   }
 
   @Override

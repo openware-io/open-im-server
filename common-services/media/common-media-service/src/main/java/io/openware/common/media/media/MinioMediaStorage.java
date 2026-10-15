@@ -145,7 +145,9 @@ public class MinioMediaStorage implements MediaStoragePort {
       }
       if ("application/octet-stream".equals(contentType)) return true;
       return "text/plain".equals(contentType);
-    } catch (Exception exception) {
+    }
+    // degradation: 读不到对象头即判定不匹配（fail-closed 拒绝该对象），调用方按校验结果处理
+    catch (Exception exception) {
       return false;
     }
   }
