@@ -55,7 +55,16 @@ try {
   }
 
   # --- 2) controllers must not touch persistence implementations ---
-  $persistenceImportPattern = 'import\s+[^;]*\.(mapper|po|repository)\.'
+  # Persistence *implementations* only: MyBatis mappers, persistent objects and repository adapters under
+  # an infra.persistence tree.
+  #
+  # The previous pattern `import [^;]*\.(mapper|po|repository)\.` also matched `...domain.repository.*`
+  # and `...domain.<context>.repository.*`, which are the domain-facing interfaces a DDD application
+  # layer is supposed to depend on. Of its 138 findings, 78 were those interfaces rather than
+  # implementations, so it flagged correct code. Matching the infrastructure segment keeps the real
+  # finding - an application service or controller importing a PO or a MyBatis mapper - without
+  # punishing the intended dependency direction.
+  $persistenceImportPattern = 'import\s+[^;]*\.infra\.persistence\.(mapper|po|repository)\.'
   foreach ($domain in $domainRoots) {
     foreach ($file in ($tracked | Where-Object { $_ -like "$domain/*/*-service/src/main/java/*/controller/*" })) {
       if (Test-FileContains $file $persistenceImportPattern) {
