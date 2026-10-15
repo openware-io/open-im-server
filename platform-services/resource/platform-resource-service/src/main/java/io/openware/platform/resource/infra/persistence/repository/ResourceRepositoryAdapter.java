@@ -81,6 +81,15 @@ public class ResourceRepositoryAdapter implements ResourceRepository {
         .eq(ResourcePo::getRoomTypeId, roomTypeId));
   }
 
+  @Override
+  public long countByResourceCode(Long storeId, String resourceType, String resourceCode, Long excludedId) {
+    return mapper.selectCount(Wrappers.<ResourcePo>lambdaQuery()
+        .eq(ResourcePo::getStoreId, storeId)
+        .eq(ResourcePo::getResourceType, resourceType)
+        .eq(ResourcePo::getResourceCode, resourceCode)
+        .ne(excludedId != null, ResourcePo::getId, excludedId));
+  }
+
   private ResourcePo toPo(Resource resource) {
     ResourcePo po = new ResourcePo();
     po.setId(resource.id());

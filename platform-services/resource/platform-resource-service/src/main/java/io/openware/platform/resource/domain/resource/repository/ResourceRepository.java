@@ -43,4 +43,11 @@ public interface ResourceRepository {
 
   /** 统计仍引用该房型的资源数量（删除房型前的引用判据）。 */
   long countByRoomTypeId(Long roomTypeId);
+
+  /**
+   * 统计同门店同类型下使用该编号的资源数量（新增／修改前的编号唯一性判据）。
+   *
+   * <p>{@code excludedId} 非空时排除该行，供修改时排除自身。
+   */
+  long countByResourceCode(Long storeId, String resourceType, String resourceCode, Long excludedId);
 }
