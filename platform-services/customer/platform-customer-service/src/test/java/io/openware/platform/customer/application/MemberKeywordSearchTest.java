@@ -14,6 +14,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.MybatisMapperAnnotationBuilder;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.crypto.AesGcmCipher;
@@ -30,6 +32,7 @@ import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,6 +52,21 @@ class MemberKeywordSearchTest {
   private final AuditClient auditClient = mock(AuditClient.class);
   private final MemberApplicationService service = new MemberApplicationService(
       memberMapper, pointAccountMapper, nameTokenMapper, idGenerator, aesGcmCipher, auditClient);
+
+  /**
+   * 本用例用 Mockito 替身驱动应用服务，不加载 Spring 上下文，因此 MyBatis-Plus 没有为
+   * {@link CstMemberPo} 注册表信息；而捕获到的 {@code LambdaQueryWrapper} 在
+   * {@code getTargetSql()} 时要把 lambda 解析成列名，缺表信息会抛
+   * "can not find lambda cache for this entity"。此前它靠同一 JVM 中别的测试（如
+   * {@code @SpringBootTest}）先注册好表信息才通过，属隐式顺序依赖，单独运行即失败。
+   * 这里显式注册，使本用例自包含、与执行顺序无关。
+   */
+  @BeforeAll
+  static void registerTableInfo() {
+    MybatisMapperAnnotationBuilder builder =
+        new MybatisMapperAnnotationBuilder(new MybatisConfiguration(), MemberMapper.class);
+    builder.parse();
+  }
 
   @BeforeEach
   void setUpTenant() {
