@@ -48,6 +48,21 @@ jobs:
           tar -xzf /tmp/mvn.tgz -C /tmp
           echo "/tmp/apache-maven-3.9.16/bin" >> $GITHUB_PATH
 
+      - name: Engineering gates
+        # The single enforced entry point (G-02), placed after the JDK and Maven setup because it invokes
+        # the wrapper itself.
+        #
+        # Until now this workflow only ran Maven verify, so the twenty-four validators in
+        # scripts/validate never ran in CI: they took effect only when somebody ran the entry by hand.
+        # Wiring the entry in is what turns "the standards are enforced" from an intention into a fact,
+        # and it is what stops future code from quietly crossing a layering or naming boundary.
+        #
+        # Scope Changed runs every validator and then `mvn validate`, leaving compilation and tests to
+        # the verify step below; Full would repeat clean verify and roughly double release time for no
+        # extra signal.
+        shell: pwsh
+        run: ./scripts/validate/invoke-engineering-validation.ps1 -Scope Changed
+
       - name: Maven verify
         # 发布必须经过完整的编译、Checkstyle、依赖约束和测试门禁。
         # 任何测试失败都不得继续构建或推送镜像。
