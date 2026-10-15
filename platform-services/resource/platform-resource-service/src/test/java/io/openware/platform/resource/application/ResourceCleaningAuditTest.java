@@ -18,7 +18,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.domain.resource.model.Resource;
 import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
 import io.openware.platform.resource.domain.roomtype.repository.RoomTypeReader;
-import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
+import io.openware.platform.resource.domain.occupation.repository.OccupationRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -41,7 +41,7 @@ class ResourceCleaningAuditTest {
     private static final Long STORE_ID = 3L;
 
     private ResourceRepository resourceRepository;
-    private OccupationMapper occupationMapper;
+    private OccupationRepository occupationRepository;
     private RoomTypeReader roomTypeReader;
     private AuditClient auditClient;
     private ResourceStateApplicationService service;
@@ -49,11 +49,11 @@ class ResourceCleaningAuditTest {
     @BeforeEach
     void setUp() {
         resourceRepository = mock(ResourceRepository.class);
-        occupationMapper = mock(OccupationMapper.class);
+        occupationRepository = mock(OccupationRepository.class);
         roomTypeReader = mock(RoomTypeReader.class);
         auditClient = mock(AuditClient.class);
-        service = new ResourceStateApplicationService(resourceRepository, occupationMapper, roomTypeReader, auditClient);
-        when(occupationMapper.selectActiveResourceIds(any())).thenReturn(List.of());
+        service = new ResourceStateApplicationService(resourceRepository, occupationRepository, roomTypeReader, auditClient);
+        when(occupationRepository.findActiveResourceIds(any())).thenReturn(List.of());
         when(resourceRepository.save(any(Resource.class))).thenAnswer(invocation -> invocation.getArgument(0));
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
     }

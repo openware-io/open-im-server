@@ -5,11 +5,12 @@ import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.api.converter.ResourceConverter;
+import io.openware.platform.resource.api.dto.OccupationView;
 import io.openware.platform.resource.api.dto.ResourceView;
 import io.openware.platform.resource.application.OccupationApplicationService;
 import io.openware.platform.resource.application.ResourceQueryApplicationService;
 import io.openware.platform.resource.application.ResourceStateApplicationService;
-import io.openware.platform.resource.infra.persistence.po.OccupationPo;
+import io.openware.platform.resource.api.converter.OccupationConverter;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -68,26 +69,26 @@ public class InternalResourceController {
 
     /** 占用资源（开台/预约占用）；时段冲突由占用服务判定并拒绝。 */
     @PostMapping("/{resourceId}/occupations")
-    public OccupationPo occupy(@PathVariable Long resourceId, @RequestBody InternalOccupyRequest request) {
+    public OccupationView occupy(@PathVariable Long resourceId, @RequestBody InternalOccupyRequest request) {
         TenantContext context = requireContext();
         LocalDateTime startAt = request.startAt() == null ? LocalDateTime.now() : request.startAt();
         LocalDateTime endAt = request.endAt() == null ? startAt.plusHours(24) : request.endAt();
-        return occupationService.holdResource(context.tenantId(), context.storeId(), resourceId,
-                startAt, endAt,
+        return OccupationConverter.toView(occupationService.holdResource(context.tenantId(),
+                context.storeId(), resourceId, startAt, endAt,
                 request.sourceType() == null || request.sourceType().isBlank() ? "ORDER" : request.sourceType(),
-                request.sourceId(), request.holdExpiresAt());
+                request.sourceId(), request.holdExpiresAt()));
     }
 
     /** 释放占用（结台/转台）。 */
     @PostMapping("/occupations/{occupationId}/release")
-    public OccupationPo release(@PathVariable Long occupationId) {
-        return occupationService.releaseOccupation(occupationId);
+    public OccupationView release(@PathVariable Long occupationId) {
+        return OccupationConverter.toView(occupationService.releaseOccupation(occupationId));
     }
 
     /** 取消占用（取消开台）。 */
     @PostMapping("/occupations/{occupationId}/cancel")
-    public OccupationPo cancel(@PathVariable Long occupationId) {
-        return occupationService.cancelOccupation(occupationId);
+    public OccupationView cancel(@PathVariable Long occupationId) {
+        return OccupationConverter.toView(occupationService.cancelOccupation(occupationId));
     }
 
     /** 置清洁状态：结台后自动置 CLEANING，清洁完成置 IDLE。 */

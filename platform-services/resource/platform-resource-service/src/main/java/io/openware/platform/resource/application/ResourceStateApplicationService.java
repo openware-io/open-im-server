@@ -9,7 +9,7 @@ import io.openware.platform.resource.domain.resource.model.Resource;
 import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
 import io.openware.platform.resource.domain.roomtype.model.RoomType;
 import io.openware.platform.resource.domain.roomtype.repository.RoomTypeReader;
-import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
+import io.openware.platform.resource.domain.occupation.repository.OccupationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
  * 状态真正变化时才留痕（幂等 no-op 不留），成功与失败（资源不存在）都上报统一审计。
  *
  * <p>资源读取经领域端口；清洁状态迁移由领域模型承担（状态与「清洁开始时间」一并维护）。
- * 占用判定仍走 {@code OccupationMapper} 的专用查询——占用聚合的端口在其自身改造时定义。
+ * 占用判定经 {@link OccupationRepository#findActiveResourceIds}，不直接依赖持久化实现。
  */
 @Service
 public class ResourceStateApplicationService {
@@ -47,25 +47,25 @@ public class ResourceStateApplicationService {
     private static final String AUDIT_RESOURCE_TYPE = "res_resource";
 
     private final ResourceRepository resourceRepository;
-    private final OccupationMapper occupationMapper;
+    private final OccupationRepository occupationRepository;
     private final RoomTypeReader roomTypeReader;
     private final AuditClient auditClient;
 
     /** 兼容既有装配/单元测试：未注入房型读取与审计客户端时房型字段回 null、审计走关闭态。 */
-    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationMapper occupationMapper) {
-        this(resourceRepository, occupationMapper, null);
+    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationRepository occupationRepository) {
+        this(resourceRepository, occupationRepository, null);
     }
 
-    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationMapper occupationMapper,
+    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationRepository occupationRepository,
                                            RoomTypeReader roomTypeReader) {
-        this(resourceRepository, occupationMapper, roomTypeReader, AuditClient.disabled());
+        this(resourceRepository, occupationRepository, roomTypeReader, AuditClient.disabled());
     }
 
     @Autowired
-    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationMapper occupationMapper,
+    public ResourceStateApplicationService(ResourceRepository resourceRepository, OccupationRepository occupationRepository,
                                            RoomTypeReader roomTypeReader, AuditClient auditClient) {
         this.resourceRepository = resourceRepository;
-        this.occupationMapper = occupationMapper;
+        this.occupationRepository = occupationRepository;
         this.roomTypeReader = roomTypeReader;
         this.auditClient = auditClient;
     }
@@ -85,7 +85,7 @@ public class ResourceStateApplicationService {
         List<Resource> resources = resourceRepository.listEnabledByType(resourceType, storeId);
         Set<Long> occupied = tenantId == null
                 ? Set.of()
-                : occupationMapper.selectActiveResourceIds(tenantId).stream().collect(Collectors.toSet());
+                : occupationRepository.findActiveResourceIds(tenantId).stream().collect(Collectors.toSet());
         Map<Long, RoomType> roomTypes = roomTypesOf(resources);
         return resources.stream()
                 .map(resource -> toView(resource, occupied.contains(resource.id()),
@@ -101,7 +101,7 @@ public class ResourceStateApplicationService {
     /** 单个资源的运行状态视图。 */
     public ResourceView view(Long resourceId, Long tenantId) {
         Resource resource = require(resourceId);
-        boolean occupied = tenantId != null && occupationMapper.selectActiveResourceIds(tenantId).contains(resourceId);
+        boolean occupied = tenantId != null && occupationRepository.findActiveResourceIds(tenantId).contains(resourceId);
         return toView(resource, occupied, roomTypeOf(resource));
     }
 

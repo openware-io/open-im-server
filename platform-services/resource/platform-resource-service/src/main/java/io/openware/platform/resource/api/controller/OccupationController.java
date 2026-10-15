@@ -1,7 +1,8 @@
 package io.openware.platform.resource.api.controller;
 
 import io.openware.platform.resource.application.OccupationApplicationService;
-import io.openware.platform.resource.infra.persistence.po.OccupationPo;
+import io.openware.platform.resource.api.converter.OccupationConverter;
+import io.openware.platform.resource.api.dto.OccupationView;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -19,7 +20,7 @@ public class OccupationController {
 
     /** 占用资源（HELD）。 */
     @PostMapping("/{resourceId}/occupations")
-    public OccupationPo occupy(@PathVariable Long resourceId, @RequestBody OccupyRequest req) {
+    public OccupationView occupy(@PathVariable Long resourceId, @RequestBody OccupyRequest req) {
         PermissionGuard.require("resource.occupy");
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0 || context.storeId() == null) {
@@ -28,23 +29,23 @@ public class OccupationController {
         if (req.startAt() == null || req.endAt() == null || !req.endAt().isAfter(req.startAt())) {
             throw new ApiException(400, "OCCUPATION_TIME_INVALID", "占用时间范围无效");
         }
-        return occupationService.holdResource(
+        return OccupationConverter.toView(occupationService.holdResource(
                 context.tenantId(), context.storeId(), resourceId,
-                req.startAt(), req.endAt(), req.sourceType(), req.sourceId(), req.holdExpiresAt());
+                req.startAt(), req.endAt(), req.sourceType(), req.sourceId(), req.holdExpiresAt()));
     }
 
     @PostMapping("/occupations/{occupationId}/release")
-    public OccupationPo release(@PathVariable Long occupationId) {
+    public OccupationView release(@PathVariable Long occupationId) {
         PermissionGuard.require("resource.occupy");
         requireContext();
-        return occupationService.releaseOccupation(occupationId);
+        return OccupationConverter.toView(occupationService.releaseOccupation(occupationId));
     }
 
     @PostMapping("/occupations/{occupationId}/cancel")
-    public OccupationPo cancel(@PathVariable Long occupationId) {
+    public OccupationView cancel(@PathVariable Long occupationId) {
         PermissionGuard.require("resource.occupy");
         requireContext();
-        return occupationService.cancelOccupation(occupationId);
+        return OccupationConverter.toView(occupationService.cancelOccupation(occupationId));
     }
 
     private TenantContext requireContext() {

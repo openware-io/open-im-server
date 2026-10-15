@@ -13,10 +13,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.openware.platform.resource.infra.persistence.mapper.EventOutboxMapper;
-import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
-import io.openware.platform.resource.infra.persistence.po.OccupationPo;
-import io.openware.platform.resource.infra.persistence.po.ResEventOutboxPo;
+import io.openware.platform.resource.domain.occupation.model.Occupation;
+import io.openware.platform.resource.domain.occupation.repository.OccupationEventOutbox;
+import io.openware.platform.resource.domain.occupation.repository.OccupationRepository;
 import io.openware.protocol.mq.event.ResourceEventTypes;
 import io.openware.protocol.mq.event.ResourceOccupationReleasedEvent;
 import java.time.LocalDateTime;
@@ -24,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -35,18 +35,24 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 资源占用：并发抢占唯一 + HELD 超时自动释放（乐观锁 version CAS）+ 释放/取消落 Outbox。 */
+/**
+ * 资源占用：并发抢占唯一 + HELD 超时自动释放（乐观锁 version CAS）+ 释放/取消落 Outbox。
+ *
+ * <p>替身是**领域端口**。窗口收缩与 CAS 的权威实现是 mapper 的单条 SQL（见
+ * {@code OccupationMapperReleaseWindowTest}）；这里锁定应用层的编排：传入的 CAS 版本与释放时刻是否正确、
+ * 成功/失败时是否追加了出站事件，以及返回给调用方与事件载荷的窗口是否与之一致。
+ */
 class OccupationApplicationServiceTest {
 
-  private OccupationMapper occupationMapper;
-  private EventOutboxMapper outboxMapper;
+  private OccupationRepository occupationRepository;
+  private OccupationEventOutbox outbox;
   private OccupationApplicationService service;
 
   @BeforeEach
   void setUp() {
-    occupationMapper = mock(OccupationMapper.class);
-    outboxMapper = mock(EventOutboxMapper.class);
-    service = new OccupationApplicationService(occupationMapper, outboxMapper);
+    occupationRepository = mock(OccupationRepository.class);
+    outbox = mock(OccupationEventOutbox.class);
+    service = new OccupationApplicationService(occupationRepository, outbox);
   }
 
   @Test
@@ -54,24 +60,23 @@ class OccupationApplicationServiceTest {
     int threads = 100;
     LocalDateTime startAt = LocalDateTime.of(2025, 1, 1, 10, 0);
     LocalDateTime endAt = LocalDateTime.of(2025, 1, 1, 12, 0);
-    // 模拟 DB 行锁：selectValidForUpdate 与 insert 共用同一把锁的占用仓库，insert 时再判重作为唯一约束兜底。
-    List<OccupationPo> store = Collections.synchronizedList(new ArrayList<>());
-    when(occupationMapper.selectValidForUpdate(any(), any())).thenAnswer(inv -> {
+    // 模拟 DB 行锁：findValidForUpdate 与 insert 共用同一把锁的占用仓库，insert 时再判重作为唯一约束兜底。
+    List<Occupation> store = Collections.synchronizedList(new ArrayList<>());
+    when(occupationRepository.findValidForUpdate(any(), any())).thenAnswer(inv -> {
       synchronized (store) {
         return new ArrayList<>(store);
       }
     });
-    when(occupationMapper.insert(any(OccupationPo.class))).thenAnswer(inv -> {
-      OccupationPo po = inv.getArgument(0);
+    when(occupationRepository.insert(any(Occupation.class))).thenAnswer(inv -> {
+      Occupation po = inv.getArgument(0);
       synchronized (store) {
-        for (OccupationPo o : store) {
-          boolean overlap = o.getStartAt().isBefore(po.getEndAt()) && po.getStartAt().isBefore(o.getEndAt());
-          if (overlap) {
+        for (Occupation o : store) {
+          if (o.overlaps(po.startAt(), po.endAt())) {
             throw new IllegalStateException("RESOURCE_OCCUPIED");
           }
         }
         store.add(po);
-        return 1;
+        return po;
       }
     });
 
@@ -118,36 +123,38 @@ class OccupationApplicationServiceTest {
 
   @Test
   void releaseExpiredHolds_releasesExpiredHeldAndWritesOutbox() {
-    OccupationPo expired = held(7L, 0, LocalDateTime.now().minusMinutes(16));
-    when(occupationMapper.selectExpiredHolds(any(LocalDateTime.class), anyInt())).thenReturn(List.of(expired));
-    when(occupationMapper.releaseWithVersion(eq(7L), eq(0), any(LocalDateTime.class))).thenReturn(1);
+    Occupation expired = held(7L, 0, LocalDateTime.now().minusMinutes(16));
+    when(occupationRepository.findExpiredHolds(any(LocalDateTime.class), anyInt())).thenReturn(List.of(expired));
+    when(occupationRepository.releaseWithVersion(eq(7L), eq(0), any(LocalDateTime.class))).thenReturn(true);
 
     int released = service.releaseExpiredHolds(LocalDateTime.now());
 
     assertEquals(1, released);
-    verify(occupationMapper).releaseWithVersion(eq(7L), eq(0), any(LocalDateTime.class));
-    ArgumentCaptor<ResEventOutboxPo> captor = ArgumentCaptor.forClass(ResEventOutboxPo.class);
-    verify(outboxMapper).insert(captor.capture());
-    ResEventOutboxPo outbox = captor.getValue();
-    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, outbox.getEventType());
-    assertEquals("occupation", outbox.getAggregateType());
-    assertEquals("7", outbox.getAggregateId());
-    assertEquals("PENDING", outbox.getStatus());
-    assertNotNull(outbox.getEventId());
-    assertNotNull(outbox.getPayloadJson());
+    verify(occupationRepository).releaseWithVersion(eq(7L), eq(0), any(LocalDateTime.class));
+    // 出站记录由适配器落库（PENDING 状态与审计字段），服务只表达"追加一条待投递事件"。
+    ArgumentCaptor<String> eventId = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> eventType = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> aggregateId = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    verify(outbox).append(eventId.capture(), eventType.capture(), aggregateId.capture(), payload.capture());
+    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, eventType.getValue());
+    assertEquals("7", aggregateId.getValue());
+    assertNotNull(eventId.getValue());
+    assertNotNull(payload.getValue());
+    assertTrue(payload.getValue().contains("\"occupationId\":7"), payload.getValue());
   }
 
   @Test
   void releaseExpiredHolds_skipsRowAlreadyWonByAnotherNode() {
-    OccupationPo expired = held(8L, 0, LocalDateTime.now().minusMinutes(16));
-    when(occupationMapper.selectExpiredHolds(any(LocalDateTime.class), anyInt())).thenReturn(List.of(expired));
-    // 另一节点已释放：version CAS 受影响 0 行
-    when(occupationMapper.releaseWithVersion(eq(8L), eq(0), any(LocalDateTime.class))).thenReturn(0);
+    Occupation expired = held(8L, 0, LocalDateTime.now().minusMinutes(16));
+    when(occupationRepository.findExpiredHolds(any(LocalDateTime.class), anyInt())).thenReturn(List.of(expired));
+    // 另一节点已释放：version CAS 未命中
+    when(occupationRepository.releaseWithVersion(eq(8L), eq(0), any(LocalDateTime.class))).thenReturn(false);
 
     int released = service.releaseExpiredHolds(LocalDateTime.now());
 
     assertEquals(0, released);
-    verify(outboxMapper, never()).insert(any(ResEventOutboxPo.class));
+    verify(outbox, never()).append(any(), any(), any(), any());
   }
 
   /**
@@ -156,52 +163,53 @@ class OccupationApplicationServiceTest {
    */
   @Test
   void releaseEndedOccupations_releasesEndedOccupationAndWritesOutbox() {
-    OccupationPo ended = held(11L, 2, LocalDateTime.now().minusHours(1));
-    when(occupationMapper.selectEndedOccupations(any(LocalDateTime.class), anyInt())).thenReturn(List.of(ended));
-    when(occupationMapper.releaseWithVersion(eq(11L), eq(2), any(LocalDateTime.class))).thenReturn(1);
+    Occupation ended = held(11L, 2, LocalDateTime.now().minusHours(1));
+    when(occupationRepository.findEndedOccupations(any(LocalDateTime.class), anyInt())).thenReturn(List.of(ended));
+    when(occupationRepository.releaseWithVersion(eq(11L), eq(2), any(LocalDateTime.class))).thenReturn(true);
 
     int released = service.releaseEndedOccupations(LocalDateTime.now());
 
     assertEquals(1, released);
-    ArgumentCaptor<ResEventOutboxPo> captor = ArgumentCaptor.forClass(ResEventOutboxPo.class);
-    verify(outboxMapper).insert(captor.capture());
-    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, captor.getValue().getEventType());
-    assertEquals("11", captor.getValue().getAggregateId());
+    ArgumentCaptor<String> eventType = ArgumentCaptor.forClass(String.class);
+    ArgumentCaptor<String> aggregateId = ArgumentCaptor.forClass(String.class);
+    verify(outbox).append(any(), eventType.capture(), aggregateId.capture(), any());
+    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, eventType.getValue());
+    assertEquals("11", aggregateId.getValue());
   }
 
   /** 正常营业中的开台占用（end_at 未到）不会被兜底释放。 */
   @Test
   void releaseEndedOccupations_leavesLiveOccupationUntouched() {
-    when(occupationMapper.selectEndedOccupations(any(LocalDateTime.class), anyInt())).thenReturn(List.of());
+    when(occupationRepository.findEndedOccupations(any(LocalDateTime.class), anyInt())).thenReturn(List.of());
 
     assertEquals(0, service.releaseEndedOccupations(LocalDateTime.now()));
 
-    verify(occupationMapper, never()).releaseWithVersion(any(), any(), any(LocalDateTime.class));
-    verify(outboxMapper, never()).insert(any(ResEventOutboxPo.class));
+    verify(occupationRepository, never()).releaseWithVersion(any(), anyInt(), any(LocalDateTime.class));
+    verify(outbox, never()).append(any(), any(), any(), any());
   }
 
   @Test
   void releaseOccupation_versionConflictThrows() {
-    OccupationPo po = held(9L, 3, LocalDateTime.now().plusMinutes(10));
-    when(occupationMapper.selectById(9L)).thenReturn(po);
-    when(occupationMapper.releaseWithVersion(eq(9L), eq(3), any(LocalDateTime.class))).thenReturn(0);
+    Occupation po = held(9L, 3, LocalDateTime.now().plusMinutes(10));
+    when(occupationRepository.findById(9L)).thenReturn(Optional.of(po));
+    when(occupationRepository.releaseWithVersion(eq(9L), eq(3), any(LocalDateTime.class))).thenReturn(false);
 
     assertThrows(IllegalStateException.class, () -> service.releaseOccupation(9L));
-    verify(outboxMapper, never()).insert(any(ResEventOutboxPo.class));
+    verify(outbox, never()).append(any(), any(), any(), any());
   }
 
   @Test
   void cancelOccupation_writesCancelledOutbox() {
-    OccupationPo po = held(10L, 1, LocalDateTime.now().plusMinutes(10));
-    when(occupationMapper.selectById(10L)).thenReturn(po);
-    when(occupationMapper.cancelWithVersion(eq(10L), eq(1), any(LocalDateTime.class))).thenReturn(1);
+    Occupation po = held(10L, 1, LocalDateTime.now().plusMinutes(10));
+    when(occupationRepository.findById(10L)).thenReturn(Optional.of(po));
+    when(occupationRepository.cancelWithVersion(eq(10L), eq(1), any(LocalDateTime.class))).thenReturn(true);
 
-    OccupationPo result = service.cancelOccupation(10L);
+    Occupation result = service.cancelOccupation(10L);
 
-    assertEquals("CANCELLED", result.getStatus());
-    ArgumentCaptor<ResEventOutboxPo> captor = ArgumentCaptor.forClass(ResEventOutboxPo.class);
-    verify(outboxMapper).insert(captor.capture());
-    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_CANCELLED, captor.getValue().getEventType());
+    assertEquals(Occupation.STATUS_CANCELLED, result.status());
+    ArgumentCaptor<String> eventType = ArgumentCaptor.forClass(String.class);
+    verify(outbox).append(any(), eventType.capture(), any(), any());
+    assertEquals(ResourceEventTypes.RESOURCE_OCCUPATION_CANCELLED, eventType.getValue());
   }
 
   /**
@@ -214,20 +222,20 @@ class OccupationApplicationServiceTest {
     // 开台写的是 openedAt + 24h（订单侧冲突判定窗口），必须相对当前时钟构造才会落在释放时刻之后
     LocalDateTime startAt = LocalDateTime.now();
     LocalDateTime reservedEndAt = startAt.plusHours(24);
-    OccupationPo po = occupation(20L, 0, startAt, reservedEndAt);
-    when(occupationMapper.selectById(20L)).thenReturn(po);
-    when(occupationMapper.releaseWithVersion(eq(20L), eq(0), any(LocalDateTime.class))).thenReturn(1);
+    Occupation po = occupation(20L, 0, startAt, reservedEndAt);
+    when(occupationRepository.findById(20L)).thenReturn(Optional.of(po));
+    when(occupationRepository.releaseWithVersion(eq(20L), eq(0), any(LocalDateTime.class))).thenReturn(true);
 
-    OccupationPo result = service.releaseOccupation(20L);
+    Occupation result = service.releaseOccupation(20L);
 
     ArgumentCaptor<LocalDateTime> releasedAt = ArgumentCaptor.forClass(LocalDateTime.class);
-    verify(occupationMapper).releaseWithVersion(eq(20L), eq(0), releasedAt.capture());
-    assertEquals(releasedAt.getValue(), result.getEndAt(), "返回的占用窗口收缩到释放时刻");
-    assertTrue(result.getEndAt().isBefore(reservedEndAt), "不再是开台时写的 24 小时窗口");
-    ArgumentCaptor<ResEventOutboxPo> captor = ArgumentCaptor.forClass(ResEventOutboxPo.class);
-    verify(outboxMapper).insert(captor.capture());
+    verify(occupationRepository).releaseWithVersion(eq(20L), eq(0), releasedAt.capture());
+    assertEquals(releasedAt.getValue(), result.endAt(), "返回的占用窗口收缩到释放时刻");
+    assertTrue(result.endAt().isBefore(reservedEndAt), "不再是开台时写的 24 小时窗口");
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    verify(outbox).append(any(), any(), any(), payload.capture());
     ResourceOccupationReleasedEvent event = new ObjectMapper().findAndRegisterModules()
-        .readValue(captor.getValue().getPayloadJson(), ResourceOccupationReleasedEvent.class);
+        .readValue(payload.getValue(), ResourceOccupationReleasedEvent.class);
     assertEquals(releasedAt.getValue().toInstant(ZoneOffset.UTC), event.getEndAt(),
         "Outbox 事件里的窗口同样已收缩，读事件的下游不会读到 24 小时");
   }
@@ -235,13 +243,13 @@ class OccupationApplicationServiceTest {
   /** 释放只允许提前窗口：end_at 已早于释放时刻时保持原值。 */
   @Test
   void releaseOccupation_doesNotExtendAlreadyEarlierEndAt() {
-    OccupationPo po = occupation(21L, 0, LocalDateTime.of(2025, 1, 1, 8, 0), LocalDateTime.of(2025, 1, 1, 9, 0));
-    when(occupationMapper.selectById(21L)).thenReturn(po);
-    when(occupationMapper.releaseWithVersion(eq(21L), eq(0), any(LocalDateTime.class))).thenReturn(1);
+    Occupation po = occupation(21L, 0, LocalDateTime.of(2025, 1, 1, 8, 0), LocalDateTime.of(2025, 1, 1, 9, 0));
+    when(occupationRepository.findById(21L)).thenReturn(Optional.of(po));
+    when(occupationRepository.releaseWithVersion(eq(21L), eq(0), any(LocalDateTime.class))).thenReturn(true);
 
-    OccupationPo result = service.releaseOccupation(21L);
+    Occupation result = service.releaseOccupation(21L);
 
-    assertEquals(LocalDateTime.of(2025, 1, 1, 9, 0), result.getEndAt(), "已更早的 end_at 不被释放时刻拉长");
+    assertEquals(LocalDateTime.of(2025, 1, 1, 9, 0), result.endAt(), "已更早的 end_at 不被释放时刻拉长");
   }
 
   /**
@@ -253,28 +261,32 @@ class OccupationApplicationServiceTest {
   void releaseExpiredHolds_passesScanNowAndClampsToStartAt() {
     LocalDateTime now = LocalDateTime.of(2026, 3, 1, 22, 0);
     LocalDateTime startAt = now.plusHours(1);
-    OccupationPo expired = occupation(22L, 0, startAt, now.plusHours(3));
-    when(occupationMapper.selectExpiredHolds(eq(now), anyInt())).thenReturn(List.of(expired));
-    when(occupationMapper.releaseWithVersion(eq(22L), eq(0), eq(now))).thenReturn(1);
+    Occupation expired = occupation(22L, 0, startAt, now.plusHours(3));
+    when(occupationRepository.findExpiredHolds(eq(now), anyInt())).thenReturn(List.of(expired));
+    when(occupationRepository.releaseWithVersion(eq(22L), eq(0), eq(now))).thenReturn(true);
 
     int released = service.releaseExpiredHolds(now);
 
     assertEquals(1, released);
-    verify(occupationMapper).releaseWithVersion(eq(22L), eq(0), eq(now));
-    assertEquals(startAt, expired.getEndAt(), "未开始即释放：兜到 start_at，区间不倒退");
+    verify(occupationRepository).releaseWithVersion(eq(22L), eq(0), eq(now));
+    // 载荷里的窗口被兜到 start_at，区间不倒退（落库行的同一规则由 SQL 的 GREATEST 保证）
+    assertTrue(releasedEvent().getEndAt().equals(startAt.toInstant(ZoneOffset.UTC)),
+        "未开始即释放：窗口兜到 start_at，区间不倒退");
   }
 
   /** 过期 HELD 释放（业务时段已开始）：窗口收缩到释放时刻。 */
   @Test
   void releaseExpiredHolds_shrinksWindowStartedBeforeRelease() {
     LocalDateTime now = LocalDateTime.of(2026, 3, 1, 22, 0);
-    OccupationPo expired = occupation(24L, 0, now.minusHours(1), now.plusHours(3));
-    when(occupationMapper.selectExpiredHolds(eq(now), anyInt())).thenReturn(List.of(expired));
-    when(occupationMapper.releaseWithVersion(eq(24L), eq(0), eq(now))).thenReturn(1);
+    Occupation expired = occupation(24L, 0, now.minusHours(1), now.plusHours(3));
+    when(occupationRepository.findExpiredHolds(eq(now), anyInt())).thenReturn(List.of(expired));
+    when(occupationRepository.releaseWithVersion(eq(24L), eq(0), eq(now))).thenReturn(true);
 
-    assertEquals(1, service.releaseExpiredHolds(now));
+    int released = service.releaseExpiredHolds(now);
 
-    assertEquals(now, expired.getEndAt(), "释放时刻即收缩后的窗口终点");
+    assertEquals(1, released);
+    assertTrue(releasedEvent().getEndAt().equals(now.toInstant(ZoneOffset.UTC)),
+        "释放时刻即收缩后的窗口终点");
   }
 
   /** 兜底释放（end_at 已过）：释放时刻同样用扫描入参，且本就更早的 end_at 保持原值。 */
@@ -282,50 +294,38 @@ class OccupationApplicationServiceTest {
   void releaseEndedOccupations_passesScanNowAndKeepsEarlierEndAt() {
     LocalDateTime now = LocalDateTime.of(2026, 3, 1, 22, 0);
     LocalDateTime earlierEndAt = now.minusHours(2);
-    OccupationPo ended = occupation(23L, 4, earlierEndAt.minusHours(2), earlierEndAt);
-    when(occupationMapper.selectEndedOccupations(eq(now), anyInt())).thenReturn(List.of(ended));
-    when(occupationMapper.releaseWithVersion(eq(23L), eq(4), eq(now))).thenReturn(1);
+    Occupation ended = occupation(23L, 4, earlierEndAt.minusHours(2), earlierEndAt);
+    when(occupationRepository.findEndedOccupations(eq(now), anyInt())).thenReturn(List.of(ended));
+    when(occupationRepository.releaseWithVersion(eq(23L), eq(4), eq(now))).thenReturn(true);
 
     int released = service.releaseEndedOccupations(now);
 
     assertEquals(1, released);
-    verify(occupationMapper).releaseWithVersion(eq(23L), eq(4), eq(now));
-    assertEquals(earlierEndAt, ended.getEndAt(), "已更早的 end_at 保持原值");
+    verify(occupationRepository).releaseWithVersion(eq(23L), eq(4), eq(now));
+    assertTrue(releasedEvent().getEndAt().equals(earlierEndAt.toInstant(ZoneOffset.UTC)),
+        "已更早的 end_at 保持原值");
   }
 
-  private OccupationPo occupation(long id, int version, LocalDateTime startAt, LocalDateTime endAt) {
-    OccupationPo po = new OccupationPo();
-    po.setId(id);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setResourceId(9L);
-    po.setSourceType("ORDER");
-    po.setSourceId(10L);
-    po.setStartAt(startAt);
-    po.setEndAt(endAt);
-    po.setStatus("HELD");
-    po.setHoldExpiresAt(endAt.plusMinutes(30));
-    po.setVersion(version);
-    po.setCreatedAt(LocalDateTime.now());
-    po.setUpdatedAt(LocalDateTime.now());
-    return po;
+  /** 从出站端口捕获的载荷反序列化出释放事件（Instant 字段按纪元秒序列化，用对象断言比字符串匹配稳健）。 */
+  private ResourceOccupationReleasedEvent releasedEvent() {
+    ArgumentCaptor<String> payload = ArgumentCaptor.forClass(String.class);
+    verify(outbox).append(any(), any(), any(), payload.capture());
+    try {
+      return new ObjectMapper().findAndRegisterModules()
+          .readValue(payload.getValue(), ResourceOccupationReleasedEvent.class);
+    } catch (Exception e) {
+      throw new AssertionError("出站载荷无法反序列化为释放事件: " + payload.getValue(), e);
+    }
   }
 
-  private OccupationPo held(long id, int version, LocalDateTime holdExpiresAt) {
-    OccupationPo po = new OccupationPo();
-    po.setId(id);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setResourceId(9L);
-    po.setSourceType("ORDER");
-    po.setSourceId(10L);
-    po.setStartAt(LocalDateTime.of(2025, 1, 1, 10, 0));
-    po.setEndAt(LocalDateTime.of(2025, 1, 1, 12, 0));
-    po.setStatus("HELD");
-    po.setHoldExpiresAt(holdExpiresAt);
-    po.setVersion(version);
-    po.setCreatedAt(LocalDateTime.now());
-    po.setUpdatedAt(LocalDateTime.now());
-    return po;
+  private static Occupation occupation(long id, int version, LocalDateTime startAt, LocalDateTime endAt) {
+    return new Occupation(id, 1L, 100L, 9L, "ORDER", 10L, startAt, endAt,
+        Occupation.STATUS_HELD, endAt.plusMinutes(30), version);
+  }
+
+  private static Occupation held(long id, int version, LocalDateTime holdExpiresAt) {
+    return new Occupation(id, 1L, 100L, 9L, "ORDER", 10L,
+        LocalDateTime.of(2025, 1, 1, 10, 0), LocalDateTime.of(2025, 1, 1, 12, 0),
+        Occupation.STATUS_HELD, holdExpiresAt, version);
   }
 }

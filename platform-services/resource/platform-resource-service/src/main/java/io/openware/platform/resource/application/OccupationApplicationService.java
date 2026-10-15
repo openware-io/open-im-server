@@ -1,10 +1,9 @@
 package io.openware.platform.resource.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.openware.platform.resource.infra.persistence.mapper.EventOutboxMapper;
-import io.openware.platform.resource.infra.persistence.mapper.OccupationMapper;
-import io.openware.platform.resource.infra.persistence.po.OccupationPo;
-import io.openware.platform.resource.infra.persistence.po.ResEventOutboxPo;
+import io.openware.platform.resource.domain.occupation.model.Occupation;
+import io.openware.platform.resource.domain.occupation.repository.OccupationEventOutbox;
+import io.openware.platform.resource.domain.occupation.repository.OccupationRepository;
 import io.openware.protocol.mq.event.ResourceEventTypes;
 import io.openware.protocol.mq.event.ResourceOccupationCancelledEvent;
 import io.openware.protocol.mq.event.ResourceOccupationReleasedEvent;
@@ -20,21 +19,23 @@ import java.util.UUID;
 /**
  * 资源占用应用服务。HELD 占用经 hold_expires_at 超时后由 HoldExpiryScheduler 触发状态机 HELD→RELEASED
  * （乐观锁 version CAS）；显式释放/取消与业务同事务写入 Outbox，由 EventOutboxRelay 补偿投递。
+ *
+ * <p>持久化经领域端口：行锁（{@code FOR UPDATE}）、乐观锁条件更新与窗口单向收缩都在适配器/ mapper 的
+ * SQL 里完成，应用层只做编排。状态迁移一律走端口的 CAS 方法，**不得**改成先读后判再写。
  */
 @Service
 public class OccupationApplicationService {
-    private static final String STATUS_RELEASED = "RELEASED";
-    private static final String STATUS_CANCELLED = "CANCELLED";
     private static final int DEFAULT_HOLD_TIMEOUT_MINUTES = 15;
     private static final int EXPIRY_BATCH_SIZE = 500;
 
-    private final OccupationMapper occupationMapper;
-    private final EventOutboxMapper outboxMapper;
+    private final OccupationRepository occupationRepository;
+    private final OccupationEventOutbox outbox;
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
-    public OccupationApplicationService(OccupationMapper occupationMapper, EventOutboxMapper outboxMapper) {
-        this.occupationMapper = occupationMapper;
-        this.outboxMapper = outboxMapper;
+    public OccupationApplicationService(OccupationRepository occupationRepository,
+                                        OccupationEventOutbox outbox) {
+        this.occupationRepository = occupationRepository;
+        this.outbox = outbox;
     }
 
     /**
@@ -42,34 +43,22 @@ public class OccupationApplicationService {
      * DB 锁 + 半开区间判重是最终事实；Redis 锁仅降冲突（此处不引入）。
      */
     @Transactional
-    public OccupationPo holdResource(Long tenantId, Long storeId, Long resourceId,
-                                     LocalDateTime startAt, LocalDateTime endAt,
-                                     String sourceType, Long sourceId, LocalDateTime holdExpiresAt) {
-        var valids = occupationMapper.selectValidForUpdate(tenantId, resourceId);
-        for (OccupationPo o : valids) {
-            // 半开区间 [start,end)：重叠当且仅当 a.start < b.end && b.start < a.end
-            boolean overlap = o.getStartAt().isBefore(endAt) && startAt.isBefore(o.getEndAt());
-            if (overlap) {
+    public Occupation holdResource(Long tenantId, Long storeId, Long resourceId,
+                                   LocalDateTime startAt, LocalDateTime endAt,
+                                   String sourceType, Long sourceId, LocalDateTime holdExpiresAt) {
+        // 行锁读（FOR UPDATE）：锁持有至事务提交，这是并发预占不会双双通过重叠检查的唯一保证。
+        var valids = occupationRepository.findValidForUpdate(tenantId, resourceId);
+        for (Occupation o : valids) {
+            // 半开区间 [start,end)：相邻窗口不算重叠。判据收在领域模型上，避免各处各写一遍比较式。
+            if (o.overlaps(startAt, endAt)) {
                 throw new IllegalStateException("RESOURCE_OCCUPIED");
             }
         }
         LocalDateTime effectiveHoldExpiresAt = holdExpiresAt != null
                 ? holdExpiresAt : LocalDateTime.now().plusMinutes(DEFAULT_HOLD_TIMEOUT_MINUTES);
-        OccupationPo po = new OccupationPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(storeId);
-        po.setResourceId(resourceId);
-        po.setSourceType(sourceType);
-        po.setSourceId(sourceId);
-        po.setStartAt(startAt);
-        po.setEndAt(endAt);
-        po.setStatus("HELD");
-        po.setHoldExpiresAt(effectiveHoldExpiresAt);
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        occupationMapper.insert(po);
-        return po;
+        // 初始状态与版本由领域工厂固定（预占的初始状态是用例不变量）。
+        return occupationRepository.insert(Occupation.hold(tenantId, storeId, resourceId, sourceType,
+                sourceId, startAt, endAt, effectiveHoldExpiresAt));
     }
 
     /**
@@ -79,37 +68,35 @@ public class OccupationApplicationService {
      * 内存态同步收缩，保证返回给调用方的占用与 Outbox 事件里的窗口和落库行一致。
      */
     @Transactional
-    public OccupationPo releaseOccupation(Long occupationId) {
-        OccupationPo po = require(occupationId);
-        if (STATUS_RELEASED.equals(po.getStatus())) {
+    public Occupation releaseOccupation(Long occupationId) {
+        Occupation po = require(occupationId);
+        if (po.released()) {
             return po;
         }
         LocalDateTime now = LocalDateTime.now();
-        if (occupationMapper.releaseWithVersion(po.getId(), versionOf(po), now) == 0) {
+        // 单条条件更新（状态 + 版本 CAS）并同时把窗口收缩到 now，见端口契约；不得改成先读后判再写。
+        if (!occupationRepository.releaseWithVersion(po.id(), po.currentVersion(), now)) {
             throw new IllegalStateException("OCCUPATION_VERSION_CONFLICT");
         }
-        po.setStatus(STATUS_RELEASED);
-        shrinkEndAt(po, now);
-        po.setUpdatedAt(now);
-        writeReleasedOutbox(po, now);
-        return po;
+        Occupation released = releasedSnapshot(po, now);
+        writeReleasedOutbox(released, now);
+        return released;
     }
 
     /** 显式取消：HELD/RESERVED → CANCELLED（乐观锁 version CAS），并落 Outbox。 */
     @Transactional
-    public OccupationPo cancelOccupation(Long occupationId) {
-        OccupationPo po = require(occupationId);
-        if (STATUS_CANCELLED.equals(po.getStatus())) {
+    public Occupation cancelOccupation(Long occupationId) {
+        Occupation po = require(occupationId);
+        if (po.cancelled()) {
             return po;
         }
         LocalDateTime now = LocalDateTime.now();
-        if (occupationMapper.cancelWithVersion(po.getId(), versionOf(po), now) == 0) {
+        if (!occupationRepository.cancelWithVersion(po.id(), po.currentVersion(), now)) {
             throw new IllegalStateException("OCCUPATION_VERSION_CONFLICT");
         }
-        po.setStatus(STATUS_CANCELLED);
-        po.setUpdatedAt(now);
-        writeCancelledOutbox(po, now);
-        return po;
+        Occupation cancelled = withStatus(po, Occupation.STATUS_CANCELLED, po.endAt());
+        writeCancelledOutbox(cancelled, now);
+        return cancelled;
     }
 
     /**
@@ -120,14 +107,11 @@ public class OccupationApplicationService {
      */
     @Transactional
     public int releaseExpiredHolds(LocalDateTime now) {
-        List<OccupationPo> expired = occupationMapper.selectExpiredHolds(now, EXPIRY_BATCH_SIZE);
+        List<Occupation> expired = occupationRepository.findExpiredHolds(now, EXPIRY_BATCH_SIZE);
         int released = 0;
-        for (OccupationPo po : expired) {
-            if (occupationMapper.releaseWithVersion(po.getId(), versionOf(po), now) == 1) {
-                po.setStatus(STATUS_RELEASED);
-                shrinkEndAt(po, now);
-                po.setUpdatedAt(now);
-                writeReleasedOutbox(po, now);
+        for (Occupation po : expired) {
+            if (occupationRepository.releaseWithVersion(po.id(), po.currentVersion(), now)) {
+                writeReleasedOutbox(releasedSnapshot(po, now), now);
                 released++;
             }
         }
@@ -144,15 +128,12 @@ public class OccupationApplicationService {
      */
     @Transactional
     public int releaseEndedOccupations(LocalDateTime now) {
-        List<OccupationPo> ended = occupationMapper.selectEndedOccupations(now, EXPIRY_BATCH_SIZE);
+        List<Occupation> ended = occupationRepository.findEndedOccupations(now, EXPIRY_BATCH_SIZE);
         int released = 0;
-        for (OccupationPo po : ended) {
-            if (occupationMapper.releaseWithVersion(po.getId(), versionOf(po), now) == 1) {
-                po.setStatus(STATUS_RELEASED);
+        for (Occupation po : ended) {
+            if (occupationRepository.releaseWithVersion(po.id(), po.currentVersion(), now)) {
                 // 该路径扫描条件即 end_at < now，收缩是无操作：SQL 的 LEAST 守护「已更早的 end_at 不被拉长」
-                shrinkEndAt(po, now);
-                po.setUpdatedAt(now);
-                writeReleasedOutbox(po, now);
+                writeReleasedOutbox(releasedSnapshot(po, now), now);
                 released++;
             }
         }
@@ -166,79 +147,80 @@ public class OccupationApplicationService {
      * 内存态同步收缩是为了让返回给调用方的占用、Outbox 事件的 {@code endAt} 与落库行一致，
      * 否则读事件的下游仍会把一次开台读成 24 小时（或在未开始的时段上读到倒挂区间）。
      */
-    private static void shrinkEndAt(OccupationPo po, LocalDateTime now) {
-        LocalDateTime shrunk = po.getEndAt() == null || po.getEndAt().isAfter(now) ? now : po.getEndAt();
-        if (po.getStartAt() != null && shrunk.isBefore(po.getStartAt())) {
-            // 占用还没开始就被释放（如 holdExpiresAt 早于 start_at 的未来时段 HELD 超时）：最坏零长度
-            shrunk = po.getStartAt();
+    /**
+     * 释放后的内存态快照：状态置为 RELEASED，并把窗口终点收缩到 {@code now}。
+     *
+     * <p><b>落库的收缩由 mapper 的单条 SQL 完成</b>（{@code GREATEST(start_at, LEAST(COALESCE(end_at, now), now))}），
+     * 那是权威实现；本方法只为**返回给调用方的对象与 Outbox 载荷**构造一致的窗口，规则与之对齐：
+     * 已更早的 {@code end_at} 保持原值（不被反向拉长），且结果不早于 {@code start_at}（兜住"尚未开始就释放"
+     * 可能产生的负长度区间）。
+     */
+    private static Occupation releasedSnapshot(Occupation po, LocalDateTime now) {
+        LocalDateTime shrunk = po.endAt() == null || po.endAt().isAfter(now) ? now : po.endAt();
+        if (po.startAt() != null && shrunk.isBefore(po.startAt())) {
+            shrunk = po.startAt();
         }
-        po.setEndAt(shrunk);
+        return withStatus(po, Occupation.STATUS_RELEASED, shrunk);
     }
 
-    private OccupationPo require(Long occupationId) {
-        OccupationPo po = occupationMapper.selectById(occupationId);
+    /** 状态/窗口替换：不可变聚合按需生成新实例。 */
+    private static Occupation withStatus(Occupation po, String status, LocalDateTime endAt) {
+        return new Occupation(po.id(), po.tenantId(), po.storeId(), po.resourceId(), po.sourceType(),
+                po.sourceId(), po.startAt(), endAt, status, po.holdExpiresAt(), po.version());
+    }
+
+    private Occupation require(Long occupationId) {
+        Occupation po = occupationId == null ? null
+                : occupationRepository.findById(occupationId).orElse(null);
         if (po == null) {
             throw new IllegalStateException("OCCUPATION_NOT_FOUND");
         }
         return po;
     }
 
-    private int versionOf(OccupationPo po) {
-        return po.getVersion() == null ? 0 : po.getVersion();
-    }
-
-    private void writeReleasedOutbox(OccupationPo po, LocalDateTime now) {
+    private void writeReleasedOutbox(Occupation po, LocalDateTime now) {
         ResourceOccupationReleasedEvent event = ResourceOccupationReleasedEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
-                .resourceId(po.getResourceId())
-                .occupationId(po.getId())
-                .sourceType(po.getSourceType())
-                .sourceId(po.getSourceId())
-                .startAt(toInstant(po.getStartAt()))
-                .endAt(toInstant(po.getEndAt()))
-                .status(STATUS_RELEASED)
+                .tenantId(po.tenantId())
+                .storeId(po.storeId())
+                .resourceId(po.resourceId())
+                .occupationId(po.id())
+                .sourceType(po.sourceType())
+                .sourceId(po.sourceId())
+                .startAt(toInstant(po.startAt()))
+                .endAt(toInstant(po.endAt()))
+                .status(Occupation.STATUS_RELEASED)
                 .occurredAt(now.toInstant(ZoneOffset.UTC))
                 .build();
-        writeOutbox(event.getEventId(), ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, event, po.getId(), now);
+        writeOutbox(event.getEventId(), ResourceEventTypes.RESOURCE_OCCUPATION_RELEASED, event, po.id());
     }
 
-    private void writeCancelledOutbox(OccupationPo po, LocalDateTime now) {
+    private void writeCancelledOutbox(Occupation po, LocalDateTime now) {
         ResourceOccupationCancelledEvent event = ResourceOccupationCancelledEvent.builder()
                 .eventId(UUID.randomUUID().toString())
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
-                .resourceId(po.getResourceId())
-                .occupationId(po.getId())
-                .sourceType(po.getSourceType())
-                .sourceId(po.getSourceId())
-                .startAt(toInstant(po.getStartAt()))
-                .endAt(toInstant(po.getEndAt()))
-                .status(STATUS_CANCELLED)
+                .tenantId(po.tenantId())
+                .storeId(po.storeId())
+                .resourceId(po.resourceId())
+                .occupationId(po.id())
+                .sourceType(po.sourceType())
+                .sourceId(po.sourceId())
+                .startAt(toInstant(po.startAt()))
+                .endAt(toInstant(po.endAt()))
+                .status(Occupation.STATUS_CANCELLED)
                 .occurredAt(now.toInstant(ZoneOffset.UTC))
                 .build();
-        writeOutbox(event.getEventId(), ResourceEventTypes.RESOURCE_OCCUPATION_CANCELLED, event, po.getId(), now);
+        writeOutbox(event.getEventId(), ResourceEventTypes.RESOURCE_OCCUPATION_CANCELLED, event, po.id());
     }
 
-    private void writeOutbox(String eventId, String eventType, Object event, Long aggregateId, LocalDateTime now) {
+    private void writeOutbox(String eventId, String eventType, Object event, Long aggregateId) {
         String payload;
         try {
             payload = objectMapper.writeValueAsString(event);
         } catch (Exception e) {
             throw new IllegalStateException("OUTBOX_SERIALIZE_FAILED", e);
         }
-        ResEventOutboxPo outbox = new ResEventOutboxPo();
-        outbox.setEventId(eventId);
-        outbox.setEventType(eventType);
-        outbox.setAggregateType("occupation");
-        outbox.setAggregateId(String.valueOf(aggregateId));
-        outbox.setPayloadJson(payload);
-        outbox.setStatus("PENDING");
-        outbox.setRetryCount(0);
-        outbox.setCreatedAt(now);
-        outbox.setUpdatedAt(now);
-        outboxMapper.insert(outbox);
+        // 出站记录的落库细节（含审计字段与 PENDING 状态）由适配器负责。
+        outbox.append(eventId, eventType, String.valueOf(aggregateId), payload);
     }
 
     private Instant toInstant(LocalDateTime value) {
