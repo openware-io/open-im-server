@@ -212,6 +212,9 @@ public class StaffAccountApplicationService {
                 }
             }
         } catch (RuntimeException ignored) {
+            // 补偿失败必须留痕：调用方据此判断授权是否已完全还原，静默吞掉会让不一致不可见。
+            log.warn("restoreMissingBindings failed for accountId={}, authorization may be incomplete",
+                    accountId, ignored);
         }
     }
 
@@ -223,6 +226,9 @@ public class StaffAccountApplicationService {
                 }
             }
         } catch (RuntimeException ignored) {
+            // 同上：回滚失败不能静默，否则越权绑定可能残留而无人知晓。
+            log.warn("revokeNewTargetBindings failed for targetAccountId={}, extra bindings may remain",
+                    targetAccountId, ignored);
         }
     }
 

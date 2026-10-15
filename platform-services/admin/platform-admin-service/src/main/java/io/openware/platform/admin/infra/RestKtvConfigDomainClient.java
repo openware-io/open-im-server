@@ -17,6 +17,7 @@ import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
@@ -39,6 +40,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * 租户经 X-Tenant-Context 头转发（领域服务 TenantContextFilter 解析后 MyBatis 租户拦截器自动附加 tenant_id）。
  */
 @Component
+@Slf4j
 public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
 
     private final RestClient tenantClient;
@@ -474,6 +476,9 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
             if (node.hasNonNull("code")) code = node.get("code").asText();
             if (node.hasNonNull("message")) message = node.get("message").asText();
         } catch (Exception ignored) {
+            // 上游错误体不是 JSON 时回退到 HTTP 状态文案：属预期降级，留 DEBUG 便于排查真实故障，
+            // 且刻意不记录响应体本身（可能含业务数据）。
+            log.debug("ktv-config error body is not JSON, falling back to status text: {}", e.getStatusText());
         }
         return new ApiException(e.getStatusCode().value(), code, message);
     }

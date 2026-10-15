@@ -2,6 +2,7 @@ package io.openware.infrastructure.config;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -17,6 +18,7 @@ import java.nio.charset.Charset;
  * 通过 Spring Boot AutoConfiguration 全局生效（依赖 SDK 的服务自动加载）。</p>
  */
 @AutoConfiguration
+@Slf4j
 public class WebJsonConfig implements WebMvcConfigurer {
 
   @Override
@@ -26,6 +28,11 @@ public class WebJsonConfig implements WebMvcConfigurer {
         converter.getClass().getMethod("setDefaultCharset", Charset.class)
             .invoke(converter, StandardCharsets.UTF_8);
       } catch (ReflectiveOperationException ignored) {
+        // 该转换器没有 setDefaultCharset：响应可能按容器默认字符集编码而出现中文乱码。
+        // 这是本类要消除的编码契约缺陷，不能静默，故用 WARN 使其可观测。
+        log.warn("converter {} has no setDefaultCharset(Charset); "
+            + "response may fall back to the container default encoding",
+            converter.getClass().getName(), ignored);
       }
     });
   }

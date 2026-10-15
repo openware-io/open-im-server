@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,7 @@ import java.util.Map;
  * 响应统一按 String 取回再解析为 List/Map（避免 Spring Boot 4 消息转换器对 JsonNode 的序列化问题）。
  */
 @Component
+@Slf4j
 public class ReservationDomainClient {
 
   private final RestClient orderClient;
@@ -177,6 +179,9 @@ public class ReservationDomainClient {
       if (node.hasNonNull("code")) code = node.get("code").asText();
       if (node.hasNonNull("message")) message = node.get("message").asText();
     } catch (Exception ignored) {
+      // 上游错误体不是 JSON 时回退到 HTTP 状态文案：属预期降级，留 DEBUG 便于排查真实故障，
+      // 且刻意不记录响应体本身（可能含业务数据）。
+      log.debug("reservation error body is not JSON, falling back to status text: {}", e.getStatusText());
     }
     return new ApiException(e.getStatusCode().value(), code, message);
   }
