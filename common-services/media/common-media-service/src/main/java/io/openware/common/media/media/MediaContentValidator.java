@@ -10,11 +10,13 @@ import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import java.nio.file.StandardCopyOption;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class MediaContentValidator {
   private final MediaProperties properties;
   private final MediaStoragePort storage;
@@ -67,7 +69,12 @@ public class MediaContentValidator {
       return ValidationResult.deny("Audio/video probing is unavailable");
     } finally {
       if (temporaryFile != null) {
-        try { Files.deleteIfExists(temporaryFile); } catch (Exception ignored) { }
+        try {
+          Files.deleteIfExists(temporaryFile);
+        } catch (Exception ignored) {
+          // 清理失败不影响校验结论（best-effort），但不能静默：临时目录泄漏需要可追溯。
+          log.debug("failed to delete temporary probe file {}", temporaryFile, ignored);
+        }
       }
     }
   }

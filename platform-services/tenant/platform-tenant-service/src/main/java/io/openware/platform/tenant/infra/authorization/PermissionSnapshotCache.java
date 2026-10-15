@@ -2,6 +2,7 @@ package io.openware.platform.tenant.infra.authorization;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.platform.tenant.domain.authorization.PermissionSnapshot;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
  * 授权变更事件逐出当前为全量 clear；生产按 accountId 前缀精确逐出 + MQ 事件。
  */
 @Component
+@Slf4j
 public class PermissionSnapshotCache {
 
     private static final String KEY_PREFIX = "permission:snapshot:";

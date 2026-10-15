@@ -12,11 +12,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class MessageEditedEventListener implements SmartLifecycle {
   private final MqConsumerFactory mqConsumerFactory;
   private final MqJsonCodec mqJsonCodec;
@@ -38,7 +40,16 @@ public class MessageEditedEventListener implements SmartLifecycle {
   }
   @Override public void stop() {
     running = false;
-    if (consumer != null) try { consumer.close(); } catch (Exception ignored) {} finally { consumer = null; }
+    if (consumer != null) {
+      try {
+        consumer.close();
+      } catch (Exception ignored) {
+        // 停机清理：关闭失败不阻断停机流程，但需留痕以排查连接泄漏。
+        log.debug("failed to close the message-edited consumer cleanly during shutdown", ignored);
+      } finally {
+        consumer = null;
+      }
+    }
   }
   @Override public void stop(Runnable callback) { stop(); callback.run(); }
   @Override public boolean isRunning() { return running; }

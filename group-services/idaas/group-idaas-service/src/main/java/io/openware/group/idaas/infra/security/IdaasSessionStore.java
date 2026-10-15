@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
  * - SSO 一次性票据（ticket）：门户跳转后台时签发，60 秒有效、用后即焚，避免在 URL 透传长期 JWT。
  */
 @Component
+@Slf4j
 public class IdaasSessionStore {
 
   private static final String SESSION_PREFIX = "idaas:session:";
@@ -86,7 +88,12 @@ public class IdaasSessionStore {
     if (raw == null) return 0;
     int last = raw.lastIndexOf(':');
     if (last >= 0) {
-      try { return Long.parseLong(raw.substring(last + 1)); } catch (NumberFormatException ignored) { }
+      try {
+        return Long.parseLong(raw.substring(last + 1));
+      } catch (NumberFormatException ignored) {
+        // 会话值里的到期时间戳不可解析：回退到 Redis TTL 计算，属预期降级但需可追溯。
+        log.debug("session value has an unparsable expiry, falling back to redis ttl: {}", sessionId);
+      }
     }
     Long remaining = redisTemplate.getExpire(SESSION_PREFIX + sessionId, TimeUnit.MILLISECONDS);
     return remaining == null || remaining <= 0 ? 0 : System.currentTimeMillis() + remaining;
@@ -110,7 +117,10 @@ public class IdaasSessionStore {
         try {
           expiresAt = Long.parseLong(remainder.substring(expirySeparator + 1));
           username = remainder.substring(0, expirySeparator);
-        } catch (NumberFormatException ignored) { }
+        } catch (NumberFormatException ignored) {
+          // 会话值形态为 accountId:username:expiresAt；到期段不可解析时按无到期处理并保留整段为用户名。
+          log.debug("session value has an unparsable expiry segment, treating session as non-expiring: {}", raw);
+        }
       }
       return Optional.of(new IdaasUser(accountId, username, expiresAt));
     } catch (NumberFormatException ex) {
