@@ -1,4 +1,4 @@
-package io.openware.platform.admin.domain.port;
+package io.openware.platform.admin.domain.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;

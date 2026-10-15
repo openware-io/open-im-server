@@ -1,6 +1,6 @@
 package io.openware.platform.admin.infra.persistence.repository;
 
-import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.domain.repository.ReportQueryRepository;
 import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
 import java.time.LocalDateTime;
 import java.util.List;

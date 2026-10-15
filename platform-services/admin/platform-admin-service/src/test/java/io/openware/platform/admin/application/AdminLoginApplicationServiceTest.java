@@ -9,7 +9,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
-import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import io.openware.platform.admin.infra.security.SessionTtl;
 import java.time.LocalDateTime;

@@ -3,7 +3,7 @@ package io.openware.platform.admin.application;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
-import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

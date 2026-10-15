@@ -3,7 +3,7 @@ package io.openware.platform.admin.infra.persistence;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
-import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.springframework.stereotype.Repository;

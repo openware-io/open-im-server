@@ -8,7 +8,7 @@ import io.openware.infrastructure.time.ReportTimeBuckets;
 import io.openware.infrastructure.time.ReportTimeBuckets.TimeBucket;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.domain.repository.ReportQueryRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;

@@ -20,7 +20,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.ReportTimeBuckets;
 import io.openware.infrastructure.time.TimeRangeParams;
-import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.domain.repository.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;

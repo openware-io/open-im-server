@@ -10,7 +10,7 @@ import static org.mockito.Mockito.when;
 
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.domain.repository.ReportQueryRepository;
 import io.openware.platform.admin.infra.persistence.mapper.ReportMapper;
 import io.openware.platform.admin.api.controller.ReportController;
 import java.lang.reflect.Method;

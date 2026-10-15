@@ -3,7 +3,7 @@ package io.openware.platform.admin.application;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
-import io.openware.platform.admin.domain.port.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.IdaasSsoClient;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;

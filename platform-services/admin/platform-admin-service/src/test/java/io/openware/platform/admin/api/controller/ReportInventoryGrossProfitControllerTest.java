@@ -13,7 +13,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.admin.domain.port.ReportQueryRepository;
+import io.openware.platform.admin.domain.repository.ReportQueryRepository;
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
