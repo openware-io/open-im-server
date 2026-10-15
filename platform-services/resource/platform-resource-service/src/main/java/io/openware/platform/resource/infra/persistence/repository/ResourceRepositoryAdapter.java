@@ -61,6 +61,26 @@ public class ResourceRepositoryAdapter implements ResourceRepository {
     return toDomain(po);
   }
 
+  /**
+   * 解绑房型：用显式 SET 把 {@code room_type_id} 置为 NULL。
+   *
+   * <p>不能用"把字段置空后 updateById"：MyBatis-Plus 默认 NOT_NULL 更新策略会把 null 字段从 UPDATE 中
+   * 剔除，解绑会静默失效（这正是本方法必须独立存在的原因，见端口契约）。
+   */
+  @Override
+  public boolean clearRoomTypeBinding(Long resourceId) {
+    return mapper.update(null, Wrappers.<ResourcePo>lambdaUpdate()
+        .eq(ResourcePo::getId, resourceId)
+        .set(ResourcePo::getRoomTypeId, null)
+        .set(ResourcePo::getUpdatedAt, LocalDateTime.now())) > 0;
+  }
+
+  @Override
+  public long countByRoomTypeId(Long roomTypeId) {
+    return mapper.selectCount(Wrappers.<ResourcePo>lambdaQuery()
+        .eq(ResourcePo::getRoomTypeId, roomTypeId));
+  }
+
   private ResourcePo toPo(Resource resource) {
     ResourcePo po = new ResourcePo();
     po.setId(resource.id());

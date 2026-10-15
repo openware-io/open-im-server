@@ -28,4 +28,19 @@ public interface ResourceRepository {
 
   /** 保存资源：{@code id} 为空时新增，否则更新，返回落库后的聚合。 */
   Resource save(Resource resource);
+
+  /**
+   * 解绑房型（把 {@code room_type_id} 置为 NULL），返回是否确实更新了一行。
+   *
+   * <p><b>必须独立于 {@link #save}</b>，不能用"把 {@code roomTypeId} 置空后保存"表达：MyBatis-Plus 默认的
+   * NOT_NULL 更新策略会把 null 字段从 UPDATE 中剔除，于是解绑**静默失效**——房型仍被引用，
+   * 删除房型会一直 409 {@code ROOM_TYPE_IN_USE}。这是已修缺陷的根因（见 RoomTypeUnbindRegressionTest），
+   * 因此该语义必须由端口显式承载，不得退回 save。
+   *
+   * <p>"清空这个字段"与"不动这个字段"是两种不同意图，端口必须能把二者区分开。
+   */
+  boolean clearRoomTypeBinding(Long resourceId);
+
+  /** 统计仍引用该房型的资源数量（删除房型前的引用判据）。 */
+  long countByRoomTypeId(Long roomTypeId);
 }
