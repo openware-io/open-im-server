@@ -12,9 +12,9 @@ import io.openware.platform.admin.application.AdminMenuApplicationService;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.handler.GlobalExceptionHandler;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.TenantPaymentMethodMapper;
-import io.openware.platform.admin.infra.persistence.mapper.AdminMenuMapper;
-import io.openware.platform.admin.infra.persistence.po.AdminMenuPo;
+import io.openware.platform.admin.domain.menu.readmodel.AdminMenuRow;
+import io.openware.platform.admin.domain.menu.repository.TenantPaymentGrantRepository;
+import io.openware.platform.admin.domain.menu.repository.AdminMenuRepository;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
@@ -37,27 +37,24 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 class AdminMenuControllerAuthTest {
   private static final String SECRET = "saas-admin-platform-context-test-secret-0123456789";
 
-  private final TenantPaymentMethodMapper tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
+  private final TenantPaymentGrantRepository paymentGrants = mock(TenantPaymentGrantRepository.class);
   private final TenantIamDomainClient tenantIamClient = mock(TenantIamDomainClient.class);
-  private final AdminMenuMapper menuMapper = mock(AdminMenuMapper.class);
+  private final AdminMenuRepository menuRepository = mock(AdminMenuRepository.class);
   private final AdminTenantContextTokenSigner contextTokens =
       new AdminTenantContextTokenSigner(jwtProperties());
   private final MockMvc mvc = MockMvcBuilders
       .standaloneSetup(new AdminMenuController(
-      new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens, menuMapper)))
+      new AdminMenuApplicationService(paymentGrants, tenantIamClient, contextTokens, menuRepository)))
       .setControllerAdvice(new GlobalExceptionHandler())
       .build();
 
   {
-    AdminMenuPo menu = new AdminMenuPo();
-    AdminMenuPo platform = new AdminMenuPo();
-    platform.setId(1L); platform.setParentId(0L); platform.setCode("tenant"); platform.setName("租户管理");
-    platform.setPath("/admin/platform/tenants"); platform.setIcon("building"); platform.setScopeLevel("PLATFORM");
-    platform.setDomainCode("core"); platform.setSortNo(1); platform.setStatus("ACTIVE");
-    menu.setId(10L); menu.setParentId(0L); menu.setCode("store"); menu.setName("门店");
-    menu.setPath("/admin/tenant/stores"); menu.setIcon("shop"); menu.setScopeLevel("TENANT");
-    menu.setDomainCode("core"); menu.setSortNo(10); menu.setStatus("ACTIVE");
-    when(menuMapper.selectList(any())).thenReturn(List.of(platform, menu));
+    // 菜单是只读投影：构造时一次给定，不再逐字段 set。
+    AdminMenuRow platform = new AdminMenuRow(1L, 0L, "tenant", "租户管理", "/admin/platform/tenants",
+        "building", "PLATFORM", "core", null, null, null, "tenant");
+    AdminMenuRow menu = new AdminMenuRow(10L, 0L, "store", "门店", "/admin/tenant/stores",
+        "shop", "TENANT", "core", null, null, null, "store");
+    when(menuRepository.findActiveOrdered()).thenReturn(List.of(platform, menu));
   }
 
   @AfterEach
@@ -103,7 +100,7 @@ class AdminMenuControllerAuthTest {
   /** 有效 Token 语义不变：照常返回该上下文的租户段菜单。 */
   @Test
   void validSessionContextTokenStillReturnsTenantMenus() throws Exception {
-    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
+    when(paymentGrants.isGranted(any(), any())).thenReturn(false);
     when(tenantIamClient.permissions(900L, 100L, null, null)).thenReturn(
         new TenantIamDomainClient.PermissionSnapshot(900L, 100L, null, null, 1, List.of()));
     AdminContextHolder.set(platformAdmin(contextTokens.sign(900L, 100L, null, null, 1, List.of())));

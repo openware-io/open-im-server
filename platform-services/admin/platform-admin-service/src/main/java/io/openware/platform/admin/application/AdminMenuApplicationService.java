@@ -1,16 +1,14 @@
 package io.openware.platform.admin.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.platform.admin.api.menu.AdminMenuItem;
 import io.openware.platform.admin.domain.model.AdminRole;
+import io.openware.platform.admin.domain.menu.readmodel.AdminMenuRow;
+import io.openware.platform.admin.domain.menu.repository.AdminMenuRepository;
+import io.openware.platform.admin.domain.menu.repository.TenantPaymentGrantRepository;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
-import io.openware.platform.admin.infra.persistence.mapper.TenantPaymentMethodMapper;
-import io.openware.platform.admin.infra.persistence.mapper.AdminMenuMapper;
-import io.openware.platform.admin.infra.persistence.po.AdminMenuPo;
-import io.openware.platform.admin.infra.persistence.po.TenantPaymentMethodPo;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -22,28 +20,28 @@ import java.util.stream.Collectors;
  * SaaS 后台菜单 BFF：平台运营后台 + 租户后台菜单聚合。
  * 租户后台菜单按作用域、权限和需显式授权的线上支付能力过滤。
  * 储值与积分是默认开放的基础经营能力，不依赖历史支付授权记录。
+ *
+ * <p>菜单行经**只读投影**读取（{@link AdminMenuRow}）：菜单是配置数据，不参与状态变更，也不承载授权裁决；
+ * 授权声明只作查询结果参与剪枝，裁决权属于 tenant-IAM。
  */
 @Service
 public class AdminMenuApplicationService {
-    private final TenantPaymentMethodMapper tenantPaymentMethodMapper;
+    private final TenantPaymentGrantRepository paymentGrants;
     private final TenantIamDomainClient tenantIamClient;
     private final AdminTenantContextTokenSigner contextTokens;
-    private final AdminMenuMapper menuMapper;
+    private final AdminMenuRepository menuRepository;
 
-    public AdminMenuApplicationService(TenantPaymentMethodMapper tenantPaymentMethodMapper,
+    public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
                                        TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
-                                       AdminMenuMapper menuMapper) {
-        this.tenantPaymentMethodMapper = tenantPaymentMethodMapper;
+                                       AdminMenuRepository menuRepository) {
+        this.paymentGrants = paymentGrants;
         this.tenantIamClient = tenantIamClient;
         this.contextTokens = contextTokens;
-        this.menuMapper = menuMapper;
+        this.menuRepository = menuRepository;
     }
 
     public List<AdminMenuItem> menus(String scope) {
-        List<AdminMenuPo> rows = menuMapper.selectList(new LambdaQueryWrapper<AdminMenuPo>()
-                        .eq(AdminMenuPo::getStatus, "ACTIVE")
-                        .orderByAsc(AdminMenuPo::getScopeLevel, AdminMenuPo::getSortNo, AdminMenuPo::getId));
-        List<AdminMenuItem> all = menuTree(rows);
+        List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
         var admin = AdminContextHolder.get();
         if (admin == null) return List.of();
         List<AdminMenuItem> scoped = all.stream()
@@ -59,20 +57,20 @@ public class AdminMenuApplicationService {
                 : scoped;
     }
 
-    private List<AdminMenuItem> menuTree(List<AdminMenuPo> rows) {
-        Map<Long, List<AdminMenuPo>> children = rows.stream()
-                .collect(Collectors.groupingBy(AdminMenuPo::getParentId, java.util.LinkedHashMap::new, Collectors.toList()));
-        return rows.stream().filter(menu -> menu.getParentId() == 0L)
+    private List<AdminMenuItem> menuTree(List<AdminMenuRow> rows) {
+        Map<Long, List<AdminMenuRow>> children = rows.stream()
+                .collect(Collectors.groupingBy(AdminMenuRow::parentId, java.util.LinkedHashMap::new, Collectors.toList()));
+        return rows.stream().filter(menu -> menu.parentId() == 0L)
                 .map(menu -> toMenuItem(menu, children)).toList();
     }
 
-    private AdminMenuItem toMenuItem(AdminMenuPo menu, Map<Long, List<AdminMenuPo>> children) {
-        List<AdminMenuItem> nested = children.getOrDefault(menu.getId(), List.of()).stream()
+    private AdminMenuItem toMenuItem(AdminMenuRow menu, Map<Long, List<AdminMenuRow>> children) {
+        List<AdminMenuItem> nested = children.getOrDefault(menu.id(), List.of()).stream()
                 .map(child -> toMenuItem(child, children)).toList();
-        return new AdminMenuItem(menu.getId(), menu.getParentId(), menu.getCode(), menu.getName(),
-                menu.getPath(), menu.getIcon(), menu.getScopeLevel(), menu.getScopeLevel(),
-                menu.getDomainCode(), menu.getBusinessType(), menu.getI18nKey(), menu.getRequiredPermission(),
-                menu.getRequiredGrant(), nested);
+        return new AdminMenuItem(menu.id(), menu.parentId(), menu.code(), menu.name(),
+                menu.path(), menu.icon(), menu.scopeLevel(), menu.scopeLevel(),
+                menu.domainCode(), menu.businessType(), menu.i18nKey(), menu.requiredPermission(),
+                menu.requiredGrant(), nested);
     }
 
     /** 先按签名上下文过滤作用域/业态，再按声明式权限剪枝，并删除空父节点。 */
@@ -121,10 +119,6 @@ public class AdminMenuApplicationService {
 
     private boolean isGranted(Long tenantId, String grant) {
         if (tenantId == null) return false;
-        Long count = tenantPaymentMethodMapper.selectCount(new LambdaQueryWrapper<TenantPaymentMethodPo>()
-                .eq(TenantPaymentMethodPo::getTenantId, tenantId)
-                .eq(TenantPaymentMethodPo::getMethod, grant)
-                .eq(TenantPaymentMethodPo::getGranted, 1));
-        return count != null && count > 0;
+        return paymentGrants.isGranted(tenantId, grant);
     }
 }

@@ -11,9 +11,9 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.platform.admin.api.menu.AdminMenuItem;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.TenantPaymentMethodMapper;
-import io.openware.platform.admin.infra.persistence.mapper.AdminMenuMapper;
-import io.openware.platform.admin.infra.persistence.po.AdminMenuPo;
+import io.openware.platform.admin.domain.menu.readmodel.AdminMenuRow;
+import io.openware.platform.admin.domain.menu.repository.AdminMenuRepository;
+import io.openware.platform.admin.domain.menu.repository.TenantPaymentGrantRepository;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
@@ -30,15 +30,15 @@ import org.junit.jupiter.api.Test;
 class AdminMenuApplicationServiceTest {
   private static final String CURRENCY_PATH = "/admin/tenant/currency";
 
-  private final TenantPaymentMethodMapper tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
+  private final TenantPaymentGrantRepository paymentGrants = mock(TenantPaymentGrantRepository.class);
   private final TenantIamDomainClient tenantIamClient = mock(TenantIamDomainClient.class);
   private final AdminTenantContextTokenSigner contextTokens = mock(AdminTenantContextTokenSigner.class);
-  private final AdminMenuMapper menuMapper = mock(AdminMenuMapper.class);
+  private final AdminMenuRepository menuRepository = mock(AdminMenuRepository.class);
   private final AdminMenuApplicationService service =
-      new AdminMenuApplicationService(tenantPaymentMethodMapper, tenantIamClient, contextTokens, menuMapper);
+      new AdminMenuApplicationService(paymentGrants, tenantIamClient, contextTokens, menuRepository);
 
   private void useMenuFixture() {
-    when(menuMapper.selectList(any())).thenReturn(List.of(menu(1, 0, "tenant", "租户管理", "/admin/platform/tenants", "PLATFORM", "core"),
+    when(menuRepository.findActiveOrdered()).thenReturn(List.of(menu(1, 0, "tenant", "租户管理", "/admin/platform/tenants", "PLATFORM", "core"),
         menu(3, 0, "iam", "权限管理", "/admin/iam", "PLATFORM", "core"),
         menu(31, 3, "iam.role", "角色", "/admin/iam/roles", "PLATFORM", "core"),
         menu(4, 0, "paymethod", "支付方式", "/admin/platform/payment-methods", "PLATFORM", "core"),
@@ -48,18 +48,20 @@ class AdminMenuApplicationServiceTest {
         menu(28, 0, "order-manage", "订单管理", "/admin/orders", "TENANT", "core")));
   }
 
-  private static AdminMenuPo menu(long id, long parent, String code, String name, String path,
-                                  String scope, String domain) {
+  private static AdminMenuRow menu(long id, long parent, String code, String name, String path,
+                                   String scope, String domain) {
     return menu(id, parent, code, name, path, scope, domain, code);
   }
 
-  private static AdminMenuPo menu(long id, long parent, String code, String name, String path,
-                                  String scope, String domain, String icon) {
-    AdminMenuPo menu = new AdminMenuPo();
-    menu.setId(id); menu.setParentId(parent); menu.setCode(code); menu.setName(name); menu.setPath(path);
-    menu.setIcon(icon); menu.setScopeLevel(scope); menu.setDomainCode(domain); menu.setSortNo((int) id);
-    menu.setStatus("ACTIVE");
-    return menu;
+  private static AdminMenuRow menu(long id, long parent, String code, String name, String path,
+                                   String scope, String domain, String icon) {
+    return menuRow(id, parent, code, name, path, icon, scope, domain, null);
+  }
+
+  /** 只读投影是不可变 record：能力授权声明必须在构造时给定，而不是事后 set。 */
+  private static AdminMenuRow menuRow(long id, long parent, String code, String name, String path,
+                                      String icon, String scope, String domain, String requiredGrant) {
+    return new AdminMenuRow(id, parent, code, name, path, icon, scope, domain, null, requiredGrant, null, code);
   }
 
   @AfterEach
@@ -72,7 +74,7 @@ class AdminMenuApplicationServiceTest {
     adminWithTenantContext();
     useMenuFixture();
     // 旧平铺 fixture 继续用于验证旧响应兼容性；V9 的声明式权限由专门的树测试覆盖。
-    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
+    when(paymentGrants.isGranted(any(), any())).thenReturn(false);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
 
@@ -116,7 +118,7 @@ class AdminMenuApplicationServiceTest {
   void tenantMenusRenameCashierAndAddOrderManagementRightAfterIt() {
     adminWithTenantContext();
     useMenuFixture();
-    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(0L);
+    when(paymentGrants.isGranted(any(), any())).thenReturn(false);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
 
@@ -151,7 +153,7 @@ class AdminMenuApplicationServiceTest {
   void fullMenuListPublishesCurrencyExactlyOnce() {
     adminWithTenantContext();
     useMenuFixture();
-    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(1L);
+    when(paymentGrants.isGranted(any(), any())).thenReturn(true);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
             1L, 100L, null, null, 1, List.of("iam.role.manage", "audit.view")));
@@ -165,7 +167,7 @@ class AdminMenuApplicationServiceTest {
   void fullMenuTreeUsesUniqueIcons() {
     adminWithTenantContext();
     useMenuFixture();
-    when(tenantPaymentMethodMapper.selectCount(any())).thenReturn(1L);
+    when(paymentGrants.isGranted(any(), any())).thenReturn(true);
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
             1L, 100L, null, null, 1, List.of("iam.role.manage", "audit.view")));
@@ -187,13 +189,12 @@ class AdminMenuApplicationServiceTest {
   @Test
   void separatesTenantAndStoreSegmentsAndFailsClosedWithoutStoreContext() {
     adminWithTenantContext();
-    AdminMenuPo tenantGroup = menu(100, 0, "tenant.org", "组织与门店", null, "TENANT", "core");
-    AdminMenuPo stores = menu(10, 100, "store", "门店", "/admin/tenant/stores", "TENANT", "core");
-    AdminMenuPo storeGroup = menu(200, 0, "store.ops", "门店运营", null, "STORE", "core");
-    AdminMenuPo cashier = menu(13, 200, "order", "收银台", "/business/orders", "STORE", "core");
-    AdminMenuPo wallet = menu(21, 200, "wallet", "储值管理", "/business/wallet", "STORE", "core");
-    wallet.setRequiredGrant("WALLET");
-    when(menuMapper.selectList(any())).thenReturn(List.of(tenantGroup, stores, storeGroup, cashier, wallet));
+    AdminMenuRow tenantGroup = menu(100, 0, "tenant.org", "组织与门店", null, "TENANT", "core");
+    AdminMenuRow stores = menu(10, 100, "store", "门店", "/admin/tenant/stores", "TENANT", "core");
+    AdminMenuRow storeGroup = menu(200, 0, "store.ops", "门店运营", null, "STORE", "core");
+    AdminMenuRow cashier = menu(13, 200, "order", "收银台", "/business/orders", "STORE", "core");
+    AdminMenuRow wallet = menuRow(21, 200, "wallet", "储值管理", "/business/wallet", "core", "STORE", "core", "WALLET");
+    when(menuRepository.findActiveOrdered()).thenReturn(List.of(tenantGroup, stores, storeGroup, cashier, wallet));
     when(tenantIamClient.permissions(1L, 100L, null, null))
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
 
@@ -205,8 +206,8 @@ class AdminMenuApplicationServiceTest {
     assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/orders".equals(menu.path())));
     assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/wallet".equals(menu.path())));
   }
-  private List<AdminMenuPo> testMenus() {
-    List<AdminMenuPo> menus = new java.util.ArrayList<>();
+  private List<AdminMenuRow> testMenus() {
+    List<AdminMenuRow> menus = new java.util.ArrayList<>();
     String[][] values = {
       {"1","0","tenant","租户管理","/admin/platform/tenants","building","PLATFORM","core"},
       {"2","0","pricing","计价方案","/admin/pricing-plans","price","PLATFORM","core"},
@@ -220,10 +221,8 @@ class AdminMenuApplicationServiceTest {
       {"28","0","order-manage","订单管理","/admin/orders","list","TENANT","core"}
     };
     for (String[] value : values) {
-      AdminMenuPo menu = new AdminMenuPo();
-      menu.setId(Long.valueOf(value[0])); menu.setParentId(Long.valueOf(value[1])); menu.setCode(value[2]);
-      menu.setName(value[3]); menu.setPath(value[4]); menu.setIcon(value[5]); menu.setScopeLevel(value[6]);
-      menu.setDomainCode(value[7]); menu.setSortNo(menu.getId().intValue()); menu.setStatus("ACTIVE"); menus.add(menu);
+      menus.add(menuRow(Long.parseLong(value[0]), Long.parseLong(value[1]), value[2], value[3], value[4],
+          value[5], value[6], value[7], null));
     }
     return menus;
   }
