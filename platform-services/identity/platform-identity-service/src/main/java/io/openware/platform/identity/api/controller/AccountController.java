@@ -1,8 +1,9 @@
 package io.openware.platform.identity.api.controller;
 
+import io.openware.platform.identity.api.converter.AccountConverter;
+import io.openware.platform.identity.api.dto.AccountView;
 import io.openware.platform.identity.application.AccountApplicationService;
 import io.openware.platform.identity.application.AccountApplicationService.LoginResult;
-import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -18,8 +19,9 @@ public class AccountController {
 
     /** 注册 SaaS 账号（手机号/邮箱 + 密码）。 */
     @PostMapping("/accounts")
-    public IdentityAccountPo register(@RequestBody RegisterRequest req) {
-        return accountService.register(req.loginType(), req.loginIdentifier(), req.credential());
+    public AccountView register(@RequestBody RegisterRequest req) {
+        return AccountConverter.toView(
+                accountService.register(req.loginType(), req.loginIdentifier(), req.credential()));
     }
 
     /** 登录（手机号/邮箱 + 密码），返回账号 ID + 签名 JWT Access Token。 */

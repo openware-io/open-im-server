@@ -1,20 +1,17 @@
 package io.openware.platform.identity.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.port.TokenProvider;
 import io.openware.infrastructure.security.JwtProperties;
-import io.openware.platform.identity.infra.persistence.mapper.IdentityAccountMapper;
-import io.openware.platform.identity.infra.persistence.mapper.LoginIdentityMapper;
-import io.openware.platform.identity.infra.persistence.mapper.OauthLinkMapper;
-import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
-import io.openware.platform.identity.infra.persistence.po.LoginIdentityPo;
-import io.openware.platform.identity.infra.persistence.po.OauthLinkPo;
+import io.openware.platform.identity.domain.account.model.IdentityAccount;
+import io.openware.platform.identity.domain.account.model.LoginIdentity;
+import io.openware.platform.identity.domain.account.model.OauthLink;
+import io.openware.platform.identity.domain.account.repository.IdentityAccountRepository;
+import io.openware.platform.identity.domain.account.repository.LoginIdentityRepository;
+import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.time.LocalDateTime;
 
 /**
  * SaaS 账号注册/登录（独立于 im-user-service）。
@@ -26,43 +23,33 @@ public class AccountApplicationService {
     private static final String IM_LOGIN_TYPE = "IM";
     private static final String IM_OAUTH_PROVIDER = "IM";
 
-    private final IdentityAccountMapper accountMapper;
-    private final LoginIdentityMapper loginIdentityMapper;
-    private final OauthLinkMapper oauthLinkMapper;
+    private final IdentityAccountRepository accountRepository;
+    private final LoginIdentityRepository loginIdentityRepository;
+    private final OauthLinkRepository oauthLinkRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
 
-    public AccountApplicationService(IdentityAccountMapper accountMapper, LoginIdentityMapper loginIdentityMapper,
-                                     OauthLinkMapper oauthLinkMapper, PasswordEncoder passwordEncoder,
+    public AccountApplicationService(IdentityAccountRepository accountRepository,
+                                     LoginIdentityRepository loginIdentityRepository,
+                                     OauthLinkRepository oauthLinkRepository, PasswordEncoder passwordEncoder,
                                      TokenProvider tokenProvider, JwtProperties jwtProperties) {
-        this.accountMapper = accountMapper;
-        this.loginIdentityMapper = loginIdentityMapper;
-        this.oauthLinkMapper = oauthLinkMapper;
+        this.accountRepository = accountRepository;
+        this.loginIdentityRepository = loginIdentityRepository;
+        this.oauthLinkRepository = oauthLinkRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
     }
 
     @Transactional
-    public IdentityAccountPo register(String loginType, String loginIdentifier, String credential) {
-        IdentityAccountPo account = new IdentityAccountPo();
-        account.setStatus("ACTIVE");
-        // 手机号/邮箱注册进入的是普通消费者（客户类型）；员工由管理员在后台开通并标记 EMPLOYEE。
-        account.setAccountType("CUSTOMER");
-        account.setCreatedAt(LocalDateTime.now());
-        account.setUpdatedAt(LocalDateTime.now());
-        accountMapper.insert(account);
+    public IdentityAccount register(String loginType, String loginIdentifier, String credential) {
+        // 状态与类型由领域工厂固定（注册的不变量），凭据编码属基础设施细节，故留在应用层完成后再传入领域。
+        IdentityAccount account = accountRepository.save(IdentityAccount.register());
 
-        LoginIdentityPo li = new LoginIdentityPo();
-        li.setAccountId(account.getId());
-        li.setLoginType(loginType);
-        li.setLoginIdentifier(loginIdentifier);
-        li.setCredential(passwordEncoder.encode(credential));
-        li.setStatus("ACTIVE");
-        li.setCreatedAt(LocalDateTime.now());
-        li.setUpdatedAt(LocalDateTime.now());
-        loginIdentityMapper.insert(li);
+        LoginIdentity identity = LoginIdentity.forLogin(account.id(), loginType, loginIdentifier,
+                passwordEncoder.encode(credential));
+        loginIdentityRepository.save(identity);
         return account;
     }
 
@@ -72,57 +59,40 @@ public class AccountApplicationService {
      * IM 类型额外写入 oauth_link（provider=IM, provider_account_id=open_id），使 OAuth 绑定按 open_id 命中同一账号。
      */
     @Transactional
-    public IdentityAccountPo ensureAccount(String loginType, String loginIdentifier, String accountType) {
-        LoginIdentityPo li = loginIdentityMapper.selectOne(new QueryWrapper<LoginIdentityPo>()
-                .eq("login_type", loginType).eq("login_identifier", loginIdentifier).last("LIMIT 1"));
+    public IdentityAccount ensureAccount(String loginType, String loginIdentifier, String accountType) {
+        LoginIdentity li = loginIdentityRepository
+                .findByLoginIdentifier(loginType, loginIdentifier).orElse(null);
         if (IM_LOGIN_TYPE.equals(loginType)) {
-            OauthLinkPo link = oauthLinkMapper.selectOne(new QueryWrapper<OauthLinkPo>()
-                    .eq("provider", IM_OAUTH_PROVIDER).eq("provider_account_id", loginIdentifier).last("LIMIT 1"));
-            if (link != null && (!"ACTIVE".equals(link.getStatus())
-                    || (li != null && !java.util.Objects.equals(li.getAccountId(), link.getAccountId())))) {
+            OauthLink link = oauthLinkRepository
+                    .findByProviderAccount(IM_OAUTH_PROVIDER, loginIdentifier).orElse(null);
+            // 冲突只在两种情况成立：绑定不可用，或绑定归属与既有登录标识不一致。
+            // 登录标识尚不存在时不算冲突——那正是"按 open_id 补建登录标识"的正常路径。
+            if (link != null && (!link.isActive()
+                    || (li != null && !link.belongsTo(li.accountId())))) {
                 throw new IllegalStateException("IM identity binding conflict");
             }
             if (li == null && link != null) {
-                li = new LoginIdentityPo();
-                li.setAccountId(link.getAccountId());
-                li.setLoginType(loginType);
-                li.setLoginIdentifier(loginIdentifier);
-                li.setStatus("ACTIVE");
-                li.setCreatedAt(LocalDateTime.now());
-                li.setUpdatedAt(li.getCreatedAt());
-                loginIdentityMapper.insert(li);
+                li = loginIdentityRepository.save(
+                        LoginIdentity.forLogin(link.accountId(), loginType, loginIdentifier, null));
             }
         }
         if (li != null) {
-            IdentityAccountPo account = accountMapper.selectById(li.getAccountId());
-            if (account == null || !"ACTIVE".equals(account.getStatus()) || !"ACTIVE".equals(li.getStatus())) {
+            final Long accountId = li.accountId();
+            IdentityAccount account = accountRepository.findById(accountId).orElse(null);
+            if (account == null) {
                 throw new IllegalStateException("Identity account is not active");
             }
-            if (account != null && accountType != null && !accountType.isBlank()
-                    && !accountType.equals(account.getAccountType())) {
-                account.setAccountType(accountType);
-                account.setUpdatedAt(LocalDateTime.now());
-                accountMapper.updateById(account);
+            account.ensureActive();
+            li.ensureActive();
+            if (account.hasDifferentAccountType(accountType)) {
+                account = accountRepository.save(account.changeAccountType(accountType));
             }
-            ensureImOauthLink(loginType, loginIdentifier, li.getAccountId());
+            ensureImOauthLink(loginType, loginIdentifier, accountId);
             return account;
         }
-        IdentityAccountPo account = new IdentityAccountPo();
-        account.setStatus("ACTIVE");
-        account.setAccountType(accountType == null || accountType.isBlank() ? "CUSTOMER" : accountType);
-        account.setCreatedAt(LocalDateTime.now());
-        account.setUpdatedAt(LocalDateTime.now());
-        accountMapper.insert(account);
-
-        LoginIdentityPo newLi = new LoginIdentityPo();
-        newLi.setAccountId(account.getId());
-        newLi.setLoginType(loginType);
-        newLi.setLoginIdentifier(loginIdentifier);
-        newLi.setStatus("ACTIVE");
-        newLi.setCreatedAt(LocalDateTime.now());
-        newLi.setUpdatedAt(LocalDateTime.now());
-        loginIdentityMapper.insert(newLi);
-        ensureImOauthLink(loginType, loginIdentifier, account.getId());
+        IdentityAccount account = accountRepository.save(IdentityAccount.ofType(accountType));
+        loginIdentityRepository.save(LoginIdentity.forLogin(account.id(), loginType, loginIdentifier, null));
+        ensureImOauthLink(loginType, loginIdentifier, account.id());
         return account;
     }
 
@@ -131,34 +101,26 @@ public class AccountApplicationService {
         if (!IM_LOGIN_TYPE.equals(loginType) || accountId == null) {
             return;
         }
-        OauthLinkPo existing = oauthLinkMapper.selectOne(new QueryWrapper<OauthLinkPo>()
-                .eq("provider", IM_OAUTH_PROVIDER).eq("provider_account_id", loginIdentifier).last("LIMIT 1"));
-        if (existing != null) {
+        if (oauthLinkRepository.findByProviderAccount(IM_OAUTH_PROVIDER, loginIdentifier).isPresent()) {
             return;
         }
-        LocalDateTime now = LocalDateTime.now();
-        OauthLinkPo link = new OauthLinkPo();
-        link.setAccountId(accountId);
-        link.setProvider(IM_OAUTH_PROVIDER);
-        link.setProviderAccountId(loginIdentifier);
-        link.setStatus("ACTIVE");
-        link.setCreatedAt(now);
-        link.setUpdatedAt(now);
-        oauthLinkMapper.insert(link);
+        oauthLinkRepository.save(OauthLink.bind(accountId, IM_OAUTH_PROVIDER, loginIdentifier, null));
     }
 
     public LoginResult login(String loginType, String loginIdentifier, String credential) {
-        QueryWrapper<LoginIdentityPo> qw = new QueryWrapper<>();
-        qw.eq("login_type", loginType).eq("login_identifier", loginIdentifier).eq("status", "ACTIVE");
-        LoginIdentityPo li = loginIdentityMapper.selectOne(qw);
-        if (li == null || !passwordEncoder.matches(credential, li.getCredential())) {
+        // 仅可用登录标识可登录：状态过滤收在端口方法里，应用层不再拼接查询条件。
+        LoginIdentity identity = loginIdentityRepository
+                .findActiveByLoginIdentifier(loginType, loginIdentifier).orElse(null);
+        if (identity == null || !passwordEncoder.matches(credential, identity.credential())) {
             // 登录失败是认证问题，必须回 401 + 稳定错误码，不能作为 IllegalStateException 落成 500。
             throw new ApiException(401, "AUTH_INVALID_CREDENTIAL", "用户名或密码错误");
         }
-        IdentityAccountPo account = accountMapper.selectById(li.getAccountId());
-        String accessToken = tokenProvider.createAccessToken(account.getId(), loginIdentifier, 0);
+        final Long accountId = identity.accountId();
+        IdentityAccount account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new ApiException(401, "AUTH_INVALID_CREDENTIAL", "用户名或密码错误"));
+        String accessToken = tokenProvider.createAccessToken(account.id(), loginIdentifier, 0);
         long expiresInSeconds = jwtProperties.getExpirationMs() / 1000;
-        return new LoginResult(account.getId(), accessToken, expiresInSeconds);
+        return new LoginResult(account.id(), accessToken, expiresInSeconds);
     }
 
     /** 登录结果：账号 ID + 签名 JWT Access Token + 有效期（秒）。 */

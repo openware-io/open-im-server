@@ -28,13 +28,19 @@ public record OauthLink(
     return new OauthLink(null, accountId, provider, providerAccountId, scope, STATUS_ACTIVE);
   }
 
+  /** 绑定是否可用。不可用的绑定不能被任何账号复用。 */
+  public boolean isActive() {
+    return STATUS_ACTIVE.equals(status);
+  }
+
   /**
-   * 该绑定能否被给定账号复用。
+   * 绑定是否归属给定账号。
    *
-   * <p>绑定冲突判定集中在这里：绑定必须处于可用状态，且归属账号一致；否则说明同一提供方账号被
-   * 另一账号占用，调用方应拒绝而不是覆盖。
+   * <p>冲突判定的两半刻意分开：调用方需要区分"绑定不可用"与"绑定属于别人"，因为两者都拒绝，
+   * 但只有后者说明同一提供方账号已被另一账号占用。把二者并成一个方法会让"登录标识尚不存在"的正常
+   * 路径被误判为冲突。
    */
-  public boolean isReusableBy(Long candidateAccountId) {
-    return STATUS_ACTIVE.equals(status) && java.util.Objects.equals(candidateAccountId, accountId);
+  public boolean belongsTo(Long candidateAccountId) {
+    return candidateAccountId != null && candidateAccountId.equals(accountId);
   }
 }

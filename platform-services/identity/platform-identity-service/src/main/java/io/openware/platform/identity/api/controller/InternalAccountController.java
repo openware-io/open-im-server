@@ -1,8 +1,9 @@
 package io.openware.platform.identity.api.controller;
 
+import io.openware.platform.identity.api.converter.AccountConverter;
+import io.openware.platform.identity.api.dto.AccountView;
 import io.openware.platform.identity.application.AccountApplicationService;
 import io.openware.platform.identity.application.ImUnifiedAccountApplicationService;
-import io.openware.platform.identity.infra.persistence.po.IdentityAccountPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,8 +29,9 @@ public class InternalAccountController {
 
     /** 按登录标识查/建账号（IM 账号开通运营人员用）。 */
     @PostMapping("/ensure")
-    public IdentityAccountPo ensure(@RequestBody EnsureAccountRequest req) {
-        return accountService.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType());
+    public AccountView ensure(@RequestBody EnsureAccountRequest req) {
+        return AccountConverter.toView(
+                accountService.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType()));
     }
 
     /**
