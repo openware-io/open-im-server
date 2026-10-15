@@ -89,7 +89,87 @@ RoomTypeRepository
 > **迁移若同时改变"被设置的东西"（mock 声明、字段赋值方式），机械重命名不成立。**
 > 正确做法：**先完整读完一个文件，再一次性重写它**，而不是「改一点 → 编译 → 再改」。
 
-## §4 下一步：迁移 `ResourceController`（368 行）
+## §3.1 更新：`ResourceController` 迁移**已完成**（提交 `297468c`）
+
+顺序陷阱已解除。当前状态：
+
+| 项 | 值 |
+| --- | --- |
+| resource `po-containment` | 6 → **4** |
+| resource `service-api-boundaries` | 7 → **4** |
+| 主代码 | ✅ 编译通过 |
+| 测试 | ⚠️ **68 处编译错误**（3 个文件） |
+
+**已建立的新端口（迁移测试时按此改）**：
+
+```text
+ResourceRepository
+  listEnabledByType(resourceType, storeId)   // 可用候选：仅 ENABLED、类型必填、升序
+  listByType(resourceType, storeId)          // 内部端点：不限状态、类型可空、倒序  ← 两者不可合并
+  findById(id) / save(resource)
+  updateDetails(id, name, areaName, capacity, description)   // 空值也进 SET
+  updateMedia(id, imageUrls, mainImageUrl)                   // JSON 列，类型处理器在适配器
+  updateRoomTypeBinding(id, roomTypeId)
+  clearRoomTypeBinding(id)                  // ★ 解绑唯一正确路径
+  countByRoomTypeId(roomTypeId)
+  countByResourceCode(storeId, type, code, excludedId)
+
+ResourceQueryApplicationService              // 新建：房型快照回填（原先在两个控制器里各有一份）
+  listEnabled(resourceType, storeId) / listByType(resourceType, storeId)
+  findById(id)                               // 返回已回填快照的 Resource 或 null
+  enrichWithRoomTypes(List<Resource>)
+  static applyRoomType(Resource, RoomType)   // 纯函数，返回新实例
+
+ResourceController 构造器（已变）
+  (ResourceRepository, ResourceQueryApplicationService, RoomTypeApplicationService, AuditClient)
+  三参重载省略 AuditClient（测试用）
+InternalResourceController 构造器（已变）
+  (ResourceQueryApplicationService, OccupationApplicationService, ResourceStateApplicationService)
+```
+
+**控制器返回类型已变**：`ResourcePo` → `ResourceView`（`api.dto`，不含审计字段）。
+`InternalResourceController.list()` 改为 `listByType`（不限状态、倒序），`get()` 经 `resourceQuery.findById`。
+
+## §4 下一步：重写 3 个测试文件（这是真正剩余的工作）
+
+**不要用批量重命名**（见 §3）。顺序与改法：
+
+### 4.1 `RoomTypeUnbindRegressionTest`（6 处错误）— 优先
+
+控制器已不再生成 SQL，所以这个测试的**SQL 解析型假 Mapper 已完成使命**：
+
+| 原断言 | 新断言 |
+| --- | --- |
+| 假 Mapper 解析 SET 子句、断言 `room_type_id` 真的写成 NULL | 断言 `resourceRepository.clearRoomTypeBinding(RESOURCE_ID)` 被调用 |
+| `verify(resourceMapper, never()).updateById(...)` | 断言**没有**走 `save()` 更新（即解绑不经整体保存） |
+| 反例：仍有别的包厢绑定时 `delete` 仍 409 | **保留原样**（这是回归保护的核心） |
+
+**SQL 级保真断言移入新测试** `ResourceRepositoryAdapterTest`：用真适配器 + 假 Mapper，
+断言 `clearRoomTypeBinding` 生成的 SET 含 `room_type_id`（可继续用现有的正则解析手法）。
+**这样"清空真的落库"这一关键保证不丢，只是搬到了它该在的层。**
+
+### 4.2 `RoomTypeApplicationServiceTest`（12 处错误，529 行）
+
+机械部分：`RoomTypeMapper`→`RoomTypeRepository`（mock 声明一起改）、`RoomTypePo`→`RoomType`、
+`selectById`→`findById`、`selectOne`→`findInStore`、`selectList`→`listInStore`、
+`selectBatchIds`→`findByIds`、`deleteById`→`deleteById`。
+
+**必须注意**：
+- `selectCount(any())` 对应**两个不同端口方法**：`countByCode(...)` 与 `countByName(...)`。
+  原先 `thenReturn(0L, 1L)` 的连招要改成分别打桩。
+- `insert(...)` 的 `thenReturn(1)` **不再适用**（端口返回领域模型，需 `thenAnswer` 返回带 id 的 `RoomType`）。
+- `capturedUpdate()` 那批断言（`LambdaUpdateWrapper` 的 SET 子句）**属于适配器测试**：
+  服务测试改为断言 `updateSubmitted(roomType)` 收到的模型**单价为 null**。
+
+### 4.3 `ResourceControllerTest`（47 处错误，645 行）
+
+- 构造器：`new ResourceController(resourceMapper, roomTypeService)` →
+  `new ResourceController(resourceRepository, resourceQuery, roomTypeService)`。
+- 返回类型：`ResourcePo` → `ResourceView`；字段访问 `getXxx()` → `xxx()`。
+- `RoomTypePo` → `RoomType`（构造器，非 setter）。
+- 房型富化打桩：`when(roomTypeService.listByIds(any()))` → `when(resourceQuery.enrichWithRoomTypes(any()))`。
+
+## §4.4 原始计划：迁移 `ResourceController`（**已如上完成，此举为存档**）
 
 当前它把 4 件事混在一起，应拆到应用服务：
 
