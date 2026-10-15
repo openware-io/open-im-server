@@ -1,0 +1,14 @@
+# Fully-qualified references that cannot be replaced by an import (G-05 exceptions).
+#
+# Rules for this file:
+#   - an entry may only be listed when the import is IMPOSSIBLE, not merely inconvenient;
+#   - every entry MUST name the file, the exact type, and why no import can express it;
+#   - entries are reviewed whenever the surrounding code changes; a stale entry is a defect;
+#   - "easier to leave it" is not a reason.
+#
+# Format: <repo-relative path> | <fully-qualified type> | <reason>
+# Empty lines and lines starting with '#' are ignored.
+
+im-services/user/im-user-service/src/main/java/io/openware/im/user/infra/security/OidcTokenSigner.java | io.openware.im.user.domain.openplatform.port.OidcTokenSigner | The class implements an interface with the same simple name. Java forbids a type from importing a type of its own name, so the implements clause cannot use an import; it is the only such occurrence in the file.
+im-services/user/im-user-service/src/main/java/io/openware/im/user/application/admin/AdminUserQueryApplicationService.java | io.openware.im.user.domain.social.model.FriendStatus | Two distinct FriendStatus enums are genuinely both required here: the application query uses the API enum, the domain aggregate uses the domain enum, and this file converts between them. An import can only name one simple name, so the conversion must qualify one side. Unifying the two enums is a design change, not an import change.
+im-services/message/im-message-service/src/main/java/io/openware/im/message/infra/integration/conversation/ConversationGroupMembershipAdapter.java | io.openware.im.conversation.api.authorization.GroupMessageRecipientSnapshot | The port declares a nested record with this simple name and a top-level class in the same package shares it. Importing the top-level class shadows the nested type and breaks compilation ("cannot find symbol") at the method signature and constructor. Removing the duplication (one shared record) is a design change.
