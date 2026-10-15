@@ -42,6 +42,15 @@ public class ResourceQueryApplicationService {
     return enrichWithRoomTypes(resourceRepository.listEnabledByType(resourceType, storeId));
   }
 
+  /**
+   * 按条件列出资源（**不限状态**，倒序），并回填房型快照。
+   *
+   * <p>内部端点用；与 {@link #listEnabled} 是两种口径，见仓储端口说明。
+   */
+  public List<Resource> listByType(String resourceType, Long storeId) {
+    return enrichWithRoomTypes(resourceRepository.listByType(resourceType, storeId));
+  }
+
   /** 按标识读取资源并回填房型快照；不存在返回 {@code null}，由调用方决定错误码。 */
   public Resource findById(Long resourceId) {
     Resource resource = resourceId == null ? null : resourceRepository.findById(resourceId).orElse(null);

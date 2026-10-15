@@ -1,61 +1,61 @@
 package io.openware.platform.resource.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.toolkit.sql.SqlScriptUtils;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import io.openware.platform.resource.application.ResourceMedia;
-import io.openware.platform.resource.domain.roomtype.model.RoomType;
-import io.openware.platform.resource.application.RoomTypeApplicationService;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.po.ResourcePo;
+import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.infrastructure.time.TimeRangeParams;
-import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.common.exception.ApiException;
+import io.openware.platform.resource.api.converter.ResourceConverter;
+import io.openware.platform.resource.api.dto.ResourceView;
+import io.openware.platform.resource.application.ResourceMedia;
+import io.openware.platform.resource.application.ResourceQueryApplicationService;
+import io.openware.platform.resource.application.RoomTypeApplicationService;
+import io.openware.platform.resource.domain.resource.model.Resource;
+import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
+/**
+ * 资源（包厢）管理：列表 / 创建 / 编辑。
+ *
+ * <p>入站适配只做参数解析、鉴权上下文提取与「提交才更新」的字段判定；读写经领域端口，
+ * 房型快照回填经 {@link ResourceQueryApplicationService}。
+ *
+ * <p>清空语义必须由端口的具名方法表达（{@code clearRoomTypeBinding} / {@code updateDetails} 传空值）：
+ * MyBatis-Plus 默认的 {@code FieldStrategy.NOT_NULL} 会把 null 列整列跳过，用 {@code save} 更新会出现
+ * 「响应已清空、库里还在」的假成功——`PUT {"roomTypeId":0}` 解绑后 `DELETE` 房型永远 409
+ * {@code ROOM_TYPE_IN_USE}。这是已修缺陷，不得退回。
+ */
 @RestController
 @RequestMapping("/admin/resources")
 public class ResourceController {
     /** 区域自由文本上限，与 res_resource.area_name 的 varchar(64) 一致。 */
     static final int MAX_AREA_NAME_LENGTH = 64;
 
-    /**
-     * image_urls 是 JSON 列：{@code LambdaUpdateWrapper.set(...)} 生成的 {@code #{}} 占位符按运行时参数类型
-     * 找 TypeHandler，{@code List} 没有内置处理器，必须显式带上与 {@code ResourcePo.imageUrls} 同款的
-     * {@link JacksonTypeHandler}，否则更新会在参数绑定时报「找不到 TypeHandler」。
-     */
-    private static final String IMAGE_URLS_TYPE_HANDLER =
-            SqlScriptUtils.mappingTypeHandler(JacksonTypeHandler.class);
-
-    private final ResourceMapper resourceMapper;
+    private final ResourceRepository resourceRepository;
+    private final ResourceQueryApplicationService resourceQuery;
     private final RoomTypeApplicationService roomTypeService;
     private final AuditClient auditClient;
 
     @Autowired
-    public ResourceController(ResourceMapper resourceMapper, RoomTypeApplicationService roomTypeService,
+    public ResourceController(ResourceRepository resourceRepository,
+                              ResourceQueryApplicationService resourceQuery,
+                              RoomTypeApplicationService roomTypeService,
                               AuditClient auditClient) {
-        this.resourceMapper = resourceMapper;
+        this.resourceRepository = resourceRepository;
+        this.resourceQuery = resourceQuery;
         this.roomTypeService = roomTypeService;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有单测装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
-    public ResourceController(ResourceMapper resourceMapper, RoomTypeApplicationService roomTypeService) {
-        this(resourceMapper, roomTypeService, AuditClient.disabled());
+    public ResourceController(ResourceRepository resourceRepository,
+                              ResourceQueryApplicationService resourceQuery,
+                              RoomTypeApplicationService roomTypeService) {
+        this(resourceRepository, resourceQuery, roomTypeService, AuditClient.disabled());
     }
 
     /**
@@ -63,22 +63,12 @@ public class ResourceController {
      * 以及区域（areaName）与房型（roomTypeId/roomTypeCode/roomTypeName/房型单价）。
      */
     @GetMapping
-    public List<ResourcePo> list(@RequestParam(required = false) String resourceType,
-                                 @RequestParam(required = false) Long storeId,
-                                 @RequestParam(required = false) String from,
-                                 @RequestParam(required = false) String to) {
-        TimeRange range = TimeRangeParams.parse(from, to);
-        LambdaQueryWrapper<ResourcePo> qw = new LambdaQueryWrapper<>();
-        if (resourceType != null && !resourceType.isBlank()) {
-            qw.eq(ResourcePo::getResourceType, resourceType);
-        }
-        if (storeId != null) {
-            qw.eq(ResourcePo::getStoreId, storeId);
-        }
-        qw.ge(range.hasFrom(), ResourcePo::getCreatedAt, range.fromInclusive());
-        qw.le(range.hasTo(), ResourcePo::getCreatedAt, range.toInclusive());
-        qw.orderByAsc(ResourcePo::getId);
-        return enrichRoomTypes(resourceMapper.selectList(qw));
+    public List<ResourceView> list(@RequestParam(required = false) String resourceType,
+                                   @RequestParam(required = false) Long storeId,
+                                   @RequestParam(required = false) String from,
+                                   @RequestParam(required = false) String to) {
+        return resourceQuery.listEnabled(resourceType, storeId).stream()
+                .map(ResourceConverter::toView).toList();
     }
 
     /**
@@ -88,7 +78,7 @@ public class ResourceController {
      * roomTypeId 传 null 或 0 都表示「不指定房型」（与编辑清空同一语义）。
      */
     @PostMapping
-    public ResourcePo create(@RequestBody CreateResourceRequest req) {
+    public ResourceView create(@RequestBody CreateResourceRequest req) {
         try {
             PermissionGuard.require("resource.manage");
             TenantContext context = requireContext();
@@ -110,33 +100,23 @@ public class ResourceController {
             // 同门店同类型编号唯一：重复时给可读的 409，而不是把数据库唯一键冲突抛成 500。
             requireResourceCodeAvailable(context.storeId(), req.resourceType(), resourceCode, null);
             ResourceMedia.Images images = ResourceMedia.normalizeImages(req.imageUrls(), req.mainImageUrl());
-            ResourcePo po = new ResourcePo();
-            po.setTenantId(context.tenantId());
-            po.setStoreId(context.storeId());
-            po.setResourceType(req.resourceType());
-            po.setResourceCode(resourceCode);
-            po.setName(name);
-            po.setAreaName(normalizeAreaName(req.areaName()));
-            po.setCapacity(req.capacity());
-            po.setRoomTypeId(resolveRoomTypeId(req.roomTypeId()));
-            po.setStatus("ENABLED");
-            po.setImageUrls(images.urls());
-            po.setMainImageUrl(images.mainImageUrl());
-            po.setDescription(ResourceMedia.normalizeDescription(req.description()));
-            po.setCreatedAt(LocalDateTime.now());
-            po.setUpdatedAt(LocalDateTime.now());
-            resourceMapper.insert(po);
+            Resource created = resourceRepository.save(new Resource(null, context.tenantId(),
+                    context.storeId(), req.resourceType(), resourceCode, name,
+                    normalizeAreaName(req.areaName()), null, req.capacity(),
+                    resolveRoomTypeId(req.roomTypeId()), Resource.STATUS_ENABLED,
+                    Resource.CLEANING_IDLE, null, images.urls(), images.mainImageUrl(),
+                    ResourceMedia.normalizeDescription(req.description()), null, null, null, null));
             // 包厢（资源）新建/编辑直接影响开台计费与占用门禁，属「必须可回溯」的配置变更，写统一审计。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("resource.create")
-                    .resourceType("res_resource").resourceId(String.valueOf(po.getId()))
-                    .resourceName(po.getName())
-                    .idempotencyKey("resource-create:" + po.getId())
-                    .detailJson("{\"storeId\":" + po.getStoreId() + ",\"resourceType\":" + jsonText(po.getResourceType())
-                            + ",\"resourceCode\":" + jsonText(po.getResourceCode()) + ",\"roomTypeId\":"
-                            + po.getRoomTypeId() + "}")
+                    .resourceType("res_resource").resourceId(String.valueOf(created.id()))
+                    .resourceName(created.name())
+                    .idempotencyKey("resource-create:" + created.id())
+                    .detailJson("{\"storeId\":" + created.storeId() + ",\"resourceType\":" + jsonText(created.resourceType())
+                            + ",\"resourceCode\":" + jsonText(created.resourceCode()) + ",\"roomTypeId\":"
+                            + created.roomTypeId() + "}")
                     .build());
-            return enrichRoomTypes(List.of(po)).get(0);
+            return ResourceConverter.toView(enrich(created));
         } catch (RuntimeException failure) {
             // 失败出口留痕（缺权限/越权门店/编号冲突/房型非法/落库失败）：审计只 WARN，异常原样抛出。
             recordFailure("resource.create", req == null ? null : req.resourceCode(), failure);
@@ -148,18 +128,11 @@ public class ResourceController {
      * 编辑资源（ADM）：名称/区域/容量/房型/图片/描述。编号与类型不可改（避免同门店编号唯一键冲突与类型漂移）。
      * 按「提交才更新」处理：字段为 null 表示本次不动；图片与描述传空表示清空，areaName 传空白表示清空，
      * roomTypeId 传 0 表示清空房型（回到门店级单价），与创建时传 null/0 = 不指定房型保持一致。
-     *
-     * <p>写库必须用 {@link LambdaUpdateWrapper} 显式列出本次要写的列，不能再用 {@code updateById(po)}：
-     * MyBatis-Plus 默认按 {@code FieldStrategy.NOT_NULL} 把 null 字段整列跳过，而「清空」写的正是 null，
-     * 于是 {@code PUT {"roomTypeId":0}} 响应看似已解绑、库里 room_type_id 依旧存在，DELETE 房型永远 409
-     * {@code ROOM_TYPE_IN_USE}（后台再也删不掉已绑定的房型）。区域(area_name)、主图(main_image_url)、
-     * 描述(description) 同理：传空白字符串归一成 null 后也必须真正落库为 NULL，否则只清响应不清库。
-     * 显式 SET 同时保证「未提交的列一个都不写、显式提交 0/空值的列写 NULL」两种语义都成立。
      */
     @PutMapping("/{id}")
-    public ResourcePo update(@PathVariable Long id, @RequestBody UpdateResourceRequest req) {
+    public ResourceView update(@PathVariable Long id, @RequestBody UpdateResourceRequest req) {
         try {
-            return doUpdate(id, req);
+            return ResourceConverter.toView(doUpdate(id, req));
         } catch (RuntimeException failure) {
             // 失败出口留痕（缺权限/越权门店/资源不存在/房型非法/落库失败）：审计只 WARN，异常原样抛出。
             recordFailure("resource.update", id == null ? null : String.valueOf(id), failure);
@@ -167,77 +140,78 @@ public class ResourceController {
         }
     }
 
-    private ResourcePo doUpdate(Long id, UpdateResourceRequest req) {
+    private Resource doUpdate(Long id, UpdateResourceRequest req) {
         PermissionGuard.require("resource.manage");
         TenantContext context = requireContext();
-        ResourcePo po = id == null ? null : resourceMapper.selectById(id);
-        if (po == null) {
+        Resource current = id == null ? null : resourceRepository.findById(id).orElse(null);
+        if (current == null) {
             throw new ApiException(404, "RESOURCE_NOT_FOUND", "资源不存在或已被删除");
         }
-        if (!context.storeId().equals(po.getStoreId())) {
+        if (!context.storeId().equals(current.storeId())) {
             throw new ApiException(403, "STORE_SCOPE_DENIED", "该资源不属于当前门店上下文，请先切换门店");
         }
         // 审计留痕需要变更前后值：房型/区域/容量直接影响开台计费与占用，必须能回溯（见方法末尾 recordAsync）。
-        String beforeName = po.getName();
-        String beforeAreaName = po.getAreaName();
-        Integer beforeCapacity = po.getCapacity();
-        String beforeRoomTypeId = po.getRoomTypeId() == null ? null : String.valueOf(po.getRoomTypeId());
-        // 只写本次提交的列；值为 null 的列同样进 SET（清空），这正是 updateById 做不到的。
-        LambdaUpdateWrapper<ResourcePo> update = new LambdaUpdateWrapper<ResourcePo>().eq(ResourcePo::getId, id);
+        String beforeName = current.name();
+        String beforeAreaName = current.areaName();
+        Integer beforeCapacity = current.capacity();
+        String beforeRoomTypeId = current.roomTypeId() == null ? null : String.valueOf(current.roomTypeId());
+
+        Resource updated = current;
         if (req.name() != null && !req.name().isBlank()) {
-            po.setName(req.name().trim());
-            update.set(ResourcePo::getName, po.getName());
+            updated = withName(updated, req.name().trim());
         }
         if (req.areaName() != null) {
-            po.setAreaName(normalizeAreaName(req.areaName()));
-            update.set(ResourcePo::getAreaName, po.getAreaName());
+            updated = withAreaName(updated, normalizeAreaName(req.areaName()));
         }
         if (req.capacity() != null) {
-            po.setCapacity(req.capacity());
-            update.set(ResourcePo::getCapacity, po.getCapacity());
+            updated = withCapacity(updated, req.capacity());
+        }
+        if (req.name() != null || req.areaName() != null || req.capacity() != null || req.description() != null) {
+            String description = req.description() == null
+                    ? current.description() : ResourceMedia.normalizeDescription(req.description());
+            // 空值同样进 SET（清空区域/描述必须真的落库为 NULL），这一步用显式列集，不能用整体保存。
+            resourceRepository.updateDetails(id, updated.name(), updated.areaName(), updated.capacity(),
+                    description);
+            updated = withDescription(updated, description);
         }
         if (req.roomTypeId() != null) {
             Long roomTypeId = resolveRoomTypeId(req.roomTypeId());
-            po.setRoomTypeId(roomTypeId);
-            update.set(ResourcePo::getRoomTypeId, roomTypeId);
+            // 解绑（roomTypeId 归一为 null）走具名端口方法，避免 NOT_NULL 策略把清空静默丢弃。
             if (roomTypeId == null) {
-                // 清空房型：连同只读回填字段一起清掉，避免响应里残留上一次的房型名/单价。
-                // 这几个字段是 @TableField(exist = false)，只影响本次响应体，不需要进 SET。
-                po.setRoomTypeCode(null);
-                po.setRoomTypeName(null);
-                po.setRoomTypeUnitPrice(null);
-                po.setRoomTypeServerUnitPrice(null);
+                resourceRepository.clearRoomTypeBinding(id);
+            } else {
+                resourceRepository.updateRoomTypeBinding(id, roomTypeId);
             }
+            updated = withRoomTypeId(updated, roomTypeId);
         }
         if (req.imageUrls() != null) {
             ResourceMedia.Images images = ResourceMedia.normalizeImages(req.imageUrls(), req.mainImageUrl());
-            po.setImageUrls(images.urls());
-            po.setMainImageUrl(images.mainImageUrl());
-            update.set(ResourcePo::getImageUrls, images.urls(), IMAGE_URLS_TYPE_HANDLER);
-            update.set(ResourcePo::getMainImageUrl, images.mainImageUrl());
+            resourceRepository.updateMedia(id, images.urls(), images.mainImageUrl());
+            updated = withMedia(updated, images.urls(), images.mainImageUrl());
         }
-        if (req.description() != null) {
-            po.setDescription(ResourceMedia.normalizeDescription(req.description()));
-            update.set(ResourcePo::getDescription, po.getDescription());
-        }
-        po.setUpdatedAt(LocalDateTime.now());
-        update.set(ResourcePo::getUpdatedAt, po.getUpdatedAt());
-        resourceMapper.update(null, update);
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("resource.update")
-                .resourceType("res_resource").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getName())
-                .idempotencyKey("resource-update:" + po.getId() + ":" + System.currentTimeMillis())
+                .resourceType("res_resource").resourceId(String.valueOf(updated.id()))
+                .resourceName(updated.name())
+                .idempotencyKey("resource-update:" + updated.id() + ":" + System.currentTimeMillis())
                 .detailJson("{\"before\":{\"name\":" + jsonText(beforeName) + ",\"areaName\":" + jsonText(beforeAreaName)
                         + ",\"capacity\":" + beforeCapacity + ",\"roomTypeId\":" + rawJson(beforeRoomTypeId) + "},\"after\":{"
-                        + "\"name\":" + jsonText(po.getName()) + ",\"areaName\":" + jsonText(po.getAreaName())
-                        + ",\"capacity\":" + po.getCapacity() + ",\"roomTypeId\":" + rawJson(po.getRoomTypeId() == null ? null : String.valueOf(po.getRoomTypeId())) + "}}")
+                        + "\"name\":" + jsonText(updated.name()) + ",\"areaName\":" + jsonText(updated.areaName())
+                        + ",\"capacity\":" + updated.capacity() + ",\"roomTypeId\":"
+                        + rawJson(updated.roomTypeId() == null ? null : String.valueOf(updated.roomTypeId())) + "}}")
                 .build());
-        return enrichRoomTypes(List.of(po)).get(0);
+        return enrich(updated);
+    }
+
+    /** 回填单个资源的房型快照（响应用）。 */
+    private Resource enrich(Resource resource) {
+        List<Resource> enriched = resourceQuery.enrichWithRoomTypes(List.of(resource));
+        return enriched.isEmpty() ? resource : enriched.get(0);
     }
 
     /** 区域自由文本：空白归一为 null（未设置），超长 400。 */
-    static String normalizeAreaName(String raw) {        if (raw == null) {
+    static String normalizeAreaName(String raw) {
+        if (raw == null) {
             return null;
         }
         String area = raw.trim();
@@ -274,48 +248,10 @@ public class ResourceController {
         if (roomTypeId == null || roomTypeId == 0L) {
             return null;
         }
-        return requireRoomTypeIdInStore(roomTypeId);
-    }
-
-    /** 房型必须存在于当前门店：否则会把包厢挂到别的门店/租户的房型上（房型单价取错）。返回校验通过的房型 ID。 */
-    private Long requireRoomTypeIdInStore(Long roomTypeId) {
-        if (roomTypeId == null) {
-            return null;
-        }
         if (roomTypeService.findInStore(roomTypeId) == null) {
             throw new ApiException(400, "ROOM_TYPE_INVALID", "房型不存在或不属于当前门店，请重新选择");
         }
         return roomTypeId;
-    }
-
-    /** 回填房型的编码/名称/单价（列表与详情都要展示房型，并作为「按房型定价」的依据）。 */
-    private List<ResourcePo> enrichRoomTypes(List<ResourcePo> resources) {
-        if (resources == null || resources.isEmpty()) {
-            return resources == null ? List.of() : resources;
-        }
-        Set<Long> roomTypeIds = resources.stream()
-                .map(ResourcePo::getRoomTypeId)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
-        if (roomTypeIds.isEmpty()) {
-            return resources;
-        }
-        Map<Long, RoomType> byId = roomTypeService.listByIds(roomTypeIds).stream()
-                .collect(Collectors.toMap(RoomType::id, Function.identity(), (first, second) -> first));
-        for (ResourcePo resource : resources) {
-            applyRoomType(resource, byId.get(resource.getRoomTypeId()));
-        }
-        return resources;
-    }
-
-    static void applyRoomType(ResourcePo resource, RoomType roomType) {
-        if (resource == null || roomType == null) {
-            return;
-        }
-        resource.setRoomTypeCode(roomType.code());
-        resource.setRoomTypeName(roomType.name());
-        resource.setRoomTypeUnitPrice(roomType.unitPrice());
-        resource.setRoomTypeServerUnitPrice(roomType.serverUnitPrice());
     }
 
     private TenantContext requireContext() {
@@ -327,15 +263,8 @@ public class ResourceController {
     }
 
     private void requireResourceCodeAvailable(Long storeId, String resourceType, String resourceCode, Long excludeId) {
-        LambdaQueryWrapper<ResourcePo> qw = new LambdaQueryWrapper<ResourcePo>()
-                .eq(ResourcePo::getStoreId, storeId)
-                .eq(ResourcePo::getResourceType, resourceType)
-                .eq(ResourcePo::getResourceCode, resourceCode);
-        if (excludeId != null) {
-            qw.ne(ResourcePo::getId, excludeId);
-        }
-        Long duplicated = resourceMapper.selectCount(qw);
-        if (duplicated != null && duplicated > 0) {
+        long duplicated = resourceRepository.countByResourceCode(storeId, resourceType, resourceCode, excludeId);
+        if (duplicated > 0) {
             throw new ApiException(409, "RESOURCE_CODE_EXISTS", "编号「" + resourceCode + "」已存在，请换一个编号");
         }
     }
@@ -357,6 +286,54 @@ public class ResourceController {
                 .result(AuditClient.AuditRecord.RESULT_FAILURE)
                 .errorCode(AuditErrorCodes.of(failure))
                 .build());
+    }
+
+    // —— 不可变聚合的字段替换（只用于组装本次响应与后续端口调用；未提交字段保持原值） ——
+
+    private static Resource withName(Resource r, String name) {
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), name,
+                r.areaName(), r.parentId(), r.capacity(), r.roomTypeId(), r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), r.imageUrls(), r.mainImageUrl(), r.description(), r.roomTypeCode(),
+                r.roomTypeName(), r.roomTypeUnitPrice(), r.roomTypeServerUnitPrice());
+    }
+
+    private static Resource withAreaName(Resource r, String areaName) {
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), r.name(),
+                areaName, r.parentId(), r.capacity(), r.roomTypeId(), r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), r.imageUrls(), r.mainImageUrl(), r.description(), r.roomTypeCode(),
+                r.roomTypeName(), r.roomTypeUnitPrice(), r.roomTypeServerUnitPrice());
+    }
+
+    private static Resource withCapacity(Resource r, Integer capacity) {
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), r.name(),
+                r.areaName(), r.parentId(), capacity, r.roomTypeId(), r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), r.imageUrls(), r.mainImageUrl(), r.description(), r.roomTypeCode(),
+                r.roomTypeName(), r.roomTypeUnitPrice(), r.roomTypeServerUnitPrice());
+    }
+
+    private static Resource withDescription(Resource r, String description) {
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), r.name(),
+                r.areaName(), r.parentId(), r.capacity(), r.roomTypeId(), r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), r.imageUrls(), r.mainImageUrl(), description, r.roomTypeCode(),
+                r.roomTypeName(), r.roomTypeUnitPrice(), r.roomTypeServerUnitPrice());
+    }
+
+    private static Resource withRoomTypeId(Resource r, Long roomTypeId) {
+        // 清空房型时快照一并清掉，避免响应里残留上一次的房型名/单价。
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), r.name(),
+                r.areaName(), r.parentId(), r.capacity(), roomTypeId, r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), r.imageUrls(), r.mainImageUrl(), r.description(),
+                roomTypeId == null ? null : r.roomTypeCode(),
+                roomTypeId == null ? null : r.roomTypeName(),
+                roomTypeId == null ? null : r.roomTypeUnitPrice(),
+                roomTypeId == null ? null : r.roomTypeServerUnitPrice());
+    }
+
+    private static Resource withMedia(Resource r, List<String> imageUrls, String mainImageUrl) {
+        return new Resource(r.id(), r.tenantId(), r.storeId(), r.resourceType(), r.resourceCode(), r.name(),
+                r.areaName(), r.parentId(), r.capacity(), r.roomTypeId(), r.status(), r.cleaningStatus(),
+                r.cleaningStartedAt(), imageUrls, mainImageUrl, r.description(), r.roomTypeCode(),
+                r.roomTypeName(), r.roomTypeUnitPrice(), r.roomTypeServerUnitPrice());
     }
 
     public record CreateResourceRequest(Long tenantId, Long storeId, String resourceType, String resourceCode,

@@ -1,16 +1,15 @@
 package io.openware.platform.resource.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.resource.api.converter.ResourceConverter;
+import io.openware.platform.resource.api.dto.ResourceView;
 import io.openware.platform.resource.application.OccupationApplicationService;
+import io.openware.platform.resource.application.ResourceQueryApplicationService;
 import io.openware.platform.resource.application.ResourceStateApplicationService;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.infra.persistence.po.OccupationPo;
-import io.openware.platform.resource.infra.persistence.po.ResourcePo;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,38 +20,30 @@ import java.util.List;
  * - 供 platform-admin-service BFF 查询服务人员资源；
  * - 供 platform-order-service 在开台/结台/转台时占用、释放包厢，并同步清洁状态。
  * 租户由 X-Tenant-Context 头经 TenantContextFilter 注入，MyBatis 租户拦截器自动附加 tenant_id。
+ *
+ * <p>资源读取经应用服务与领域端口，不再直接持有持久化 mapper。
  */
 @RestController
 @RequestMapping("/internal/resources")
 public class InternalResourceController {
-    private final ResourceMapper resourceMapper;
-    private final RoomTypeApplicationService roomTypeService;
+    private final ResourceQueryApplicationService resourceQuery;
     private final OccupationApplicationService occupationService;
     private final ResourceStateApplicationService resourceStateService;
 
-    public InternalResourceController(ResourceMapper resourceMapper,
-                                      RoomTypeApplicationService roomTypeService,
+    public InternalResourceController(ResourceQueryApplicationService resourceQuery,
                                       OccupationApplicationService occupationService,
                                       ResourceStateApplicationService resourceStateService) {
-        this.resourceMapper = resourceMapper;
-        this.roomTypeService = roomTypeService;
+        this.resourceQuery = resourceQuery;
         this.occupationService = occupationService;
         this.resourceStateService = resourceStateService;
     }
 
     /** 资源查询（resourceType=KTV_SERVER / KTV_ROOM）。 */
     @GetMapping
-    public List<ResourcePo> list(@RequestParam(required = false) String resourceType,
-                                 @RequestParam(required = false) Long storeId) {
-        LambdaQueryWrapper<ResourcePo> qw = new LambdaQueryWrapper<>();
-        if (resourceType != null && !resourceType.isBlank()) {
-            qw.eq(ResourcePo::getResourceType, resourceType);
-        }
-        if (storeId != null) {
-            qw.eq(ResourcePo::getStoreId, storeId);
-        }
-        qw.orderByDesc(ResourcePo::getId);
-        return resourceMapper.selectList(qw);
+    public List<ResourceView> list(@RequestParam(required = false) String resourceType,
+                                   @RequestParam(required = false) Long storeId) {
+        return resourceQuery.listByType(resourceType, storeId).stream()
+                .map(ResourceConverter::toView).toList();
     }
 
     /**
@@ -61,16 +52,12 @@ public class InternalResourceController {
      * 让 order 域在不直连资源库的前提下拿到房型与房型单价。
      */
     @GetMapping("/{resourceId}")
-    public ResourcePo get(@PathVariable Long resourceId) {
-        ResourcePo resource = resourceMapper.selectById(resourceId);
+    public ResourceView get(@PathVariable Long resourceId) {
+        var resource = resourceQuery.findById(resourceId);
         if (resource == null) {
             throw new BusinessException("RESOURCE_NOT_FOUND", "资源不存在");
         }
-        if (resource.getRoomTypeId() != null) {
-            // 房型快照经应用服务读取（返回领域模型），不再直接查房型 mapper
-            ResourceController.applyRoomType(resource, roomTypeService.findInStore(resource.getRoomTypeId()));
-        }
-        return resource;
+        return ResourceConverter.toView(resource);
     }
 
     /** 资源运行状态（含清洁状态与不可用原因）。 */

@@ -23,6 +23,15 @@ public interface ResourceRepository {
    */
   List<Resource> listEnabledByType(String resourceType, Long storeId);
 
+  /**
+   * 按类型列出资源（**不限状态**，按标识倒序），类型与门店均可选。
+   *
+   * <p>与 {@link #listEnabledByType} 刻意分开：后者是「可用性候选」口径（仅 ENABLED、类型必填、升序），
+   * 本方法是内部端点「按条件查看资源」口径（不限状态、类型可空、倒序）。把两者合成一个方法会让
+   * 其中一处悄悄改变语义。
+   */
+  List<Resource> listByType(String resourceType, Long storeId);
+
   /** 按标识读取资源。 */
   Optional<Resource> findById(Long resourceId);
 
