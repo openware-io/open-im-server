@@ -37,12 +37,20 @@ public record RoomType(
     Integer sortOrder,
     String status) {
 
-  /** 房型处于可用状态。取值口径取自建表注释：ENABLED / DISABLED。 */
-  public static final String STATUS_ENABLED = "ENABLED";
+  /**
+   * 房型处于可用状态。
+   *
+   * <p>取值口径取自建表注释：{@code res_room_type.status} 是 <b>ACTIVE/DISABLED</b>——
+   * 与 {@code res_resource.status} 的 ENABLED/DISABLED/MAINTENANCE **不同**，两张表口径不可互串。
+   */
+  public static final String STATUS_ACTIVE = "ACTIVE";
+
+  /** 房型处于停用状态。 */
+  public static final String STATUS_DISABLED = "DISABLED";
 
   /** 是否处于可用状态。 */
-  public boolean enabled() {
-    return STATUS_ENABLED.equals(status);
+  public boolean active() {
+    return STATUS_ACTIVE.equals(status);
   }
 
   /** 图片地址；为空时返回空列表，避免调用方各自判空。 */

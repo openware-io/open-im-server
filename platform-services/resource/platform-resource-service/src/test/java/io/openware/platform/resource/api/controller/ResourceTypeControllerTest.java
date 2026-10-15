@@ -109,6 +109,6 @@ class ResourceTypeControllerTest {
 
   private static RoomType roomType(Long id, String code, String name) {
     return new RoomType(id, 1L, 100L, code, name, 20, List.of(), null, null, null, 0,
-        RoomType.STATUS_ENABLED);
+        RoomType.STATUS_ACTIVE);
   }
 }

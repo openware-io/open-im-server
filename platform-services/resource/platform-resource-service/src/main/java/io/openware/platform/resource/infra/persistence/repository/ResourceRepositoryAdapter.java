@@ -52,6 +52,18 @@ public class ResourceRepositoryAdapter implements ResourceRepository {
   }
 
   @Override
+  public List<Resource> listInRange(String resourceType, Long storeId, LocalDateTime fromInclusive,
+                                    LocalDateTime toInclusive) {
+    return mapper.selectList(Wrappers.<ResourcePo>lambdaQuery()
+            .eq(resourceType != null && !resourceType.isBlank(), ResourcePo::getResourceType, resourceType)
+            .eq(storeId != null, ResourcePo::getStoreId, storeId)
+            .ge(fromInclusive != null, ResourcePo::getCreatedAt, fromInclusive)
+            .le(toInclusive != null, ResourcePo::getCreatedAt, toInclusive)
+            .orderByAsc(ResourcePo::getId))
+        .stream().map(this::toDomain).toList();
+  }
+
+  @Override
   public List<Resource> listByType(String resourceType, Long storeId) {
     return mapper.selectList(Wrappers.<ResourcePo>lambdaQuery()
             .eq(resourceType != null && !resourceType.isBlank(), ResourcePo::getResourceType, resourceType)

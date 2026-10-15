@@ -24,6 +24,18 @@ public interface ResourceRepository {
   List<Resource> listEnabledByType(String resourceType, Long storeId);
 
   /**
+   * 管理列表口径：按类型/门店列出资源（**不限状态**，升序），可按**创建时间闭区间**过滤，并回填房型快照。
+   *
+   * <p>与 {@link #listEnabledByType}（可用性候选：仅 ENABLED、必填类型）和 {@link #listByType}
+   * （内部端点：倒序）都不同，三者口径各自独立，不合并。
+   *
+   * @param fromInclusive 创建时间下界；{@code null} 表示不设
+   * @param toInclusive   创建时间上界；{@code null} 表示不设
+   */
+  List<Resource> listInRange(String resourceType, Long storeId, java.time.LocalDateTime fromInclusive,
+                             java.time.LocalDateTime toInclusive);
+
+  /**
    * 按类型列出资源（**不限状态**，按标识倒序），类型与门店均可选。
    *
    * <p>与 {@link #listEnabledByType} 刻意分开：后者是「可用性候选」口径（仅 ENABLED、类型必填、升序），

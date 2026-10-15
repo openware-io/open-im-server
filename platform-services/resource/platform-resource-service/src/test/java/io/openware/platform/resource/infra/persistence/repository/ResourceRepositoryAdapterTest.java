@@ -7,12 +7,15 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
 import io.openware.platform.resource.infra.persistence.po.ResourcePo;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.mockito.ArgumentCaptor;
 
 /**
@@ -34,6 +37,9 @@ class ResourceRepositoryAdapterTest {
 
   @BeforeEach
   void setUp() {
+    // LambdaUpdateWrapper.set(Po::getXxx, ...) 的列名解析是懒求值的：纯单元测试没有 MyBatis 上下文，
+    // 必须先注册实体 TableInfo，SET 子句才能渲染出列名。
+    TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ResourcePo.class);
     mapper = mock(ResourceMapper.class);
     adapter = new ResourceRepositoryAdapter(mapper);
   }

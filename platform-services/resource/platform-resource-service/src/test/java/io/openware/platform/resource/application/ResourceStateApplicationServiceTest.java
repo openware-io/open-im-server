@@ -136,7 +136,7 @@ class ResourceStateApplicationServiceTest {
   }
 
   private static RoomType roomType(Long id, String code, String name) {
-    return new RoomType(id, 1L, 1L, code, name, 10, List.of(), null, 100L, 0L, 1, RoomType.STATUS_ENABLED);
+    return new RoomType(id, 1L, 1L, code, name, 10, List.of(), null, 100L, 0L, 1, RoomType.STATUS_ACTIVE);
   }
 
   private static Resource room(Long id, String code, String name) {

@@ -141,6 +141,6 @@ class RoomTypeUnbindRegressionTest {
 
   private static RoomType roomType(Long id, String code, String name) {
     return new RoomType(id, TENANT_ID, STORE_ID, code, name, 10, List.of(), null, 100L, 0L, 1,
-        RoomType.STATUS_ENABLED);
+        RoomType.STATUS_ACTIVE);
   }
 }

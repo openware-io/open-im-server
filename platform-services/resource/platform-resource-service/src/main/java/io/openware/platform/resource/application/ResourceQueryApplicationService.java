@@ -43,6 +43,17 @@ public class ResourceQueryApplicationService {
   }
 
   /**
+   * 管理列表口径：按类型/门店列出资源（不限状态，升序），并按创建时间闭区间过滤，回填房型快照。
+   *
+   * <p>时间边界已由入站适配解析（格式非法/倒挂在那里就拦下），这里只负责读取与快照回填。
+   */
+  public List<Resource> listEnabledInRange(String resourceType, Long storeId,
+                                          java.time.LocalDateTime fromInclusive,
+                                          java.time.LocalDateTime toInclusive) {
+    return enrichWithRoomTypes(resourceRepository.listInRange(resourceType, storeId, fromInclusive, toInclusive));
+  }
+
+  /**
    * 按条件列出资源（**不限状态**，倒序），并回填房型快照。
    *
    * <p>内部端点用；与 {@link #listEnabled} 是两种口径，见仓储端口说明。

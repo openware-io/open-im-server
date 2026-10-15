@@ -6,6 +6,8 @@ import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.resource.api.converter.ResourceConverter;
 import io.openware.platform.resource.api.dto.ResourceView;
 import io.openware.platform.resource.application.ResourceMedia;
@@ -67,6 +69,13 @@ public class ResourceController {
                                    @RequestParam(required = false) Long storeId,
                                    @RequestParam(required = false) String from,
                                    @RequestParam(required = false) String to) {
+        // 区间解析留在控制器（入站参数口径）：格式非法或 from > to 一律 400 TIME_RANGE_INVALID，
+        // 与全仓其它列表同一错误码。解析出的边界再由查询用例下推到仓储端口。
+        TimeRange range = TimeRangeParams.parse(from, to);
+        if (range.hasFrom() || range.hasTo()) {
+            return resourceQuery.listEnabledInRange(resourceType, storeId, range.fromInclusive(), range.toInclusive())
+                    .stream().map(ResourceConverter::toView).toList();
+        }
         return resourceQuery.listEnabled(resourceType, storeId).stream()
                 .map(ResourceConverter::toView).toList();
     }

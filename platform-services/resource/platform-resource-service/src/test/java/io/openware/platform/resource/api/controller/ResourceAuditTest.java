@@ -66,7 +66,7 @@ class ResourceAuditTest {
     });
     // 房型必须属于本门店：控制器会对入参房型做归属校验。
     RoomType roomType = new RoomType(31L, 1L, 100L, "VIP", "VIP 大包", 10, List.of(), null,
-        100L, 0L, 1, RoomType.STATUS_ENABLED);
+        100L, 0L, 1, RoomType.STATUS_ACTIVE);
     when(roomTypeService.findInStore(31L)).thenReturn(roomType);
 
     controller.create(new ResourceController.CreateResourceRequest(1L, 100L, "KTV_ROOM", "A-101", "A101",
