@@ -1,12 +1,17 @@
 package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
 import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.staff.readmodel.StaffAccountRow;
 import io.openware.platform.admin.infra.IdentityDomainClient;
 import io.openware.platform.admin.infra.ImUserResolveClient;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -214,6 +219,103 @@ public class StaffAccountApplicationService {
             return new RoleBindingKey(binding.roleId(), binding.tenantId(), binding.organizationId(), binding.storeId(), binding.scopeType());
         }
     }
+
+    /**
+     * 按运营上下文列出运营人员（含可管理性判定）。
+     *
+     * <p>列表查询走**只读投影**（{@link StaffAccountRow}）：createdAt 是记账列，仅供展示，不进领域模型。
+     * 时间区间下推到端口，不在应用层拼查询条件；作用域过滤留在应用层，因为它依赖签名上下文。
+     *
+     * <p>只保留在当前作用域内的角色绑定：绑定全在范围内的账号可被整体管理（{@code canManageAccount}），
+     * 过滤后没有任何可见绑定的账号不出现在列表里。
+     */
+    public List<StaffListItem> listStaff(TenantContext context, LocalDateTime fromInclusive,
+                                         LocalDateTime toInclusive) {
+        List<StaffListItem> result = new ArrayList<>();
+        for (StaffAccountRow row : accounts.listStaffRows(AdminRole.TENANT_ADMIN, fromInclusive, toInclusive)) {
+            ConsAdminAccount account = row.account();
+            List<TenantIamDomainClient.RoleBinding> roles = account.platformAccountId() == null
+                    ? List.of()
+                    : iam.roleBindings(account.platformAccountId());
+            boolean canManageAccount = !roles.isEmpty()
+                    && roles.stream().allMatch(binding -> withinScope(context, binding));
+            List<TenantIamDomainClient.RoleBinding> visible =
+                    roles.stream().filter(binding -> withinScope(context, binding)).toList();
+            if (visible.isEmpty()) {
+                continue;
+            }
+            result.add(new StaffListItem(account.id(), account.username(), account.displayName(),
+                    account.platformAccountId(), row.boundToIm(),
+                    account.role() == null ? null : account.role().name(), account.status(),
+                    row.createdAt(), visible, canManageAccount));
+        }
+        return result;
+    }
+
+    /**
+     * 取一个可被当前上下文整体管理的运营人员；否则拒绝。
+     *
+     * <p>这类"全局账号操作"的前置校验放在应用服务而不是控制器：它需要同时看账号、角色绑定与签名上下文，
+     * 属于用例编排，不是入站适配的职责。
+     */
+    public ConsAdminAccount requireManageableStaff(TenantContext context, Long id) {
+        ConsAdminAccount account = accounts.findById(id).orElse(null);
+        if (account == null || account.role() != AdminRole.TENANT_ADMIN
+                || account.platformAccountId() == null) {
+            throw new ApiException(404, "STAFF_NOT_FOUND", "运营人员不存在");
+        }
+        var bindings = iam.roleBindings(account.platformAccountId());
+        if (bindings.isEmpty() || bindings.stream().anyMatch(binding -> !withinScope(context, binding))) {
+            throw new ApiException(403, "STAFF_SCOPE_FORBIDDEN", "账号涉及当前运营范围以外的授权，不能执行全局账号操作");
+        }
+        return account;
+    }
+
+    /**
+     * 启用/禁用运营人员。禁用同时撤销其全部角色绑定（角色是 B 端访问的裁决依据，禁用必须立即收回访问权）；
+     * 启用只恢复账号状态，角色需通过重新开通获得。
+     */
+    @Transactional
+    public ConsAdminAccount updateStatus(TenantContext context, Long id, String status) {
+        if (status == null || (!"ACTIVE".equals(status) && !"DISABLED".equals(status))) {
+            throw new ApiException(400, "STAFF_STATUS_INVALID", "状态仅支持 ACTIVE/DISABLED");
+        }
+        ConsAdminAccount account = requireManageableStaff(context, id);
+        if ("DISABLED".equals(status)) {
+            for (Long userRoleId : iam.listUserRoleIds(account.platformAccountId())) {
+                iam.revokeUserRole(userRoleId);
+            }
+        }
+        return accounts.save(account.withStatus(status));
+    }
+
+    /** 删除运营人员：撤销全部角色绑定后删除账号。 */
+    @Transactional
+    public void deleteStaff(TenantContext context, Long id) {
+        ConsAdminAccount account = requireManageableStaff(context, id);
+        for (Long userRoleId : iam.listUserRoleIds(account.platformAccountId())) {
+            iam.revokeUserRole(userRoleId);
+        }
+        accounts.deleteById(id);
+    }
+
+    /** 角色绑定是否落在当前签名上下文范围内；PLATFORM 作用域一律视为范围外。 */
+    private boolean withinScope(TenantContext context, TenantIamDomainClient.RoleBinding binding) {
+        return Objects.equals(context.tenantId(), binding.tenantId())
+                && (context.organizationId() == null || Objects.equals(context.organizationId(), binding.organizationId()))
+                && (context.storeId() == null || Objects.equals(context.storeId(), binding.storeId()))
+                && !"PLATFORM".equals(binding.scopeType());
+    }
+
+    /**
+     * 运营人员列表项（用例输出）。
+     *
+     * <p>放应用层而不是 API 层：它是用例的查询结果，控制器再据此转成响应 DTO
+     * （standards/10：Command/Query/Result 属 application，且不得成为 Controller 入参）。
+     */
+    public record StaffListItem(Long id, String username, String displayName, Long platformAccountId,
+                                boolean imBound, String role, String status, LocalDateTime createdAt,
+                                List<TenantIamDomainClient.RoleBinding> roles, boolean canManageAccount) {}
 
     public record CreateCommand(String username, String password, String imAccount, String displayName,
                                 Long roleId, String scopeType, Long tenantId, Long organizationId, Long storeId) {}

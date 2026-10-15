@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
 import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
+import io.openware.platform.admin.domain.staff.readmodel.StaffAccountRow;
 import io.openware.platform.admin.infra.persistence.mapper.ConsAdminAccountMapper;
 import io.openware.platform.admin.infra.persistence.po.ConsAdminAccountPo;
 import org.springframework.stereotype.Repository;
@@ -55,6 +56,19 @@ public class ConsAdminAccountRepositoryImpl implements ConsAdminAccountRepositor
                         .le(toInclusive != null, ConsAdminAccountPo::getCreatedAt, toInclusive)
                         .orderByAsc(ConsAdminAccountPo::getId))
                 .stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    public List<StaffAccountRow> listStaffRows(AdminRole role, LocalDateTime fromInclusive,
+                                               LocalDateTime toInclusive) {
+        return mapper.selectList(Wrappers.<ConsAdminAccountPo>lambdaQuery()
+                        .eq(role != null, ConsAdminAccountPo::getRole, role == null ? null : role.name())
+                        .ge(fromInclusive != null, ConsAdminAccountPo::getCreatedAt, fromInclusive)
+                        .le(toInclusive != null, ConsAdminAccountPo::getCreatedAt, toInclusive)
+                        .orderByAsc(ConsAdminAccountPo::getId))
+                .stream()
+                .map(po -> new StaffAccountRow(toDomain(po), po.getCreatedAt()))
+                .toList();
     }
 
     @Override

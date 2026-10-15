@@ -2,6 +2,7 @@ package io.openware.platform.admin.domain.repository;
 
 import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
+import io.openware.platform.admin.domain.staff.readmodel.StaffAccountRow;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,14 @@ public interface ConsAdminAccountRepository {
      * 任一参数为 {@code null} 时该端不设边界。
      */
     List<ConsAdminAccount> listByRole(AdminRole role, LocalDateTime fromInclusive, LocalDateTime toInclusive);
+
+    /**
+     * 按角色列出**列表投影**（含创建时间），可选创建时间闭区间过滤。
+     *
+     * <p>与 {@link #listByRole} 并存而非替换：列表需要展示记账字段，写路径需要干净的领域模型。
+     * 投影由同一行映射得到，适配器是唯一能同时看到两者的一层。
+     */
+    List<StaffAccountRow> listStaffRows(AdminRole role, LocalDateTime fromInclusive, LocalDateTime toInclusive);
 
     /** 登录名是否已存在（开通用例的唯一性判据）。 */
     boolean existsByUsername(String username);

@@ -81,6 +81,20 @@ public record ConsAdminAccount(
                 platformAccountId, role, status);
     }
 
+    /**
+     * 迁移账号状态（启用/禁用）：返回新实例，未落库账号拒绝。
+     *
+     * @throws IllegalStateException 账号尚未落库，或状态为空
+     */
+    public ConsAdminAccount withStatus(String newStatus) {
+        requirePersisted();
+        if (newStatus == null || newStatus.isBlank()) {
+            throw new IllegalStateException("staff account status must not be blank");
+        }
+        return new ConsAdminAccount(id, username, passwordHash, displayName, imAccount, idaasSubject,
+                platformAccountId, role, newStatus);
+    }
+
     /** 当前 IM 绑定是否可用于"换绑前先解绑"的判断：有绑定且与目标不同。 */
     public boolean hasConflictingImBinding(String targetImAccount) {
         return imAccount != null && !imAccount.isBlank()
