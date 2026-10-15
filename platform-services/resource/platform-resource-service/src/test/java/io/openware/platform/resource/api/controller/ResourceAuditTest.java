@@ -8,18 +8,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.domain.roomtype.model.RoomType;
-import io.openware.platform.resource.infra.persistence.mapper.ResourceMapper;
-import io.openware.platform.resource.infra.persistence.po.ResourcePo;
+import io.openware.platform.resource.application.ResourceQueryApplicationService;
+import io.openware.platform.resource.domain.resource.model.Resource;
+import io.openware.platform.resource.domain.resource.repository.ResourceRepository;
 import java.util.List;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,19 +31,20 @@ import org.mockito.ArgumentCaptor;
  */
 class ResourceAuditTest {
 
-  private ResourceMapper resourceMapper;
+  private ResourceRepository resourceRepository;
+  private ResourceQueryApplicationService resourceQuery;
   private RoomTypeApplicationService roomTypeService;
   private AuditClient auditClient;
   private ResourceController controller;
 
   @BeforeEach
   void setUp() {
-    TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ResourcePo.class);
-    resourceMapper = mock(ResourceMapper.class);
+    resourceRepository = mock(ResourceRepository.class);
+    resourceQuery = mock(ResourceQueryApplicationService.class);
     roomTypeService = mock(RoomTypeApplicationService.class);
     auditClient = mock(AuditClient.class);
-    controller = new ResourceController(resourceMapper, roomTypeService, auditClient);
-    when(roomTypeService.listByIds(any())).thenReturn(List.of());
+    controller = new ResourceController(resourceRepository, resourceQuery, roomTypeService, auditClient);
+    when(resourceQuery.enrichWithRoomTypes(any())).thenAnswer(i -> i.getArgument(0));
     TenantContextHolder.set(new TenantContext(1L, null, 100L, 1L, 1, List.of("resource.manage")));
   }
 
@@ -56,11 +55,14 @@ class ResourceAuditTest {
 
   @Test
   void createRecordsAuditWithStoreTypeAndRoomType() {
-    when(resourceMapper.selectCount(any())).thenReturn(0L);
-    when(resourceMapper.insert(any(ResourcePo.class))).thenAnswer(invocation -> {
-      ResourcePo po = invocation.getArgument(0);
-      po.setId(7L);
-      return 1;
+    when(resourceRepository.countByResourceCode(any(), any(), any(), any())).thenReturn(0L);
+    when(resourceRepository.save(any(Resource.class))).thenAnswer(invocation -> {
+      Resource resource = invocation.getArgument(0);
+      return new Resource(7L, resource.tenantId(), resource.storeId(), resource.resourceType(),
+          resource.resourceCode(), resource.name(), resource.areaName(), resource.parentId(),
+          resource.capacity(), resource.roomTypeId(), resource.status(), resource.cleaningStatus(),
+          resource.cleaningStartedAt(), resource.imageUrls(), resource.mainImageUrl(),
+          resource.description(), null, null, null, null);
     });
     // 房型必须属于本门店：控制器会对入参房型做归属校验。
     RoomType roomType = new RoomType(31L, 1L, 100L, "VIP", "VIP 大包", 10, List.of(), null,
@@ -84,18 +86,9 @@ class ResourceAuditTest {
   /** 解绑房型（roomTypeId=0）这类「清空」变更必须能在审计里看到前后值：before=31、after=null。 */
   @Test
   void updateRecordsAuditWithBeforeAndAfterValues() {
-    ResourcePo existing = new ResourcePo();
-    existing.setId(9L);
-    existing.setTenantId(1L);
-    existing.setStoreId(100L);
-    existing.setResourceType("KTV_ROOM");
-    existing.setResourceCode("A-101");
-    existing.setName("A101");
-    existing.setAreaName("大堂");
-    existing.setCapacity(8);
-    existing.setRoomTypeId(31L);
-    existing.setStatus("ENABLED");
-    when(resourceMapper.selectById(9L)).thenReturn(existing);
+    Resource existing = new Resource(9L, 1L, 100L, "KTV_ROOM", "A-101", "A101", "大堂", null, 8, 31L,
+        Resource.STATUS_ENABLED, Resource.CLEANING_IDLE, null, List.of(), null, null, null, null, null, null);
+    when(resourceRepository.findById(9L)).thenReturn(java.util.Optional.of(existing));
 
     controller.update(9L, new ResourceController.UpdateResourceRequest(null, "  ", 10, 0L, null, null, null));
 
@@ -116,7 +109,7 @@ class ResourceAuditTest {
    */
   @Test
   void createFailureRecordsFailureAuditWithErrorCode() {
-    when(resourceMapper.selectCount(any())).thenReturn(1L);
+    when(resourceRepository.countByResourceCode(any(), any(), any(), any())).thenReturn(1L);
 
     ApiException failure = org.junit.jupiter.api.Assertions.assertThrows(ApiException.class,
         () -> controller.create(new ResourceController.CreateResourceRequest(1L, 100L, "KTV_ROOM", "A-101",
@@ -134,7 +127,7 @@ class ResourceAuditTest {
   /** ③ 失败留痕：资源编辑失败（资源不存在 404）同样必须留痕。 */
   @Test
   void updateFailureRecordsFailureAuditWithErrorCode() {
-    when(resourceMapper.selectById(404L)).thenReturn(null);
+    when(resourceRepository.findById(404L)).thenReturn(java.util.Optional.empty());
 
     org.junit.jupiter.api.Assertions.assertThrows(ApiException.class,
         () -> controller.update(404L, new ResourceController.UpdateResourceRequest("新名", null, null, null,
