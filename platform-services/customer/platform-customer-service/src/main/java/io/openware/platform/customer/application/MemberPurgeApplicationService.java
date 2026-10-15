@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 「无 IM 关联客户」的清理（垃圾数据识别后的可执行动作）。
@@ -52,7 +53,7 @@ public class MemberPurgeApplicationService {
     private final PointLedgerMapper pointLedgerMapper;
     private final AuditClient auditClient;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public MemberPurgeApplicationService(MemberMapper memberMapper,
                                          MemberNameTokenMapper nameTokenMapper,
                                          PointAccountMapper pointAccountMapper,

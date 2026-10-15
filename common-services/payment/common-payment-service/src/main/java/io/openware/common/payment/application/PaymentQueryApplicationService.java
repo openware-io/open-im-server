@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import io.openware.infrastructure.currency.Currency;
+import java.util.stream.Collectors;
 
 /**
  * 收银/支付/交班/日结/退款 只读查询应用服务。
@@ -254,7 +256,7 @@ public class PaymentQueryApplicationService {
 
         // 币种：命中数据币种一致才给单一币种；否则只给标记，调用方不得跨币种相加。
         Set<String> distinct = currencies.stream().filter(code -> code != null && !code.isBlank())
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         String currencyCode = distinct.size() == 1 ? distinct.iterator().next() : null;
         return new OrderCollectionsDto(orderId, currencyCode, distinct.size() > 1, totalCollected, refundedAmount,
                 collections, transactions, refundViews);
@@ -310,7 +312,7 @@ public class PaymentQueryApplicationService {
     private static String currencyOf(String currencyCode) {
         return currencyCode == null || currencyCode.isBlank()
                 ? null
-                : io.openware.infrastructure.currency.Currency.parse(currencyCode).code();
+                : Currency.parse(currencyCode).code();
     }
 
     private static boolean hasFrom(TimeRange range) {

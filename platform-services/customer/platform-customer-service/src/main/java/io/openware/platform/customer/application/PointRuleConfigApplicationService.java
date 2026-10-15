@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /** 积分规则的唯一写入/解析入口；Customer 域只持有自己的规则值。 */
 @Service
@@ -26,7 +27,7 @@ public class PointRuleConfigApplicationService {
         this(mapper, AuditClient.disabled());
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public PointRuleConfigApplicationService(PointRuleConfigMapper mapper, AuditClient auditClient) {
         this.mapper = mapper;
         this.auditClient = auditClient;

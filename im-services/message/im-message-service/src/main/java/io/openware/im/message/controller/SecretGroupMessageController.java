@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.constraints.NotEmpty;
 
 @RestController
 @Tag(name = "私密群聊消息")
@@ -137,7 +138,7 @@ public class SecretGroupMessageController {
 
   /** 「删除仅我」请求体（密群）。 */
   public record DeleteGroupSecretForMeRequest(long secretGroupId,
-      @jakarta.validation.constraints.NotEmpty List<String> msgIds) {
+      @NotEmpty List<String> msgIds) {
   }
 
   public record MarkReadRequest(long secretGroupId, long afterSeq) {

@@ -7,6 +7,8 @@ import io.openware.platform.tenant.domain.authorization.RoleBinding;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 /**
  * IAM 内部端点（供 identity-service 调用的内部契约，不走网关）。
@@ -40,8 +42,8 @@ public class InternalIamController {
     @GetMapping("/consumer/{appId}/context")
     public AccountContext consumerContext(@PathVariable String appId, @RequestParam Long accountId) {
         if (provider.authorizedConsumerSnapshot(appId, accountId).authorizationVersion() <= 0) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.FORBIDDEN, "consumer authorization required");
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN, "consumer authorization required");
         }
         return provider.consumerContext(appId, accountId);
     }

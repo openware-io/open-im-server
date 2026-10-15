@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /** 总部只读经营总览 BFF；Customer 只是第一个领域分项，后续按同一契约追加其他领域。 */
 @RestController
@@ -39,7 +40,7 @@ public class TenantOverviewController {
         this(customerClient, tenantIamClient, paymentClient, null, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public TenantOverviewController(CustomerOverviewDomainClient customerClient, TenantIamDomainClient tenantIamClient,
                                     PaymentOverviewDomainClient paymentClient,
                                     TenantOverviewDomainClient tenantOverviewClient,

@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import java.security.spec.PKCS8EncodedKeySpec;
 
 /**
  * Signs OIDC ID tokens and exposes the public signing material for JWKS.
@@ -126,7 +127,7 @@ public class OidcTokenSigner implements io.openware.im.user.domain.openplatform.
         .replaceAll("\\s", "");
     byte[] der = Base64.getDecoder().decode(body);
     try {
-      return KeyFactory.getInstance("RSA").generatePrivate(new java.security.spec.PKCS8EncodedKeySpec(der));
+      return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
     } catch (Exception pkcs8Failure) {
       throw new IllegalStateException(
           "Private key must be PKCS#8 'BEGIN PRIVATE KEY' PEM (see docs/deployment/ACK.md 生成示例).", pkcs8Failure);

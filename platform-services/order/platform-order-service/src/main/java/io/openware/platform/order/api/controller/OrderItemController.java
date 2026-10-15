@@ -152,7 +152,7 @@ public class OrderItemController {
         }
         OrderItemPo po = new OrderItemPo();
         Long tenantId = TenantContextHolder.tenantIdOrNull();
-        if (tenantId == null) { throw new io.openware.common.exception.ApiException(401, "TENANT_CONTEXT_MISSING", "缺少租户上下文"); }
+        if (tenantId == null) { throw new ApiException(401, "TENANT_CONTEXT_MISSING", "缺少租户上下文"); }
         po.setTenantId(tenantId);
         po.setStoreId(order.getStoreId());
         po.setBusinessType(order.getBusinessType());
@@ -541,7 +541,7 @@ public class OrderItemController {
         OrderPo order = orderMapper.selectById(orderId);
         if (order == null) {
             if (orderMapper.selectTenantIdById(orderId) != null) {
-                throw new io.openware.common.exception.ApiException(403, "TENANT_SCOPE_DENIED", "无权访问其他租户的订单");
+                throw new ApiException(403, "TENANT_SCOPE_DENIED", "无权访问其他租户的订单");
             }
             throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
         }

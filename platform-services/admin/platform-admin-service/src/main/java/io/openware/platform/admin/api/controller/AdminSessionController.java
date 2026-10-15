@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestBody;
 
 /** SaaS 后台会话查询与退出（前端路由守卫据此判断登录态）。 */
 @RestController
@@ -46,7 +47,7 @@ public class AdminSessionController {
 
     @PostMapping("/password")
     public PasswordChangeResponse changePassword(@CookieValue(value = AdminSessionCookie.NAME, required = false) String sessionId,
-                                                  @org.springframework.web.bind.annotation.RequestBody PasswordChangeRequest request,
+                                                  @RequestBody PasswordChangeRequest request,
                                                   HttpServletResponse response) {
         passwordService.changePassword(AdminContextHolder.accountIdOrNull(), request.currentPassword(), request.newPassword());
         // 修改凭据后立即撤销当前会话，避免旧会话继续使用。

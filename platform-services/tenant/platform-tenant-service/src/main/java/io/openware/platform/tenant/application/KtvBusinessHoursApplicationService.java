@@ -17,6 +17,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * KTV 营业时间配置的唯一读取口径（门店级覆盖租户默认）。
@@ -57,7 +59,7 @@ public class KtvBusinessHoursApplicationService {
         this(tenantConfigMapper, null, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public KtvBusinessHoursApplicationService(InternalTenantConfigMapper tenantConfigMapper,
                                               TenantConfigMapper configWriter,
                                               StoreMapper storeMapper) {
@@ -152,7 +154,7 @@ public class KtvBusinessHoursApplicationService {
     }
 
     private void upsert(Long tenantId, Long storeId, String businessType, String value) {
-        TenantConfigPo po = configWriter.selectOne(new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<TenantConfigPo>()
+        TenantConfigPo po = configWriter.selectOne(new QueryWrapper<TenantConfigPo>()
                 .eq("tenant_id", tenantId).eq("store_id", storeId)
                 .eq("business_type", businessType == null ? "" : businessType)
                 .eq("config_key", CONFIG_KEY).last("LIMIT 1"));

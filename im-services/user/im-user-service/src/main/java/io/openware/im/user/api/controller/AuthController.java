@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.AccessDeniedException;
 
 @RestController
 @Tag(name = "身份认证")
@@ -114,7 +115,7 @@ public class AuthController {
   @Operation(summary = "Sign a one-time WebSocket ticket")
   public WebSocketTicketResponse createWebSocketTicket(@AuthenticationPrincipal SecurityUser user) {
     if (user == null || !user.isEnabled()) {
-      throw new org.springframework.security.access.AccessDeniedException("Authentication required");
+      throw new AccessDeniedException("Authentication required");
     }
     WebSocketTicketService.IssuedTicket ticket = webSocketTicketService.issue(user.getId());
     return new WebSocketTicketResponse(ticket.ticket(), ticket.expiresAt());

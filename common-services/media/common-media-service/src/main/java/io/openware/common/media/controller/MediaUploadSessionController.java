@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.openware.common.exception.ApiException;
+import io.openware.common.http.HttpStatusCodes;
 
 @RestController
 @RequestMapping("/media/upload-sessions")
@@ -52,8 +54,8 @@ public class MediaUploadSessionController {
       java.util.UUID.fromString(idempotencyKey);
     } catch (IllegalArgumentException exception) {
       // 客户端错误必须是 400 + 稳定 code，此前抛 IllegalArgumentException 会落到兜底变成 500 且丢失原因
-      throw new io.openware.common.exception.ApiException(
-          io.openware.common.http.HttpStatusCodes.BAD_REQUEST,
+      throw new ApiException(
+          HttpStatusCodes.BAD_REQUEST,
           "IDEMPOTENCY_KEY_INVALID", "Idempotency-Key 必须是 UUID");
     }
   }

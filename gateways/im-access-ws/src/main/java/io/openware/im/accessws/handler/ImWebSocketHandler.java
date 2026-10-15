@@ -24,6 +24,7 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import io.openware.common.enums.ChatType;
 
 @Component
 @Slf4j
@@ -152,7 +153,7 @@ public class ImWebSocketHandler extends TextWebSocketHandler {
       throws Exception {
     SendMessageDto dto = objectMapper.convertValue(data, SendMessageDto.class);
     // 私密聊天消息仅允许走 HTTP /secret-messages 接口（E2EE 密文链路），禁止经 WS 发送。
-    if (dto.getChatType() == io.openware.common.enums.ChatType.SECRET) {
+    if (dto.getChatType() == ChatType.SECRET) {
       log.warn(
           "Rejected secret message via websocket chat:send, userId={}, sessionId={}, clientMsgId={}",
           userId,

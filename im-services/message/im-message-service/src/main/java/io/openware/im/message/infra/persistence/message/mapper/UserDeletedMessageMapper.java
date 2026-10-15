@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Delete;
 
 @Mapper
 public interface UserDeletedMessageMapper extends BaseMapper<UserDeletedMessagePo> {
@@ -20,7 +21,7 @@ public interface UserDeletedMessageMapper extends BaseMapper<UserDeletedMessageP
       @Param("conversationId") String conversationId, @Param("chatType") String chatType);
 
   /** 批量删除该用户在这些消息上的墓碑（用于清空会话时一并回收）。 */
-  @org.apache.ibatis.annotations.Delete("""
+  @Delete("""
       DELETE FROM msg_user_deleted_message WHERE user_id = #{userId} AND conversation_id = #{conversationId}
       """)
   int deleteByConversation(@Param("userId") long userId, @Param("conversationId") String conversationId);

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.function.Function;
 
 @Repository
 @RequiredArgsConstructor
@@ -116,7 +117,7 @@ public class FriendRelationRepositoryAdapter implements FriendRelationRepository
   }
 
   private static <T> PageResult<T> toPage(Page<FriendRelationPo> source,
-      java.util.function.Function<FriendRelationPo, T> converter) {
+      Function<FriendRelationPo, T> converter) {
     return PageResult.<T>builder().items(source.getRecords().stream().map(converter).toList()).total(source.getTotal())
         .page((int) source.getCurrent()).pageSize((int) source.getSize()).build();
   }

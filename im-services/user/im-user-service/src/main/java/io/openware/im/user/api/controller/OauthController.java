@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.openware.common.exception.ApiException;
 
 /**
  * OAuth 2.0 Provider 端点：授权码 + PKCE(S256)，两层授权（应用级 + 用户级）。
@@ -49,7 +50,7 @@ public class OauthController {
       @RequestParam String nonce,
        @AuthenticationPrincipal SecurityUser user) {
     if (!"code".equals(responseType)) {
-      throw new io.openware.common.exception.ApiException(HttpStatus.BAD_REQUEST.value(), "unsupported_response_type");
+      throw new ApiException(HttpStatus.BAD_REQUEST.value(), "unsupported_response_type");
     }
     String appId = clientId == null || clientId.isBlank() ? legacyAppId : clientId;
     Long userId = user == null ? null : user.getId();

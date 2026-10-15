@@ -12,6 +12,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import java.nio.charset.StandardCharsets;
 
 /** Customer 总部汇总内部客户端；只传递已签名 TenantContext，不携带可伪造租户字段。 */
 @Component
@@ -39,7 +40,7 @@ public class CustomerOverviewDomainClient {
         for (String[] pair : new String[][]{{"from", from}, {"to", to}, {"storeIds", storeIds}}) {
             if (pair[1] != null && !pair[1].isBlank()) {
                 uri.append(separator).append(pair[0]).append('=').append(java.net.URLEncoder.encode(
-                        pair[1], java.nio.charset.StandardCharsets.UTF_8));
+                        pair[1], StandardCharsets.UTF_8));
                 separator = '&';
             }
         }

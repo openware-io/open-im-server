@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import io.openware.im.message.domain.message.repository.UserDeletedMessageRepository;
 
 /**
  * 好友通过后的正式私聊消息用例。好友事件至少一次投递，因此先以 requestId 持久化占位，
@@ -36,11 +37,11 @@ public class FriendAcceptedMessageApplicationService {
   private final MessageApplicationService messageApplicationService;
   private final FriendAcceptMessageDedupRepository dedupRepository;
   private final FriendAcceptanceProfilePort profilePort;
-  private final io.openware.im.message.domain.message.repository.UserDeletedMessageRepository userDeletedMessageRepository;
+  private final UserDeletedMessageRepository userDeletedMessageRepository;
 
   public FriendAcceptedMessageApplicationService(MessageApplicationService messageApplicationService,
       FriendAcceptMessageDedupRepository dedupRepository, FriendAcceptanceProfilePort profilePort,
-      io.openware.im.message.domain.message.repository.UserDeletedMessageRepository userDeletedMessageRepository) {
+      UserDeletedMessageRepository userDeletedMessageRepository) {
     this.messageApplicationService = messageApplicationService;
     this.dedupRepository = dedupRepository;
     this.profilePort = profilePort;

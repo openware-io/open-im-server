@@ -20,6 +20,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -203,7 +204,7 @@ public class StaffAccountApplicationService {
             Set<RoleBindingKey> activeBindings = iam.roleBindings(accountId).stream()
                     .filter(binding -> "ACTIVE".equals(binding.status()))
                     .map(RoleBindingKey::from)
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(Collectors.toSet());
             for (TenantIamDomainClient.RoleBinding binding : originalBindings) {
                 if (!activeBindings.contains(RoleBindingKey.from(binding))) {
                     iam.assignUserRole(accountId, binding.tenantId(), binding.organizationId(), binding.storeId(),

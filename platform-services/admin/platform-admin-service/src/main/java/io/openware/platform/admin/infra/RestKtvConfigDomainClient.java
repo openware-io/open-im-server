@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * KTV 配置领域服务真实客户端（RestClient）。
@@ -289,8 +290,8 @@ public class RestKtvConfigDomainClient implements KtvConfigDomainClient {
         JsonNode refund = getJson(paymentClient, uri);
         JsonNode closing = storeId == null ? objectMapper.createObjectNode() : getJson(paymentClient, "/internal/payment/rules/daily-closing?storeId=" + storeId);
         var merged = objectMapper.createObjectNode();
-        merged.setAll((com.fasterxml.jackson.databind.node.ObjectNode) refund);
-        merged.setAll((com.fasterxml.jackson.databind.node.ObjectNode) closing);
+        merged.setAll((ObjectNode) refund);
+        merged.setAll((ObjectNode) closing);
         merged.put("storeId", storeId == null ? 0L : storeId);
         merged.put("businessType", businessType == null ? "" : businessType);
         if (refund.has("version")) {

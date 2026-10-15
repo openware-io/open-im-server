@@ -147,7 +147,7 @@ public class StaffController {
         ConsAdminAccountPo po = requireStaff(id);
         String status = req.status();
         if (status == null || (!"ACTIVE".equals(status) && !"DISABLED".equals(status))) {
-            throw new io.openware.common.exception.ApiException(400, "STAFF_STATUS_INVALID", "状态仅支持 ACTIVE/DISABLED");
+            throw new ApiException(400, "STAFF_STATUS_INVALID", "状态仅支持 ACTIVE/DISABLED");
         }
         if ("DISABLED".equals(status) && po.getPlatformAccountId() != null) {
             for (Long userRoleId : tenantIamClient.listUserRoleIds(po.getPlatformAccountId())) {
@@ -187,7 +187,7 @@ public class StaffController {
         TenantContext context = requireContext();
         ConsAdminAccountPo po = saaAdminAccountMapper.selectById(id);
         if (po == null || !"TENANT_ADMIN".equals(po.getRole()) || po.getPlatformAccountId() == null) {
-            throw new io.openware.common.exception.ApiException(404, "STAFF_NOT_FOUND", "运营人员不存在");
+            throw new ApiException(404, "STAFF_NOT_FOUND", "运营人员不存在");
         }
         var bindings = tenantIamClient.roleBindings(po.getPlatformAccountId());
         if (bindings.isEmpty() || bindings.stream().anyMatch(binding -> !withinScope(context, binding))) {

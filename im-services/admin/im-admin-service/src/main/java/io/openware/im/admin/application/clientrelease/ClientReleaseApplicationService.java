@@ -18,6 +18,7 @@ import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.nio.charset.StandardCharsets;
 
 @Service
 @RequiredArgsConstructor
@@ -109,7 +110,7 @@ public class ClientReleaseApplicationService {
     });
   }
   @Transactional public int publishScheduledDue() {
-    int count = 0; for (ClientRelease current : releaseRepository.findScheduledDue(LocalDateTime.now(Clock.systemUTC()), properties.getScheduleBatchSize())) { ReleaseStatus status = current.rolloutPercent() == 100 ? ReleaseStatus.RELEASED : ReleaseStatus.ROLLING_OUT; ClientRelease next = copy(current, status, current.rolloutPercent(), current.scheduledAt(), LocalDateTime.now(Clock.systemUTC()), 0L, current.rowVersion()); if (releaseRepository.update(next, current.rowVersion())) { String scheduledOperation = "scheduled:" + current.id() + ":" + current.rowVersion(); WriteContext context = new WriteContext(0L, "scheduler", UUID.nameUUIDFromBytes(scheduledOperation.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString(), "Scheduled publish"); audit(context, ReleaseOperationAction.SCHEDULED_PUBLISH, current.id(), null, current.status(), status); count++; } } return count;
+    int count = 0; for (ClientRelease current : releaseRepository.findScheduledDue(LocalDateTime.now(Clock.systemUTC()), properties.getScheduleBatchSize())) { ReleaseStatus status = current.rolloutPercent() == 100 ? ReleaseStatus.RELEASED : ReleaseStatus.ROLLING_OUT; ClientRelease next = copy(current, status, current.rolloutPercent(), current.scheduledAt(), LocalDateTime.now(Clock.systemUTC()), 0L, current.rowVersion()); if (releaseRepository.update(next, current.rowVersion())) { String scheduledOperation = "scheduled:" + current.id() + ":" + current.rowVersion(); WriteContext context = new WriteContext(0L, "scheduler", UUID.nameUUIDFromBytes(scheduledOperation.getBytes(StandardCharsets.UTF_8)).toString(), "Scheduled publish"); audit(context, ReleaseOperationAction.SCHEDULED_PUBLISH, current.id(), null, current.status(), status); count++; } } return count;
   }
   private ClientRelease transition(WriteContext context, long id, long version, ReleaseOperationAction action, ReleaseStatus from, ReleaseStatus to) {
     return idempotent(context, action, new Object[] {id, version}, () -> { ClientRelease current = get(id); requireState(current, from); ClientRelease next = copy(current, to, current.rolloutPercent(), current.scheduledAt(), current.publishedAt(), context.actorId(), version); if (!releaseRepository.update(next, version)) throw rowConflict(); ClientRelease saved = get(id); audit(context, action, id, null, current.status(), saved.status()); return saved; });

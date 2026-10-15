@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 资源运行状态：可用性 = 启用 且 无有效占用（HELD/RESERVED/IN_USE） 且 非清洁中。
@@ -58,7 +59,7 @@ public class ResourceStateApplicationService {
         this(resourceMapper, occupationMapper, roomTypeMapper, AuditClient.disabled());
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public ResourceStateApplicationService(ResourceMapper resourceMapper, OccupationMapper occupationMapper,
                                            RoomTypeMapper roomTypeMapper, AuditClient auditClient) {
         this.resourceMapper = resourceMapper;

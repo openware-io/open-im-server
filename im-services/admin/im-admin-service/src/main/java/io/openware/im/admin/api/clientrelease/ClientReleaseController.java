@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import java.util.function.Supplier;
 
 @RestController
 @RequiredArgsConstructor
@@ -44,5 +45,5 @@ public class ClientReleaseController {
   private <T> DataResponse<T> data(T value, String requestId) { return new DataResponse<>(value, requestId(requestId)); }
   private String requestId(String value) { return value == null || value.isBlank() ? UUID.randomUUID().toString() : value; }
   private ReleasePlatform platform(String value) { return parse(() -> ReleasePlatform.fromDatabaseValue(value)); } private ReleaseChannel channel(String value) { return parse(() -> ReleaseChannel.fromDatabaseValue(value)); } private ReleaseStatus status(String value) { return parse(() -> ReleaseStatus.fromDatabaseValue(value)); } private TargetArchitecture architecture(String value) { return parse(() -> TargetArchitecture.fromDatabaseValue(value)); } private PackageType packageType(String value) { return parse(() -> PackageType.fromDatabaseValue(value)); }
-  private <T> T parse(java.util.function.Supplier<T> parser) { try { return parser.get(); } catch (IllegalArgumentException exception) { throw new ApiException(HttpStatusCodes.BAD_REQUEST, "CLIENT_RELEASE_INVALID_REQUEST", exception.getMessage()); } }
+  private <T> T parse(Supplier<T> parser) { try { return parser.get(); } catch (IllegalArgumentException exception) { throw new ApiException(HttpStatusCodes.BAD_REQUEST, "CLIENT_RELEASE_INVALID_REQUEST", exception.getMessage()); } }
 }

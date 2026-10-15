@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 预约应用服务（SaaS 新契约写路径，SAAS_PLATFORM_05 §5.3 / SAAS_PLATFORM_04 §6.3）。
@@ -108,7 +109,7 @@ public class ReservationApplicationService {
         this.dailySerialNumberGenerator = dailySerialNumberGenerator;
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public void setReservationRuleService(ReservationRuleApplicationService reservationRuleService) {
         this.reservationRuleService = reservationRuleService;
     }

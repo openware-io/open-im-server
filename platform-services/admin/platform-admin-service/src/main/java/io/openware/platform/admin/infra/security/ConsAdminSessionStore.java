@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
+import java.nio.charset.StandardCharsets;
 
 /**
  * SaaS 后台登录态存储（Redis）：登录/SSO 后服务端持有会话，浏览器仅持有 HttpOnly Cookie 的 sessionId。
@@ -151,8 +152,8 @@ public class ConsAdminSessionStore {
     }
     String expected = redisTemplate.opsForValue().get(CSRF_PREFIX + sessionId);
     return expected != null && java.security.MessageDigest.isEqual(
-        expected.getBytes(java.nio.charset.StandardCharsets.UTF_8),
-        token.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        expected.getBytes(StandardCharsets.UTF_8),
+        token.getBytes(StandardCharsets.UTF_8));
   }
 
   private Duration remainingTtl(String sessionId) {

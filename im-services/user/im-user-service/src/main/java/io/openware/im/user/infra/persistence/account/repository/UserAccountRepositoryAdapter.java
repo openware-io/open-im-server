@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.function.Function;
 
 @Repository
 @RequiredArgsConstructor
@@ -169,7 +170,7 @@ public class UserAccountRepositoryAdapter implements UserAccountRepository {
   }
 
   private static <T> PageResult<T> toPage(Page<UserAccountPo> source,
-      java.util.function.Function<UserAccountPo, T> converter) {
+      Function<UserAccountPo, T> converter) {
     return PageResult.<T>builder().items(source.getRecords().stream().map(converter).toList()).total(source.getTotal())
         .page((int) source.getCurrent()).pageSize((int) source.getSize()).build();
   }

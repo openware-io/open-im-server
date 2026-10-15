@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 
 
 /**
@@ -138,7 +139,7 @@ public class CustomerClient {
     }
 
     private String tenantContextJson(Long tenantId, Long storeId) {
-        String token = io.openware.infrastructure.tenant.TenantContextHolder.tokenOrNull();
+        String token = TenantContextHolder.tokenOrNull();
         if (token == null || token.isBlank()) throw new IllegalStateException("缺少已验证的租户上下文");
         return token;
     }

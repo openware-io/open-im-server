@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 商品（实物 / 服务）的创建、编辑、上下架与点单目录同步。
@@ -234,7 +235,7 @@ public class ProductApplicationService {
      */
     private static RuntimeException translateServerResourceConflict(RuntimeException failure) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
-            if (cause instanceof org.springframework.dao.DuplicateKeyException) {
+            if (cause instanceof DuplicateKeyException) {
                 String message = cause.getMessage() == null ? "" : cause.getMessage();
                 if (message.contains("uk_ord_product_server_resource")) {
                     return new BusinessException("SERVER_RESOURCE_IN_USE", "该服务人员已被其他服务商品关联，请刷新后重试");

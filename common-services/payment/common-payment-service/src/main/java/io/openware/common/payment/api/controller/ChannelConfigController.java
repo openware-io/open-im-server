@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Set;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 线上支付渠道配置（默认关）。 */
 @RestController
@@ -29,7 +30,7 @@ public class ChannelConfigController {
     }
 
     @PostMapping("/batch")
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public List<ChannelConfigDto> setEnabledBatch(@RequestBody BatchChannelRequest req) {
         if (req == null || req.config() == null || req.config().isEmpty() || req.storeIds() == null || req.storeIds().isEmpty()
                 || req.idempotencyKey() == null || req.idempotencyKey().isBlank()) {

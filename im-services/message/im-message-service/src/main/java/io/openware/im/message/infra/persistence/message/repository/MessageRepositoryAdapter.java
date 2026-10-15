@@ -20,6 +20,7 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 @Repository
 @RequiredArgsConstructor
@@ -239,7 +240,7 @@ public class MessageRepositoryAdapter implements MessageRepository {
     mapper.delete(Wrappers.<MessagePo>lambdaQuery().eq(MessagePo::getMsgId, msgId));
   }
 
-  private void visibleToUser(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<MessagePo> wrapper,
+  private void visibleToUser(LambdaQueryWrapper<MessagePo> wrapper,
       long userId, String peerId, ChatType chatType) {
     // 「删除仅我」过滤：历史、按日期、上下文窗口、搜索共用此助手，因此在这里加一次即可全覆盖，
     // 避免出现「会话内删了、搜索结果还能搜到」这类不一致。

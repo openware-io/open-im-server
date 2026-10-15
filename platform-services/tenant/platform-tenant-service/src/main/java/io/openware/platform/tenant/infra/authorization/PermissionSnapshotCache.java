@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.nio.charset.StandardCharsets;
 
 /**
  * IAM 权限快照缓存：Redis 一级缓存（本地 ConcurrentHashMap 兜底）。
@@ -81,7 +82,7 @@ public class PermissionSnapshotCache {
         Set<String> keys = new HashSet<>();
         redis.execute(connection -> {
             try (Cursor<byte[]> cursor = connection.scan(ScanOptions.scanOptions().match(pattern).count(200).build())) {
-                cursor.forEachRemaining(value -> keys.add(new String(value, java.nio.charset.StandardCharsets.UTF_8)));
+                cursor.forEachRemaining(value -> keys.add(new String(value, StandardCharsets.UTF_8)));
             }
             return null;
         }, true);

@@ -32,6 +32,8 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -278,8 +280,8 @@ public class GroupApplicationService {
   private int rank(GroupRole role) { return role == GroupRole.OWNER ? 3 : role == GroupRole.ADMIN ? 2 : 1; }
 
   private List<Long> createMemberIds(long ownerId, List<Long> memberIds) {
-    java.util.stream.Stream<Long> candidates = memberIds == null ? java.util.stream.Stream.empty() : memberIds.stream();
-    return java.util.stream.Stream.concat(java.util.stream.Stream.of(ownerId), candidates).filter(java.util.Objects::nonNull)
+    Stream<Long> candidates = memberIds == null ? Stream.empty() : memberIds.stream();
+    return Stream.concat(Stream.of(ownerId), candidates).filter(java.util.Objects::nonNull)
         .filter(id -> id > 0).distinct().toList();
   }
 
@@ -311,7 +313,7 @@ public class GroupApplicationService {
           .build();
       outboxRepository.append(eventId, "group:" + groupId, ImMqTopics.MESSAGE_SEND_COMMAND,
           String.valueOf(groupId), objectMapper.writeValueAsString(command));
-    } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+    } catch (JsonProcessingException ex) {
       throw new IllegalStateException("Unable to serialize group system message", ex);
     }
   }
@@ -352,7 +354,7 @@ public class GroupApplicationService {
           Math.max(group.authorizationVersion(), member.authorizationVersion())));
       outboxRepository.append(eventId, String.valueOf(group.id()), ImMqTopics.CONVERSATION_AUTHORIZATION_CHANGED_EVENT,
           String.valueOf(group.id()), payload);
-    } catch (com.fasterxml.jackson.core.JsonProcessingException ex) {
+    } catch (JsonProcessingException ex) {
       throw new IllegalStateException("Unable to serialize conversation authorization event", ex);
     }
   }

@@ -29,6 +29,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -79,7 +80,7 @@ public class ProfileApplicationService {
     List<Long> ids = userIds == null ? List.of() : userIds.stream()
         .filter(java.util.Objects::nonNull).distinct().toList();
     return userAccountRepository.findByIds(ids).stream()
-        .collect(java.util.stream.Collectors.toMap(
+        .collect(Collectors.toMap(
             account -> account.getId(),
             account -> account.getStatus() == UserAccountStatus.MUTED,
             (left, right) -> left));

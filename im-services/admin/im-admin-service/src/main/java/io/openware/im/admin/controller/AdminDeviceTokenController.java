@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  */
@@ -26,13 +28,13 @@ public class AdminDeviceTokenController {
   }
 
   @GetMapping
-  public PageResult<AdminDeviceTokenResponse> list(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") int page,
-      @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") int pageSize,
-      @org.springframework.web.bind.annotation.RequestParam(required = false) Long userId) {
+  public PageResult<AdminDeviceTokenResponse> list(@RequestParam(defaultValue = "1") int page,
+      @RequestParam(defaultValue = "20") int pageSize,
+      @RequestParam(required = false) Long userId) {
     return queryService.listAllDeviceTokens(page, pageSize, userId);
   }
 
-  @org.springframework.web.bind.annotation.DeleteMapping("/{id}")
+  @DeleteMapping("/{id}")
   public void delete(@PathVariable Long id) {
     queryService.disableDeviceToken(id);
   }

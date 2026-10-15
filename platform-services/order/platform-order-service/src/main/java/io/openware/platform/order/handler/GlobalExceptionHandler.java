@@ -16,6 +16,10 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.ServletRequestBindingException;
 
 /**
  * 将业务异常映射为稳定 JSON（{code, message}），HTTP 状态按错误码约定（KTV_BUSINESS_01 §12）。
@@ -52,18 +56,18 @@ public class GlobalExceptionHandler {
     }
 
     /** 请求体/参数格式错误属于客户端错误，必须回 400 而不是 500。 */
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadable(
-            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+            HttpMessageNotReadableException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_BODY_INVALID");
         body.put("message", "请求体格式错误");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<Map<String, Object>> handleMissingParam(
-            org.springframework.web.bind.MissingServletRequestParameterException ex) {
+            MissingServletRequestParameterException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_PARAM_MISSING");
         body.put("message", "缺少请求参数: " + ex.getParameterName());
@@ -74,9 +78,9 @@ public class GlobalExceptionHandler {
      * 缺少必填请求头（如 Idempotency-Key）：必须收敛成统一 {code,message} 的 400，
      * 而不是让 Spring 的默认错误体（timestamp/path/error）漏出去；更不能落到兜底 500。
      */
-    @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+    @ExceptionHandler(MissingRequestHeaderException.class)
     public ResponseEntity<Map<String, Object>> handleMissingHeader(
-            org.springframework.web.bind.MissingRequestHeaderException ex) {
+            MissingRequestHeaderException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_HEADER_MISSING");
         body.put("message", "缺少请求头: " + ex.getHeaderName());
@@ -84,9 +88,9 @@ public class GlobalExceptionHandler {
     }
 
     /** 其它请求绑定错误（cookie/矩阵变量/类型不匹配等）同样按客户端错误回 400，不泄露 500。 */
-    @ExceptionHandler(org.springframework.web.bind.ServletRequestBindingException.class)
+    @ExceptionHandler(ServletRequestBindingException.class)
     public ResponseEntity<Map<String, Object>> handleBinding(
-            org.springframework.web.bind.ServletRequestBindingException ex) {
+            ServletRequestBindingException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_BINDING_INVALID");
         body.put("message", "请求参数绑定失败");

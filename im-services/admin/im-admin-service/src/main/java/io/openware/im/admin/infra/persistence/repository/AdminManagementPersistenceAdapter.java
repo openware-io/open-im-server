@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import io.openware.common.enums.ReportStatus;
+import io.openware.common.enums.ViolationAction;
 
 @Repository
 @RequiredArgsConstructor
@@ -42,10 +44,10 @@ public class AdminManagementPersistenceAdapter implements AdminConfigurationRepo
   @Override public Optional<AdminConfiguration> findByKey(String key) { return Optional.ofNullable(configurationMapper.selectOne(Wrappers.<AdminConfigurationPo>lambdaQuery().eq(AdminConfigurationPo::getConfigKey, key))).map(this::configuration); }
   @Override public AdminConfiguration save(AdminConfiguration value) { AdminConfigurationPo po = configurationPo(value); if (po.getId() == null) configurationMapper.insert(po); else configurationMapper.updateById(po); return configuration(po); }
   @Override public Optional<Report> findReportById(Long id) { return Optional.ofNullable(reportMapper.selectById(id)).map(this::report); }
-  @Override public boolean hasPendingReport(Long reporterId, Long targetId) { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(ReportPo::getReporterId, reporterId).eq(ReportPo::getTargetId, targetId).eq(ReportPo::getStatus, io.openware.common.enums.ReportStatus.PENDING)) > 0; }
-  @Override public long countPendingReports() { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(ReportPo::getStatus, io.openware.common.enums.ReportStatus.PENDING)); }
-  @Override public List<Report> findReports(io.openware.common.enums.ReportStatus status, int offset, int size) { return reportMapper.selectList(Wrappers.<ReportPo>lambdaQuery().eq(status != null, ReportPo::getStatus, status).orderByDesc(ReportPo::getCreatedAt).last("LIMIT " + offset + "," + size)).stream().map(this::report).toList(); }
-  @Override public long countReports(io.openware.common.enums.ReportStatus status) { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(status != null, ReportPo::getStatus, status)); }
+  @Override public boolean hasPendingReport(Long reporterId, Long targetId) { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(ReportPo::getReporterId, reporterId).eq(ReportPo::getTargetId, targetId).eq(ReportPo::getStatus, ReportStatus.PENDING)) > 0; }
+  @Override public long countPendingReports() { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(ReportPo::getStatus, ReportStatus.PENDING)); }
+  @Override public List<Report> findReports(ReportStatus status, int offset, int size) { return reportMapper.selectList(Wrappers.<ReportPo>lambdaQuery().eq(status != null, ReportPo::getStatus, status).orderByDesc(ReportPo::getCreatedAt).last("LIMIT " + offset + "," + size)).stream().map(this::report).toList(); }
+  @Override public long countReports(ReportStatus status) { return reportMapper.selectCount(Wrappers.<ReportPo>lambdaQuery().eq(status != null, ReportPo::getStatus, status)); }
   @Override public Report saveReport(Report value) { ReportPo po = reportPo(value); if (po.getId() == null) reportMapper.insert(po); else reportMapper.updateById(po); return report(po); }
   @Override public SensitiveWord saveSensitiveWord(SensitiveWord value) { SensitiveWordPo po = wordPo(value); if (po.getId() == null) sensitiveWordMapper.insert(po); else sensitiveWordMapper.updateById(po); return word(po); }
   @Override public Optional<SensitiveWord> findSensitiveWordById(Long id) { return Optional.ofNullable(sensitiveWordMapper.selectById(id)).map(this::word); }
@@ -54,8 +56,8 @@ public class AdminManagementPersistenceAdapter implements AdminConfigurationRepo
   @Override public void deleteSensitiveWord(Long id) { sensitiveWordMapper.deleteById(id); }
   @Override public List<SensitiveWord> findEnabledSensitiveWords() { return sensitiveWordMapper.selectList(Wrappers.<SensitiveWordPo>lambdaQuery().eq(SensitiveWordPo::getEnabled, true)).stream().map(this::word).toList(); }
   @Override public Violation saveViolation(Violation value) { ViolationPo po = violationPo(value); if (po.getId() == null) violationMapper.insert(po); else violationMapper.updateById(po); return violation(po); }
-  @Override public List<Violation> findViolations(Long targetId, io.openware.common.enums.ViolationAction action, int offset, int size) { return violationMapper.selectList(Wrappers.<ViolationPo>lambdaQuery().eq(targetId != null, ViolationPo::getUserId, targetId).eq(action != null, ViolationPo::getAction, action).orderByDesc(ViolationPo::getCreatedAt).last("LIMIT " + offset + "," + size)).stream().map(this::violation).toList(); }
-  @Override public long countViolations(Long targetId, io.openware.common.enums.ViolationAction action) { return violationMapper.selectCount(Wrappers.<ViolationPo>lambdaQuery().eq(targetId != null, ViolationPo::getUserId, targetId).eq(action != null, ViolationPo::getAction, action)); }
+  @Override public List<Violation> findViolations(Long targetId, ViolationAction action, int offset, int size) { return violationMapper.selectList(Wrappers.<ViolationPo>lambdaQuery().eq(targetId != null, ViolationPo::getUserId, targetId).eq(action != null, ViolationPo::getAction, action).orderByDesc(ViolationPo::getCreatedAt).last("LIMIT " + offset + "," + size)).stream().map(this::violation).toList(); }
+  @Override public long countViolations(Long targetId, ViolationAction action) { return violationMapper.selectCount(Wrappers.<ViolationPo>lambdaQuery().eq(targetId != null, ViolationPo::getUserId, targetId).eq(action != null, ViolationPo::getAction, action)); }
   @Override public List<MiniappServiceType> findAllTypes() { return typeMapper.selectList(Wrappers.<MiniappServiceTypePo>lambdaQuery().orderByAsc(MiniappServiceTypePo::getSortOrder, MiniappServiceTypePo::getId)).stream().map(this::type).toList(); }
   @Override public Optional<MiniappServiceType> findTypeById(Long id) { return Optional.ofNullable(typeMapper.selectById(id)).map(this::type); }
   @Override public MiniappServiceType saveType(MiniappServiceType value) { MiniappServiceTypePo po = typePo(value); if (po.getId() == null) typeMapper.insert(po); else typeMapper.updateById(po); return type(po); }

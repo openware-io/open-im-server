@@ -1,5 +1,8 @@
 package io.openware.common.media.media;
 
+import io.openware.common.exception.ApiException;
+import io.openware.common.http.HttpStatusCodes;
+
 public interface MediaStoragePort {
   String uploadUrl(String bucket, String objectKey, String contentType, java.util.Map<String, String> requiredHeaders);
 
@@ -23,7 +26,7 @@ public interface MediaStoragePort {
    * <p>默认实现拒绝：只有支持桶策略的提供方（MinIO/COS 等 S3 兼容实现）才能提供公共图片能力。
    */
   default void ensurePublicReadBucket(String bucket) {
-    throw new io.openware.common.exception.ApiException(io.openware.common.http.HttpStatusCodes.SERVICE_UNAVAILABLE,
+    throw new ApiException(HttpStatusCodes.SERVICE_UNAVAILABLE,
         "当前配置的媒体存储提供方不支持创建公开只读桶");
   }
 

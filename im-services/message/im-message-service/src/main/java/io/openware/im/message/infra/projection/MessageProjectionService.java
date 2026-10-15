@@ -12,10 +12,13 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.stereotype.Service;
+import io.openware.im.message.domain.message.port.HotMessageProjectionPort;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 
 @Service
 @Slf4j
-public class MessageProjectionService implements io.openware.im.message.domain.message.port.HotMessageProjectionPort {
+public class MessageProjectionService implements HotMessageProjectionPort {
   private final MongoTemplate mongoTemplate;
   private final UnreadCountProjectionPort unreadCountProjectionPort;
   private final Duration hotMessageTtl;
@@ -96,8 +99,8 @@ public class MessageProjectionService implements io.openware.im.message.domain.m
     if (msgId == null || msgId.isBlank()) return;
     try {
       var removed = mongoTemplate.remove(
-          org.springframework.data.mongodb.core.query.Query.query(
-              org.springframework.data.mongodb.core.query.Criteria.where("_id").is(msgId)),
+          Query.query(
+              Criteria.where("_id").is(msgId)),
           HotMessageDocument.class);
       log.info("Removed hot message projection, msgId={}, removed={}", msgId, removed.getDeletedCount());
     } catch (RuntimeException ex) {
@@ -112,8 +115,8 @@ public class MessageProjectionService implements io.openware.im.message.domain.m
     if (conversationId == null || conversationId.isBlank()) return;
     try {
       var removed = mongoTemplate.remove(
-          org.springframework.data.mongodb.core.query.Query.query(
-              org.springframework.data.mongodb.core.query.Criteria.where("conversationId").is(conversationId)),
+          Query.query(
+              Criteria.where("conversationId").is(conversationId)),
           HotMessageDocument.class);
       log.info("Removed hot message projections of conversation, conversationId={}, removed={}",
           conversationId, removed.getDeletedCount());

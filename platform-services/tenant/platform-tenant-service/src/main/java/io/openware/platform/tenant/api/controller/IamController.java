@@ -218,7 +218,7 @@ public class IamController {
     public void revokeUserRole(@PathVariable Long userRoleId) {
         Long accountId = permissionSnapshotProvider.revokeUserRole(userRoleId);
         if (accountId == null) {
-            throw new io.openware.common.exception.ApiException(404, "USER_ROLE_NOT_FOUND", "角色绑定不存在");
+            throw new ApiException(404, "USER_ROLE_NOT_FOUND", "角色绑定不存在");
         }
         auditClient.recordAsync(AuditClient.AuditRecord.of(
                 null, null, "iam.user_role.revoke", "user_role",

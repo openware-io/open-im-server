@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.http.MediaType;
 
 /**
  * 资源域内部客户端：开台占用包厢、结台释放并置清洁中、转台换占用。
@@ -249,7 +250,7 @@ public class ResourceStateClient {
                     .header(SOURCE_HEADER, SERVICE_NAME)
                     .header(TIMESTAMP_HEADER, Long.toString(timestamp))
                     .header(SIGNATURE_HEADER, simpleSignature(timestamp))
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(body))
                     .retrieve()
                     .body(String.class);
@@ -295,7 +296,7 @@ public class ResourceStateClient {
                     .header(SOURCE_HEADER, SERVICE_NAME)
                     .header(TIMESTAMP_HEADER, Long.toString(timestamp))
                     .header(SIGNATURE_HEADER, simpleSignature(timestamp))
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                    .contentType(MediaType.APPLICATION_JSON)
                     .body(objectMapper.writeValueAsString(Map.of("cleaning", cleaning)))
                     .retrieve()
                     .toBodilessEntity();

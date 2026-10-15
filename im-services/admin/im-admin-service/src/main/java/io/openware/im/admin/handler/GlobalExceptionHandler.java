@@ -13,6 +13,13 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 用户服务全局异常处理器 *
@@ -58,44 +65,44 @@ public class GlobalExceptionHandler {
   }
 
   /** 请求体格式错误属于客户端错误，必须回 400 而不是 500。 */
-  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, Object>> handleUnreadable(
-      org.springframework.http.converter.HttpMessageNotReadableException ex) {
+      HttpMessageNotReadableException ex) {
     return error(HttpStatus.BAD_REQUEST, "REQUEST_BODY_INVALID", "请求体格式错误");
   }
 
   /** 缺少必填请求参数：此前被 Exception 兜底吞成 500。 */
-  @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+  @ExceptionHandler(MissingServletRequestParameterException.class)
   public ResponseEntity<Map<String, Object>> handleMissingParameter(
-      org.springframework.web.bind.MissingServletRequestParameterException ex) {
+      MissingServletRequestParameterException ex) {
     return error(HttpStatus.BAD_REQUEST, "REQUEST_PARAM_MISSING", "缺少请求参数: " + ex.getParameterName());
   }
 
   /** 缺少必填请求头：必须收敛成统一 {code,message}，不能被兜底吞成 500。 */
-  @ExceptionHandler(org.springframework.web.bind.MissingRequestHeaderException.class)
+  @ExceptionHandler(MissingRequestHeaderException.class)
   public ResponseEntity<Map<String, Object>> handleMissingHeader(
-      org.springframework.web.bind.MissingRequestHeaderException ex) {
+      MissingRequestHeaderException ex) {
     return error(HttpStatus.BAD_REQUEST, "REQUEST_HEADER_MISSING", "缺少请求头: " + ex.getHeaderName());
   }
 
   /** 未知路径：必须回 404，不能被 Exception 兜底吞成 500。 */
-  @ExceptionHandler({org.springframework.web.servlet.resource.NoResourceFoundException.class,
-      org.springframework.web.servlet.NoHandlerFoundException.class})
+  @ExceptionHandler({NoResourceFoundException.class,
+      NoHandlerFoundException.class})
   public ResponseEntity<Map<String, Object>> handleNotFound(Exception ex) {
     return error(HttpStatus.NOT_FOUND, "ROUTE_NOT_FOUND", "接口不存在");
   }
 
   /** 请求方法不被支持：405。 */
-  @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
   public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
-      org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+      HttpRequestMethodNotSupportedException ex) {
     return error(HttpStatus.METHOD_NOT_ALLOWED, "METHOD_NOT_ALLOWED", "请求方法不被支持");
   }
 
   /** 请求 Content-Type 不被支持：415。 */
-  @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+  @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
   public ResponseEntity<Map<String, Object>> handleMediaType(
-      org.springframework.web.HttpMediaTypeNotSupportedException ex) {
+      HttpMediaTypeNotSupportedException ex) {
     return error(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "MEDIA_TYPE_UNSUPPORTED", "请求内容类型不被支持");
   }
 

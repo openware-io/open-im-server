@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import io.openware.common.exception.ApiException;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 退款审批状态机：PENDING → APPROVED/REJECTED → REFUNDED（KTV_BUSINESS_01 §7.5 / §10.2）。
@@ -39,7 +41,7 @@ public class RefundApplicationService {
         this(refundMapper, auditClient, orderBillingMapper, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient,
                                     OrderBillingMapper orderBillingMapper, PaymentRuleApplicationService paymentRuleService) {
         this.refundMapper = refundMapper;
@@ -175,7 +177,7 @@ public class RefundApplicationService {
                 PaymentRuleApplicationService.RefundRuleView rule = paymentRuleService.resolveRefund(
                         po.getTenantId(), po.getStoreId(), po.getBusinessType());
                 if (!rule.offlineRefundEnabled()) {
-                    throw new io.openware.common.exception.ApiException(422, "OFFLINE_REFUND_DISABLED", "当前业态或门店不允许线下退款");
+                    throw new ApiException(422, "OFFLINE_REFUND_DISABLED", "当前业态或门店不允许线下退款");
                 }
             }
             po.setStatus(STATUS_REFUNDED);

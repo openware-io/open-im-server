@@ -2,6 +2,7 @@ package io.openware.im.message.domain.message.event;
 
 import java.time.Instant;
 import java.util.List;
+import io.openware.protocol.mq.topic.ImMqTopics;
 
 /**
  * 消息编辑领域事件：发送者在 2 分钟窗口内编辑消息正文后发布。
@@ -25,5 +26,5 @@ public record MessageEditedEvent(
     Instant editedAt) {
 
   /** 消息编辑事件主题（待集中登记至 protocol-mq，见类注释）。 */
-  public static final String TOPIC = io.openware.protocol.mq.topic.ImMqTopics.MESSAGE_EDITED_EVENT;
+  public static final String TOPIC = ImMqTopics.MESSAGE_EDITED_EVENT;
 }

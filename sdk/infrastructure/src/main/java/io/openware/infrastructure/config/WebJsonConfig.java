@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import java.nio.charset.Charset;
 
 /**
  * JSON 响应统一编码规范：显式声明 UTF-8，避免部分客户端按 ISO-8859-1 误判中文乱码。
@@ -22,7 +23,7 @@ public class WebJsonConfig implements WebMvcConfigurer {
   public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
     converters.forEach(converter -> {
       try {
-        converter.getClass().getMethod("setDefaultCharset", java.nio.charset.Charset.class)
+        converter.getClass().getMethod("setDefaultCharset", Charset.class)
             .invoke(converter, StandardCharsets.UTF_8);
       } catch (ReflectiveOperationException ignored) {
       }

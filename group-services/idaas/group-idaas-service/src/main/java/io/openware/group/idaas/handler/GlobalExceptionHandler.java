@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 
 /**
  * 将 ApiException / 参数校验异常 / 框架异常统一转换为稳定的 JSON 错误结构（{code, message}）。
@@ -59,9 +60,9 @@ public class GlobalExceptionHandler {
   }
 
   /** 请求体格式错误属于客户端错误，必须回 400 而不是 500。 */
-  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, Object>> handleUnreadable(
-      org.springframework.http.converter.HttpMessageNotReadableException ex) {
+      HttpMessageNotReadableException ex) {
     return badRequest("REQUEST_BODY_INVALID", "请求体格式错误");
   }
 

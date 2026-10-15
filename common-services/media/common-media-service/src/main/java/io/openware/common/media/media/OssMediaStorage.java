@@ -19,6 +19,7 @@ import java.util.Date;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import com.aliyun.oss.model.ObjectMetadata;
 
 @Component
 @ConditionalOnProperty(prefix = "media", name = "provider", havingValue = "oss")
@@ -41,7 +42,7 @@ public class OssMediaStorage implements MediaStoragePort {
   public void putObject(String bucket, String objectKey, String contentType, java.io.InputStream content, long size,
       java.util.Map<String, String> objectMetadata) {
     try {
-      com.aliyun.oss.model.ObjectMetadata metadata = new com.aliyun.oss.model.ObjectMetadata();
+      ObjectMetadata metadata = new ObjectMetadata();
       metadata.setContentType(contentType);
       // 图片/音视频落 inline，附件才落 attachment（见 MediaDispositions）：落反了会让「点开/预览」变成下载。
       metadata.setContentDisposition(MediaDispositions.of(contentType));
@@ -117,7 +118,7 @@ public class OssMediaStorage implements MediaStoragePort {
   public String initiateMultipartUpload(String bucket, String objectKey, String contentType) {
     try {
       InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucket, objectKey);
-      request.setObjectMetadata(new com.aliyun.oss.model.ObjectMetadata());
+      request.setObjectMetadata(new ObjectMetadata());
       request.getObjectMetadata().setContentType(contentType);
       return client().initiateMultipartUpload(request).getUploadId();
     } catch (Exception exception) { throw unavailable("媒体分片上传初始化失败", exception); }

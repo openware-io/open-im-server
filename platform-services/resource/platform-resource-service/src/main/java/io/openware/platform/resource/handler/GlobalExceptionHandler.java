@@ -18,6 +18,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 /**
  * 资源服务统一异常出口：把业务/权限/上下文异常映射为稳定 JSON（{code, message}）。
@@ -69,18 +71,18 @@ public class GlobalExceptionHandler {
     }
 
     /** 请求体/参数格式错误属于客户端错误，必须回 400 而不是 500。 */
-    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleUnreadable(
-            org.springframework.http.converter.HttpMessageNotReadableException ex) {
+            HttpMessageNotReadableException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_BODY_INVALID");
         body.put("message", "请求体格式错误");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    @ExceptionHandler(org.springframework.web.bind.MissingServletRequestParameterException.class)
+    @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<Map<String, Object>> handleMissingParam(
-            org.springframework.web.bind.MissingServletRequestParameterException ex) {
+            MissingServletRequestParameterException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("code", "REQUEST_PARAM_MISSING");
         body.put("message", "缺少请求参数: " + ex.getParameterName());

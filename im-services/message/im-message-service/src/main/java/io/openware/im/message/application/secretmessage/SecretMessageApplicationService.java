@@ -31,6 +31,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.openware.im.message.domain.message.repository.UserDeletedMessageRepository;
+import java.util.stream.Collectors;
 
 /** 私密消息应用服务：仅存储密文与元数据，服务端不解密；游标拉取供参与设备同步，定时销毁由 destroyAt 驱动。 */
 @Service
@@ -47,7 +49,7 @@ public class SecretMessageApplicationService {
   private final FeatureTogglePort featureTogglePort;
   private final SecretUnreadProjectionPort secretUnreadProjectionPort;
   private final ObjectMapper objectMapper;
-  private final io.openware.im.message.domain.message.repository.UserDeletedMessageRepository userDeletedMessageRepository;
+  private final UserDeletedMessageRepository userDeletedMessageRepository;
 
   @Transactional
   public SecretMessageResult post(long userId, PostSecretMessageCommand command) {
@@ -260,7 +262,7 @@ public class SecretMessageApplicationService {
       }
     }
     Map<Long, List<SecretMessage>> byChat = destroyed.stream()
-        .collect(java.util.stream.Collectors.groupingBy(SecretMessage::getSecretChatId));
+        .collect(Collectors.groupingBy(SecretMessage::getSecretChatId));
     byChat.forEach((chatId, messages) -> publishDestroyedEvent(chatId, messages, "destroyed"));
     log.info("Secret messages destroyed, count={}, now={}", destroyed.size(), now);
     return destroyed.size();

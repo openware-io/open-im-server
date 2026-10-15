@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.openware.im.message.domain.message.repository.UserDeletedMessageRepository;
 
 /**
  * 私密群聊消息应用服务：逐成员存密文（服务端不解密）+ 游标拉取 + 存储事件（供 access-ws 推送）
@@ -49,7 +50,7 @@ public class SecretGroupMessageApplicationService {
   private final FeatureTogglePort featureTogglePort;
   private final SecretUnreadProjectionPort secretUnreadProjectionPort;
   private final ObjectMapper objectMapper;
-  private final io.openware.im.message.domain.message.repository.UserDeletedMessageRepository userDeletedMessageRepository;
+  private final UserDeletedMessageRepository userDeletedMessageRepository;
 
   @Transactional
   public List<SecretGroupMessageResult> post(long senderId, PostSecretGroupMessageCommand command) {

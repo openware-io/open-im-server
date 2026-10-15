@@ -3,6 +3,7 @@ package io.openware.common.media.config;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -35,7 +36,7 @@ public class MediaConfigurationValidator {
     if (blank(allowedAttachmentTypes)) return true;
     java.util.Set<String> types = java.util.Arrays.stream(allowedAttachmentTypes.split(","))
         .map(String::trim).map(String::toLowerCase).filter(value -> !value.isEmpty())
-        .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        .collect(Collectors.toUnmodifiableSet());
     return types.isEmpty() || types.contains("*/*") || types.contains("text/html")
         || types.contains("image/svg+xml");
   }

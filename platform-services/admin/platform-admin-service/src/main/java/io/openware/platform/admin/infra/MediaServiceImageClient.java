@@ -15,6 +15,7 @@ import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 媒体服务（common-media-service）内部图片接口客户端：图片是平台公共能力，BFF 只做转发与契约映射，
@@ -125,7 +126,7 @@ public class MediaServiceImageClient {
 
   private String errorText(ClientHttpResponse response) {
     try {
-      return new String(response.getBody().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+      return new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8);
     } catch (Exception exception) {
       return "";
     }

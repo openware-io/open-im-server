@@ -18,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 /**
  * 通用审计客户端：调 common-audit-service 的 {@code POST /internal/audit/records}（单条）
@@ -225,7 +226,7 @@ public class AuditClient {
       if (response == null || response.isBlank()) {
         return Map.of();
       }
-      return objectMapper.readValue(response, new com.fasterxml.jackson.core.type.TypeReference<>() { });
+      return objectMapper.readValue(response, new TypeReference<>() { });
     } catch (Exception e) {
       throw new IllegalStateException("写审计失败(path=" + path + ")", e);
     }

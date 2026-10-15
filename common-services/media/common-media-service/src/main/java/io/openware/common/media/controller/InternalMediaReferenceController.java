@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
 
 @RestController
 @RequestMapping("/internal/media/references")
@@ -24,12 +25,12 @@ public class InternalMediaReferenceController {
     references.bind(request);
   }
 
-  @org.springframework.web.bind.annotation.DeleteMapping
+  @DeleteMapping
   public void unbind(@RequestBody MediaReferenceService.UnbindMediaReference request) {
     references.unbind(request);
   }
 
-  @org.springframework.web.bind.annotation.DeleteMapping("/by-business")
+  @DeleteMapping("/by-business")
   public void unbindByBusiness(@RequestBody MediaReferenceService.UnbindByBusinessRequest request) {
     references.unbindByBusiness(request.businessType(), request.businessId());
   }

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import java.util.function.Function;
 
 @Repository
 @RequiredArgsConstructor
@@ -71,7 +72,7 @@ public class DeviceTokenRepositoryAdapter implements DeviceTokenRepository {
   }
 
   private static <T> PageResult<T> toPage(Page<DeviceTokenPo> source,
-      java.util.function.Function<DeviceTokenPo, T> converter) {
+      Function<DeviceTokenPo, T> converter) {
     return PageResult.<T>builder().items(source.getRecords().stream().map(converter).toList()).total(source.getTotal())
         .page((int) source.getCurrent()).pageSize((int) source.getSize()).build();
   }

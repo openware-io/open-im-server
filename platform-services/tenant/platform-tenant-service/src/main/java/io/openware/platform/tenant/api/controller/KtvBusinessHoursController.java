@@ -16,6 +16,8 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * KTV 营业时间配置（门店级覆盖租户默认）。
@@ -38,12 +40,12 @@ public class KtvBusinessHoursController {
     private final AuditClient auditClient;
 
     public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
-                                      io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper ignored,
+                                      TenantConfigMapper ignored,
                                       AuditClient auditClient) {
         this(businessHoursService, auditClient);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
                                       AuditClient auditClient) {
         this.businessHoursService = businessHoursService;

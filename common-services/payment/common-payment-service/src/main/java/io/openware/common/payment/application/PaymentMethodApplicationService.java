@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 支付方式可用性（统一口径，B端/C端都走这里，保证场景一致）。
@@ -35,7 +36,7 @@ public class PaymentMethodApplicationService {
     private final ChannelApplicationService channelService;
     private final AuditClient auditClient;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public PaymentMethodApplicationService(TenantPaymentMethodMapper tenantPaymentMethodMapper,
                                            ChannelApplicationService channelService,
                                            AuditClient auditClient) {

@@ -16,6 +16,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import io.openware.platform.tenant.infra.persistence.row.IamRoleBindingRow;
+import io.openware.platform.tenant.infra.persistence.row.MaskingRoleRow;
 
 /**
  * IAM 权限快照提供者：按 account_id + scope 聚合 iam_user_role → iam_role → iam_permission 的权限码列表，
@@ -105,7 +107,7 @@ public class PermissionSnapshotProvider {
     }
 
     /** 脱敏权限管理：预置角色及其 member.pii.view 状态（跨租户只读）。 */
-    public List<io.openware.platform.tenant.infra.persistence.row.MaskingRoleRow> maskingRoles() {
+    public List<MaskingRoleRow> maskingRoles() {
         return mapper.selectMaskingRoles();
     }
 
@@ -114,12 +116,12 @@ public class PermissionSnapshotProvider {
         if (accountId == null) {
             return List.of();
         }
-        List<io.openware.platform.tenant.infra.persistence.row.IamRoleBindingRow> rows = mapper.selectRoleBindings(accountId);
+        List<IamRoleBindingRow> rows = mapper.selectRoleBindings(accountId);
         if (rows == null || rows.isEmpty()) {
             return List.of();
         }
         List<RoleBinding> result = new ArrayList<>();
-        for (io.openware.platform.tenant.infra.persistence.row.IamRoleBindingRow row : rows) {
+        for (IamRoleBindingRow row : rows) {
             result.add(new RoleBinding(row.getRoleId(), row.getTenantId(), row.getOrganizationId(), row.getStoreId(), row.getRoleCode(), row.getRoleName(),
                     row.getScopeType(), row.getTenantName(), row.getStoreName(), row.getStatus()));
         }

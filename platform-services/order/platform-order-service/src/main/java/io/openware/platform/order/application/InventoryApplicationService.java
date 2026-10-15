@@ -44,6 +44,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import io.openware.infrastructure.currency.Currency;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 库存应用服务：物料档案、库存余额与流水。
@@ -103,7 +105,7 @@ public class InventoryApplicationService {
     private final InventoryAvailabilityCache availabilityCache;
     private final AuditClient auditClient;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public InventoryApplicationService(InventoryMaterialMapper materialMapper,
                                        InventoryStockMapper stockMapper,
                                        InventoryTransactionMapper transactionMapper,
@@ -594,9 +596,9 @@ public class InventoryApplicationService {
                 .divide(onHand.add(quantity), COST_SCALE, RoundingMode.HALF_UP);
     }
 
-    /** 币种快照归一：空/未知一律按全仓缺省 USD（{@link io.openware.infrastructure.currency.Currency#parse}）。 */
+    /** 币种快照归一：空/未知一律按全仓缺省 USD（{@link Currency#parse}）。 */
     private static String normalizedCurrency(String raw) {
-        return io.openware.infrastructure.currency.Currency.parse(raw).code();
+        return Currency.parse(raw).code();
     }
 
     /** 成本金额定点收敛到列精度（{@link #COST_SCALE} 位，HALF_UP）。 */

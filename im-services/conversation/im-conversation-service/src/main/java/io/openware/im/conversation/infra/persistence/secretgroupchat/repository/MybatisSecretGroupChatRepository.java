@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 @Component
 @RequiredArgsConstructor
@@ -36,7 +37,7 @@ public class MybatisSecretGroupChatRepository implements SecretGroupChatReposito
       return Optional.empty();
     }
     return Optional.ofNullable(mapper.selectOne(
-        new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SecretGroupChatPo>()
+        new LambdaQueryWrapper<SecretGroupChatPo>()
             .eq(SecretGroupChatPo::getInviteToken, token))).map(this::toDomain);
   }
 

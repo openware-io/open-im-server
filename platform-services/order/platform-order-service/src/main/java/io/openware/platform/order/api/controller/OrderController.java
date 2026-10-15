@@ -32,6 +32,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import org.springframework.dao.DuplicateKeyException;
 
 @RestController
 @RequestMapping("/business")
@@ -355,7 +356,7 @@ public class OrderController {
         po.setUpdatedAt(LocalDateTime.now());
         try {
             orderMapper.insert(po);
-        } catch (org.springframework.dao.DuplicateKeyException duplicate) {
+        } catch (DuplicateKeyException duplicate) {
             // 并发重复提交：唯一键把第二个请求挡下，回放先写入的那张单（与预约创建同款处理）。
             OrderPo winner = findByIdempotencyKey(tenantId, idempotencyKey);
             if (winner == null) {

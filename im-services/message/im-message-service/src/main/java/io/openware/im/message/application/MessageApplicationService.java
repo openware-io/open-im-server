@@ -69,6 +69,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import io.openware.im.message.domain.message.port.HotMessageProjectionPort;
+import io.openware.im.message.domain.message.repository.UserConversationClearRepository;
+import java.util.stream.Stream;
 
 @Service
 @Slf4j
@@ -93,8 +96,8 @@ public class MessageApplicationService {
   private final AdminMessageTotalCountPort adminMessageTotalCountCache;
   private final MessageFavoriteRepository favoriteRepository;
   private final UserDeletedMessageRepository userDeletedMessageRepository;
-  private final io.openware.im.message.domain.message.repository.UserConversationClearRepository userConversationClearRepository;
-  private final io.openware.im.message.domain.message.port.HotMessageProjectionPort hotMessageProjectionPort;
+  private final UserConversationClearRepository userConversationClearRepository;
+  private final HotMessageProjectionPort hotMessageProjectionPort;
 
   @Transactional
   public Message store(StoreMessageCommand command) {
@@ -145,7 +148,7 @@ public class MessageApplicationService {
     List<ConversationUnreadResult> secret = secretUnreadProjectionPort.countByConversationForUser(userId,
         featureTogglePort.isSecretChatEnabled(), featureTogglePort.isSecretGroupChatEnabled()).stream()
         .map(item -> new ConversationUnreadResult(item.conversationId(), item.count())).toList();
-    return java.util.stream.Stream.concat(ordinary.stream(), secret.stream()).toList();
+    return Stream.concat(ordinary.stream(), secret.stream()).toList();
   }
 
   /**
@@ -549,7 +552,7 @@ public class MessageApplicationService {
         && !channelMembershipPort.isSubscribed(channelId, userId)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Not subscribed to channel");
     }
-    String conversationId = io.openware.protocol.mq.support.ConversationIds.channelConversation(channelId);
+    String conversationId = ConversationIds.channelConversation(channelId);
     return messageRepository.findChannelMessages(conversationId, afterSeq, limit).stream()
         .map(message -> toResult(message, userId)).toList();
   }

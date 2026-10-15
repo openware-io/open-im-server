@@ -42,6 +42,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.nio.charset.StandardCharsets;
 
 /**
  * 开放平台（OAuth 2.0 Provider）应用编排服务：
@@ -553,7 +554,7 @@ public class OpenPlatformApplicationService {
   private String pairwiseSubject(String appId, long userId) {
     try {
       byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
-          .digest((appId + ":" + userId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+          .digest((appId + ":" + userId).getBytes(StandardCharsets.UTF_8));
       return "sub_" + java.util.HexFormat.of().formatHex(digest);
     } catch (java.security.NoSuchAlgorithmException ex) {
       throw new IllegalStateException("SHA-256 unavailable", ex);

@@ -15,6 +15,7 @@ import java.util.Date;
 import java.util.List;
 import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
+import io.openware.infrastructure.tenant.TenantContext;
 
 /** Issues the same short-lived, audience-bound tenant context token as identity service. */
 @Component
@@ -100,7 +101,7 @@ public class AdminTenantContextTokenSigner {
         .claim("tenantId", 0L)
         .claim("authorizationVersion", 0)
         .claim("permissions", List.of())
-        .claim("scopeType", io.openware.infrastructure.tenant.TenantContext.SCOPE_PLATFORM)
+        .claim("scopeType", TenantContext.SCOPE_PLATFORM)
         .claim("currency", Currency.DEFAULT.code())
         .issuedAt(now).expiration(Date.from(now.toInstant().plusMillis(effectiveTtlMillis)))
         .signWith(secretKey).compact();
@@ -116,7 +117,7 @@ public class AdminTenantContextTokenSigner {
    * @return 解析出的租户上下文
    * @throws ApiException 401 + {@code SAAS_CONTEXT_INVALID}：Token 过期、签名/受众不符或结构损坏
    */
-  public io.openware.infrastructure.tenant.TenantContext verify(String token) {
+  public TenantContext verify(String token) {
     Claims claims = parseContextClaims(token);
     Number tenant = claims.get("tenantId", Number.class);
     Long accountId = parseAccountId(claims.getSubject());
@@ -125,7 +126,7 @@ public class AdminTenantContextTokenSigner {
     }
     Number organization = claims.get("organizationId", Number.class);
     Number store = claims.get("storeId", Number.class);
-    return new io.openware.infrastructure.tenant.TenantContext(tenant.longValue(),
+    return new TenantContext(tenant.longValue(),
         organization == null ? null : organization.longValue(), store == null ? null : store.longValue(),
         accountId, claims.get("authorizationVersion", Integer.class),
         claims.get("permissions", List.class) == null ? List.of() : claims.get("permissions", List.class),

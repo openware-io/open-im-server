@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /** 收银班次 + 日结（现金对账）。 */
 @Service
@@ -46,7 +47,7 @@ public class CashierApplicationService {
     private final AuditClient auditClient;
     private final PaymentRuleApplicationService paymentRuleService;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
                                      PayIntentMapper payIntentMapper, RefundMapper refundMapper,
                                      PayCollectMapper payCollectMapper, AuditClient auditClient,

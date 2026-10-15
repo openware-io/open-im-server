@@ -28,6 +28,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
+import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
+import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * KTV 会话状态机（RESERVED→OPEN→PAUSED(可选)→CLOSED）。
@@ -49,7 +54,7 @@ public class KtvSessionApplicationService {
     /** 静态快照解析器：账单等只读路径也要从同一份快照复算金额（见 {@link #planFromSnapshot}）。 */
     private static final ObjectMapper SNAPSHOT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public KtvSessionApplicationService(KtvSessionMapper sessionMapper,
                                         OrderMapper orderMapper,
                                         OrderItemMapper orderItemMapper,
@@ -884,7 +889,7 @@ public class KtvSessionApplicationService {
         query.in("order_id", orderIds);
         return sessionMapper.selectList(query)
                 .stream()
-                .collect(java.util.stream.Collectors.toMap(KtvSessionPo::getOrderId, session -> session,
+                .collect(Collectors.toMap(KtvSessionPo::getOrderId, session -> session,
                         KtvSessionApplicationService::currentSessionOf));
     }
 
@@ -1015,11 +1020,11 @@ public class KtvSessionApplicationService {
             // 枚举与递增粒度用 fromCode / 默认值解析：历史快照（V16 之前没有 incrementMinutes/roundingDirection，
             // 也没有房型字段）也能结台，不会因缺字段直接 500。
             KtvPricingPlan restored = new KtvPricingPlan(
-                    io.openware.platform.order.domain.ktv.model.KtvBillingUnit.fromCode(node.path("billingUnit").asText(null)),
+                    KtvBillingUnit.fromCode(node.path("billingUnit").asText(null)),
                     node.path("roomUnitPrice").asLong(), node.path("defaultSessionMinutes").asInt(),
                     node.path("freeWaitMinutes").asInt(), new BigDecimal(node.path("overtimeRate").asText("1.0")),
                     node.path("incrementMinutes").asInt(30),
-                    io.openware.platform.order.domain.ktv.model.KtvRoundingDirection.fromCode(node.path("roundingDirection").asText(null)),
+                    KtvRoundingDirection.fromCode(node.path("roundingDirection").asText(null)),
                     node.path("serverPricePerInc").asLong(),
                     unitPriceByRoomType(node.path("unitPriceByRoomType")),
                     textOrNull(node, "roomTypeCode"), textOrNull(node, "roomTypeName"),
@@ -1040,7 +1045,7 @@ public class KtvSessionApplicationService {
     }
 
     /** 房型单价映射还原：键为房型编码，值为每计费单位单价（非正数忽略）。 */
-    private static java.util.Map<String, Long> unitPriceByRoomType(com.fasterxml.jackson.databind.JsonNode node) {
+    private static java.util.Map<String, Long> unitPriceByRoomType(JsonNode node) {
         if (node == null || !node.isObject() || node.isEmpty()) {
             return java.util.Map.of();
         }
@@ -1055,7 +1060,7 @@ public class KtvSessionApplicationService {
     }
 
     /** 取字符串字段：字段缺失或 JSON null 都返回 null（Jackson 的 NullNode.asText() 会给出字面量 "null"）。 */
-    private static String textOrNull(com.fasterxml.jackson.databind.JsonNode node, String field) {
+    private static String textOrNull(JsonNode node, String field) {
         var value = node.path(field);
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }

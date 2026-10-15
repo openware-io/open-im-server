@@ -24,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 服务人员点单（状态机 ORDERED → SERVING → ENDED / CANCELLED，KTV_BUSINESS_01 §5）。
@@ -65,7 +66,7 @@ public class KtvServerSessionApplicationService {
                 resourceStateClient, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public KtvServerSessionApplicationService(KtvServerSessionMapper serverSessionMapper,
                                               OrderMapper orderMapper,
                                               KtvPricingPlanProvider pricingPlanProvider,

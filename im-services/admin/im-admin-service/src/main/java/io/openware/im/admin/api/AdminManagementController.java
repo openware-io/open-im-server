@@ -31,6 +31,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import io.openware.common.enums.ReportStatus;
+import io.openware.common.enums.ViolationAction;
+import io.openware.common.exception.ApiException;
+import io.openware.common.http.HttpStatusCodes;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestController
 @RequiredArgsConstructor
@@ -114,8 +120,8 @@ public class AdminManagementController {
     if (keyword != null && !keyword.isBlank()) {
       return service.searchPublishedItems(keyword.trim()).stream().map(this::publicItem).toList();
     }
-    Map<Long, MiniappServiceType> typesById = service.types().stream().collect(java.util.stream.Collectors.toMap(MiniappServiceType::id, t -> t, (a, b) -> a, java.util.LinkedHashMap::new));
-    Map<Long, List<MiniappServiceItem>> byType = service.publishedConsumerItems().stream().filter(item -> !item.hiddenFlag()).collect(java.util.stream.Collectors.groupingBy(MiniappServiceItem::typeId));
+    Map<Long, MiniappServiceType> typesById = service.types().stream().collect(Collectors.toMap(MiniappServiceType::id, t -> t, (a, b) -> a, java.util.LinkedHashMap::new));
+    Map<Long, List<MiniappServiceItem>> byType = service.publishedConsumerItems().stream().filter(item -> !item.hiddenFlag()).collect(Collectors.groupingBy(MiniappServiceItem::typeId));
     List<Map<String,Object>> result = new java.util.ArrayList<>();
     for (MiniappServiceType type : typesById.values()) {
       if (Boolean.TRUE.equals(type.hidden())) continue;
@@ -160,13 +166,13 @@ public class AdminManagementController {
     return PageResult.<AdminManagementDtos.ViolationResponse>builder().items(value.getItems().stream().map(item -> violation(item, profiles)).toList()).total(value.getTotal()).page(value.getPage()).pageSize(value.getPageSize()).updatedAt(value.getUpdatedAt()).build(); }
   private PageResult<AdminManagementDtos.ReportResponse> reports(PageResult<Report> value) {
     Map<Long, UserProfileSummary> profiles = adminReadClient.listProfileSummaries(value.getItems().stream()
-        .flatMap(item -> java.util.stream.Stream.of(item.reporterId(), item.targetId(), item.handledBy()))
+        .flatMap(item -> Stream.of(item.reporterId(), item.targetId(), item.handledBy()))
         .filter(java.util.Objects::nonNull).distinct().toList());
     return PageResult.<AdminManagementDtos.ReportResponse>builder().items(value.getItems().stream().map(item -> report(item, profiles)).toList()).total(value.getTotal()).page(value.getPage()).pageSize(value.getPageSize()).updatedAt(value.getUpdatedAt()).build(); }
   private PageResult<AdminManagementDtos.SensitiveWordResponse> words(PageResult<SensitiveWord> value) { return PageResult.<AdminManagementDtos.SensitiveWordResponse>builder().items(value.getItems().stream().map(this::word).toList()).total(value.getTotal()).page(value.getPage()).pageSize(value.getPageSize()).updatedAt(value.getUpdatedAt()).build(); }
   private PageResult<AdminManagementDtos.ItemResponse> items(PageResult<MiniappServiceItem> value) { return PageResult.<AdminManagementDtos.ItemResponse>builder().items(value.getItems().stream().map(this::item).toList()).total(value.getTotal()).page(value.getPage()).pageSize(value.getPageSize()).updatedAt(value.getUpdatedAt()).build(); }
-  private io.openware.common.enums.ViolationAction violationAction(String value) { if (value == null || value.isBlank()) return null; try { return io.openware.common.enums.ViolationAction.fromValue(value); } catch (IllegalArgumentException exception) { throw new io.openware.common.exception.ApiException(io.openware.common.http.HttpStatusCodes.BAD_REQUEST,"Invalid violation action"); } }
-  private io.openware.common.enums.ReportStatus reportStatus(String value) { if (value == null || value.isBlank()) return null; try { return io.openware.common.enums.ReportStatus.fromValue(value); } catch (IllegalArgumentException exception) { throw new io.openware.common.exception.ApiException(io.openware.common.http.HttpStatusCodes.BAD_REQUEST,"Invalid report status"); } }
+  private ViolationAction violationAction(String value) { if (value == null || value.isBlank()) return null; try { return ViolationAction.fromValue(value); } catch (IllegalArgumentException exception) { throw new ApiException(HttpStatusCodes.BAD_REQUEST,"Invalid violation action"); } }
+  private ReportStatus reportStatus(String value) { if (value == null || value.isBlank()) return null; try { return ReportStatus.fromValue(value); } catch (IllegalArgumentException exception) { throw new ApiException(HttpStatusCodes.BAD_REQUEST,"Invalid report status"); } }
   public record ConfigBatchRequest(@NotNull @Valid List<AdminManagementDtos.ConfigRequest> configs) {}
   public record ViolationListRequest(Long targetId,String action,Integer page,Integer pageSize) {}
   public record ReportListRequest(String status,Integer page,Integer pageSize) {}

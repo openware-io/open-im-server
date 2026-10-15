@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 @RestController
 @RequestMapping("/internal/conversation/authorizations")
@@ -28,15 +30,15 @@ public class GroupMessageAuthorizationController {
   }
 
   /** 仅成员校验（忽略群状态），供聊天记录等只读路径使用。 */
-  @org.springframework.web.bind.annotation.GetMapping("/{conversationId}/members/{userId}")
+  @GetMapping("/{conversationId}/members/{userId}")
   public java.util.Map<String, Object> isMember(
-      @org.springframework.web.bind.annotation.PathVariable long conversationId,
-      @org.springframework.web.bind.annotation.PathVariable long userId) {
+      @PathVariable long conversationId,
+      @PathVariable long userId) {
     return java.util.Map.of("member", authorizationQueryService.isMember(conversationId, userId));
   }
 
-  @org.springframework.web.bind.annotation.GetMapping("/{conversationId}/member-ids")
-  public ConversationMemberIdsResponse memberIds(@org.springframework.web.bind.annotation.PathVariable long conversationId) {
+  @GetMapping("/{conversationId}/member-ids")
+  public ConversationMemberIdsResponse memberIds(@PathVariable long conversationId) {
     return authorizationQueryService.memberIds(conversationId);
   }
 }

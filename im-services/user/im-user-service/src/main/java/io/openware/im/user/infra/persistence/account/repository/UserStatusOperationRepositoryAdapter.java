@@ -8,6 +8,7 @@ import io.openware.im.user.infra.persistence.account.po.UserStatusOperationPo;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 @Repository
 @RequiredArgsConstructor
@@ -16,7 +17,7 @@ public class UserStatusOperationRepositoryAdapter implements UserStatusOperation
 
   @Override
   public Optional<UserStatusOperation> findByIdempotencyKey(String idempotencyKey) {
-    return Optional.ofNullable(mapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserStatusOperationPo>()
+    return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<UserStatusOperationPo>()
         .eq(UserStatusOperationPo::getIdempotencyKey, idempotencyKey)))
         .map(value -> new UserStatusOperation(value.getRequestVersion(), value.getUserId(),
             UserAccountStatus.valueOf(value.getPreviousStatus().toUpperCase()),

@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import javax.imageio.ImageIO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import java.nio.file.StandardCopyOption;
 
 @Component
 @RequiredArgsConstructor
@@ -46,7 +47,7 @@ public class MediaContentValidator {
     Path temporaryFile = null;
     try (InputStream content = storage.open(object.getBucketName(), object.getObjectKey())) {
       temporaryFile = Files.createTempFile("media-probe-", "." + extension(object.getContentType()));
-      Files.copy(content, temporaryFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      Files.copy(content, temporaryFile, StandardCopyOption.REPLACE_EXISTING);
       Process process = new ProcessBuilder(properties.ffprobePath(), "-v", "error", "-show_entries",
           "format=duration:stream=codec_type,codec_name,width,height", "-of", "default=noprint_wrappers=1",
           temporaryFile.toString()).redirectErrorStream(true).start();

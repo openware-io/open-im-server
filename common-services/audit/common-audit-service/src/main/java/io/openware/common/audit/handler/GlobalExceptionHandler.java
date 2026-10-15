@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.BindException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * 审计服务统一异常出口：把业务异常与框架异常映射为稳定 JSON（{code, message}）。
@@ -58,23 +61,23 @@ public class GlobalExceptionHandler {
   }
 
   /** 路径/查询参数类型不匹配（如 {id} 传了非数字）属于客户端错误，必须回 400。 */
-  @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   public ResponseEntity<Map<String, Object>> handleTypeMismatch(
-      org.springframework.web.method.annotation.MethodArgumentTypeMismatchException exception) {
+      MethodArgumentTypeMismatchException exception) {
     return badRequest("INVALID_ARGUMENT", "参数类型不合法: " + exception.getName());
   }
 
   /** 参数绑定失败（缺参/格式错误）统一收敛为 400，不能被兜底吞成 500。 */
-  @ExceptionHandler(org.springframework.validation.BindException.class)
+  @ExceptionHandler(BindException.class)
   public ResponseEntity<Map<String, Object>> handleBind(
-      org.springframework.validation.BindException exception) {
+      BindException exception) {
     return badRequest("INVALID_ARGUMENT", "请求参数不合法");
   }
 
   /** 请求体格式错误属于客户端错误，必须回 400 而不是 500。 */
-  @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+  @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<Map<String, Object>> handleUnreadable(
-      org.springframework.http.converter.HttpMessageNotReadableException exception) {
+      HttpMessageNotReadableException exception) {
     return badRequest("REQUEST_BODY_INVALID", "请求体格式错误");
   }
 

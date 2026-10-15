@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 线上支付渠道配置（支付宝/微信/Stripe，默认关）。
@@ -24,7 +25,7 @@ public class ChannelApplicationService {
     private final ChannelConfigMapper channelConfigMapper;
     private final AuditClient auditClient;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public ChannelApplicationService(ChannelConfigMapper channelConfigMapper, AuditClient auditClient) {
         this.channelConfigMapper = channelConfigMapper;
         this.auditClient = auditClient;

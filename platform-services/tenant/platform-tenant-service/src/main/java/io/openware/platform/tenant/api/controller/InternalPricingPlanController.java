@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import org.springframework.transaction.annotation.Transactional;
 
 /** 计价方案内部端点；作用域为租户默认、业态默认、门店覆盖。 */
 @RestController
@@ -116,7 +117,7 @@ public class InternalPricingPlanController {
     }
 
     @PostMapping("/batch")
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public BatchPricingView createBatch(@RequestBody BatchPricingRequest req) {
         if (req == null || req.plan() == null || req.storeIds() == null || req.storeIds().isEmpty()) {
             throw new ApiException(400, "PRICING_BATCH_INVALID", "storeIds 和 plan 不能为空");

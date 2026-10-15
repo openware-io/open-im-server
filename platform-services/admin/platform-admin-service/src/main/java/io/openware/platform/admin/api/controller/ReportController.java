@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * 报表只读聚合（SAAS_PLATFORM_02 §9 ADM-15 / SAAS_PLATFORM_07 E6 / D-13）。
@@ -665,8 +666,8 @@ public class ReportController {
      * 兜住 null —— 历史实现在这里用 {@code Comparator.comparing(Row::currencyCode)}，
      * 两行同 (门店, 桶) 不同币种时直接 NPE（见 {@link #payments} 的说明）。
      */
-    private static <T> void sortByBucket(List<T> rows, java.util.function.Function<T, TimeBucket> bucket,
-            java.util.function.Function<T, Long> storeId, java.util.function.Function<T, String> currency) {
+    private static <T> void sortByBucket(List<T> rows, Function<T, TimeBucket> bucket,
+            Function<T, Long> storeId, Function<T, String> currency) {
         rows.sort(Comparator.comparing(bucket)
                 .thenComparing(row -> {
                     Long id = storeId.apply(row);
