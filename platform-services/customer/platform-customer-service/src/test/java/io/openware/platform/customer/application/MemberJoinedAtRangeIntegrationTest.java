@@ -3,17 +3,13 @@ package io.openware.platform.customer.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.customer.infra.persistence.mapper.MemberMapper;
-import io.openware.platform.customer.infra.persistence.mapper.MemberNameTokenMapper;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
+import io.openware.platform.customer.domain.member.repository.MemberNameTokenRepository;
+import io.openware.platform.customer.domain.member.repository.MemberRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -34,10 +30,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  *   <li>闭区间两端都命中（{@code from} 当天 00:00:00 与 {@code to} 当天 23:59:59.999 都在结果里），
  *       区间外一条都不多；</li>
  *   <li>只有 {@code from} / 只有 {@code to} 各自只约束一端；</li>
- *   <li><b>分页 total 与过滤口径一致</b>：翻页时 total 恒等于命中数，不随页码/页大小漂移
- *       （这是本仓刚修过的坑）；</li>
+ *   <li><b>分页 total 与过滤口径一致</b>：翻页时 total 恒等于命中数，不随页码/页大小漂移；</li>
  *   <li>积分列表复用同一份 {@code joined_at} 过滤（不是第二套实现）。</li>
  * </ul>
+ *
+ * <p>建档时间的摆数据与清库都走领域端口（{@code MemberRepository#updateAttributes}），
+ * 不再直接摸 Mapper。
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -52,20 +50,20 @@ class MemberJoinedAtRangeIntegrationTest {
     private MemberApplicationService memberService;
 
     @Autowired
-    private MemberMapper memberMapper;
+    private MemberRepository memberRepository;
 
     @Autowired
-    private MemberNameTokenMapper nameTokenMapper;
+    private MemberNameTokenRepository nameTokenRepository;
 
     @BeforeEach
-    void setUpTenantAndCleanData() {
+    void setUpTenant() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, 2001L, 0L, 0, List.of("member.pii.view")));
-        nameTokenMapper.delete(new QueryWrapper<>());
-        memberMapper.delete(new QueryWrapper<>());
+        clean();
     }
 
     @AfterEach
     void tearDownTenant() {
+        clean();
         TenantContextHolder.clear();
     }
 
@@ -79,9 +77,9 @@ class MemberJoinedAtRangeIntegrationTest {
 
         // 直接走统一解析：日期形态 from/to 各自收口到当天零点 / 当天末尾
         TimeRange range = TimeRangeParams.parse("2026-09-01", "2026-09-30");
-        Page<CstMemberPo> page = memberService.list(1, 50, null, null, null, range);
+        var page = memberService.list(1, 50, null, null, null, range);
 
-        List<Long> ids = page.getRecords().stream().map(CstMemberPo::getId).toList();
+        List<Long> ids = rawIds(page);
         assertEquals(3, ids.size(), "闭区间应命中 3 条，实际: " + ids);
         assertTrue(ids.containsAll(List.of(startEdge, middle, endEdge)), "闭区间两端都必须命中: " + ids);
         assertTrue(!ids.contains(before) && !ids.contains(after), "区间外一条都不能带出来: " + ids);
@@ -95,11 +93,10 @@ class MemberJoinedAtRangeIntegrationTest {
         Long edge = createAt("起点", "13700000012", LocalDateTime.of(2026, 9, 1, 0, 0, 0));
         Long later = createAt("更晚", "13700000013", LocalDateTime.of(2026, 12, 31, 23, 0, 0));
 
-        Page<CstMemberPo> page = memberService.list(1, 50, null, null, null,
-                TimeRangeParams.parse("2026-09-01", null));
+        var page = memberService.list(1, 50, null, null, null, TimeRangeParams.parse("2026-09-01", null));
 
         assertEquals(2L, page.getTotal());
-        assertTrue(page.getRecords().stream().map(CstMemberPo::getId).toList().containsAll(List.of(edge, later)));
+        assertTrue(rawIds(page).containsAll(List.of(edge, later)));
     }
 
     @Test
@@ -108,11 +105,10 @@ class MemberJoinedAtRangeIntegrationTest {
         Long edge = createAt("终点末尾", "13700000022", LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000));
         createAt("区间后", "13700000023", LocalDateTime.of(2026, 10, 1, 0, 0, 0));
 
-        Page<CstMemberPo> page = memberService.list(1, 50, null, null, null,
-                TimeRangeParams.parse(null, "2026-09-30"));
+        var page = memberService.list(1, 50, null, null, null, TimeRangeParams.parse(null, "2026-09-30"));
 
         assertEquals(2L, page.getTotal());
-        assertTrue(page.getRecords().stream().map(CstMemberPo::getId).toList().containsAll(List.of(early, edge)));
+        assertTrue(rawIds(page).containsAll(List.of(early, edge)));
     }
 
     @Test
@@ -124,9 +120,9 @@ class MemberJoinedAtRangeIntegrationTest {
 
         TimeRange range = TimeRangeParams.parse("2026-09-01", "2026-09-05");
 
-        Page<CstMemberPo> first = memberService.list(1, 2, null, null, null, range);
-        Page<CstMemberPo> second = memberService.list(2, 2, null, null, null, range);
-        Page<CstMemberPo> third = memberService.list(3, 2, null, null, null, range);
+        var first = memberService.list(1, 2, null, null, null, range);
+        var second = memberService.list(2, 2, null, null, null, range);
+        var third = memberService.list(3, 2, null, null, null, range);
 
         // total = 命中数（5），与页大小/页码无关；每页只返回该页条数
         assertEquals(5L, first.getTotal());
@@ -139,7 +135,7 @@ class MemberJoinedAtRangeIntegrationTest {
 
     /**
      * 积分列表与客户列表、储值列表共用同一份 {@code joined_at} 过滤实现
-     * （{@code MemberApplicationService#applyJoinedAtRange}）。
+     * （服务层的 {@code filter(...)} → 端口条件）。
      *
      * <p>这里**不**单独跑积分列表的 SQL：本模块的 H2 测试库只建了 {@code cst_member} 系列表，
      * {@code cst_point_account} 不在其中，强行断言会得到「表不存在」而不是真实结论。
@@ -151,23 +147,38 @@ class MemberJoinedAtRangeIntegrationTest {
         createAt("A", "13700000051", LocalDateTime.of(2026, 1, 1, 0, 0, 0));
         createAt("B", "13700000052", LocalDateTime.of(2026, 6, 1, 0, 0, 0));
 
-        Page<CstMemberPo> page = memberService.list(1, 50, null, null, null, TimeRangeParams.parse(null, null));
+        var page = memberService.list(1, 50, null, null, null, TimeRangeParams.parse(null, null));
 
         assertEquals(2L, page.getTotal());
     }
 
+    // ------------------------------------------------------------ helpers
+
+    /** 清掉本租户的客户档案与盲索引（租户拦截器会补 tenant_id 条件）。 */
+    private void clean() {
+        for (Long memberId : allMemberIds()) {
+            nameTokenRepository.deleteByMember(memberId);
+            memberRepository.deleteById(memberId);
+        }
+    }
+
+    private List<Long> allMemberIds() {
+        return memberService.list(1, 500, null, null, null, TimeRange.none()).getRecords().stream()
+                .map(display -> display.member().id()).toList();
+    }
+
     /**
-     * 建档即写 token，且 {@code create} 只会写 {@code now()}：区间用例需要可控的建档时间，
-     * 因此建档后直接在库里改写 {@code joined_at}。
-     *
-     * <p>用 {@link LambdaUpdateWrapper} 而不是 {@code updateById(PO)}：后者会带上实体里的
-     * 乐观锁/非空字段语义，而这里只想改一列。
+     * 建档（建档时间经端口改写）：{@code create} 只会写 {@code now()}，
+     * 区间用例需要可控的建档时间。
      */
     private Long createAt(String name, String phone, LocalDateTime joinedAt) {
-        CstMemberPo created = memberService.create(null, name, phone, false, null, null);
-        memberMapper.update(null, new LambdaUpdateWrapper<CstMemberPo>()
-                .eq(CstMemberPo::getId, created.getId())
-                .set(CstMemberPo::getJoinedAt, joinedAt));
-        return created.getId();
+        MemberDisplay created = memberService.create(null, name, phone, false, null, null);
+        memberRepository.updateAttributes(created.member().id(), joinedAt, null, null, null);
+        return created.member().id();
+    }
+
+    private static List<Long> rawIds(
+            com.baomidou.mybatisplus.extension.plugins.pagination.Page<MemberDisplay> page) {
+        return page.getRecords().stream().map(display -> display.member().id()).toList();
     }
 }

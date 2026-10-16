@@ -7,11 +7,11 @@ import io.openware.platform.customer.api.dto.MemberPointsView;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
+import io.openware.platform.customer.application.MemberDisplay;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -43,10 +43,11 @@ public class MyAssetsController {
 
   @GetMapping("/wallet")
   public WalletAccountView wallet() {
-    CstMemberPo member = currentMember();
+    MemberDisplay member = currentMember();
     // 币种不再硬编码 CNY：取当时租户币种（缺省 USD，16_CURRENCY_CONVENTIONS §1/§2）。
     // 储值账户懒初始化：没有账户即余额 0（零额只读视图），不因为访问资产页就落库建账户。
-    return walletTokenDisplayService.decorate(WalletAccountView.from(walletService.balance(member.getId())));
+    return walletTokenDisplayService.decorate(
+        WalletAccountView.from(walletService.balance(member.member().id())));
   }
 
   @GetMapping("/wallet/ledger")
@@ -54,24 +55,30 @@ public class MyAssetsController {
                                            @RequestParam(defaultValue = "20") long pageSize) {
     TenantContext context = TenantContextHolder.get();
     LedgerPage ledger = context == null || context.storeId() == null
-        ? walletService.ledger(currentMember().getId(), page, pageSize)
-        : walletService.ledger(currentMember().getId(), context.storeId(), page, pageSize);
+        ? walletService.ledger(currentMember().member().id(), page, pageSize)
+        : walletService.ledger(currentMember().member().id(), context.storeId(), page, pageSize);
     return walletTokenDisplayService.decorate(ledger, page, pageSize);
   }
 
   @GetMapping("/points")
   public MemberPointsView points(@RequestParam(defaultValue = "1") long page,
                                  @RequestParam(defaultValue = "20") long pageSize) {
-    CstMemberPo member = currentMember();
-    pointService.ensureAccount(member.getId());
+    MemberDisplay member = currentMember();
+    pointService.ensureAccount(member.member().id());
     TenantContext context = TenantContextHolder.get();
     PointApplicationService.MemberPointsData data = context == null || context.storeId() == null
-        ? pointService.view(member.getId(), page, pageSize)
-        : pointService.view(member.getId(), context.storeId(), page, pageSize);
+        ? pointService.view(member.member().id(), page, pageSize)
+        : pointService.view(member.member().id(), context.storeId(), page, pageSize);
     return MemberPointsView.from(data.account(), data.ledger(), data.page(), data.pageSize());
   }
 
-  private CstMemberPo currentMember() {
+  /**
+   * 当前会话账号对应的客户档案（领域档案 + 展示值）。
+   *
+   * <p>三个端点共用它，因此返回类型一次性定下来：{@code MemberDisplay} 而不是任何持久化对象
+   * ——控制器不再依赖 {@code infra.persistence.po}（见 §分层门禁 service-api-boundaries）。
+   */
+  private MemberDisplay currentMember() {
     TenantContext context = TenantContextHolder.get();
     if (context == null || context.tenantId() <= 0) {
       throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");

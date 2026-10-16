@@ -1,6 +1,7 @@
 package io.openware.platform.customer.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.point.model.PointAccount;
 import io.openware.platform.customer.domain.point.model.PointLedgerEntry;
 import io.openware.platform.customer.domain.point.repository.PointAccountRepository;
@@ -9,7 +10,9 @@ import io.openware.platform.customer.infra.persistence.mapper.PointLedgerMapper;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointLedgerPo;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
@@ -125,6 +128,62 @@ public class PointAccountRepositoryAdapter implements PointAccountRepository {
     return ledgerMapper.selectCount(Wrappers.<CstPointLedgerPo>lambdaQuery()
         .eq(CstPointLedgerPo::getAccountId, accountId)
         .eq(storeId != null, CstPointLedgerPo::getStoreId, storeId));
+  }
+
+  @Override
+  public List<PointAccount> listAll() {
+    return accountMapper.selectList(Wrappers.lambdaQuery()).stream()
+        .map(PointAccountRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
+  public Map<Long, PointAccount> findByCustomers(List<Long> customerIds) {
+    if (customerIds == null || customerIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<Long, PointAccount> result = new LinkedHashMap<>();
+    for (CstPointAccountPo po : accountMapper.selectList(Wrappers.<CstPointAccountPo>lambdaQuery()
+        .in(CstPointAccountPo::getCustomerId, customerIds))) {
+      result.putIfAbsent(po.getCustomerId(), toDomain(po));
+    }
+    return result;
+  }
+
+  /** 期间净变动：{@code points} 自带正负（不按 entryType 判方向），SQL 只按 {@code occurred_at} 与门店过滤。 */
+  @Override
+  public long deltaForPeriodByStores(LocalDateTime from, LocalDateTime to, List<Long> stores) {
+    boolean filterStores = stores != null && !stores.isEmpty();
+    long delta = 0L;
+    for (CstPointLedgerPo po : ledgerMapper.selectList(Wrappers.<CstPointLedgerPo>lambdaQuery()
+        .ge(from != null, CstPointLedgerPo::getOccurredAt, from)
+        .le(to != null, CstPointLedgerPo::getOccurredAt, to)
+        .in(filterStores, CstPointLedgerPo::getStoreId, stores))) {
+      delta += po.getPoints() == null ? 0L : po.getPoints();
+    }
+    return delta;
+  }
+
+  @Override
+  public AccountPurgeCount purgeAccountsFor(Long customerId) {
+    if (customerId == null) {
+      return AccountPurgeCount.none();
+    }
+    List<CstPointAccountPo> accounts = accountMapper.selectList(Wrappers.<CstPointAccountPo>lambdaQuery()
+        .eq(CstPointAccountPo::getCustomerId, customerId));
+    int ledgers = 0;
+    for (CstPointAccountPo account : accounts) {
+      // 只对零额账户删流水——这是原实现的行为，逐字段核对后原样保留：
+      // 非零账户的流水不会被这条路径删掉，账面事实不会因为清理垃圾档案而被抹掉。
+      boolean empty = (account.getAvailablePoints() == null ? 0L : account.getAvailablePoints()) == 0L
+          && (account.getFrozenPoints() == null ? 0L : account.getFrozenPoints()) == 0L;
+      if (empty) {
+        ledgers += ledgerMapper.delete(Wrappers.<CstPointLedgerPo>lambdaQuery()
+            .eq(CstPointLedgerPo::getAccountId, account.getId()));
+      }
+    }
+    int deleted = accountMapper.delete(Wrappers.<CstPointAccountPo>lambdaQuery()
+        .eq(CstPointAccountPo::getCustomerId, customerId));
+    return new AccountPurgeCount(deleted, ledgers);
   }
 
   private static PointAccount toDomain(CstPointAccountPo po) {

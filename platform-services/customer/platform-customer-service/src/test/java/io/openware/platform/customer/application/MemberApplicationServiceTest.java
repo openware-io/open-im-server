@@ -8,7 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -21,12 +22,16 @@ import io.openware.common.util.SnowflakeIdGenerator;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.customer.infra.persistence.mapper.MemberMapper;
-import io.openware.platform.customer.infra.persistence.mapper.MemberNameTokenMapper;
-import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
-import io.openware.platform.customer.infra.persistence.po.CstMemberNameTokenPo;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
+import io.openware.platform.customer.domain.member.model.Member;
+import io.openware.platform.customer.domain.member.model.MemberNameToken;
+import io.openware.platform.customer.domain.member.repository.MemberImBindingRepository;
+import io.openware.platform.customer.domain.member.repository.MemberNameTokenRepository;
+import io.openware.platform.customer.domain.member.repository.MemberRepository;
+import io.openware.platform.customer.domain.point.repository.PointAccountRepository;
+import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,17 +42,25 @@ import org.springframework.dao.DuplicateKeyException;
  *
  * <p>建档失败（唯一键冲突/加密失败）必须落 FAILURE，且详情只保留账号 ID —— 姓名/手机号（明文或密文）
  * 绝不进审计；accountId/IM 命中既有客户时是**幂等返回**，不新建、不报 500、也不留「创建成功」的假痕迹。
+ *
+ * <p><b>本类只驱动领域端口</b>（{@code MemberRepository} / {@code MemberNameTokenRepository} /
+ * {@code MemberImBindingRepository} / {@code PointAccountRepository}）。原先它 mock 的是
+ * {@code MemberMapper} / {@code MemberNameTokenMapper}，于是"应用服务用的到底是端口还是 Mapper"
+ * 这件事在编译期没有约束；现在桩替换成端口，服务再想直接摸 Mapper 就编译不过。
+ * SQL 形状与列集合由 {@code MemberRepositoryAdapterTest} 覆盖（那里才有真实的 Wrapper 可断言）。
  */
 class MemberApplicationServiceTest {
 
-  private final MemberMapper memberMapper = mock(MemberMapper.class);
-  private final PointAccountMapper pointAccountMapper = mock(PointAccountMapper.class);
-  private final MemberNameTokenMapper nameTokenMapper = mock(MemberNameTokenMapper.class);
+  private final MemberRepository memberRepository = mock(MemberRepository.class);
+  private final MemberNameTokenRepository nameTokenRepository = mock(MemberNameTokenRepository.class);
+  private final MemberImBindingRepository imBindingRepository = mock(MemberImBindingRepository.class);
+  private final PointAccountRepository pointAccountRepository = mock(PointAccountRepository.class);
   private final SnowflakeIdGenerator idGenerator = mock(SnowflakeIdGenerator.class);
   private final AesGcmCipher aesGcmCipher = mock(AesGcmCipher.class);
   private final AuditClient auditClient = mock(AuditClient.class);
   private final MemberApplicationService service = new MemberApplicationService(
-      memberMapper, pointAccountMapper, nameTokenMapper, idGenerator, aesGcmCipher, auditClient);
+      memberRepository, nameTokenRepository, imBindingRepository, pointAccountRepository,
+      idGenerator, aesGcmCipher, auditClient);
 
   @AfterEach
   void clearTenantContext() {
@@ -56,7 +69,7 @@ class MemberApplicationServiceTest {
 
   @Test
   void createFailureRecordsFailureAuditWithErrorCode() {
-    when(memberMapper.insert(any(CstMemberPo.class)))
+    when(memberRepository.insert(any(Member.class)))
         .thenThrow(new ApiException(409, "MEMBER_ALREADY_EXISTS", "该账号已存在客户档案"));
 
     assertThrows(ApiException.class, () -> service.create(5L, "张三", "13800001111", true));
@@ -76,110 +89,137 @@ class MemberApplicationServiceTest {
   void createSuccessRecordsSuccessAuditAndBuildsBlindIndex() {
     insertAssigningId(101L);
 
-    service.create(5L, "张三", "13800001111", true);
+    MemberDisplay created = service.create(5L, "张三", "13800001111", true);
 
+    assertEquals(101L, created.member().id());
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("member.create", record.action());
     // 成功路径不显式标记结果，由 SDK buildBody 缺省为 SUCCESS；关键是不能被标成 FAILURE。
     assertNotEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
-    assertTokensInsertedSha256Hex();
+    assertTokensWrittenSha256Hex(101L);
   }
 
   @Test
   void createReturnsExistingCustomerWhenAccountIdAlreadyExists() {
-    CstMemberPo existing = member(7L, 100L, "M7");
-    when(memberMapper.selectList(any())).thenReturn(List.of(existing));
+    Member existing = member(7L, 100L, "M7");
+    when(memberRepository.findEarliestByAccountId(55L)).thenReturn(Optional.of(existing));
 
-    CstMemberPo result = service.create(55L, "张三", "13800001111", false);
+    MemberDisplay result = service.create(55L, "张三", "13800001111", false);
 
-    assertEquals(7L, result.getId());
-    verify(memberMapper, never()).insert(any(CstMemberPo.class));
+    assertEquals(7L, result.member().id());
+    verify(memberRepository, never()).insert(any(Member.class));
     verify(auditClient, never()).recordAsync(any());
   }
 
   @Test
   void createReturnsExistingCustomerWhenImAccountAlreadyBound() {
-    CstMemberPo existing = member(9L, 100L, "M9");
-    when(memberMapper.selectList(any())).thenReturn(List.of(existing));
+    Member existing = member(9L, 100L, "M9");
+    when(memberRepository.findEarliestByImAccount("im_71")).thenReturn(Optional.of(existing));
 
-    CstMemberPo result = service.create(null, "张三", "13800001111", false, "im_71", "小明");
+    MemberDisplay result = service.create(null, "张三", "13800001111", false, "im_71", "小明");
 
-    assertEquals(9L, result.getId());
-    verify(memberMapper, never()).insert(any(CstMemberPo.class));
+    assertEquals(9L, result.member().id());
+    verify(memberRepository, never()).insert(any(Member.class));
     verify(auditClient, never()).recordAsync(any());
   }
 
   /** 待认领客户（accountId / imAccount 都为空）仍然建档，语义与迁移 V6 的「从未关联」一致。 */
   @Test
   void createWithoutAccountAndImStillCreatesUnclaimedCustomer() {
-    when(memberMapper.selectList(any())).thenReturn(List.of());
-    when(memberMapper.insert(any(CstMemberPo.class))).thenReturn(1);
+    when(memberRepository.insert(any(Member.class))).thenAnswer(invocation -> {
+      Member candidate = invocation.getArgument(0);
+      return withId(candidate, 1L);
+    });
 
     service.create(null, "张三", "", false, null, null);
 
-    ArgumentCaptor<CstMemberPo> captor = ArgumentCaptor.forClass(CstMemberPo.class);
-    verify(memberMapper).insert(captor.capture());
-    assertNull(captor.getValue().getAccountId());
-    assertNull(captor.getValue().getImAccount());
-    assertNull(captor.getValue().getImBoundAt());
+    ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
+    verify(memberRepository).insert(captor.capture());
+    assertNull(captor.getValue().accountId());
+    assertNull(captor.getValue().imAccount());
+    assertNull(captor.getValue().imBoundAt());
   }
 
   @Test
   void createWithImAccountStampsImBoundAt() {
-    when(memberMapper.selectList(any())).thenReturn(List.of());
-    when(memberMapper.insert(any(CstMemberPo.class))).thenReturn(1);
+    when(memberRepository.insert(any(Member.class))).thenAnswer(invocation -> {
+      Member candidate = invocation.getArgument(0);
+      return withId(candidate, 1L);
+    });
 
     service.create(null, "张三", "", false, " im_71 ", " 小明 ");
 
-    ArgumentCaptor<CstMemberPo> captor = ArgumentCaptor.forClass(CstMemberPo.class);
-    verify(memberMapper).insert(captor.capture());
-    assertEquals("im_71", captor.getValue().getImAccount(), "IM 账号必须 trim");
-    assertEquals("小明", captor.getValue().getImUsername());
-    assertNotNull(captor.getValue().getImBoundAt());
+    ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
+    verify(memberRepository).insert(captor.capture());
+    assertEquals("im_71", captor.getValue().imAccount(), "IM 账号必须 trim");
+    assertEquals("小明", captor.getValue().imUsername());
+    assertNotNull(captor.getValue().imBoundAt());
+  }
+
+  /** 建档时就回填账号在统一账号模型里的 IM 信息（读不到就保持空，不伪造）。 */
+  @Test
+  void createBackfillsImIdentityFromAccountDirectory() {
+    when(imBindingRepository.findImAccountByAccountId(113L)).thenReturn("im_3");
+    when(imBindingRepository.findImNicknameByAccountId(113L)).thenReturn("小张");
+    when(memberRepository.insert(any(Member.class))).thenAnswer(invocation -> {
+      Member candidate = invocation.getArgument(0);
+      return withId(candidate, 12L);
+    });
+
+    service.create(100L, 113L, "张三", "", false, null, null);
+
+    ArgumentCaptor<Member> captor = ArgumentCaptor.forClass(Member.class);
+    verify(memberRepository).insert(captor.capture());
+    assertEquals("im_3", captor.getValue().imAccount());
+    assertEquals("小张", captor.getValue().imUsername());
   }
 
   /** 历史脏数据：同一 accountId 多条客户时取最早一条并返回，不新建、不抛异常。 */
   @Test
-  void getOrCreateByAccountPicksEarliestRowWhenHistoryHasDuplicates() {
-    when(memberMapper.selectList(any())).thenReturn(List.of(member(8L, 100L, "M8"), member(9L, 100L, "M9")));
+  void getOrCreateByAccountReturnsTheEarliestRowWhenHistoryHasDuplicates() {
+    // 「取最早一条」是端口契约（适配器按 id 升序 LIMIT 2 并打 WARN），这里断言服务原样采用端口给的赢家。
+    when(memberRepository.findEarliestByAccountId(113L)).thenReturn(Optional.of(member(8L, 100L, "M8")));
 
-    CstMemberPo result = service.getOrCreateByAccount(113L);
+    MemberDisplay result = service.getOrCreateByAccount(113L);
 
-    assertEquals(8L, result.getId());
-    verify(memberMapper, never()).insert(any(CstMemberPo.class));
+    assertEquals(8L, result.member().id());
+    verify(memberRepository, never()).insert(any(Member.class));
   }
 
   @Test
   void getOrCreateByAccountCreatesWhenNothingMatches() {
-    when(memberMapper.selectList(any())).thenReturn(List.of());
-    when(memberMapper.insert(any(CstMemberPo.class))).thenReturn(1);
+    when(memberRepository.findEarliestByAccountId(113L)).thenReturn(Optional.empty());
+    when(memberRepository.insert(any(Member.class))).thenAnswer(invocation -> {
+      Member candidate = invocation.getArgument(0);
+      return withId(candidate, 1L);
+    });
 
-    service.getOrCreateByAccount(113L);
+    MemberDisplay result = service.getOrCreateByAccount(113L);
 
-    ArgumentCaptor<CstMemberPo> captor = ArgumentCaptor.forClass(CstMemberPo.class);
-    verify(memberMapper).insert(captor.capture());
-    assertEquals(113L, captor.getValue().getAccountId());
+    assertEquals(113L, result.member().accountId());
   }
 
   @Test
   void getOrCreateByAccountReturnsImWinnerAfterConcurrentUniqueConflict() {
-    CstMemberPo winner = member(12L, null, "M12");
-    winner.setImAccount("im_3");
-    when(memberMapper.selectImAccountByAccountId(113L)).thenReturn("im_3");
-    when(memberMapper.selectList(any())).thenReturn(List.of(), List.of(), List.of(), List.of(winner));
-    when(memberMapper.insert(any(CstMemberPo.class))).thenThrow(new DuplicateKeyException("tenant + im conflict"));
+    Member winner = member(12L, null, "M12").withImBinding("im_3", null, LocalDateTime.now(), null);
+    when(imBindingRepository.findImAccountByAccountId(113L)).thenReturn("im_3");
+    when(memberRepository.findEarliestByImAccount("im_3")).thenReturn(Optional.of(winner));
+    // 唯一键竞争的赢家由第二轮读取（或 IM 账号兜底解析）发现：账号直查永远为空。
+    when(memberRepository.findEarliestByAccountId(113L)).thenReturn(Optional.empty());
+    when(memberRepository.insert(any(Member.class)))
+        .thenThrow(new DuplicateKeyException("tenant + im conflict"));
 
-    CstMemberPo result = service.getOrCreateByAccount(100L, 113L);
+    MemberDisplay result = service.getOrCreateByAccount(100L, 113L);
 
-    assertEquals(12L, result.getId());
+    assertEquals(12L, result.member().id());
   }
 
   @Test
   void bindImRejectsImAccountOwnedByAnotherCustomerWith409AndAuditsFailure() {
     TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("member.pii.view")));
-    CstMemberPo target = member(9L, 100L, "M9");
-    when(memberMapper.selectById(9L)).thenReturn(target);
-    when(memberMapper.selectList(any())).thenReturn(List.of(member(11L, 100L, "M11")));
+    when(memberRepository.findById(9L)).thenReturn(Optional.of(member(9L, 100L, "M9")));
+    when(memberRepository.findEarliestByImAccount("im_71"))
+        .thenReturn(Optional.of(member(11L, 100L, "M11")));
 
     ApiException failure = assertThrows(ApiException.class, () -> service.bindIm(9L, "im_71", "小明", null));
 
@@ -190,28 +230,27 @@ class MemberApplicationServiceTest {
     assertEquals("member.im.bind", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IM_ACCOUNT_ALREADY_BOUND", record.errorCode());
-    verify(memberMapper, never()).update(isNull(), any());
-    verify(nameTokenMapper, never()).delete(any());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any());
+    verify(nameTokenRepository, never()).replaceForMember(anyLong(), any());
   }
 
   @Test
   void bindImUpdatesBindingRebuildsBlindIndexAndAuditsSuccess() {
     TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("member.pii.view")));
-    CstMemberPo target = member(9L, 100L, "M9");
-    when(memberMapper.selectById(9L)).thenReturn(target);
-    when(memberMapper.selectList(any())).thenReturn(List.of());
+    when(memberRepository.findById(9L)).thenReturn(Optional.of(member(9L, 100L, "M9")));
+    when(memberRepository.findEarliestByImAccount("im_71")).thenReturn(Optional.empty());
+    when(memberRepository.updateImBinding(eq(9L), eq("im_71"), eq("小明"), any(), eq("v1:new-cipher")))
+        .thenReturn(true);
     when(aesGcmCipher.encrypt("张三")).thenReturn("v1:new-cipher");
 
-    CstMemberPo result = service.bindIm(9L, " im_71 ", " 小明 ", "张三");
+    MemberDisplay result = service.bindIm(9L, " im_71 ", " 小明 ", "张三");
 
-    assertEquals("im_71", result.getImAccount());
-    assertEquals("小明", result.getImUsername());
-    assertNotNull(result.getImBoundAt());
-    assertEquals("v1:new-cipher", result.getNameCipher());
-    verify(memberMapper).update(isNull(), any());
-    // 改姓名必须重建 token 集合：先删后插
-    verify(nameTokenMapper).delete(any());
-    assertTokensInsertedSha256Hex();
+    assertEquals("im_71", result.member().imAccount());
+    assertEquals("小明", result.member().imUsername());
+    assertNotNull(result.member().imBoundAt());
+    assertEquals("v1:new-cipher", result.member().nameCipher());
+    // 改姓名必须重建 token 集合（先删后插由适配器保证，这里断言服务确实发起了重建）。
+    assertTokensWrittenSha256Hex(9L);
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("member.im.bind", record.action());
     assertNotEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
@@ -222,22 +261,35 @@ class MemberApplicationServiceTest {
   @Test
   void bindImRequiresImAccount() {
     assertThrows(ApiException.class, () -> service.bindIm(9L, "  ", "小明", null));
-    verify(memberMapper, never()).update(isNull(), any());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any());
   }
 
-  private void assertTokensInsertedSha256Hex() {
-    ArgumentCaptor<CstMemberNameTokenPo> captor = ArgumentCaptor.forClass(CstMemberNameTokenPo.class);
-    verify(nameTokenMapper, atLeastOnce()).insert(captor.capture());
-    assertFalse(captor.getAllValues().isEmpty());
-    captor.getAllValues().forEach(row -> assertEquals(64, row.getToken().length()));
+  /** 绑定到不存在的客户 → 404，且不触碰任何写路径。 */
+  @Test
+  void bindImRejectsMissingCustomer() {
+    when(memberRepository.findById(9L)).thenReturn(Optional.empty());
+
+    ApiException failure = assertThrows(ApiException.class, () -> service.bindIm(9L, "im_71", "小明", null));
+
+    assertEquals(404, failure.getStatus());
+    assertEquals("MEMBER_NOT_FOUND", failure.getCode());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any());
   }
 
-  /** 真实 insert 会把自增主键写回 PO；mock 里必须显式回填，否则 token 重建会因 id 为空而短路。 */
+  @SuppressWarnings("unchecked")
+  private void assertTokensWrittenSha256Hex(Long memberId) {
+    ArgumentCaptor<Collection<MemberNameToken>> captor = ArgumentCaptor.forClass(Collection.class);
+    verify(nameTokenRepository, atLeastOnce()).replaceForMember(eq(memberId), captor.capture());
+    List<MemberNameToken> rows = List.copyOf(captor.getValue());
+    assertFalse(rows.isEmpty());
+    rows.forEach(row -> assertEquals(64, row.token().length()));
+  }
+
+  /** 真实 insert 会把自增主键写回聚合；mock 里必须显式回填，否则 token 重建会因 id 为空而短路。 */
   private void insertAssigningId(Long id) {
-    when(memberMapper.insert(any(CstMemberPo.class))).thenAnswer(invocation -> {
-      CstMemberPo po = invocation.getArgument(0);
-      po.setId(id);
-      return 1;
+    when(memberRepository.insert(any(Member.class))).thenAnswer(invocation -> {
+      Member candidate = invocation.getArgument(0);
+      return withId(candidate, id);
     });
   }
 
@@ -247,11 +299,15 @@ class MemberApplicationServiceTest {
     return captor.getValue();
   }
 
-  private static CstMemberPo member(Long id, Long tenantId, String memberNo) {
-    CstMemberPo po = new CstMemberPo();
-    po.setId(id);
-    po.setTenantId(tenantId);
-    po.setMemberNo(memberNo);
-    return po;
+  private static Member withId(Member member, Long id) {
+    return new Member(id, member.tenantId(), member.originStoreId(), member.accountId(),
+        member.imAccount(), member.imUsername(), member.imBoundAt(), member.memberNo(),
+        member.nameCipher(), member.phoneCipher(), member.phoneDigest(), member.levelId(),
+        member.status(), member.joinedAt(), member.expiresAt(), member.version());
+  }
+
+  private static Member member(Long id, Long tenantId, String memberNo) {
+    return new Member(id, tenantId, null, null, null, null, null, memberNo, null, null, null, null,
+        Member.STATUS_ACTIVE, null, null, 0);
   }
 }

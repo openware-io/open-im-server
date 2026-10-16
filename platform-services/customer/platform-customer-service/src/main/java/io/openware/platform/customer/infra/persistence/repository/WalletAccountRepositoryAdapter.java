@@ -1,6 +1,7 @@
 package io.openware.platform.customer.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository;
@@ -156,6 +157,54 @@ public class WalletAccountRepositoryAdapter implements WalletAccountRepository {
     return ledgerMapper.selectCount(Wrappers.<CstWalletLedgerPo>lambdaQuery()
         .eq(CstWalletLedgerPo::getWalletAccountId, walletAccountId)
         .eq(storeId != null, CstWalletLedgerPo::getStoreId, storeId));
+  }
+
+  @Override
+  public List<WalletAccount> listAll() {
+    return accountMapper.selectList(Wrappers.lambdaQuery()).stream()
+        .map(WalletAccountRepositoryAdapter::toDomain).toList();
+  }
+
+  /**
+   * 期间净变动：走 mapper 的 {@code selectList} 而不是聚合 SQL，因为<b>方向判定</b>
+   * （{@code CONSUME} / {@code REFUND} 记负）是业务口径，放回应用层与 {@code CustomerOverviewApplicationService}
+   * 原来的算法逐条一致；SQL 只负责按 {@code occurred_at} 与门店过滤。
+   */
+  @Override
+  public long deltaForPeriodByStores(LocalDateTime from, LocalDateTime to, List<Long> stores) {
+    boolean filterStores = stores != null && !stores.isEmpty();
+    long delta = 0L;
+    for (CstWalletLedgerPo po : ledgerMapper.selectList(Wrappers.<CstWalletLedgerPo>lambdaQuery()
+        .ge(from != null, CstWalletLedgerPo::getOccurredAt, from)
+        .le(to != null, CstWalletLedgerPo::getOccurredAt, to)
+        .in(filterStores, CstWalletLedgerPo::getStoreId, stores))) {
+      long amount = po.getAmount() == null ? 0L : po.getAmount();
+      boolean outflow = WalletLedgerEntry.TYPE_CONSUME.equals(po.getEntryType())
+          || WalletLedgerEntry.TYPE_REFUND.equals(po.getEntryType());
+      delta += outflow ? -amount : amount;
+    }
+    return delta;
+  }
+
+  @Override
+  public AccountPurgeCount purgeEmptyAccountsFor(Long customerId) {
+    if (customerId == null) {
+      return AccountPurgeCount.none();
+    }
+    // 只取"可用与冻结都为 0"的账户：有余额的账户是业务引用，体检已经因此拒绝清理整份档案。
+    List<CstWalletAccountPo> emptyAccounts = accountMapper.selectList(Wrappers.<CstWalletAccountPo>lambdaQuery()
+        .eq(CstWalletAccountPo::getCustomerId, customerId)
+        .eq(CstWalletAccountPo::getAvailableAmount, 0L)
+        .eq(CstWalletAccountPo::getFrozenAmount, 0L));
+    int accounts = 0;
+    int ledgers = 0;
+    for (CstWalletAccountPo account : emptyAccounts) {
+      // 顺序固定：先删该账户的流水再删账户行（账户行被删而流水留下就是孤儿）。
+      ledgers += ledgerMapper.delete(Wrappers.<CstWalletLedgerPo>lambdaQuery()
+          .eq(CstWalletLedgerPo::getWalletAccountId, account.getId()));
+      accounts += accountMapper.deleteById(account.getId());
+    }
+    return new AccountPurgeCount(accounts, ledgers);
   }
 
   private static CstWalletAccountPo toPo(WalletAccount account) {

@@ -8,19 +8,21 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.platform.customer.api.dto.MemberPointsView;
+import io.openware.platform.customer.api.dto.MemberView;
 import io.openware.platform.customer.api.dto.PointAccountView;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.MemberApplicationService.MemberPointsRow;
+import io.openware.platform.customer.application.MemberDisplay;
 import io.openware.platform.customer.application.NameIndexRebuildResult;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.PointApplicationService.MemberPointsData;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.member.model.Member;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -64,7 +66,8 @@ public class MemberController {
      * <p><b>垃圾档案筛选</b>：{@code onlyUnlinked}（默认 {@code false}）为 true 时只返回**没有 IM 关联**
      * 的客户档案（{@code cst_member.im_account IS NULL}，与 {@code MemberPurgeApplicationService}
      * 的清理判据同一口径）。该参数与服务层 {@code MemberApplicationService#list(..., boolean)}
-     * 是**同一个**实现（{@code qw.isNull(CstMemberPo::getImAccount)}），没有第二套过滤 SQL；
+     * 是**同一个**实现（端口条件对象里的 {@code onlyUnlinked}，适配器翻译成
+     * {@code im_account IS NULL}），没有第二套过滤 SQL；
      * 其余筛选参数（keyword/level/status/from/to）与分页、租户行过滤一律不变。
      *
      * <p><b>口径边界</b>：{@code im_account} 有值但 IM 侧用户**已删除**的档案不属于 {@code onlyUnlinked}
@@ -72,7 +75,7 @@ public class MemberController {
      * {@code imAccountDeleted} 单独标记，未并入本参数（需要单独筛时再单独加参数，不要重载本参数）。
      */
     @GetMapping
-    public Page<CstMemberPo> list(@RequestParam(defaultValue = "1") long page,
+    public Page<MemberView> list(@RequestParam(defaultValue = "1") long page,
                                   @RequestParam(defaultValue = "20") long pageSize,
                                   @RequestParam(required = false) String keyword,
                                   @RequestParam(required = false) Long level,
@@ -85,7 +88,8 @@ public class MemberController {
             // 不因为多了一个参数就改变「不筛」时的服务层入口（既有断言的就是这条调用）。
             return list(page, pageSize, keyword, level, status, from, to);
         }
-        return memberService.list(page, pageSize, keyword, level, status, TimeRangeParams.parse(from, to), true);
+        return toView(memberService.list(page, pageSize, keyword, level, status,
+                TimeRangeParams.parse(from, to), true));
     }
 
     /**
@@ -94,9 +98,10 @@ public class MemberController {
      * <p>HTTP 入口是上面的 8 参数重载；本方法**不再标注映射注解**，否则同一路径会注册出两个处理器
      * （启动即 ambiguous mapping）。保留它只是为了让既有调用方（含控制器用例）签名不变。
      */
-    public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
+    public Page<MemberView> list(long page, long pageSize, String keyword, Long level, String status,
                                   String from, String to) {
-        return memberService.list(page, pageSize, keyword, level, status, TimeRangeParams.parse(from, to));
+        return toView(memberService.list(page, pageSize, keyword, level, status,
+                TimeRangeParams.parse(from, to)));
     }
 
 
@@ -107,11 +112,11 @@ public class MemberController {
      * 而不是新建（200，不抛 500）——这是「防止同一 IM 用户生成多条客户」的第一道闸。
      */
     @PostMapping
-    public CstMemberPo create(@RequestBody CreateMemberRequest req) {
+    public MemberView create(@RequestBody CreateMemberRequest req) {
         PermissionGuard.require("member.manage");
         requireStoreContext();
-        return memberService.create(requireStoreContext(), req.accountId(), req.name(), req.phone(), req.consent(),
-                req.imAccount(), req.imUsername());
+        return MemberView.from(memberService.create(requireStoreContext(), req.accountId(), req.name(),
+                req.phone(), req.consent(), req.imAccount(), req.imUsername()));
     }
 
     /**
@@ -120,11 +125,11 @@ public class MemberController {
      * <p>可选 {@code name}：一起改姓名时同步重建姓名盲索引（改姓名必须重建 token）。
      */
     @PutMapping("/{id}/im-binding")
-    public CstMemberPo bindIm(@PathVariable Long id, @RequestBody ImBindingRequest req) {
+    public MemberView bindIm(@PathVariable Long id, @RequestBody ImBindingRequest req) {
         PermissionGuard.require("member.manage");
         // 客户档案写操作必须归因到实际门店；总部仅允许读取租户共享客户主档。
         requireStoreContext();
-        return memberService.bindIm(id, req.imAccount(), req.imUsername(), req.name());
+        return MemberView.from(memberService.bindIm(id, req.imAccount(), req.imUsername(), req.name()));
     }
 
     /**
@@ -160,16 +165,16 @@ public class MemberController {
         if (accountId == null || accountId <= 0) {
             throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号上下文");
         }
-        CstMemberPo member = ctx.storeId() == null
-                ? memberService.getOrCreateByAccount(accountId)
-                : memberService.getOrCreateByAccount(ctx.storeId(), accountId);
+        Member member = ctx.storeId() == null
+                ? memberService.getOrCreateByAccount(accountId).member()
+                : memberService.getOrCreateByAccount(ctx.storeId(), accountId).member();
         // 币种不再硬编码 CNY：取当时租户币种（缺省 USD，16_CURRENCY_CONVENTIONS §1/§2）。
         // 钱包响应补代币数量/品牌展示字段；积分响应只给积分「个数」（无币种、无代币字段）。
         // 储值走懒初始化读路径（balance）：没有账户即余额 0，不因为「看了一眼资产」就给会员建空账户。
         WalletAccountView wallet = walletTokenDisplayService.decorate(
-                WalletAccountView.from(walletService.balance(member.getId())));
-        PointAccountView points = PointAccountView.from(pointService.ensureAccount(member.getId()));
-        return new MemberMeResponse(member.getId(), member.getMemberNo(), wallet, points);
+                WalletAccountView.from(walletService.balance(member.id())));
+        PointAccountView points = PointAccountView.from(pointService.ensureAccount(member.id()));
+        return new MemberMeResponse(member.id(), member.memberNo(), wallet, points);
     }
 
     /**
@@ -211,6 +216,20 @@ public class MemberController {
         return MemberPointsView.from(data.account(), data.ledger(), data.page(), data.pageSize());
     }
 
+    /**
+     * 客户分页 → 响应视图分页（唯一装配点）。
+     *
+     * <p>外层仍是 MyBatis-Plus 的 {@code Page}：它的序列化形状（{@code records} / {@code total} /
+     * {@code size} / {@code current} / {@code pages}）就是本接口既有的响应外形，调用方读的是这些键名，
+     * 换掉它同样是破坏。这里只把 {@code records} 从持久化对象换成 {@link MemberView}，逐个字段保名。
+     */
+    private static Page<MemberView> toView(Page<MemberDisplay> page) {
+        Page<MemberView> view = new Page<>(page.getCurrent(), page.getSize());
+        view.setTotal(page.getTotal());
+        view.setRecords(page.getRecords().stream().map(MemberView::from).toList());
+        return view;
+    }
+
     private Long requireStoreContext() {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
@@ -245,16 +264,17 @@ public class MemberController {
                                         @RequestParam(required = false) String keyword,
                                         @RequestParam(required = false) String from,
                                         @RequestParam(required = false) String to) {
-        Page<CstMemberPo> members = memberService.list(page, pageSize, keyword, null, null,
+        Page<MemberDisplay> members = memberService.list(page, pageSize, keyword, null, null,
                 TimeRangeParams.parse(from, to));
-        List<Long> memberIds = members.getRecords().stream().map(CstMemberPo::getId).toList();
+        List<Long> memberIds = members.getRecords().stream().map(display -> display.member().id()).toList();
         Map<Long, WalletAccount> balances = walletService.balances(memberIds);
         long ratio = walletTokenDisplayService.currentConfig().ratio();
-        List<MemberWalletRow> rows = members.getRecords().stream().map(member -> {
-            WalletAccount account = balances.get(member.getId());
+        List<MemberWalletRow> rows = members.getRecords().stream().map(display -> {
+            Member member = display.member();
+            WalletAccount account = balances.get(member.id());
             long available = account == null ? 0L : account.available();
             long frozen = account == null ? 0L : account.frozen();
-            return new MemberWalletRow(member.getId(), member.getMemberNo(), member.getName(), member.getPhone(),
+            return new MemberWalletRow(member.id(), member.memberNo(), display.name(), display.phone(),
                     available, frozen, walletTokenDisplayService.tokenAmount(available, ratio),
                     account == null ? CurrencyResolver.currentCode() : account.currencyCode(),
                     account != null);

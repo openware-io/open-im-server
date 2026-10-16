@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.point.model.PointAccount;
 import io.openware.platform.customer.domain.point.model.PointLedgerEntry;
 import io.openware.platform.customer.domain.point.repository.PointAccountRepository.LedgerPage;
@@ -334,6 +335,42 @@ class PointAccountRepositoryAdapterTest {
         "负分页参数必须夹到 0: " + capturedLedgerList().getTargetSql());
   }
 
+  // ---------------------------------------------------------------- 清理
+
+  /**
+   * 清理积分账户：账户行是<b>该会员的全部积分账户</b>，流水<b>只对零额账户</b>删
+   * ——非零账户的流水不会被这条路径删掉（原样保留既有行为：账面事实不能被清理动作悄悄抹掉）。
+   */
+  @Test
+  void purgeAccountsDeletesAllAccountsButOnlyEmptyAccountLedgers() {
+    CstPointAccountPo empty = po(31L);
+    empty.setAvailablePoints(0L);
+    empty.setFrozenPoints(0L);
+    CstPointAccountPo nonEmpty = po(32L);
+    when(accountMapper.selectList(any())).thenReturn(List.of(empty, nonEmpty));
+    when(ledgerMapper.delete(any())).thenReturn(4);
+    when(accountMapper.delete(any())).thenReturn(2);
+
+    AccountPurgeCount count = adapter.purgeAccountsFor(7L);
+
+    assertEquals(2, count.accounts());
+    assertEquals(4, count.ledgers());
+    // 账户删除按 customer_id 定位
+    LambdaQueryWrapper<CstPointAccountPo> accountDelete = capturedAccountDelete();
+    assertTrue(evaluatedSql(accountDelete).contains("CUSTOMER_ID ="), evaluatedSql(accountDelete));
+    // 流水只为零额账户删：条件里必须只有那一个账户 id
+    LambdaQueryWrapper<CstPointLedgerPo> ledgerDelete = capturedLedgerDelete();
+    assertTrue(evaluatedSql(ledgerDelete).contains("ACCOUNT_ID ="), evaluatedSql(ledgerDelete));
+    assertTrue(containsNumber(evaluatedParams(ledgerDelete), 31L), "零额账户的流水要删");
+    assertFalse(containsNumber(evaluatedParams(ledgerDelete), 32L), "非零账户的流水不得删");
+  }
+
+  @Test
+  void purgeAccountsShortCircuitsOnNullCustomer() {
+    assertEquals(0, adapter.purgeAccountsFor(null).accounts());
+    verify(accountMapper, org.mockito.Mockito.never()).selectList(any());
+  }
+
   // ------------------------------------------------------- fixture / 捕获
 
   /**
@@ -431,6 +468,22 @@ class PointAccountRepositoryAdapterTest {
     ArgumentCaptor<LambdaQueryWrapper<CstPointLedgerPo>> captor =
         ArgumentCaptor.forClass(LambdaQueryWrapper.class);
     verify(ledgerMapper).selectCount(captor.capture());
+    return captor.getValue();
+  }
+
+  @SuppressWarnings("unchecked")
+  private LambdaQueryWrapper<CstPointLedgerPo> capturedLedgerDelete() {
+    ArgumentCaptor<LambdaQueryWrapper<CstPointLedgerPo>> captor =
+        ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+    verify(ledgerMapper).delete(captor.capture());
+    return captor.getValue();
+  }
+
+  @SuppressWarnings("unchecked")
+  private LambdaQueryWrapper<CstPointAccountPo> capturedAccountDelete() {
+    ArgumentCaptor<LambdaQueryWrapper<CstPointAccountPo>> captor =
+        ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+    verify(accountMapper).delete(captor.capture());
     return captor.getValue();
   }
 }

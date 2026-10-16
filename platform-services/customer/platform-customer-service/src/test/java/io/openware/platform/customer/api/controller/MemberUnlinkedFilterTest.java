@@ -13,15 +13,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.customer.api.dto.MemberView;
 import io.openware.platform.customer.application.MemberApplicationService;
+import io.openware.platform.customer.application.MemberDisplay;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -55,9 +57,9 @@ class MemberUnlinkedFilterTest {
     @Test
     void onlyUnlinkedTrueIsPassedDownToTheExistingServiceOverload() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any(), anyBoolean()))
-                .thenReturn(new Page<>(1, 20, 2L));
+                .thenReturn(displayPage(1, 20, 2L));
 
-        Page<CstMemberPo> result = controller.list(1, 20, null, null, null, null, null, true);
+        Page<MemberView> result = controller.list(1, 20, null, null, null, null, null, true);
 
         verify(memberService).list(1L, 20L, null, null, null, TimeRange.none(), true);
         assertEquals(2L, result.getTotal());
@@ -70,7 +72,7 @@ class MemberUnlinkedFilterTest {
     @Test
     void onlyUnlinkedFalseTakesTheSamePathAsAbsent() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 7L));
+                .thenReturn(displayPage(1, 20, 7L));
 
         controller.list(1, 20, null, null, null, null, null, false);
         controller.list(1, 20, null, null, null, null, null);
@@ -85,7 +87,7 @@ class MemberUnlinkedFilterTest {
     @Test
     void legacySevenArgOverloadStillMeansNoUnlinkedFilter() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 5L));
+                .thenReturn(displayPage(1, 20, 5L));
 
         controller.list(1, 20, null, null, null, null, null);
 
@@ -95,7 +97,7 @@ class MemberUnlinkedFilterTest {
     @Test
     void onlyUnlinkedCombinesWithEveryExistingFilterWithoutRewritingThem() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any(), anyBoolean()))
-                .thenReturn(new Page<>(2, 50, 1L));
+                .thenReturn(displayPage(2, 50, 1L));
 
         controller.list(2, 50, "张", 3L, "ACTIVE", "2026-09-01", "2026-09-30", true);
 
@@ -125,7 +127,7 @@ class MemberUnlinkedFilterTest {
     @Test
     void httpGetBindsOnlyUnlinkedTrue() throws Exception {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any(), anyBoolean()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         MockMvcBuilders.standaloneSetup(controller).build()
                 .perform(get("/business/members").param("onlyUnlinked", "true"))
@@ -138,12 +140,19 @@ class MemberUnlinkedFilterTest {
     @Test
     void httpGetBindsOnlyUnlinkedDefaultFalseToTheLegacyPath() throws Exception {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         MockMvc mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
         mockMvc.perform(get("/business/members")).andExpect(status().isOk());
         mockMvc.perform(get("/business/members").param("onlyUnlinked", "false")).andExpect(status().isOk());
 
         verify(memberService, times(2)).list(1L, 20L, null, null, null, TimeRange.none());
+    }
+
+    /** 服务层现在回的是「领域档案 + 展示值」的一页；控制器把它装配成响应视图分页。 */
+    private static Page<MemberDisplay> displayPage(long page, long size, long total) {
+        Page<MemberDisplay> result = new Page<>(page, size, total);
+        result.setRecords(List.of());
+        return result;
     }
 }

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
@@ -231,6 +233,76 @@ class WalletAccountRepositoryAdapterTest {
     assertFalse(adapter.ledgerExists("  "));
   }
 
+  // ------------------------------------------------------------------ 汇总
+
+  /**
+   * 期间净变动：只按 {@code occurred_at} 与门店过滤，方向判定（CONSUME/REFUND 记负）留在适配器里，
+   * 与迁移前的算法逐条一致。
+   */
+  @Test
+  void deltaForPeriodNetsOutflowsAndFiltersByTimeAndStores() {
+    when(ledgerMapper.selectList(any())).thenReturn(List.of(
+        ledgerPo("RECHARGE", 1000L),
+        ledgerPo("CONSUME", 400L),
+        ledgerPo("REFUND", 100L),
+        ledgerPo("RELEASE", 50L)));
+
+    long delta = adapter.deltaForPeriodByStores(LocalDateTime.of(2026, 9, 1, 0, 0),
+        LocalDateTime.of(2026, 9, 30, 23, 59), List.of(11L, 12L));
+
+    // 1000 - 400 - 100 + 50
+    assertEquals(550L, delta);
+    String sql = evaluatedSql(capturedLedgerList());
+    assertTrue(sql.contains("OCCURRED_AT >="), sql);
+    assertTrue(sql.contains("OCCURRED_AT <="), sql);
+    assertTrue(sql.contains("STORE_ID IN"), sql);
+  }
+
+  /** 不传门店 = 租户全量：不得拼出门店条件。 */
+  @Test
+  void deltaForPeriodWithoutStoresDoesNotFilterStore() {
+    when(ledgerMapper.selectList(any())).thenReturn(List.of());
+
+    assertEquals(0L, adapter.deltaForPeriodByStores(null, null, List.of()));
+
+    String sql = evaluatedSql(capturedLedgerList());
+    assertFalse(sql.contains("STORE_ID"), sql);
+    assertFalse(sql.contains("OCCURRED_AT"), sql);
+  }
+
+  // ------------------------------------------------------------------ 清理
+
+  /**
+   * 清理零额账户：<b>只删 available_amount = 0 且 frozen_amount = 0</b> 的账户
+   * （有余额的账户是业务引用，体检已经因此拒绝清理），且先删该账户的流水再删账户行。
+   */
+  @Test
+  void purgeEmptyAccountsDeletesLedgersThenAccountsAndCountsBoth() {
+    when(accountMapper.selectList(any())).thenReturn(List.of(po(41L)));
+    when(ledgerMapper.delete(any())).thenReturn(2);
+    when(accountMapper.deleteById(41L)).thenReturn(1);
+
+    AccountPurgeCount count = adapter.purgeEmptyAccountsFor(7L);
+
+    assertEquals(1, count.accounts());
+    assertEquals(2, count.ledgers());
+    LambdaQueryWrapper<CstWalletAccountPo> selection = capturedSelect();
+    String sql = evaluatedSql(selection);
+    assertTrue(sql.contains("CUSTOMER_ID ="), sql);
+    assertTrue(sql.contains("AVAILABLE_AMOUNT ="), "只删零额账户: " + sql);
+    assertTrue(sql.contains("FROZEN_AMOUNT ="), "只删零额账户: " + sql);
+    // 流水删除按账户 id 定位（不是按会员，也不是无条件）
+    LambdaQueryWrapper<CstWalletLedgerPo> ledgerDelete = capturedLedgerDelete();
+    String ledgerSql = evaluatedSql(ledgerDelete);
+    assertTrue(ledgerSql.contains("WALLET_ACCOUNT_ID ="), ledgerSql);
+  }
+
+  @Test
+  void purgeEmptyAccountsShortCircuitsOnNullCustomer() {
+    assertFalse(adapter.purgeEmptyAccountsFor(null).accounts() > 0);
+    verify(accountMapper, never()).selectList(any());
+  }
+
   // ---------------------------------------------------------------- helpers
 
   private static String evaluatedSql(com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> wrapper) {
@@ -291,5 +363,20 @@ class WalletAccountRepositoryAdapterTest {
         ArgumentCaptor.forClass(LambdaQueryWrapper.class);
     verify(ledgerMapper).selectList(captor.capture());
     return captor.getValue();
+  }
+
+  @SuppressWarnings("unchecked")
+  private LambdaQueryWrapper<CstWalletLedgerPo> capturedLedgerDelete() {
+    ArgumentCaptor<LambdaQueryWrapper<CstWalletLedgerPo>> captor =
+        ArgumentCaptor.forClass(LambdaQueryWrapper.class);
+    verify(ledgerMapper).delete(captor.capture());
+    return captor.getValue();
+  }
+
+  private static CstWalletLedgerPo ledgerPo(String entryType, Long amount) {
+    CstWalletLedgerPo po = new CstWalletLedgerPo();
+    po.setEntryType(entryType);
+    po.setAmount(amount);
+    return po;
   }
 }

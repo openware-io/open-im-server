@@ -1,7 +1,5 @@
 package io.openware.platform.customer.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.crypto.AesGcmCipher;
 import io.openware.common.exception.ApiException;
@@ -12,18 +10,16 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.customer.infra.persistence.mapper.MemberMapper;
-import io.openware.platform.customer.infra.persistence.mapper.MemberNameTokenMapper;
-import io.openware.platform.customer.infra.persistence.mapper.PointAccountMapper;
-import io.openware.platform.customer.infra.persistence.po.CstMemberNameTokenPo;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
-import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.dao.DuplicateKeyException;
-
+import io.openware.platform.customer.domain.member.model.Member;
+import io.openware.platform.customer.domain.member.model.MemberFilter;
+import io.openware.platform.customer.domain.member.model.MemberNameToken;
+import io.openware.platform.customer.domain.member.repository.MemberImBindingRepository;
+import io.openware.platform.customer.domain.member.repository.MemberImBindingRepository.ImBinding;
+import io.openware.platform.customer.domain.member.repository.MemberNameTokenRepository;
+import io.openware.platform.customer.domain.member.repository.MemberRepository;
+import io.openware.platform.customer.domain.member.repository.MemberRepository.MemberIdPage;
+import io.openware.platform.customer.domain.point.model.PointAccount;
+import io.openware.platform.customer.domain.point.repository.PointAccountRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,6 +27,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 客户档案应用服务（表名仍为 cst_member，业务口径已按「客户」）。
@@ -38,42 +39,55 @@ import java.util.Set;
  * <p>客户号用雪花发号器（全局唯一）；姓名/手机用 AES-256-GCM 加密；手机号摘要用 SHA-256。
  * marketing_consent 授权待接入 mkt_consent。
  *
- * <p><b>检索</b>：姓名是随机 IV 密文，SQL 无法 LIKE，改用**盲索引**
+ * <p><b>检索</b>：姓名是随机 IV 密文，SQL 无法 LIKE，改用<b>盲索引</b>
  * （{@link NameBlindIndex} + {@code cst_member_name_token}）：关键词切 1/2/3-gram token，
  * 要求全部命中（AND）→ 包含语义的候选集，再与客户号 LIKE / IM 账号 LIKE / 手机号摘要精确匹配一起 OR。
+ * token 与手机号摘要在本层算好（它们属于应用层的加密口径），端口只消费结果。
  *
  * <p><b>去重</b>：同一个 IM 用户/账号不允许再生成第二条客户。三条写路径
  * （{@link #create}、{@link #getOrCreateByAccount}、{@link #bindIm}）都做幂等/冲突判定；
  * 数据库侧 {@code (tenant_id, im_account)} 有唯一索引，{@code (tenant_id, account_id)} 在存在
  * 「有引用的历史重复行」时退化为非唯一索引（见迁移 V6），故应用层判定是必要的一层。
+ *
+ * <p><b>分层</b>：本服务只依赖领域端口（{@code domain.member.repository.*} / {@code domain.point.repository.*}），
+ * 不再触碰任何 Mapper 或持久化对象；展示字段（明文姓名/手机号、账号类型、IM 侧真实账号）
+ * 由 {@link MemberDisplay} 承载，响应装配留给控制器。
  */
 @Slf4j
 @Service
 public class MemberApplicationService {
-    private final MemberMapper memberMapper;
-    private final PointAccountMapper pointAccountMapper;
-    private final MemberNameTokenMapper nameTokenMapper;
+    private final MemberRepository memberRepository;
+    private final MemberNameTokenRepository nameTokenRepository;
+    private final MemberImBindingRepository imBindingRepository;
+    private final PointAccountRepository pointAccountRepository;
     private final SnowflakeIdGenerator idGenerator;
     private final AesGcmCipher aesGcmCipher;
     private final AuditClient auditClient;
 
     @Autowired
-    public MemberApplicationService(MemberMapper memberMapper, PointAccountMapper pointAccountMapper,
-                                    MemberNameTokenMapper nameTokenMapper, SnowflakeIdGenerator idGenerator,
-                                    AesGcmCipher aesGcmCipher, AuditClient auditClient) {
-        this.memberMapper = memberMapper;
-        this.pointAccountMapper = pointAccountMapper;
-        this.nameTokenMapper = nameTokenMapper;
+    public MemberApplicationService(MemberRepository memberRepository,
+                                    MemberNameTokenRepository nameTokenRepository,
+                                    MemberImBindingRepository imBindingRepository,
+                                    PointAccountRepository pointAccountRepository,
+                                    SnowflakeIdGenerator idGenerator, AesGcmCipher aesGcmCipher,
+                                    AuditClient auditClient) {
+        this.memberRepository = memberRepository;
+        this.nameTokenRepository = nameTokenRepository;
+        this.imBindingRepository = imBindingRepository;
+        this.pointAccountRepository = pointAccountRepository;
         this.idGenerator = idGenerator;
         this.aesGcmCipher = aesGcmCipher;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
-    public MemberApplicationService(MemberMapper memberMapper, PointAccountMapper pointAccountMapper,
-                                    MemberNameTokenMapper nameTokenMapper, SnowflakeIdGenerator idGenerator,
-                                    AesGcmCipher aesGcmCipher) {
-        this(memberMapper, pointAccountMapper, nameTokenMapper, idGenerator, aesGcmCipher, AuditClient.disabled());
+    public MemberApplicationService(MemberRepository memberRepository,
+                                    MemberNameTokenRepository nameTokenRepository,
+                                    MemberImBindingRepository imBindingRepository,
+                                    PointAccountRepository pointAccountRepository,
+                                    SnowflakeIdGenerator idGenerator, AesGcmCipher aesGcmCipher) {
+        this(memberRepository, nameTokenRepository, imBindingRepository, pointAccountRepository,
+                idGenerator, aesGcmCipher, AuditClient.disabled());
     }
 
     /** 客户隐私信息查看权限码：拥有者回显明文，否则脱敏。 */
@@ -87,86 +101,60 @@ public class MemberApplicationService {
 
     /** IM 账号已被另一条客户占用。 */
     private static final String IM_ACCOUNT_ALREADY_BOUND = "IM_ACCOUNT_ALREADY_BOUND";
-
     /**
      * 客户分页列表。
      *
-     * <p>{@code range} 是按**建档时间** {@code cst_member.joined_at} 的闭区间筛选（统一 {@code from}/{@code to}
-     * 口径，见 {@link TimeRangeParams}）。两端都可能为空 = 不筛，条件直接拼在 {@code joined_at} 列上
-     * （不包函数，走索引）；{@code total} 与 {@code records} 由同一次 {@code selectPage} 得出，口径一致。
+     * <p>{@code range} 是按<b>建档时间</b> {@code joined_at} 的闭区间筛选（统一 {@code from}/{@code to}
+     * 口径，见 {@link TimeRangeParams}）。两端都可能为空 = 不筛；{@code total} 与 {@code records}
+     * 由同一次查询得出，口径一致。
      */
-    public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
-                                  TimeRange range) {
+    public Page<MemberDisplay> list(long page, long pageSize, String keyword, Long level, String status,
+                                    TimeRange range) {
         return list(page, pageSize, keyword, level, status, range, false, null);
     }
 
     /** 客户分页列表；onlyUnlinked=true 只取 im_account IS NULL（账号无 IM 身份 = 垃圾数据）。 */
-    public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
-                                  TimeRange range, boolean onlyUnlinked) {
+    public Page<MemberDisplay> list(long page, long pageSize, String keyword, Long level, String status,
+                                    TimeRange range, boolean onlyUnlinked) {
         return list(page, pageSize, keyword, level, status, range, onlyUnlinked, null);
     }
 
     /** 客户列表可按首次新增门店筛选；不传时保持租户内跨店共享主档口径。 */
-    public Page<CstMemberPo> list(long page, long pageSize, String keyword, Long level, String status,
-                                  TimeRange range, boolean onlyUnlinked, Long originStoreId) {
-        LambdaQueryWrapper<CstMemberPo> qw = new LambdaQueryWrapper<>();
-        applyKeyword(qw, keyword);
-        if (level != null) qw.eq(CstMemberPo::getLevelId, level);
-        if (status != null && !status.isBlank()) qw.eq(CstMemberPo::getStatus, status);
-        if (onlyUnlinked) qw.isNull(CstMemberPo::getImAccount);
-        if (originStoreId != null) {
-            if (originStoreId <= 0) throw new ApiException(400, "STORE_FILTER_INVALID", "门店筛选非法");
-            qw.eq(CstMemberPo::getOriginStoreId, originStoreId);
-        }
-        // 账号类型（idt_account）：客户/员工/平台运营——员工账号上的客户档案要能一眼看出来。
-        applyJoinedAtRange(qw, range);
-        qw.orderByDesc(CstMemberPo::getId);
-        Page<CstMemberPo> result = memberMapper.selectPage(new Page<>(page, pageSize), qw);
-        result.getRecords().forEach(this::fillPlain);
-        fillAccountTypes(result.getRecords());
-        fillImAccounts(result.getRecords());
+    public Page<MemberDisplay> list(long page, long pageSize, String keyword, Long level, String status,
+                                    TimeRange range, boolean onlyUnlinked, Long originStoreId) {
+        long safePage = page < 1 ? 1 : page;
+        long safeSize = pageSize < 1 ? 1 : pageSize;
+        MemberIdPage idPage = memberRepository.listIds(filter(keyword, level, status, onlyUnlinked,
+                originStoreId, range, (safePage - 1) * safeSize, safeSize));
+        List<MemberDisplay> records = describeAll(memberRepository.findAllById(idPage.ids()));
+        Page<MemberDisplay> result = new Page<>(safePage, safeSize, idPage.total());
+        result.setRecords(records);
         return result;
     }
 
-    /**
-     * 建档时间闭区间：{@code joined_at >= from AND joined_at <= to}。
-     *
-     * <p>全仓统一的时间列筛选拼法（与 {@link TimeRangeParams} 同一口径），
-     * 只在对应端点为空时不拼条件；列名不加函数包裹，保持索引可用。
-     */
-    private static void applyJoinedAtRange(LambdaQueryWrapper<CstMemberPo> qw, TimeRange range) {
-        if (range == null) {
-            return;
-        }
-        qw.ge(range.hasFrom(), CstMemberPo::getJoinedAt, range.fromInclusive());
-        qw.le(range.hasTo(), CstMemberPo::getJoinedAt, range.toInclusive());
-    }
-
-    public CstMemberPo get(Long id) {
-        CstMemberPo po = memberMapper.selectById(id);
-        if (po == null) throw new ApiException(404, "MEMBER_NOT_FOUND", "客户不存在");
-        fillPlain(po);
-        return po;
+    public MemberDisplay get(Long id) {
+        Member member = memberRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "客户不存在"));
+        return describeAll(List.of(member)).get(0);
     }
 
     /**
      * 按 accountId 找或建客户（C 端 OAuth 登录后首次访问资产时懒创建）。
      *
      * <p>历史脏数据里同一 accountId 可能有多条（ACK 租户 100 实测 63 行只有 23 个 accountId）：
-     * 这里按 id 升序取**最早一条**并打 WARN，不再让 {@code selectOne} 因多行直接抛异常。
+     * 端口按 id 升序取<b>最早一条</b>并打 WARN，不再让查询因多行直接抛异常。
      * 迁移 V6 已对「无引用的重复行」做去重，剩下的重复是「有业务引用、不能删」的行。
      */
     @Transactional
-    public CstMemberPo getOrCreateByAccount(Long accountId) {
+    public MemberDisplay getOrCreateByAccount(Long accountId) {
         if (accountId == null) {
             throw new ApiException(400, "ACCOUNT_ID_REQUIRED", "缺少 accountId");
         }
-        CstMemberPo existing = findEarliestByAccountId(accountId);
+        Member existing = memberRepository.findEarliestByAccountId(accountId).orElse(null);
         if (existing != null) {
-            fillPlain(existing);
-            return existing;
+            return describeAll(List.of(existing)).get(0);
         }
-        return create(accountId, "客户", "", false);
+        return create(accountId, "客户", "", false, null, null);
     }
 
     /**
@@ -174,14 +162,13 @@ public class MemberApplicationService {
      * 读到既有客户不改写其首次建档门店，避免跨店访问污染来源归因。
      */
     @Transactional
-    public CstMemberPo getOrCreateByAccount(Long originStoreId, Long accountId) {
+    public MemberDisplay getOrCreateByAccount(Long originStoreId, Long accountId) {
         if (accountId == null) {
             throw new ApiException(400, "ACCOUNT_ID_REQUIRED", "缺少 accountId");
         }
-        CstMemberPo existing = findEarliestByAccountId(accountId);
+        Member existing = memberRepository.findEarliestByAccountId(accountId).orElse(null);
         if (existing != null) {
-            fillPlain(existing);
-            return existing;
+            return describeAll(List.of(existing)).get(0);
         }
         if (originStoreId == null) {
             throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "首次创建客户必须在门店上下文中发起");
@@ -190,17 +177,17 @@ public class MemberApplicationService {
             return create(originStoreId, accountId, "客户", "", false, null, null);
         } catch (DuplicateKeyException race) {
             // 两个首屏资产请求可能并发懒创建同一客户；唯一键竞争的一方重新读取赢家，保持接口幂等。
-            CstMemberPo winner = findEarliestByAccountId(accountId);
+            Member winner = memberRepository.findEarliestByAccountId(accountId).orElse(null);
             if (winner == null) {
-                String imAccount = normalizeImAccount(memberMapper.selectImAccountByAccountId(accountId));
+                String imAccount = normalizeImAccount(bindingForAccount(accountId));
                 if (imAccount != null) {
-                    winner = findByImAccount(imAccount);
+                    winner = memberRepository.findEarliestByImAccount(imAccount).orElse(null);
                 }
             }
             if (winner != null) {
-                log.debug("并发建档命中账号或 IM 唯一键，返回已创建客户: accountId={}, memberId={}", accountId, winner.getId());
-                fillPlain(winner);
-                return winner;
+                log.debug("并发建档命中账号或 IM 唯一键，返回已创建客户: accountId={}, memberId={}",
+                        accountId, winner.id());
+                return describeAll(List.of(winner)).get(0);
             }
             throw race;
         }
@@ -209,7 +196,7 @@ public class MemberApplicationService {
     /**
      * 积分管理列表：分页返回客户 + 积分账户余额（积分账户懒加载，缺失按 0）。
      *
-     * <p>{@code range} 与客户列表同一口径：按**建档时间** {@code joined_at} 闭区间筛选
+     * <p>{@code range} 与客户列表同一口径：按<b>建档时间</b> {@code joined_at} 闭区间筛选
      * （积分行是「客户 + 积分账户」，业务时间列仍是客户的建档时间）。
      */
     public Page<MemberPointsRow> pointsList(long page, long pageSize, String keyword, TimeRange range) {
@@ -219,32 +206,23 @@ public class MemberApplicationService {
     /** 积分管理列表可按客户首次新增门店筛选；积分余额仍是租户级共享。 */
     public Page<MemberPointsRow> pointsList(long page, long pageSize, String keyword, TimeRange range,
                                             Long originStoreId) {
-        LambdaQueryWrapper<CstMemberPo> qw = new LambdaQueryWrapper<>();
-        applyKeyword(qw, keyword);
-        if (originStoreId != null) {
-            if (originStoreId <= 0) throw new ApiException(400, "STORE_FILTER_INVALID", "门店筛选非法");
-            qw.eq(CstMemberPo::getOriginStoreId, originStoreId);
-        }
-        applyJoinedAtRange(qw, range);
-        qw.orderByDesc(CstMemberPo::getId);
-        Page<CstMemberPo> memberPage = memberMapper.selectPage(new Page<>(page, pageSize), qw);
+        long safePage = page < 1 ? 1 : page;
+        long safeSize = pageSize < 1 ? 1 : pageSize;
+        MemberIdPage idPage = memberRepository.listIds(filter(keyword, null, null, false, originStoreId,
+                range, (safePage - 1) * safeSize, safeSize));
+        List<Member> members = memberRepository.findAllById(idPage.ids());
 
-        List<Long> memberIds = memberPage.getRecords().stream().map(CstMemberPo::getId).toList();
-        Map<Long, CstPointAccountPo> pointsMap = new HashMap<>();
-        if (!memberIds.isEmpty()) {
-            pointAccountMapper.selectList(new LambdaQueryWrapper<CstPointAccountPo>()
-                            .in(CstPointAccountPo::getCustomerId, memberIds))
-                    .forEach(p -> pointsMap.put(p.getCustomerId(), p));
-        }
+        // 整页一次批量查询（不逐会员查积分）：缺失 = 余额 0。
+        Map<Long, PointAccount> pointsByCustomer = pointAccountRepository.findByCustomers(idPage.ids());
 
-        List<MemberPointsRow> records = memberPage.getRecords().stream().map(m -> {
-            fillPlain(m);
-            CstPointAccountPo p = pointsMap.get(m.getId());
-            return new MemberPointsRow(m.getId(), m.getMemberNo(), m.getName(), m.getPhone(),
-                    p == null ? 0L : (p.getAvailablePoints() == null ? 0L : p.getAvailablePoints()),
-                    p == null ? 0L : (p.getFrozenPoints() == null ? 0L : p.getFrozenPoints()));
+        List<MemberPointsRow> records = members.stream().map(member -> {
+            MemberDisplay display = describePlain(member);
+            PointAccount account = pointsByCustomer.get(member.id());
+            return new MemberPointsRow(member.id(), member.memberNo(), display.name(), display.phone(),
+                    account == null ? 0L : account.available(),
+                    account == null ? 0L : account.frozen());
         }).toList();
-        Page<MemberPointsRow> result = new Page<>(page, pageSize, memberPage.getTotal());
+        Page<MemberPointsRow> result = new Page<>(safePage, safeSize, idPage.total());
         result.setRecords(records);
         return result;
     }
@@ -255,12 +233,12 @@ public class MemberApplicationService {
 
     /** 兼容既有口径：不带 IM 绑定的建档。 */
     @Transactional
-    public CstMemberPo create(Long accountId, String name, String phone, Boolean consent) {
+    public MemberDisplay create(Long accountId, String name, String phone, Boolean consent) {
         return create(accountId, name, phone, consent, null, null);
     }
 
     /**
-     * 建档（幂等）：{@code accountId} 或 {@code imAccount} 已存在客户 → **返回既有客户**，不新建、不报 500。
+     * 建档（幂等）：{@code accountId} 或 {@code imAccount} 已存在客户 → <b>返回既有客户</b>，不新建、不报 500。
      *
      * <p>这是「防止同一 IM 用户生成多条客户」的第一道闸：
      * <ul>
@@ -272,79 +250,64 @@ public class MemberApplicationService {
      * 幂等返回的分支不写 {@code member.create} 审计：本次没有创建任何东西（是读语义的命中）。
      */
     @Transactional
-    public CstMemberPo create(Long accountId, String name, String phone, Boolean consent,
-                              String imAccount, String imUsername) {
+    public MemberDisplay create(Long accountId, String name, String phone, Boolean consent,
+                                String imAccount, String imUsername) {
         return create(null, accountId, name, phone, consent, imAccount, imUsername);
     }
 
     /** 入站适配器显式传入已验签门店；不从请求体推断归因。 */
     @Transactional
-    public CstMemberPo create(Long originStoreId, Long accountId, String name, String phone, Boolean consent,
-                              String imAccount, String imUsername) {
+    public MemberDisplay create(Long originStoreId, Long accountId, String name, String phone, Boolean consent,
+                                String imAccount, String imUsername) {
         String normalizedIm = normalizeImAccount(imAccount);
 
         // 创建时就回填 IM 信息（统一账号模型 idt_login_identity / idt_profile_sync_record）：
         // 账号有 IM 身份才写，IM 没有这个信息就保持空——不伪造；员工账号同口径（员工也可以是消费者）。
         String normalizedImUsername = normalizeImUsername(imUsername);
         if (normalizedIm == null && accountId != null) {
-            normalizedIm = normalizeImAccount(memberMapper.selectImAccountByAccountId(accountId));
+            normalizedIm = normalizeImAccount(bindingForAccount(accountId));
             if (normalizedIm != null && normalizedImUsername == null) {
-                normalizedImUsername = normalizeImUsername(memberMapper.selectImNicknameByAccountId(accountId));
+                normalizedImUsername = normalizeImUsername(nicknameForAccount(accountId));
             }
         }
         if (accountId != null) {
-            CstMemberPo existing = findEarliestByAccountId(accountId);
+            Member existing = memberRepository.findEarliestByAccountId(accountId).orElse(null);
             if (existing != null) {
                 log.info("建档命中已存在的 accountId，返回既有客户: accountId={}, memberId={}",
-                        accountId, existing.getId());
-                fillPlain(existing);
-                return existing;
+                        accountId, existing.id());
+                return describeAll(List.of(existing)).get(0);
             }
         }
         if (normalizedIm != null) {
-            CstMemberPo existing = findByImAccount(normalizedIm);
+            Member existing = memberRepository.findEarliestByImAccount(normalizedIm).orElse(null);
             if (existing != null) {
                 log.info("建档命中已存在的 IM 账号，返回既有客户: imAccount={}, memberId={}",
-                        normalizedIm, existing.getId());
-                fillPlain(existing);
-                return existing;
+                        normalizedIm, existing.id());
+                return describeAll(List.of(existing)).get(0);
             }
         }
         try {
             LocalDateTime now = LocalDateTime.now();
-            CstMemberPo po = new CstMemberPo();
-            po.setOriginStoreId(originStoreId);
-            po.setAccountId(accountId);
-            po.setImAccount(normalizedIm);
-            po.setImUsername(normalizedImUsername);
-            po.setImBoundAt(normalizedIm == null ? null : now);
             // 客户号：雪花发号器全局唯一；name/phone：AES-256-GCM 加密；手机号摘要：SHA-256（检索）。
-            po.setMemberNo("M" + idGenerator.nextId());
-            po.setNameCipher(aesGcmCipher.encrypt(name));
-            po.setPhoneCipher(aesGcmCipher.encrypt(phone));
-            po.setPhoneDigest(NameBlindIndex.sha256Hex(phone));
-            po.setName(name);
-            po.setPhone(phone);
-            po.setStatus("ACTIVE");
-            po.setJoinedAt(now);
-            po.setVersion(0);
-            po.setCreatedAt(now);
-            po.setUpdatedAt(now);
-            // consent：真实实现写 mkt_consent（营销授权），脚手架暂不落库
-            memberMapper.insert(po);
+            // consent：真实实现写 mkt_consent（营销授权），脚手架暂不落库。
+            Member created = memberRepository.insert(new Member(null,
+                    TenantContextHolder.tenantIdOrNull(), originStoreId, accountId, normalizedIm,
+                    normalizedImUsername, normalizedIm == null ? null : now,
+                    "M" + idGenerator.nextId(), aesGcmCipher.encrypt(name), aesGcmCipher.encrypt(phone),
+                    NameBlindIndex.sha256Hex(phone), null, Member.STATUS_ACTIVE, now, null, 0));
             // 姓名/客户号盲索引：写入路径必须同步重建，否则新客户按姓名搜不到。
-            rebuildNameTokens(po);
+            rebuildNameTokens(created);
             // 建档留痕：detail 只写客户号与是否登记手机号/IM，手机号/姓名密文与明文都不进审计详情。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("member.create")
-                    .resourceType("cst_member").resourceId(String.valueOf(po.getId()))
-                    .resourceName(po.getMemberNo())
-                    .idempotencyKey("member-create:" + po.getId())
-                    .detailJson("{\"memberNo\":\"" + po.getMemberNo() + "\",\"hasPhone\":"
+                    .resourceType("cst_member").resourceId(String.valueOf(created.id()))
+                    .resourceName(created.memberNo())
+                    .idempotencyKey("member-create:" + created.id())
+                    .detailJson("{\"memberNo\":\"" + created.memberNo() + "\",\"hasPhone\":"
                             + (phone != null && !phone.isBlank()) + ",\"hasIm\":"
                             + (normalizedIm != null) + ",\"consent\":" + Boolean.TRUE.equals(consent) + "}")
                     .build());
-            return po;
+            return describeAll(List.of(created)).get(0);
         } catch (RuntimeException failure) {
             // 失败留痕（缺少 accountId/加密失败/唯一键冲突等）：只 WARN，不影响业务异常本身；
             // detail 绝不带姓名/手机号（明文或密文都不进审计）。
@@ -363,58 +326,46 @@ public class MemberApplicationService {
     /**
      * 把既有客户绑定到 IM 账号（{@code PUT /business/members/{id}/im-binding}）。
      *
-     * <p>{@code imAccount} 已被**另一条**客户占用 → 409 {@code IM_ACCOUNT_ALREADY_BOUND}
+     * <p>{@code imAccount} 已被<b>另一条</b>客户占用 → 409 {@code IM_ACCOUNT_ALREADY_BOUND}
      * （消息带现有客户号，便于人工合并）；成功与失败都留痕 {@code member.im.bind}。
-     * 传了 {@code name} 时同步更新姓名密文并**重建盲索引**（改姓名必须重建 token）。
+     * 传了 {@code name} 时同步更新姓名密文并<b>重建盲索引</b>（改姓名必须重建 token）。
      */
     @Transactional
-    public CstMemberPo bindIm(Long id, String imAccount, String imUsername, String name) {
+    public MemberDisplay bindIm(Long id, String imAccount, String imUsername, String name) {
         String normalizedIm = normalizeImAccount(imAccount);
         if (normalizedIm == null) {
             throw new ApiException(400, "IM_ACCOUNT_REQUIRED", "缺少 imAccount");
         }
-        CstMemberPo member = memberMapper.selectById(id);
-        if (member == null) {
-            throw new ApiException(404, "MEMBER_NOT_FOUND", "客户不存在");
-        }
-        CstMemberPo occupied = findByImAccount(normalizedIm);
-        if (occupied != null && !occupied.getId().equals(member.getId())) {
-            auditImBind(member, normalizedIm, AuditClient.AuditRecord.RESULT_FAILURE, IM_ACCOUNT_ALREADY_BOUND);
+        Member member = memberRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "MEMBER_NOT_FOUND", "客户不存在"));
+        Member occupied = memberRepository.findEarliestByImAccount(normalizedIm).orElse(null);
+        if (occupied != null && !occupied.id().equals(member.id())) {
+            auditImBind(member, normalizedIm, AuditClient.AuditRecord.RESULT_FAILURE,
+                    IM_ACCOUNT_ALREADY_BOUND);
             throw new ApiException(409, IM_ACCOUNT_ALREADY_BOUND,
-                    "IM 账号已被客户 " + occupied.getMemberNo() + " 绑定");
+                    "IM 账号已被客户 " + occupied.memberNo() + " 绑定");
         }
         LocalDateTime now = LocalDateTime.now();
         boolean rename = name != null && !name.isBlank();
         String normalizedName = normalizeImUsername(imUsername);
-        memberMapper.update(null, new LambdaUpdateWrapper<CstMemberPo>()
-                .eq(CstMemberPo::getId, member.getId())
-                .set(CstMemberPo::getImAccount, normalizedIm)
-                .set(CstMemberPo::getImUsername, normalizedName)
-                .set(CstMemberPo::getImBoundAt, now)
-                .set(CstMemberPo::getUpdatedAt, now)
-                .set(rename, CstMemberPo::getNameCipher, rename ? aesGcmCipher.encrypt(name) : null));
-        member.setImAccount(normalizedIm);
-        member.setImUsername(normalizedName);
-        member.setImBoundAt(now);
-        if (rename) {
-            member.setNameCipher(aesGcmCipher.encrypt(name));
-            member.setName(name);
-        }
+        String newNameCipher = rename ? aesGcmCipher.encrypt(name) : null;
+        memberRepository.updateImBinding(member.id(), normalizedIm, normalizedName, now, newNameCipher);
+        Member bound = member.withImBinding(normalizedIm, normalizedName, now, newNameCipher);
         // 改姓名要重建盲索引；没改姓名也重建（幂等，顺带覆盖客户号 token，成本极低）。
-        rebuildNameTokens(member);
-        auditImBind(member, normalizedIm, null, null);
-        fillPlain(member);
-        return member;
+        rebuildNameTokens(bound);
+        auditImBind(bound, normalizedIm, null, null);
+        return describeAll(List.of(bound)).get(0);
     }
 
     /**
      * 指定租户的姓名盲索引存量回填（可重入）。
      *
-     * <p>只处理「**没有 token 行**」的客户（迁移里无法解密姓名，只能在应用层做）：
+     * <p>只处理「<b>没有 token 行</b>」的客户（迁移里无法解密姓名，只能在应用层做）：
      * <ol>
-     *   <li>跨租户/无上下文扫描用 {@link MemberNameTokenMapper#selectMemberIdsMissingTokens}
-     *       （{@code @InterceptorIgnore} + 显式 tenantId），按 id 升序游标分批（每批 200）；</li>
-     *   <li>逐条**先设该客户的租户上下文再写**：不设上下文会被租户拦截器整批拒绝；</li>
+     *   <li>跨租户/无上下文扫描用
+     *       {@link MemberNameTokenRepository#findMemberIdsMissingTokens}（适配器忽略租户拦截器 +
+     *       显式 tenantId），按 id 升序游标分批（每批 200）；</li>
+     *   <li>逐条<b>先设该客户的租户上下文再写</b>：不设上下文会被租户拦截器整批拒绝；</li>
      *   <li>单条失败只 WARN 并继续（{@code afterId} 照常推进，不会卡在同一行），返回结果里给出 failed 与 remaining。</li>
      * </ol>
      */
@@ -424,7 +375,8 @@ public class MemberApplicationService {
         int failed = 0;
         long afterId = 0L;
         while (true) {
-            List<Long> batch = nameTokenMapper.selectMemberIdsMissingTokens(tenantId, afterId, NAME_INDEX_BATCH_SIZE);
+            List<Long> batch = nameTokenRepository.findMemberIdsMissingTokens(tenantId, afterId,
+                    NAME_INDEX_BATCH_SIZE);
             if (batch == null || batch.isEmpty()) {
                 break;
             }
@@ -438,7 +390,7 @@ public class MemberApplicationService {
                 TenantContext previous = TenantContextHolder.get();
                 try {
                     TenantContextHolder.set(new TenantContext(tenantId, null, null, 0L, 0));
-                    CstMemberPo member = memberMapper.selectById(memberId);
+                    Member member = memberRepository.findById(memberId).orElse(null);
                     if (member == null) {
                         continue;
                     }
@@ -460,21 +412,15 @@ public class MemberApplicationService {
                 break;
             }
         }
-        long remaining = nameTokenMapper.countMembersMissingTokens(tenantId);
+        long remaining = nameTokenRepository.countMembersMissingTokens(tenantId);
         return new NameIndexRebuildResult(tenantId, scanned, rebuilt, failed, remaining);
     }
 
     /** 全租户回填（调度任务入口）：逐租户调用，任一租户失败不影响其它租户（下一轮重试）。 */
     public List<NameIndexRebuildResult> rebuildNameIndexAllTenants() {
-        List<Long> tenantIds = nameTokenMapper.selectTenantIdsWithMembers();
+        List<Long> tenantIds = nameTokenRepository.listTenantIdsWithMembers();
         List<NameIndexRebuildResult> results = new ArrayList<>();
-        if (tenantIds == null) {
-            return results;
-        }
         for (Long tenantId : tenantIds) {
-            if (tenantId == null) {
-                continue;
-            }
             try {
                 NameIndexRebuildResult result = rebuildNameIndexForTenant(tenantId);
                 if (result.rebuilt() > 0 || result.failed() > 0) {
@@ -489,43 +435,39 @@ public class MemberApplicationService {
         return results;
     }
 
+    // ------------------------------------------------------------ 查询条件装配
+
     /**
-     * 列表/积分列表关键词检索（各分支 OR，服务端一次 SQL 完成，**总数与过滤口径一致**）：
-     * <ol>
-     *   <li>客户号包含：{@code member_no LIKE %kw%}（保留，因为回填尚未跑完时 token 表可能还没有存量客户的数据）；</li>
-     *   <li>姓名包含：盲索引 token 全命中 → {@code id IN (候选集)}；</li>
-     *   <li>手机号（纯数字 7~20 位）：SHA-256 摘要**精确**匹配（保持既有口径）；</li>
-     *   <li>IM 账号 / IM 用户名：{@code LIKE %kw%}。</li>
-     * </ol>
+     * 把控制层参数归一成端口的查询条件。
      *
-     * <p><b>关于「token 命中集合为空时直接返回空页」</b>：这里只在**为空时跳过该 OR 分支**，不回空页。
-     * 原因是本方法的四个分支是 OR 关系：关键词是手机号或 IM 账号时，盲索引必然没有命中
-     * （手机号/IM 根本没进 token 表），若因此直接回空页，②③ 两个明确要求的能力会一起失效。
-     * 分支为空时不会拼出 {@code IN ()}（MyBatis-Plus 对空集合会生成非法 SQL），也不会退化成全表扫描
-     * —— 剩下的条件仍然是 phone_digest 等值 / member_no、im_* 的 LIKE。空页语义由 SQL 结果自然给出。
+     * <p>关键词的 token 与手机号摘要在这里算好：它们是应用层的加密/摘要口径
+     * （{@link NameBlindIndex}），端口与适配器都不需要知道 token 是怎么来的。
+     * 无租户上下文（同步/离线调用）时姓名通道不参与——盲索引是租户内检索，没有上下文就没有检索范围。
      */
-    private void applyKeyword(LambdaQueryWrapper<CstMemberPo> qw, String keyword) {
-        if (keyword == null || keyword.isBlank()) {
-            return;
+    private MemberFilter filter(String keyword, Long level, String status, boolean onlyUnlinked,
+                                Long originStoreId, TimeRange range, long offset, long limit) {
+        if (originStoreId != null && originStoreId <= 0) {
+            throw new ApiException(400, "STORE_FILTER_INVALID", "门店筛选非法");
         }
-        String trimmed = keyword.trim();
-        String digest = isPhoneLike(trimmed) ? NameBlindIndex.sha256Hex(trimmed) : null;
-        List<Long> tokenHits = nameTokenHits(trimmed);
-        qw.and(w -> {
-            w.like(CstMemberPo::getMemberNo, trimmed);
-            w.or().like(CstMemberPo::getImAccount, trimmed);
-            w.or().like(CstMemberPo::getImUsername, trimmed);
-            if (digest != null) {
-                w.or().eq(CstMemberPo::getPhoneDigest, digest);
-            }
-            if (!tokenHits.isEmpty()) {
-                w.or().in(CstMemberPo::getId, tokenHits);
-            }
-        });
+        String trimmed = keyword == null ? null : keyword.trim();
+        if (trimmed != null && trimmed.isEmpty()) {
+            trimmed = null;
+        }
+        String digest = trimmed != null && isPhoneLike(trimmed) ? NameBlindIndex.sha256Hex(trimmed) : null;
+        // 纯数字关键词走手机号摘要精确匹配：盲索引是"姓名/客户号"的索引，手机号根本没进 token 表，
+        // 再查一次只会白跑一条 SQL（命中必然为空，OR 分支也会被跳过）。
+        List<Long> blindIndexHits = digest != null ? List.of() : nameMatchIds(trimmed);
+        return new MemberFilter(trimmed, digest, blindIndexHits, level, status, onlyUnlinked, originStoreId,
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive(),
+                offset, limit);
     }
 
-    /** 关键词的姓名/客户号盲索引候选集；无租户上下文（如同步/离线调用）时不走该通道。 */
-    private List<Long> nameTokenHits(String keyword) {
+    /** 关键词的姓名/客户号盲索引候选档案 id 集合；无租户上下文（如同步/离线调用）时不走该通道。 */
+    private List<Long> nameMatchIds(String keyword) {
+        if (keyword == null) {
+            return List.of();
+        }
         Set<String> tokens = NameBlindIndex.tokenize(keyword);
         if (tokens.isEmpty()) {
             return List.of();
@@ -534,8 +476,7 @@ public class MemberApplicationService {
         if (tenantId == null) {
             return List.of();
         }
-        List<Long> hits = nameTokenMapper.selectMemberIdsByAllTokens(tenantId, tokens, tokens.size());
-        return hits == null ? List.of() : hits;
+        return nameTokenRepository.findMemberIdsByAllTokens(tenantId, tokens);
     }
 
     private static boolean isPhoneLike(String value) {
@@ -550,14 +491,30 @@ public class MemberApplicationService {
         return true;
     }
 
-    /** 解密回填非持久化明文字段（name/phone）；无「客户隐私查看」权限时脱敏，密文仍保留在 nameCipher/phoneCipher。 */
-    private void fillPlain(CstMemberPo po) {
-        if (po == null) return;
+    // ------------------------------------------------------------ 展示值装配
+
+    /** 一页档案 + 展示值（账号类型 / IM 侧真实账号各一次批量查询，不逐行查库）。 */
+    private List<MemberDisplay> describeAll(List<Member> members) {
+        List<MemberDisplay> described = new ArrayList<>(members.size());
+        for (Member member : members) {
+            described.add(describePlain(member));
+        }
+        fillAccountTypes(described);
+        fillImAccounts(described);
+        return described;
+    }
+
+    /** 解密回填明文（name/phone）；无「客户隐私查看」权限时脱敏，密文仍保留在 nameCipher/phoneCipher。 */
+    private MemberDisplay describePlain(Member member) {
+        if (member == null) {
+            return null;
+        }
         boolean canViewPii = canViewPii();
-        String name = aesGcmCipher.decrypt(po.getNameCipher());
-        String phone = aesGcmCipher.decrypt(po.getPhoneCipher());
-        po.setName(canViewPii ? name : maskName(name));
-        po.setPhone(canViewPii ? phone : maskPhone(phone));
+        String name = aesGcmCipher.decrypt(member.nameCipher());
+        String phone = aesGcmCipher.decrypt(member.phoneCipher());
+        return MemberDisplay.withoutDisplay(member)
+                .withDisplay(canViewPii ? name : maskName(name), canViewPii ? phone : maskPhone(phone),
+                        null, null, null);
     }
 
     private boolean canViewPii() {
@@ -576,92 +533,135 @@ public class MemberApplicationService {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 
-    /** 按 accountId 取最早一条客户；命中多条时打 WARN（历史脏数据不炸）。 */
-    private CstMemberPo findEarliestByAccountId(Long accountId) {
-        List<CstMemberPo> rows = memberMapper.selectList(new LambdaQueryWrapper<CstMemberPo>()
-                .eq(CstMemberPo::getAccountId, accountId)
-                .orderByAsc(CstMemberPo::getId)
-                .last("LIMIT 2"));
-        if (rows == null || rows.isEmpty()) {
-            return null;
+    /**
+     * 批量补齐账号类型（同页一次查询）：取不到就不填（平台库不可达时不阻塞列表）。
+     */
+    private void fillAccountTypes(List<MemberDisplay> records) {
+        if (records == null || records.isEmpty()) {
+            return;
         }
-        if (rows.size() > 1) {
-            log.warn("同一 accountId 命中多条客户档案（历史脏数据；迁移 V6 已去重「无引用」的重复行）: "
-                    + "accountId={}, 取最早一条 id={}", accountId, rows.get(0).getId());
+        List<Long> accountIds = new ArrayList<>();
+        for (MemberDisplay record : records) {
+            if (record.member().accountId() != null) {
+                accountIds.add(record.member().accountId());
+            }
         }
-        return rows.get(0);
-    }
-
-    /** 按 IM 账号取客户（同租户内唯一；{@code im_account} 为 NULL 的行不参与）。 */
-    private CstMemberPo findByImAccount(String imAccount) {
-        List<CstMemberPo> rows = memberMapper.selectList(new LambdaQueryWrapper<CstMemberPo>()
-                .eq(CstMemberPo::getImAccount, imAccount)
-                .orderByAsc(CstMemberPo::getId)
-                .last("LIMIT 2"));
-        if (rows == null || rows.isEmpty()) {
-            return null;
+        if (accountIds.isEmpty()) {
+            return;
         }
-        if (rows.size() > 1) {
-            log.warn("同一 IM 账号命中多条客户档案（应被 uk_cst_member_tenant_im 拦住）: imAccount={}, 取最早一条 id={}",
-                    imAccount, rows.get(0).getId());
+        try {
+            Map<Long, String> types = imBindingRepository.findAccountTypes(accountIds);
+            for (int i = 0; i < records.size(); i++) {
+                MemberDisplay record = records.get(i);
+                String type = types.get(record.member().accountId());
+                if (type != null) {
+                    records.set(i, record.withDisplay(record.name(), record.phone(), type,
+                            record.imAccountName(), record.imAccountDeleted()));
+                }
+            }
+        } catch (RuntimeException failure) {
+            log.warn("补齐账号类型失败（不影响客户列表）: cause={}", failure.getMessage());
         }
-        return rows.get(0);
     }
 
     /**
-     * 重建一名客户的盲索引 token 集合（**先删后插**，幂等）。
+     * 批量补齐「IM 侧真实账号」（同页一次查询）：界面「IM 账号」列显示 {@code imAccountName}；
+     * IM 用户已删除（用户行缺失）时置 {@code imAccountDeleted=true}，供页面标红并纳入清理判据。
+     */
+    private void fillImAccounts(List<MemberDisplay> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        List<Long> memberIds = new ArrayList<>();
+        Map<Long, Integer> indexOf = new HashMap<>();
+        for (int i = 0; i < records.size(); i++) {
+            Long memberId = records.get(i).member().id();
+            if (memberId != null) {
+                memberIds.add(memberId);
+                indexOf.put(memberId, i);
+            }
+        }
+        if (memberIds.isEmpty()) {
+            return;
+        }
+        try {
+            // 以客户档案为驱动表：档案没有 account_id（历史数据）也能按 im_account 解析出 IM 账号，
+            // 且 IM 后台删掉 idt_login_identity 行后判定不会退化成「未删除」。
+            for (ImBinding binding : imBindingRepository.resolveBindings(memberIds)) {
+                Integer index = indexOf.get(binding.memberId());
+                if (index == null) {
+                    continue;
+                }
+                MemberDisplay record = records.get(index);
+                records.set(index, record.withDisplay(record.name(), record.phone(), record.accountType(),
+                        binding.imUsername(), binding.imAccountGone()));
+            }
+        } catch (RuntimeException failure) {
+            log.warn("补齐 IM 真实账号失败（不影响客户列表）: cause={}", failure.getMessage());
+        }
+    }
+
+    // ------------------------------------------------------------ 写路径辅助
+
+    /**
+     * 账号在统一账号模型里的 IM 登录标识（读不到就返回 {@code null}，绝不伪造）。
+     * 查询失败同样返回 {@code null}：IM 侧读不到不该阻塞建档（员工也可以是消费者）。
+     */
+    private String bindingForAccount(Long accountId) {
+        try {
+            return imBindingRepository.findImAccountByAccountId(accountId);
+        } catch (RuntimeException failure) {
+            log.warn("读取账号 IM 登录标识失败（不阻塞建档）: accountId={}, cause={}", accountId, failure.getMessage());
+            return null;
+        }
+    }
+
+    /** 账号在统一账号模型里的最新 IM 昵称快照；失败返回 {@code null}。 */
+    private String nicknameForAccount(Long accountId) {
+        try {
+            return imBindingRepository.findImNicknameByAccountId(accountId);
+        } catch (RuntimeException failure) {
+            log.warn("读取账号 IM 昵称失败（不阻塞建档）: accountId={}, cause={}", accountId, failure.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 重建一名客户的盲索引 token 集合（<b>先删后插</b>，幂等）。
      *
      * <p>token 覆盖「姓名（解密后）+ 客户号」两段文本；名字取自密文解密而不是入参，保证
      * create / im-binding / 回填三条路径用的是同一份口径。
      *
-     * <p>失败补偿：删完旧的、插新的过程中失败时，再删一次，把这名客户退回「零 token 行」状态。
-     * 否则会留下半套索引，而回填扫描的判据是「没有 token 行」——半套索引会被误判为已完成。
+     * <p>失败补偿（删完旧的、插新的过程中失败时再删一次，退回「零 token 行」状态）在适配器内完成，
+     * 因为它与"先删后插"必须是同一个操作：留下半套索引会被回填扫描误判为已完成。
      */
-    private void rebuildNameTokens(CstMemberPo member) {
-        if (member == null || member.getId() == null) {
+    private void rebuildNameTokens(Member member) {
+        if (member == null || member.id() == null) {
             return;
         }
-        Long tenantId = member.getTenantId() != null ? member.getTenantId() : TenantContextHolder.tenantIdOrNull();
+        Long tenantId = member.tenantId() != null ? member.tenantId() : TenantContextHolder.tenantIdOrNull();
         Set<String> tokens = new LinkedHashSet<>();
-        tokens.addAll(NameBlindIndex.tokenize(aesGcmCipher.decrypt(member.getNameCipher())));
-        tokens.addAll(NameBlindIndex.tokenize(member.getMemberNo()));
-        nameTokenMapper.delete(tokenOwnerWrapper(member.getId()));
-        try {
-            LocalDateTime now = LocalDateTime.now();
-            for (String token : tokens) {
-                CstMemberNameTokenPo row = new CstMemberNameTokenPo();
-                row.setTenantId(tenantId);
-                row.setMemberId(member.getId());
-                row.setToken(token);
-                row.setCreatedAt(now);
-                nameTokenMapper.insert(row);
-            }
-        } catch (RuntimeException failure) {
-            try {
-                nameTokenMapper.delete(tokenOwnerWrapper(member.getId()));
-            } catch (RuntimeException compensationFailure) {
-                log.warn("补偿删除半套盲索引失败（下一轮回填会再次处理该客户）: memberId={}, cause={}",
-                        member.getId(), compensationFailure.getMessage());
-            }
-            throw failure;
+        tokens.addAll(NameBlindIndex.tokenize(aesGcmCipher.decrypt(member.nameCipher())));
+        tokens.addAll(NameBlindIndex.tokenize(member.memberNo()));
+        LocalDateTime now = LocalDateTime.now();
+        List<MemberNameToken> rows = new ArrayList<>(tokens.size());
+        for (String token : tokens) {
+            rows.add(MemberNameToken.of(tenantId, member.id(), token, now));
         }
-    }
-
-    private static LambdaQueryWrapper<CstMemberNameTokenPo> tokenOwnerWrapper(Long memberId) {
-        return new LambdaQueryWrapper<CstMemberNameTokenPo>().eq(CstMemberNameTokenPo::getMemberId, memberId);
+        nameTokenRepository.replaceForMember(member.id(), rows);
     }
 
     /** 绑定留痕：成功与失败都要有；detail 只写客户号/客户 id 与 IM 账号，绝不带姓名/手机号。 */
-    private void auditImBind(CstMemberPo member, String imAccount, String result, String errorCode) {
+    private void auditImBind(Member member, String imAccount, String result, String errorCode) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action(IM_BIND_ACTION)
-                .resourceType("cst_member").resourceId(String.valueOf(member.getId()))
-                .resourceName(member.getMemberNo())
+                .resourceType("cst_member").resourceId(String.valueOf(member.id()))
+                .resourceName(member.memberNo())
                 .result(result)
                 .errorCode(errorCode)
-                .idempotencyKey("member-im-bind:" + member.getId() + ":" + imAccount
+                .idempotencyKey("member-im-bind:" + member.id() + ":" + imAccount
                         + (errorCode == null ? "" : ":fail"))
-                .detailJson("{\"memberNo\":\"" + member.getMemberNo() + "\",\"imAccount\":\"" + imAccount + "\"}")
+                .detailJson("{\"memberNo\":\"" + member.memberNo() + "\",\"imAccount\":\"" + imAccount + "\"}")
                 .build());
     }
 
@@ -679,80 +679,5 @@ public class MemberApplicationService {
         }
         String trimmed = imUsername.trim();
         return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    /**
-     * 批量补齐账号类型（同页一次查询）：取不到就不填（平台库不可达时不阻塞列表）。
-     */
-    private void fillAccountTypes(java.util.List<CstMemberPo> records) {
-        if (records == null || records.isEmpty()) {
-            return;
-        }
-        java.util.List<Long> accountIds = new java.util.ArrayList<>();
-        for (CstMemberPo record : records) {
-            if (record.getAccountId() != null) {
-                accountIds.add(record.getAccountId());
-            }
-        }
-        if (accountIds.isEmpty()) {
-            return;
-        }
-        try {
-            for (java.util.Map<String, Object> row : memberMapper.selectAccountTypes(accountIds)) {
-                Object id = row.get("accountId");
-                Object type = row.get("accountType");
-                if (id == null || type == null) {
-                    continue;
-                }
-                Long accountId = ((Number) id).longValue();
-                for (CstMemberPo record : records) {
-                    if (accountId.equals(record.getAccountId())) {
-                        record.setAccountType(String.valueOf(type));
-                    }
-                }
-            }
-        } catch (RuntimeException failure) {
-            log.warn("补齐账号类型失败（不影响客户列表）: cause={}", failure.getMessage());
-        }
-    }
-
-    /**
-     * 批量补齐「IM 侧真实账号」（同页一次查询）：界面「IM 账号」列显示 {@code imAccountName}；
-     * IM 用户已删除（用户行缺失）时置 {@code imAccountDeleted=true}，供页面标红并纳入清理判据。
-     */
-    private void fillImAccounts(java.util.List<CstMemberPo> records) {
-        if (records == null || records.isEmpty()) {
-            return;
-        }
-        java.util.List<Long> memberIds = new java.util.ArrayList<>();
-        for (CstMemberPo record : records) {
-            if (record.getId() != null) {
-                memberIds.add(record.getId());
-            }
-        }
-        if (memberIds.isEmpty()) {
-            return;
-        }
-        try {
-            // 以客户档案为驱动表：档案没有 account_id（历史数据）也能按 im_account 解析出 IM 账号，
-            // 且 IM 后台删掉 idt_login_identity 行后判定不会退化成「未删除」。
-            for (java.util.Map<String, Object> row : memberMapper.selectImAccounts(memberIds)) {
-                Object memberIdValue = row.get("memberId");
-                if (memberIdValue == null) {
-                    continue;
-                }
-                long memberId = ((Number) memberIdValue).longValue();
-                for (CstMemberPo record : records) {
-                    if (record.getId() != null && record.getId() == memberId) {
-                        Object name = row.get("imUsername");
-                        Object deleted = row.get("deleted");
-                        record.setImAccountName(name == null ? null : String.valueOf(name));
-                        record.setImAccountDeleted(deleted instanceof Number number && number.intValue() == 1);
-                    }
-                }
-            }
-        } catch (RuntimeException failure) {
-            log.warn("补齐 IM 真实账号失败（不影响客户列表）: cause={}", failure.getMessage());
-        }
     }
 }

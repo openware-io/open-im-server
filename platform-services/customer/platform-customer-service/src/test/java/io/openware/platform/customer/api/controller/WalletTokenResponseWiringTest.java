@@ -17,9 +17,11 @@ import io.openware.platform.customer.api.dto.PointLedgerRow;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
+import io.openware.platform.customer.application.MemberDisplay;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.member.model.Member;
 import io.openware.platform.customer.domain.point.model.PointAccount;
 import io.openware.platform.customer.domain.point.model.PointLedgerEntry;
 import io.openware.platform.customer.domain.point.repository.PointAccountRepository;
@@ -28,7 +30,6 @@ import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient.WalletTokenConfig;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -64,7 +65,8 @@ class WalletTokenResponseWiringTest {
     memberController = new MemberController(memberService, pointService, walletService, displayService);
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1));
     when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
-    when(memberService.getOrCreateByAccount(ACCOUNT_ID)).thenReturn(member());
+    when(memberService.getOrCreateByAccount(ACCOUNT_ID))
+        .thenReturn(MemberDisplay.withoutDisplay(member(MEMBER_ID)));
   }
 
   @AfterEach
@@ -194,11 +196,9 @@ class WalletTokenResponseWiringTest {
    */
   @Test
   void walletsListUsesBatchBalanceQueryAndToleratesMissingAccounts() {
-    CstMemberPo withoutAccount = new CstMemberPo();
-    withoutAccount.setId(9L);
-    withoutAccount.setMemberNo("M9");
-    Page<CstMemberPo> page = new Page<>(1, 20, 2);
-    page.setRecords(List.of(member(), withoutAccount));
+    MemberDisplay withoutAccount = MemberDisplay.withoutDisplay(member(9L));
+    Page<MemberDisplay> page = new Page<>(1, 20, 2);
+    page.setRecords(List.of(MemberDisplay.withoutDisplay(member(MEMBER_ID)), withoutAccount));
     when(memberService.list(1L, 20L, null, null, null, TimeRange.none())).thenReturn(page);
     when(walletService.balances(List.of(MEMBER_ID, 9L)))
         .thenReturn(Map.of(MEMBER_ID, account(300L, 0L)));
@@ -215,12 +215,9 @@ class WalletTokenResponseWiringTest {
     verify(walletService).balances(List.of(MEMBER_ID, 9L));
   }
 
-  private static CstMemberPo member() {
-    CstMemberPo po = new CstMemberPo();
-    po.setId(MEMBER_ID);
-    po.setAccountId(ACCOUNT_ID);
-    po.setMemberNo("M1");
-    return po;
+  private static Member member(Long id) {
+    return new Member(id, TENANT_ID, null, ACCOUNT_ID, null, null, null, "M" + id, null, null, null,
+        null, Member.STATUS_ACTIVE, null, null, 0);
   }
 
   /** 已开户的领域账户 → 控制器入参。 */

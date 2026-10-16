@@ -1,7 +1,9 @@
 package io.openware.platform.customer.domain.wallet.repository;
 
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +58,37 @@ public interface WalletAccountRepository {
 
   /** 流水总条数。 */
   long countLedger(Long walletAccountId, Long storeId);
+
+  /**
+   * 租户内<b>全部</b>储值账户（总部汇总用：余额合计，不按门店/会员过滤）。
+   *
+   * <p>只在只读汇总路径上使用；返回领域聚合而不是行数聚合，是为了让"余额合计"的口径
+   * （{@code available()} 把 null 当 0）留在领域模型里，而不是散落在适配器的 SQL 里。
+   */
+  List<WalletAccount> listAll();
+
+  /**
+   * 期间内账本净变动（总部汇总用）：{@code occurred_at} 落在闭区间 {@code [from, to]} 内。
+   *
+   * <p>方向口径与业务一致：{@code CONSUME} / {@code REFUND} 记负、其余记正。
+   * 与 {@link #listLedger} 的分页查询共用同一套筛选语义，保证"列表看到的流水"与"汇总算出的变动"
+   * 不会出现两种口径。
+   *
+   * @param from    下界（含）；{@code null} = 不筛
+   * @param to      上界（含）；{@code null} = 不筛
+   * @param stores  门店集合；空或 {@code null} = 租户全量（非空时按 {@code store_id IN (...)} 过滤）
+   */
+  long deltaForPeriodByStores(LocalDateTime from, LocalDateTime to, List<Long> stores);
+
+  /**
+   * 清理某会员的<b>零额</b>储值账户及其账本流水（{@code MemberPurgeApplicationService} 用）。
+   *
+   * <p><b>为什么是窄口方法而不是通用 {@code delete}</b>：这条路径只允许删"可用与冻结都为 0"的账户
+   * （有余额的账户是业务引用，体检已经因此拒绝清理）。把条件开放给调用方（例如传一组列名或一个
+   * Wrapper）就等于把"什么算空账户"这个判定搬出仓储——那正是清理最不能出错的地方。
+   * 顺序也是固定的：先删该账户的流水，再删账户行（账户行被删而流水留下就是孤儿）。
+   */
+  AccountPurgeCount purgeEmptyAccountsFor(Long customerId);
 
   /**
    * 流水一页。

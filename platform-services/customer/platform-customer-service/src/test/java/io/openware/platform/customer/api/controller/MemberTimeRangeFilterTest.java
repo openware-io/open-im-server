@@ -19,12 +19,13 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.customer.api.dto.MemberView;
 import io.openware.platform.customer.application.MemberApplicationService;
+import io.openware.platform.customer.application.MemberDisplay;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
-import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,9 +80,9 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListPassesClosedDayRangeDownToService() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 3L));
+                .thenReturn(displayPage(1, 20, 3L));
 
-        Page<CstMemberPo> result = controller.list(1, 20, "张", 2L, "ACTIVE", "2026-09-01", "2026-09-30");
+        Page<MemberView> result = controller.list(1, 20, "张", 2L, "ACTIVE", "2026-09-01", "2026-09-30");
 
         // 既有筛选参数与分页一个都没被改写
         verify(memberService).list(1L, 20L, "张", 2L, "ACTIVE",
@@ -92,7 +93,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListClosesDateBoundsWithoutOverflowingToNextDay() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         controller.list(1, 20, null, null, null, "2026-09-01", "2026-09-30");
         TimeRange range = capturedListRange();
@@ -107,7 +108,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListAcceptsExplicitTimeAndFromOnly() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         controller.list(1, 20, null, null, null, "2026-09-01T08:30:00", null);
         TimeRange fromOnly = capturedListRange();
@@ -121,7 +122,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListAcceptsToOnly() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         controller.list(1, 20, null, null, null, null, "2026-09-30T20:15:30");
         TimeRange toOnly = capturedListRange();
@@ -133,7 +134,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListWithoutTimeParamsMeansNoFilter() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         controller.list(1, 20, null, null, null, null, null);
 
@@ -143,7 +144,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void membersListTreatsBlankTimeParamsAsNoFilter() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 0L));
+                .thenReturn(displayPage(1, 20, 0L));
 
         // 空串也按「没筛」处理（后端不会把它当非法值，也不会拼出空串条件）
         controller.list(1, 20, null, null, null, "", "  ");
@@ -203,7 +204,7 @@ class MemberTimeRangeFilterTest {
     @Test
     void walletsListReusesMemberListTimeFilter() {
         when(memberService.list(anyLong(), anyLong(), any(), any(), any(), any()))
-                .thenReturn(new Page<>(1, 20, 1L));
+                .thenReturn(displayPage(1, 20, 1L));
 
         Page<MemberController.MemberWalletRow> rows = controller.wallets(1, 20, "王", "2026-09-01", "2026-09-30");
 
@@ -229,5 +230,12 @@ class MemberTimeRangeFilterTest {
         ArgumentCaptor<TimeRange> range = ArgumentCaptor.forClass(TimeRange.class);
         verify(memberService).list(anyLong(), anyLong(), any(), any(), any(), range.capture());
         return range.getValue();
+    }
+
+    /** 服务层现在回的是「领域档案 + 展示值」的一页；控制器把它装配成响应视图分页。 */
+    private static Page<MemberDisplay> displayPage(long page, long size, long total) {
+        Page<MemberDisplay> result = new Page<>(page, size, total);
+        result.setRecords(java.util.List.of());
+        return result;
     }
 }

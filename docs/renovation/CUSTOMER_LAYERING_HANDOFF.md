@@ -5,7 +5,10 @@
 
 ## 0. 一句话现状
 
-**不要在这个状态下打包发布**：生产代码已全部编译通过，测试源码仍在迁移中（见 §5）。
+**本域的四个切片（积分规则 / 钱包 / 积分账户 / 会员）都已做完，生产侧与测试侧都在端口上，
+227 测试全绿，两个分层门禁在客户域都是 0 违规**（见 §5）。
+唯一还需要注意的不是"未完成"，而是 §4 记的那类**已发布契约的收紧**（审计字段、分页外层类型）
+——那要单独一次带版本说明的提交，不该混在重构里做。
 
 起点：该域**完全没有 `domain` 包**，14 个类直接从 `infra.persistence.po` / `mapper` 取数。
 起点计数：`po-containment` 33、`service-api-boundaries` 14。
@@ -66,6 +69,69 @@
 **迁移时确认过、值得记住的一条**：`CstPointLedgerPo` 上**没有** `@TableField(exist = false)` 字段
 （逐字段核对 + 与 DDL 对齐），所以积分适配器不需要像钱包那样跳过展示字段；
 `PointLedgerEntry` 保留 `createdAt`（NOT NULL 真实列，且是响应字段），但不带 `createdBy/updatedBy/updatedAt`。
+
+### 1.4 会员切片（`Member` / `MemberNameToken` / 清理）—— 生产侧与测试侧完成，待提交
+
+- `domain/member/model/{Member,MemberNameToken,MemberFilter}.java`
+- `domain/member/repository/{MemberRepository,MemberNameTokenRepository,MemberImBindingRepository,MemberPurgeReferenceRepository}.java`
+- `domain/account/model/AccountPurgeCount.java`（储值/积分两条清理路径共用的计数形状）
+- `infra/persistence/repository/MemberRepositoryAdapter.java`
+- `infra/persistence/repository/MemberNameTokenRepositoryAdapter.java`
+- `infra/persistence/repository/MemberImBindingRepositoryAdapter.java`
+- `infra/persistence/repository/MemberPurgeReferenceRepositoryAdapter.java`
+- `application/MemberDisplay.java`（应用层的「领域档案 + 展示值」载体）
+- `api/dto/MemberView.java`
+- 重写 `MemberApplicationService`、`MemberPurgeApplicationService`、`CustomerOverviewApplicationService`
+- 改造 `MemberController`（`Page<MemberView>` / `MemberView`）、`MyAssetsController`（`currentMember()` → `MemberDisplay`）
+- 扩端口：`WalletAccountRepository` / `PointAccountRepository` 各加
+  `listAll` / `deltaForPeriodByStores` / 窄口清理方法
+
+**该切片的六个要点**：
+
+1. **`CstMemberPo` 有五个 `@TableField(exist = false)` 的展示字段**
+   （`name` / `phone` / `accountType` / `imAccountName` / `imAccountDeleted`）：它们**是既有响应字段**
+   （旧契约就是整行 PO），但**不是列**。领域模型 `Member` 一个都不承载；
+   展示值走 `MemberDisplay`（应用层）→ `MemberView`（api/dto）。这条边界有两个测试各钉一半：
+   `MemberRepositoryAdapterTest` 断言 INSERT/UPDATE 的列集合与实体赋值里没有它们，
+   `MemberResponseContractTest` 断言序列化出来的键**一个不少**。
+   **该适配器测试做过变异验证**：把 `.set(CstMemberPo::getName, "x")` 加回 `updateImBinding` 后，
+   `MemberRepositoryAdapterTest` 立刻 3 个错误，报的正是
+   `can not find lambda cache for this property [name]`，另加 1 个集成测试错误；去掉后全绿。
+2. **`MemberFilter` 是唯一的筛选条件载体**（关键词/摘要/盲索引命中 id/等级/状态/是否未关联/门店/
+   建档时间闭区间/偏移/上限）。三个列表（客户、积分、储值）都只能经它表达，
+   "同一份 `joined_at` 过滤实现"从注释变成了结构约束。
+   两个容易踩的点：① 计数语句必须用**同一个 WHERE 但不带 ORDER BY / LIMIT**
+   ——count 里带 ORDER BY 在 H2 上直接报 `Column "id" must be in the GROUP BY list`（实测），
+   MySQL 上也只是白写；② 偏移不是页大小的整数倍时，靠 MyBatis-Plus 分页插件按"页码"换算会悄悄错页，
+   所以列表走显式 `LIMIT/OFFSET`（与钱包/积分适配器同一写法）。
+3. **`pointsList` 的批量取数换了口径但语义不变**：原先按当页 memberIds `IN` 查积分账户，
+   现在端口加了 `findByCustomers(List<Long>)`（仍是当页 `IN` 查，不是全表）。
+   注意**不要**为了"省一次查询"改成 `listAll()`：那会把整租户的账户读进来。
+4. **清理用例的闸门顺序与范围逐字段核对后原样保留**（没有顺手"修"）：
+   ① IM 关联（含"IM 账号已不存在"的放行路径，查询失败 fail-closed 仍拒绝）；
+   ② 跨域引用体检（读不到也 fail-closed，回同一句 `MEMBER_HAS_REFERENCES`）；
+   ③ 删姓名索引 → 清零额储值账户（流水→账户）→ 清积分账户 → 删档案。
+   积分那条有个**刻意保留的不对称**：账户行删该会员**全部**积分账户，流水**只对零额账户**删
+   （原实现如此）。也就是说非零账户的流水不会被这条路径删掉——账面事实不会因清理垃圾档案被悄悄抹掉。
+   改变它是行为变更，要单独一次带版本说明的提交。适配器测试把这条不对称钉住了。
+5. **响应字段名逐个保留**（与钱包/积分同一处境）：`MemberView` 保留 `CstMemberPo` 的**全部**键
+   （含 `tenantId` / `nameCipher` / `phoneCipher` / `phoneDigest` / `version` /
+   `createdBy` / `createdAt` / `updatedBy` / `updatedAt`）；审计时间戳在重构后是 `null`
+   （领域模型不承载审计字段），**字段仍在、形状不变**。
+   列表外层仍是 MyBatis-Plus `Page`（`records/total/size/current/pages` 就是既有外形，换名字同样是破坏），
+   只有 `records` 的元素从 PO 换成了视图。`MemberMeResponse` 与 `MemberWalletRow` 的形状没动。
+   `MemberResponseContractTest` 把上面这些序列化键逐个钉住（含 `pages` 的算式）。
+6. **`AccountPurgeCount` 是一个刻意共享的小类型**：储值/积分两条清理路径的"删了几行"形状完全相同，
+   共用它可以让审计详情的六个计数由调用点直接写出来，而不用两边各定义一个 record。
+
+**该切片顺带补上的覆盖缺口**：会员切片的 SQL 形状/列保真此前**没有适配器测试**
+（`MemberKeywordSearchTest` mock 的是 Mapper、断的是应用层拼出来的 SQL），
+现在拆成三层：`MemberSearchFilterTest`（应用层断言端口收到的条件对象，
+包括"纯数字关键词走摘要"与"无租户上下文不查盲索引"）+
+`MemberRepositoryAdapterTest`（19 个测试，真实 Wrapper 断言 OR 组、过滤列、显式分页、
+计数不带 ORDER BY/LIMIT、单行读取、写入列集合）+
+`MemberNameTokenRepositoryAdapterTest`（7 个测试，钉住"先删后插 + 失败补偿删除"：
+半套索引会被回填的「没有 token 行」判据误判为已完成，此后按姓名静默搜不到）。
 
 ## 2. 本域最严重的发现：**看起来有乐观锁，实际没有**
 
@@ -137,20 +203,24 @@ accountMapper.updateById(account);                      // 无条件写回
 |---|---|
 | 钱包相关 5 个测试文件 | **已迁到端口**（`WalletApplicationServiceTest`、`WalletTokenDisplayServiceTest`、`WalletTokenResponseContractTest`、`WalletTokenResponseWiringTest`、`CustomerIntegrationTest`） |
 | 积分切片（`PointApplicationService` 等） | **已完成**（生产侧 + 测试侧，见 §1.3） |
-| 积分切片测试 | `PointApplicationServiceTest`（27，端口语义）、`PointAccountRepositoryAdapterTest`（14，SQL 形状/列保真）、`PointAccountIntegrationTest`（8，H2 真库）、`WalletTokenResponseContractTest`/`WiringTest` 的积分部分已迁 |
-| 会员切片（`MemberApplicationService` 758 行、`MemberPurgeApplicationService` 等） | **未开始** |
-| `domain` 包整体 | 只建了 `point` 与 `wallet` 两个子域 |
+| 积分切片测试 | `PointApplicationServiceTest`（27，端口语义）、`PointAccountRepositoryAdapterTest`（16，SQL 形状/列保真）、`PointAccountIntegrationTest`（8，H2 真库）、`WalletTokenResponseContractTest`/`WiringTest` 的积分部分已迁 |
+| 会员切片（`MemberApplicationService` 754 行、`MemberPurgeApplicationService` 等） | **已完成**（生产侧 + 测试侧，见 §1.4） |
+| 会员切片测试 | `MemberApplicationServiceTest`（14）、`MemberSearchFilterTest`（8，取代 `MemberKeywordSearchTest`）、`MemberNameIndexRebuildTest`（8）、`MemberPurgeApplicationServiceTest`（7）、`MemberRepositoryAdapterTest`（19，SQL 形状/列保真）、`MemberNameTokenRepositoryAdapterTest`（7，先删后插+失败补偿）、`MemberResponseContractTest`（4，序列化字段名）、三个 H2 集成测试已迁到端口 |
+| `domain` 包整体 | 已建 `point` / `wallet` / `member` 三个子域（+ `account` 一个小类型） |
 
-`platform-customer-service` 当前 **172 测试全绿**（迁移前 126），全部阻断门禁通过；
-客户域 `po-containment` 21 → 15，`service-api-boundaries` 9 → 5。
+`platform-customer-service` 当前 **227 测试全绿**（迁移前 126；积分切片后 172），全部阻断门禁通过；
+客户域 `po-containment` 21 → **0**，`service-api-boundaries` 9 → **0**。
 
-**还留在 `po` 上的客户域引用（下一次切片的目标）**：
-`MemberApplicationService`（3 行，含 `pointsList` 直接读 `CstPointAccountPo`）、
-`MemberPurgeApplicationService`（6 行，直接删 `cst_point_account` / `cst_point_ledger`）、
+**客户域的 `po` 引用已经清零**：`MemberApplicationService`（含 `pointsList` 直接读 `CstPointAccountPo`）、
+`MemberPurgeApplicationService`（直接删 `cst_point_account` / `cst_point_ledger`）、
 `CustomerOverviewApplicationService`（4 行）、`MemberController.list`（返回 `CstMemberPo`）、
-`MyAssetsController`（`CstMemberPo`）。**本切片按约定只动积分切片的 8 行，没有顺手改会员切片**——
-但要注意 `MemberApplicationService.pointsList` 与 `MemberPurgeApplicationService` 仍直接用积分 Mapper
-读/删积分账户（值仍是正确的，因为适配器包装的就是同一张表；只是分层尚未收敛）。
+`MyAssetsController`（`CstMemberPo`）全部改走领域端口（见 §1.4）。
+四道跨域只读查询（账号类型、IM 关联、引用体检、IM 标识/昵称）也从 `MemberMapper` 收进了
+`MemberImBindingRepository` 与 `MemberPurgeReferenceRepository` 两个端口，
+所以适配器之外再也看不到 `MemberMapper`。
+
+**本域之外仍然存在的门禁违规只有 `platform-services/order`**（`po-containment` 29、
+`service-api-boundaries` 21），那是另一个切片正在进行中的工作，不在本域范围内。
 
 ### 5.1 缺口已补：积分切片有适配器测试了
 

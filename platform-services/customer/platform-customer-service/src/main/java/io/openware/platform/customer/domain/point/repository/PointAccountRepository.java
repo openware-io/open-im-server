@@ -1,7 +1,9 @@
 package io.openware.platform.customer.domain.point.repository;
 
+import io.openware.platform.customer.domain.account.model.AccountPurgeCount;
 import io.openware.platform.customer.domain.point.model.PointAccount;
 import io.openware.platform.customer.domain.point.model.PointLedgerEntry;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -58,6 +60,48 @@ public interface PointAccountRepository {
 
   /** 流水总条数。 */
   long countLedger(Long accountId, Long storeId);
+
+  /**
+   * 租户内<b>全部</b>积分账户（总部汇总用：余额合计，不按门店/会员过滤）。
+   *
+   * <p>只在只读汇总路径上使用；返回领域聚合而不是行数聚合，是为了让"余额合计"的口径
+   * （{@code available()} 把 null 当 0）留在领域模型里，而不是散落在适配器的 SQL 里。
+   */
+  List<PointAccount> listAll();
+
+  /**
+   * 批量按会员取积分账户，键为会员 ID（积分管理列表避免逐行查询）。
+   *
+   * <p>缺失的会员不出现在结果里：调用方按"缺失 = 余额 0"处理（积分账户是懒创建的，绝大多数会员没有账户）。
+   */
+  java.util.Map<Long, PointAccount> findByCustomers(List<Long> customerIds);
+
+  /**
+   * 期间内账本净变动（总部汇总用）：{@code occurred_at} 落在闭区间 {@code [from, to]} 内。
+   *
+   * <p>积分变动不分方向（{@code points} 自带正负），与 {@link #listLedger} 的分页查询共用同一套
+   * 筛选语义，保证"列表看到的流水"与"汇总算出的变动"不会出现两种口径。
+   *
+   * @param from    下界（含）；{@code null} = 不筛
+   * @param to      上界（含）；{@code null} = 不筛
+   * @param stores  门店集合；空或 {@code null} = 租户全量（非空时按 {@code store_id IN (...)} 过滤）
+   */
+  long deltaForPeriodByStores(LocalDateTime from, LocalDateTime to, List<Long> stores);
+
+  /**
+   * 清理某会员的积分账户及其零额账户的流水（{@code MemberPurgeApplicationService} 用）。
+   *
+   * <p><b>为什么是窄口方法而不是通用 {@code delete}</b>：这条路径只允许删该会员的积分账户，
+   * 而有余额的账户在体检阶段就已经拒绝了清理。把条件开放给调用方（一组列名 / 一个 Wrapper）
+   * 就等于把"该删哪些账户、哪些流水"这个判定搬出仓储——清理最不能出错的地方。
+   *
+   * <p><b>清理前逐字段核对过的既有语义（原样保留，没有顺手"修"）</b>：
+   * 账户行是<b>该会员的全部积分账户</b>（原实现 {@code eq(customer_id, id)}）；
+   * 流水只对<b>零额</b>账户删（原实现只遍历 available/frozen 都为 0 的账户）。
+   * 也就是说非零账户的流水不会被这条路径删掉——账面事实因此不会被悄悄抹掉。
+   * 改变它是行为变更，必须单独一次带版本说明的提交，不属于本次分层迁移。
+   */
+  AccountPurgeCount purgeAccountsFor(Long customerId);
 
   /**
    * 流水一页。
