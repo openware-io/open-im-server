@@ -27,8 +27,8 @@ public class PaymentRuleController {
     public RefundRuleConfig saveRefund(@RequestBody RefundRequest body) {
         verify(); TenantContext c = context(); var row = service.saveRefund(c.tenantId(), new PaymentRuleApplicationService.RefundSaveCommand(
                 body.storeId(), body.businessType(), body.approvalThreshold(), body.offlineRefundEnabled(), body.version(), body.idempotencyKey()));
-        return new RefundRuleConfig(row.getId(), row.getStoreId(), row.getBusinessType(), row.getApprovalThreshold(),
-                Integer.valueOf(1).equals(row.getOfflineRefundEnabled()), row.getVersion());
+        return new RefundRuleConfig(row.id(), row.storeId(), row.businessType(), row.approvalThreshold(),
+                Boolean.TRUE.equals(row.offlineRefundEnabled()), row.version());
     }
 
     @GetMapping("/daily-closing")
@@ -40,7 +40,7 @@ public class PaymentRuleController {
     public ClosingRuleConfig saveClosing(@RequestBody ClosingRequest body) {
         verify(); TenantContext c = context(); var row = service.saveClosing(c.tenantId(), new PaymentRuleApplicationService.ClosingSaveCommand(
                 body.storeId(), body.closingMinute(), body.version(), body.idempotencyKey()));
-        return new ClosingRuleConfig(row.getId(), row.getStoreId(), row.getClosingMinute(), row.getVersion());
+        return new ClosingRuleConfig(row.id(), row.storeId(), row.closingMinute(), row.version());
     }
 
     private TenantContext context() { TenantContext c = TenantContextHolder.get(); if (c == null || c.tenantId() <= 0) throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文"); return c; }

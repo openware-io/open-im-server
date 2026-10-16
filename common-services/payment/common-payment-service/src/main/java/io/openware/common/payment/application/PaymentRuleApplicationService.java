@@ -1,110 +1,154 @@
 package io.openware.common.payment.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
-import io.openware.common.payment.infra.persistence.mapper.PayDailyClosingRuleConfigMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayRefundRuleConfigMapper;
-import io.openware.common.payment.infra.persistence.po.PayDailyClosingRuleConfigPo;
-import io.openware.common.payment.infra.persistence.po.PayRefundRuleConfigPo;
+import io.openware.common.payment.domain.rule.model.ClosingRuleConfig;
+import io.openware.common.payment.domain.rule.model.RefundRuleConfig;
+import io.openware.common.payment.domain.rule.repository.PaymentRuleRepository;
+import io.openware.common.payment.domain.rule.service.RefundRuleResolver;
 import io.openware.infrastructure.audit.AuditClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.Locale;
 
 /** Payment 域 P7-C2 配置端口，负责作用域解析、写入幂等和版本冲突。 */
 @Service
 public class PaymentRuleApplicationService {
-    private final PayRefundRuleConfigMapper refundMapper;
-    private final PayDailyClosingRuleConfigMapper closingMapper;
+    private final PaymentRuleRepository ruleRepository;
     private final AuditClient auditClient;
 
-    public PaymentRuleApplicationService(PayRefundRuleConfigMapper refundMapper,
-                                         PayDailyClosingRuleConfigMapper closingMapper, AuditClient auditClient) {
-        this.refundMapper = refundMapper;
-        this.closingMapper = closingMapper;
+    public PaymentRuleApplicationService(PaymentRuleRepository ruleRepository, AuditClient auditClient) {
+        this.ruleRepository = ruleRepository;
         this.auditClient = auditClient;
     }
 
+    /**
+     * 解析生效的退款规则。
+     *
+     * <p>三条候选行分别按自己的键查询后交给 {@link RefundRuleResolver}：层间顺序与"门店行不决定
+     * 线下退款开关"这两条规则收在领域里，本方法只负责取值。
+     */
     public RefundRuleView resolveRefund(Long tenantId, Long storeId, String businessType) {
         requireTenant(tenantId);
         String type = normalize(businessType);
-        PayRefundRuleConfigPo row = storeId == null ? null : findRefund(tenantId, type, storeId);
-        PayRefundRuleConfigPo storeRow = row;
-        if (row == null && type != null) row = findRefund(tenantId, type, null);
-        if (row == null) row = findRefund(tenantId, "", null);
-        if (row == null) return new RefundRuleView(BigDecimal.ZERO, true, "DEFAULT", 0);
-        // 门店只覆盖阈值；线下退款开关始终来自业态/租户层，避免门店页面绕过资金策略。
-        PayRefundRuleConfigPo offlineSource = storeRow == null ? row : (type == null ? null : findRefund(tenantId, type, null));
-        if (offlineSource == null && storeRow != null) offlineSource = findRefund(tenantId, "", null);
-        boolean offline = offlineSource == null || Integer.valueOf(1).equals(offlineSource.getOfflineRefundEnabled());
-        return new RefundRuleView(row.getApprovalThreshold(), offline,
-                row.getStoreId() != null ? "STORE" : (blank(row.getBusinessType()) ? "TENANT" : "BUSINESS"), row.getVersion());
+        RefundRuleConfig storeRow = storeId == null ? null
+                : ruleRepository.findRefundRule(tenantId, type, storeId).orElse(null);
+        RefundRuleConfig businessRow = type == null ? null
+                : ruleRepository.findRefundRule(tenantId, type, null).orElse(null);
+        RefundRuleConfig tenantRow = ruleRepository
+                .findRefundRule(tenantId, RefundRuleConfig.ANY_BUSINESS_TYPE, null).orElse(null);
+        RefundRuleResolver.ResolvedRefundRule resolved = RefundRuleResolver.resolve(
+                java.util.Optional.ofNullable(storeRow),
+                java.util.Optional.ofNullable(businessRow),
+                java.util.Optional.ofNullable(tenantRow));
+        return new RefundRuleView(resolved.approvalThreshold(), resolved.offlineRefundEnabled(),
+                resolved.source(), resolved.version());
     }
 
     public ClosingRuleView resolveClosing(Long tenantId, Long storeId) {
         requireTenant(tenantId);
-        if (storeId == null || storeId <= 0) throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "日结规则必须指定门店");
-        PayDailyClosingRuleConfigPo row = closingMapper.selectOne(new LambdaQueryWrapper<PayDailyClosingRuleConfigPo>()
-                .eq(PayDailyClosingRuleConfigPo::getTenantId, tenantId).eq(PayDailyClosingRuleConfigPo::getStoreId, storeId)
-                .eq(PayDailyClosingRuleConfigPo::getStatus, "ACTIVE").last("LIMIT 1"));
-        return row == null ? new ClosingRuleView(0, "DEFAULT", 0) : new ClosingRuleView(row.getClosingMinute(), "STORE", row.getVersion());
+        if (storeId == null || storeId <= 0) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "日结规则必须指定门店");
+        }
+        return ruleRepository.findClosingRule(tenantId, storeId)
+                .map(row -> new ClosingRuleView(row.closingMinute(), "STORE", row.version()))
+                .orElseGet(() -> new ClosingRuleView(0, "DEFAULT", 0));
     }
 
     @Transactional
-    public PayRefundRuleConfigPo saveRefund(Long tenantId, RefundSaveCommand c) {
+    public RefundRuleConfig saveRefund(Long tenantId, RefundSaveCommand c) {
         requireTenant(tenantId);
         String type = normalize(c.businessType());
         Long store = c.storeId() == null || c.storeId() <= 0 ? null : c.storeId();
-        if (store != null && type == null) throw new ApiException(400, "BUSINESS_TYPE_REQUIRED", "门店规则必须指定业态");
-        PayRefundRuleConfigPo row = refundMapper.selectOne(new LambdaQueryWrapper<PayRefundRuleConfigPo>().eq(PayRefundRuleConfigPo::getTenantId, tenantId)
-                .eq(PayRefundRuleConfigPo::getBusinessType, type == null ? "" : type).eq(PayRefundRuleConfigPo::getStoreId, store).last("LIMIT 1"));
-        if (row != null && c.version() != null && !c.version().equals(row.getVersion())) throw new ApiException(409, "VERSION_CONFLICT", "退款规则版本冲突");
-        LocalDateTime now = LocalDateTime.now();
-        if (row == null) { row = new PayRefundRuleConfigPo(); row.setTenantId(tenantId); row.setBusinessType(type == null ? "" : type); row.setStoreId(store); row.setVersion(0); row.setCreatedAt(now); row.setCreatedBy(0L); }
-        row.setApprovalThreshold(c.approvalThreshold() == null ? BigDecimal.ZERO : c.approvalThreshold());
-        // 线下退款只允许租户/业态默认；门店行保留统一安全默认，解析时从上层继承。
-        if (store == null) {
-            row.setOfflineRefundEnabled(Boolean.TRUE.equals(c.offlineRefundEnabled()) ? 1 : 0);
-        } else if (row.getOfflineRefundEnabled() == null) {
-            row.setOfflineRefundEnabled(1);
+        if (store != null && type == null) {
+            throw new ApiException(400, "BUSINESS_TYPE_REQUIRED", "门店规则必须指定业态");
         }
-        row.setStatus("ACTIVE"); row.setIdempotencyKey(c.idempotencyKey()); row.setUpdatedAt(now); row.setUpdatedBy(0L);
-        if (row.getId() == null) refundMapper.insert(row); else { row.setVersion(row.getVersion() + 1); refundMapper.updateById(row); }
-        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(store).action("payment.refund.rule.save").resourceType("pay_refund_rule_config").resourceId(String.valueOf(row.getId())).build());
-        return row;
+        RefundRuleConfig existing = ruleRepository.findRefundRule(tenantId, type, store).orElse(null);
+        if (existing != null && c.version() != null && !c.version().equals(existing.version())) {
+            throw new ApiException(409, "VERSION_CONFLICT", "退款规则版本冲突");
+        }
+        BigDecimal threshold = c.approvalThreshold() == null ? BigDecimal.ZERO : c.approvalThreshold();
+        // 线下退款只允许租户/业态默认；门店行保留统一安全默认（开启），解析时从上层继承。
+        Boolean offline = store == null
+                ? Boolean.TRUE.equals(c.offlineRefundEnabled())
+                : (existing == null || existing.offlineRefundEnabled() == null
+                    ? Boolean.TRUE : existing.offlineRefundEnabled());
+        RefundRuleConfig draft = new RefundRuleConfig(existing == null ? null : existing.id(), tenantId,
+                type == null ? RefundRuleConfig.ANY_BUSINESS_TYPE : type, store, threshold, offline,
+                existing == null ? 0 : existing.version(), c.idempotencyKey(),
+                RefundRuleConfig.STATUS_ACTIVE);
+        RefundRuleConfig saved;
+        if (existing == null) {
+            saved = ruleRepository.insertRefundRule(draft);
+        } else {
+            updateOrConflict(ruleRepository.updateRefundRule(draft, existing.version()));
+            saved = draft;
+        }
+        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(store)
+                .action("payment.refund.rule.save").resourceType("pay_refund_rule_config")
+                .resourceId(String.valueOf(saved.id())).build());
+        return saved;
     }
 
     @Transactional
-    public PayDailyClosingRuleConfigPo saveClosing(Long tenantId, ClosingSaveCommand c) {
+    public ClosingRuleConfig saveClosing(Long tenantId, ClosingSaveCommand c) {
         requireTenant(tenantId);
-        if (c.storeId() == null || c.storeId() <= 0) throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "日结规则必须指定门店");
-        if (c.closingMinute() == null || c.closingMinute() < 0 || c.closingMinute() > 1439) throw new ApiException(400, "CLOSING_MINUTE_INVALID", "日结时间必须在 0 到 1439 分钟内");
-        PayDailyClosingRuleConfigPo row = closingMapper.selectOne(new LambdaQueryWrapper<PayDailyClosingRuleConfigPo>().eq(PayDailyClosingRuleConfigPo::getTenantId, tenantId).eq(PayDailyClosingRuleConfigPo::getStoreId, c.storeId()).last("LIMIT 1"));
-        LocalDateTime now = LocalDateTime.now();
-        if (row == null) { row = new PayDailyClosingRuleConfigPo(); row.setTenantId(tenantId); row.setStoreId(c.storeId()); row.setVersion(0); row.setCreatedAt(now); row.setCreatedBy(0L); }
-        if (row.getId() != null && c.version() != null && !c.version().equals(row.getVersion())) throw new ApiException(409, "VERSION_CONFLICT", "日结规则版本冲突");
-        row.setClosingMinute(c.closingMinute()); row.setStatus("ACTIVE"); row.setIdempotencyKey(c.idempotencyKey()); row.setUpdatedAt(now); row.setUpdatedBy(0L);
-        if (row.getId() == null) closingMapper.insert(row); else { row.setVersion(row.getVersion() + 1); closingMapper.updateById(row); }
-        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(c.storeId()).action("payment.daily-closing.rule.save").resourceType("pay_daily_closing_rule_config").resourceId(String.valueOf(row.getId())).build());
-        return row;
+        if (c.storeId() == null || c.storeId() <= 0) {
+            throw new ApiException(400, "STORE_CONTEXT_REQUIRED", "日结规则必须指定门店");
+        }
+        if (!ClosingRuleConfig.validClosingMinute(c.closingMinute())) {
+            throw new ApiException(400, "CLOSING_MINUTE_INVALID", "日结时间必须在 0 到 1439 分钟内");
+        }
+        ClosingRuleConfig existing = ruleRepository.findClosingRule(tenantId, c.storeId()).orElse(null);
+        if (existing != null && c.version() != null && !c.version().equals(existing.version())) {
+            throw new ApiException(409, "VERSION_CONFLICT", "日结规则版本冲突");
+        }
+        ClosingRuleConfig draft = new ClosingRuleConfig(existing == null ? null : existing.id(), tenantId,
+                c.storeId(), c.closingMinute(), existing == null ? 0 : existing.version(),
+                c.idempotencyKey(), ClosingRuleConfig.STATUS_ACTIVE);
+        ClosingRuleConfig saved;
+        if (existing == null) {
+            saved = ruleRepository.insertClosingRule(draft);
+        } else {
+            updateOrConflict(ruleRepository.updateClosingRule(draft, existing.version()));
+            saved = draft;
+        }
+        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(c.storeId())
+                .action("payment.daily-closing.rule.save").resourceType("pay_daily_closing_rule_config")
+                .resourceId(String.valueOf(saved.id())).build());
+        return saved;
     }
 
-    private PayRefundRuleConfigPo findRefund(Long tenantId, String type, Long store) {
-        LambdaQueryWrapper<PayRefundRuleConfigPo> query = new LambdaQueryWrapper<PayRefundRuleConfigPo>()
-                .eq(PayRefundRuleConfigPo::getTenantId, tenantId)
-                .eq(PayRefundRuleConfigPo::getBusinessType, type == null ? "" : type)
-                .eq(PayRefundRuleConfigPo::getStatus, "ACTIVE").last("LIMIT 1");
-        if (store == null) query.isNull(PayRefundRuleConfigPo::getStoreId);
-        else query.eq(PayRefundRuleConfigPo::getStoreId, store);
-        return refundMapper.selectOne(query);
+    /**
+     * CAS 冲突翻译。
+     *
+     * <p>上一步的版本比对只是快速失败；**真正的并发判定在端口那条带版本条件的 UPDATE 里**
+     * （受影响 0 行即冲突）。先读出来比对再无条件写回会让两个并发请求双双通过比对。
+     */
+    private static void updateOrConflict(boolean updated) {
+        if (!updated) {
+            throw new ApiException(409, "VERSION_CONFLICT", "规则已被其他请求修改");
+        }
     }
-    private static void requireTenant(Long id) { if (id == null || id <= 0) throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文"); }
-    private static String normalize(String s) { return blank(s) ? null : s.trim().toUpperCase(Locale.ROOT); }
-    private static boolean blank(String s) { return s == null || s.isBlank(); }
-    public record RefundSaveCommand(Long storeId, String businessType, BigDecimal approvalThreshold, Boolean offlineRefundEnabled, Integer version, String idempotencyKey) {}
+
+    private static void requireTenant(Long id) {
+        if (id == null || id <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+    }
+
+    private static String normalize(String s) {
+        return blank(s) ? null : s.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static boolean blank(String s) {
+        return s == null || s.isBlank();
+    }
+
+    public record RefundSaveCommand(Long storeId, String businessType, BigDecimal approvalThreshold,
+                                    Boolean offlineRefundEnabled, Integer version, String idempotencyKey) {}
     public record ClosingSaveCommand(Long storeId, Integer closingMinute, Integer version, String idempotencyKey) {}
-    public record RefundRuleView(BigDecimal approvalThreshold, boolean offlineRefundEnabled, String source, Integer version) {}
+    public record RefundRuleView(BigDecimal approvalThreshold, boolean offlineRefundEnabled, String source,
+                                 Integer version) {}
     public record ClosingRuleView(Integer closingMinute, String source, Integer version) {}
 }
