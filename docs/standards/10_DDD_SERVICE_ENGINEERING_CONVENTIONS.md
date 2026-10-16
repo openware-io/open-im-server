@@ -300,6 +300,38 @@
 - `save` 语义统一为：`id == null` 时新增，否则更新；乐观锁冲突由适配器抛出明确异常，**不得静默覆盖**。
 - 领域对象与 PO 的转换只允许发生在 `infra.persistence`；`PO` 不得穿过 Repository 实现边界。
 
+### 乐观锁的可检验判据
+
+上一条要求"乐观锁冲突由适配器抛出明确异常，不得静默覆盖"。**这条规则的可检验形式是三问**——
+只要 `version` 字段存在，三者必须同时成立，缺一即视为**未加锁**：
+
+1. **PO 上有 `@Version` 注解吗？**
+2. **框架注册了乐观锁拦截器吗？**（MyBatis-Plus：`OptimisticLockerInnerInterceptor`）
+3. **实际发出的 SQL 带 `WHERE ... AND version = ?` 吗？**
+
+若三者任一不成立，却在代码里维护 `version`（例如写前 `version = version + 1`），则该字段是**装饰**：
+它读起来像有并发保护，实际是无条件覆盖。**这比完全没有 version 字段更危险**，因为评审者会以为已经防住。
+
+允许的两种正确形态（二者选一，不得混用）：
+
+- **框架托管**：PO 加 `@Version` + 注册拦截器 + 使用 `updateById`。此时不得手工改 `version`。
+- **显式 CAS**：仓储端口提供**具名**方法（如 `updateBalanceWithVersion(aggregate, expectedVersion)`），
+  适配器发单条 `... WHERE id = ? AND version = ? SET ..., version = version + 1`，
+  **版本自增写在 SQL 里**而非由 Java 读出后加一（后者在并发窗口内会写回过期版本号），
+  受影响 0 行时由调用方决定重试或抛出明确冲突异常。
+
+补充约束：
+
+- **CAS 是唯一判定点，应用层的"读出来比对"不是并发保护**；它只用于给出更快的错误提示。
+  只做应用层比对而无 CAS，等价于未加锁。
+- **CAS 成功后**才写附属记录（账本、事件、审计明细）。反过来在 CAS 失败时，
+  附属记录会声称"钱/积分动过"而余额未动，而**对账只能相信账本**。
+  该顺序依赖事务回滚兜底的写法不得作为常态。
+- 并发写法**必须有运行时覆盖**：只做 `test-compile` 或只 mock 适配器的单元测试**证明不了**这条 SQL 能跑。
+  至少一个真实适配器（或集成）测试要覆盖列集合与 `WHERE version = ?` 的存在性——
+  对 `@TableField(exist = false)` 的字段生成列引用会在运行时抛
+  `can not find lambda cache for this property [...]`，编译期完全看不出来。
+
 ### 转换层职责切分
 
 | 层 | 职责 | 禁止 |
