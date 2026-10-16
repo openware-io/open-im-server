@@ -116,7 +116,10 @@ public class OrderVoidApprovalRepositoryAdapter implements OrderVoidApprovalRepo
             .set(OrdOrderVoidApprovalPo::getReviewComment, comment)
             .set(OrdOrderVoidApprovalPo::getReviewedAt, reviewedAt)
             .set(OrdOrderVoidApprovalPo::getUpdatedAt, reviewedAt)
-            .set(OrdOrderVoidApprovalPo::getVersion, expectedVersion + 1));
+            // 版本自增写在 SQL 里，与 VoidRuleConfigRepositoryAdapter 及 standards/10「乐观锁的可检验判据」一致。
+            // 虽然条件里已有 version = ?（因此 Java 侧 +1 也不会写错），但一旦条件被误删，
+            // Java 侧加一就会把读出来的旧版本写回去；SQL 侧自增在任何情况下都不会。
+            .setSql("version = version + 1"));
         if (changed == 0) {
             return Optional.empty();
         }
@@ -126,12 +129,17 @@ public class OrderVoidApprovalRepositoryAdapter implements OrderVoidApprovalRepo
 
     @Override
     public boolean markExecuted(Long id, int currentVersion, LocalDateTime at) {
+        // 两个条件都必须有：status 保证「只有已批准的申请能被执行」，
+        // version 保证「只有一个执行者能成功」——少了 version，两个并发执行都会返回成功，
+        // 各自触发一次订单作废与包厢释放，而调用方两次都被告知成功。
+        // 这正是 currentVersion 参数存在的理由：它参与判定，不是装饰。
         return mapper.update(null, Wrappers.<OrdOrderVoidApprovalPo>lambdaUpdate()
             .eq(OrdOrderVoidApprovalPo::getId, id)
             .eq(OrdOrderVoidApprovalPo::getStatus, OrderVoidApproval.STATUS_APPROVED)
+            .eq(OrdOrderVoidApprovalPo::getVersion, currentVersion)
             .set(OrdOrderVoidApprovalPo::getStatus, OrderVoidApproval.STATUS_EXECUTED)
             .set(OrdOrderVoidApprovalPo::getUpdatedAt, at)
-            .set(OrdOrderVoidApprovalPo::getVersion, currentVersion + 1)) > 0;
+            .setSql("version = version + 1")) > 0;
     }
 
     /** 领域聚合 → 持久化对象：逐列对应真实列，审计两列由 insert 补齐。 */
