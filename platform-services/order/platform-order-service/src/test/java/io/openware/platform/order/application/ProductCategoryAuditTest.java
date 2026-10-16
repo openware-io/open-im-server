@@ -16,11 +16,15 @@ import io.openware.infrastructure.audit.AuditActions;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductCategoryMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.ProductCategoryPo;
+import io.openware.platform.order.domain.catalog.model.ProductCategory;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
+import io.openware.platform.order.domain.catalog.repository.ProductCategoryRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,22 +43,32 @@ class ProductCategoryAuditTest {
     private static final long TENANT_ID = 1L;
     private static final Long STORE_ID = 3L;
 
-    private ProductCategoryMapper categoryMapper;
-    private ProductMapper productMapper;
-    private CatalogItemMapper catalogItemMapper;
+    private ProductCategoryRepository categoryRepository;
+    private ProductRepository productRepository;
+    private CatalogItemRepository catalogItemRepository;
     private AuditClient auditClient;
     private ProductCategoryApplicationService service;
 
     @BeforeEach
     void setUp() {
-        categoryMapper = mock(ProductCategoryMapper.class);
-        productMapper = mock(ProductMapper.class);
-        catalogItemMapper = mock(CatalogItemMapper.class);
+        categoryRepository = mock(ProductCategoryRepository.class);
+        productRepository = mock(ProductRepository.class);
+        catalogItemRepository = mock(CatalogItemRepository.class);
         auditClient = mock(AuditClient.class);
-        service = new ProductCategoryApplicationService(categoryMapper, productMapper, catalogItemMapper, auditClient);
+        service = new ProductCategoryApplicationService(categoryRepository, productRepository, catalogItemRepository,
+                auditClient);
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
+        when(categoryRepository.insert(any(ProductCategory.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, ProductCategory.class).withId(12L)));
+        when(categoryRepository.update(any(ProductCategory.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, ProductCategory.class)));
     }
 
+    /**
+     * 注意：{@link ProductCategoryApplicationService} 的 3 参构造器会用
+     * {@code AuditClient.disabled()}（关闭态），因此审计断言必须走 4 参构造器注入 mock，
+     * 否则会出现「零交互」而不是「漏了一条断言」。
+     */
     @AfterEach
     void tearDown() {
         TenantContextHolder.clear();
@@ -62,9 +76,9 @@ class ProductCategoryAuditTest {
 
     @Test
     void createWritesSucceededAudit() {
-        when(categoryMapper.selectOne(any())).thenReturn(null);
+        when(categoryRepository.findByName(TENANT_ID, STORE_ID, "酒水")).thenReturn(Optional.empty());
 
-        ProductCategoryPo created = service.create(command("酒水", 5, null));
+        assertNotNull(service.create(command("酒水", 5, null)));
 
         AuditClient.AuditRecord record = captured();
         assertEquals("product.category.create", record.action());
@@ -76,13 +90,12 @@ class ProductCategoryAuditTest {
         assertEquals(TENANT_ID, record.tenantId());
         assertEquals(STORE_ID, record.storeId());
         assertEquals("酒水", record.resourceName());
-        assertNotNull(created);
     }
 
     @Test
     void createWritesFailureAuditWithStableErrorCode() {
-        ProductCategoryPo existing = category(7L, "酒水");
-        when(categoryMapper.selectOne(any())).thenReturn(existing);
+        when(categoryRepository.findByName(TENANT_ID, STORE_ID, "酒水"))
+                .thenReturn(Optional.of(category(7L, "酒水")));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.create(command("酒水", 0, null)));
 
@@ -96,8 +109,8 @@ class ProductCategoryAuditTest {
 
     @Test
     void updateWritesSucceededAuditWithStableIdempotencyKey() {
-        ProductCategoryPo existing = category(10L, "酒水");
-        when(categoryMapper.selectOne(any())).thenReturn(existing);
+        when(categoryRepository.findById(10L)).thenReturn(Optional.of(category(10L, "酒水")));
+        when(categoryRepository.findByName(TENANT_ID, STORE_ID, "饮品")).thenReturn(Optional.empty());
 
         service.update(10L, command("饮品", 2, "ACTIVE"));
 
@@ -110,7 +123,7 @@ class ProductCategoryAuditTest {
 
     @Test
     void updateWritesFailureAuditWhenCategoryMissing() {
-        when(categoryMapper.selectOne(any())).thenReturn(null);
+        when(categoryRepository.findById(99L)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.update(99L, command("饮品", null, null)));
 
@@ -124,13 +137,12 @@ class ProductCategoryAuditTest {
 
     @Test
     void deleteWritesSucceededAuditAndRemovesRow() {
-        ProductCategoryPo existing = category(11L, "酒水");
-        when(categoryMapper.selectOne(any())).thenReturn(existing);
-        when(productMapper.selectCount(any())).thenReturn(0L);
+        when(categoryRepository.findById(11L)).thenReturn(Optional.of(category(11L, "酒水")));
+        when(productRepository.countByCategory(TENANT_ID, STORE_ID, "酒水")).thenReturn(0L);
 
         service.delete(11L);
 
-        verify(categoryMapper).deleteById(11L);
+        verify(categoryRepository).deleteById(11L);
         AuditClient.AuditRecord record = captured();
         assertEquals("product.category.delete", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
@@ -139,9 +151,8 @@ class ProductCategoryAuditTest {
 
     @Test
     void deleteWritesFailureAuditWhenStillReferencedByProducts() {
-        ProductCategoryPo existing = category(11L, "酒水");
-        when(categoryMapper.selectOne(any())).thenReturn(existing);
-        when(productMapper.selectCount(any())).thenReturn(3L);
+        when(categoryRepository.findById(11L)).thenReturn(Optional.of(category(11L, "酒水")));
+        when(productRepository.countByCategory(TENANT_ID, STORE_ID, "酒水")).thenReturn(3L);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.delete(11L));
 
@@ -155,7 +166,7 @@ class ProductCategoryAuditTest {
     /** 分类列表读路径不应产生任何审计（读取类不入库，避免噪声淹没）。 */
     @Test
     void listDoesNotWriteAudit() {
-        when(categoryMapper.selectList(any())).thenReturn(List.of());
+        when(categoryRepository.find(TENANT_ID, STORE_ID, null)).thenReturn(List.of());
 
         service.list(null, null);
 
@@ -166,15 +177,14 @@ class ProductCategoryAuditTest {
         return new ProductCategoryApplicationService.CategoryCommand(name, sortOrder, status);
     }
 
-    private static ProductCategoryPo category(Long id, String name) {
-        ProductCategoryPo po = new ProductCategoryPo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setName(name);
-        po.setSortOrder(0);
-        po.setStatus("ACTIVE");
-        return po;
+    private static ProductCategory category(Long id, String name) {
+        return new ProductCategory(id, TENANT_ID, STORE_ID, name, 0, "ACTIVE");
+    }
+
+    /** 端口返回值：聚合 + 审计快照（领域模型不承载审计列）。 */
+    private static Persisted<ProductCategory> persisted(ProductCategory category) {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 19, 20, 0, 0);
+        return new Persisted<>(category, new AuditSnapshot(null, now, null, now));
     }
 
     private AuditClient.AuditRecord captured() {

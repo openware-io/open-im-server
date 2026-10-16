@@ -1,15 +1,15 @@
 package io.openware.platform.order.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.CatalogItemView;
 import io.openware.platform.order.application.InventoryApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -17,6 +17,7 @@ import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -33,11 +34,16 @@ import static org.mockito.Mockito.when;
 
 /**
  * 点单目录列表（B 端点单 / C 端自助加项共用）的四条规则：
- * 1) 只展示「关联了商品且商品已上架」的目录项，未关联商品的一律不出现；
+ * 1) 只展示「关联了商品且商品已上架」的目录项，未关联商品的一律不出现（服务类除外）；
  * 2) 列表响应必须带 imageUrls / mainImageUrl，目录项自身没图时按「关联商品 → 商品关联物料」兜底；
  * 3) 已上架但售罄的实物商品仍展示，只是 available=false + 原因；
  * 4) 是否受库存控制以商品为准（目录项 stock_controlled 只作缓存兜底），存量未回填也不能漏判售罄。
  * 库存可用量由 {@link InventoryApplicationService} 提供（批量 + TTL 缓存），此处按接口打桩。
+ *
+ * <p><b>迁移后的打桩口径</b>：目录项与商品不再是 PO + Mapper，而是领域端口
+ * （{@code CatalogItemRepository} / {@code ProductRepository}）+ 不可变记录，
+ * 因此用例里的夹具是 record 构造而不是 setter；断言的对象是
+ * {@link CatalogItemView}（JSON 字段名与原 PO 一致）。
  */
 class CatalogControllerTest {
 
@@ -45,12 +51,12 @@ class CatalogControllerTest {
     private static final long STORE_ID = 3L;
     private static final long MATERIAL_ID = 55L;
 
-    private final CatalogItemMapper catalogItemMapper = mock(CatalogItemMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
+    private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
+    private final ProductRepository productRepository = mock(ProductRepository.class);
     private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
     private final InventoryApplicationService inventoryService = mock(InventoryApplicationService.class);
     private final CatalogController controller =
-            new CatalogController(catalogItemMapper, productMapper, materialMapper, inventoryService);
+            new CatalogController(catalogItemRepository, productRepository, materialMapper, inventoryService);
 
     @AfterEach
     void clear() {
@@ -60,71 +66,63 @@ class CatalogControllerTest {
     @Test
     void listKeepsCatalogItemOwnImages() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        item.setImageUrls(List.of("/catalog.png"));
-        item.setMainImageUrl("/catalog.png");
-        givenItems(item);
-        givenProducts(product(50L, null, "ON_SHELF", false));
+        givenItems(catalogItem(10L, 50L, true, List.of("/catalog.png"), "/catalog.png"));
+        givenProducts(product(50L, null, "ON_SHELF", false, List.of(), null));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
         assertEquals(1, result.size());
-        assertEquals(List.of("/catalog.png"), result.getFirst().getImageUrls());
-        assertEquals("/catalog.png", result.getFirst().getMainImageUrl());
-        assertTrue(result.getFirst().getAvailable());
+        assertEquals(List.of("/catalog.png"), result.getFirst().imageUrls());
+        assertEquals("/catalog.png", result.getFirst().mainImageUrl());
+        assertTrue(result.getFirst().available());
         verifyNoInteractions(materialMapper, inventoryService);
     }
 
     @Test
     void listFallsBackToProductImagesWhenCatalogItemHasNoImages() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        givenItems(item);
-        ProductPo product = product(50L, null, "ON_SHELF", false);
-        product.setImageUrls(List.of("/p-a.png", "/p-b.png"));
-        product.setMainImageUrl("/p-b.png");
-        givenProducts(product);
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, null, "ON_SHELF", false, List.of("/p-a.png", "/p-b.png"), "/p-b.png"));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertEquals(List.of("/p-a.png", "/p-b.png"), result.getFirst().getImageUrls());
-        assertEquals("/p-b.png", result.getFirst().getMainImageUrl());
+        assertEquals(List.of("/p-a.png", "/p-b.png"), result.getFirst().imageUrls());
+        assertEquals("/p-b.png", result.getFirst().mainImageUrl());
     }
 
     @Test
     void listFallsBackToMaterialImagesWhenProductHasNoImages() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        givenItems(item);
-        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", false));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", false, List.of(), null));
         InventoryMaterialPo material = new InventoryMaterialPo();
         material.setId(MATERIAL_ID);
         material.setImageUrls(List.of("/m-a.png"));
         material.setMainImageUrl("/m-a.png");
         when(materialMapper.selectById(MATERIAL_ID)).thenReturn(material);
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertEquals(List.of("/m-a.png"), result.getFirst().getImageUrls());
-        assertEquals("/m-a.png", result.getFirst().getMainImageUrl());
+        assertEquals(List.of("/m-a.png"), result.getFirst().imageUrls());
+        assertEquals("/m-a.png", result.getFirst().mainImageUrl());
     }
 
     /** 纯服务/加项目录项没有关联商品，不再出现在下单列表（历史种子数据同理）。 */
     @Test
     void listHidesCatalogItemWithoutProduct() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        givenItems(catalogItem(10L, null));
+        givenItems(catalogItem(10L, null, true, List.of(), null));
 
         assertEquals(List.of(), controller.list(null, STORE_ID));
-        verifyNoInteractions(productMapper, materialMapper);
+        verifyNoInteractions(productRepository, materialMapper);
     }
 
     /** 目录项即使 status=ACTIVE，只要关联的商品没上架就不出现在下单列表。 */
     @Test
     void listHidesCatalogItemWhenProductIsNotOnShelf() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        givenItems(catalogItem(10L, 50L));
-        givenProducts(product(50L, null, "DRAFT", false));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, null, "DRAFT", false, List.of(), null));
 
         assertEquals(List.of(), controller.list(null, STORE_ID));
     }
@@ -132,8 +130,8 @@ class CatalogControllerTest {
     @Test
     void listHidesCatalogItemWhenLinkedProductIsGone() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        givenItems(catalogItem(10L, 50L));
-        when(productMapper.selectByIds(any())).thenReturn(List.of());
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        when(productRepository.findById(any())).thenReturn(Optional.empty());
 
         assertEquals(List.of(), controller.list(null, STORE_ID));
     }
@@ -142,34 +140,30 @@ class CatalogControllerTest {
     @Test
     void listKeepsSoldOutProductAsUnavailable() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        item.setStockControlled(true);
-        givenItems(item);
-        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true, List.of(), null));
         givenAvailableQty(BigDecimal.ZERO);
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
         assertEquals(1, result.size());
-        assertFalse(result.getFirst().getAvailable());
-        assertEquals("已售罄", result.getFirst().getUnavailableReason());
+        assertFalse(result.getFirst().available());
+        assertEquals("已售罄", result.getFirst().unavailableReason());
     }
 
     @Test
     void listKeepsStockControlledProductAvailableWhenInStock() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        item.setStockControlled(true);
-        givenItems(item);
-        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true, List.of(), null));
         givenAvailableQty(new BigDecimal("8"));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertTrue(result.getFirst().getAvailable());
-        assertNull(result.getFirst().getUnavailableReason());
+        assertTrue(result.getFirst().available());
+        assertNull(result.getFirst().unavailableReason());
         // 可用库存数量随响应下发：点单/加项页据此限制加号上限（提交前防超卖）
-        assertEquals(0, new BigDecimal("8").compareTo(result.getFirst().getAvailableQuantity()));
+        assertEquals(0, new BigDecimal("8").compareTo(result.getFirst().availableQuantity()));
         verify(inventoryService).availableQuantities(eq(TENANT_ID), eq(STORE_ID), any());
     }
 
@@ -177,13 +171,13 @@ class CatalogControllerTest {
     @Test
     void listLeavesAvailableQuantityNullForNonStockControlledItem() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        givenItems(catalogItem(10L, 50L));
-        givenProducts(product(50L, null, "ON_SHELF", false));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, null, "ON_SHELF", false, List.of(), null));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertTrue(result.getFirst().getAvailable());
-        assertNull(result.getFirst().getAvailableQuantity());
+        assertTrue(result.getFirst().available());
+        assertNull(result.getFirst().availableQuantity());
     }
 
     /**
@@ -193,18 +187,16 @@ class CatalogControllerTest {
     @Test
     void productStockFlagWinsOverStaleCatalogCacheColumn() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        item.setStockControlled(false);
-        givenItems(item);
-        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true));
+        givenItems(catalogItem(10L, 50L, false, List.of(), null));
+        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", true, List.of(), null));
         givenAvailableQty(BigDecimal.ZERO);
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
         assertEquals(1, result.size());
-        assertFalse(result.getFirst().getAvailable());
-        assertEquals("已售罄", result.getFirst().getUnavailableReason());
-        assertTrue(result.getFirst().getStockControlled());
+        assertFalse(result.getFirst().available());
+        assertEquals("已售罄", result.getFirst().unavailableReason());
+        assertTrue(result.getFirst().stockControlled());
         // 确实按商品的物料去查库存（55），而不是因为目录项缓存列是 0 就跳过库存判断
         ArgumentCaptor<List<Long>> materialIds = ArgumentCaptor.forClass(List.class);
         verify(inventoryService).availableQuantities(eq(TENANT_ID), eq(STORE_ID), materialIds.capture());
@@ -215,15 +207,13 @@ class CatalogControllerTest {
     @Test
     void productNonStockFlagWinsOverStaleCatalogCacheColumn() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        CatalogItemPo item = catalogItem(10L, 50L);
-        item.setStockControlled(true);
-        givenItems(item);
-        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", false));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", false, List.of(), null));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertTrue(result.getFirst().getAvailable());
-        assertFalse(result.getFirst().getStockControlled());
+        assertTrue(result.getFirst().available());
+        assertFalse(result.getFirst().stockControlled());
         verify(inventoryService, never()).availableQuantities(anyLong(), anyLong(), any());
     }
 
@@ -231,13 +221,13 @@ class CatalogControllerTest {
     @Test
     void listMarksUnavailableWhenStockControlledProductHasNoMaterial() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-        givenItems(catalogItem(10L, 50L));
-        givenProducts(product(50L, null, "ON_SHELF", true));
+        givenItems(catalogItem(10L, 50L, true, List.of(), null));
+        givenProducts(product(50L, null, "ON_SHELF", true, List.of(), null));
 
-        List<CatalogItemPo> result = controller.list(null, STORE_ID);
+        List<CatalogItemView> result = controller.list(null, STORE_ID);
 
-        assertFalse(result.getFirst().getAvailable());
-        assertEquals("未关联物料", result.getFirst().getUnavailableReason());
+        assertFalse(result.getFirst().available());
+        assertEquals("未关联物料", result.getFirst().unavailableReason());
         verify(inventoryService, never()).availableQuantities(anyLong(), anyLong(), any());
     }
 
@@ -246,40 +236,27 @@ class CatalogControllerTest {
                 .thenReturn(Map.of(MATERIAL_ID, available));
     }
 
-    private void givenItems(CatalogItemPo... items) {
-        when(catalogItemMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(items));
+    private void givenItems(CatalogItem... items) {
+        when(catalogItemRepository.find(any(CatalogItemRepository.CatalogItemQuery.class)))
+                .thenReturn(List.of(items));
     }
 
-    private void givenProducts(ProductPo... products) {
-        when(productMapper.selectByIds(any())).thenReturn(List.of(products));
+    private void givenProducts(Product... products) {
+        for (Product product : products) {
+            when(productRepository.findById(product.id())).thenReturn(Optional.of(product));
+        }
     }
 
-    private static CatalogItemPo catalogItem(Long id, Long productId) {
-        CatalogItemPo item = new CatalogItemPo();
-        item.setId(id);
-        item.setTenantId(TENANT_ID);
-        item.setStoreId(STORE_ID);
-        item.setProductId(productId);
-        item.setCategory("酒水");
-        item.setItemType("PRODUCT");
-        item.setName("百威啤酒");
-        item.setUnit("瓶");
-        item.setUnitPrice(new BigDecimal("1500"));
-        item.setStatus("ACTIVE");
-        item.setStockControlled(false);
-        item.setSortOrder(1);
-        item.setImageUrls(List.of());
-        return item;
+    private static CatalogItem catalogItem(Long id, Long productId, boolean stockControlled, List<String> images,
+                                          String mainImage) {
+        return new CatalogItem(id, productId, TENANT_ID, STORE_ID, "酒水", "PRODUCT", "百威啤酒", "瓶",
+                new BigDecimal("1500"), null, images, mainImage, "ACTIVE", stockControlled, 1);
     }
 
-    private static ProductPo product(Long id, Long materialId, String status, boolean stockControlled) {
-        ProductPo product = new ProductPo();
-        product.setId(id);
-        product.setTenantId(TENANT_ID);
-        product.setStoreId(STORE_ID);
-        product.setMaterialId(materialId);
-        product.setStatus(status);
-        product.setStockControlled(stockControlled);
-        return product;
+    private static Product product(Long id, Long materialId, String status, boolean stockControlled,
+                                   List<String> images, String mainImage) {
+        return new Product(id, TENANT_ID, STORE_ID, "P-" + id, "百威啤酒", "酒水", "PRODUCT", "瓶",
+                new BigDecimal("1500"), materialId, null, stockControlled, null, status, 0, null, images,
+                mainImage, 0);
     }
 }

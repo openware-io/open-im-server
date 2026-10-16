@@ -17,15 +17,16 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,22 +45,22 @@ class OrderItemControllerAuditTest {
     private static final Long STORE_ID = 2001L;
 
     private OrderItemMapper orderItemMapper;
-    private CatalogItemMapper catalogItemMapper;
+    private CatalogItemRepository catalogItemRepository;
     private OrderMapper orderMapper;
-    private ProductMapper productMapper;
+    private ProductRepository productRepository;
     private AuditClient auditClient;
     private OrderItemController controller;
 
     @BeforeEach
     void setUp() {
         orderItemMapper = mock(OrderItemMapper.class);
-        catalogItemMapper = mock(CatalogItemMapper.class);
+        catalogItemRepository = mock(CatalogItemRepository.class);
         orderMapper = mock(OrderMapper.class);
-        productMapper = mock(ProductMapper.class);
+        productRepository = mock(ProductRepository.class);
         auditClient = mock(AuditClient.class);
-        controller = new OrderItemController(orderItemMapper, catalogItemMapper,
+        controller = new OrderItemController(orderItemMapper, catalogItemRepository,
                 mock(SettlementApplicationService.class), orderMapper,
-                mock(InventoryApplicationService.class), productMapper,
+                mock(InventoryApplicationService.class), productRepository,
                 mock(OrderAmountApplicationService.class), auditClient);
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,
                 List.of("order.add_item")));
@@ -73,7 +74,7 @@ class OrderItemControllerAuditTest {
     @Test
     void addItem_writesSucceededAudit() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("DRAFT"));
-        when(catalogItemMapper.selectById(CATALOG_ITEM_ID)).thenReturn(catalogItem());
+        when(catalogItemRepository.findById(CATALOG_ITEM_ID)).thenReturn(Optional.of(catalogItem()));
 
         OrderItemPo item = controller.addItem(ORDER_ID, new OrderItemController.AddItemRequest(
                 TENANT_ID, "ADD_ON", CATALOG_ITEM_ID, null, null, null, BigDecimal.ONE, "MERCHANT"));
@@ -234,17 +235,9 @@ class OrderItemControllerAuditTest {
         return po;
     }
 
-    private static CatalogItemPo catalogItem() {
-        CatalogItemPo po = new CatalogItemPo();
-        po.setId(CATALOG_ITEM_ID);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setName("可乐");
-        po.setItemType("PRODUCT");
-        po.setUnitPrice(new BigDecimal("500"));
-        po.setStatus("ACTIVE");
-        po.setStockControlled(false);
-        return po;
+    private static CatalogItem catalogItem() {
+        return new CatalogItem(CATALOG_ITEM_ID, null, TENANT_ID, STORE_ID, "酒水", "PRODUCT", "可乐", "瓶",
+                new BigDecimal("500"), null, List.of(), null, "ACTIVE", false, 0);
     }
 
     private static OrderItemPo item(String status) {

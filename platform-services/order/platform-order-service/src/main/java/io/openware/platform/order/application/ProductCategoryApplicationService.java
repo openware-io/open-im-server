@@ -1,27 +1,32 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductCategoryMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
-import io.openware.platform.order.infra.persistence.po.ProductCategoryPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
+import io.openware.platform.order.api.dto.ProductCategoryView;
+import io.openware.platform.order.domain.catalog.model.ProductCategory;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
+import io.openware.platform.order.domain.catalog.repository.ProductCategoryRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 商品分类字典（按门店维护）。
+ *
+ * <p><b>本次迁移</b>：分类、商品、目录项三张表都改经领域端口读写
+ * （{@code ProductCategoryRepository} / {@code ProductRepository} / {@code CatalogItemRepository}），
+ * 响应体由 {@link ProductCategoryView} 装配（JSON 字段名与原持久化对象一致）。
+ * 「改名同步」与「被引用禁止删除」两条批量语义留在应用层编排，各自由端口上的**单条条件 UPDATE**
+ * 与**计数查询**落实——不逐行读改写，避免 N 次写与并发覆盖。
  *
  * <p>商品与目录项仍以「分类名称」冗余引用（不引入外键，避免动 ord_product 既有列），
  * 所以改名采用「同步改名」方案：同一事务内把该门店下引用旧名的商品 category 与
@@ -35,9 +40,9 @@ import java.util.List;
  */
 @Service
 public class ProductCategoryApplicationService {
-    public static final int MAX_NAME_LENGTH = 64;
-    private static final String STATUS_ACTIVE = "ACTIVE";
-    private static final String STATUS_DISABLED = "DISABLED";
+    public static final int MAX_NAME_LENGTH = ProductCategory.MAX_NAME_LENGTH;
+    private static final String STATUS_ACTIVE = ProductCategory.STATUS_ACTIVE;
+    private static final String STATUS_DISABLED = ProductCategory.STATUS_DISABLED;
 
     /** 审计资源类型与动作码：与 {@code AuditActions} 的稳定码一致（前端按码筛选）。 */
     private static final String AUDIT_RESOURCE_TYPE = "ord_product_category";
@@ -45,106 +50,102 @@ public class ProductCategoryApplicationService {
     private static final String ACTION_UPDATE = "product.category.update";
     private static final String ACTION_DELETE = "product.category.delete";
 
-    private final ProductCategoryMapper categoryMapper;
-    private final ProductMapper productMapper;
-    private final CatalogItemMapper catalogItemMapper;
+    private final ProductCategoryRepository categoryRepository;
+    private final ProductRepository productRepository;
+    private final CatalogItemRepository catalogItemRepository;
     private final AuditClient auditClient;
 
     @Autowired
-    public ProductCategoryApplicationService(ProductCategoryMapper categoryMapper, ProductMapper productMapper,
-                                             CatalogItemMapper catalogItemMapper, AuditClient auditClient) {
-        this.categoryMapper = categoryMapper;
-        this.productMapper = productMapper;
-        this.catalogItemMapper = catalogItemMapper;
+    public ProductCategoryApplicationService(ProductCategoryRepository categoryRepository,
+                                             ProductRepository productRepository,
+                                             CatalogItemRepository catalogItemRepository,
+                                             AuditClient auditClient) {
+        this.categoryRepository = categoryRepository;
+        this.productRepository = productRepository;
+        this.catalogItemRepository = catalogItemRepository;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有单测装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
-    public ProductCategoryApplicationService(ProductCategoryMapper categoryMapper, ProductMapper productMapper,
-                                             CatalogItemMapper catalogItemMapper) {
-        this(categoryMapper, productMapper, catalogItemMapper, AuditClient.disabled());
+    public ProductCategoryApplicationService(ProductCategoryRepository categoryRepository,
+                                             ProductRepository productRepository,
+                                             CatalogItemRepository catalogItemRepository) {
+        this(categoryRepository, productRepository, catalogItemRepository, AuditClient.disabled());
     }
 
     /** 分类列表：按 sort_order、name 排序；status 传入时只看该状态（如 status=ACTIVE 只看启用）。 */
-    public List<ProductCategoryPo> list(Long storeId, String status) {
+    public List<ProductCategoryView> list(Long storeId, String status) {
         TenantContext context = context();
         if (storeId != null && !storeId.equals(context.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店分类");
         }
-        return categoryMapper.selectList(new LambdaQueryWrapper<ProductCategoryPo>()
-                .eq(ProductCategoryPo::getTenantId, context.tenantId())
-                .eq(ProductCategoryPo::getStoreId, context.storeId())
-                .eq(status != null && !status.isBlank(), ProductCategoryPo::getStatus, status)
-                .orderByAsc(ProductCategoryPo::getSortOrder)
-                .orderByAsc(ProductCategoryPo::getName)
-                .orderByAsc(ProductCategoryPo::getId));
+        List<ProductCategory> categories = categoryRepository.find(context.tenantId(), context.storeId(),
+                blankToNull(status));
+        List<ProductCategoryView> views = new ArrayList<>(categories.size());
+        for (ProductCategory category : categories) {
+            // 列表读路径没有审计快照：这四个响应字段为 null（字段名不变，见 ProductCategoryView）。
+            views.add(ProductCategoryView.from(category, null));
+        }
+        return views;
     }
 
     @Transactional
-    public ProductCategoryPo create(CategoryCommand command) {
+    public ProductCategoryView create(CategoryCommand command) {
         try {
-            ProductCategoryPo po = doCreate(command);
-            recordAudit(ACTION_CREATE, po);
-            return po;
+            Persisted<ProductCategory> persisted = doCreate(command);
+            recordAudit(ACTION_CREATE, persisted.aggregate());
+            return ProductCategoryView.from(persisted.aggregate(), persisted.audit());
         } catch (RuntimeException failure) {
             recordFailure(ACTION_CREATE, null, failure);
             throw failure;
         }
     }
 
-    private ProductCategoryPo doCreate(CategoryCommand command) {
+    private Persisted<ProductCategory> doCreate(CategoryCommand command) {
         TenantContext context = context();
         String name = requireName(command.name());
         if (findByName(context, name) != null) {
             throw new BusinessException("PRODUCT_CATEGORY_DUPLICATED", "分类名称已存在：" + name);
         }
-        ProductCategoryPo po = new ProductCategoryPo();
-        po.setTenantId(context.tenantId());
-        po.setStoreId(context.storeId());
-        po.setName(name);
-        po.setSortOrder(command.sortOrder() == null ? 0 : command.sortOrder());
-        po.setStatus(STATUS_ACTIVE);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        categoryMapper.insert(po);
-        return po;
+        // 审计列（created_at/updated_at）由适配器按落库时刻填充，领域模型不承载它们。
+        return categoryRepository.insert(ProductCategory.draft(context.tenantId(), context.storeId(), name,
+                command.sortOrder() == null ? 0 : command.sortOrder()));
     }
 
     @Transactional
-    public ProductCategoryPo update(Long id, CategoryCommand command) {
+    public ProductCategoryView update(Long id, CategoryCommand command) {
         try {
-            ProductCategoryPo po = doUpdate(id, command);
-            recordAudit(ACTION_UPDATE, po);
-            return po;
+            Persisted<ProductCategory> persisted = doUpdate(id, command);
+            recordAudit(ACTION_UPDATE, persisted.aggregate());
+            return ProductCategoryView.from(persisted.aggregate(), persisted.audit());
         } catch (RuntimeException failure) {
             recordFailure(ACTION_UPDATE, id, failure);
             throw failure;
         }
     }
 
-    private ProductCategoryPo doUpdate(Long id, CategoryCommand command) {
+    private Persisted<ProductCategory> doUpdate(Long id, CategoryCommand command) {
         TenantContext context = context();
-        ProductCategoryPo po = find(id, context);
+        ProductCategory category = find(id, context);
+        String name = category.name();
         if (command.name() != null && !command.name().isBlank()) {
-            String name = requireName(command.name());
-            if (!name.equals(po.getName())) {
-                ProductCategoryPo duplicated = findByName(context, name);
-                if (duplicated != null && !duplicated.getId().equals(po.getId())) {
-                    throw new BusinessException("PRODUCT_CATEGORY_DUPLICATED", "分类名称已存在：" + name);
+            String requested = requireName(command.name());
+            if (!requested.equals(category.name())) {
+                ProductCategory duplicated = findByName(context, requested);
+                if (duplicated != null && !duplicated.id().equals(category.id())) {
+                    throw new BusinessException("PRODUCT_CATEGORY_DUPLICATED", "分类名称已存在：" + requested);
                 }
-                renameReferences(po, name);
-                po.setName(name);
+                name = requested;
             }
         }
-        if (command.sortOrder() != null) {
-            po.setSortOrder(command.sortOrder());
+        Integer sortOrder = command.sortOrder() != null ? command.sortOrder() : category.sortOrder();
+        String status = command.status() != null && !command.status().isBlank()
+                ? requireStatus(command.status()) : category.status();
+        ProductCategory merged = category.edited(name, sortOrder, status);
+        if (!name.equals(category.name())) {
+            renameReferences(category, name);
         }
-        if (command.status() != null && !command.status().isBlank()) {
-            po.setStatus(requireStatus(command.status()));
-        }
-        po.setUpdatedAt(LocalDateTime.now());
-        categoryMapper.updateById(po);
-        return po;
+        return categoryRepository.update(merged);
     }
 
     /** 删除分类：仍被商品引用时禁止删除（否则商品会挂在列表里不存在的分类上）。 */
@@ -159,19 +160,16 @@ public class ProductCategoryApplicationService {
         }
     }
 
-    private ProductCategoryPo doDelete(Long id) {
+    private ProductCategory doDelete(Long id) {
         TenantContext context = context();
-        ProductCategoryPo po = find(id, context);
-        Long referenced = productMapper.selectCount(new LambdaQueryWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, context.tenantId())
-                .eq(ProductPo::getStoreId, context.storeId())
-                .eq(ProductPo::getCategory, po.getName()));
-        if (referenced != null && referenced > 0) {
+        ProductCategory category = find(id, context);
+        long referenced = productRepository.countByCategory(context.tenantId(), context.storeId(), category.name());
+        if (referenced > 0) {
             throw new BusinessException("PRODUCT_CATEGORY_IN_USE",
-                    "分类「%s」下仍有 %d 个商品，请先改到其他分类再删除".formatted(po.getName(), referenced));
+                    "分类「%s」下仍有 %d 个商品，请先改到其他分类再删除".formatted(category.name(), referenced));
         }
-        categoryMapper.deleteById(id);
-        return po;
+        categoryRepository.deleteById(id);
+        return category;
     }
 
     /**
@@ -181,18 +179,18 @@ public class ProductCategoryApplicationService {
      * <p>detail 只放数值/枚举字段，运营填写的分类名走 {@code resourceName}
      * （由 {@link AuditClient#buildBody} 统一转义），避免手工拼 JSON 被引号/换行破坏成非法 detail 丢审计。
      */
-    private void recordAudit(String action, ProductCategoryPo po) {
+    private void recordAudit(String action, ProductCategory category) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
+                .tenantId(category.tenantId())
+                .storeId(category.storeId())
                 .action(action)
                 .resourceType(AUDIT_RESOURCE_TYPE)
-                .resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getName())
+                .resourceId(String.valueOf(category.id()))
+                .resourceName(category.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .idempotencyKey(action + ":" + po.getId())
-                .detailJson("{\"storeId\":" + po.getStoreId() + ",\"sortOrder\":" + po.getSortOrder()
-                        + ",\"status\":\"" + po.getStatus() + "\"}")
+                .idempotencyKey(action + ":" + category.id())
+                .detailJson("{\"storeId\":" + category.storeId() + ",\"sortOrder\":" + category.sortOrder()
+                        + ",\"status\":\"" + category.status() + "\"}")
                 .build());
     }
 
@@ -218,38 +216,27 @@ public class ProductCategoryApplicationService {
     }
 
     /** 改名同步：该门店下引用旧分类名的商品与点单目录项一起改成新名（点单页按目录项分类分组）。 */
-    private void renameReferences(ProductCategoryPo category, String newName) {
-        LocalDateTime now = LocalDateTime.now();
-        productMapper.update(null, new LambdaUpdateWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, category.getTenantId())
-                .eq(ProductPo::getStoreId, category.getStoreId())
-                .eq(ProductPo::getCategory, category.getName())
-                .set(ProductPo::getCategory, newName)
-                .set(ProductPo::getUpdatedAt, now));
-        catalogItemMapper.update(null, new LambdaUpdateWrapper<CatalogItemPo>()
-                .eq(CatalogItemPo::getTenantId, category.getTenantId())
-                .eq(CatalogItemPo::getStoreId, category.getStoreId())
-                .eq(CatalogItemPo::getCategory, category.getName())
-                .set(CatalogItemPo::getCategory, newName)
-                .set(CatalogItemPo::getUpdatedAt, now));
+    private void renameReferences(ProductCategory category, String newName) {
+        productRepository.renameCategory(category.tenantId(), category.storeId(), category.name(), newName);
+        catalogItemRepository.renameCategory(category.tenantId(), category.storeId(), category.name(), newName);
     }
 
-    private ProductCategoryPo find(Long id, TenantContext context) {
-        ProductCategoryPo po = categoryMapper.selectOne(new LambdaQueryWrapper<ProductCategoryPo>()
-                .eq(ProductCategoryPo::getTenantId, context.tenantId())
-                .eq(ProductCategoryPo::getStoreId, context.storeId())
-                .eq(ProductCategoryPo::getId, id));
-        if (po == null) {
+    private ProductCategory find(Long id, TenantContext context) {
+        ProductCategory category = categoryRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("PRODUCT_CATEGORY_NOT_FOUND", "商品分类不存在"));
+        if (context.tenantId() != category.tenantId()
+                || !Objects.equals(context.storeId(), category.storeId())) {
             throw new BusinessException("PRODUCT_CATEGORY_NOT_FOUND", "商品分类不存在");
         }
-        return po;
+        return category;
     }
 
-    private ProductCategoryPo findByName(TenantContext context, String name) {
-        return categoryMapper.selectOne(new LambdaQueryWrapper<ProductCategoryPo>()
-                .eq(ProductCategoryPo::getTenantId, context.tenantId())
-                .eq(ProductCategoryPo::getStoreId, context.storeId())
-                .eq(ProductCategoryPo::getName, name));
+    private ProductCategory findByName(TenantContext context, String name) {
+        return categoryRepository.findByName(context.tenantId(), context.storeId(), name).orElse(null);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static String requireName(String raw) {

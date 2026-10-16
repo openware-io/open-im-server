@@ -16,16 +16,17 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -61,13 +62,13 @@ class OrderItemConsumerSelfServiceTest {
             List.of("reservation.view", "reservation.create");
 
     private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
-    private final CatalogItemMapper catalogItemMapper = mock(CatalogItemMapper.class);
+    private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
     private final OrderMapper orderMapper = mock(OrderMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
+    private final ProductRepository productRepository = mock(ProductRepository.class);
     private final CustomerLookupMapper customerLookupMapper = mock(CustomerLookupMapper.class);
 
-    private final OrderItemController controller = new OrderItemController(orderItemMapper, catalogItemMapper,
-            mock(SettlementApplicationService.class), orderMapper, null, productMapper, null,
+    private final OrderItemController controller = new OrderItemController(orderItemMapper, catalogItemRepository,
+            mock(SettlementApplicationService.class), orderMapper, null, productRepository, null,
             AuditClient.disabled(), customerLookupMapper, null);
 
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
@@ -139,7 +140,7 @@ class OrderItemConsumerSelfServiceTest {
         signInConsumer();
         when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order(MEMBER_ID));
-        when(catalogItemMapper.selectById(CATALOG_ITEM_ID)).thenReturn(serviceCatalog());
+        when(catalogItemRepository.findById(CATALOG_ITEM_ID)).thenReturn(Optional.of(serviceCatalog()));
 
         // 客户端自报 MERCHANT：必须被服务端改写，否则消费者能绕过服务人员确认直接生效。
         mvc.perform(post("/business/orders/9/items")
@@ -171,7 +172,7 @@ class OrderItemConsumerSelfServiceTest {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, ACCOUNT_ID, 1,
                 List.of("order.add_item")));
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order(OTHER_MEMBER_ID));
-        when(catalogItemMapper.selectById(CATALOG_ITEM_ID)).thenReturn(serviceCatalog());
+        when(catalogItemRepository.findById(CATALOG_ITEM_ID)).thenReturn(Optional.of(serviceCatalog()));
 
         mvc.perform(post("/business/orders/9/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -215,18 +216,9 @@ class OrderItemConsumerSelfServiceTest {
     }
 
     /** 纯服务目录项：未关联商品、不占库存，单价来自目录自身（「加项能对服务加项」）。 */
-    private static CatalogItemPo serviceCatalog() {
-        CatalogItemPo catalog = new CatalogItemPo();
-        catalog.setId(CATALOG_ITEM_ID);
-        catalog.setTenantId(TENANT_ID);
-        catalog.setStoreId(STORE_ID);
-        catalog.setStatus("ACTIVE");
-        catalog.setName("陪唱服务");
-        catalog.setUnit("次");
-        catalog.setItemType("SERVICE");
-        catalog.setStockControlled(false);
-        catalog.setUnitPrice(new BigDecimal("3000"));
-        return catalog;
+    private static CatalogItem serviceCatalog() {
+        return new CatalogItem(CATALOG_ITEM_ID, null, TENANT_ID, STORE_ID, "服务", "SERVICE", "陪唱服务", "次",
+                new BigDecimal("3000"), null, List.of(), null, "ACTIVE", false, 0);
     }
 
     private static OrderItemPo item(String status) {

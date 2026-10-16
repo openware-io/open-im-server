@@ -13,13 +13,13 @@ import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
 import io.openware.platform.order.application.PendingApprovalApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.web.bind.annotation.*;
@@ -42,11 +42,11 @@ public class OrderItemController {
     private static final String SOURCE_CUSTOMER = "CUSTOMER";
 
     private final OrderItemMapper orderItemMapper;
-    private final CatalogItemMapper catalogItemMapper;
+    private final CatalogItemRepository catalogItemRepository;
     private final SettlementApplicationService settlementService;
     private final OrderMapper orderMapper;
     private final InventoryApplicationService inventoryService;
-    private final ProductMapper productMapper;
+    private final ProductRepository productRepository;
     private final OrderAmountApplicationService orderAmounts;
     private final AuditClient auditClient;
     /** account_id → cst_member：消费者自助路径的订单归属校验（与 /me/orders 同一份会员口径）。 */
@@ -58,18 +58,18 @@ public class OrderItemController {
     private final PendingApprovalApplicationService pendingApprovalService;
 
     @Autowired
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemMapper catalogItemMapper,
+    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
                                SettlementApplicationService settlementService, OrderMapper orderMapper,
-                               InventoryApplicationService inventoryService, ProductMapper productMapper,
+                               InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts, AuditClient auditClient,
                                CustomerLookupMapper customerLookupMapper,
                                PendingApprovalApplicationService pendingApprovalService) {
         this.orderItemMapper = orderItemMapper;
-        this.catalogItemMapper = catalogItemMapper;
+        this.catalogItemRepository = catalogItemRepository;
         this.settlementService = settlementService;
         this.orderMapper = orderMapper;
         this.inventoryService = inventoryService;
-        this.productMapper = productMapper;
+        this.productRepository = productRepository;
         this.orderAmounts = orderAmounts;
         this.auditClient = auditClient;
         this.customerLookupMapper = customerLookupMapper;
@@ -77,28 +77,28 @@ public class OrderItemController {
     }
 
     /** 兼容既有 Web 层测试与外部装配；库存能力仅在库存商品加项路径使用，审计用关闭态客户端。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemMapper catalogItemMapper,
+    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
                                SettlementApplicationService settlementService, OrderMapper orderMapper) {
-        this(orderItemMapper, catalogItemMapper, settlementService, orderMapper, null, null, null,
+        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, null, null, null,
                 AuditClient.disabled(), null, null);
     }
 
     /** 兼容既有 Web 层测试（库存 + 商品 + 金额，不含审计）。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemMapper catalogItemMapper,
+    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
                                SettlementApplicationService settlementService, OrderMapper orderMapper,
-                               InventoryApplicationService inventoryService, ProductMapper productMapper,
+                               InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts) {
-        this(orderItemMapper, catalogItemMapper, settlementService, orderMapper, inventoryService, productMapper,
-                orderAmounts, AuditClient.disabled(), null, null);
+        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, inventoryService,
+                productRepository, orderAmounts, AuditClient.disabled(), null, null);
     }
 
     /** 兼容既有 Web 层测试（含审计，不含消费者会员查询）。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemMapper catalogItemMapper,
+    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
                                SettlementApplicationService settlementService, OrderMapper orderMapper,
-                               InventoryApplicationService inventoryService, ProductMapper productMapper,
+                               InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts, AuditClient auditClient) {
-        this(orderItemMapper, catalogItemMapper, settlementService, orderMapper, inventoryService, productMapper,
-                orderAmounts, auditClient, null, null);
+        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, inventoryService,
+                productRepository, orderAmounts, auditClient, null, null);
     }
 
     /**
@@ -162,10 +162,11 @@ public class OrderItemController {
         String name = req.name();
         BigDecimal unitPrice = req.unitPrice();
         String itemType = req.itemType();
-        CatalogItemPo catalog;
+        CatalogItem catalog;
         if (req.catalogItemId() != null) {
-            catalog = catalogItemMapper.selectById(req.catalogItemId());
-            if (catalog == null || !"ACTIVE".equals(catalog.getStatus())) {
+            catalog = catalogItemRepository.findById(req.catalogItemId())
+                    .orElseThrow(() -> new BusinessException("CATALOG_ITEM_INVALID", "目录项不存在或已停用"));
+            if (!catalog.active()) {
                 throw new BusinessException("CATALOG_ITEM_INVALID", "目录项不存在或已停用");
             }
             Long orderStoreId = order.getStoreId();
@@ -174,14 +175,14 @@ public class OrderItemController {
             if (operatorStoreId != null && !java.util.Objects.equals(operatorStoreId, orderStoreId)) {
                 throw new BusinessException("STORE_SCOPE_DENIED", "无权操作其他门店订单");
             }
-            if (!java.util.Objects.equals(catalog.getTenantId(), currentTenantId)
-                    || (catalog.getStoreId() != null && !java.util.Objects.equals(catalog.getStoreId(), orderStoreId))) {
+            if (!java.util.Objects.equals(catalog.tenantId(), currentTenantId)
+                    || (catalog.storeId() != null && !java.util.Objects.equals(catalog.storeId(), orderStoreId))) {
                 throw new BusinessException("CATALOG_SCOPE_DENIED", "无权使用其他门店目录项");
             }
-            name = catalog.getName();
-            unitPrice = catalog.getUnitPrice();
-            itemType = catalog.getItemType();
-            po.setCatalogItemId(catalog.getId());
+            name = catalog.name();
+            unitPrice = catalog.unitPrice();
+            itemType = catalog.itemType();
+            po.setCatalogItemId(catalog.id());
         } else {
             throw new BusinessException("CATALOG_ITEM_REQUIRED", "加项必须选择有效目录项");
         }
@@ -398,31 +399,31 @@ public class OrderItemController {
      *
      * @return 需要扣减的物料 id；返回 null 表示该加项不占库存
      */
-    private Long resolveInventoryMaterial(CatalogItemPo catalog, OrderPo order) {
-        ProductPo product = resolveLinkedProduct(catalog, order);
+    private Long resolveInventoryMaterial(CatalogItem catalog, OrderPo order) {
+        Product product = resolveLinkedProduct(catalog, order);
         if (product != null) {
-            if (ITEM_TYPE_SERVICE.equalsIgnoreCase(text(product.getItemType()))) {
+            if (ITEM_TYPE_SERVICE.equalsIgnoreCase(text(product.itemType()))) {
                 return null;
             }
-        } else if (ITEM_TYPE_SERVICE.equalsIgnoreCase(text(catalog.getItemType()))) {
+        } else if (ITEM_TYPE_SERVICE.equalsIgnoreCase(text(catalog.itemType()))) {
             return null;
         }
         boolean stockControlled = product != null
-                ? Boolean.TRUE.equals(product.getStockControlled())
-                : Boolean.TRUE.equals(catalog.getStockControlled());
+                ? Boolean.TRUE.equals(product.stockControlled())
+                : Boolean.TRUE.equals(catalog.stockControlled());
         if (!stockControlled) {
             return null;
         }
         if (product == null) {
             throw new BusinessException("PRODUCT_NOT_AVAILABLE", "库存商品未关联有效商品，无法扣减库存");
         }
-        if (!"ON_SHELF".equals(product.getStatus())) {
+        if (!"ON_SHELF".equals(product.status())) {
             throw new BusinessException("PRODUCT_NOT_AVAILABLE", "库存商品未上架");
         }
-        if (product.getMaterialId() == null) {
+        if (product.materialId() == null) {
             throw new BusinessException("PRODUCT_NOT_AVAILABLE", "库存商品未关联仓库商品");
         }
-        return product.getMaterialId();
+        return product.materialId();
     }
 
     /** 服务型商品的 item_type 取值（与 ProductApplicationService 的稳定枚举一致）。 */
@@ -432,16 +433,14 @@ public class OrderItemController {
         return value == null ? "" : value.trim();
     }
 
-    /** 按目录项反查关联商品（租户 + 订单门店口径；测试装配未注入 productMapper 时返回 null 走兜底）。 */
-    private ProductPo resolveLinkedProduct(CatalogItemPo catalog, OrderPo order) {
-        if (productMapper == null || catalog == null || catalog.getId() == null) {
+    /** 按目录项反查关联商品（租户 + 订单门店口径；测试装配未注入商品端口时返回 null 走兜底）。 */
+    private Product resolveLinkedProduct(CatalogItem catalog, OrderPo order) {
+        if (productRepository == null || catalog == null || catalog.id() == null) {
             return null;
         }
         Long storeId = order.getStoreId() != null ? order.getStoreId() : currentStoreId();
-        return productMapper.selectOne(new LambdaQueryWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, catalog.getTenantId())
-                .eq(storeId != null, ProductPo::getStoreId, storeId)
-                .eq(ProductPo::getCatalogItemId, catalog.getId()));
+        return productRepository.find(ProductRepository.ProductQuery.linkedToCatalogItem(
+                catalog.tenantId(), storeId, catalog.id())).stream().findFirst().orElse(null);
     }
 
     /**

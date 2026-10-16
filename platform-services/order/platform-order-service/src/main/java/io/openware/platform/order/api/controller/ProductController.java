@@ -2,8 +2,8 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.application.ProductApplicationService;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
@@ -20,19 +20,22 @@ public class ProductController {
      * <p>{@code from}/{@code to} 按**商品创建时间** {@code created_at} 的闭区间筛选，统一口径见
      * {@link TimeRangeParams}：{@code yyyy-MM-dd} 的 from/to 分别收口到当天起点/当天末尾，
      * 也接受 {@code yyyy-MM-ddTHH:mm:ss}；为空 = 不筛；{@code from > to} → 400 {@code TIME_RANGE_INVALID}。
+     *
+     * <p>响应体是 {@link ProductView}（JSON 字段名与原 {@code ProductPo} 一致）；
+     * 其中 {@code serverResourceName} 是响应期回填的展示字段，不是数据库列。
      */
     @GetMapping
-    public List<ProductPo> list(@RequestParam(required = false) Long storeId,
-                                @RequestParam(required = false) String status,
-                                @RequestParam(required = false) String from,
-                                @RequestParam(required = false) String to) {
+    public List<ProductView> list(@RequestParam(required = false) Long storeId,
+                                 @RequestParam(required = false) String status,
+                                 @RequestParam(required = false) String from,
+                                 @RequestParam(required = false) String to) {
         PermissionGuard.require("product.view");
         return service.list(storeId, status, TimeRangeParams.parse(from, to));
     }
-    @PostMapping public ProductPo create(@RequestBody ProductRequest r) { PermissionGuard.require("product.manage"); return service.create(toCommand(r)); }
-    @PutMapping("/{id}") public ProductPo update(@PathVariable Long id, @RequestBody ProductRequest r) { PermissionGuard.require("product.manage"); return service.update(id, toCommand(r)); }
-    @PostMapping("/{id}/on-shelf") public ProductPo onShelf(@PathVariable Long id) { PermissionGuard.require("product.publish"); return service.onShelf(id); }
-    @PostMapping("/{id}/off-shelf") public ProductPo offShelf(@PathVariable Long id) { PermissionGuard.require("product.unpublish"); return service.offShelf(id); }
+    @PostMapping public ProductView create(@RequestBody ProductRequest r) { PermissionGuard.require("product.manage"); return service.create(toCommand(r)); }
+    @PutMapping("/{id}") public ProductView update(@PathVariable Long id, @RequestBody ProductRequest r) { PermissionGuard.require("product.manage"); return service.update(id, toCommand(r)); }
+    @PostMapping("/{id}/on-shelf") public ProductView onShelf(@PathVariable Long id) { PermissionGuard.require("product.publish"); return service.onShelf(id); }
+    @PostMapping("/{id}/off-shelf") public ProductView offShelf(@PathVariable Long id) { PermissionGuard.require("product.unpublish"); return service.offShelf(id); }
     private ProductApplicationService.ProductCommand toCommand(ProductRequest r) { return new ProductApplicationService.ProductCommand(r.storeId(), r.productCode(), r.name(), r.category(), r.unit(), r.salePrice(), r.materialId(), r.stockControlled(), r.sortOrder(), r.description(), r.imageUrls(), r.mainImageUrl(), r.itemType(), r.serverResourceId()); }
 
     /**

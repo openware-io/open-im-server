@@ -17,17 +17,23 @@ import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.ProductView;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.client.ResourceStateClient.ServerSnapshot;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -36,19 +42,32 @@ import org.mockito.ArgumentCaptor;
  *  - 服务型商品必须关联「存在 + KTV_SERVER + 同门店 + 启用中 + 未被占用」的服务人员；
  *  - 实物商品忽略服务人员字段（不做任何资源域调用，落库为 NULL）；
  *  - 目录项 itemType / stock_controlled 必须跟着商品回写（加项与点单共用同一份 SERVICE 目录项）；
- *  - 服务人员名称是展示用的降级读：资源服务不可达时名称 null、列表照常返回。
+ *  - 服务人员名称是展示用的降级读：资源服务不可达时名称 null、列表照常返回
+ *    （它**不是列**，只存在于 {@link ProductView}）。
  */
 class ProductItemTypeApplicationServiceTest {
 
     private static final long TENANT_ID = 1L;
     private static final long STORE_ID = 3L;
 
-    private final ProductMapper productMapper = mock(ProductMapper.class);
-    private final CatalogItemMapper catalogItemMapper = mock(CatalogItemMapper.class);
+    private final ProductRepository productRepository = mock(ProductRepository.class);
+    private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
     private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
     private final ResourceStateClient resourceStateClient = mock(ResourceStateClient.class);
     private final ProductApplicationService service = new ProductApplicationService(
-            productMapper, catalogItemMapper, materialMapper, AuditClient.disabled(), resourceStateClient);
+            productRepository, catalogItemRepository, materialMapper, AuditClient.disabled(), resourceStateClient);
+
+    @BeforeEach
+    void stubPersistence() {
+        when(productRepository.insert(any(Product.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, Product.class)));
+        when(productRepository.update(any(Product.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, Product.class)));
+        when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, CatalogItem.class).withId(77L)));
+        when(catalogItemRepository.update(any(CatalogItem.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, CatalogItem.class)));
+    }
 
     @AfterEach
     void clear() {
@@ -66,7 +85,7 @@ class ProductItemTypeApplicationServiceTest {
 
         assertEquals("PRODUCT_SERVICE_SERVER_REQUIRED", error.getCode());
         assertEquals("服务商品必须关联服务人员", error.getMessage());
-        verify(productMapper, never()).insert(any(ProductPo.class));
+        verify(productRepository, never()).insert(any(Product.class));
     }
 
     @Test
@@ -108,10 +127,10 @@ class ProductItemTypeApplicationServiceTest {
     void createServiceProductRejectsServerAlreadyLinkedToAnotherProduct() {
         tenant();
         givenServer(9L, "KTV_SERVER", STORE_ID, "ENABLED");
-        ProductPo occupied = new ProductPo();
-        occupied.setId(88L);
-        occupied.setName("已有服务商品");
-        when(productMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(occupied);
+        when(productRepository.findServerResourceOccupant(eq(TENANT_ID), eq(STORE_ID), eq("SERVICE"), eq(9L), eq(null)))
+                .thenReturn(Optional.of(new Product(88L, TENANT_ID, STORE_ID, "P-88", "已有服务商品", "服务",
+                        "SERVICE", "次", new BigDecimal("100"), null, 9L, false, null, "DRAFT", 0, null, List.of(),
+                        null, 0)));
 
         BusinessException error = assertThrows(BusinessException.class, () -> service.create(
                 serviceCommand(9L)));
@@ -137,20 +156,20 @@ class ProductItemTypeApplicationServiceTest {
         tenant();
         givenServer(9L, "KTV_SERVER", STORE_ID, "ENABLED");
 
-        ProductPo created = service.create(serviceCommand(9L));
+        ProductView created = service.create(serviceCommand(9L));
 
-        assertEquals("SERVICE", created.getItemType());
-        assertEquals(9L, created.getServerResourceId());
-        assertEquals("小美", created.getServerResourceName());
-        assertEquals(Boolean.FALSE, created.getStockControlled(), "服务不占库存");
-        assertNull(created.getMaterialId(), "服务不需要仓库商品");
+        assertEquals("SERVICE", created.itemType());
+        assertEquals(9L, created.serverResourceId());
+        assertEquals("小美", created.serverResourceName());
+        assertEquals(Boolean.FALSE, created.stockControlled(), "服务不占库存");
+        assertNull(created.materialId(), "服务不需要仓库商品");
 
-        ArgumentCaptor<CatalogItemPo> captor = ArgumentCaptor.forClass(CatalogItemPo.class);
-        verify(catalogItemMapper).insert(captor.capture());
-        CatalogItemPo catalog = captor.getValue();
-        assertEquals("SERVICE", catalog.getItemType(), "目录项类型必须与商品一致（加项与服务人员点单共用同一份）");
-        assertEquals(Boolean.FALSE, catalog.getStockControlled());
-        assertEquals(new BigDecimal("100"), catalog.getUnitPrice(), "服务目录项单价沿用商品售价");
+        ArgumentCaptor<CatalogItem> captor = ArgumentCaptor.forClass(CatalogItem.class);
+        verify(catalogItemRepository).insert(captor.capture());
+        CatalogItem catalog = captor.getValue();
+        assertEquals("SERVICE", catalog.itemType(), "目录项类型必须与商品一致（加项与服务人员点单共用同一份）");
+        assertEquals(Boolean.FALSE, catalog.stockControlled());
+        assertEquals(new BigDecimal("100"), catalog.unitPrice(), "服务目录项单价沿用商品售价");
     }
 
     // —— 实物商品：忽略服务人员字段 ————————————————————————————————
@@ -160,11 +179,11 @@ class ProductItemTypeApplicationServiceTest {
         tenant();
         when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(activeMaterial(55L));
 
-        ProductPo created = service.create(new ProductApplicationService.ProductCommand(STORE_ID, "P-1", "可乐", "饮品",
+        ProductView created = service.create(new ProductApplicationService.ProductCommand(STORE_ID, "P-1", "可乐", "饮品",
                 "瓶", new BigDecimal("100"), 55L, true, 0, null, null, null, "PRODUCT", 9L));
 
-        assertEquals("PRODUCT", created.getItemType());
-        assertNull(created.getServerResourceId(), "实物商品必须忽略服务人员字段");
+        assertEquals("PRODUCT", created.itemType());
+        assertNull(created.serverResourceId(), "实物商品必须忽略服务人员字段");
         verifyNoInteractions(resourceStateClient);
     }
 
@@ -173,10 +192,10 @@ class ProductItemTypeApplicationServiceTest {
     void createWithoutItemTypeDefaultsToPhysicalProduct() {
         tenant();
 
-        ProductPo created = service.create(new ProductApplicationService.ProductCommand(STORE_ID, "P-2", "加钟", "其他",
+        ProductView created = service.create(new ProductApplicationService.ProductCommand(STORE_ID, "P-2", "加钟", "其他",
                 "次", new BigDecimal("100"), null, false, 0, null, null, null));
 
-        assertEquals("PRODUCT", created.getItemType());
+        assertEquals("PRODUCT", created.itemType());
         verifyNoInteractions(resourceStateClient);
     }
 
@@ -185,8 +204,7 @@ class ProductItemTypeApplicationServiceTest {
     @Test
     void updateSwitchingToServiceRequiresServer() {
         tenant();
-        ProductPo existing = physicalProduct(10L);
-        when(productMapper.selectById(10L)).thenReturn(existing);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(physicalProduct(10L)));
 
         BusinessException error = assertThrows(BusinessException.class, () -> service.update(10L,
                 new ProductApplicationService.ProductCommand(null, null, null, null, null, null, null, null, null,
@@ -199,26 +217,20 @@ class ProductItemTypeApplicationServiceTest {
     @Test
     void updateSwitchingBackToPhysicalClearsServerAndMaterialRulesApply() {
         tenant();
-        ProductPo existing = physicalProduct(10L);
-        existing.setItemType("SERVICE");
-        existing.setServerResourceId(5L);
-        existing.setStockControlled(false);
-        existing.setCatalogItemId(77L);
-        when(productMapper.selectById(10L)).thenReturn(existing);
-        CatalogItemPo catalog = new CatalogItemPo();
-        catalog.setId(77L);
-        catalog.setTenantId(TENANT_ID);
-        catalog.setStoreId(STORE_ID);
-        when(catalogItemMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(catalog);
+        Product serviceEntity = serviceProduct(10L, 5L);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(serviceEntity));
+        when(catalogItemRepository.findById(77L)).thenReturn(Optional.of(catalogItem(77L, "SERVICE")));
         when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(activeMaterial(55L));
 
-        ProductPo updated = service.update(10L, new ProductApplicationService.ProductCommand(
+        ProductView updated = service.update(10L, new ProductApplicationService.ProductCommand(
                 null, null, null, null, null, null, 55L, true, null, null, null, null, "PRODUCT", 5L));
 
-        assertEquals("PRODUCT", updated.getItemType());
-        assertNull(updated.getServerResourceId(), "切回实物必须清空服务人员");
-        assertEquals(55L, updated.getMaterialId());
-        assertEquals("PRODUCT", catalog.getItemType(), "目录项类型必须跟着切回 PRODUCT");
+        assertEquals("PRODUCT", updated.itemType());
+        assertNull(updated.serverResourceId(), "切回实物必须清空服务人员");
+        assertEquals(55L, updated.materialId());
+        ArgumentCaptor<CatalogItem> captor = ArgumentCaptor.forClass(CatalogItem.class);
+        verify(catalogItemRepository, org.mockito.Mockito.atLeastOnce()).update(captor.capture());
+        assertEquals("PRODUCT", captor.getValue().itemType(), "目录项类型必须跟着切回 PRODUCT");
         verifyNoInteractions(resourceStateClient);
     }
 
@@ -226,27 +238,20 @@ class ProductItemTypeApplicationServiceTest {
     @Test
     void updateServiceProductKeepsExistingServer() {
         tenant();
-        ProductPo existing = physicalProduct(10L);
-        existing.setItemType("SERVICE");
-        existing.setServerResourceId(5L);
-        existing.setStockControlled(false);
-        when(productMapper.selectById(10L)).thenReturn(existing);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(serviceProduct(10L, 5L)));
         givenServer(5L, "KTV_SERVER", STORE_ID, "ENABLED");
 
-        ProductPo updated = service.update(10L, new ProductApplicationService.ProductCommand(
+        ProductView updated = service.update(10L, new ProductApplicationService.ProductCommand(
                 null, null, "新名字", null, null, null, null, null, null, null, null, null, null, null));
 
-        assertEquals(5L, updated.getServerResourceId());
-        assertEquals("新名字", updated.getName());
+        assertEquals(5L, updated.serverResourceId());
+        assertEquals("新名字", updated.name());
     }
 
     @Test
     void onShelfRejectsServiceProductWithoutServer() {
         tenant();
-        ProductPo existing = physicalProduct(10L);
-        existing.setItemType("SERVICE");
-        existing.setStockControlled(false);
-        when(productMapper.selectById(10L)).thenReturn(existing);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(serviceProduct(10L, null)));
 
         BusinessException error = assertThrows(BusinessException.class, () -> service.onShelf(10L));
 
@@ -258,33 +263,29 @@ class ProductItemTypeApplicationServiceTest {
     @Test
     void listFillsServerNameForServiceProducts() {
         tenant();
-        ProductPo product = physicalProduct(10L);
-        product.setItemType("SERVICE");
-        product.setServerResourceId(5L);
-        when(productMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(product));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(serviceProduct(10L, 5L)));
         when(resourceStateClient.resources(eq("KTV_SERVER"), eq(STORE_ID)))
                 .thenReturn(List.of(new ServerSnapshot(5L, "小美", "S01", "KTV_SERVER", STORE_ID, "ENABLED")));
 
-        List<ProductPo> rows = service.list(STORE_ID, null, null);
+        List<ProductView> rows = service.list(STORE_ID, null, null);
 
-        assertEquals("小美", rows.get(0).getServerResourceName());
+        assertEquals("小美", rows.get(0).serverResourceName());
     }
 
     /** 资源服务不可达：名称降级为 null，列表照常返回（绝不 5xx）。 */
     @Test
     void listDegradesServerNameWhenResourceServiceUnavailable() {
         tenant();
-        ProductPo product = physicalProduct(10L);
-        product.setItemType("SERVICE");
-        product.setServerResourceId(5L);
-        when(productMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(product));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(serviceProduct(10L, 5L)));
         when(resourceStateClient.resources(anyString(), any())).thenThrow(new IllegalStateException("resource down"));
 
-        List<ProductPo> rows = service.list(STORE_ID, null, null);
+        List<ProductView> rows = service.list(STORE_ID, null, null);
 
         assertEquals(1, rows.size());
-        assertNull(rows.get(0).getServerResourceName());
-        assertEquals(5L, rows.get(0).getServerResourceId(), "ID 仍在，前端可显示「服务人员 #5」");
+        assertNull(rows.get(0).serverResourceName());
+        assertEquals(5L, rows.get(0).serverResourceId(), "ID 仍在，前端可显示「服务人员 #5」");
     }
 
     // —— helpers ————————————————————————————————————————————————
@@ -303,15 +304,21 @@ class ProductItemTypeApplicationServiceTest {
                 "次", new BigDecimal("100"), null, false, 0, null, null, null, "SERVICE", serverResourceId);
     }
 
-    private static ProductPo physicalProduct(Long id) {
-        ProductPo product = new ProductPo();
-        product.setId(id);
-        product.setTenantId(TENANT_ID);
-        product.setStoreId(STORE_ID);
-        product.setItemType("PRODUCT");
-        product.setName("可乐");
-        product.setStockControlled(true);
-        return product;
+    private static Product physicalProduct(Long id) {
+        return new Product(id, TENANT_ID, STORE_ID, "P-" + id, "可乐", "饮品", "PRODUCT", "瓶",
+                new BigDecimal("100"), null, null, true, null, "DRAFT", 0, null, List.of(), null, 0);
+    }
+
+    /** 服务型商品（库存开关强制 false，可带/不带服务人员；{@code catalog_item_id=77}）。 */
+    private static Product serviceProduct(Long id, Long serverResourceId) {
+        return new Product(id, TENANT_ID, STORE_ID, "S-" + id, "陪唱服务", "服务", "SERVICE", "次",
+                new BigDecimal("100"), null, serverResourceId, false, serverResourceId == null ? null : 77L,
+                "DRAFT", 0, null, List.of(), null, 0);
+    }
+
+    private static CatalogItem catalogItem(Long id, String itemType) {
+        return new CatalogItem(id, null, TENANT_ID, STORE_ID, "服务", itemType, "陪唱服务", "次",
+                new BigDecimal("100"), null, List.of(), null, "INACTIVE", false, 0);
     }
 
     private static InventoryMaterialPo activeMaterial(Long id) {
@@ -319,5 +326,11 @@ class ProductItemTypeApplicationServiceTest {
         material.setId(id);
         material.setStatus("ACTIVE");
         return material;
+    }
+
+    /** 端口返回值：聚合 + 审计快照（领域模型不承载审计列）。 */
+    private static <T> Persisted<T> persisted(T aggregate) {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 19, 20, 0, 0);
+        return new Persisted<>(aggregate, new AuditSnapshot(null, now, null, now));
     }
 }

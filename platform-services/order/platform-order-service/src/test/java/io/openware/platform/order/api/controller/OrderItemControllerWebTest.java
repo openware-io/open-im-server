@@ -8,13 +8,13 @@ import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -40,10 +41,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrderItemControllerWebTest {
 
     private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
-    private final CatalogItemMapper catalogItemMapper = mock(CatalogItemMapper.class);
+    private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
     private final OrderMapper orderMapper = mock(OrderMapper.class);
     private final InventoryApplicationService inventoryService = mock(InventoryApplicationService.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
+    private final ProductRepository productRepository = mock(ProductRepository.class);
     private OrderPo settlementResult;
     private final SettlementApplicationService settlementService = new SettlementApplicationService(
             orderMapper, orderItemMapper,
@@ -56,14 +57,15 @@ class OrderItemControllerWebTest {
     };
 
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemMapper, settlementService, orderMapper))
+            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemRepository, settlementService,
+                    orderMapper))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
-    /** 带库存能力的装配（productMapper + inventoryService），用于验证库存口径。 */
+    /** 带库存能力的装配（商品端口 + inventoryService），用于验证库存口径。 */
     private final MockMvc stockMvc = MockMvcBuilders
-            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemMapper, settlementService, orderMapper,
-                    inventoryService, productMapper, null))
+            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemRepository, settlementService,
+                    orderMapper, inventoryService, productRepository, null))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
@@ -100,18 +102,9 @@ class OrderItemControllerWebTest {
         OrderPo order = new OrderPo();
         order.setTenantId(100L);
         order.setStoreId(100L);
-        CatalogItemPo catalog = new CatalogItemPo();
-        catalog.setId(10L);
-        catalog.setTenantId(100L);
-        catalog.setStoreId(100L);
-        catalog.setStatus("ACTIVE");
-        catalog.setName("百威啤酒");
-        catalog.setUnit("瓶");
-        catalog.setUnitPrice(new BigDecimal("1500"));
-        catalog.setItemType("PRODUCT");
-        catalog.setStockControlled(false);
+        CatalogItem catalog = catalog(10L, 100L, "PRODUCT", "百威啤酒", "瓶", new BigDecimal("1500"), false);
         when(orderMapper.selectById(1L)).thenReturn(order);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
+        when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(catalog));
 
         mvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -126,12 +119,9 @@ class OrderItemControllerWebTest {
         OrderPo order = new OrderPo();
         order.setTenantId(100L);
         order.setStoreId(100L);
-        CatalogItemPo catalog = new CatalogItemPo();
-        catalog.setTenantId(100L);
-        catalog.setStoreId(100L);
-        catalog.setStatus("ACTIVE");
+        CatalogItem catalog = catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false);
         when(orderMapper.selectById(1L)).thenReturn(order);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
+        when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(catalog));
 
         mvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -180,12 +170,10 @@ class OrderItemControllerWebTest {
     void addItem_doesNotTouchInventoryForNonStockProduct() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
         when(orderMapper.selectById(1L)).thenReturn(order());
-        CatalogItemPo catalog = catalog();
-        catalog.setStockControlled(true);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
-        ProductPo product = product();
-        product.setStockControlled(false);
-        when(productMapper.selectOne(any())).thenReturn(product);
+        when(catalogItemRepository.findById(10L))
+                .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), true)));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(product(50L, 55L, "PRODUCT", false)));
 
         stockMvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -198,12 +186,13 @@ class OrderItemControllerWebTest {
 
     /** 商品说占库存、但未上架/未关联物料：明确拒绝，不能默默按不扣库存处理。 */
     @Test
-    void addItem_rejectsWhenStockControlledProductHasNoMaterial() throws Exception {        TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
+    void addItem_rejectsWhenStockControlledProductHasNoMaterial() throws Exception {
+        TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
         when(orderMapper.selectById(1L)).thenReturn(order());
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog());
-        ProductPo product = product();
-        product.setMaterialId(null);
-        when(productMapper.selectOne(any())).thenReturn(product);
+        when(catalogItemRepository.findById(10L))
+                .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false)));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(product(50L, null, "PRODUCT", true)));
 
         stockMvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -222,19 +211,10 @@ class OrderItemControllerWebTest {
     void addItem_serviceItemBillsCatalogPriceAndNeverTouchesInventory() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
         when(orderMapper.selectById(1L)).thenReturn(order());
-        CatalogItemPo catalog = catalog();
-        catalog.setItemType("SERVICE");
-        catalog.setName("陪唱服务");
-        catalog.setUnit("次");
-        catalog.setUnitPrice(new BigDecimal("3000"));
-        catalog.setStockControlled(false);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
-        ProductPo product = product();
-        product.setItemType("SERVICE");
-        product.setStockControlled(false);
-        product.setMaterialId(null);
-        product.setServerResourceId(9L);
-        when(productMapper.selectOne(any())).thenReturn(product);
+        when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(
+                catalog(10L, 100L, "SERVICE", "陪唱服务", "次", new BigDecimal("3000"), false)));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(product(50L, null, "SERVICE", false)));
 
         stockMvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -253,15 +233,11 @@ class OrderItemControllerWebTest {
     void addItem_standaloneServiceCatalogItemNeedsNoProduct() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
         when(orderMapper.selectById(1L)).thenReturn(order());
-        CatalogItemPo catalog = catalog();
-        catalog.setItemType("SERVICE");
-        catalog.setName("清洁服务");
-        catalog.setUnitPrice(new BigDecimal("2000"));
         // 故意把缓存列标成「占库存」：SERVICE 一律不扣库存，不能被缓存脏数据带偏。
-        catalog.setStockControlled(true);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
-        // 没关联商品（productMapper 查不到）：服务项照样可加，不扣库存。
-        when(productMapper.selectOne(any())).thenReturn(null);
+        when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(
+                catalog(10L, 100L, "SERVICE", "清洁服务", "次", new BigDecimal("2000"), true)));
+        // 没关联商品（端口查不到）：服务项照样可加，不扣库存。
+        when(productRepository.find(any(ProductRepository.ProductQuery.class))).thenReturn(List.of());
 
         stockMvc.perform(post("/business/orders/1/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -277,10 +253,10 @@ class OrderItemControllerWebTest {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
         when(orderMapper.selectById(1L)).thenReturn(order());
         // 目录项缓存列是 0：历史数据还没被 V17 回填
-        CatalogItemPo catalog = catalog();
-        catalog.setStockControlled(false);
-        when(catalogItemMapper.selectById(10L)).thenReturn(catalog);
-        when(productMapper.selectOne(any())).thenReturn(product());
+        when(catalogItemRepository.findById(10L))
+                .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false)));
+        when(productRepository.find(any(ProductRepository.ProductQuery.class)))
+                .thenReturn(List.of(product(50L, 55L, "PRODUCT", true)));
     }
 
     private static OrderPo order() {
@@ -292,28 +268,17 @@ class OrderItemControllerWebTest {
         return order;
     }
 
-    private static CatalogItemPo catalog() {
-        CatalogItemPo catalog = new CatalogItemPo();
-        catalog.setId(10L);
-        catalog.setTenantId(100L);
-        catalog.setStoreId(100L);
-        catalog.setStatus("ACTIVE");
-        catalog.setName("实物商品");
-        catalog.setUnit("瓶");
-        catalog.setUnitPrice(new BigDecimal("1000"));
-        catalog.setItemType("PRODUCT");
-        return catalog;
+    /** 目录项夹具（不可变记录；可变字段作为参数显式给出，替代迁移前的 setter 逐项覆盖）。 */
+    private static CatalogItem catalog(Long id, Long storeId, String itemType, String name, String unit,
+                                       BigDecimal unitPrice, boolean stockControlled) {
+        return new CatalogItem(id, null, 100L, storeId, "酒水", itemType, name, unit, unitPrice, null, List.of(),
+                null, "ACTIVE", stockControlled, 0);
     }
 
-    private static ProductPo product() {
-        ProductPo product = new ProductPo();
-        product.setId(50L);
-        product.setTenantId(100L);
-        product.setStoreId(100L);
-        product.setCatalogItemId(10L);
-        product.setStockControlled(true);
-        product.setMaterialId(55L);
-        product.setStatus("ON_SHELF");
-        return product;
+    /** 商品夹具（不可变记录）。 */
+    private static Product product(Long id, Long materialId, String itemType, boolean stockControlled) {
+        return new Product(id, 100L, 100L, "P-" + id, "实物商品", "酒水", itemType, "瓶",
+                new BigDecimal("1000"), materialId, null, stockControlled, 10L, "ON_SHELF", 0, null, List.of(),
+                null, 0);
     }
 }

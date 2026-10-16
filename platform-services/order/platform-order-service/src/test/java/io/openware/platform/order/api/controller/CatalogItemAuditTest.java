@@ -15,13 +15,18 @@ import io.openware.infrastructure.audit.AuditActions;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.CatalogItemView;
 import io.openware.platform.order.application.InventoryApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,14 +39,19 @@ import org.mockito.ArgumentCaptor;
  * 却一条都没有（platform-order-service 没有 BFF 那样的 /admin/** 全局审计拦截器，
  * 只能由调用点显式上报）。后台「删除商品」（软删 status → INACTIVE）在操作日志里查不到。
  * 这里把「成功 + 失败都必须留痕」「读列表不留痕」固化成回归。
+ *
+ * <p><b>迁移后的断言口径</b>：目录项不再是可变 PO，软删的「写后状态」只能从**端口调用**观察
+ * （见 {@link #disableWritesSucceededAuditAndSoftDeletes}），因此那里断言
+ * {@code catalogItemRepository.update(...)} 收到了 status=INACTIVE 的聚合，
+ * 而不是断言某个 PO 实例的字段被就地改掉。
  */
 class CatalogItemAuditTest {
 
     private static final long TENANT_ID = 1L;
     private static final Long STORE_ID = 3L;
 
-    private CatalogItemMapper catalogItemMapper;
-    private ProductMapper productMapper;
+    private CatalogItemRepository catalogItemRepository;
+    private ProductRepository productRepository;
     private InventoryMaterialMapper materialMapper;
     private InventoryApplicationService inventoryService;
     private AuditClient auditClient;
@@ -49,13 +59,13 @@ class CatalogItemAuditTest {
 
     @BeforeEach
     void setUp() {
-        catalogItemMapper = mock(CatalogItemMapper.class);
-        productMapper = mock(ProductMapper.class);
+        catalogItemRepository = mock(CatalogItemRepository.class);
+        productRepository = mock(ProductRepository.class);
         materialMapper = mock(InventoryMaterialMapper.class);
         inventoryService = mock(InventoryApplicationService.class);
         auditClient = mock(AuditClient.class);
-        controller = new CatalogController(catalogItemMapper, productMapper, materialMapper, inventoryService,
-                auditClient);
+        controller = new CatalogController(catalogItemRepository, productRepository, materialMapper,
+                inventoryService, auditClient);
         // 写端点先过权限门禁：上下文必须带 tenant.store.manage，否则只会留一条 PERMISSION_DENIED。
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1,
                 List.of("tenant.store.manage"), null));
@@ -68,7 +78,10 @@ class CatalogItemAuditTest {
 
     @Test
     void createWritesSucceededAudit() {
-        CatalogItemPo created = controller.create(
+        when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, CatalogItem.class), 12L));
+
+        CatalogItemView created = controller.create(
                 new CatalogController.CatalogItemRequest(STORE_ID, "酒水", "PRODUCT", "青岛啤酒", "瓶",
                         new BigDecimal("1200"), null, 0, List.of(), null));
 
@@ -81,8 +94,12 @@ class CatalogItemAuditTest {
         assertEquals("ord_catalog_item", record.resourceType());
         assertEquals(TENANT_ID, record.tenantId());
         assertEquals(STORE_ID, record.storeId());
-        assertEquals("ACTIVE", created.getStatus());
-        verify(catalogItemMapper).insert(created);
+        assertEquals("ACTIVE", created.status());
+        // 端口调用断言：适配器负责落库（含审计列），控制器只表达「新增这个聚合」。
+        ArgumentCaptor<CatalogItem> captor = ArgumentCaptor.forClass(CatalogItem.class);
+        verify(catalogItemRepository).insert(captor.capture());
+        assertEquals("青岛啤酒", captor.getValue().name());
+        assertEquals("ACTIVE", captor.getValue().status());
     }
 
     @Test
@@ -96,13 +113,14 @@ class CatalogItemAuditTest {
         assertEquals("catalog.item.create", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
         assertEquals("CATALOG_PRICE_INVALID", record.errorCode());
-        verify(catalogItemMapper, never()).insert(any(CatalogItemPo.class));
+        verify(catalogItemRepository, never()).insert(any(CatalogItem.class));
     }
 
     @Test
     void updateWritesSucceededAuditWithStableIdempotencyKey() {
-        CatalogItemPo existing = item(10L, "啤酒", "ACTIVE");
-        when(catalogItemMapper.selectById(10L)).thenReturn(existing);
+        when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(item(10L, "啤酒", "ACTIVE")));
+        when(catalogItemRepository.update(any(CatalogItem.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, CatalogItem.class), 10L));
 
         controller.update(10L, new CatalogController.CatalogItemRequest(STORE_ID, "酒水", "PRODUCT", "精酿", "瓶",
                 new BigDecimal("1500"), null, 1, null, null));
@@ -117,7 +135,7 @@ class CatalogItemAuditTest {
 
     @Test
     void updateWritesFailureAuditWhenItemMissing() {
-        when(catalogItemMapper.selectById(99L)).thenReturn(null);
+        when(catalogItemRepository.findById(99L)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> controller.update(99L,
                 new CatalogController.CatalogItemRequest(STORE_ID, "酒水", "PRODUCT", "精酿", "瓶",
@@ -132,13 +150,16 @@ class CatalogItemAuditTest {
 
     @Test
     void disableWritesSucceededAuditAndSoftDeletes() {
-        CatalogItemPo existing = item(11L, "啤酒", "ACTIVE");
-        when(catalogItemMapper.selectById(11L)).thenReturn(existing);
+        when(catalogItemRepository.findById(11L)).thenReturn(Optional.of(item(11L, "啤酒", "ACTIVE")));
+        when(catalogItemRepository.update(any(CatalogItem.class))).thenAnswer(invocation ->
+                persisted(invocation.getArgument(0, CatalogItem.class), 11L));
 
         controller.disable(11L);
 
-        assertEquals("INACTIVE", existing.getStatus());
-        verify(catalogItemMapper).updateById(existing);
+        // 软删 = 端口收到一个 status=INACTIVE 的聚合（不可变记录，没有「就地改字段」这回事）。
+        ArgumentCaptor<CatalogItem> captor = ArgumentCaptor.forClass(CatalogItem.class);
+        verify(catalogItemRepository).update(captor.capture());
+        assertEquals("INACTIVE", captor.getValue().status());
         AuditClient.AuditRecord record = captured();
         assertEquals("catalog.item.delete", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
@@ -148,7 +169,7 @@ class CatalogItemAuditTest {
 
     @Test
     void disableWritesFailureAuditWhenItemMissing() {
-        when(catalogItemMapper.selectById(99L)).thenReturn(null);
+        when(catalogItemRepository.findById(99L)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> controller.disable(99L));
 
@@ -172,15 +193,15 @@ class CatalogItemAuditTest {
         assertEquals("PERMISSION_DENIED", record.errorCode());
     }
 
-    private static CatalogItemPo item(Long id, String name, String status) {
-        CatalogItemPo po = new CatalogItemPo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setName(name);
-        po.setUnitPrice(new BigDecimal("1200"));
-        po.setStatus(status);
-        return po;
+    private static CatalogItem item(Long id, String name, String status) {
+        return new CatalogItem(id, null, TENANT_ID, STORE_ID, "酒水", "PRODUCT", name, "瓶",
+                new BigDecimal("1200"), null, List.of(), null, status, false, 0);
+    }
+
+    /** 端口返回值：聚合 + 审计快照（领域模型不承载审计列）。 */
+    private static Persisted<CatalogItem> persisted(CatalogItem item, Long id) {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 19, 20, 0, 0);
+        return new Persisted<>(item.withId(id), new AuditSnapshot(null, now, null, now));
     }
 
     private AuditClient.AuditRecord captured() {

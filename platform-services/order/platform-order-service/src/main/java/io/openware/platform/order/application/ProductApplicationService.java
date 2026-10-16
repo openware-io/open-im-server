@@ -1,33 +1,47 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.BusinessException;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.ProductView;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.client.ResourceStateClient.ServerSnapshot;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 商品（实物 / 服务）的创建、编辑、上下架与点单目录同步。
+ *
+ * <p><b>本次迁移</b>：商品与目录项改经领域端口（{@code ProductRepository} /
+ * {@code CatalogItemRepository}）读写；服务人员名称这一**展示字段**由
+ * {@link ProductView#withServerResourceName} 在响应期回填——它不是列，不能进领域模型，
+ * 更不能进任何列引用（对 {@code exist = false} 的字段生成列引用会在运行时抛
+ * {@code can not find lambda cache for this property [...]}）。
+ *
+ * <p>仍直接依赖 {@code InventoryMaterialMapper} 的原因：校验「关联物料存在且启用」与取物料图片
+ * 要读 {@code ord_inventory_material}，物料属于**库存子域**，本次不迁移库存。这里保持既有的窄用法
+ * （只 {@code selectById}/{@code selectOne}），把库存子域的端口化留给库存切片。
  *
  * <p><b>商品类型权威口径</b>：{@code ord_product.item_type}（PRODUCT 实物商品 / SERVICE 服务）。
  * 服务是「人员的服务」，因此服务型商品必须关联一名启用的本门店服务人员
@@ -54,51 +68,51 @@ public class ProductApplicationService {
     /** 资源启用状态（res_resource.status）。 */
     static final String RESOURCE_STATUS_ENABLED = "ENABLED";
 
-    private final ProductMapper productMapper;
-    private final CatalogItemMapper catalogItemMapper;
+    private final ProductRepository productRepository;
+    private final CatalogItemRepository catalogItemRepository;
     private final InventoryMaterialMapper materialMapper;
     private final AuditClient auditClient;
     private final ResourceStateClient resourceStateClient;
 
     @Autowired
-    public ProductApplicationService(ProductMapper productMapper, CatalogItemMapper catalogItemMapper,
+    public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
                                      InventoryMaterialMapper materialMapper, AuditClient auditClient,
                                      ResourceStateClient resourceStateClient) {
-        this.productMapper = productMapper;
-        this.catalogItemMapper = catalogItemMapper;
+        this.productRepository = productRepository;
+        this.catalogItemRepository = catalogItemRepository;
         this.materialMapper = materialMapper;
         this.auditClient = auditClient;
         this.resourceStateClient = resourceStateClient;
     }
 
     /** 兼容既有单测装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
-    public ProductApplicationService(ProductMapper productMapper, CatalogItemMapper catalogItemMapper,
+    public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
                                      InventoryMaterialMapper materialMapper, AuditClient auditClient) {
-        this(productMapper, catalogItemMapper, materialMapper, auditClient, null);
+        this(productRepository, catalogItemRepository, materialMapper, auditClient, null);
     }
 
     /** 兼容既有单测装配：不传审计客户端与服务人员校验客户端时两者都关闭（服务型商品此时无法保存）。 */
-    public ProductApplicationService(ProductMapper productMapper, CatalogItemMapper catalogItemMapper,
+    public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
                                      InventoryMaterialMapper materialMapper) {
-        this(productMapper, catalogItemMapper, materialMapper, AuditClient.disabled(), null);
+        this(productRepository, catalogItemRepository, materialMapper, AuditClient.disabled(), null);
     }
 
     /**
      * 商品增删改/上下架留痕：商品是点单目录与售卖价格的来源，改价/上下架必须可回溯。
      * 幂等键取「动作 + 商品ID + 更新时间」，保证同一状态变更重复上报只留一条。
      */
-    private void recordProductAudit(String action, ProductPo product) {
+    private void recordProductAudit(String action, Product product) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action(action)
-                .resourceType("ord_product").resourceId(String.valueOf(product.getId()))
-                .resourceName(product.getName())
+                .resourceType("ord_product").resourceId(String.valueOf(product.id()))
+                .resourceName(product.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"storeId\":" + product.getStoreId() + ",\"productCode\":\""
-                        + product.getProductCode() + "\",\"salePrice\":" + product.getSalePrice()
-                        + ",\"status\":\"" + product.getStatus() + "\",\"stockControlled\":"
-                        + product.getStockControlled() + ",\"materialId\":" + product.getMaterialId()
-                        + ",\"itemType\":\"" + effectiveItemType(product) + "\",\"serverResourceId\":"
-                        + product.getServerResourceId() + "}")
+                .detailJson("{\"storeId\":" + product.storeId() + ",\"productCode\":\""
+                        + product.productCode() + "\",\"salePrice\":" + product.salePrice()
+                        + ",\"status\":\"" + product.status() + "\",\"stockControlled\":"
+                        + product.stockControlled() + ",\"materialId\":" + product.materialId()
+                        + ",\"itemType\":\"" + product.effectiveItemType() + "\",\"serverResourceId\":"
+                        + product.serverResourceId() + "}")
                 .build());
     }
 
@@ -111,31 +125,31 @@ public class ProductApplicationService {
      *
      * <p>服务型商品的「服务人员名称」随响应带出：一次读取本门店 KTV_SERVER 资源后按 id 回填，
      * 资源服务不可达时名称降级为 null（不阻断列表，列表仍能看到 serverResourceId）。
+     * 该字段不是列，只存在于 {@link ProductView}。
      */
-    public List<ProductPo> list(Long storeId, String status, TimeRange range) {
+    public List<ProductView> list(Long storeId, String status, TimeRange range) {
         TenantContext context = context();
         if (storeId != null && !storeId.equals(context.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店商品");
         }
-        List<ProductPo> products = productMapper.selectList(new LambdaQueryWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, context.tenantId())
-                .eq(storeId != null, ProductPo::getStoreId, storeId)
-                .eq(status != null && !status.isBlank(), ProductPo::getStatus, status)
-                .ge(range != null && range.hasFrom(), ProductPo::getCreatedAt,
-                        range == null ? null : range.fromInclusive())
-                .le(range != null && range.hasTo(), ProductPo::getCreatedAt,
-                        range == null ? null : range.toInclusive())
-                .orderByAsc(ProductPo::getSortOrder).orderByAsc(ProductPo::getId));
+        List<Product> products = productRepository.find(ProductRepository.ProductQuery.inStore(
+                context.tenantId(), storeId, blankToNull(status),
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive()));
         return attachServerNames(products, context);
     }
 
     /** 服务人员名称批量回填（只读展示用：失败一律降级为 null，绝不阻断商品列表）。 */
-    private List<ProductPo> attachServerNames(List<ProductPo> products, TenantContext context) {
-        if (products == null || products.isEmpty()) {
-            return products;
+    private List<ProductView> attachServerNames(List<Product> products, TenantContext context) {
+        List<ProductView> views = new ArrayList<>(products.size());
+        for (Product product : products) {
+            // 列表读路径由端口返回的聚合装配视图；审计快照传 null = 列表响应里这四个字段为 null
+            // （原实现把 PO 直接序列化，列表里带的是行级审计时间）。这里刻意不为此把审计字段
+            // 搬回领域模型，契约字段名不变、值可为空——见 ProductView 的说明。
+            views.add(ProductView.from(product, (AuditSnapshot) null));
         }
-        if (products.stream().noneMatch(product -> product.getServerResourceId() != null)) {
-            return products;
+        if (views.stream().noneMatch(view -> view.serverResourceId() != null)) {
+            return views;
         }
         Map<Long, String> names = new HashMap<>();
         try {
@@ -151,16 +165,16 @@ public class ProductApplicationService {
         catch (RuntimeException ignored) {
             // 读路径降级：名称缺失不影响 serverResourceId 与其它字段的展示
         }
-        for (ProductPo product : products) {
-            if (product.getServerResourceId() != null) {
-                product.setServerResourceName(names.get(product.getServerResourceId()));
-            }
+        List<ProductView> decorated = new ArrayList<>(views.size());
+        for (ProductView view : views) {
+            decorated.add(view.serverResourceId() == null ? view
+                    : view.withServerResourceName(names.get(view.serverResourceId())));
         }
-        return products;
+        return decorated;
     }
 
     @Transactional
-    public ProductPo create(ProductCommand command) {
+    public ProductView create(ProductCommand command) {
         try {
             return doCreate(command);
         } catch (RuntimeException failure) {
@@ -170,7 +184,7 @@ public class ProductApplicationService {
         }
     }
 
-    private ProductPo doCreate(ProductCommand command) {
+    private ProductView doCreate(ProductCommand command) {
         TenantContext context = context();
         requireStore(command.storeId(), context);
         if (command.productCode() == null || command.productCode().isBlank() || command.name() == null || command.name().isBlank()) {
@@ -190,22 +204,23 @@ public class ProductApplicationService {
         if (!service && command.materialId() != null) {
             requireMaterial(command.materialId(), context);
         }
-        ProductPo product = new ProductPo();
-        product.setTenantId(context.tenantId()); product.setStoreId(command.storeId()); product.setProductCode(command.productCode().trim());
-        product.setName(command.name().trim()); product.setCategory(defaultValue(command.category(), "其他"));
-        product.setItemType(itemType);
-        product.setUnit(defaultValue(command.unit(), "份")); product.setSalePrice(command.salePrice());
-        product.setMaterialId(service ? null : command.materialId());
-        product.setServerResourceId(service ? command.serverResourceId() : null);
-        product.setStockControlled(!service && (command.stockControlled() == null || command.stockControlled()));
-        product.setStatus("DRAFT");
-        product.setSortOrder(command.sortOrder() == null ? 0 : command.sortOrder()); product.setDescription(description);
-        applyImages(product, command);
-        product.setVersion(0); product.setCreatedAt(LocalDateTime.now()); product.setUpdatedAt(LocalDateTime.now()); productMapper.insert(product);
-        if (server != null) product.setServerResourceName(server.name());
-        syncCatalog(product);
+        ItemImages.Images images = ItemImages.normalize(command.imageUrls(), command.mainImageUrl(), "PRODUCT_INVALID");
+        Product draft = Product.draft(context.tenantId(), command.storeId(), command.productCode().trim(),
+                command.name().trim(), defaultValue(command.category(), "其他"), itemType,
+                defaultValue(command.unit(), "份"), command.salePrice(),
+                service ? null : command.materialId(),
+                service ? command.serverResourceId() : null,
+                !service && (command.stockControlled() == null || command.stockControlled()),
+                command.sortOrder() == null ? 0 : command.sortOrder(), description,
+                images.urls(), images.mainImageUrl());
+        Persisted<Product> inserted = productRepository.insert(draft);
+        // syncCatalog 负责目录项同步，并在新建目录项后把 catalog_item_id 回指写回商品；
+        // 它返回回指已落库的商品，因此调用方/响应体不需要再读一次库。
+        Product product = syncCatalog(inserted.aggregate());
         recordProductAudit("product.create", product);
-        return product;
+        // 服务人员名称是展示字段：本次由调用方从 requireServiceServer 的快照补进视图，绝不落库。
+        ProductView view = ProductView.from(product, inserted.audit());
+        return server == null ? view : view.withServerResourceName(server.name());
     }
 
     /**
@@ -220,7 +235,7 @@ public class ProductApplicationService {
      * </ul>
      */
     @Transactional
-    public ProductPo update(Long id, ProductCommand command) {
+    public ProductView update(Long id, ProductCommand command) {
         try {
             return doUpdate(id, command);
         } catch (RuntimeException failure) {
@@ -247,74 +262,74 @@ public class ProductApplicationService {
         return failure;
     }
 
-    private ProductPo doUpdate(Long id, ProductCommand command) {
-        ProductPo product = find(id);
+    private ProductView doUpdate(Long id, ProductCommand command) {
+        Product product = find(id);
         TenantContext context = context();
         boolean descriptionProvided = command.description() != null;
         String description = descriptionProvided ? ItemDescriptions.normalize(command.description(), "PRODUCT_INVALID") : null;
-        String itemType = command.itemType() == null ? effectiveItemType(product) : requireItemType(command.itemType(), null);
+        String itemType = command.itemType() == null ? product.effectiveItemType() : requireItemType(command.itemType(), null);
         boolean service = ITEM_TYPE_SERVICE.equals(itemType);
         Long requestedServerId = command.serverResourceId() != null
                 ? command.serverResourceId()
-                : (service ? product.getServerResourceId() : null);
+                : (service ? product.serverResourceId() : null);
         ServerSnapshot server = null;
         if (service) {
-            server = requireServiceServer(requestedServerId, product.getId(), context);
+            server = requireServiceServer(requestedServerId, product.id(), context);
         }
         boolean stockControlled = service ? false
-                : (command.stockControlled() == null ? Boolean.TRUE.equals(product.getStockControlled()) : command.stockControlled());
+                : (command.stockControlled() == null ? Boolean.TRUE.equals(product.stockControlled()) : command.stockControlled());
         Long effectiveMaterialId = service ? null
-                : (command.materialId() == null ? product.getMaterialId() : command.materialId());
+                : (command.materialId() == null ? product.materialId() : command.materialId());
         if (!service && stockControlled && effectiveMaterialId == null) {
             throw new BusinessException("PRODUCT_INVALID", "实物商品必须关联仓库商品");
         }
-        if (command.name() != null && !command.name().isBlank()) product.setName(command.name().trim());
-        if (command.category() != null && !command.category().isBlank()) product.setCategory(command.category().trim());
-        if (command.unit() != null && !command.unit().isBlank()) product.setUnit(command.unit().trim());
-        if (command.salePrice() != null) { if (command.salePrice().signum() <= 0) throw new BusinessException("PRODUCT_INVALID", "售价必须大于0"); product.setSalePrice(command.salePrice()); }
-        product.setItemType(itemType);
-        if (service) {
-            product.setServerResourceId(requestedServerId);
-            product.setServerResourceName(server == null ? null : server.name());
-            // 服务不占库存：切换成服务时强制清掉库存开关与物料关联，避免留下「服务却扣库存」的脏口径。
-            product.setStockControlled(false);
-            product.setMaterialId(null);
-        } else {
-            // 实物商品忽略服务人员字段：从服务切回实物时同步清空，避免残留孤儿关联占用唯一键。
-            product.setServerResourceId(null);
-            product.setServerResourceName(null);
-            if (command.stockControlled() != null) product.setStockControlled(command.stockControlled());
-            if (command.materialId() != null) {
-                requireMaterial(command.materialId(), context);
-                product.setMaterialId(command.materialId());
-            }
+        if (command.salePrice() != null && command.salePrice().signum() <= 0) {
+            throw new BusinessException("PRODUCT_INVALID", "售价必须大于0");
         }
-        if (descriptionProvided) product.setDescription(description);
-        if (command.imageUrls() != null) applyImages(product, command);
-        product.setUpdatedAt(LocalDateTime.now()); productMapper.updateById(product); syncCatalog(product);
-        recordProductAudit("product.update", product);
-        return product;
+        if (!service && command.materialId() != null) {
+            requireMaterial(command.materialId(), context);
+        }
+        ItemImages.Images images = command.imageUrls() == null
+                ? new ItemImages.Images(product.imagesOrEmpty(), product.mainImageUrl())
+                : ItemImages.normalize(command.imageUrls(), command.mainImageUrl(), "PRODUCT_INVALID");
+        // 部分更新语义：请求未带的字段沿用既有值；类型切换时按上文算出的权威值覆盖。
+        Product merged = product.edited(
+                replaceIfPresent(command.name(), product.name()),
+                replaceIfPresent(command.category(), product.category()),
+                replaceIfPresent(command.unit(), product.unit()),
+                command.salePrice() != null ? command.salePrice() : product.salePrice(),
+                itemType,
+                service ? requestedServerId : null,
+                stockControlled,
+                effectiveMaterialId,
+                descriptionProvided ? description : product.description(),
+                images.urls(), images.mainImageUrl());
+        Persisted<Product> persisted = productRepository.update(merged);
+        Product updated = syncCatalog(persisted.aggregate());
+        recordProductAudit("product.update", updated);
+        return ProductView.from(updated, persisted.audit());
     }
 
     @Transactional
-    public ProductPo onShelf(Long id) {
+    public ProductView onShelf(Long id) {
         try {
-            ProductPo product = find(id);
+            Product product = find(id);
             // 服务型商品上架前必须仍绑着服务人员（服务无人可派就不能出现在点单目录）。
-            if (ITEM_TYPE_SERVICE.equals(effectiveItemType(product)) && product.getServerResourceId() == null) {
+            if (product.serviceItem() && product.serverResourceId() == null) {
                 throw new BusinessException("PRODUCT_SERVICE_SERVER_REQUIRED", "服务商品必须关联服务人员");
             }
-            if (Boolean.TRUE.equals(product.getStockControlled())) {
-                if (product.getMaterialId() == null) throw new BusinessException("PRODUCT_INVALID", "实物商品必须关联仓库商品");
-                InventoryMaterialPo material = materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-                        .eq(InventoryMaterialPo::getTenantId, product.getTenantId()).eq(InventoryMaterialPo::getStoreId, product.getStoreId())
-                        .eq(InventoryMaterialPo::getId, product.getMaterialId()).eq(InventoryMaterialPo::getStatus, "ACTIVE"));
-                if (material == null) throw new BusinessException("PRODUCT_NOT_READY_FOR_SHELF", "关联物料不存在或已停用");
+            if (Boolean.TRUE.equals(product.stockControlled())) {
+                if (product.materialId() == null) throw new BusinessException("PRODUCT_INVALID", "实物商品必须关联仓库商品");
+                if (!materialActive(product.materialId(), product.tenantId(), product.storeId())) {
+                    throw new BusinessException("PRODUCT_NOT_READY_FOR_SHELF", "关联物料不存在或已停用");
+                }
             }
-            product.setStatus("ON_SHELF"); product.setUpdatedAt(LocalDateTime.now()); productMapper.updateById(product); syncCatalog(product);
+            Persisted<Product> persisted = productRepository.update(
+                    product.withStatus(Product.STATUS_ON_SHELF));
+            Product published = syncCatalog(persisted.aggregate());
             // 上架此前只有目录同步、没有操作留痕：上架即进入可售卖目录，必须可回溯（沿用既有动作码 product.publish）。
-            recordProductAction("product.publish", "商品上架", product);
-            return product;
+            recordProductAction("product.publish", "商品上架", published);
+            return ProductView.from(published, persisted.audit());
         } catch (RuntimeException failure) {
             recordProductFailure("product.publish", id, null, failure);
             throw failure;
@@ -322,13 +337,15 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public ProductPo offShelf(Long id) {
+    public ProductView offShelf(Long id) {
         try {
-            ProductPo product = find(id);
-            product.setStatus("OFF_SHELF"); product.setUpdatedAt(LocalDateTime.now()); productMapper.updateById(product); syncCatalog(product);
+            Product product = find(id);
+            Persisted<Product> persisted = productRepository.update(
+                    product.withStatus(Product.STATUS_OFF_SHELF));
+            Product unpublished = syncCatalog(persisted.aggregate());
             // 下架同样此前没有操作留痕（沿用既有动作码 product.unpublish）。
-            recordProductAction("product.unpublish", "商品下架", product);
-            return product;
+            recordProductAction("product.unpublish", "商品下架", unpublished);
+            return ProductView.from(unpublished, persisted.audit());
         } catch (RuntimeException failure) {
             recordProductFailure("product.unpublish", id, null, failure);
             throw failure;
@@ -383,17 +400,17 @@ public class ProductApplicationService {
     }
 
     /** 上下架成功留痕（欠补齐动作）：与失败同码，detail 只放状态与检索字段，不含金额。 */
-    private void recordProductAction(String action, String actionLabel, ProductPo product) {
+    private void recordProductAction(String action, String actionLabel, Product product) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(product.getTenantId())
-                .storeId(product.getStoreId())
+                .tenantId(product.tenantId())
+                .storeId(product.storeId())
                 .action(action)
                 .actionLabel(actionLabel)
-                .resourceType("ord_product").resourceId(String.valueOf(product.getId()))
-                .resourceName(product.getName())
+                .resourceType("ord_product").resourceId(String.valueOf(product.id()))
+                .resourceName(product.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"storeId\":" + product.getStoreId() + ",\"status\":\""
-                        + product.getStatus() + "\"}")
+                .detailJson("{\"storeId\":" + product.storeId() + ",\"status\":\""
+                        + product.status() + "\"}")
                 .build());
     }
 
@@ -411,79 +428,138 @@ public class ProductApplicationService {
      * 这样「点单/加项弹窗」里的服务项与「服务人员点单」共用同一份 {@code item_type=SERVICE} 目录项，
      * 不再造第二套；服务项单价沿用商品售价（现有同步逻辑不变）。
      */
-    private void syncCatalog(ProductPo product) {
-        CatalogItemPo catalog = findLinkedCatalogItem(product);
-        catalog.setTenantId(product.getTenantId()); catalog.setStoreId(product.getStoreId()); catalog.setCategory(product.getCategory());
-        catalog.setItemType(effectiveItemType(product));
-        catalog.setName(product.getName()); catalog.setUnit(product.getUnit()); catalog.setUnitPrice(product.getSalePrice()); catalog.setDescription(product.getDescription());
-        catalog.setStatus("ON_SHELF".equals(product.getStatus()) ? "ACTIVE" : "INACTIVE"); catalog.setStockControlled(Boolean.TRUE.equals(product.getStockControlled()));
-        catalog.setProductId(product.getId()); catalog.setSortOrder(product.getSortOrder()); catalog.setUpdatedAt(LocalDateTime.now());
-        applyCatalogImages(catalog, product);
-        if (catalog.getId() == null) { catalog.setCreatedAt(LocalDateTime.now()); catalogItemMapper.insert(catalog); product.setCatalogItemId(catalog.getId()); productMapper.updateById(product); }
-        else catalogItemMapper.updateById(catalog);
+    private Product syncCatalog(Product product) {
+        CatalogItem catalog = findLinkedCatalogItem(product);
+        CatalogItem synced = catalog.syncedFromProduct(product.id(), product.tenantId(), product.storeId(),
+                product.category(), product.effectiveItemType(), product.name(), product.unit(), product.salePrice(),
+                product.description(), Product.STATUS_ON_SHELF.equals(product.status())
+                        ? CatalogItem.STATUS_ACTIVE : CatalogItem.STATUS_INACTIVE,
+                Boolean.TRUE.equals(product.stockControlled()), product.sortOrder());
+        List<String> images = catalogImages(product);
+        synced = synced.withImages(images, catalogImageMain(product, images));
+        if (!synced.persisted()) {
+            CatalogItem inserted = catalogItemRepository.insert(synced).aggregate();
+            // 商品侧回指必须落库（ord_product.catalog_item_id 是权威关联方向），
+            // 否则下次同步只能靠 ord_catalog_item.product_id 反查，历史脏数据下会建出第二条目录项。
+            Product linked = product.withCatalogItemId(inserted.id());
+            productRepository.update(linked);
+            return linked;
+        }
+        catalogItemRepository.update(synced);
+        return product;
     }
 
     /**
      * 目录项定位：优先商品回指（ord_product.catalog_item_id），其次目录项侧回指（ord_catalog_item.product_id）。
      * 历史数据可能只有单向关联，这里复用已有目录项而不是再建一条，避免同一个商品出现两套目录/两套库存口径。
      */
-    private CatalogItemPo findLinkedCatalogItem(ProductPo product) {
-        if (product.getCatalogItemId() != null) {
-            CatalogItemPo byId = catalogItemMapper.selectOne(new LambdaQueryWrapper<CatalogItemPo>()
-                    .eq(CatalogItemPo::getTenantId, product.getTenantId()).eq(CatalogItemPo::getStoreId, product.getStoreId())
-                    .eq(CatalogItemPo::getId, product.getCatalogItemId()));
-            if (byId != null) {
+    private CatalogItem findLinkedCatalogItem(Product product) {
+        if (product.catalogItemId() != null) {
+            CatalogItem byId = catalogItemRepository.findById(product.catalogItemId()).orElse(null);
+            if (byId != null && sameScope(byId, product)) {
                 return byId;
             }
         }
-        if (product.getId() == null) {
-            return new CatalogItemPo();
+        if (product.id() == null) {
+            return CatalogItem.draft(product.tenantId(), product.storeId(), product.category(),
+                    product.effectiveItemType(), product.name(), product.unit(), product.salePrice(),
+                    product.description(), List.of(), null, product.sortOrder());
         }
-        CatalogItemPo byProductId = catalogItemMapper.selectOne(new LambdaQueryWrapper<CatalogItemPo>()
-                .eq(CatalogItemPo::getTenantId, product.getTenantId()).eq(CatalogItemPo::getStoreId, product.getStoreId())
-                .eq(CatalogItemPo::getProductId, product.getId()));
-        return byProductId == null ? new CatalogItemPo() : byProductId;
+        return catalogItemRepository.find(CatalogItemRepository.CatalogItemQuery.linkedToProduct(
+                product.tenantId(), product.storeId(), product.id())).stream().findFirst()
+            .orElseGet(() -> CatalogItem.draft(product.tenantId(), product.storeId(), product.category(),
+                    product.effectiveItemType(), product.name(), product.unit(), product.salePrice(),
+                    product.description(), List.of(), null, product.sortOrder()));
+    }
+
+    /** 目录项与商品必须同租户同门店：跨门店回指（脏数据）一律当「没有关联」处理，不覆盖别人的目录项。 */
+    private static boolean sameScope(CatalogItem catalog, Product product) {
+        return java.util.Objects.equals(catalog.tenantId(), product.tenantId())
+                && java.util.Objects.equals(catalog.storeId(), product.storeId());
     }
 
     /** 目录项图片 = 商品图，商品无图时回退到关联物料图（都无图则清空，前端用占位图）。 */
-    private void applyCatalogImages(CatalogItemPo catalog, ProductPo product) {
-        List<String> urls = product.getImageUrls();
-        String main = product.getMainImageUrl();
-        if ((urls == null || urls.isEmpty()) && product.getMaterialId() != null) {
-            InventoryMaterialPo material = materialMapper.selectById(product.getMaterialId());
-            if (material != null && material.getImageUrls() != null && !material.getImageUrls().isEmpty()) {
-                urls = material.getImageUrls();
-                main = material.getMainImageUrl();
-            }
+    private List<String> catalogImages(Product product) {
+        if (!product.imagesOrEmpty().isEmpty()) {
+            return product.imagesOrEmpty();
         }
-        catalog.setImageUrls(urls == null ? List.of() : urls);
-        catalog.setMainImageUrl(main);
+        if (product.materialId() == null) {
+            return List.of();
+        }
+        InventoryMaterialPo material = materialMapper.selectById(product.materialId());
+        if (material == null || material.getImageUrls() == null || material.getImageUrls().isEmpty()) {
+            return List.of();
+        }
+        return material.getImageUrls();
     }
 
-    private ProductPo find(Long id) { ProductPo p = productMapper.selectById(id); if (p == null || !p.getTenantId().equals(context().tenantId()) || !p.getStoreId().equals(context().storeId())) throw new BusinessException("PRODUCT_NOT_FOUND", "商品不存在"); return p; }
-    private static void requireStore(Long storeId, TenantContext context) { if (storeId == null || context.storeId() == null || !storeId.equals(context.storeId())) throw new BusinessException("STORE_SCOPE_DENIED", "无权操作该门店"); }
+    /** 目录项主图与 {@link #catalogImages} 同源（商品主图；回退物料主图；都无则 null）。 */
+    private String catalogImageMain(Product product, List<String> images) {
+        if (!product.imagesOrEmpty().isEmpty()) {
+            return product.mainImageUrl();
+        }
+        if (images.isEmpty() || product.materialId() == null) {
+            return null;
+        }
+        InventoryMaterialPo material = materialMapper.selectById(product.materialId());
+        return material == null ? null : material.getMainImageUrl();
+    }
+
+    private Product find(Long id) {
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new BusinessException("PRODUCT_NOT_FOUND", "商品不存在"));
+        TenantContext context = context();
+        if (context.tenantId() != product.tenantId()
+                || !Objects.equals(context.storeId(), product.storeId())) {
+            throw new BusinessException("PRODUCT_NOT_FOUND", "商品不存在");
+        }
+        return product;
+    }
+
+    private static void requireStore(Long storeId, TenantContext context) {
+        if (storeId == null || context.storeId() == null || !storeId.equals(context.storeId())) {
+            throw new BusinessException("STORE_SCOPE_DENIED", "无权操作该门店");
+        }
+    }
+
+    /** 关联物料必须存在且 ACTIVE（只读一次，跨子域读保持在既有的窄用法）。 */
+    private boolean materialActive(Long materialId, Long tenantId, Long storeId) {
+        return materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
+            .eq(InventoryMaterialPo::getTenantId, tenantId)
+            .eq(InventoryMaterialPo::getStoreId, storeId)
+            .eq(InventoryMaterialPo::getId, materialId)
+            .eq(InventoryMaterialPo::getStatus, "ACTIVE")) != null;
+    }
+
     private void requireMaterial(Long materialId, TenantContext context) {
         InventoryMaterialPo material = materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-                .eq(InventoryMaterialPo::getTenantId, context.tenantId()).eq(InventoryMaterialPo::getStoreId, context.storeId())
-                .eq(InventoryMaterialPo::getId, materialId));
+            .eq(InventoryMaterialPo::getTenantId, context.tenantId())
+            .eq(InventoryMaterialPo::getStoreId, context.storeId())
+            .eq(InventoryMaterialPo::getId, materialId));
         if (material == null || !"ACTIVE".equals(material.getStatus())) {
             throw new BusinessException("MATERIAL_NOT_FOUND", "关联物料不存在或已停用");
         }
     }
-    private TenantContext context() { TenantContext c = TenantContextHolder.get(); if (c == null || c.tenantId() <= 0 || c.storeId() == null) throw new BusinessException("TENANT_CONTEXT_REQUIRED", "缺少有效门店上下文"); return c; }
-    private static String defaultValue(String value, String fallback) { return value == null || value.isBlank() ? fallback : value.trim(); }
-    /** 商品图片：最多 9 张，主图必须来自列表（列表非空时恰好一张主图）。 */
-    private static void applyImages(ProductPo product, ProductCommand command) {
-        ItemImages.Images images = ItemImages.normalize(command.imageUrls(), command.mainImageUrl(), "PRODUCT_INVALID");
-        product.setImageUrls(images.urls()); product.setMainImageUrl(images.mainImageUrl());
+
+    private TenantContext context() {
+        TenantContext c = TenantContextHolder.get();
+        if (c == null || c.tenantId() <= 0 || c.storeId() == null) {
+            throw new BusinessException("TENANT_CONTEXT_REQUIRED", "缺少有效门店上下文");
+        }
+        return c;
     }
 
-    /**
-     * 商品类型的权威取值（兼容历史行 {@code item_type} 为空的情况：一律按 PRODUCT 处理）。
-     */
-    static String effectiveItemType(ProductPo product) {
-        String type = product == null ? null : product.getItemType();
-        return ITEM_TYPE_SERVICE.equalsIgnoreCase(type == null ? "" : type.trim()) ? ITEM_TYPE_SERVICE : ITEM_TYPE_PRODUCT;
+    private static String defaultValue(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /** 部分更新：请求带了非空值才替换（与既有 {@code if (command.x() != null && !isBlank()) product.setX(...)} 同口径）。 */
+    private static String replaceIfPresent(String requested, String existing) {
+        return requested == null || requested.isBlank() ? existing : requested.trim();
     }
 
     /**
@@ -536,16 +612,11 @@ public class ProductApplicationService {
         if (!RESOURCE_STATUS_ENABLED.equalsIgnoreCase(server.status() == null ? "" : server.status().trim())) {
             throw new BusinessException("SERVER_RESOURCE_DISABLED", "服务人员已停用，请先在资源管理里启用后再关联");
         }
-        ProductPo occupied = productMapper.selectOne(new LambdaQueryWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, context.tenantId())
-                .eq(ProductPo::getStoreId, context.storeId())
-                .eq(ProductPo::getItemType, ITEM_TYPE_SERVICE)
-                .eq(ProductPo::getServerResourceId, serverResourceId)
-                .ne(selfProductId != null, ProductPo::getId, selfProductId)
-                .last("LIMIT 1"));
+        Product occupied = productRepository.findServerResourceOccupant(context.tenantId(), context.storeId(),
+                ITEM_TYPE_SERVICE, serverResourceId, selfProductId).orElse(null);
         if (occupied != null) {
             throw new BusinessException("SERVER_RESOURCE_IN_USE",
-                    "该服务人员已关联服务商品「%s」，请先解除原关联".formatted(occupied.getName()));
+                    "该服务人员已关联服务商品「%s」，请先解除原关联".formatted(occupied.name()));
         }
         return server;
     }

@@ -1,8 +1,8 @@
 package io.openware.platform.order.api.controller;
 
 import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.platform.order.api.dto.ProductCategoryView;
 import io.openware.platform.order.application.ProductCategoryApplicationService;
-import io.openware.platform.order.infra.persistence.po.ProductCategoryPo;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,20 +31,20 @@ public class ProductCategoryController {
     }
 
     @GetMapping
-    public List<ProductCategoryPo> list(@RequestParam(required = false) Long storeId,
-                                        @RequestParam(required = false) String status) {
+    public List<ProductCategoryView> list(@RequestParam(required = false) Long storeId,
+                                          @RequestParam(required = false) String status) {
         PermissionGuard.require("product.view");
         return service.list(storeId, status);
     }
 
     @PostMapping
-    public ProductCategoryPo create(@RequestBody CategoryRequest request) {
+    public ProductCategoryView create(@RequestBody CategoryRequest request) {
         PermissionGuard.require("product.manage");
         return service.create(toCommand(request));
     }
 
     @PutMapping("/{id}")
-    public ProductCategoryPo update(@PathVariable Long id, @RequestBody CategoryRequest request) {
+    public ProductCategoryView update(@PathVariable Long id, @RequestBody CategoryRequest request) {
         PermissionGuard.require("product.manage");
         return service.update(id, toCommand(request));
     }

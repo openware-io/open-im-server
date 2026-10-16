@@ -14,20 +14,21 @@ import io.openware.infrastructure.mq.MqProducer;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.controller.InventoryRecoveryAdminController;
+import io.openware.platform.order.api.dto.ProductView;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
 import io.openware.platform.order.infra.persistence.mapper.InventoryTransactionMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
 import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
 import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
 import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -82,7 +83,7 @@ class InventoryStockIntegrationTest {
   private InventoryTransactionMapper transactionMapper;
 
   @Autowired
-  private CatalogItemMapper catalogItemMapper;
+  private CatalogItemRepository catalogItemRepository;
 
   @Autowired
   private OrderMapper orderMapper;
@@ -265,18 +266,25 @@ class InventoryStockIntegrationTest {
   @Test
   void syncCatalogWritesStockControlledCacheColumn() {
     InventoryMaterialPo material = newMaterial("同步列");
-    ProductPo product = productService.create(new ProductApplicationService.ProductCommand(
+    ProductView product = productService.create(new ProductApplicationService.ProductCommand(
         STORE_ID, "SYNC-P-" + System.nanoTime(), "实物商品", "饮品", "瓶", new BigDecimal("1000"),
         material.getId(), true, 0, null, null, null));
 
-    assertNotNull(product.getCatalogItemId());
-    CatalogItemPo catalog = catalogItemMapper.selectById(product.getCatalogItemId());
-    assertEquals(Boolean.TRUE, catalog.getStockControlled(), "实物商品的目录项必须标记为受库存控制");
+    assertNotNull(product.catalogItemId());
+    assertEquals(Boolean.TRUE, loadCatalogItem(product.catalogItemId()).stockControlled(),
+        "实物商品的目录项必须标记为受库存控制");
 
     // 关掉「实物商品」开关后，目录项缓存列必须跟着变 false
-    productService.update(product.getId(), new ProductApplicationService.ProductCommand(
+    productService.update(product.id(), new ProductApplicationService.ProductCommand(
         null, null, null, null, null, null, null, false, null, null, null, null));
-    assertEquals(Boolean.FALSE, catalogItemMapper.selectById(product.getCatalogItemId()).getStockControlled());
+    assertEquals(Boolean.FALSE, loadCatalogItem(product.catalogItemId()).stockControlled());
+  }
+
+  /** 目录项经领域端口读取（迁移后不再直接持有 CatalogItemMapper）。 */
+  private CatalogItem loadCatalogItem(Long id) {
+    Optional<CatalogItem> found = catalogItemRepository.findById(id);
+    assertNotNull(found.orElse(null), "目录项应存在: " + id);
+    return found.orElseThrow();
   }
 
   /** 点单列表的批量库存读：一次取回多个物料，未建库存行的按 0（售罄），并写入 TTL 缓存。 */
