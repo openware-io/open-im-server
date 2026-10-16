@@ -1,6 +1,7 @@
 package io.openware.common.payment.api.controller;
 
 import io.openware.common.payment.application.ReconciliationApplicationService;
+import io.openware.common.payment.domain.transaction.service.ReconciliationSummaryBuilder.ReconciliationSummary;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -16,7 +17,7 @@ public class ReconciliationController {
     }
 
     @GetMapping("/summary")
-    public ReconciliationApplicationService.ReconciliationSummary summary(@RequestParam Long tenantId,
+    public ReconciliationSummary summary(@RequestParam Long tenantId,
             @RequestParam LocalDateTime from, @RequestParam LocalDateTime to) {
         return reconciliationService.summary(tenantId, from, to);
     }
