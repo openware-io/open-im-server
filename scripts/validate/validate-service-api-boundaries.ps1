@@ -71,8 +71,10 @@ try {
         $violations.Add("controller depends on a persistence implementation: $file")
       }
     }
+  }
 
-    # --- 3) application layer must not touch persistence implementations ---
+  # --- 3) application layer must not touch persistence implementations ---
+  foreach ($domain in $domainRoots) {
     foreach ($file in ($tracked | Where-Object { $_ -like "$domain/*/*-service/src/main/java/*/application/*" })) {
       if (Test-FileContains $file $persistenceImportPattern) {
         $violations.Add("application layer depends on a persistence implementation: $file")

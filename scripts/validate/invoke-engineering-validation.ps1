@@ -67,6 +67,7 @@ $validators = @(
   @{ Name = 'secret-exposure'; Arguments = @('-ReportPath', (Join-Path $logDirectory "$timestamp-secret-exposure.txt")) },
   @{ Name = 'security-and-flyway-configuration'; Arguments = @() },
   @{ Name = 'service-api-boundaries'; Arguments = @() },
+  @{ Name = 'controller-repository-boundary'; Arguments = @() },
   @{ Name = 'domain-model-purity'; Arguments = @() },
   @{ Name = 'port-contract'; Arguments = @() },
   @{ Name = 'po-containment'; Arguments = @() },

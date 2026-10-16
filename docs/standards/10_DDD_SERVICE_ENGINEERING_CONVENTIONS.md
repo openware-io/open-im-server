@@ -364,6 +364,7 @@
 | 门禁 | 阻断的写法 |
 | --- | --- |
 | `service-api-boundaries` | 控制器/应用层依赖持久化实现；`*-api` 模块含启动类、迁移、持久层依赖或可执行业务实现 |
+| `controller-repository-boundary` | 控制器持有 `*Repository`/`*Mapper` 字段（**领域接口也算**——边界是依赖本身，不是类型所在的包） |
 | `domain-model-purity` | `domain` 包出现 `@TableName`/`@TableId`/`@TableField`/`@Entity`/`@Data` 等持久化或序列化注解；import `infra.*` 或 `*.persistence.*` |
 | `port-contract` | `domain.repository` 端口暴露 `Wrapper`/`PO`/`Mapper`/`IPage` 等技术类型，或返回类型是 PO；端口放错包（应在 `domain.repository`） |
 | `po-containment` | `api`/`application`/`domain` 层 import `infra.persistence.po.*` |

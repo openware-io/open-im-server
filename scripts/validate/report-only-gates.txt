@@ -8,14 +8,15 @@
 #
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
-#
-# EMPTY. Both entries were deleted in batch 3 once their worklists reached zero:
+
+controller-repository-boundary | batch 4 (layering refactor: controllers to application services) | .outputs/quality/controller-repository-boundary-worklist.txt | 14 controllers hold a *Repository/*Mapper field and between them make 72 repository calls; platform-order-service's ReportController alone is 1088 lines with 18 calls. standards/10 puts this orchestration in the application layer. The fix is a refactor per controller, not a mechanical edit, so the gate reports until the worklist is empty.
+
+# Historical entries, deleted when their worklists reached zero:
 #
 #   po-containment         183 -> 0  (imports of infra.persistence.po from api/application/domain)
 #   service-api-boundaries  99 -> 0  (controllers and application classes depending on persistence
 #                                     implementations under infra.persistence)
 #
-# Both are blocking now. The counts above are the opening figures that the deleted entries named; they
-# are recorded here only so the size of what was cleared is not lost, not as a live measurement. The
-# worklists are the only source of truth and both files are gone, which is what "zero" looks like for
-# these two gates.
+# The counts above are the opening figures the deleted entries named; they are recorded so the size of
+# what was cleared is not lost, not as a live measurement. The worklists are the only source of truth,
+# and for those two the files are gone - which is what "zero" looks like.
