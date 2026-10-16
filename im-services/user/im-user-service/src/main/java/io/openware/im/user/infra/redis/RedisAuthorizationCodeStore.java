@@ -3,7 +3,7 @@ package io.openware.im.user.infra.redis;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.im.user.domain.openplatform.model.AuthorizationCode;
-import io.openware.im.user.domain.openplatform.port.AuthorizationCodeStore;
+import io.openware.im.user.domain.openplatform.repository.AuthorizationCodeStore;
 import java.time.Duration;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;

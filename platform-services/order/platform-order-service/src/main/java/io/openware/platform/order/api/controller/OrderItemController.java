@@ -20,7 +20,7 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderItem;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderItemQuery;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;

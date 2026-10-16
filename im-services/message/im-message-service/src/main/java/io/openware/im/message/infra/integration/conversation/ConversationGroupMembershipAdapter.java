@@ -4,7 +4,7 @@ import io.openware.im.conversation.api.authorization.GroupMessageAuthorizationQu
 import io.openware.im.conversation.api.authorization.GroupMessageAuthorizationSnapshot;
 import io.openware.im.conversation.api.authorization.ConversationMemberIdsResponse;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.GroupMembershipPort;
+import io.openware.im.message.domain.message.repository.GroupMembershipPort;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.stereotype.Component;

@@ -19,7 +19,7 @@ import io.openware.platform.order.handler.GlobalExceptionHandler;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.OrderItem;

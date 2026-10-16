@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.openware.im.message.domain.message.event.MessageEditedEvent;
-import io.openware.im.message.domain.message.port.UnreadCountProjectionPort;
+import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import io.openware.protocol.mq.event.MessageStoredEvent;
 import java.time.Instant;
 import java.util.List;

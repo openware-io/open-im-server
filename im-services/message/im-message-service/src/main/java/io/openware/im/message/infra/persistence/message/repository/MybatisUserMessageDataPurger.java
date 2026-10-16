@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.persistence.message.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.openware.im.message.domain.message.port.UserMessageDataPurger;
+import io.openware.im.message.domain.message.repository.UserMessageDataPurger;
 import io.openware.im.message.infra.persistence.message.mapper.MessageMapper;
 import io.openware.im.message.infra.persistence.message.mapper.MessageReadStatusMapper;
 import io.openware.im.message.infra.persistence.message.mapper.UserSyncIndexMapper;

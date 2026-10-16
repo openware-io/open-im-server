@@ -3,7 +3,7 @@ package io.openware.platform.order.infra.config;
 import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
-import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
+import io.openware.platform.order.domain.ktv.repository.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.TenantPricingPlanClient;
 import org.springframework.stereotype.Component;
 

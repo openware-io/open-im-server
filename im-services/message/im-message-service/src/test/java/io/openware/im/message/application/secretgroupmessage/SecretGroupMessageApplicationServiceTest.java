@@ -21,8 +21,8 @@ import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessage;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageDestroyedRepository;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
-import io.openware.im.message.domain.message.port.FeatureTogglePort;
-import io.openware.im.message.domain.secretgroupmessage.port.SecretGroupChatPort;
+import io.openware.im.message.domain.message.repository.FeatureTogglePort;
+import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupChatPort;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 
 class SecretGroupMessageApplicationServiceTest {
   private static final class InMemorySecretUnreadProjection
-      implements io.openware.im.message.domain.message.port.SecretUnreadProjectionPort {
+      implements io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort {
     @Override public void record(String chatType, long conversationId, long userId, String msgId, long seq,
         LocalDateTime occurredAt) { }
     @Override public void markRead(String chatType, long conversationId, long userId, long afterSeq) { }
@@ -39,7 +39,7 @@ class SecretGroupMessageApplicationServiceTest {
     @Override public long countForUser(long userId, boolean secretChatEnabled, boolean secretGroupChatEnabled) {
       return 0;
     }
-    @Override public List<io.openware.im.message.domain.message.port.SecretUnreadProjectionPort.ConversationUnread> countByConversationForUser(long userId, boolean secretChatEnabled,
+    @Override public List<io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort.ConversationUnread> countByConversationForUser(long userId, boolean secretChatEnabled,
         boolean secretGroupChatEnabled) { return List.of(); }
   }
 

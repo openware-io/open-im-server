@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.integration.admin;
 
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.FeatureTogglePort;
+import io.openware.im.message.domain.message.repository.FeatureTogglePort;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;

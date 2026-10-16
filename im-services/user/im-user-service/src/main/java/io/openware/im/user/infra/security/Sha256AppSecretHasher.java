@@ -1,6 +1,6 @@
 package io.openware.im.user.infra.security;
 
-import io.openware.im.user.domain.openplatform.port.AppSecretHasher;
+import io.openware.im.user.domain.openplatform.repository.AppSecretHasher;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

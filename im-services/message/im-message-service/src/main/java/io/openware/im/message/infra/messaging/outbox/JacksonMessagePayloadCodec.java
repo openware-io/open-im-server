@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.im.message.domain.message.event.MessageEditedEvent;
 import io.openware.im.message.domain.message.model.Message;
-import io.openware.im.message.domain.message.port.MessagePayloadCodecPort;
+import io.openware.im.message.domain.message.repository.MessagePayloadCodecPort;
 import io.openware.protocol.mq.event.ChatClearedEvent;
 import io.openware.protocol.mq.event.MessageStoredEvent;
 import io.openware.protocol.mq.event.MessageRecalledEvent;

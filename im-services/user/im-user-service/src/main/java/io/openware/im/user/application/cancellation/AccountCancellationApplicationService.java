@@ -8,7 +8,7 @@ import io.openware.im.user.application.cancellation.result.AccountCancellationSt
 import io.openware.im.user.application.cancellation.result.AccountCancellationSubmitResult;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
-import io.openware.im.user.domain.account.port.PasswordHasher;
+import io.openware.im.user.domain.account.repository.PasswordHasher;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.cancellation.model.AccountCancellation;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationAction;

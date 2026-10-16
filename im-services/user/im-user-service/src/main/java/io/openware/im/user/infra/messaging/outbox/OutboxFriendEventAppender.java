@@ -6,7 +6,7 @@ import io.openware.protocol.mq.event.FriendRequestedEvent;
 import io.openware.protocol.mq.topic.ImMqTopics;
 import io.openware.im.user.domain.social.event.FriendAccepted;
 import io.openware.im.user.domain.social.event.FriendRequested;
-import io.openware.im.user.domain.social.port.FriendEventOutbox;
+import io.openware.im.user.domain.social.repository.FriendEventOutbox;
 import io.openware.im.user.infra.messaging.outbox.mapper.UserOutboxMapper;
 import io.openware.im.user.infra.messaging.outbox.po.UserOutboxPo;
 import java.time.Instant;

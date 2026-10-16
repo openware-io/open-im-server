@@ -33,16 +33,28 @@ $persistenceImportPattern = 'import\s+[^;]*\.persistence\.'
 
 Push-Location $root
 try {
+  # Package-location rule, checked over EVERY tracked Java file rather than only the files the type
+  # checks below need. standards/10 (repository and domain services): Repository interfaces live in
+  # domain.repository and domain.port is no longer used; existing domain.port is migrated into
+  # domain.repository.
+  #
+  # The previous form, `-match '/domain/port/'`, missed the shape actually present in this repository -
+  # a per-context port directory, `domain/<ctx>/port/`. 39 files sat there and none was ever scanned,
+  # so the rule could not have failed no matter what was placed in one. Any path segment named `port`
+  # under domain/ is now a violation, which is what makes the rule unable to regress.
+  foreach ($relativePath in (git -C $root ls-files '*.java')) {
+    if ($relativePath -notmatch '/src/main/java/') { continue }
+    if ($relativePath -match '/domain/([^/]+/)*port/') {
+      $violations.Add("port lives in domain.port; ports belong in domain.repository: $relativePath")
+    }
+  }
+
   foreach ($relativePath in (git -C $root ls-files '*.java')) {
     if ($relativePath -notmatch '/domain/(repository|port)/') { continue }
     if ($relativePath -notmatch '/src/main/java/') { continue }
     $path = Join-Path $root $relativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
     $text = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))
-
-    if ($relativePath -match '/domain/port/') {
-      $violations.Add("port lives in domain.port; ports belong in domain.repository: $relativePath")
-    }
 
     $lineNumber = 0
     foreach ($line in ($text -split "`n")) {

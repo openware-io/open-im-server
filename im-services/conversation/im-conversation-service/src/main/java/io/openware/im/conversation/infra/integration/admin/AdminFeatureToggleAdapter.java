@@ -1,6 +1,6 @@
 package io.openware.im.conversation.infra.integration.admin;
 
-import io.openware.im.conversation.domain.group.port.FeatureTogglePort;
+import io.openware.im.conversation.domain.group.repository.FeatureTogglePort;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;

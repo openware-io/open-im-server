@@ -24,19 +24,19 @@ import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.Mention;
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.domain.message.model.MessageReadStatus;
-import io.openware.im.message.domain.message.port.ConversationSequencePort;
-import io.openware.im.message.domain.message.port.FriendRelationPort;
-import io.openware.im.message.domain.message.port.GroupMembershipPort;
-import io.openware.im.message.domain.message.port.ChannelMembershipPort;
-import io.openware.im.message.domain.message.port.MessagePayloadCodecPort;
-import io.openware.im.message.domain.message.port.MentionResolverPort;
-import io.openware.im.message.domain.message.port.FeatureTogglePort;
-import io.openware.im.message.domain.message.port.UnreadCountProjectionPort;
+import io.openware.im.message.domain.message.repository.ConversationSequencePort;
+import io.openware.im.message.domain.message.repository.FriendRelationPort;
+import io.openware.im.message.domain.message.repository.GroupMembershipPort;
+import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
+import io.openware.im.message.domain.message.repository.MessagePayloadCodecPort;
+import io.openware.im.message.domain.message.repository.MentionResolverPort;
+import io.openware.im.message.domain.message.repository.FeatureTogglePort;
+import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import io.openware.im.message.domain.message.repository.MessageFavoriteRepository;
 import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.message.repository.MessageReadStatusRepository;
 import io.openware.im.message.domain.message.repository.MessageRepository;
-import io.openware.im.message.domain.message.port.AdminMessageTotalCountPort;
+import io.openware.im.message.domain.message.repository.AdminMessageTotalCountPort;
 import io.openware.im.message.media.MediaReferenceClient;
 import io.openware.protocol.mq.topic.ImMqTopics;
 import java.time.Clock;
@@ -531,7 +531,7 @@ class MessageApplicationServiceTest {
         (userId, peerUserId) -> true, groupMembershipPort(true), mentionResolverPort, channelMembershipPort(),
         new InMemoryUnreadCountProjection(), new InMemorySecretUnreadProjection(), mock(MediaReferenceClient.class), () -> List.of(), userId -> false,
         featureTogglePort(), mock(AdminMessageTotalCountPort.class), favoriteRepository, new InMemoryUserDeletedMessageRepository(), new InMemoryUserConversationClearRepository(),
-        new io.openware.im.message.domain.message.port.HotMessageProjectionPort() {
+        new io.openware.im.message.domain.message.repository.HotMessageProjectionPort() {
           @Override public void deleteByMsgId(String msgId) { }
           @Override public void deleteByConversationId(String conversationId) { }
         });
@@ -601,7 +601,7 @@ class MessageApplicationServiceTest {
         friendRelationPort, groupMembershipPort, mentionResolverPort(), channelMembershipPort, unreadCountProjectionPort, new InMemorySecretUnreadProjection(),
         mock(MediaReferenceClient.class), () -> List.of(), userId -> false, featureTogglePort(),
         mock(AdminMessageTotalCountPort.class), favoriteRepository, new InMemoryUserDeletedMessageRepository(), new InMemoryUserConversationClearRepository(),
-        new io.openware.im.message.domain.message.port.HotMessageProjectionPort() {
+        new io.openware.im.message.domain.message.repository.HotMessageProjectionPort() {
           @Override public void deleteByMsgId(String msgId) { }
           @Override public void deleteByConversationId(String conversationId) { }
         });
@@ -673,7 +673,7 @@ class MessageApplicationServiceTest {
         mentionResolverPort(), channelMembershipPort(), new InMemoryUnreadCountProjection(), new InMemorySecretUnreadProjection(),
         mock(MediaReferenceClient.class), () -> List.of(), userId -> false, featureTogglePort,
         mock(AdminMessageTotalCountPort.class), favoriteRepository, new InMemoryUserDeletedMessageRepository(), new InMemoryUserConversationClearRepository(),
-        new io.openware.im.message.domain.message.port.HotMessageProjectionPort() {
+        new io.openware.im.message.domain.message.repository.HotMessageProjectionPort() {
           @Override public void deleteByMsgId(String msgId) { }
           @Override public void deleteByConversationId(String conversationId) { }
         });
@@ -806,7 +806,7 @@ class MessageApplicationServiceTest {
   }
 
   private static final class InMemorySecretUnreadProjection
-      implements io.openware.im.message.domain.message.port.SecretUnreadProjectionPort {
+      implements io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort {
     @Override public void record(String chatType, long conversationId, long userId, String msgId, long seq,
         LocalDateTime occurredAt) { }
     @Override public void markRead(String chatType, long conversationId, long userId, long afterSeq) { }
@@ -814,7 +814,7 @@ class MessageApplicationServiceTest {
     @Override public long countForUser(long userId, boolean secretChatEnabled, boolean secretGroupChatEnabled) {
       return 0;
     }
-    @Override public List<io.openware.im.message.domain.message.port.SecretUnreadProjectionPort.ConversationUnread>
+    @Override public List<io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort.ConversationUnread>
         countByConversationForUser(long userId, boolean secretChatEnabled, boolean secretGroupChatEnabled) {
       return List.of();
     }

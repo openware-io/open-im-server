@@ -8,7 +8,7 @@ import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
 import org.springframework.web.bind.annotation.GetMapping;

@@ -1,6 +1,6 @@
 package io.openware.im.conversation.infra.integration.user;
 
-import io.openware.im.conversation.domain.secretchat.port.DeviceKeyPort;
+import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 import io.openware.im.user.api.authorization.UserDeviceKeyQuery;
 import io.openware.im.user.api.authorization.UserDeviceKeySummary;

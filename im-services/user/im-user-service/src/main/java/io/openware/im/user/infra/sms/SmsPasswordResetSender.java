@@ -1,6 +1,6 @@
 package io.openware.im.user.infra.sms;
 
-import io.openware.im.user.domain.account.port.PasswordResetSmsSender;
+import io.openware.im.user.domain.account.repository.PasswordResetSmsSender;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;

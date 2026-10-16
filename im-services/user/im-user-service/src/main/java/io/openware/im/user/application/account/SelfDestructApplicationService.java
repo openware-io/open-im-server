@@ -6,7 +6,7 @@ import io.openware.im.user.application.account.result.SelfDestructPolicyResult;
 import io.openware.im.user.domain.account.event.UserChatRecordsPurged;
 import io.openware.im.user.domain.account.model.SelfDestructPolicy;
 import io.openware.im.user.domain.account.model.UserAccount;
-import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
+import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;

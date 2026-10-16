@@ -5,7 +5,7 @@ import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;

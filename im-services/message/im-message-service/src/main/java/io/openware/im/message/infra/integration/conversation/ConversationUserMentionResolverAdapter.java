@@ -4,7 +4,7 @@ import io.openware.im.conversation.api.authorization.ConversationMemberIdsRespon
 import io.openware.im.user.api.authorization.UserProfileSummariesQuery;
 import io.openware.im.user.api.authorization.UserProfileSummary;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.MentionResolverPort;
+import io.openware.im.message.domain.message.repository.MentionResolverPort;
 import io.openware.im.message.infra.integration.user.UserServiceProperties;
 import java.util.Arrays;
 import java.util.LinkedHashSet;

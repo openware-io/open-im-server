@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.cache;
 
 import io.openware.common.constant.RedisKeys;
-import io.openware.im.message.domain.message.port.UnreadCountProjectionPort;
+import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import java.util.OptionalLong;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

@@ -1,6 +1,6 @@
 package io.openware.platform.order.infra.persistence.repository;
 
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;

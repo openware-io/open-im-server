@@ -6,7 +6,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.BillApplicationService;
 import io.openware.platform.order.application.dto.BillResult;
 import io.openware.platform.order.domain.order.model.Order;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;

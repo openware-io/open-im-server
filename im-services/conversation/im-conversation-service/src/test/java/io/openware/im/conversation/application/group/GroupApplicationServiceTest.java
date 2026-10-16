@@ -15,8 +15,8 @@ import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.im.conversation.domain.group.repository.ConversationGroupRepository;
 import io.openware.im.conversation.domain.group.repository.ConversationMemberRepository;
 import io.openware.im.conversation.domain.group.repository.ConversationOutboxRepository;
-import io.openware.im.conversation.domain.group.port.ActiveUserPort;
-import io.openware.im.conversation.domain.group.port.FeatureTogglePort;
+import io.openware.im.conversation.domain.group.repository.ActiveUserPort;
+import io.openware.im.conversation.domain.group.repository.FeatureTogglePort;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +59,7 @@ class GroupApplicationServiceTest {
     InMemoryMemberRepository members = new InMemoryMemberRepository(List.of(owner(), member(2L, GroupRole.MEMBER, 1)));
     GroupApplicationService service = new GroupApplicationService(groups, members, new NoopOutboxRepository(),
         userIds -> userIds, userIds -> java.util.Map.of(2L,
-            new io.openware.im.conversation.domain.group.port.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
+            new io.openware.im.conversation.domain.group.repository.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
         featureTogglePort(), new ObjectMapper().findAndRegisterModules());
 
     var response = service.getGroupMembers(100L, 1L);
@@ -92,8 +92,8 @@ class GroupApplicationServiceTest {
         List.of(owner(), member(2L, GroupRole.MEMBER, 1), member(3L, GroupRole.MEMBER, 2)));
     GroupApplicationService service = new GroupApplicationService(groups, members, new NoopOutboxRepository(),
         userIds -> userIds, userIds -> java.util.Map.of(
-            2L, new io.openware.im.conversation.domain.group.port.UserProfilePort.UserProfile("member", "Member", "avatar-2"),
-            3L, new io.openware.im.conversation.domain.group.port.UserProfilePort.UserProfile("viewer", "Viewer", "avatar-3")),
+            2L, new io.openware.im.conversation.domain.group.repository.UserProfilePort.UserProfile("member", "Member", "avatar-2"),
+            3L, new io.openware.im.conversation.domain.group.repository.UserProfilePort.UserProfile("viewer", "Viewer", "avatar-3")),
         featureTogglePort(), new ObjectMapper().findAndRegisterModules());
 
     var response = service.getGroupMembers(100L, 3L);
@@ -108,7 +108,7 @@ class GroupApplicationServiceTest {
     InMemoryMemberRepository members = new InMemoryMemberRepository(List.of(owner(), member(2L, GroupRole.MEMBER, 1)));
     GroupApplicationService service = new GroupApplicationService(groups, members, new NoopOutboxRepository(),
         userIds -> userIds, userIds -> java.util.Map.of(2L,
-            new io.openware.im.conversation.domain.group.port.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
+            new io.openware.im.conversation.domain.group.repository.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
         featureTogglePort(), new ObjectMapper().findAndRegisterModules());
 
     var response = service.getGroupMembers(100L, 1L);
@@ -123,7 +123,7 @@ class GroupApplicationServiceTest {
         List.of(owner(), member(2L, GroupRole.MEMBER, 1), member(3L, GroupRole.MEMBER, 2)));
     GroupApplicationService service = new GroupApplicationService(groups, members, new NoopOutboxRepository(),
         userIds -> userIds, userIds -> java.util.Map.of(2L,
-            new io.openware.im.conversation.domain.group.port.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
+            new io.openware.im.conversation.domain.group.repository.UserProfilePort.UserProfile("member", "Member", "avatar-url")),
         featureTogglePort(), new ObjectMapper().findAndRegisterModules());
 
     var response = service.getGroupMembers(100L, 3L);

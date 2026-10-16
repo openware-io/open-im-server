@@ -2,7 +2,7 @@ package io.openware.im.message.infra.messaging.secretdestroy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.infrastructure.mq.MqProducer;
-import io.openware.im.message.domain.secretmessage.port.SecretDestroyDelayedPublisher;
+import io.openware.im.message.domain.secretmessage.repository.SecretDestroyDelayedPublisher;
 import io.openware.protocol.mq.event.SecretMessageDestroyCommand;
 import io.openware.protocol.mq.topic.ImMqTopics;
 import java.nio.charset.StandardCharsets;

@@ -18,7 +18,7 @@ import io.openware.im.user.domain.social.model.FriendRelation;
 import io.openware.im.user.domain.social.model.FriendRequest;
 import io.openware.im.user.domain.social.model.FriendRequestStatus;
 import io.openware.im.user.domain.social.model.FriendStatus;
-import io.openware.im.user.domain.social.port.FriendEventOutbox;
+import io.openware.im.user.domain.social.repository.FriendEventOutbox;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
 import io.openware.im.user.domain.social.repository.FriendRequestRepository;
 import io.openware.im.user.media.MediaReferenceClient;

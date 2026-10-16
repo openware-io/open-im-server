@@ -1,7 +1,7 @@
 package io.openware.im.user.infra.persistence.account.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.openware.im.user.domain.account.port.UserAccountDataPurger;
+import io.openware.im.user.domain.account.repository.UserAccountDataPurger;
 import io.openware.im.user.infra.messaging.outbox.mapper.UserOutboxMapper;
 import io.openware.im.user.infra.messaging.outbox.po.UserOutboxPo;
 import io.openware.im.user.infra.persistence.account.mapper.UserSecurityQuestionMapper;

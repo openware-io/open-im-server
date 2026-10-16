@@ -16,7 +16,7 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;

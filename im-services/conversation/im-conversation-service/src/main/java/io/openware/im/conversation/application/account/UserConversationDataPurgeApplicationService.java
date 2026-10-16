@@ -1,6 +1,6 @@
 package io.openware.im.conversation.application.account;
 
-import io.openware.im.conversation.domain.account.port.UserConversationDataPurger;
+import io.openware.im.conversation.domain.account.repository.UserConversationDataPurger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

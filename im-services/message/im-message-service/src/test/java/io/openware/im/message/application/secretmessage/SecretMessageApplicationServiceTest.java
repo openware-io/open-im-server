@@ -15,9 +15,9 @@ import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.secretmessage.model.SecretMessage;
 import io.openware.im.message.domain.secretmessage.model.SecretMessageDestroyed;
-import io.openware.im.message.domain.message.port.FeatureTogglePort;
-import io.openware.im.message.domain.secretmessage.port.SecretChatParticipantPort;
-import io.openware.im.message.domain.secretmessage.port.SecretChatPolicyPort;
+import io.openware.im.message.domain.message.repository.FeatureTogglePort;
+import io.openware.im.message.domain.secretmessage.repository.SecretChatParticipantPort;
+import io.openware.im.message.domain.secretmessage.repository.SecretChatPolicyPort;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageDestroyedRepository;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageRepository;
 import io.openware.protocol.mq.topic.ImMqTopics;
@@ -511,7 +511,7 @@ class SecretMessageApplicationServiceTest {
     }
   }
 
-  static class InMemorySecretUnreadProjection implements io.openware.im.message.domain.message.port.SecretUnreadProjectionPort {
+  static class InMemorySecretUnreadProjection implements io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort {
     @Override public void record(String chatType, long conversationId, long userId, String msgId, long seq, LocalDateTime occurredAt) { }
     @Override public void markRead(String chatType, long conversationId, long userId, long afterSeq) { }
     @Override public void deleteByMessage(String chatType, long conversationId, String msgId) { }

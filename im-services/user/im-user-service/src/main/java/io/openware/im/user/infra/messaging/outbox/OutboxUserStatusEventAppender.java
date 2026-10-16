@@ -10,7 +10,7 @@ import io.openware.im.user.domain.account.event.UserChatRecordsPurged;
 import io.openware.im.user.domain.account.event.UserAuthenticationInvalidated;
 import io.openware.im.user.domain.account.event.UserDataWipeRequested;
 import io.openware.im.user.domain.account.event.UserStatusChanged;
-import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
+import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.infra.messaging.outbox.mapper.UserOutboxMapper;
 import io.openware.im.user.infra.messaging.outbox.po.UserOutboxPo;
 import java.time.LocalDateTime;

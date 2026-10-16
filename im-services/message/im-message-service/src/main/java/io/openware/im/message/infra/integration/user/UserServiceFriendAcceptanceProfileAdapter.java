@@ -3,7 +3,7 @@ package io.openware.im.message.infra.integration.user;
 import io.openware.im.user.api.authorization.UserProfileSummariesQuery;
 import io.openware.im.user.api.authorization.UserProfileSummary;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.FriendAcceptanceProfilePort;
+import io.openware.im.message.domain.message.repository.FriendAcceptanceProfilePort;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;

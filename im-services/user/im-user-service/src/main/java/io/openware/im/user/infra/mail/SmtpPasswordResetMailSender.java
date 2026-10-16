@@ -1,6 +1,6 @@
 package io.openware.im.user.infra.mail;
 
-import io.openware.im.user.domain.account.port.PasswordResetMailSender;
+import io.openware.im.user.domain.account.repository.PasswordResetMailSender;
 import java.util.Properties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

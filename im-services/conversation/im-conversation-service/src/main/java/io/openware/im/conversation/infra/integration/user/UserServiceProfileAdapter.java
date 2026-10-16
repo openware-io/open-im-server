@@ -1,6 +1,6 @@
 package io.openware.im.conversation.infra.integration.user;
 
-import io.openware.im.conversation.domain.group.port.UserProfilePort;
+import io.openware.im.conversation.domain.group.repository.UserProfilePort;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 import io.openware.im.user.api.authorization.UserProfileSummariesQuery;
 import io.openware.im.user.api.authorization.UserProfileSummary;

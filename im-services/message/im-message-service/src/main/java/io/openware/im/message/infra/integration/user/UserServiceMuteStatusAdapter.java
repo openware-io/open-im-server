@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.integration.user;
 
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.UserMuteStatusPort;
+import io.openware.im.message.domain.message.repository.UserMuteStatusPort;
 import io.openware.im.user.api.authorization.UserProfileSummariesQuery;
 import java.util.List;
 import java.util.Map;

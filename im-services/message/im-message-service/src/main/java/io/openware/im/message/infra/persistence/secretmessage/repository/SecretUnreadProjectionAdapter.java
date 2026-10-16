@@ -1,6 +1,6 @@
 package io.openware.im.message.infra.persistence.secretmessage.repository;
 
-import io.openware.im.message.domain.message.port.SecretUnreadProjectionPort;
+import io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort;
 import io.openware.im.message.infra.persistence.secretmessage.mapper.SecretUnreadMapper;
 import java.time.LocalDateTime;
 import java.util.List;

@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.integration.conversation;
 
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.message.port.ChannelMembershipPort;
+import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import java.util.List;
 import java.util.Map;
 import org.springframework.core.ParameterizedTypeReference;

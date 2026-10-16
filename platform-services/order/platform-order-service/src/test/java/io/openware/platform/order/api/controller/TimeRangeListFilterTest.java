@@ -25,7 +25,7 @@ import io.openware.platform.order.application.OrderCancellationApplicationServic
 import io.openware.platform.order.application.ProductApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderQuery;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;

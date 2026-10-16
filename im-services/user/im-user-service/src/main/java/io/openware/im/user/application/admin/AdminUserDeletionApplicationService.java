@@ -8,7 +8,7 @@ import io.openware.im.user.domain.account.event.UserChatRecordsPurged;
 import io.openware.im.user.domain.account.event.UserDataWipeRequested;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountRole;
-import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
+import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.infra.persistence.admin.AdminUserCascadeMapper;
 import java.time.Instant;

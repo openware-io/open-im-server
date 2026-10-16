@@ -8,7 +8,7 @@ import io.openware.im.conversation.api.secretchat.CreateSecretChatRequest;
 import io.openware.im.conversation.api.secretchat.SecretChatResult;
 import io.openware.im.conversation.domain.group.repository.ConversationOutboxRepository;
 import io.openware.im.conversation.domain.secretchat.model.SecretChat;
-import io.openware.im.conversation.domain.secretchat.port.DeviceKeyPort;
+import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
 import io.openware.im.conversation.domain.secretchat.repository.SecretChatRepository;
 import io.openware.protocol.mq.event.SecretChatCreatedEvent;
 import io.openware.protocol.mq.event.SecretChatDeletedEvent;

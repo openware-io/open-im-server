@@ -8,14 +8,14 @@ import io.openware.im.message.application.secretgroupmessage.command.PostSecretG
 import io.openware.im.message.application.secretgroupmessage.command.PostSecretGroupMessageCommand.RecipientCiphertext;
 import io.openware.im.message.application.secretgroupmessage.result.SecretGroupMessageResult;
 import io.openware.im.message.domain.message.model.MessageOutbox;
-import io.openware.im.message.domain.message.port.FeatureTogglePort;
-import io.openware.im.message.domain.message.port.SecretUnreadProjectionPort;
+import io.openware.im.message.domain.message.repository.FeatureTogglePort;
+import io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort;
 import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessage;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessageDestroyed;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageDestroyedRepository;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
-import io.openware.im.message.domain.secretgroupmessage.port.SecretGroupChatPort;
+import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupChatPort;
 import io.openware.im.message.media.MediaReferenceClient;
 import io.openware.protocol.mq.event.SecretGroupMessageStoredEvent;
 import io.openware.protocol.mq.topic.ImMqTopics;

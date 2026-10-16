@@ -6,7 +6,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.application.ReservationApplicationService;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderQuery;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import java.util.List;

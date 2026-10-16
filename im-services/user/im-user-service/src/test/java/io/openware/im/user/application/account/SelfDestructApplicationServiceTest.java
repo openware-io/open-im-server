@@ -16,7 +16,7 @@ import io.openware.im.user.domain.account.model.SelfDestructPolicy;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
-import io.openware.im.user.domain.account.port.UserStatusEventOutbox;
+import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import java.time.LocalDateTime;
 import java.util.List;

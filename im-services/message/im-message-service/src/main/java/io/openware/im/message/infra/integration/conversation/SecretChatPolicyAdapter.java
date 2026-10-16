@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.integration.conversation;
 
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
-import io.openware.im.message.domain.secretmessage.port.SecretChatPolicyPort;
+import io.openware.im.message.domain.secretmessage.repository.SecretChatPolicyPort;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;

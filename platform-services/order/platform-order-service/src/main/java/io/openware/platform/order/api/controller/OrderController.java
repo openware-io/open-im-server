@@ -24,7 +24,7 @@ import io.openware.platform.order.application.VoidRuleApplicationService;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.order.model.Order;
-import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderQuery;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.repository.Persisted;

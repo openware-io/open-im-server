@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.im.conversation.api.secretgroupchat.CreateSecretGroupChatRequest;
 import io.openware.im.conversation.api.secretgroupchat.SecretGroupChatResult;
-import io.openware.im.conversation.domain.secretchat.port.DeviceKeyPort;
+import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupChat;
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupMember;
 import io.openware.im.conversation.domain.secretgroupchat.repository.SecretGroupChatRepository;

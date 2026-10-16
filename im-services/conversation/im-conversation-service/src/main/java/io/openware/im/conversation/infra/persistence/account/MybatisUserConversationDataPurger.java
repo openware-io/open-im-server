@@ -1,7 +1,7 @@
 package io.openware.im.conversation.infra.persistence.account;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import io.openware.im.conversation.domain.account.port.UserConversationDataPurger;
+import io.openware.im.conversation.domain.account.repository.UserConversationDataPurger;
 import io.openware.im.conversation.infra.persistence.channel.mapper.ChannelSubscriptionMapper;
 import io.openware.im.conversation.infra.persistence.channel.po.ChannelSubscriptionPo;
 import io.openware.im.conversation.infra.persistence.group.mapper.ConversationMemberMapper;

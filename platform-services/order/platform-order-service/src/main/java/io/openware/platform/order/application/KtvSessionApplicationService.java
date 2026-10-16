@@ -9,7 +9,7 @@ import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.ktv.service.KtvRoomFeeCalculator;
-import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
+import io.openware.platform.order.domain.ktv.repository.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.repository.OrderItemQuery;

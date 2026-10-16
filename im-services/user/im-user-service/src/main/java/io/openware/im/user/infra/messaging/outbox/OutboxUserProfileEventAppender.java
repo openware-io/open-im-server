@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.protocol.mq.event.UserProfileChangedEvent;
 import io.openware.protocol.mq.topic.ImMqTopics;
 import io.openware.im.user.domain.account.event.UserProfileChanged;
-import io.openware.im.user.domain.account.port.UserProfileEventOutbox;
+import io.openware.im.user.domain.account.repository.UserProfileEventOutbox;
 import io.openware.im.user.infra.messaging.outbox.mapper.UserOutboxMapper;
 import io.openware.im.user.infra.messaging.outbox.po.UserOutboxPo;
 import java.time.LocalDateTime;

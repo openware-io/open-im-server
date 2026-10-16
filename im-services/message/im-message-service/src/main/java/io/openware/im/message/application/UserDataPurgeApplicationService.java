@@ -1,6 +1,6 @@
 package io.openware.im.message.application;
 
-import io.openware.im.message.domain.message.port.UserMessageDataPurger;
+import io.openware.im.message.domain.message.repository.UserMessageDataPurger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

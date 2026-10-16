@@ -22,7 +22,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
-import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
+import io.openware.platform.order.domain.ktv.repository.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;

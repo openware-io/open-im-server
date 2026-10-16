@@ -4,7 +4,7 @@ import io.openware.common.enums.ChatType;
 import io.openware.common.enums.MsgType;
 import io.openware.im.message.application.command.StoreMessageCommand;
 import io.openware.im.message.domain.message.model.Message;
-import io.openware.im.message.domain.message.port.FriendAcceptanceProfilePort;
+import io.openware.im.message.domain.message.repository.FriendAcceptanceProfilePort;
 import io.openware.im.message.domain.message.repository.FriendAcceptMessageDedupRepository;
 import io.openware.protocol.mq.event.FriendAcceptedEvent;
 import io.openware.protocol.mq.support.ConversationIds;

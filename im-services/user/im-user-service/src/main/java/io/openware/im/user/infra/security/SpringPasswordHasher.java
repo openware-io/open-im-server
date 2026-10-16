@@ -1,6 +1,6 @@
 package io.openware.im.user.infra.security;
 
-import io.openware.im.user.domain.account.port.PasswordHasher;
+import io.openware.im.user.domain.account.repository.PasswordHasher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;

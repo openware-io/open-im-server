@@ -1,6 +1,6 @@
 package io.openware.im.message.infra.persistence.message.repository;
 
-import io.openware.im.message.domain.message.port.ConversationSequencePort;
+import io.openware.im.message.domain.message.repository.ConversationSequencePort;
 import io.openware.im.message.infra.persistence.message.mapper.ConversationSequenceMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;

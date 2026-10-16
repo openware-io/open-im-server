@@ -30,7 +30,7 @@ import java.security.spec.PKCS8EncodedKeySpec;
  * （开发默认）则临时生成并打 WARN 日志回退；若为 true（生产/ACK）则启动抛错，避免“无密钥仍运行”。
  */
 @Component
-public class OidcTokenSigner implements io.openware.im.user.domain.openplatform.port.OidcTokenSigner {
+public class OidcTokenSigner implements io.openware.im.user.domain.openplatform.repository.OidcTokenSigner {
   private final String issuer;
   private final AtomicReference<KeyPair> keyPair = new AtomicReference<>();
   private final String kid;

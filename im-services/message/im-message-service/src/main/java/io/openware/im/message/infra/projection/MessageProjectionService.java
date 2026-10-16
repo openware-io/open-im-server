@@ -3,7 +3,7 @@ package io.openware.im.message.infra.projection;
 import lombok.extern.slf4j.Slf4j;
 
 import io.openware.im.message.domain.message.event.MessageEditedEvent;
-import io.openware.im.message.domain.message.port.UnreadCountProjectionPort;
+import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import io.openware.protocol.mq.event.MessageStoredEvent;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
@@ -12,7 +12,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.stereotype.Service;
-import io.openware.im.message.domain.message.port.HotMessageProjectionPort;
+import io.openware.im.message.domain.message.repository.HotMessageProjectionPort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 

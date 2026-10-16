@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.im.user.domain.openplatform.model.OauthAccessToken;
 import io.openware.im.user.domain.openplatform.model.OauthRefreshToken;
-import io.openware.im.user.domain.openplatform.port.OauthTokenStore;
+import io.openware.im.user.domain.openplatform.repository.OauthTokenStore;
 import java.time.Duration;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;

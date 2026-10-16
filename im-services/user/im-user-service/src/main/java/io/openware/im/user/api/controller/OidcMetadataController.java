@@ -1,6 +1,6 @@
 package io.openware.im.user.api.controller;
 
-import io.openware.im.user.domain.openplatform.port.OidcTokenSigner;
+import io.openware.im.user.domain.openplatform.repository.OidcTokenSigner;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;

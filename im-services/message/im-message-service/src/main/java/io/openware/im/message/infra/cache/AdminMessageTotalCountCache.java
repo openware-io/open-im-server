@@ -1,7 +1,7 @@
 package io.openware.im.message.infra.cache;
 
 import io.openware.common.constant.RedisKeys;
-import io.openware.im.message.domain.message.port.AdminMessageTotalCountPort;
+import io.openware.im.message.domain.message.repository.AdminMessageTotalCountPort;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;

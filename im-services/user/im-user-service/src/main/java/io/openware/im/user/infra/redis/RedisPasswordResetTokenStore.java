@@ -1,7 +1,7 @@
 package io.openware.im.user.infra.redis;
 
 import io.openware.common.constant.RedisKeys;
-import io.openware.im.user.domain.account.port.PasswordResetTokenStore;
+import io.openware.im.user.domain.account.repository.PasswordResetTokenStore;
 import java.time.Duration;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
