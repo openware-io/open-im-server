@@ -45,7 +45,7 @@ class SettlementAuditTest {
     void settle_writesSucceededAudit() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
         // 结台落库走带 version 条件的乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
-        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
 
         OrderPo settled = service.settle(ORDER_ID, 0);
 
@@ -65,7 +65,7 @@ class SettlementAuditTest {
     @Test
     void settle_raisesVersionConflictWhenCasAffectsNoRow() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
-        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(0);
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(0);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 0));
 
@@ -77,11 +77,11 @@ class SettlementAuditTest {
     @Test
     void settle_passesExpectedVersionToCas() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 4));
-        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
 
         service.settle(ORDER_ID, 4);
 
-        verify(orderMapper).settleWithVersion(any(OrderPo.class), eq(4));
+        verify(orderMapper).updateAmountsAndStatusWithVersion(any(OrderPo.class), eq(4));
     }
 
     @Test

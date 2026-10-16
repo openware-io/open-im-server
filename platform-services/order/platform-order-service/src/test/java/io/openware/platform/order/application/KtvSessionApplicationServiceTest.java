@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -33,6 +34,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -47,6 +49,17 @@ class KtvSessionApplicationServiceTest {
   private final OrderAmountApplicationService orderAmounts = new OrderAmountApplicationService(orderMapper, orderItemMapper);
   private final KtvSessionApplicationService service = new KtvSessionApplicationService(
       sessionMapper, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts);
+
+  /**
+   * 订单金额写入走乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
+   *
+   * <p>Mockito 对未 stub 的 int 返回 0，等于"CAS 失败"，而失败会被转成 ORDER_VERSION_CONFLICT——
+   * 所以成功路径的用例都必须以 CAS 成功为前提，在这里统一给出。
+   */
+  @BeforeEach
+  void stubOrderCasSuccess() {
+    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(1);
+  }
 
   @Test
   void open_transitionsReservedToOpenAndServingOrder() {
@@ -67,7 +80,7 @@ class KtvSessionApplicationServiceTest {
     assertNotNull(result.getBillingRuleSnapshotJson());
     assertEquals("SERVING", order.getStatus());
     verify(sessionMapper).updateWithVersion(session);
-    verify(orderMapper).updateById(order);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   @Test
@@ -683,7 +696,7 @@ class KtvSessionApplicationServiceTest {
     assertEquals("ACTIVE", item.getStatus());
     assertEquals(session.getOrderId(), item.getOrderId());
     assertEquals(1L, item.getTenantId());
-    verify(orderMapper).updateById(order);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
     assertEquals("SERVING", order.getStatus());
   }
 
@@ -709,7 +722,7 @@ class KtvSessionApplicationServiceTest {
     verify(orderItemMapper).insert(captor.capture());
     assertEquals("ROOM_FEE", captor.getValue().getItemType());
     assertTrue(captor.getValue().getTotalAmount().signum() > 0, "开台 60 分钟至少一个计费块");
-    verify(orderMapper).updateById(order);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   /**
@@ -851,7 +864,10 @@ class KtvSessionApplicationServiceTest {
 
     serviceWithSettle.close(session.getId());
 
-    verify(settlement).settle(order.getId(), 0);
+    // 自动结台必须带上**订单金额写入之后**的版本：金额写入本身会自增版本，
+    // 传写入前的版本会让结算的乐观锁条件永远不成立（或更糟，误判成他人已改）。
+    assertEquals(1, order.getVersion(), "金额写入成功后内存版本应与库一致");
+    verify(settlement).settle(order.getId(), 1);
   }
 
   /**

@@ -249,7 +249,7 @@ public class KtvSessionApplicationService {
             upsertRoomFeeItem(po, order, now);
             orderAmounts.recalculate(order);
             order.setUpdatedAt(now);
-            orderMapper.updateById(order);
+            persistOrderGuarded(order);
         }
         // 高风险写操作（开台）审计：记录操作人、包厢与占用，失败仅告警不阻断开台。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -477,7 +477,7 @@ public class KtvSessionApplicationService {
                 order.setStatus("WAITING_SETTLEMENT");
             }
             order.setUpdatedAt(now);
-            orderMapper.updateById(order);
+            persistOrderGuarded(order);
         }
         // 高风险写操作（结台）审计：异步占位，失败仅告警不阻断结台（真实实现可改同步或 Outbox 兜底）。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -699,7 +699,7 @@ public class KtvSessionApplicationService {
                 upsertRoomFeeItem(session, order, billableEndAt(session, now));
                 orderAmounts.recalculate(order);
                 order.setUpdatedAt(now);
-                orderMapper.updateById(order);
+                persistOrderGuarded(order);
                 refreshed++;
             } catch (RuntimeException failure) {
                 log.warn("刷新开台中包厢房费失败（下一轮重试）: sessionId={}, cause={}",
@@ -985,6 +985,23 @@ public class KtvSessionApplicationService {
             throw new BusinessException("SESSION_VERSION_CONFLICT", "KTV 会话已被并发修改，请重试");
         }
         po.setVersion((po.getVersion() == null ? 0 : po.getVersion()) + 1);
+    }
+
+    /**
+     * 订单金额/状态的乐观锁提交：拿"刚从库里读出的 version"作为期望版本。
+     *
+     * <p>会话自身的并发由 {@link #applyOptimisticUpdate} 把关；但**同一订单上的两个不同会话**可以同时通过
+     * 各自的会话 CAS，随后两次 {@code recalculate} 都会写订单——后写者覆盖前者的金额快照。
+     * 订单侧的写入同样需要条件，{@code ord_order} 的 version 列为此而存在。
+     *
+     * @throws BusinessException 版本已被他人改写（受影响 0 行），不静默覆盖
+     */
+    private void persistOrderGuarded(OrderPo order) {
+        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
+        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+            throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
+        }
+        order.setVersion(expectedVersion + 1);
     }
 
     /**

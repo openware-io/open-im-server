@@ -55,7 +55,7 @@ public class SettlementApplicationService {
             // 两个并发结算都会读到同一个 version 并通过这句比对。真正的判定是下面这条带 version 条件的
             // UPDATE —— ord_order 有 version 列，但 OrderPo 没有 @Version、工程里也没有乐观锁拦截器，
             // 所以 updateById 不会附加版本条件，受影响 0 行必须转成冲突而不是当成成功。
-            if (orderMapper.settleWithVersion(order, expectedVersion) == 0) {
+            if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
                 throw new BusinessException("ORDER_VERSION_CONFLICT", "订单版本冲突，请重试");
             }
             order.setVersion(expectedVersion + 1);
