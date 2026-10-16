@@ -173,7 +173,19 @@ CAS 带 `version = ?` 条件、`version = version + 1` 在 SQL 里而非 Java �
    `containsValue(11L)` 会假失败——按数值比较。
 </details>
 
-`WalletAccountRepositoryAdapterTest` **仍然不存在**（钱包切片的缺口没补）。
+`WalletAccountRepositoryAdapterTest` 已补（11 个测试，提交 `78ba35f`），缺口的最后一环闭合。
+
+**它钉住的是"曾经真的炸过"的那一条**：CAS 的 SET 列集合里
+`token_amount` / `token_brand_name` / `account_opened` **必须不出现**——三者是
+`@TableField(exist = false)` 的展示字段，不是列；写进去会在运行时抛
+`can not find lambda cache for this property`，而 `test-compile` 完全干净（见 §5.3）。
+
+**这个测试被验证过，不是"看起来在测"**：把 `tokenAmount` 的 `.set(...)` 加回适配器后，
+该类 11 个测试中 **4 个失败**；去掉后全通过。
+
+> **踩坑记录**：我第一次做这个验证时用了 `-Dtest=... -am`，结果在上游模块 `common`
+> 报 `No tests matching pattern` **根本没跑到目标测试类**——那个非零退出码什么也没证明。
+> 改成整模块 `test` 才拿到预期的 4 个错误。**这个陷阱在本会话里已经骗过我两次。**
 
 ### 5.2 又一个"从未真跑过"的运行时洞
 
