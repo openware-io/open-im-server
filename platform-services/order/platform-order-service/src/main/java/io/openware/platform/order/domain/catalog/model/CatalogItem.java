@@ -130,12 +130,6 @@ public record CatalogItem(
         newUnitPrice, newDescription, imageUrls, mainImageUrl, newStatus, newStockControlled, newSortOrder);
   }
 
-  /** 分类改名同步（返回新实例）。 */
-  public CatalogItem withCategory(String newCategory) {
-    return new CatalogItem(id, productId, tenantId, storeId, newCategory, itemType, name, unit, unitPrice, description,
-        imageUrls, mainImageUrl, status, stockControlled, sortOrder);
-  }
-
   /**
    * 库存控制缓存列（返回新实例）。
    *
@@ -145,12 +139,6 @@ public record CatalogItem(
   public CatalogItem withStockControlled(Boolean newStockControlled) {
     return new CatalogItem(id, productId, tenantId, storeId, category, itemType, name, unit, unitPrice, description,
         imageUrls, mainImageUrl, status, newStockControlled, sortOrder);
-  }
-
-  /** 图片镜像（物料换图后回填到镜像该物料的目录项；返回新实例）。 */
-  public CatalogItem withMirroredImages(List<String> urls, String main) {
-    return new CatalogItem(id, productId, tenantId, storeId, category, itemType, name, unit, unitPrice, description,
-        urls == null ? List.of() : urls, main, status, stockControlled, sortOrder);
   }
 
   /** 停用（软删，返回新实例）。 */
