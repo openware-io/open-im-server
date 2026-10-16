@@ -8,6 +8,14 @@
 #
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
-
-service-api-boundaries | batch 3 (layering refactor) | .outputs/quality/service-api-boundaries-worklist.txt | 99 controllers/application classes across all four domain roots still depend on persistence implementations. Being cleared domain by domain.
-po-containment | batch 3 (domain layering) | .outputs/quality/po-containment-worklist.txt | 183 imports of infra.persistence.po from the api, application or domain layers (62 in api, 121 in application), counted per import rather than per file. Cleared together with service-api-boundaries, domain by domain.
+#
+# EMPTY. Both entries were deleted in batch 3 once their worklists reached zero:
+#
+#   po-containment         183 -> 0  (imports of infra.persistence.po from api/application/domain)
+#   service-api-boundaries  99 -> 0  (controllers and application classes depending on persistence
+#                                     implementations under infra.persistence)
+#
+# Both are blocking now. The counts above are the opening figures that the deleted entries named; they
+# are recorded here only so the size of what was cleared is not lost, not as a live measurement. The
+# worklists are the only source of truth and both files are gone, which is what "zero" looks like for
+# these two gates.
