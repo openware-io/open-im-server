@@ -141,7 +141,9 @@
 
 ### 7.2 其他
 
-1. `MemberLookupProviderAdapter` 是单行委派，无独立适配器测试。
+1. `MemberLookupProviderAdapter` 已有测试（`MemberLookupProviderAdapterTest`，4 个）：钉住
+   **租户与账号两个参数都原样下传**（少了租户条件会解析出**别的租户的会员**，
+   这是权限失败而非"查不到"），以及租户/账号缺失时**不查库**并返回空。
 2. `Order.withAmounts/withStatus` 的未使用时间戳参数已移除；`held`/`voided` 的仍在使用
    （分别写 `hold_at`/`cancelled_at`），**不要一并删掉**。
 
