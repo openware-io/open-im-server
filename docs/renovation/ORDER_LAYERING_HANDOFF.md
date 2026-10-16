@@ -159,3 +159,28 @@ powershell -File scripts/validate/invoke-engineering-validation.ps1 -Scope Chang
 
 **不要用 `-Dtest=` 搭配 `-am`**：它会在上游模块报 `No tests matching pattern`，
 **根本跑不到目标测试类**，那个非零退出码什么也证明不了（本会话骗过我两次）。
+
+### 8.1 本地全绿 ≠ CI 全绿（本会话真实踩到）
+
+推送后从 CI 触发 `publish-images`，暴露出本地 27 个门禁全过、**CI 上 `documentation-links` 失败**：
+
+> `docs/standards/15_CLIENT_RELEASE_SKILL.md` 用 `../../../open-chat-app/BUILD.md` **指向兄弟仓库**。
+
+**为什么本地发现不了**：本工作区同时 checkout 了 10 个仓库，那个相对路径**在本机确实存在**；
+CI 只 checkout `open-im-server`，路径解析到仓库之外，必然断。**这是一个只有
+"换一个不含兄弟仓库的 checkout" 才能暴露的缺陷。**
+
+**结论与做法**：
+
+1. **跨仓引用必须用绝对 URL**，不能用 `../`。目标文件**不可能**存在于本仓，
+   所以任何相对路径都只在那台同时存有全部仓库的机器上成立。
+   `validate-documentation-links.ps1` 按设计忽略 `https?:`，且**继续检查所有仓内相对链接**。
+2. **要验证"仓库外是否成立"，必须在不含兄弟仓库的树里跑**：
+   ```powershell
+   git worktree add --detach $env:TEMP\ci-sim HEAD
+   powershell -File $env:TEMP\ci-sim\scripts\validate\validate-documentation-links.ps1
+   git worktree remove --force $env:TEMP\ci-sim
+   ```
+   本会话用**对照**证明过它有效：同一 worktree 里**含修复 = exit 0**、
+   **回退成相对链接 = exit 1（broken relative link）**。只看"当前树通过"是不够的——
+   必须让缺陷版本在同一环境里**失败**，否则无法排除"这个环境根本测不到它"。
