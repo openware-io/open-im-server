@@ -351,23 +351,85 @@
 
 ### 领域规范门禁
 
-规范必须可执行，否则会在迭代中被绕过。下列门禁固化上述规则，治理完成后均为**阻断**模式：
+规范必须可执行，否则会在迭代中被绕过。全部门禁固化于 `scripts/validate/validate-<name>.ps1`，
+统一入口为 `scripts/validate/invoke-engineering-validation.ps1`，`-Scope {Changed|Full}` 只决定 Maven 目标
+（`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：27 个一律全跑**。
+治理完成后**全部为阻断模式**：`scripts/validate/report-only-gates.txt` 当前**条目为空**（无任何豁免）。
 
-| 门禁 | 判据 |
+> **判据的权威来源是校验器脚本本身，不是本表。** 本表只说明每个门禁管什么、违规会怎样表述；
+> 修改规则必须改脚本，改完再回来同步本表的描述。这样表格是导航，不会变成第二份会漂移的真相。
+
+#### 分层与依赖边界
+
+| 门禁 | 阻断的写法 |
 | --- | --- |
-| `service-api-boundaries` | 控制器与应用层不得依赖持久化实现；`*-api` 模块只含契约 |
-| `domain-model-purity` | `domain` 包内不得出现 `@TableName`/`@TableId`/`@TableField`/`@Entity`/`@Data`，不得 import `infra.*` 或 `*.persistence.*` |
-| `port-contract` | `domain.repository` 接口不得暴露 `Wrapper`/`PO`/`Mapper`/`IPage`，返回类型不得是 PO |
-| `po-containment` | `infra.persistence.po.*` 不得被 `api`/`application`/`domain` import |
-| `javac -Xlint` + `failOnWarning`（编译器门禁） | `src/main/java` 的「已过时 API」与「未检查转换」告警必须为 0 |
+| `service-api-boundaries` | 控制器/应用层依赖持久化实现；`*-api` 模块含启动类、迁移、持久层依赖或可执行业务实现 |
+| `domain-model-purity` | `domain` 包出现 `@TableName`/`@TableId`/`@TableField`/`@Entity`/`@Data` 等持久化或序列化注解；import `infra.*` 或 `*.persistence.*` |
+| `port-contract` | `domain.repository` 端口暴露 `Wrapper`/`PO`/`Mapper`/`IPage` 等技术类型，或返回类型是 PO；端口放错包（应在 `domain.repository`） |
+| `po-containment` | `api`/`application`/`domain` 层 import `infra.persistence.po.*` |
+| `persistence-dependency-boundaries` | 业务/接入模块使用遗留 `javax.persistence`；模块直接声明底层持久化组件；接入层声明持久化依赖 |
+| `service-dependency-graph` | 服务依赖另一个服务的 **Service 实现制品**（只能依赖 `*-api` 契约） |
 
-**为什么弃用检测要由编译器把门**：`java-deprecated-api-usage` 脚本只 grep 源码里的 `@Deprecated` 注解，
+#### Maven 版本与制品
+
+| 门禁 | 阻断的写法 |
+| --- | --- |
+| `maven-version-ownership` | 根 POM 缺显式版本；服务域父 POM 的 parent/聚合模块越界；服务域 API 与 Service 版本不一致 |
+| `security-and-flyway-configuration` | 含迁移的模块缺 `application.yml`、未启用 Flyway、未声明 Flyway 历史表，或 pom 缺 `spring-boot-starter-flyway` |
+
+#### 持久化与数据库
+
+| 门禁 | 阻断的写法 |
+| --- | --- |
+| `flyway-conventions` | 迁移使用 `CREATE TABLE IF NOT EXISTS`、`DROP TABLE`、物理外键，或未按注册前缀命名 |
+| `flyway-immutability` | 基线 tag 冻结后修改既有迁移文件（含未提交改动） |
+| `tenant-sql` | 表既无 `tenant_id` 又未登记为平台级；手写 SQL 缺租户谓词 |
+
+#### Java 代码规则
+
+| 门禁 | 阻断的写法 |
+| --- | --- |
+| `javac -Xlint:deprecation,unchecked` + `failOnWarning` | `src/main/java` 的「已过时 API」或「未检查转换」告警（见下方说明） |
+| `java-fully-qualified-names` | 源码里出现全限定名引用（应 import；允许清单外的另有交代） |
+| `java-comment-quality` | Java 注释不是合法 UTF-8，读不出来 |
+| `java-silent-catch` | `catch` 块既不记日志也不抛出（含「已记日志却仍留降级标记」） |
+| `java-exception-logging` | 直接打印堆栈（如 `printStackTrace`）而非走统一日志口径 |
+| `java-logging-conventions` | 手工声明 SLF4J logger（应统一用 Lombok `@Slf4j`） |
+| `java-deprecated-api-usage` | 源码中出现 `@Deprecated` 声明（**只查本仓源码注解，第三方弃用由上面的编译器门禁负责**） |
+| `exception-handling` | 服务缺 `@RestControllerAdvice` 统一出口；兜底分支漏 `Exception`/`Throwable`；兜底不 `log.error`（静默 500）；兜底文案不是简体中文 |
+
+#### 消息、配置与密钥
+
+| 门禁 | 阻断的写法 |
+| --- | --- |
+| `mq-registry` | RocketMQ 资源未登记到 `docs/mq/REGISTRY.md`；登记项无 `protocol-mq` 常量；group 字面量声明在 `protocol-mq` 之外 |
+| `rocketmq-contracts` | 声明了 RocketMQ 契约却没有实现，或实现缺 RocketMQ 依赖 |
+| `secret-exposure` | 内联密钥值、疑似凭据赋值、密钥配置默认值、或历史已轮换的凭据值 |
+
+#### 文档、编码与仓库卫生
+
+| 门禁 | 阻断的写法 |
+| --- | --- |
+| `documentation-links` | 相对链接指向不存在的路径（**含仓库外路径**，CI 只 checkout 本仓）；根 README 未索引 `docs/standards/*` |
+| `standards-governance` | 标准文档缺 7 个必备章节之一（目标/术语/规则/模板/门禁/验收/关系）；正文出现占位标记（未完成事项的标记词，清单见 `scripts/validate/standards-governance-rules.txt`） |
+| `text-encoding` | UTF-8 BOM、非法 UTF-8、替换字符 U+FFFD、或字面 Unicode 句点转义 |
+| `powershell-utf8-safety` | `.ps1` 带 BOM 或不是合法 UTF-8；**Windows PowerShell 5.1 把无 BOM 的 `.ps1` 当 ANSI 读**，故 `.ps1` 必须无 BOM |
+| `powershell-ascii-only` | 无 BOM 的 `.ps1` 含非 ASCII 字节（中文须放 `.txt` 数据文件，用显式 UTF-8 解码读取） |
+| `repository-hygiene` | 仓内出现第二套门禁/工具入口或第二套校验批次；工作区根出现非仓库目录；跟踪了构建产物等游离文件 |
+
+**为什么弃用检测必须由编译器把门**：`java-deprecated-api-usage` 脚本只 grep 源码里的 `@Deprecated` 注解，
 **扫不到第三方（Spring / Jackson / MyBatis-Plus / Spring Data Redis）的弃用**——而依赖升级造成的弃用
 恰恰都在这里。本仓的真实案例：`WebJsonConfig` 使用 Spring Framework 7 已标记「过时且待删除」的
 `extendMessageConverters(List)`，编译器能报，脚本门禁却永远是绿的。
 因此编译期开启 `-Xlint:deprecation -Xlint:unchecked`，并让**生产源码**的告警直接失败
-（`failOnWarning`；测试编译单独放宽，因为该条只约束 `src/main/java`）。
-新增第三方弃用时构建会失败并指出确切位置，修法只有两条：迁移到未弃用的 API，或显式抑制并写明理由。
+（`failOnWarning`；测试编译单独放宽——该条只约束 `src/main/java`，测试里 mock 泛型的噪声不属同一类）。
+新增第三方弃用时构建会失败并指出确切位置，修法只有两条：**迁移到未弃用的 API**，
+或**显式抑制并写明理由**（`@SuppressWarnings` 加注释说明为何安全）。
+
+**门禁本身的负向验证**：新增或修改门禁后，必须证明它**真的能失败**——把违规写进代码，
+确认构建/校验确实报错并指出位置，再撤掉。**没被证明能失败的断言不算门禁**
+（本会话据此验证过 `markExecuted` 的 version 条件、编译器 `failOnWarning`、
+以及跨仓相对链接在隔离 checkout 下的失败）。
 
 ## 应用服务规则
 
