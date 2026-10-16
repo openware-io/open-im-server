@@ -20,9 +20,9 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -284,13 +284,11 @@ class OrderCancellationApplicationServiceTest {
         return po;
     }
 
-    private static KtvSessionPo session(Long id, Long roomResourceId) {
-        KtvSessionPo po = new KtvSessionPo();
-        po.setId(id);
-        po.setOrderId(ORDER_ID);
-        po.setRoomResourceId(roomResourceId);
-        po.setStatus("CANCELLED");
-        return po;
+    /** 被订单取消级联终结的包厢会话（领域模型不可变：工厂造出后回填主键并置终结态）。 */
+    private static KtvSession session(Long id, Long roomResourceId) {
+        return KtvSession.reserved(1L, null, null, ORDER_ID, roomResourceId, null, null)
+                .withId(id)
+                .withStatus(KtvSession.STATUS_CANCELLED);
     }
 
     private AuditClient.AuditRecord capturedAudit() {

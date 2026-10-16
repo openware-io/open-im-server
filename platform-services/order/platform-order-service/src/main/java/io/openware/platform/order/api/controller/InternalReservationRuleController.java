@@ -4,8 +4,8 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.ReservationRuleConfigView;
 import io.openware.platform.order.application.ReservationRuleApplicationService;
-import io.openware.platform.order.infra.persistence.po.OrdReservationRuleConfigPo;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,8 +29,15 @@ public class InternalReservationRuleController {
         return service.resolve(context.tenantId(), businessType, storeId);
     }
 
+    /**
+     * 保存规则（门店覆盖/业态默认/租户默认三档之一），返回落库后的行。
+     *
+     * <p>响应体是 {@link ReservationRuleConfigView}（字段名与原持久化对象一致）：
+     * BFF（platform-admin-service）按 {@code id/storeId/businessType/advanceMinutes/...} 反序列化，
+     * 这组字段名是契约，因此视图照搬，而应用层不再依赖持久化对象。
+     */
     @PutMapping
-    public OrdReservationRuleConfigPo save(@RequestBody SaveRequest body) {
+    public ReservationRuleConfigView save(@RequestBody SaveRequest body) {
         verify();
         TenantContext context = requireContext();
         if (body.storeId() != null && body.storeId() > 0 && context.storeId() != null

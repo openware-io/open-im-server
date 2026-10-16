@@ -6,10 +6,12 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.InventoryTransactionView;
 import io.openware.platform.order.application.InventoryApplicationService;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -43,9 +46,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>覆盖三条语义：null = 不修改（原样透传）、0 = 清空（原样透传给服务归一为 NULL）、
  * 非法值由服务抛 {@code PURCHASE_PRICE_INVALID} 时回 400 且 message 是可读中文。
  *
- * <p>列表端点（materials/transactions/costs）一律返回 MyBatis-Plus 分页信封
+ * <p>列表端点（materials/transactions/costs）一律返回分页信封
  * （{@code records}/{@code total}/{@code current}/{@code size}），查询参数逐个透传给服务；
  * costs 的币种信封按全部命中行计算（由服务保证，这里守响应形态）。
+ *
+ * <p>响应类型是视图（{@code InventoryMaterialView} / {@code InventoryTransactionView}），
+ * 字段名与原持久化对象逐个一致，因此 JSON 断言照旧。
  */
 class InventoryControllerWebTest {
 
@@ -59,9 +65,7 @@ class InventoryControllerWebTest {
     void setUp() {
         TenantContextHolder.set(new TenantContext(1L, 1L, 3L, 4L, 1,
                 List.of("inventory.material.manage", "inventory.material.view", "inventory.transaction.view")));
-        InventoryMaterialPo saved = new InventoryMaterialPo();
-        saved.setId(9L);
-        saved.setPurchasePrice(new BigDecimal("350"));
+        InventoryMaterialView saved = materialView(9L, new BigDecimal("350"));
         when(service.createMaterial(any())).thenReturn(saved);
         when(service.updateMaterial(any(), any())).thenReturn(saved);
     }
@@ -122,11 +126,8 @@ class InventoryControllerWebTest {
     /** 物料列表：返回分页信封（records/total/current/size），不再是裸数组。 */
     @Test
     void materialsListReturnsPageEnvelopeWithPurchasePrice() throws Exception {
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(9L);
-        material.setPurchasePrice(new BigDecimal("350"));
-        Page<InventoryMaterialPo> page = new Page<>(1, 20, 1);
-        page.setRecords(List.of(material));
+        Page<InventoryMaterialView> page = new Page<>(1, 20, 1);
+        page.setRecords(List.of(materialView(9L, new BigDecimal("350"))));
         when(service.listMaterials(1L, 20L, 3L, null, null, null, TimeRange.none())).thenReturn(page);
 
         mvc.perform(get("/admin/inventory/materials").param("storeId", "3"))
@@ -156,11 +157,11 @@ class InventoryControllerWebTest {
     /** 流水列表：类型/来源/日期区间/关键字全部透传，响应是分页信封。 */
     @Test
     void transactionsListPassesFiltersThroughAndReturnsPage() throws Exception {
-        InventoryTransactionPo transaction = new InventoryTransactionPo();
-        transaction.setId(77L);
-        transaction.setTransactionType("CONSUME");
-        Page<InventoryTransactionPo> page = new Page<>(1, 20, 1);
-        page.setRecords(List.of(transaction));
+        InventoryTransaction transaction = new InventoryTransaction(77L, 1L, 3L, 7L, "CONSUME",
+                new BigDecimal("-1"), new BigDecimal("2"), BigDecimal.ONE, new BigDecimal("300"),
+                new BigDecimal("-300"), "USD", "ORDER_ITEM", "1", "k-1", "加项", LocalDateTime.now());
+        Page<InventoryTransactionView> page = new Page<>(1, 20, 1);
+        page.setRecords(List.of(InventoryTransactionView.from(transaction)));
         when(service.listTransactions(1L, 20L, 7L, "CONSUME", "ORDER_ITEM", TimeRangeParams.parse("2026-09-01", "2026-09-30"), "可乐")).thenReturn(page);
 
         mvc.perform(get("/admin/inventory/transactions")
@@ -199,7 +200,7 @@ class InventoryControllerWebTest {
     /** 物料列表同样支持时间区间，并且物料/流水两个端点用的是同一个错误码与解析器。 */
     @Test
     void materialsListAcceptsTimeRangeAndRejectsInvertedRange() throws Exception {
-        Page<InventoryMaterialPo> page = new Page<>(1, 20, 0);
+        Page<InventoryMaterialView> page = new Page<>(1, 20, 0);
         when(service.listMaterials(1L, 20L, 3L, null, null, null,
                 TimeRangeParams.parse("2026-09-01", "2026-09-30"))).thenReturn(page);
 
@@ -246,5 +247,11 @@ class InventoryControllerWebTest {
                 ArgumentCaptor.forClass(InventoryApplicationService.MaterialCommand.class);
         verify(service).createMaterial(captor.capture());
         return captor.getValue();
+    }
+
+    /** 一行物料视图（字段名与原持久化对象一致，JSON 断言照旧）。 */
+    private static InventoryMaterialView materialView(Long id, BigDecimal purchasePrice) {
+        return InventoryMaterialView.from(new InventoryMaterial(id, 1L, 3L, "M-1", "可乐", "饮品", "瓶", null,
+                BigDecimal.ZERO, purchasePrice, "USD", null, null, "ACTIVE", 0, LocalDateTime.now()));
     }
 }

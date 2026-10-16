@@ -1,30 +1,36 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.toolkit.sql.SqlScriptUtils;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.InventoryTransactionView;
+import io.openware.platform.order.domain.catalog.model.CatalogItem;
+import io.openware.platform.order.domain.catalog.model.Product;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository.ProductQuery;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryStock;
+import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialPage;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialQuery;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.Persisted;
+import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionPage;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionQuery;
 import io.openware.platform.order.infra.cache.InventoryAvailabilityCache;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryTransactionMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
-import io.openware.platform.order.infra.persistence.po.ProductPo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,16 +50,19 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import io.openware.infrastructure.currency.Currency;
-import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 库存应用服务：物料档案、库存余额与流水。
  *
- * <p><b>防超卖</b>：所有扣减走 {@link InventoryStockMapper#deductAvailable} 的数据库条件更新
+ * <p><b>依赖方向</b>：本类只依赖领域仓储端口（{@link InventoryMaterialRepository} /
+ * {@link InventoryStockRepository} / {@link InventoryTransactionRepository}）与目录子域的端口
+ * （{@code ProductRepository} / {@code CatalogItemRepository}），不再直接持有任何 MyBatis mapper
+ * 或持久化对象；响应用 {@code api.dto} 的视图装配，JSON 与类型处理器只存在于适配器。
+ *
+ * <p><b>防超卖</b>：所有扣减走 {@code InventoryStockRepository#deductAvailable} 的数据库条件更新
  * （{@code SET on_hand_qty = on_hand_qty - n WHERE on_hand_qty - reserved_qty >= n}），
  * 单条语句内由数据库行锁判定，返回 0 行即库存不足并抛 {@code INVENTORY_INSUFFICIENT}，
- * 因此并发扣减也不会出现负库存。入库/调整/回补走 {@link InventoryStockMapper#increaseOnHand}。
+ * 因此并发扣减也不会出现负库存。入库/调整/回补走 {@code InventoryStockRepository#increaseOnHand}。
  *
  * <p><b>成本</b>（V24）：入库按该批次单价维护移动加权平均成本 {@code ord_inventory_stock.avg_cost}，
  * 出库只按平均成本结转发生额、不重估；库存成本 = 结存数量 × 平均成本（见 {@link #inventoryCosts}）。
@@ -74,14 +83,6 @@ public class InventoryApplicationService {
     private static final BigDecimal MAX_PURCHASE_PRICE = new BigDecimal("10000000000000");
 
     /**
-     * {@code image_urls} 是 JSON 列：{@code LambdaUpdateWrapper.set(...)} 生成的 {@code #{}} 占位符按运行时参数类型
-     * 找 TypeHandler，{@code List} 没有内置处理器，必须显式带上与 {@code InventoryMaterialPo.imageUrls} 同款的
-     * {@link JacksonTypeHandler}，否则更新会在参数绑定时报「找不到 TypeHandler」。
-     */
-    private static final String ITEM_IMAGES_TYPE_HANDLER =
-            SqlScriptUtils.mappingTypeHandler(JacksonTypeHandler.class);
-
-    /**
      * 成本金额统一保留 6 位小数（与 {@code decimal(20,6)} 列定义一致）。
      * 所有乘除一律走 {@link BigDecimal} 定点运算并显式指定 scale + {@link RoundingMode}，
      * 绝不使用 double/float，保证同一输入在任何平台得到同一结果。
@@ -97,49 +98,49 @@ public class InventoryApplicationService {
      */
     public static final long MAX_PAGE_SIZE = 200L;
 
-    private final InventoryMaterialMapper materialMapper;
-    private final InventoryStockMapper stockMapper;
-    private final InventoryTransactionMapper transactionMapper;
-    private final ProductMapper productMapper;
-    private final CatalogItemMapper catalogItemMapper;
+    private final InventoryMaterialRepository materialRepository;
+    private final InventoryStockRepository stockRepository;
+    private final InventoryTransactionRepository transactionRepository;
+    private final ProductRepository productRepository;
+    private final CatalogItemRepository catalogItemRepository;
     private final InventoryAvailabilityCache availabilityCache;
     private final AuditClient auditClient;
 
     @Autowired
-    public InventoryApplicationService(InventoryMaterialMapper materialMapper,
-                                       InventoryStockMapper stockMapper,
-                                       InventoryTransactionMapper transactionMapper,
-                                       ProductMapper productMapper,
-                                       CatalogItemMapper catalogItemMapper,
+    public InventoryApplicationService(InventoryMaterialRepository materialRepository,
+                                       InventoryStockRepository stockRepository,
+                                       InventoryTransactionRepository transactionRepository,
+                                       ProductRepository productRepository,
+                                       CatalogItemRepository catalogItemRepository,
                                        InventoryAvailabilityCache availabilityCache,
                                        AuditClient auditClient) {
-        this.materialMapper = materialMapper;
-        this.stockMapper = stockMapper;
-        this.transactionMapper = transactionMapper;
-        this.productMapper = productMapper;
-        this.catalogItemMapper = catalogItemMapper;
+        this.materialRepository = materialRepository;
+        this.stockRepository = stockRepository;
+        this.transactionRepository = transactionRepository;
+        this.productRepository = productRepository;
+        this.catalogItemRepository = catalogItemRepository;
         this.availabilityCache = availabilityCache;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有单测/装配：显式传入缓存但不传审计客户端时，审计用关闭态客户端。 */
-    public InventoryApplicationService(InventoryMaterialMapper materialMapper,
-                                       InventoryStockMapper stockMapper,
-                                       InventoryTransactionMapper transactionMapper,
-                                       ProductMapper productMapper,
-                                       CatalogItemMapper catalogItemMapper,
+    public InventoryApplicationService(InventoryMaterialRepository materialRepository,
+                                       InventoryStockRepository stockRepository,
+                                       InventoryTransactionRepository transactionRepository,
+                                       ProductRepository productRepository,
+                                       CatalogItemRepository catalogItemRepository,
                                        InventoryAvailabilityCache availabilityCache) {
-        this(materialMapper, stockMapper, transactionMapper, productMapper, catalogItemMapper, availabilityCache,
-                AuditClient.disabled());
+        this(materialRepository, stockRepository, transactionRepository, productRepository, catalogItemRepository,
+                availabilityCache, AuditClient.disabled());
     }
 
     /** 兼容既有单测/装配：不传缓存时用「关闭的缓存」（每次回源，行为与旧实现一致），审计用关闭态客户端。 */
-    public InventoryApplicationService(InventoryMaterialMapper materialMapper,
-                                       InventoryStockMapper stockMapper,
-                                       InventoryTransactionMapper transactionMapper,
-                                       ProductMapper productMapper,
-                                       CatalogItemMapper catalogItemMapper) {
-        this(materialMapper, stockMapper, transactionMapper, productMapper, catalogItemMapper,
+    public InventoryApplicationService(InventoryMaterialRepository materialRepository,
+                                       InventoryStockRepository stockRepository,
+                                       InventoryTransactionRepository transactionRepository,
+                                       ProductRepository productRepository,
+                                       CatalogItemRepository catalogItemRepository) {
+        this(materialRepository, stockRepository, transactionRepository, productRepository, catalogItemRepository,
                 new InventoryAvailabilityCache(0L), AuditClient.disabled());
     }
 
@@ -148,39 +149,37 @@ public class InventoryApplicationService {
      *
      * <p><b>分页口径</b>：分页作用在物料行上，{@code total} = 命中物料条数（不是当前页条数）；
      * {@code pageSize} 非正或超过 {@link #MAX_PAGE_SIZE} 回落到 {@link #DEFAULT_PAGE_SIZE}，{@code page < 1} 回落到第 1 页。
+     * 端口只接受「偏移 + 上限」（{@code MaterialQuery}），本方法负责把页号换算成偏移并装配
+     * MyBatis-Plus 分页信封（{@code records}/{@code total}/{@code current}/{@code size}，对外契约不变）。
      *
      * <p>当前页每行的 {@code onHandQty}/{@code reservedQty} 用**一次** {@code IN} 查询批量回填
      * （旧实现逐行 {@code selectOne}，一页 20 行就是 20 次查询）；未建库存行的物料按 0，与
-     * {@link #availableQuantities} 的「未建行 = 售罄」口径一致。
+     * {@link #availableQuantities} 的「未建行 = 售罄」口径一致。这两个字段不是
+     * {@code ord_inventory_material} 的列，只存在于响应视图里（见 {@link InventoryMaterialView}）。
      *
      * <p><b>时间区间</b>：{@code range} 是按**物料创建时间** {@code ord_inventory_material.created_at}
      * 的闭区间（统一 {@code from}/{@code to} 口径，见 {@link TimeRangeParams}）；为空 = 不筛。
      * 条件直接落在 {@code created_at} 列上，不用函数包裹，保持索引可用。
      */
-    public Page<InventoryMaterialPo> listMaterials(long page, long pageSize, Long storeId, String status,
-                                                   String category, String keyword, TimeRange range) {
+    public Page<InventoryMaterialView> listMaterials(long page, long pageSize, Long storeId, String status,
+                                                     String category, String keyword, TimeRange range) {
         TenantContext context = context();
         if (storeId != null && !storeId.equals(context.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店库存");
         }
-        String normalizedStatus = trimmedOrNull(status);
-        String normalizedCategory = trimmedOrNull(category);
-        String nameOrCode = trimmedOrNull(keyword);
-        LambdaQueryWrapper<InventoryMaterialPo> query = new LambdaQueryWrapper<InventoryMaterialPo>()
-                .eq(InventoryMaterialPo::getTenantId, context.tenantId())
-                .eq(storeId != null, InventoryMaterialPo::getStoreId, storeId)
-                .eq(normalizedStatus != null, InventoryMaterialPo::getStatus, normalizedStatus)
-                .eq(normalizedCategory != null, InventoryMaterialPo::getCategory, normalizedCategory)
-                .ge(range != null && range.hasFrom(), InventoryMaterialPo::getCreatedAt,
-                        range == null ? null : range.fromInclusive())
-                .le(range != null && range.hasTo(), InventoryMaterialPo::getCreatedAt,
-                        range == null ? null : range.toInclusive())
-                .and(nameOrCode != null, wrapper -> wrapper
-                        .like(InventoryMaterialPo::getName, nameOrCode)
-                        .or().like(InventoryMaterialPo::getMaterialCode, nameOrCode))
-                .orderByDesc(InventoryMaterialPo::getId);
-        Page<InventoryMaterialPo> result = materialMapper.selectPage(pageOf(page, pageSize), query);
-        fillStockQuantities(context, result.getRecords());
+        PageWindow window = windowOf(page, pageSize);
+        MaterialPage found = materialRepository.findPage(MaterialQuery.inStore(
+                context.tenantId(),
+                storeId,
+                trimmedOrNull(status),
+                trimmedOrNull(category),
+                trimmedOrNull(keyword),
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive(),
+                offsetOf(window),
+                window.size()));
+        Page<InventoryMaterialView> result = new Page<>(window.current(), window.size(), found.total());
+        result.setRecords(decorateWithStock(context, found.materials()));
         return result;
     }
 
@@ -239,39 +238,29 @@ public class InventoryApplicationService {
     }
 
     private BigDecimal loadAvailable(Long tenantId, Long storeId, Long materialId) {
-        InventoryStockPo stock = stockMapper.selectOne(new LambdaQueryWrapper<InventoryStockPo>()
-                .eq(InventoryStockPo::getTenantId, tenantId)
-                .eq(InventoryStockPo::getStoreId, storeId)
-                .eq(InventoryStockPo::getMaterialId, materialId));
-        return availableOf(stock);
+        return availableOf(stockRepository.find(tenantId, storeId, materialId).orElse(null));
     }
 
     private Map<Long, BigDecimal> loadAvailableBatch(Long tenantId, Long storeId, Collection<Long> materialIds) {
-        List<InventoryStockPo> rows = stockMapper.selectList(new LambdaQueryWrapper<InventoryStockPo>()
-                .eq(InventoryStockPo::getTenantId, tenantId)
-                .eq(InventoryStockPo::getStoreId, storeId)
-                .in(InventoryStockPo::getMaterialId, materialIds));
         Map<Long, BigDecimal> result = new HashMap<>();
-        for (InventoryStockPo row : rows) {
-            if (row.getMaterialId() != null) {
-                result.put(row.getMaterialId(), availableOf(row));
+        for (InventoryStock stock : stockRepository.findByMaterials(tenantId, storeId, List.copyOf(materialIds))) {
+            if (stock.materialId() != null) {
+                result.put(stock.materialId(), availableOf(stock));
             }
         }
         return result;
     }
 
     /** 可用量 = on_hand − reserved，负数夹到 0（展示口径，绝不参与扣减判定）。 */
-    private static BigDecimal availableOf(InventoryStockPo stock) {
+    private static BigDecimal availableOf(InventoryStock stock) {
         if (stock == null) {
             return BigDecimal.ZERO;
         }
-        BigDecimal onHand = stock.getOnHandQty() == null ? BigDecimal.ZERO : stock.getOnHandQty();
-        BigDecimal reserved = stock.getReservedQty() == null ? BigDecimal.ZERO : stock.getReservedQty();
-        return onHand.subtract(reserved).max(BigDecimal.ZERO);
+        return stock.availableQty().max(BigDecimal.ZERO);
     }
 
     @Transactional
-    public InventoryMaterialPo createMaterial(MaterialCommand command) {
+    public InventoryMaterialView createMaterial(MaterialCommand command) {
         try {
             return doCreateMaterial(command);
         } catch (RuntimeException failure) {
@@ -282,7 +271,7 @@ public class InventoryApplicationService {
         }
     }
 
-    private InventoryMaterialPo doCreateMaterial(MaterialCommand command) {
+    private InventoryMaterialView doCreateMaterial(MaterialCommand command) {
         TenantContext context = context();
         if (context.storeId() == null || command.storeId() == null || !context.storeId().equals(command.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权操作该门店");
@@ -290,34 +279,35 @@ public class InventoryApplicationService {
         if (command.materialCode() == null || command.materialCode().isBlank() || command.name() == null || command.name().isBlank()) {
             throw new BusinessException("MATERIAL_INVALID", "物料编码和名称不能为空");
         }
-        InventoryMaterialPo po = new InventoryMaterialPo();
-        po.setTenantId(context.tenantId()); po.setStoreId(command.storeId());
-        po.setMaterialCode(command.materialCode().trim()); po.setName(command.name().trim());
-        po.setCategory(blankDefault(command.category(), "其他")); po.setUnit(blankDefault(command.unit(), "份"));
-        po.setDescription(ItemDescriptions.normalize(command.description(), "MATERIAL_INVALID"));
-        po.setSafetyStock(command.safetyStock() == null ? BigDecimal.ZERO : positive(command.safetyStock(), "安全库存不能为负"));
-        po.setPurchasePrice(normalizePurchasePrice(command.purchasePrice()));
-        // 采购价币种快照（16_CURRENCY_CONVENTIONS §5/§6「库存采购价/入库成本」）：落库时固化当时租户币种。
-        po.setCurrencyCode(CurrencyResolver.currentCode());
         ItemImages.Images images = ItemImages.normalize(command.imageUrls(), command.mainImageUrl(), "MATERIAL_INVALID");
-        po.setImageUrls(images.urls()); po.setMainImageUrl(images.mainImageUrl());
-        po.setStatus("ACTIVE"); po.setVersion(0); po.setCreatedAt(LocalDateTime.now()); po.setUpdatedAt(LocalDateTime.now());
-        materialMapper.insert(po);
+        InventoryMaterial material = InventoryMaterial.draft(
+                context.tenantId(), command.storeId(),
+                command.materialCode().trim(), command.name().trim(),
+                blankDefault(command.category(), "其他"), blankDefault(command.unit(), "份"),
+                ItemDescriptions.normalize(command.description(), "MATERIAL_INVALID"),
+                command.safetyStock() == null ? BigDecimal.ZERO : positive(command.safetyStock(), "安全库存不能为负"),
+                normalizePurchasePrice(command.purchasePrice()),
+                // 采购价币种快照（16_CURRENCY_CONVENTIONS §5/§6「库存采购价/入库成本」）：落库时固化当时租户币种。
+                CurrencyResolver.currentCode(),
+                images.urls(), images.mainImageUrl());
+        Persisted<InventoryMaterial> persisted = materialRepository.insert(material);
+        InventoryMaterial created = persisted.aggregate();
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("inventory.material.create")
-                .resourceType("inventory_material").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getName())
+                .resourceType("inventory_material").resourceId(String.valueOf(created.id()))
+                .resourceName(created.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .idempotencyKey("inventory-material-create:" + po.getId())
-                .detailJson("{\"storeId\":" + po.getStoreId() + ",\"materialCode\":\"" + po.getMaterialCode()
-                        + "\",\"unit\":\"" + po.getUnit() + "\"}")
+                .idempotencyKey("inventory-material-create:" + created.id())
+                .detailJson("{\"storeId\":" + created.storeId() + ",\"materialCode\":\"" + created.materialCode()
+                        + "\",\"unit\":\"" + created.unit() + "\"}")
                 .build());
-        return po;
+        // 写入路径响应不带结存数量（这两个字段不是列，只在列表读路径批量回填）——与迁移前一致。
+        return InventoryMaterialView.from(created, persisted.audit(), null, null);
     }
 
     /** 编辑物料：编码不可改，名称/分类/单位/描述/安全库存/采购价/图片按需覆盖。 */
     @Transactional
-    public InventoryMaterialPo updateMaterial(Long id, MaterialCommand command) {
+    public InventoryMaterialView updateMaterial(Long id, MaterialCommand command) {
         try {
             return doUpdateMaterial(id, command);
         } catch (RuntimeException failure) {
@@ -327,90 +317,80 @@ public class InventoryApplicationService {
         }
     }
 
-    private InventoryMaterialPo doUpdateMaterial(Long id, MaterialCommand command) {
+    private InventoryMaterialView doUpdateMaterial(Long id, MaterialCommand command) {
         TenantContext context = context();
-        InventoryMaterialPo po = materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-                .eq(InventoryMaterialPo::getTenantId, context.tenantId()).eq(InventoryMaterialPo::getStoreId, context.storeId())
-                .eq(InventoryMaterialPo::getId, id));
-        if (po == null) throw new BusinessException("MATERIAL_NOT_FOUND", "物料不存在");
-        // 写库必须显式列出本次提交的列：MyBatis-Plus 默认 FieldStrategy.NOT_NULL 会把 null 字段整列跳过，
-        // 而「清空」写的正是 null（描述传空白、采购价传 0、图片传空数组都归一为 null）。用 updateById(po)
-        // 会出现「响应已清空、库里还在」的假成功：后台清不掉描述、取消不掉采购价、也删不掉物料图片。
-        LambdaUpdateWrapper<InventoryMaterialPo> update = new LambdaUpdateWrapper<InventoryMaterialPo>()
-                .eq(InventoryMaterialPo::getId, po.getId());
-        if (command.name() != null && !command.name().isBlank()) {
-            po.setName(command.name().trim());
-            update.set(InventoryMaterialPo::getName, po.getName());
-        }
-        if (command.category() != null && !command.category().isBlank()) {
-            po.setCategory(command.category().trim());
-            update.set(InventoryMaterialPo::getCategory, po.getCategory());
-        }
-        if (command.unit() != null && !command.unit().isBlank()) {
-            po.setUnit(command.unit().trim());
-            update.set(InventoryMaterialPo::getUnit, po.getUnit());
-        }
-        if (command.description() != null) {
-            po.setDescription(ItemDescriptions.normalize(command.description(), "MATERIAL_INVALID"));
-            update.set(InventoryMaterialPo::getDescription, po.getDescription());
-        }
-        if (command.safetyStock() != null) {
-            po.setSafetyStock(positive(command.safetyStock(), "安全库存不能为负"));
-            update.set(InventoryMaterialPo::getSafetyStock, po.getSafetyStock());
-        }
+        InventoryMaterial existing = materialRepository.findInStore(context.tenantId(), context.storeId(), id)
+                .orElseThrow(() -> new BusinessException("MATERIAL_NOT_FOUND", "物料不存在"));
+        // 「部分更新」在这里解析：null / 空白 = 本次不改（沿用既有值），显式值才覆盖。
+        // 落库侧由适配器把可编辑列整组显式写出，因此「清空」（描述传空白、采购价传 0、图片传空数组
+        // 都归一为 null 或空）是**结构性**能做到的：updateById 的 NOT_NULL 策略会把 null 整列跳过，
+        // 会出现「响应已清空、库里还在」的假成功（后台清不掉描述、取消不掉采购价、也删不掉物料图片）。
+        String name = command.name() != null && !command.name().isBlank()
+                ? command.name().trim() : existing.name();
+        String category = command.category() != null && !command.category().isBlank()
+                ? command.category().trim() : existing.category();
+        String unit = command.unit() != null && !command.unit().isBlank() ? command.unit().trim() : existing.unit();
+        String description = command.description() != null
+                ? ItemDescriptions.normalize(command.description(), "MATERIAL_INVALID") : existing.description();
+        BigDecimal safetyStock = command.safetyStock() != null
+                ? positive(command.safetyStock(), "安全库存不能为负") : existing.safetyStock();
         // null = 不修改；0 = 清空（归一为 null 落库）；> 0 才覆盖，非法值 400。见 normalizePurchasePrice。
+        BigDecimal purchasePrice = existing.purchasePrice();
+        // 采购价被改写时同步刷新其币种快照：价格与币种必须同源，否则成本报表会按旧币种归集。
+        String currencyCode = existing.currencyCode();
         if (command.purchasePrice() != null) {
-            po.setPurchasePrice(normalizePurchasePrice(command.purchasePrice()));
-            // 采购价被改写时同步刷新其币种快照：价格与币种必须同源，否则成本报表会按旧币种归集。
-            po.setCurrencyCode(CurrencyResolver.currentCode());
-            update.set(InventoryMaterialPo::getPurchasePrice, po.getPurchasePrice());
-            update.set(InventoryMaterialPo::getCurrencyCode, po.getCurrencyCode());
+            purchasePrice = normalizePurchasePrice(command.purchasePrice());
+            currencyCode = CurrencyResolver.currentCode();
         }
+        List<String> imageUrls = existing.imageUrls();
+        String mainImageUrl = existing.mainImageUrl();
         if (command.imageUrls() != null) {
             ItemImages.Images images = ItemImages.normalize(command.imageUrls(), command.mainImageUrl(), "MATERIAL_INVALID");
-            po.setImageUrls(images.urls()); po.setMainImageUrl(images.mainImageUrl());
-            update.set(InventoryMaterialPo::getImageUrls, images.urls(), ITEM_IMAGES_TYPE_HANDLER);
-            update.set(InventoryMaterialPo::getMainImageUrl, images.mainImageUrl());
+            imageUrls = images.urls();
+            mainImageUrl = images.mainImageUrl();
         }
-        po.setUpdatedAt(LocalDateTime.now());
-        update.set(InventoryMaterialPo::getUpdatedAt, po.getUpdatedAt());
-        materialMapper.update(null, update);
-        syncCatalogImages(po);
+        InventoryMaterial desired = existing.edited(name, category, unit, description, safetyStock, purchasePrice,
+                currencyCode, imageUrls, mainImageUrl);
+        Persisted<InventoryMaterial> persisted = materialRepository.update(desired);
+        InventoryMaterial updated = persisted.aggregate();
+        syncCatalogImages(updated);
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("inventory.material.update")
-                .resourceType("inventory_material").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getName())
+                .resourceType("inventory_material").resourceId(String.valueOf(updated.id()))
+                .resourceName(updated.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"storeId\":" + po.getStoreId() + ",\"safetyStock\":" + po.getSafetyStock()
-                        + ",\"purchasePrice\":" + po.getPurchasePrice() + "}")
+                .detailJson("{\"storeId\":" + updated.storeId() + ",\"safetyStock\":" + updated.safetyStock()
+                        + ",\"purchasePrice\":" + updated.purchasePrice() + "}")
                 .build());
-        return po;
+        return InventoryMaterialView.from(updated, persisted.audit(), null, null);
     }
 
     /**
      * 物料图片变更后，同步到「镜像该物料图片」的点单目录项。
      * 商品自己有图时目录项以商品图为准（见 ProductApplicationService.syncCatalog），这里不覆盖，避免把商品图冲掉。
      */
-    private void syncCatalogImages(InventoryMaterialPo material) {
-        List<ProductPo> products = productMapper.selectList(new LambdaQueryWrapper<ProductPo>()
-                .eq(ProductPo::getTenantId, material.getTenantId())
-                .eq(ProductPo::getStoreId, material.getStoreId())
-                .eq(ProductPo::getMaterialId, material.getId()));
-        List<String> urls = material.getImageUrls() == null ? List.of() : material.getImageUrls();
-        for (ProductPo product : products) {
-            if (product.getCatalogItemId() == null) continue;
-            if (product.getImageUrls() != null && !product.getImageUrls().isEmpty()) continue;
-            CatalogItemPo catalog = catalogItemMapper.selectById(product.getCatalogItemId());
-            if (catalog == null) continue;
-            catalog.setImageUrls(urls);
-            catalog.setMainImageUrl(material.getMainImageUrl());
-            catalog.setUpdatedAt(LocalDateTime.now());
-            catalogItemMapper.updateById(catalog);
+    private void syncCatalogImages(InventoryMaterial material) {
+        List<Product> products = productRepository.find(
+                ProductQuery.linkedToMaterial(material.tenantId(), material.storeId(), material.id()));
+        List<String> urls = material.imagesOrEmpty();
+        for (Product product : products) {
+            if (product.catalogItemId() == null) {
+                continue;
+            }
+            if (!product.imagesOrEmpty().isEmpty()) {
+                continue;
+            }
+            Optional<CatalogItem> catalog = catalogItemRepository.findById(product.catalogItemId());
+            if (catalog.isEmpty()) {
+                continue;
+            }
+            // 镜像图片（返回新实例）；审计列由目录适配器在写入时刷新。
+            catalogItemRepository.update(catalog.get().withMirroredImages(urls, material.mainImageUrl()));
         }
     }
 
     @Transactional
-    public InventoryTransactionPo changeStock(Long materialId, BigDecimal quantity, String type, String reason, String key) {
+    public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String reason, String key) {
         return changeStock(materialId, quantity, type, "ADJUSTMENT", null, reason, key, null);
     }
 
@@ -430,7 +410,7 @@ public class InventoryApplicationService {
      * （回补优先还原原出库单价 → 物料 {@code purchase_price} → 0）。
      */
     @Transactional
-    public InventoryTransactionPo changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
+    public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
                                                String sourceId, String reason, String key) {
         return changeStock(materialId, quantity, type, sourceType, sourceId, reason, key, null);
     }
@@ -445,7 +425,7 @@ public class InventoryApplicationService {
      *       同时把该批次单价与币种写进流水的 {@code unit_cost/currency_code} 以便追溯。</li>
      *   <li>出库：**不改变**平均成本，只按当前平均成本结转发生额
      *       {@code total_cost = -qty * avgCost}，并把当次单价（= 平均成本）写进流水。</li>
-     *   <li>并发：加权用的「入库前数量 + 旧平均成本」在 {@code selectForUpdate} 行锁内读出，
+     *   <li>并发：加权用的「入库前数量 + 旧平均成本」在 {@code findForUpdate} 行锁内读出，
      *       锁持续到事务提交，因此同一 (租户, 门店, 物料) 的并发入库严格串行，不会丢失更新。</li>
      * </ul>
      *
@@ -454,7 +434,7 @@ public class InventoryApplicationService {
      *                        出库时本参数被忽略（单价恒等于当前移动加权平均成本）。
      */
     @Transactional
-    public InventoryTransactionPo changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
+    public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
                                                String sourceId, String reason, String key, BigDecimal receiptUnitCost) {
         try {
             return doChangeStock(materialId, quantity, type, sourceType, sourceId, reason, key, receiptUnitCost);
@@ -470,26 +450,30 @@ public class InventoryApplicationService {
         }
     }
 
-    private InventoryTransactionPo doChangeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
-                                                 String sourceId, String reason, String key, BigDecimal receiptUnitCost) {
+    private InventoryTransactionView doChangeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
+                                                   String sourceId, String reason, String key, BigDecimal receiptUnitCost) {
         TenantContext context = context();
         if (quantity == null || quantity.signum() <= 0 || key == null || key.isBlank()) {
             throw new BusinessException("INVENTORY_INVALID", "数量必须大于0且必须提供幂等键");
         }
-        InventoryTransactionPo existing = transactionMapper.findByIdempotency(context.tenantId(), key);
-        if (existing != null) return existing;
-        InventoryMaterialPo material = materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-                .eq(InventoryMaterialPo::getTenantId, context.tenantId()).eq(InventoryMaterialPo::getStoreId, context.storeId())
-                .eq(InventoryMaterialPo::getId, materialId));
-        if (material == null || !"ACTIVE".equals(material.getStatus())) throw new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用");
+        Optional<InventoryTransaction> existing = transactionRepository.findByIdempotency(context.tenantId(), key);
+        if (existing.isPresent()) {
+            return InventoryTransactionView.from(existing.get());
+        }
+        InventoryMaterial material = materialRepository
+                .findInStore(context.tenantId(), context.storeId(), materialId)
+                .orElseThrow(() -> new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用"));
+        if (!material.active()) {
+            throw new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用");
+        }
         // 行锁只用来「取准确的变更前后值写流水」与串行化同一物料的并发变更；
         // 真正的防超卖判定在下面的条件更新里由数据库保证（不依赖本处读到的值）。
         // 成本侧同样依赖这把锁：加权平均必须在锁内读旧值、算新值、再写回，否则并发批次会互相覆盖。
-        InventoryStockPo stock = lockStockRow(context, materialId);
-        BigDecimal before = stock.getOnHandQty() == null ? BigDecimal.ZERO : stock.getOnHandQty();
-        BigDecimal avgCost = stock.getAvgCost() == null ? BigDecimal.ZERO : stock.getAvgCost();
-        String stockCurrency = normalizedCurrency(stock.getCurrencyCode());
-        boolean inbound = isInbound(type);
+        InventoryStock stock = lockStockRow(context, materialId);
+        BigDecimal before = stock.onHandOrZero();
+        BigDecimal avgCost = stock.avgCostOrZero();
+        String stockCurrency = normalizedCurrency(stock.currencyCode());
+        boolean inbound = InventoryTransaction.inbound(type);
         BigDecimal unitCost;
         String currencyCode;
         if (inbound) {
@@ -503,28 +487,27 @@ public class InventoryApplicationService {
             currencyCode = stockCurrency;
         }
         LocalDateTime now = LocalDateTime.now();
+        // 入库 = 单条语句内同时加现有量与落库新成本；出库 = 单条带上下界的条件扣减。
+        // 两者都由数据库以行锁判定，返回值就是权威结论（0 行 = 库存不足 / 目标行不存在）。
         int affected = inbound
-                ? stockMapper.increaseOnHand(context.tenantId(), context.storeId(), materialId, quantity,
+                ? stockRepository.increaseOnHand(context.tenantId(), context.storeId(), materialId, quantity,
                         avgCost, currencyCode, now)
-                : stockMapper.deductAvailable(context.tenantId(), context.storeId(), materialId, quantity, now);
+                : (stockRepository.deductAvailable(context.tenantId(), context.storeId(), materialId, quantity, now)
+                        ? 1 : 0);
         if (affected == 0) {
             throw new BusinessException("INVENTORY_INSUFFICIENT", "可用库存不足");
         }
         BigDecimal signedQuantity = inbound ? quantity : quantity.negate();
-        BigDecimal after = before.add(signedQuantity);
-        InventoryTransactionPo tx = new InventoryTransactionPo();
-        tx.setTenantId(context.tenantId()); tx.setStoreId(context.storeId()); tx.setMaterialId(materialId); tx.setTransactionType(type);
-        tx.setQuantityDelta(signedQuantity); tx.setQuantityBefore(before); tx.setQuantityAfter(after);
-        // 批次单价与成本发生额（带符号：入库正、出库负）——入库可追溯到具体批次，出库可追溯到当次结转依据。
-        tx.setUnitCost(scale(unitCost));
-        tx.setTotalCost(scale(signedQuantity.multiply(unitCost)));
-        tx.setCurrencyCode(currencyCode);
-        tx.setSourceType(sourceType); tx.setSourceId(sourceId); tx.setReason(reason);
-        tx.setIdempotencyKey(key); tx.setCreatedAt(now); transactionMapper.insert(tx);
+        InventoryTransaction tx = new InventoryTransaction(null, context.tenantId(), context.storeId(), materialId,
+                type, signedQuantity, before, before.add(signedQuantity),
+                // 批次单价与成本发生额（带符号：入库正、出库负）——入库可追溯到具体批次，出库可追溯到当次结转依据。
+                scale(unitCost), scale(signedQuantity.multiply(unitCost)), currencyCode,
+                sourceType, sourceId, key, reason, now);
+        InventoryTransaction stored = transactionRepository.append(tx);
         // 写后失效：本实例立即回源；其他实例最坏在 TTL 内看到旧可用量（展示层，不影响扣减）。
         availabilityCache.invalidate(context.tenantId(), context.storeId(), materialId);
-        recordStockAudit(material, tx, type, key);
-        return tx;
+        recordStockAudit(material, stored, type, key);
+        return InventoryTransactionView.from(stored);
     }
 
     /**
@@ -538,7 +521,7 @@ public class InventoryApplicationService {
      * 显式传入 0 与 null 同义（本模块既有「0 = 未填」三态约定，见 {@code normalizePurchasePrice}），
      * 避免前端把「留空」提交成 0 时把整批库存的平均成本稀释到 0。
      */
-    private ReceiptCost resolveReceiptCost(TenantContext context, InventoryMaterialPo material, String type,
+    private ReceiptCost resolveReceiptCost(TenantContext context, InventoryMaterial material, String type,
                                            String sourceType, String sourceId, BigDecimal requestedUnitCost) {
         if (requestedUnitCost != null) {
             if (requestedUnitCost.signum() < 0) {
@@ -551,15 +534,16 @@ public class InventoryApplicationService {
                 return new ReceiptCost(requestedUnitCost, CurrencyResolver.currentCode());
             }
         }
-        if ("REVERSE".equals(type) && sourceType != null && sourceId != null) {
-            InventoryTransactionPo outbound = transactionMapper.findLatestOutbound(
-                    context.tenantId(), context.storeId(), material.getId(), sourceType, sourceId);
-            if (outbound != null && outbound.getUnitCost() != null && outbound.getUnitCost().signum() > 0) {
-                return new ReceiptCost(outbound.getUnitCost(), normalizedCurrency(outbound.getCurrencyCode()));
+        if (InventoryTransaction.TYPE_REVERSE.equals(type) && sourceType != null && sourceId != null) {
+            Optional<InventoryTransaction> outbound = transactionRepository.findLatestOutbound(
+                    context.tenantId(), context.storeId(), material.id(), sourceType, sourceId);
+            if (outbound.isPresent() && outbound.get().unitCost() != null
+                    && outbound.get().unitCost().signum() > 0) {
+                return new ReceiptCost(outbound.get().unitCost(), normalizedCurrency(outbound.get().currencyCode()));
             }
         }
-        if (material.getPurchasePrice() != null && material.getPurchasePrice().signum() > 0) {
-            return new ReceiptCost(material.getPurchasePrice(), normalizedCurrency(material.getCurrencyCode()));
+        if (material.purchasePrice() != null && material.purchasePrice().signum() > 0) {
+            return new ReceiptCost(material.purchasePrice(), normalizedCurrency(material.currencyCode()));
         }
         return new ReceiptCost(BigDecimal.ZERO, CurrencyResolver.currentCode());
     }
@@ -630,35 +614,35 @@ public class InventoryApplicationService {
         String nameOrCode = trimmedOrNull(keyword);
         Set<Long> keywordMaterialIds = nameOrCode == null
                 ? null : new HashSet<>(matchingMaterialIds(context, nameOrCode));
-        List<InventoryStockPo> stocks = stockMapper.selectByStore(context.tenantId(), scopedStore);
+        List<InventoryStock> stocks = stockRepository.findByStore(context.tenantId(), scopedStore);
         if (keywordMaterialIds != null) {
-            stocks = stocks.stream().filter(stock -> keywordMaterialIds.contains(stock.getMaterialId())).toList();
+            stocks = stocks.stream().filter(stock -> keywordMaterialIds.contains(stock.materialId())).toList();
         }
-        List<Long> materialIds = stocks.stream().map(InventoryStockPo::getMaterialId)
+        List<Long> materialIds = stocks.stream().map(InventoryStock::materialId)
                 .filter(Objects::nonNull).distinct().toList();
-        Map<Long, InventoryMaterialPo> materials = new HashMap<>();
+        Map<Long, InventoryMaterial> materials = new HashMap<>();
         if (!materialIds.isEmpty()) {
-            for (InventoryMaterialPo material : materialMapper.selectBatchIds(materialIds)) {
-                materials.put(material.getId(), material);
+            for (InventoryMaterial material : materialRepository.findByIds(materialIds)) {
+                materials.put(material.id(), material);
             }
         }
         Set<String> currencies = new LinkedHashSet<>();
         List<InventoryCostRow> rows = new ArrayList<>();
-        for (InventoryStockPo stock : stocks) {
-            InventoryMaterialPo material = materials.get(stock.getMaterialId());
-            BigDecimal onHand = stock.getOnHandQty() == null ? BigDecimal.ZERO : stock.getOnHandQty();
-            BigDecimal avgCost = stock.getAvgCost() == null ? BigDecimal.ZERO : stock.getAvgCost();
-            String currency = normalizedCurrency(stock.getCurrencyCode());
+        for (InventoryStock stock : stocks) {
+            InventoryMaterial material = materials.get(stock.materialId());
+            BigDecimal onHand = stock.onHandOrZero();
+            BigDecimal avgCost = stock.avgCostOrZero();
+            String currency = normalizedCurrency(stock.currencyCode());
             currencies.add(currency);
-            rows.add(new InventoryCostRow(scopedStore, stock.getMaterialId(),
-                    material == null ? null : material.getMaterialCode(),
-                    material == null ? null : material.getName(),
-                    material == null ? null : material.getUnit(),
+            rows.add(new InventoryCostRow(scopedStore, stock.materialId(),
+                    material == null ? null : material.materialCode(),
+                    material == null ? null : material.name(),
+                    material == null ? null : material.unit(),
                     scale(onHand), scale(avgCost), currency, scale(onHand.multiply(avgCost))));
         }
-        Page<InventoryCostRow> window = pageOf(page, pageSize);
-        InventoryCostReport report = new InventoryCostReport(window.getCurrent(), window.getSize(), rows.size());
-        report.setRecords(slicePage(rows, window.getCurrent(), window.getSize()));
+        PageWindow window = windowOf(page, pageSize);
+        InventoryCostReport report = new InventoryCostReport(window.current(), window.size(), rows.size());
+        report.setRecords(slicePage(rows, window.current(), window.size()));
         report.setDataAsOf(Instant.now());
         report.setStoreId(scopedStore);
         report.setCurrencyCode(currencies.size() == 1 ? currencies.iterator().next() : null);
@@ -670,35 +654,30 @@ public class InventoryApplicationService {
      * 库存变更留痕：只记「人主动发起」的入库/调整，加项出库(CONSUME)与回补(REVERSE)分别由
      * 加项与后台回补流程留痕，避免一次业务产生两条同义审计。
      */
-    private void recordStockAudit(InventoryMaterialPo material, InventoryTransactionPo tx, String type, String key) {
+    private void recordStockAudit(InventoryMaterial material, InventoryTransaction tx, String type, String key) {
         String action = actionOf(type);
         if (action == null) {
             return;
         }
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action(action)
-                .resourceType("inventory_material").resourceId(String.valueOf(material.getId()))
-                .resourceName(material.getName())
+                .resourceType("inventory_material").resourceId(String.valueOf(material.id()))
+                .resourceName(material.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey(key)
-                .detailJson("{\"storeId\":" + tx.getStoreId() + ",\"transactionType\":\"" + type
-                        + "\",\"quantity\":" + tx.getQuantityDelta() + ",\"quantityBefore\":" + tx.getQuantityBefore()
-                        + ",\"quantityAfter\":" + tx.getQuantityAfter() + ",\"reason\":\""
-                        + (tx.getReason() == null ? "" : tx.getReason().replace("\"", "\\\"")) + "\"}")
+                .detailJson("{\"storeId\":" + tx.storeId() + ",\"transactionType\":\"" + type
+                        + "\",\"quantity\":" + tx.quantityDelta() + ",\"quantityBefore\":" + tx.quantityBefore()
+                        + ",\"quantityAfter\":" + tx.quantityAfter() + ",\"reason\":\""
+                        + (tx.reason() == null ? "" : tx.reason().replace("\"", "\\\"")) + "\"}")
                 .build());
-    }
-
-    /** 出库类型（其余 RECEIPT/ADJUST_IN/REVERSE 均为入库）。 */
-    private static boolean isInbound(String type) {
-        return "RECEIPT".equals(type) || "ADJUST_IN".equals(type) || "REVERSE".equals(type);
     }
 
     /** 库存变更类型 → 审计动作码；不产生操作留痕的类型（加项出库/回补）返回 null。 */
     private static String actionOf(String type) {
-        if ("RECEIPT".equals(type)) {
+        if (InventoryTransaction.TYPE_RECEIPT.equals(type)) {
             return "inventory.receipt.create";
         }
-        if ("ADJUST_IN".equals(type) || "ADJUST_OUT".equals(type)) {
+        if (InventoryTransaction.TYPE_ADJUST_IN.equals(type) || InventoryTransaction.TYPE_ADJUST_OUT.equals(type)) {
             return "inventory.adjust";
         }
         return null;
@@ -754,23 +733,24 @@ public class InventoryApplicationService {
     /**
      * 取库存行并加行锁；不存在则先建 0 行。并发建行由唯一键 (tenant_id, store_id, material_id) 兜底，
      * 抢输的事务忽略冲突后重新加锁读取，不会出现两行库存。
+     *
+     * <p>建行走 {@code save}（端口上只有插入语义，没有整行写回，见端口说明）；
+     * 重新加锁后若仍读不到行，说明该行既没被本事务建成、也不存在于库中——返回空会让后续
+     * {@code onHandQty()} 取到 null，因此这里给出稳定的业务错误码而不是放任 NPE。
      */
-    private InventoryStockPo lockStockRow(TenantContext context, Long materialId) {
-        InventoryStockPo stock = stockMapper.selectForUpdate(context.tenantId(), context.storeId(), materialId);
-        if (stock != null) {
-            return stock;
+    private InventoryStock lockStockRow(TenantContext context, Long materialId) {
+        Optional<InventoryStock> stock = stockRepository.findForUpdate(context.tenantId(), context.storeId(), materialId);
+        if (stock.isPresent()) {
+            return stock.get();
         }
-        InventoryStockPo created = new InventoryStockPo();
-        created.setTenantId(context.tenantId()); created.setStoreId(context.storeId()); created.setMaterialId(materialId);
-        created.setOnHandQty(BigDecimal.ZERO); created.setReservedQty(BigDecimal.ZERO); created.setVersion(0);
-        created.setCreatedAt(LocalDateTime.now()); created.setUpdatedAt(LocalDateTime.now());
         try {
-            stockMapper.insert(created);
+            stockRepository.save(InventoryStock.empty(context.tenantId(), context.storeId(), materialId));
         } catch (DuplicateKeyException e) {
             log.debug("库存行已被并发事务创建，忽略并重新加锁读取: tenantId={} storeId={} materialId={}",
                     context.tenantId(), context.storeId(), materialId);
         }
-        return stockMapper.selectForUpdate(context.tenantId(), context.storeId(), materialId);
+        return stockRepository.findForUpdate(context.tenantId(), context.storeId(), materialId)
+                .orElseThrow(() -> new BusinessException("INVENTORY_INVALID", "库存行不存在"));
     }
 
     /**
@@ -789,33 +769,36 @@ public class InventoryApplicationService {
      * <p><b>关键字</b>：流水表不存物料名快照，先按名称/编码取出命中物料 id 集合，再在分页条件里
      * {@code IN} 该集合（两条简单查询），既不 join 分页表，也不做逐行回查的 N+1；命中为空直接返回空页。
      */
-    public Page<InventoryTransactionPo> listTransactions(long page, long pageSize, Long materialId,
-                                                         String transactionType, String sourceType,
-                                                         TimeRange range, String keyword) {
+    public Page<InventoryTransactionView> listTransactions(long page, long pageSize, Long materialId,
+                                                           String transactionType, String sourceType,
+                                                           TimeRange range, String keyword) {
         TenantContext context = context();
-        String normalizedType = trimmedOrNull(transactionType);
-        String normalizedSource = trimmedOrNull(sourceType);
+        PageWindow window = windowOf(page, pageSize);
         String nameOrCode = trimmedOrNull(keyword);
-        LambdaQueryWrapper<InventoryTransactionPo> query = new LambdaQueryWrapper<InventoryTransactionPo>()
-                .eq(InventoryTransactionPo::getTenantId, context.tenantId())
-                .eq(InventoryTransactionPo::getStoreId, context.storeId())
-                .eq(materialId != null, InventoryTransactionPo::getMaterialId, materialId)
-                .eq(normalizedType != null, InventoryTransactionPo::getTransactionType, normalizedType)
-                .eq(normalizedSource != null, InventoryTransactionPo::getSourceType, normalizedSource)
-                .ge(range != null && range.hasFrom(), InventoryTransactionPo::getCreatedAt,
-                        range == null ? null : range.fromInclusive())
-                .le(range != null && range.hasTo(), InventoryTransactionPo::getCreatedAt,
-                        range == null ? null : range.toInclusive())
-                .orderByDesc(InventoryTransactionPo::getId);
+        List<Long> matchedMaterialIds = null;
         if (nameOrCode != null) {
-            List<Long> matchedMaterialIds = matchingMaterialIds(context, nameOrCode);
+            matchedMaterialIds = matchingMaterialIds(context, nameOrCode);
             if (matchedMaterialIds.isEmpty()) {
                 // 关键字没有命中任何物料：空页（total=0），不能下发 IN () 这种非法 SQL。
-                return pageOf(page, pageSize);
+                Page<InventoryTransactionView> empty = new Page<>(window.current(), window.size(), 0L);
+                empty.setRecords(List.of());
+                return empty;
             }
-            query.in(InventoryTransactionPo::getMaterialId, matchedMaterialIds);
         }
-        return transactionMapper.selectPage(pageOf(page, pageSize), query);
+        TransactionPage found = transactionRepository.findPage(TransactionQuery.inStore(
+                context.tenantId(),
+                context.storeId(),
+                materialId,
+                trimmedOrNull(transactionType),
+                trimmedOrNull(sourceType),
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive(),
+                matchedMaterialIds,
+                offsetOf(window),
+                window.size()));
+        Page<InventoryTransactionView> result = new Page<>(window.current(), window.size(), found.total());
+        result.setRecords(found.transactions().stream().map(InventoryTransactionView::from).toList());
+        return result;
     }
 
     private TenantContext context() {
@@ -825,10 +808,21 @@ public class InventoryApplicationService {
     }
 
     /** 归一化分页参数：{@code page < 1} 回落到第 1 页；{@code pageSize} 非正或超上限回落到默认 20。 */
-    private static <T> Page<T> pageOf(long page, long pageSize) {
+    private static PageWindow windowOf(long page, long pageSize) {
         long current = page < 1 ? 1L : page;
         long size = pageSize < 1 || pageSize > MAX_PAGE_SIZE ? DEFAULT_PAGE_SIZE : pageSize;
-        return new Page<>(current, size);
+        return new PageWindow(current, size);
+    }
+
+    /**
+     * 页号 → 端口要的偏移量。
+     *
+     * <p>先把页数夹到 {@code Long.MAX_VALUE / size} 再相乘，避免畸形 {@code page}（如
+     * {@code Long.MAX_VALUE}）造成 long 溢出后下发负偏移（那是非法 SQL）。
+     */
+    private static long offsetOf(PageWindow window) {
+        long maxPagesBefore = Long.MAX_VALUE / window.size();
+        return Math.min(window.current() - 1, maxPagesBefore) * window.size();
     }
 
     /**
@@ -849,48 +843,42 @@ public class InventoryApplicationService {
     }
 
     /**
-     * 解析日期区间端点：**已统一到** {@link TimeRangeParams}（全仓唯一实现），
-     * 本类不再保留私有解析逻辑，避免同一仓出现第二套时间口径。
-     */
-    /**
      * 关键字命中的物料 id（当前租户 + 当前门店，名称或编码模糊）。
      * 流水/成本要按物料名检索，但两张表都没有名称快照：先取 id 集合再 {@code IN}，
      * 两条简单查询即可，不引入联表分页与逐行回查（N+1）。
      */
     private List<Long> matchingMaterialIds(TenantContext context, String nameOrCode) {
-        return materialMapper.selectList(new LambdaQueryWrapper<InventoryMaterialPo>()
-                        .eq(InventoryMaterialPo::getTenantId, context.tenantId())
-                        .eq(InventoryMaterialPo::getStoreId, context.storeId())
-                        .and(wrapper -> wrapper.like(InventoryMaterialPo::getName, nameOrCode)
-                                .or().like(InventoryMaterialPo::getMaterialCode, nameOrCode))
-                        .select(InventoryMaterialPo::getId))
-                .stream().map(InventoryMaterialPo::getId).filter(Objects::nonNull).toList();
+        return materialRepository.findIdsByNameOrCode(context.tenantId(), context.storeId(), nameOrCode);
     }
 
-    /** 批量回填当前页物料的结存/预占数量（一次 {@code IN} 查询）；未建库存行的物料按 0。 */
-    private void fillStockQuantities(TenantContext context, List<InventoryMaterialPo> materials) {
+    /**
+     * 把当前页物料装配成响应视图，并用**一次** {@code IN} 查询批量回填结存/预占数量。
+     *
+     * <p>{@code onHandQty}/{@code reservedQty} 不是 {@code ord_inventory_material} 的列
+     * （见 {@link InventoryMaterialView}）：未建库存行的物料按 0，与 {@link #availableQuantities}
+     * 的「未建行 = 售罄」口径一致。
+     */
+    private List<InventoryMaterialView> decorateWithStock(TenantContext context, List<InventoryMaterial> materials) {
         if (materials.isEmpty()) {
-            return;
+            return List.of();
         }
-        List<Long> materialIds = materials.stream().map(InventoryMaterialPo::getId).filter(Objects::nonNull).toList();
-        Map<Long, InventoryStockPo> stockByMaterial = new HashMap<>();
+        List<Long> materialIds = materials.stream().map(InventoryMaterial::id).filter(Objects::nonNull).toList();
+        Map<Long, InventoryStock> stockByMaterial = new HashMap<>();
         if (!materialIds.isEmpty()) {
-            for (InventoryStockPo stock : stockMapper.selectList(new LambdaQueryWrapper<InventoryStockPo>()
-                    .eq(InventoryStockPo::getTenantId, context.tenantId())
-                    .eq(InventoryStockPo::getStoreId, context.storeId())
-                    .in(InventoryStockPo::getMaterialId, materialIds))) {
-                if (stock.getMaterialId() != null) {
-                    stockByMaterial.put(stock.getMaterialId(), stock);
+            for (InventoryStock stock : stockRepository.findByMaterials(context.tenantId(), context.storeId(), materialIds)) {
+                if (stock.materialId() != null) {
+                    stockByMaterial.put(stock.materialId(), stock);
                 }
             }
         }
-        for (InventoryMaterialPo material : materials) {
-            InventoryStockPo stock = stockByMaterial.get(material.getId());
-            material.setOnHandQty(stock == null || stock.getOnHandQty() == null
-                    ? BigDecimal.ZERO : stock.getOnHandQty());
-            material.setReservedQty(stock == null || stock.getReservedQty() == null
-                    ? BigDecimal.ZERO : stock.getReservedQty());
+        List<InventoryMaterialView> views = new ArrayList<>(materials.size());
+        for (InventoryMaterial material : materials) {
+            InventoryStock stock = stockByMaterial.get(material.id());
+            views.add(InventoryMaterialView.from(material, null,
+                    stock == null ? BigDecimal.ZERO : stock.onHandOrZero(),
+                    stock == null ? BigDecimal.ZERO : stock.reservedQty()));
         }
+        return views;
     }
 
     /** 查询筛选值归一：空白一律当作「未传」，避免用空串去匹配出永远为空的列表。 */
@@ -965,4 +953,7 @@ public class InventoryApplicationService {
 
     /** 一次入库的批次单价与币种（内部取值链结果，不对外暴露）。 */
     private record ReceiptCost(BigDecimal unitCost, String currencyCode) {}
+
+    /** 归一化后的分页窗口（页号 + 每页条数）；只在本类内部使用，端口侧只用「偏移 + 上限」。 */
+    private record PageWindow(long current, long size) {}
 }

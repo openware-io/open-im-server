@@ -24,16 +24,17 @@ import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -41,14 +42,14 @@ import org.mockito.ArgumentCaptor;
 /** KTV 包厢会话状态机：RESERVED → OPEN → PAUSED(可选) → CLOSED（合法与非法转换 + 结台计费）。 */
 class KtvSessionApplicationServiceTest {
 
-  private final KtvSessionMapper sessionMapper = mock(KtvSessionMapper.class);
+  private final KtvSessionRepository sessionRepository = mock(KtvSessionRepository.class);
   private final OrderMapper orderMapper = mock(OrderMapper.class);
   private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
   private final AuditClient auditClient = mock(AuditClient.class);
   private final OrderAmountApplicationService orderAmounts = new OrderAmountApplicationService(orderMapper, orderItemMapper);
   private final KtvSessionApplicationService service = new KtvSessionApplicationService(
-      sessionMapper, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts);
+      sessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts);
 
   /**
    * 订单金额写入走乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
@@ -63,51 +64,51 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void open_transitionsReservedToOpenAndServingOrder() {
-    KtvSessionPo session = session("RESERVED");
+    KtvSession session = session("RESERVED");
     OrderPo order = order("DRAFT");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.open(session.getId(), 0);
+    KtvSession result = service.open(session.id(), 0);
 
-    assertEquals("OPEN", result.getStatus());
-    assertNotNull(result.getOpenedAt());
-    assertEquals("HOUR", result.getBillingUnit());
-    assertEquals(0, result.getFreeWaitMinutes());
-    assertNotNull(result.getBillingStartAt());
-    assertNotNull(result.getBillingRuleSnapshotJson());
+    assertEquals("OPEN", result.status());
+    assertNotNull(result.openedAt());
+    assertEquals("HOUR", result.billingUnit());
+    assertEquals(0, result.freeWaitMinutes());
+    assertNotNull(result.billingStartAt());
+    assertNotNull(result.billingRuleSnapshotJson());
     assertEquals("SERVING", order.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    capturedCas(session.id(), "OPEN");
     verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   @Test
   void open_rejectsNonReservedSession() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("OPEN"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("OPEN")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.open(1L, 0));
 
     assertEquals("ORDER_STATUS_INVALID", ex.getCode());
-    verify(sessionMapper, never()).updateWithVersion(any(KtvSessionPo.class));
+    verify(sessionRepository, never()).updateWithVersion(any(KtvSession.class));
   }
 
   @Test
   void pause_transitionsOpenToPaused() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.pause(session.getId());
+    KtvSession result = service.pause(session.id());
 
-    assertEquals("PAUSED", result.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    assertEquals("PAUSED", result.status());
+    capturedCas(session.id(), "PAUSED");
   }
 
   @Test
   void pause_rejectsNonOpenSession() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("RESERVED"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("RESERVED")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.pause(1L));
 
@@ -116,19 +117,19 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void resume_transitionsPausedToOpen() {
-    KtvSessionPo session = session("PAUSED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("PAUSED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.resume(session.getId());
+    KtvSession result = service.resume(session.id());
 
-    assertEquals("OPEN", result.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    assertEquals("OPEN", result.status());
+    capturedCas(session.id(), "OPEN");
   }
 
   @Test
   void resume_rejectsNonPausedSession() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("OPEN"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("OPEN")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.resume(1L));
 
@@ -141,27 +142,27 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void close_transitionsToClosedAndWritesRoomFeeItem() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(30));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.close(session.getId());
+    KtvSession result = service.close(session.id());
 
-    assertEquals("CLOSED", result.getStatus());
-    assertNotNull(result.getClosedAt());
+    assertEquals("CLOSED", result.status());
+    assertNotNull(result.closedAt());
     assertEquals("WAITING_SETTLEMENT", order.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    capturedCas(session.id(), "CLOSED");
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
     OrderItemPo item = captor.getValue();
     assertEquals("ROOM_FEE", item.getItemType());
     assertEquals(1L, item.getTenantId());
-    assertEquals(session.getOrderId(), item.getOrderId());
+    assertEquals(session.orderId(), item.getOrderId());
     assertEquals(0, new BigDecimal("1500").compareTo(item.getTotalAmount()));
     assertEquals(0, new BigDecimal("1500").compareTo(item.getUnitPrice()));
     assertEquals(0, new BigDecimal("1").compareTo(item.getQuantity()));
@@ -175,15 +176,15 @@ class KtvSessionApplicationServiceTest {
   /** 边界：开台 33 秒结台，让利口径下房费 0 元（而不是旧实现的「1 小时 3000 分」）。 */
   @Test
   void close_chargesNothingForSubMinuteSession() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusSeconds(33));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusSeconds(33));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.close(session.getId());
+    service.close(session.id());
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
@@ -194,15 +195,15 @@ class KtvSessionApplicationServiceTest {
   /** 跨多块进位：方案 3000 分/小时 + 30 分钟递增，95 分钟 → 4 块 = 6000 分。 */
   @Test
   void close_crossesIntoNextIncrementBlock() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(95).minusSeconds(5));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(95).minusSeconds(5));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.close(session.getId());
+    service.close(session.id());
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
@@ -216,20 +217,21 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void liveEstimateMatchesCloseAmount() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
-    session.setBillingRuleSnapshotJson(plan().toSnapshotJson());
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("SERVING"));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
+    session = session.withBillingRuleSnapshotJson(plan().toSnapshotJson());
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("SERVING"));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.fillLiveEstimate(session, 100L);
-    long estimated = session.getEstimatedRoomFee();
+    // 实时计时/实时房费是读投影（不在领域模型上）：统一计费入口 liveEstimate 返回它们。
+    KtvSessionApplicationService.LiveEstimate live = service.liveEstimate(session, 100L);
+    long estimated = live.estimatedRoomFee();
     // 40 分钟 → M=40 → n=ceil(40/30)=2 块 × 1500 = 3000
     assertEquals(3000L, estimated);
 
-    service.close(session.getId());
+    service.close(session.id());
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
     assertEquals(estimated, captor.getValue().getTotalAmount().longValueExact(),
@@ -238,7 +240,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void close_rejectsWhenAlreadyClosed() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("CLOSED"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("CLOSED")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L));
 
@@ -248,8 +250,8 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void open_throwsWhenSessionMissing() {
-    when(sessionMapper.selectById(any())).thenReturn(null);
-    when(sessionMapper.selectTenantIdById(any())).thenReturn(null);
+    when(sessionRepository.findById(any())).thenReturn(Optional.empty());
+    when(sessionRepository.findTenantIdById(any())).thenReturn(null);
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.open(1L, 0));
 
@@ -258,8 +260,8 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void open_throwsForbiddenWhenCrossTenant() {
-    when(sessionMapper.selectById(any())).thenReturn(null);
-    when(sessionMapper.selectTenantIdById(any())).thenReturn(99L);
+    when(sessionRepository.findById(any())).thenReturn(Optional.empty());
+    when(sessionRepository.findTenantIdById(any())).thenReturn(99L);
 
     ApiException ex = assertThrows(ApiException.class, () -> service.open(1L, 0));
 
@@ -269,31 +271,29 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void create_insertsReservedSession() {
-    when(sessionMapper.insert(any(KtvSessionPo.class))).thenAnswer(inv -> {
-      KtvSessionPo po = inv.getArgument(0);
-      po.setId(42L);
-      return 1;
-    });
+    // 记录不可变：适配器把生成的主键回填进「返回的聚合」，而不是就地改入参。
+    when(sessionRepository.insert(any(KtvSession.class)))
+        .thenAnswer(inv -> ((KtvSession) inv.getArgument(0)).withId(42L));
 
-    KtvSessionPo result = service.create(1L, 10L, 3001L);
+    KtvSession result = service.create(1L, 10L, 3001L);
 
-    assertEquals("RESERVED", result.getStatus());
-    assertEquals(1L, result.getTenantId());
-    assertEquals(10L, result.getOrderId());
-    assertEquals(3001L, result.getRoomResourceId());
-    assertEquals(42L, result.getId());
+    assertEquals("RESERVED", result.status());
+    assertEquals(1L, result.tenantId());
+    assertEquals(10L, result.orderId());
+    assertEquals(3001L, result.roomResourceId());
+    assertEquals(42L, result.id());
   }
 
   @Test
   void cancel_transitionsReservedToCancelled() {
-    KtvSessionPo session = session("RESERVED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("RESERVED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.cancel(session.getId());
+    KtvSession result = service.cancel(session.id());
 
-    assertEquals("CANCELLED", result.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    assertEquals("CANCELLED", result.status());
+    capturedCas(session.id(), "CANCELLED");
   }
 
   /**
@@ -302,19 +302,19 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void cancelByOrder_cancelsOpenSessionAndReleasesOccupation() {
-    KtvSessionPo session = session("OPEN");
-    session.setOccupationId(77L);
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectByOrderId(session.getOrderId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("OPEN");
+    session = session.withOccupationId(77L);
+    session = session.withRoomResourceId(3001L);
+    when(sessionRepository.findLatestByOrderId(session.orderId())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    KtvSessionPo cancelled = withResource.cancelByOrder(session.getOrderId());
+    KtvSession cancelled = withResource.cancelByOrder(session.orderId());
 
-    assertEquals("CANCELLED", cancelled.getStatus());
-    verify(sessionMapper).updateWithVersion(session);
+    assertEquals("CANCELLED", cancelled.status());
+    capturedCas(session.id(), "CANCELLED");
     verify(resourceClient).release(77L);
     verify(resourceClient, never()).cancel(any());
   }
@@ -322,17 +322,17 @@ class KtvSessionApplicationServiceTest {
   /** RESERVED（未开台）会话的占用还是预占：用 cancel 语义释放，避免把未开始的占用标成已用。 */
   @Test
   void cancelByOrder_cancelsReservedSessionWithCancelSemantics() {
-    KtvSessionPo session = session("RESERVED");
-    session.setOccupationId(88L);
-    when(sessionMapper.selectByOrderId(session.getOrderId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("RESERVED");
+    session = session.withOccupationId(88L);
+    when(sessionRepository.findLatestByOrderId(session.orderId())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    KtvSessionPo cancelled = withResource.cancelByOrder(session.getOrderId());
+    KtvSession cancelled = withResource.cancelByOrder(session.orderId());
 
-    assertEquals("CANCELLED", cancelled.getStatus());
+    assertEquals("CANCELLED", cancelled.status());
     verify(resourceClient).cancel(88L);
     verify(resourceClient, never()).release(any());
   }
@@ -340,75 +340,74 @@ class KtvSessionApplicationServiceTest {
   /** 已结台/已取消的会话视为已终结：不重复释放、不重复留痕（订单取消因此天然幂等）。 */
   @Test
   void cancelByOrder_isNoOpForTerminalSession() {
-    when(sessionMapper.selectByOrderId(10L)).thenReturn(session("CLOSED"));
+    when(sessionRepository.findLatestByOrderId(10L)).thenReturn(Optional.of(session("CLOSED")));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
     assertNull(withResource.cancelByOrder(10L));
 
-    verify(sessionMapper, never()).updateWithVersion(any());
+    verify(sessionRepository, never()).updateWithVersion(any());
     verifyNoInteractions(resourceClient, auditClient);
   }
 
   /** 订单没有包厢会话（如纯商品订单）：返回 null，不抛异常。 */
   @Test
   void cancelByOrder_isNoOpWithoutSession() {
-    when(sessionMapper.selectByOrderId(10L)).thenReturn(null);
+    when(sessionRepository.findLatestByOrderId(10L)).thenReturn(Optional.empty());
 
     assertNull(service.cancelByOrder(10L));
 
-    verify(sessionMapper, never()).updateWithVersion(any());
+    verify(sessionRepository, never()).updateWithVersion(any());
     verifyNoInteractions(auditClient);
   }
 
   /** 开台登记人数：写入会话（订单列表/房态看板据此展示「人数」）。 */
   @Test
   void open_recordsPartySize() {
-    KtvSessionPo session = session("RESERVED");
+    KtvSession session = session("RESERVED");
     OrderPo order = order("DRAFT");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    KtvSessionPo result = service.open(session.getId(), 0, 8);
+    KtvSession result = service.open(session.id(), 0, 8);
 
-    assertEquals(8, result.getPartySize());
-    verify(sessionMapper).updateWithVersion(session);
+    assertEquals(8, result.partySize());
+    capturedCas(session.id(), "OPEN");
   }
 
   /** 人数超过包厢容量：400，且不得登记占用、不得推进会话（否则会留下「没开台却占用」的幽灵记录）。 */
   @Test
   void open_rejectsPartySizeAboveRoomCapacityBeforeOccupying() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED").withRoomResourceId(3001L);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.getId(), 0, 13));
+    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.id(), 0, 13));
 
     assertEquals(400, ex.getStatus());
     assertEquals("PARTY_SIZE_INVALID", ex.getCode());
     verify(resourceClient, never()).occupy(any(), any(), any(), any(), any());
-    verify(sessionMapper, never()).updateWithVersion(any(KtvSessionPo.class));
+    verify(sessionRepository, never()).updateWithVersion(any(KtvSession.class));
   }
 
   @Test
   void open_rejectsNonPositivePartySize() {
-    KtvSessionPo session = session("RESERVED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
 
-    ApiException ex = assertThrows(ApiException.class, () -> service.open(session.getId(), 0, 0));
+    ApiException ex = assertThrows(ApiException.class, () -> service.open(session.id(), 0, 0));
 
     assertEquals(400, ex.getStatus());
     assertEquals("PARTY_SIZE_INVALID", ex.getCode());
-    verify(sessionMapper, never()).updateWithVersion(any(KtvSessionPo.class));
+    verify(sessionRepository, never()).updateWithVersion(any(KtvSession.class));
   }
 
   /**
@@ -417,41 +416,39 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void open_rejectsCleaningRoomBeforeOccupying() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED").withRoomResourceId(3001L);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L)).thenReturn(
         new ResourceStateClient.RoomState(false, "CLEANING", "清洁中", "VIP 01"));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.getId(), 0, 4));
+    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.id(), 0, 4));
 
     assertEquals(409, ex.getStatus());
     assertEquals("ROOM_UNAVAILABLE", ex.getCode());
     assertTrue(ex.getMessage().contains("清洁中"), ex.getMessage());
     verify(resourceClient, never()).occupy(any(), any(), any(), any(), any());
-    verify(sessionMapper, never()).updateWithVersion(any(KtvSessionPo.class));
+    verify(sessionRepository, never()).updateWithVersion(any(KtvSession.class));
   }
 
   /** 已被其它会话占用的包厢同样拒绝开台（占用门禁与占用法冲突判定同一口径）。 */
   @Test
   void open_rejectsOccupiedRoomBeforeOccupying() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED").withRoomResourceId(3001L);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L)).thenReturn(
         new ResourceStateClient.RoomState(false, "OCCUPIED", "使用中", "VIP 01"));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.getId(), 0, 4));
+    ApiException ex = assertThrows(ApiException.class, () -> withResource.open(session.id(), 0, 4));
 
     assertEquals("ROOM_UNAVAILABLE", ex.getCode());
     verify(resourceClient, never()).occupy(any(), any(), any(), any(), any());
@@ -460,18 +457,17 @@ class KtvSessionApplicationServiceTest {
   /** 房态服务不可达：fail-closed（不降级开台），否则会出现「订单开台了、房态不知道」的重复开台。 */
   @Test
   void open_failsClosedWhenRoomStateUnavailable() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED").withRoomResourceId(3001L);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L))
         .thenThrow(new BusinessException("RESOURCE_STATE_UNAVAILABLE", "房态服务暂时不可用"));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    BusinessException ex = assertThrows(BusinessException.class, () -> withResource.open(session.getId(), 0, 4));
+    BusinessException ex = assertThrows(BusinessException.class, () -> withResource.open(session.id(), 0, 4));
 
     assertEquals("RESOURCE_STATE_UNAVAILABLE", ex.getCode());
     verify(resourceClient, never()).occupy(any(), any(), any(), any(), any());
@@ -483,13 +479,18 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void open_appliesRoomTypePriceAndFreezesItInSnapshots() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
+    // 用「一行存储」模拟数据库：CAS 写回会更新这一行，后续读取拿到的是写后的值。
+    // （迁移前靠持久化对象就地 setter + mock 返回同一引用来模拟；记录不可变后必须显式建模，
+    //  否则后面的 close 会读到开台前的 RESERVED 行。）
+    KtvSession[] stored = { session(1L, 10L, "RESERVED").withRoomResourceId(3001L) };
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(1L)).thenAnswer(inv -> Optional.of(stored[0]));
+    when(orderMapper.selectById(10L)).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenAnswer(inv -> {
+      stored[0] = inv.getArgument(0);
+      return true;
+    });
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     // 房型 VIP 房费 20000 分/小时、服务人员 6000 分/小时；包厢容量 12
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
@@ -497,15 +498,15 @@ class KtvSessionApplicationServiceTest {
         new ResourceStateClient.RoomState(true, "IDLE", null, "VIP 01"));
     when(resourceClient.occupy(eq(3001L), eq("ORDER"), eq(10L), any(), any()))
         .thenReturn(java.util.Optional.of(99L));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    KtvSessionPo opened = withResource.open(session.getId(), 0, 6);
+    KtvSession opened = withResource.open(1L, 0, 6);
 
-    assertEquals(99L, opened.getOccupationId());
-    assertEquals("VIP 01", opened.getRoomNameSnapshot());
-    assertEquals("V01", opened.getRoomCodeSnapshot());
-    String snapshot = opened.getBillingRuleSnapshotJson();
+    assertEquals(99L, opened.occupationId());
+    assertEquals("VIP 01", opened.roomNameSnapshot());
+    assertEquals("V01", opened.roomCodeSnapshot());
+    String snapshot = opened.billingRuleSnapshotJson();
     assertTrue(snapshot.contains("\"roomTypeCode\":\"VIP\""), snapshot);
     assertTrue(snapshot.contains("\"roomTypeName\":\"VIP 大包\""), snapshot);
     assertTrue(snapshot.contains("\"roomUnitPrice\":20000"), snapshot);
@@ -528,8 +529,8 @@ class KtvSessionApplicationServiceTest {
     when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of(openedItem));
 
     // 结台：30 分钟 → 1 块 → 10000 分（房型价），明细快照保留房型与生效单价
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(30));
-    withResource.close(session.getId());
+    stored[0] = stored[0].withBillingStartAt(LocalDateTime.now().minusMinutes(30));
+    withResource.close(1L);
 
     verify(orderItemMapper, times(1)).insert(any(OrderItemPo.class));
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
@@ -547,24 +548,23 @@ class KtvSessionApplicationServiceTest {
   /** 房型未定价：开台回退门店级单价，但快照仍记录用的是哪个房型（账单可解释）。 */
   @Test
   void open_fallsBackToStorePriceWhenRoomTypeIsNotPriced() {
-    KtvSessionPo session = session("RESERVED");
-    session.setRoomResourceId(3001L);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED").withRoomResourceId(3001L);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(
         new ResourceStateClient.RoomSnapshot("VIP 01", "V01", 12, "SMALL", "小包", null, null)));
     when(resourceClient.requireState(3001L)).thenReturn(
         new ResourceStateClient.RoomState(true, "IDLE", null, "VIP 01"));
     when(resourceClient.occupy(any(), any(), any(), any(), any())).thenReturn(java.util.Optional.of(99L));
-    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, resourceClient);
 
-    KtvSessionPo opened = withResource.open(session.getId(), 0, null);
+    KtvSession opened = withResource.open(session.id(), 0, null);
 
-    String snapshot = opened.getBillingRuleSnapshotJson();
+    String snapshot = opened.billingRuleSnapshotJson();
     assertTrue(snapshot.contains("\"roomTypeCode\":\"SMALL\""), snapshot);
     assertTrue(snapshot.contains("\"roomUnitPrice\":3000"), snapshot);
     assertTrue(snapshot.contains("\"roomTypePriceApplied\":false"), snapshot);
@@ -582,15 +582,15 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void close_chargesCombinedBaseWhenPlanIncludesServer() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(31));
-    session.setBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(31));
+    session = session.withBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.close(session.getId());
+    service.close(session.id());
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
@@ -608,18 +608,18 @@ class KtvSessionApplicationServiceTest {
   /** 存量会话不追溯：历史快照没有 combinedUnitPrice/roomFeeIncludesServer 时仍只按房型价计。 */
   @Test
   void close_doesNotRetroChargeLegacySnapshotWithoutCombinedUnitPrice() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(31));
-    session.setBillingRuleSnapshotJson("{\"billingUnit\":\"HOUR\",\"roomUnitPrice\":3000,"
-        + "\"roomPricePerIncrement\":1500,\"defaultSessionMinutes\":120,\"freeWaitMinutes\":0,"
-        + "\"overtimeRate\":1.5,\"incrementMinutes\":30,\"roundingDirection\":\"CONSUMER_FAVOR\","
-        + "\"serverPricePerInc\":2500}");
+    KtvSession session = session("OPEN")
+        .withBillingStartAt(LocalDateTime.now().minusMinutes(31))
+        .withBillingRuleSnapshotJson("{\"billingUnit\":\"HOUR\",\"roomUnitPrice\":3000,"
+            + "\"roomPricePerIncrement\":1500,\"defaultSessionMinutes\":120,\"freeWaitMinutes\":0,"
+            + "\"overtimeRate\":1.5,\"incrementMinutes\":30,\"roundingDirection\":\"CONSUMER_FAVOR\","
+            + "\"serverPricePerInc\":2500}");
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.close(session.getId());
+    service.close(session.id());
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
@@ -635,19 +635,19 @@ class KtvSessionApplicationServiceTest {
   /** 新口径下「预估 == 结台」这条既有约束继续成立（两边同一基数）。 */
   @Test
   void liveEstimateMatchesCombinedCloseAmount() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
-    session.setBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("SERVING"));
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
+    session = session.withBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("SERVING"));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.fillLiveEstimate(session, 100L);
-    long estimated = session.getEstimatedRoomFee();
+    KtvSessionApplicationService.LiveEstimate live = service.liveEstimate(session, 100L);
+    long estimated = live.estimatedRoomFee();
     // 40 分钟 → 2 块 × 4000 = 8000
     assertEquals(8000L, estimated);
 
-    service.close(session.getId());
+    service.close(session.id());
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
     assertEquals(estimated, captor.getValue().getTotalAmount().longValueExact(),
@@ -680,21 +680,21 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void openWritesRoomFeeItemAndRecalculatesOrder() {
-    KtvSessionPo session = session("RESERVED");
+    KtvSession session = session("RESERVED");
     OrderPo order = order("DRAFT");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.open(session.getId(), 0, 2);
+    service.open(session.id(), 0, 2);
 
     ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
     verify(orderItemMapper).insert(captor.capture());
     OrderItemPo item = captor.getValue();
     assertEquals("ROOM_FEE", item.getItemType());
     assertEquals("ACTIVE", item.getStatus());
-    assertEquals(session.getOrderId(), item.getOrderId());
+    assertEquals(session.orderId(), item.getOrderId());
     assertEquals(1L, item.getTenantId());
     verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
     assertEquals("SERVING", order.getStatus());
@@ -706,11 +706,11 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void refreshOpenRoomFeesRepairsMissingRoomFeeItem() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(60));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(60));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectOpenSessions()).thenReturn(List.of(session));
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     // 存量订单：库里还没有房费明细（mock 的 selectList 缺省空列表）
     when(orderItemMapper.selectList(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
@@ -731,14 +731,14 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void refreshOpenRoomFeesSetsTenantContextPerSession() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(60));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(60));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectOpenSessions()).thenReturn(List.of(session));
+    when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
     when(orderItemMapper.selectList(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     java.util.List<Long> tenantSeenByMapper = new java.util.ArrayList<>();
-    when(orderMapper.selectById(session.getOrderId())).thenAnswer(invocation -> {
+    when(orderMapper.selectById(session.orderId())).thenAnswer(invocation -> {
       tenantSeenByMapper.add(TenantContextHolder.tenantIdOrNull());
       return order;
     });
@@ -758,12 +758,12 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void refreshOpenRoomFeesStopsAtPauseStartedAtForPausedSession() {
-    KtvSessionPo session = session("PAUSED");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(150));
-    session.setPauseStartedAt(LocalDateTime.now().minusMinutes(120));
+    KtvSession session = session("PAUSED");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(150));
+    session = session.withPauseStartedAt(LocalDateTime.now().minusMinutes(120));
     OrderPo order = order("SERVING");
-    when(sessionMapper.selectOpenSessions()).thenReturn(List.of(session));
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(orderItemMapper.selectList(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
@@ -784,55 +784,45 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void listByOrderIdsPrefersCurrentSessionWhenOrderWasOpenedMoreThanOnce() {
-    KtvSessionPo olderClosed = session("CLOSED");
-    olderClosed.setId(11L);
-    olderClosed.setOrderId(88L);
-    KtvSessionPo currentOpen = session("OPEN");
-    currentOpen.setId(12L);
-    currentOpen.setOrderId(88L);
-    when(sessionMapper.selectList(any())).thenReturn(List.of(olderClosed, currentOpen));
+    KtvSession olderClosed = session(11L, 88L, "CLOSED");
+    KtvSession currentOpen = session(12L, 88L, "OPEN");
+    when(sessionRepository.listByOrderIds(any())).thenReturn(List.of(olderClosed, currentOpen));
 
     var byOrder = service.listByOrderIds(List.of(88L));
 
-    assertEquals(12L, byOrder.get(88L).getId(), "有进行中的会话时必须取进行中的那一次");
+    assertEquals(12L, byOrder.get(88L).id(), "有进行中的会话时必须取进行中的那一次");
   }
 
   /** 都是已结束会话时取更晚创建（id 更大）的那条，而不是列表里的第一条。 */
   @Test
   void listByOrderIdsPrefersLatestAmongFinishedSessions() {
-    KtvSessionPo first = session("CLOSED");
-    first.setId(21L);
-    first.setOrderId(99L);
-    KtvSessionPo second = session("CLOSED");
-    second.setId(22L);
-    second.setOrderId(99L);
-    when(sessionMapper.selectList(any())).thenReturn(List.of(first, second));
+    KtvSession first = session(21L, 99L, "CLOSED");
+    KtvSession second = session(22L, 99L, "CLOSED");
+    when(sessionRepository.listByOrderIds(any())).thenReturn(List.of(first, second));
 
-    assertEquals(22L, service.listByOrderIds(List.of(99L)).get(99L).getId());
+    assertEquals(22L, service.listByOrderIds(List.of(99L)).get(99L).id());
   }
 
   /** 待开台（RESERVED）比已结束会话更「当前」：预约刚开出来的新一次消费不能被旧的已结台会话盖掉。 */
   @Test
   void listByOrderIdsPrefersReservedOverFinishedSession() {
-    KtvSessionPo closed = session("CLOSED");
-    closed.setId(31L);
-    closed.setOrderId(77L);
-    KtvSessionPo reserved = session("RESERVED");
-    reserved.setId(30L);
-    reserved.setOrderId(77L);
-    when(sessionMapper.selectList(any())).thenReturn(List.of(closed, reserved));
+    KtvSession closed = session(31L, 77L, "CLOSED");
+    KtvSession reserved = session(30L, 77L, "RESERVED");
+    when(sessionRepository.listByOrderIds(any())).thenReturn(List.of(closed, reserved));
 
-    assertEquals(30L, service.listByOrderIds(List.of(77L)).get(77L).getId());
+    assertEquals(30L, service.listByOrderIds(List.of(77L)).get(77L).id());
   }
 
-  private static KtvSessionPo session(String status) {
-    KtvSessionPo po = new KtvSessionPo();
-    po.setId(1L);
-    po.setTenantId(1L);
-    po.setOrderId(10L);
-    po.setStatus(status);
-    po.setPausedSeconds(0);
-    return po;
+  /** 会话夹具（领域模型不可变：工厂建 RESERVED 再回填主键/订单/状态；id=1、订单 10 为默认值）。 */
+  private static KtvSession session(String status) {
+    return session(1L, 10L, status);
+  }
+
+  /** 指定主键与订单的会话夹具（多会话/多次开台的挑选规则用例需要）。 */
+  private static KtvSession session(long id, long orderId, String status) {
+    return KtvSession.reserved(1L, null, null, orderId, null, null, null)
+        .withId(id)
+        .withStatus(status);
   }
   private static OrderPo order(String status) {
     OrderPo po = new OrderPo();
@@ -851,18 +841,18 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void closeAutoSettlesOrderWhenNoPendingCustomerItems() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(30));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
     OrderPo order = order("SERVING");
     SettlementApplicationService settlement = mock(SettlementApplicationService.class);
-    KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, null, settlement);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    serviceWithSettle.close(session.getId());
+    serviceWithSettle.close(session.id());
 
     // 自动结台必须带上**订单金额写入之后**的版本：金额写入本身会自增版本，
     // 传写入前的版本会让结算的乐观锁条件永远不成立（或更糟，误判成他人已改）。
@@ -876,20 +866,20 @@ class KtvSessionApplicationServiceTest {
    */
   @Test
   void closeKeepsWaitingSettlementWhenCustomerItemsPendingApproval() {
-    KtvSessionPo session = session("OPEN");
-    session.setBillingStartAt(LocalDateTime.now().minusMinutes(30));
+    KtvSession session = session("OPEN");
+    session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
     OrderPo order = order("SERVING");
     OrderAmountApplicationService amounts = mock(OrderAmountApplicationService.class);
     when(amounts.hasPendingApprovalItems(order.getId())).thenReturn(true);
     SettlementApplicationService settlement = mock(SettlementApplicationService.class);
-    KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionMapper, orderMapper,
+    KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, amounts, null, settlement);
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order);
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order);
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    serviceWithSettle.close(session.getId());
+    serviceWithSettle.close(session.id());
 
     verifyNoInteractions(settlement);
     assertEquals("WAITING_SETTLEMENT", order.getStatus());
@@ -906,13 +896,13 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void open_writesSucceededAudit() {
-    KtvSessionPo session = session("RESERVED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(orderMapper.selectById(session.getOrderId())).thenReturn(order("DRAFT"));
+    KtvSession session = session("RESERVED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.open(session.getId(), 0);
+    service.open(session.id(), 0);
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.ktv_session.open", record.action());
@@ -922,7 +912,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void open_writesFailureAuditWithStableErrorCode() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("OPEN"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("OPEN")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.open(1L, 0));
 
@@ -938,7 +928,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void close_writesFailureAuditWithStableErrorCode() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("RESERVED"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("RESERVED")));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L));
 
@@ -951,11 +941,11 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void pause_writesSucceededAudit() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.pause(session.getId());
+    service.pause(session.id());
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.ktv_session.pause", record.action());
@@ -965,7 +955,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void pause_writesFailureAudit() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("RESERVED"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("RESERVED")));
 
     assertThrows(BusinessException.class, () -> service.pause(1L));
 
@@ -977,11 +967,11 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void resume_writesSucceededAudit() {
-    KtvSessionPo session = session("PAUSED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("PAUSED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.resume(session.getId());
+    service.resume(session.id());
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.ktv_session.resume", record.action());
@@ -991,7 +981,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void resume_writesFailureAudit() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("OPEN"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("OPEN")));
 
     assertThrows(BusinessException.class, () -> service.resume(1L));
 
@@ -1003,11 +993,11 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void cancel_writesSucceededAudit() {
-    KtvSessionPo session = session("RESERVED");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("RESERVED");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.cancel(session.getId());
+    service.cancel(session.id());
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.ktv_session.cancel", record.action());
@@ -1017,7 +1007,7 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void cancel_writesFailureAudit() {
-    when(sessionMapper.selectById(1L)).thenReturn(session("OPEN"));
+    when(sessionRepository.findById(1L)).thenReturn(Optional.of(session("OPEN")));
 
     assertThrows(BusinessException.class, () -> service.cancel(1L));
 
@@ -1029,12 +1019,18 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void transfer_writesSucceededAudit() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.transferRoom(session)).thenReturn(1);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    // 转台提交的是「换过包厢的新实例」（记录不可变），桩只能按类型匹配；
+    // 「提交的确实换了包厢」由下面的实参断言保证。
+    when(sessionRepository.transferRoom(any())).thenReturn(true);
 
-    service.transfer(session.getId(), 3002L);
+    service.transfer(session.id(), 3002L);
 
+    ArgumentCaptor<KtvSession> cas = ArgumentCaptor.forClass(KtvSession.class);
+    verify(sessionRepository).transferRoom(cas.capture());
+    assertEquals(session.id(), cas.getValue().id(), "转台 CAS 必须落在同一条会话上");
+    assertEquals(3002L, cas.getValue().roomResourceId(), "转台 CAS 必须带上目标包厢");
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.transfer", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
@@ -1042,11 +1038,12 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void transfer_writesFailureAudit() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.transferRoom(session)).thenReturn(0);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    // 受影响 0 行 = 并发冲突：端口返回 false，服务必须转成 SESSION_VERSION_CONFLICT（不得静默成功）。
+    when(sessionRepository.transferRoom(any())).thenReturn(false);
 
-    BusinessException ex = assertThrows(BusinessException.class, () -> service.transfer(session.getId(), 3002L));
+    BusinessException ex = assertThrows(BusinessException.class, () -> service.transfer(session.id(), 3002L));
 
     assertEquals("SESSION_VERSION_CONFLICT", ex.getCode());
     AuditClient.AuditRecord record = capturedAudit();
@@ -1057,11 +1054,11 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void correctPause_writesSucceededAudit() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
-    when(sessionMapper.updateWithVersion(any())).thenReturn(1);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
+    when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
-    service.correctPause(session.getId(), 60);
+    service.correctPause(session.id(), 60);
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("order.ktv_session.correct_pause", record.action());
@@ -1070,10 +1067,10 @@ class KtvSessionApplicationServiceTest {
 
   @Test
   void correctPause_writesFailureAudit() {
-    KtvSessionPo session = session("OPEN");
-    when(sessionMapper.selectById(session.getId())).thenReturn(session);
+    KtvSession session = session("OPEN");
+    when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
 
-    ApiException ex = assertThrows(ApiException.class, () -> service.correctPause(session.getId(), -1));
+    ApiException ex = assertThrows(ApiException.class, () -> service.correctPause(session.id(), -1));
 
     assertEquals("AMOUNT_INVALID", ex.getCode());
     AuditClient.AuditRecord record = capturedAudit();
@@ -1085,6 +1082,18 @@ class KtvSessionApplicationServiceTest {
   private AuditClient.AuditRecord capturedAudit() {
     ArgumentCaptor<AuditClient.AuditRecord> captor = ArgumentCaptor.forClass(AuditClient.AuditRecord.class);
     verify(auditClient).recordAsync(captor.capture());
+    return captor.getValue();
+  }
+
+  /**
+   * CAS 提交的实参断言：服务提交给端口的是「改过状态的新实例」（记录不可变），
+   * 因此不能再按同一引用断言；这里钉住「同一条会话 + 推进后的状态」，语义比原来更强。
+   */
+  private KtvSession capturedCas(long expectedId, String expectedStatus) {
+    ArgumentCaptor<KtvSession> captor = ArgumentCaptor.forClass(KtvSession.class);
+    verify(sessionRepository).updateWithVersion(captor.capture());
+    assertEquals(expectedId, captor.getValue().id(), "CAS 必须落在同一条会话上");
+    assertEquals(expectedStatus, captor.getValue().status(), "CAS 必须是推进后的状态");
     return captor.getValue();
   }
 }

@@ -1,9 +1,11 @@
 package io.openware.platform.order.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.application.ReservationApplicationService;
+import io.openware.platform.order.domain.reservation.model.Reservation;
+import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.po.ReservationPo;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -58,7 +61,7 @@ class ReservationControllerWebTest {
     @Test
     void getReturns200() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.view")));
-        when(reservationService.get(1L)).thenReturn(new ReservationPo());
+        when(reservationService.get(1L)).thenReturn(reservationView());
         mvc.perform(get("/business/reservations/1")).andExpect(status().isOk());
     }
 
@@ -67,7 +70,7 @@ class ReservationControllerWebTest {
     void createUsesSelectedStoreContextAndRoomType() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.create")));
         when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(99L);
-        when(reservationService.create(eq(7L), any(), any())).thenReturn(new ReservationPo());
+        when(reservationService.create(eq(7L), any(), any())).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/business/reservations")
                 .contentType("application/json")
@@ -85,7 +88,7 @@ class ReservationControllerWebTest {
     void createIgnoresForgedStoreId() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.create")));
         when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(99L);
-        when(reservationService.create(eq(7L), any(), any())).thenReturn(new ReservationPo());
+        when(reservationService.create(eq(7L), any(), any())).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/business/reservations")
                 .contentType("application/json")
@@ -120,7 +123,7 @@ class ReservationControllerWebTest {
     @Test
     void assignRoomForwardsResourceAndOverride() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.arrival")));
-        when(reservationService.assignRoom(9L, 3001L, true)).thenReturn(new ReservationPo());
+        when(reservationService.assignRoom(9L, 3001L, true)).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                 .post("/business/reservations/9/assign-room")
@@ -148,7 +151,7 @@ class ReservationControllerWebTest {
     @Test
     void noShowForwardsToService() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.arrival")));
-        when(reservationService.noShow(9L)).thenReturn(new ReservationPo());
+        when(reservationService.noShow(9L)).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                 .post("/business/reservations/9/no-show"))
@@ -164,7 +167,7 @@ class ReservationControllerWebTest {
     @Test
     void cancelRequiresReservationCancelPermissionAndForwardsReason() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.cancel")));
-        when(reservationService.cancel(9L, "客人临时有事")).thenReturn(new ReservationPo());
+        when(reservationService.cancel(9L, "客人临时有事")).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                 .post("/business/reservations/9/cancel")
@@ -185,5 +188,15 @@ class ReservationControllerWebTest {
 
         assertEquals(403, ex.getStatus());
         assertEquals("PERMISSION_DENIED", ex.getCode());
+    }
+
+    /**
+     * 响应现在是 {@link ReservationView}（字段名与原持久化对象一致）：本测试只关心 Web 层接线，
+     * 因此用一个最小聚合装配视图（展示字段留空，由读路径回填）。
+     */
+    private static ReservationView reservationView() {
+        return ReservationView.from(new Reservation(1L, 7L, 8L, "R202609190001", null, 99L, "KTV", null, 55L,
+                LocalDateTime.of(2026, 9, 18, 20, 0), LocalDateTime.of(2026, 9, 18, 22, 0), 4, null,
+                ReservationStatus.PENDING, null, null, 0), null);
     }
 }

@@ -4,9 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,11 +41,11 @@ import java.util.Set;
 @RequestMapping("/reports")
 public class ReportController {
     private final OrderMapper orderMapper;
-    private final KtvSessionMapper ktvSessionMapper;
+    private final KtvSessionRepository ktvSessionRepository;
 
-    public ReportController(OrderMapper orderMapper, KtvSessionMapper ktvSessionMapper) {
+    public ReportController(OrderMapper orderMapper, KtvSessionRepository ktvSessionRepository) {
         this.orderMapper = orderMapper;
-        this.ktvSessionMapper = ktvSessionMapper;
+        this.ktvSessionRepository = ktvSessionRepository;
     }
 
     /** 经营报表：按「门店 + 币种」聚合订单数、应收、实收（跨币种不合并，逐币种一行）。 */
@@ -77,30 +77,30 @@ public class ReportController {
     @GetMapping("/resource-utilization")
     public Map<String, Object> resourceUtilization(@RequestParam LocalDate businessDate) {
         Long tenantId = requireTenant();
-        List<KtvSessionPo> sessions = ktvSessionMapper.selectList(new LambdaQueryWrapper<KtvSessionPo>()
-                .eq(KtvSessionPo::getTenantId, tenantId)
-                .ge(KtvSessionPo::getOpenedAt, businessDate.atStartOfDay())
-                .lt(KtvSessionPo::getOpenedAt, businessDate.plusDays(1).atStartOfDay()));
+        // 时间条件是半开区间 [当天起点, 次日起点)：直接落在 opened_at 列上，不用函数包裹（索引可用）。
+        List<KtvSession> sessions = ktvSessionRepository.findOpenedBetween(tenantId,
+                businessDate.atStartOfDay(), businessDate.plusDays(1).atStartOfDay());
         Map<Long, long[]> byRoom = new LinkedHashMap<>();
-        Map<Long, KtvSessionPo> latestSession = new LinkedHashMap<>();
-        for (KtvSessionPo s : sessions) {
-            long seconds = s.getOpenedAt() != null && s.getClosedAt() != null
-                    ? java.time.Duration.between(s.getOpenedAt(), s.getClosedAt()).getSeconds() : 0L;
-            byRoom.merge(s.getRoomResourceId(), new long[]{seconds, 1}, (a, b) -> { a[0] += b[0]; a[1] += b[1]; return a; });
-            latestSession.merge(s.getRoomResourceId(), s, (a, b) ->
-                    a.getId() != null && b.getId() != null && b.getId() > a.getId() ? b : a);
+        Map<Long, KtvSession> latestSession = new LinkedHashMap<>();
+        for (KtvSession s : sessions) {
+            long seconds = s.openedAt() != null && s.closedAt() != null
+                    ? java.time.Duration.between(s.openedAt(), s.closedAt()).getSeconds() : 0L;
+            byRoom.merge(s.roomResourceId(), new long[]{seconds, 1},
+                    (a, b) -> { a[0] += b[0]; a[1] += b[1]; return a; });
+            latestSession.merge(s.roomResourceId(), s, (a, b) ->
+                    a.id() != null && b.id() != null && b.id() > a.id() ? b : a);
         }
         List<Map<String, Object>> rows = new ArrayList<>();
         byRoom.forEach((roomId, v) -> {
-            KtvSessionPo latest = latestSession.get(roomId);
+            KtvSession latest = latestSession.get(roomId);
             // 可变 Map：partySize/serverName 允许为 null（Map.of 不接受 null 值）。
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("roomResourceId", roomId);
             row.put("occupiedSeconds", v[0]);
             row.put("turnover", v[1]);
-            row.put("partySize", latest == null ? null : latest.getPartySize());
-            row.put("serverId", latest == null ? null : latest.getServerId());
-            row.put("serverName", latest == null ? null : latest.getServerName());
+            row.put("partySize", latest == null ? null : latest.partySize());
+            row.put("serverId", latest == null ? null : latest.serverId());
+            row.put("serverName", latest == null ? null : latest.serverName());
             rows.add(row);
         });
         return Map.of("businessDate", businessDate.toString(), "asOf", OffsetDateTime.now().toString(),

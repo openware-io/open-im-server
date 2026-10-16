@@ -77,19 +77,14 @@ public record InventoryTransaction(
   /** 作废回补（入库方向，按原出库单价还原成本）。 */
   public static final String TYPE_REVERSE = "REVERSE";
 
-  /** 是否入库方向（其余 RECEIPT/ADJUST_IN/REVERSE 之外的类型按出库处理）。 */
-  public boolean inbound() {
+  /**
+   * 是否入库方向（RECEIPT / ADJUST_IN / REVERSE），其余类型按出库处理。
+   *
+   * <p>静态方法：应用层在**创建流水之前**就要按类型串选择「原子加」还是「原子条件扣减」，
+   * 此时还没有实例。规则放在领域类型上，避免应用层和模型各存一份判断。
+   */
+  public static boolean inbound(String transactionType) {
     return TYPE_RECEIPT.equals(transactionType) || TYPE_ADJUST_IN.equals(transactionType)
         || TYPE_REVERSE.equals(transactionType);
-  }
-
-  /**
-   * 逐字段核对过：本记录与 {@code ord_inventory_transaction} 的真实列一一对应（无展示字段）。
-   *
-   * <p>适配器在写入时补齐落库口径的 {@code createdAt}（{@code null} 时取当前时刻），
-   * 因此本方法只回答「是否已落库」。
-   */
-  public boolean persisted() {
-    return id != null;
   }
 }

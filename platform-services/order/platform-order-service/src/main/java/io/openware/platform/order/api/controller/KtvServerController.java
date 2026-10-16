@@ -1,7 +1,7 @@
 package io.openware.platform.order.api.controller;
 
+import io.openware.platform.order.api.dto.KtvServerSessionView;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
-import io.openware.platform.order.infra.persistence.po.KtvServerSessionPo;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,15 +22,15 @@ public class KtvServerController {
 
     /** 结束服务：POST /business/ktv/servers/{id}/end → ENDED（固化时长/金额）。 */
     @PostMapping("/{id}/end")
-    public KtvServerSessionPo end(@PathVariable Long id) {
+    public KtvServerSessionView end(@PathVariable Long id) {
         PermissionGuard.require("ktv.server.end");
-        return serverSessionService.end(id);
+        return KtvServerSessionView.from(serverSessionService.end(id));
     }
 
     /** 取消点单：POST /business/ktv/servers/{id}/cancel → CANCELLED（仅 ORDERED 且未计费）。 */
     @PostMapping("/{id}/cancel")
-    public KtvServerSessionPo cancel(@PathVariable Long id) {
+    public KtvServerSessionView cancel(@PathVariable Long id) {
         PermissionGuard.require("ktv.server.order");
-        return serverSessionService.cancel(id);
+        return KtvServerSessionView.from(serverSessionService.cancel(id));
     }
 }

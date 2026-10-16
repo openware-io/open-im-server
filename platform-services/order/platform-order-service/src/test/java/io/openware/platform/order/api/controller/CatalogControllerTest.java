@@ -8,8 +8,8 @@ import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.model.Product;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -53,10 +53,10 @@ class CatalogControllerTest {
 
     private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
     private final ProductRepository productRepository = mock(ProductRepository.class);
-    private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
+    private final InventoryMaterialRepository materialRepository = mock(InventoryMaterialRepository.class);
     private final InventoryApplicationService inventoryService = mock(InventoryApplicationService.class);
     private final CatalogController controller =
-            new CatalogController(catalogItemRepository, productRepository, materialMapper, inventoryService);
+            new CatalogController(catalogItemRepository, productRepository, materialRepository, inventoryService);
 
     @AfterEach
     void clear() {
@@ -75,7 +75,7 @@ class CatalogControllerTest {
         assertEquals(List.of("/catalog.png"), result.getFirst().imageUrls());
         assertEquals("/catalog.png", result.getFirst().mainImageUrl());
         assertTrue(result.getFirst().available());
-        verifyNoInteractions(materialMapper, inventoryService);
+        verifyNoInteractions(materialRepository, inventoryService);
     }
 
     @Test
@@ -95,11 +95,9 @@ class CatalogControllerTest {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
         givenItems(catalogItem(10L, 50L, true, List.of(), null));
         givenProducts(product(50L, MATERIAL_ID, "ON_SHELF", false, List.of(), null));
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(MATERIAL_ID);
-        material.setImageUrls(List.of("/m-a.png"));
-        material.setMainImageUrl("/m-a.png");
-        when(materialMapper.selectById(MATERIAL_ID)).thenReturn(material);
+        when(materialRepository.findById(MATERIAL_ID)).thenReturn(Optional.of(
+                new InventoryMaterial(MATERIAL_ID, TENANT_ID, STORE_ID, "M-55", "物料", "耗材", "件", null,
+                        BigDecimal.ZERO, null, "USD", List.of("/m-a.png"), "/m-a.png", "ACTIVE", 0, null)));
 
         List<CatalogItemView> result = controller.list(null, STORE_ID);
 
@@ -114,7 +112,7 @@ class CatalogControllerTest {
         givenItems(catalogItem(10L, null, true, List.of(), null));
 
         assertEquals(List.of(), controller.list(null, STORE_ID));
-        verifyNoInteractions(productRepository, materialMapper);
+        verifyNoInteractions(productRepository, materialRepository);
     }
 
     /** 目录项即使 status=ACTIVE，只要关联的商品没上架就不出现在下单列表。 */

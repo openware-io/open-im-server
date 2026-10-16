@@ -56,6 +56,16 @@ public interface InventoryStockRepository {
   int increaseOnHand(Long tenantId, Long storeId, Long materialId, BigDecimal quantity,
       BigDecimal avgCost, String currencyCode, LocalDateTime updatedAt);
 
-  /** 新建库存行（首次入库时建立余额记录）。 */
+  /**
+   * 新建库存行（首次入库时建立余额记录，见 {@link InventoryStock#empty}）。
+   *
+   * <p><b>本端口没有「整行写回」的更新方法，这是结构性的</b>：库存的每一次变更都必须走
+   * {@link #deductAvailable} / {@link #increaseOnHand} 的原子条件语句。一旦提供「按 id 覆盖写余额行」
+   * 的方法，调用方就可能在应用层拼出「先读后判再写回」的路径，把防超卖重新变成竞态，
+   * 而领域模型是不可变记录、没有任何 setter，正是为了让这条路径无从表达。
+   *
+   * <p>并发建行由唯一键 {@code uk_ord_inventory_stock_material(tenant_id, store_id, material_id)} 兜底：
+   * 抢输的事务会收到 {@code DuplicateKeyException}，由调用方忽略冲突后重新加锁读取。
+   */
   InventoryStock save(InventoryStock stock);
 }

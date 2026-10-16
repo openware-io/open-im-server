@@ -16,8 +16,8 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,10 +39,10 @@ import java.util.Objects;
  * （available / unavailableReason / availableQuantity）只存在于视图里——
  * 它们由响应期计算，永远不会进入任何列引用。
  *
- * <p>仍直接依赖 {@code InventoryMaterialMapper} 的原因：物料图片兜底要读
- * {@code ord_inventory_material} 的两列，而物料属于**库存子域**，本次不迁移库存
- * （见任务范围）。这里保持既有的窄用法（只 {@code selectById}），
- * 把「库存子域的端口化」留给库存切片，避免顺手发明第二个跨子域抽象。
+ * <p>物料图片兜底走库存子域的 {@link InventoryMaterialRepository}（窄用法：只 {@code findById}）：
+ * 目录项自身没图、商品也没图时，按「商品 → 关联物料」读一次物料的两列图片字段。
+ * 迁移前这里直接持有 {@code InventoryMaterialMapper}，库存切片把端口建好后就换成了端口——
+ * 控制器不再依赖任何持久化实现。
  *
  * <p>可点性口径（F3 修复）：库存控制与售罄判断一律以「商品 + 其关联物料」为准，
  * {@code ord_catalog_item.stock_controlled} 只作为查询缓存/兜底（存量数据可能尚未回填）。
@@ -64,25 +64,25 @@ public class CatalogController {
 
     private final CatalogItemRepository catalogItemRepository;
     private final ProductRepository productRepository;
-    private final InventoryMaterialMapper materialMapper;
+    private final InventoryMaterialRepository materialRepository;
     private final InventoryApplicationService inventoryService;
     private final AuditClient auditClient;
 
     @Autowired
     public CatalogController(CatalogItemRepository catalogItemRepository, ProductRepository productRepository,
-                             InventoryMaterialMapper materialMapper, InventoryApplicationService inventoryService,
-                             AuditClient auditClient) {
+                             InventoryMaterialRepository materialRepository,
+                             InventoryApplicationService inventoryService, AuditClient auditClient) {
         this.catalogItemRepository = catalogItemRepository;
         this.productRepository = productRepository;
-        this.materialMapper = materialMapper;
+        this.materialRepository = materialRepository;
         this.inventoryService = inventoryService;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有单测装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
     public CatalogController(CatalogItemRepository catalogItemRepository, ProductRepository productRepository,
-                             InventoryMaterialMapper materialMapper, InventoryApplicationService inventoryService) {
-        this(catalogItemRepository, productRepository, materialMapper, inventoryService, AuditClient.disabled());
+                             InventoryMaterialRepository materialRepository, InventoryApplicationService inventoryService) {
+        this(catalogItemRepository, productRepository, materialRepository, inventoryService, AuditClient.disabled());
     }
 
     /**
@@ -210,14 +210,14 @@ public class CatalogController {
         if (!product.imagesOrEmpty().isEmpty()) {
             return view.withImages(product.imagesOrEmpty(), product.mainImageUrl());
         }
-        if (product.materialId() == null || materialMapper == null) {
+        if (product.materialId() == null || materialRepository == null) {
             return view;
         }
-        InventoryMaterialPo material = materialMapper.selectById(product.materialId());
-        if (material == null || material.getImageUrls() == null || material.getImageUrls().isEmpty()) {
+        InventoryMaterial material = materialRepository.findById(product.materialId()).orElse(null);
+        if (material == null || material.imagesOrEmpty().isEmpty()) {
             return view;
         }
-        return view.withImages(material.getImageUrls(), material.getMainImageUrl());
+        return view.withImages(material.imagesOrEmpty(), material.mainImageUrl());
     }
 
     /**

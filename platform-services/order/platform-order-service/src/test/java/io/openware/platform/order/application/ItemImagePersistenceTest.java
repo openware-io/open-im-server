@@ -8,12 +8,12 @@ import io.openware.infrastructure.mq.MqConsumerFactory;
 import io.openware.infrastructure.mq.MqProducer;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
 import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
 import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
 import io.openware.platform.order.infra.persistence.po.CatalogItemPo;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
 import io.openware.platform.order.infra.persistence.po.ProductPo;
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -60,7 +60,7 @@ class ItemImagePersistenceTest {
   private ProductMapper productMapper;
 
   @Autowired
-  private InventoryMaterialMapper materialMapper;
+  private InventoryMaterialRepository materialRepository;
 
   @Autowired
   private CatalogItemMapper catalogItemMapper;
@@ -104,28 +104,20 @@ class ItemImagePersistenceTest {
     assertTrue(rawJson("ord_product", product.getId()).startsWith("["), "image_urls 应落为 JSON 数组文本");
   }
 
+  /**
+   * 物料多图落库**经端口**（库存子域迁移后应用层不再持有 mapper）：
+   * 断言的是「端口进、端口出」的往返与原列值，JSON 数组文本仍由适配器 + JacksonTypeHandler 负责。
+   */
   @Test
   void materialImagesRoundTripThroughJsonColumn() throws Exception {
-    InventoryMaterialPo material = new InventoryMaterialPo();
-    material.setTenantId(TENANT_ID);
-    material.setStoreId(STORE_ID);
-    material.setMaterialCode("IMG-M-" + System.nanoTime());
-    material.setName("多图物料");
-    material.setCategory("耗材");
-    material.setUnit("包");
-    material.setSafetyStock(BigDecimal.ZERO);
-    material.setStatus("ACTIVE");
-    material.setImageUrls(IMAGES);
-    material.setMainImageUrl(IMAGES.get(0));
-    material.setVersion(0);
-    material.setCreatedAt(LocalDateTime.now());
-    material.setUpdatedAt(LocalDateTime.now());
-    materialMapper.insert(material);
+    InventoryMaterial created = materialRepository.insert(InventoryMaterial.draft(
+        TENANT_ID, STORE_ID, "IMG-M-" + System.nanoTime(), "多图物料", "耗材", "包", null,
+        BigDecimal.ZERO, null, "USD", IMAGES, IMAGES.get(0))).aggregate();
 
-    InventoryMaterialPo reloaded = materialMapper.selectById(material.getId());
-    assertEquals(IMAGES, reloaded.getImageUrls());
-    assertEquals(IMAGES.get(0), reloaded.getMainImageUrl());
-    assertTrue(rawJson("ord_inventory_material", material.getId()).startsWith("["),
+    InventoryMaterial reloaded = materialRepository.findById(created.id()).orElseThrow();
+    assertEquals(IMAGES, reloaded.imagesOrEmpty());
+    assertEquals(IMAGES.get(0), reloaded.mainImageUrl());
+    assertTrue(rawJson("ord_inventory_material", created.id()).startsWith("["),
         "image_urls 应落为 JSON 数组文本");
   }
 

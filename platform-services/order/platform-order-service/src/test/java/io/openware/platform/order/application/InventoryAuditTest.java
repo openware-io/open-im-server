@@ -4,31 +4,29 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryStock;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
 import io.openware.platform.order.infra.cache.InventoryAvailabilityCache;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryTransactionMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -42,26 +40,20 @@ class InventoryAuditTest {
     private static final long TENANT_ID = 1L;
     private static final Long STORE_ID = 3L;
 
-    private InventoryMaterialMapper materialMapper;
-    private InventoryStockMapper stockMapper;
-    private InventoryTransactionMapper transactionMapper;
+    private InventoryMaterialRepository materialRepository;
+    private InventoryStockRepository stockRepository;
+    private InventoryTransactionRepository transactionRepository;
     private AuditClient auditClient;
     private InventoryApplicationService service;
 
-    @BeforeAll
-    static void initTableInfo() {
-        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
-                InventoryMaterialPo.class);
-    }
-
     @BeforeEach
     void setUp() {
-        materialMapper = mock(InventoryMaterialMapper.class);
-        stockMapper = mock(InventoryStockMapper.class);
-        transactionMapper = mock(InventoryTransactionMapper.class);
+        materialRepository = mock(InventoryMaterialRepository.class);
+        stockRepository = mock(InventoryStockRepository.class);
+        transactionRepository = mock(InventoryTransactionRepository.class);
         auditClient = mock(AuditClient.class);
-        service = new InventoryApplicationService(materialMapper, stockMapper, transactionMapper,
-                mock(ProductMapper.class), mock(CatalogItemMapper.class), new InventoryAvailabilityCache(0L),
+        service = new InventoryApplicationService(materialRepository, stockRepository, transactionRepository,
+                mock(ProductRepository.class), mock(CatalogItemRepository.class), new InventoryAvailabilityCache(0L),
                 auditClient);
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
     }
@@ -88,7 +80,7 @@ class InventoryAuditTest {
 
     @Test
     void updateMaterial_writesFailureAuditWhenMaterialMissing() {
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
+        when(materialRepository.findInStore(TENANT_ID, STORE_ID, 10L)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.updateMaterial(10L, materialCommand(STORE_ID, "M-1")));
@@ -127,24 +119,27 @@ class InventoryAuditTest {
     /** 加项出库失败由加项入口留痕：这里不得再写一条同义审计（库存不足也不再重复上报）。 */
     @Test
     void changeStock_consumeFailureIsNotAuditedHere() {
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(10L);
-        material.setTenantId(TENANT_ID);
-        material.setStoreId(STORE_ID);
-        material.setStatus("ACTIVE");
-        InventoryStockPo stock = new InventoryStockPo();
-        stock.setId(20L);
-        stock.setOnHandQty(new BigDecimal("1"));
-        stock.setReservedQty(BigDecimal.ZERO);
-        stock.setVersion(0);
-        when(transactionMapper.findByIdempotency(TENANT_ID, "k3")).thenReturn(null);
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(material);
-        when(stockMapper.selectForUpdate(TENANT_ID, STORE_ID, 10L)).thenReturn(stock);
+        when(transactionRepository.findByIdempotency(TENANT_ID, "k3")).thenReturn(Optional.empty());
+        when(materialRepository.findInStore(TENANT_ID, STORE_ID, 10L))
+                .thenReturn(Optional.of(material(10L)));
+        when(stockRepository.findForUpdate(TENANT_ID, STORE_ID, 10L)).thenReturn(Optional.of(stock()));
+        // 条件更新 0 行 = 库存不足（端口把「受影响行数 > 0」表达成 boolean）。
+        when(stockRepository.deductAvailable(eq(TENANT_ID), eq(STORE_ID), eq(10L), any(), any())).thenReturn(false);
 
         assertThrows(BusinessException.class,
                 () -> service.changeStock(10L, new BigDecimal("2"), "CONSUME", "ORDER_ITEM", "1", "加项", "k3"));
 
         verifyNoInteractions(auditClient);
+    }
+
+    private static InventoryMaterial material(Long id) {
+        return new InventoryMaterial(id, TENANT_ID, STORE_ID, "M-1", "纸巾", "耗材", "包", null,
+                new BigDecimal("100"), null, "USD", null, null, "ACTIVE", 0, LocalDateTime.now());
+    }
+
+    private static InventoryStock stock() {
+        return new InventoryStock(20L, TENANT_ID, STORE_ID, 10L, BigDecimal.ONE, BigDecimal.ZERO,
+                BigDecimal.ZERO, "USD", 0);
     }
 
     private static InventoryApplicationService.MaterialCommand materialCommand(Long storeId, String code) {

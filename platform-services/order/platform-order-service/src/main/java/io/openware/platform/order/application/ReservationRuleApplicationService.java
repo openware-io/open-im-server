@@ -1,13 +1,13 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.OrdReservationRuleConfigMapper;
-import io.openware.platform.order.infra.persistence.po.OrdReservationRuleConfigPo;
+import io.openware.platform.order.api.dto.ReservationRuleConfigView;
+import io.openware.platform.order.domain.reservation.model.ReservationRuleConfig;
+import io.openware.platform.order.domain.reservation.repository.ReservationRuleConfigRepository;
+import io.openware.platform.order.domain.reservation.repository.ReservationRuleConfigRepository.Persisted;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,15 +15,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.Optional;
 
-/** 预约规则的 Order 域端口；解析顺序为门店覆盖 > 业态默认 > 租户默认。 */
+/**
+ * 预约规则的 Order 域端口；解析顺序为门店覆盖 > 业态默认 > 租户默认。
+ *
+ * <p><b>持久化边界</b>：本类只依赖领域端口 {@link ReservationRuleConfigRepository} 与领域模型
+ * {@link ReservationRuleConfig}；{@code OrdReservationRuleConfigPo}/{@code OrdReservationRuleConfigMapper}
+ * 不再出现在应用层（响应装配走 {@link ReservationRuleConfigView}，字段名与原持久化对象一致）。
+ */
 @Service
 public class ReservationRuleApplicationService {
-    private final OrdReservationRuleConfigMapper mapper;
+    private final ReservationRuleConfigRepository repository;
     private final AuditClient auditClient;
 
-    public ReservationRuleApplicationService(OrdReservationRuleConfigMapper mapper, AuditClient auditClient) {
-        this.mapper = mapper;
+    public ReservationRuleApplicationService(ReservationRuleConfigRepository repository, AuditClient auditClient) {
+        this.repository = repository;
         this.auditClient = auditClient;
     }
 
@@ -32,7 +39,7 @@ public class ReservationRuleApplicationService {
             throw new BusinessException("SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
         }
         String business = normalizeBusinessType(businessType);
-        OrdReservationRuleConfigPo row = null;
+        ReservationRuleConfig row = null;
         if (storeId != null && storeId > 0 && business != null) {
             row = find(tenantId, business, storeId);
         }
@@ -45,67 +52,62 @@ public class ReservationRuleApplicationService {
         if (row == null) {
             return RuleView.defaults();
         }
-        return RuleView.of(row, row.getStoreId() != null && row.getStoreId() > 0
-                ? "STORE" : (row.getBusinessType() == null || row.getBusinessType().isBlank()
-                ? "TENANT" : "BUSINESS"));
+        return RuleView.of(row, row.scopeSource());
     }
 
+    /**
+     * 保存规则（门店覆盖 / 业态默认 / 租户默认三档之一）。
+     *
+     * <p>幂等：同租户同 Idempotency-Key 已存在则直接返回既有行（不再校验版本、不再写库）。
+     * 覆盖写是**带版本条件的单条 CAS**（{@link ReservationRuleConfigRepository#updateWindowsWithVersion}）：
+     * 更新 0 行 → 409 版本冲突，绝不静默覆盖——预约窗口直接决定「客人能不能下单/取消」，
+     * 静默覆盖会让门店按 A 的配置解释 B 的请求。
+     */
     @Transactional
-    public OrdReservationRuleConfigPo save(Long tenantId, SaveCommand command) {
+    public ReservationRuleConfigView save(Long tenantId, SaveCommand command) {
         if (tenantId == null || tenantId <= 0) {
             throw new BusinessException("SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
         }
         validate(command);
         String business = normalizeBusinessType(command.businessType());
         long storeId = command.storeId() == null ? 0L : command.storeId();
-        OrdReservationRuleConfigPo byKey = findIdempotency(tenantId, command.idempotencyKey());
-        if (byKey != null) return byKey;
-        OrdReservationRuleConfigPo row = find(tenantId, business == null ? "" : business, storeId);
-        LocalDateTime now = LocalDateTime.now();
+        Optional<Persisted<ReservationRuleConfig>> byKey =
+                repository.findByIdempotencyKey(tenantId, command.idempotencyKey());
+        if (byKey.isPresent()) {
+            return viewOf(byKey.get());
+        }
+        ReservationRuleConfig row = find(tenantId, business == null ? "" : business, storeId);
         if (row == null) {
-            row = new OrdReservationRuleConfigPo();
-            row.setTenantId(tenantId);
-            row.setBusinessType(business == null ? "" : business);
-            row.setStoreId(storeId);
-            row.setAdvanceMinutes(command.advanceMinutes());
-            row.setCancelMinutes(command.cancelMinutes());
-            row.setRescheduleMinutes(command.rescheduleMinutes());
-            row.setVersion(0);
-            row.setIdempotencyKey(blankToNull(command.idempotencyKey()));
-            row.setStatus("ACTIVE");
-            row.setCreatedAt(now);
-            row.setUpdatedAt(now);
+            ReservationRuleConfig draft = ReservationRuleConfig.draft(tenantId, business == null ? "" : business,
+                    storeId, command.advanceMinutes(), command.cancelMinutes(), command.rescheduleMinutes(),
+                    blankToNull(command.idempotencyKey()));
             try {
-                mapper.insert(row);
+                Persisted<ReservationRuleConfig> inserted = repository.insert(draft);
+                audit(tenantId, inserted.aggregate(), "reservation.rule.save");
+                return viewOf(inserted);
             } catch (DuplicateKeyException e) {
-                OrdReservationRuleConfigPo existing = findIdempotency(tenantId, command.idempotencyKey());
-                if (existing != null) return existing;
+                // 并发重试：唯一键（作用域/幂等键）命中后返回既有行。
+                Optional<Persisted<ReservationRuleConfig>> existing =
+                        repository.findByIdempotencyKey(tenantId, command.idempotencyKey());
+                if (existing.isPresent()) {
+                    return viewOf(existing.get());
+                }
                 throw e;
             }
-        } else {
-            int current = row.getVersion() == null ? 0 : row.getVersion();
-            if (command.expectedVersion() != null && command.expectedVersion() != current) {
-                throw new ApiException(409, "RESERVATION_RULE_VERSION_CONFLICT", "预约规则版本冲突，请刷新后重试");
-            }
-            LambdaUpdateWrapper<OrdReservationRuleConfigPo> update = new LambdaUpdateWrapper<OrdReservationRuleConfigPo>()
-                    .eq(OrdReservationRuleConfigPo::getId, row.getId())
-                    .eq(OrdReservationRuleConfigPo::getVersion, current)
-                    .set(OrdReservationRuleConfigPo::getAdvanceMinutes, command.advanceMinutes())
-                    .set(OrdReservationRuleConfigPo::getCancelMinutes, command.cancelMinutes())
-                    .set(OrdReservationRuleConfigPo::getRescheduleMinutes, command.rescheduleMinutes())
-                    .set(OrdReservationRuleConfigPo::getVersion, current + 1)
-                    .set(OrdReservationRuleConfigPo::getUpdatedAt, now);
-            if (mapper.update(null, update) == 0) {
-                throw new ApiException(409, "RESERVATION_RULE_VERSION_CONFLICT", "预约规则已被并发修改，请刷新后重试");
-            }
-            row.setAdvanceMinutes(command.advanceMinutes());
-            row.setCancelMinutes(command.cancelMinutes());
-            row.setRescheduleMinutes(command.rescheduleMinutes());
-            row.setVersion(current + 1);
-            row.setUpdatedAt(now);
         }
-        audit(tenantId, row, "reservation.rule.save");
-        return row;
+        int current = row.currentVersion();
+        if (command.expectedVersion() != null && command.expectedVersion() != current) {
+            throw new ApiException(409, "RESERVATION_RULE_VERSION_CONFLICT", "预约规则版本冲突，请刷新后重试");
+        }
+        ReservationRuleConfig desired = row.updatedWindows(command.advanceMinutes(), command.cancelMinutes(),
+                command.rescheduleMinutes());
+        Optional<Persisted<ReservationRuleConfig>> updated =
+                repository.updateWindowsWithVersion(desired, current);
+        if (updated.isEmpty()) {
+            throw new ApiException(409, "RESERVATION_RULE_VERSION_CONFLICT", "预约规则已被并发修改，请刷新后重试");
+        }
+        audit(tenantId, updated.get().aggregate(), "reservation.rule.save");
+        return viewOf(updated.get());
     }
 
     public void validateCreate(Long tenantId, String businessType, Long storeId, LocalDateTime startAt) {
@@ -133,20 +135,9 @@ public class ReservationRuleApplicationService {
         }
     }
 
-    private OrdReservationRuleConfigPo find(Long tenantId, String business, Long storeId) {
-        return mapper.selectOne(new LambdaQueryWrapper<OrdReservationRuleConfigPo>()
-                .eq(OrdReservationRuleConfigPo::getTenantId, tenantId)
-                .eq(OrdReservationRuleConfigPo::getBusinessType, business)
-                .eq(OrdReservationRuleConfigPo::getStoreId, storeId)
-                .eq(OrdReservationRuleConfigPo::getStatus, "ACTIVE")
-                .last("LIMIT 1"));
-    }
-
-    private OrdReservationRuleConfigPo findIdempotency(Long tenantId, String key) {
-        if (key == null || key.isBlank()) return null;
-        return mapper.selectOne(new LambdaQueryWrapper<OrdReservationRuleConfigPo>()
-                .eq(OrdReservationRuleConfigPo::getTenantId, tenantId)
-                .eq(OrdReservationRuleConfigPo::getIdempotencyKey, key).last("LIMIT 1"));
+    /** 解析路径的每一档：只读聚合（记账列不参与判定）。 */
+    private ReservationRuleConfig find(Long tenantId, String business, Long storeId) {
+        return repository.findActive(tenantId, business, storeId).map(Persisted::aggregate).orElse(null);
     }
 
     private static void validate(SaveCommand c) {
@@ -172,12 +163,16 @@ public class ReservationRuleApplicationService {
 
     private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
 
-    private void audit(Long tenantId, OrdReservationRuleConfigPo row, String action) {
+    private static ReservationRuleConfigView viewOf(Persisted<ReservationRuleConfig> row) {
+        return ReservationRuleConfigView.from(row.aggregate(), row.audit());
+    }
+
+    private void audit(Long tenantId, ReservationRuleConfig row, String action) {
         if (auditClient == null) return;
-        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(row.getStoreId())
+        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(row.storeId())
                 .operatorId(TenantContextHolder.get() == null ? null : TenantContextHolder.get().accountId()).action(action).resourceType("reservation_rule")
-                .resourceId(String.valueOf(row.getId())).result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"businessType\":\"" + row.getBusinessType() + "\",\"storeId\":" + row.getStoreId() + "}").build());
+                .resourceId(String.valueOf(row.id())).result(AuditClient.AuditRecord.RESULT_SUCCESS)
+                .detailJson("{\"businessType\":\"" + row.businessType() + "\",\"storeId\":" + row.storeId() + "}").build());
     }
 
     public record SaveCommand(String businessType, Long storeId, Integer advanceMinutes, Integer cancelMinutes,
@@ -185,8 +180,8 @@ public class ReservationRuleApplicationService {
 
     public record RuleView(Integer advanceMinutes, Integer cancelMinutes, Integer rescheduleMinutes, String source) {
         static RuleView defaults() { return new RuleView(0, 0, 0, "DEFAULT"); }
-        static RuleView of(OrdReservationRuleConfigPo row, String source) {
-            return new RuleView(row.getAdvanceMinutes(), row.getCancelMinutes(), row.getRescheduleMinutes(), source);
+        static RuleView of(ReservationRuleConfig row, String source) {
+            return new RuleView(row.advanceMinutes(), row.cancelMinutes(), row.rescheduleMinutes(), source);
         }
     }
 }

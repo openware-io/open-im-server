@@ -3,6 +3,7 @@ package io.openware.platform.order.api.controller;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
@@ -22,10 +23,10 @@ import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
 import java.util.List;
@@ -97,9 +98,11 @@ class OrderLiveTotalProjectionTest {
     @Test
     void openSessionExposesLiveTotalInsteadOfDoubleCountedRoomFee() {
         OrderPo order = order(ORDER_ID, STORED_TOTAL);
-        KtvSessionPo session = session(ORDER_ID, "OPEN", LIVE_ROOM_FEE);
+        KtvSession session = session(ORDER_ID, "OPEN");
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, session));
+        when(ktvSessionService.liveEstimate(session, STORE_ID))
+                .thenReturn(new KtvSessionApplicationService.LiveEstimate(3600L, LIVE_ROOM_FEE));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(STORED_TOTAL.longValueExact(), STALE_ROOM_FEE_ITEM)));
 
@@ -111,8 +114,11 @@ class OrderLiveTotalProjectionTest {
                 "绝不能是「库内合计 + 实时房费」的重复计数结果");
         // 库内原值不得被改写（它仍是账单合计基数的输入）。
         assertEquals(0, detail.getTotalAmount().compareTo(STORED_TOTAL));
-        // 实时房费必须来自统一计费入口（fillLiveEstimate → liveRoomFee），不是本处另写的公式。
-        verify(ktvSessionService).fillLiveEstimate(session, STORE_ID);
+        // 实时房费必须来自统一计费入口（liveEstimate → liveRoomFee），不是本处另写的公式。
+        verify(ktvSessionService).liveEstimate(session, STORE_ID);
+        // 读投影必须被下发到订单投影上（原实现是 PO 上两个瞬态字段，值相同）。
+        assertEquals(3600L, detail.getRoomElapsedSeconds());
+        assertEquals(LIVE_ROOM_FEE, detail.getRoomEstimatedFee());
     }
 
     /**
@@ -122,9 +128,11 @@ class OrderLiveTotalProjectionTest {
     @Test
     void liveTotalReplacesStaleRoomFeeSnapshotWithLiveEstimate() {
         OrderPo order = order(ORDER_ID, STORED_TOTAL);
-        KtvSessionPo session = session(ORDER_ID, "PAUSED", LIVE_ROOM_FEE);
+        KtvSession session = session(ORDER_ID, "PAUSED");
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, session));
+        when(ktvSessionService.liveEstimate(session, STORE_ID))
+                .thenReturn(new KtvSessionApplicationService.LiveEstimate(7200L, LIVE_ROOM_FEE));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(STORED_TOTAL.longValueExact(), 2000L)));
 
@@ -138,7 +146,7 @@ class OrderLiveTotalProjectionTest {
     @Test
     void finishedSessionKeepsStoredTotal() {
         OrderPo order = order(ORDER_ID, STORED_TOTAL);
-        KtvSessionPo closed = session(ORDER_ID, "CLOSED", null);
+        KtvSession closed = session(ORDER_ID, "CLOSED");
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, closed));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
@@ -148,6 +156,9 @@ class OrderLiveTotalProjectionTest {
 
         assertEquals(0, detail.getLiveTotalAmount().compareTo(STORED_TOTAL),
                 "已结台：明细快照就是最终值，liveTotalAmount == totalAmount");
+        // 已结台没有实时估算：两个读投影字段必须为空，不能凭空造值。
+        assertNull(detail.getRoomEstimatedFee());
+        assertNull(detail.getRoomElapsedSeconds());
     }
 
     /** (b') 连会话都没有（非 KTV 单/未选包厢）：同样等于库内合计，且不因缺会话而漏填。 */
@@ -171,7 +182,7 @@ class OrderLiveTotalProjectionTest {
     @Test
     void zeroStoredTotalFallsBackToActiveItemsBasis() {
         OrderPo order = order(ORDER_ID, BigDecimal.ZERO);
-        KtvSessionPo closed = session(ORDER_ID, "CLOSED", null);
+        KtvSession closed = session(ORDER_ID, "CLOSED");
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, closed));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
@@ -196,8 +207,10 @@ class OrderLiveTotalProjectionTest {
         OrderPo a = order(orderA, STORED_TOTAL);
         OrderPo b = order(orderB, new BigDecimal("900"));
         when(orderMapper.selectList(any())).thenReturn(List.of(a, b));
-        KtvSessionPo openSession = session(orderA, "OPEN", LIVE_ROOM_FEE);
+        KtvSession openSession = session(orderA, "OPEN");
         when(ktvSessionService.listByOrderIds(anyList())).thenReturn(Map.of(orderA, openSession));
+        when(ktvSessionService.liveEstimate(openSession, STORE_ID))
+                .thenReturn(new KtvSessionApplicationService.LiveEstimate(3600L, LIVE_ROOM_FEE));
         when(ktvSessionService.orderAmountSumsByOrderIds(anyList()))
                 .thenReturn(Map.of(orderA, sums(STORED_TOTAL.longValueExact(), STALE_ROOM_FEE_ITEM)));
 
@@ -240,19 +253,13 @@ class OrderLiveTotalProjectionTest {
     }
 
     /**
-     * 会话 PO：{@code estimatedRoomFee} 是非持久化字段，生产里由
-     * {@code KtvSessionApplicationService#fillLiveEstimate} 写入（mock 装配下不会真的执行，
-     * 这里手动放进与线上一致的值，等价于「实时估算已算好」）。
+     * 会话领域模型：{@code elapsedSeconds}/{@code estimatedRoomFee} 是**读投影**，不在模型上，
+     * 生产里由 {@code KtvSessionApplicationService#liveEstimate} 按计价方案实时算出
+     * （mock 装配下不会真的执行，用例显式 stub 它的返回值，等价于「实时估算已算好」）。
      */
-    private static KtvSessionPo session(Long orderId, String status, Long estimatedRoomFee) {
-        KtvSessionPo po = new KtvSessionPo();
-        po.setId(48L);
-        po.setOrderId(orderId);
-        po.setTenantId(TENANT_ID);
-        po.setStatus(status);
-        po.setRoomResourceId(1023L);
-        po.setRoomNameSnapshot("豪华包 XL02");
-        po.setEstimatedRoomFee(estimatedRoomFee);
-        return po;
+    private static KtvSession session(Long orderId, String status) {
+        return KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", orderId, 1023L, "豪华包 XL02", null)
+                .withId(48L)
+                .withStatus(status);
     }
 }

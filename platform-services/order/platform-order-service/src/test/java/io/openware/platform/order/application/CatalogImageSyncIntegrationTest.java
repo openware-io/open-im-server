@@ -12,7 +12,7 @@ import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -95,20 +95,20 @@ class CatalogImageSyncIntegrationTest {
 
   @Test
   void materialImagesSyncToCatalogItemWhenProductHasNoOwnImages() {
-    InventoryMaterialPo material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
+    InventoryMaterialView material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
             STORE_ID, "IMG-SYNC-M-" + System.nanoTime(), "同步物料", "耗材", "包", BigDecimal.ZERO, null,
             "点单用物料描述",
             List.of("/api/v1/media-public/open-media-public/saas/1001/202609/m1.png"), null));
     ProductView product = productService.create(new ProductApplicationService.ProductCommand(
         STORE_ID, "IMG-SYNC-P2-" + System.nanoTime(), "物料图商品", "饮品", "瓶", new BigDecimal("1000"),
-        material.getId(), false, 0, null, null, null));
+        material.id(), false, 0, null, null, null));
 
     Long catalogItemId = product.catalogItemId();
     assertNotNull(catalogItemId, "商品创建后应同步出目录项");
     assertEquals(List.of("/api/v1/media-public/open-media-public/saas/1001/202609/m1.png"),
         loadCatalogItem(catalogItemId).imagesOrEmpty(), "商品无图时目录项回退到物料图");
 
-    inventoryService.updateMaterial(material.getId(), new InventoryApplicationService.MaterialCommand(
+    inventoryService.updateMaterial(material.id(), new InventoryApplicationService.MaterialCommand(
         null, null, null, null, null, null, null, null,
         List.of("/api/v1/media-public/open-media-public/saas/1001/202609/m2.png",
             "/api/v1/media-public/open-media-public/saas/1001/202609/m3.png"),

@@ -26,15 +26,15 @@ import io.openware.platform.order.application.dto.BillResult;
 import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
+import io.openware.platform.order.domain.ktv.model.KtvServerSession;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
+import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.KtvServerSessionMapper;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvServerSessionPo;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
@@ -74,16 +74,17 @@ class OrderBillBoardConsistencyTest {
 
     private final OrderMapper orderMapper = mock(OrderMapper.class);
     private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
-    private final KtvSessionMapper ktvSessionMapper = mock(KtvSessionMapper.class);
-    private final KtvServerSessionMapper serverSessionMapper = mock(KtvServerSessionMapper.class);
+    private final KtvSessionRepository ktvSessionRepository = mock(KtvSessionRepository.class);
+    private final KtvServerSessionRepository serverSessionRepository = mock(KtvServerSessionRepository.class);
     private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
 
     private final OrderAmountApplicationService orderAmounts =
             new OrderAmountApplicationService(orderMapper, orderItemMapper);
     private final KtvSessionApplicationService sessionService = new KtvSessionApplicationService(
-            ktvSessionMapper, orderMapper, orderItemMapper, pricingPlanProvider, AuditClient.disabled(), orderAmounts);
+            ktvSessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, AuditClient.disabled(),
+            orderAmounts);
     private final BillApplicationService billService = new BillApplicationService(
-            orderMapper, orderItemMapper, ktvSessionMapper, serverSessionMapper, pricingPlanProvider, null);
+            orderMapper, orderItemMapper, ktvSessionRepository, serverSessionRepository, pricingPlanProvider, null);
     private final OrderController controller = new OrderController(
             orderMapper,
             sessionService,
@@ -96,13 +97,11 @@ class OrderBillBoardConsistencyTest {
 
     @BeforeEach
     void setUp() {
-        // 单元测试没有 MyBatis 启动过程：会话/订单的 Lambda 查询需要手工装 TableInfo。
+        // 单元测试没有 MyBatis 启动过程：订单的 Lambda 查询需要手工装 TableInfo。
+        // 会话侧已改为领域端口 + domain 模型，不再有 Lambda 列引用，因此不需要（也不应）为 KtvSessionPo 装缓存。
         TableInfo orderInfo = TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), OrderPo.class);
         LambdaUtils.installCache(orderInfo);
-        TableInfo sessionInfo = TableInfoHelper.initTableInfo(
-                new MapperBuilderAssistant(new MybatisConfiguration(), ""), KtvSessionPo.class);
-        LambdaUtils.installCache(sessionInfo);
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, 7L, 1, List.of("order.view")));
         when(pricingPlanProvider.resolve(any(), any())).thenReturn(plan());
     }
@@ -119,7 +118,7 @@ class OrderBillBoardConsistencyTest {
     void openSessionWithoutStoredRoomFeeAgrees() {
         OrderPo order = order(new BigDecimal("2150"), "SERVING");
         List<OrderItemPo> items = List.of(product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
+        KtvSession session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
         fixture(order, items, List.of(session), List.of());
 
         assertConsistent(order, 2150L + 3000L, "OPEN 无房费明细");
@@ -132,7 +131,7 @@ class OrderBillBoardConsistencyTest {
         List<OrderItemPo> items = List.of(
                 roomFee(85L, "8000", "4000", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
+        KtvSession session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
         fixture(order, items, List.of(session), List.of());
 
         // 实时房费 40 分钟 = 2 块 × 1500 = 3000；10150 − 8000 + 3000 = 5150
@@ -146,7 +145,7 @@ class OrderBillBoardConsistencyTest {
         List<OrderItemPo> items = List.of(
                 roomFee(85L, "4000", "4000", "1", plan()),
                 roomFee(86L, "2000", "2000", "1", plan()));
-        KtvSessionPo session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
+        KtvSession session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
         fixture(order, items, List.of(session), List.of());
 
         // 6000 − 6000 + 3000 = 3000
@@ -166,8 +165,8 @@ class OrderBillBoardConsistencyTest {
         List<OrderItemPo> items = List.of(
                 roomFee(85L, "3000", "1500", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo session = session("PAUSED", LocalDateTime.now().minusMinutes(150), null, plan());
-        session.setPauseStartedAt(LocalDateTime.now().minusMinutes(120));
+        KtvSession session = session("PAUSED", LocalDateTime.now().minusMinutes(150), null, plan())
+                .withPauseStartedAt(LocalDateTime.now().minusMinutes(120));
         fixture(order, items, List.of(session), List.of());
 
         // 5150 − 3000 + 1500 = 3650（不是 9650）
@@ -187,12 +186,9 @@ class OrderBillBoardConsistencyTest {
     void reservedSessionKeepsStoredTotalOnBothSurfaces() {
         OrderPo order = order(new BigDecimal("2150"), "DRAFT");
         List<OrderItemPo> items = List.of(product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo session = new KtvSessionPo();
-        session.setId(58L);
-        session.setTenantId(TENANT_ID);
-        session.setOrderId(ORDER_ID);
-        session.setStatus("RESERVED");
-        session.setPausedSeconds(0);
+        // 已开单未开台：只有 RESERVED 状态，没有计费起点。
+        KtvSession session = KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", ORDER_ID, 3001L, null, null)
+                .withId(58L);
         fixture(order, items, List.of(session), List.of());
 
         assertConsistent(order, 2150L, "RESERVED 未开台");
@@ -209,12 +205,10 @@ class OrderBillBoardConsistencyTest {
         List<OrderItemPo> items = List.of(
                 product(25L, "可乐", new BigDecimal("3000")),
                 product(26L, "洋酒", new BigDecimal("4800")));
-        KtvSessionPo session = new KtvSessionPo();
-        session.setId(25L);
-        session.setTenantId(TENANT_ID);
-        session.setOrderId(ORDER_ID);
-        session.setStatus("CANCELLED");
-        session.setPausedSeconds(0);
+        // 从未开台就被取消：billing_start_at 为空（没有计费起点）。
+        KtvSession session = KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", ORDER_ID, 3001L, null, null)
+                .withId(25L)
+                .withStatus(KtvSession.STATUS_CANCELLED);
         fixture(order, items, List.of(session), List.of());
 
         assertConsistent(order, 7800L, "库内合计为 0 的存量数据");
@@ -229,7 +223,7 @@ class OrderBillBoardConsistencyTest {
         List<OrderItemPo> items = List.of(
                 roomFee(85L, "8000", "4000", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo session = session("CLOSED", LocalDateTime.now().minusHours(3), LocalDateTime.now(), plan());
+        KtvSession session = session("CLOSED", LocalDateTime.now().minusHours(3), LocalDateTime.now(), plan());
         fixture(order, items, List.of(session), List.of());
 
         OrderPo board = assertConsistent(order, 10150L, "CLOSED 结台固化");
@@ -246,11 +240,9 @@ class OrderBillBoardConsistencyTest {
     void multiSessionOrderPicksTheCurrentSessionOnBothSurfaces() {
         OrderPo order = order(new BigDecimal("2150"), "SERVING");
         List<OrderItemPo> items = List.of(product(86L, "果盘", new BigDecimal("2150")));
-        KtvSessionPo olderClosed = session("CLOSED", LocalDateTime.now().minusHours(5),
-                LocalDateTime.now().minusHours(4), plan());
-        olderClosed.setId(11L);
-        KtvSessionPo currentOpen = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
-        currentOpen.setId(12L);
+        KtvSession olderClosed = session("CLOSED", LocalDateTime.now().minusHours(5),
+                LocalDateTime.now().minusHours(4), plan()).withId(11L);
+        KtvSession currentOpen = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan()).withId(12L);
         // 故意把已结束会话排在前面：findFirst 会取错。
         fixture(order, items, List.of(olderClosed, currentOpen), List.of());
 
@@ -279,7 +271,7 @@ class OrderBillBoardConsistencyTest {
                 product(86L, "果盘", new BigDecimal("6800")),
                 item(87L, "PACKAGE_FEE", "欢唱套餐", new BigDecimal("20000"), new BigDecimal("1"),
                         new BigDecimal("20000"), plan()));
-        KtvSessionPo session = session("OPEN", LocalDateTime.now().minusMinutes(90), null, packagePlan());
+        KtvSession session = session("OPEN", LocalDateTime.now().minusMinutes(90), null, packagePlan());
         fixture(order, items, List.of(session), List.of());
 
         OrderPo board = assertConsistent(order, 26800L, "一口价套餐");
@@ -296,19 +288,11 @@ class OrderBillBoardConsistencyTest {
         serverFee.setResourceId(9L);
         serverFee.setPriceSnapshotJson(plan().toSnapshotJson());
         List<OrderItemPo> items = List.of(product(86L, "果盘", new BigDecimal("500")), serverFee);
-        KtvSessionPo session = session("CLOSED", LocalDateTime.now().minusHours(3), LocalDateTime.now(), plan());
-        KtvServerSessionPo serverSession = new KtvServerSessionPo();
-        serverSession.setId(1L);
-        serverSession.setTenantId(TENANT_ID);
-        serverSession.setOrderId(ORDER_ID);
-        serverSession.setKtvSessionId(58L);
-        serverSession.setServerResourceId(9L);
-        serverSession.setStatus("ENDED");
-        serverSession.setDurationSeconds(3600);
-        serverSession.setIncrementMinutes(30);
-        serverSession.setRoundingDirection(KtvRoundingDirection.CONSUMER_FAVOR.name());
-        serverSession.setPricePerInc(5000L);
-        serverSession.setTotalAmount(new BigDecimal("10000"));
+        KtvSession session = session("CLOSED", LocalDateTime.now().minusHours(3), LocalDateTime.now(), plan());
+        // 服务人员点单（领域模型不可变，22 列逐项对应迁移前的持久化对象）。
+        KtvServerSession serverSession = new KtvServerSession(1L, TENANT_ID, STORE_ID, "KTV", ORDER_ID, 58L, 9L,
+                null, null, null, null, "HOUR", 30, KtvRoundingDirection.CONSUMER_FAVOR.name(), 5000L, 3600,
+                null, new BigDecimal("10000"), null, null, "ENDED", 0);
         fixture(order, items, List.of(session), List.of(serverSession));
 
         assertConsistent(order, 10500L, "服务人员计时费");
@@ -328,7 +312,7 @@ class OrderBillBoardConsistencyTest {
         OrderPo order = order(new BigDecimal("4000"), "VOIDED");
         OrderItemPo roomFee = roomFee(85L, "4000", "4000", "1", plan());
         roomFee.setUpdatedAt(LocalDateTime.of(2026, 9, 20, 7, 22, 15));
-        KtvSessionPo session = session("CANCELLED", LocalDateTime.of(2026, 9, 20, 6, 58, 48), null, plan());
+        KtvSession session = session("CANCELLED", LocalDateTime.of(2026, 9, 20, 6, 58, 48), null, plan());
         fixture(order, List.of(roomFee), List.of(session), List.of());
 
         assertConsistent(order, 4000L, "已作废 + 无结台时刻的历史房费");
@@ -368,13 +352,15 @@ class OrderBillBoardConsistencyTest {
     }
 
     /** 一份数据装配：订单 + 全部 ACTIVE 明细 + 会话（+ 服务人员会话）。 */
-    private void fixture(OrderPo order, List<OrderItemPo> items, List<KtvSessionPo> sessions,
-                         List<KtvServerSessionPo> serverSessions) {
+    private void fixture(OrderPo order, List<OrderItemPo> items, List<KtvSession> sessions,
+                         List<KtvServerSession> serverSessions) {
         when(orderMapper.selectById(order.getId())).thenReturn(order);
         when(orderItemMapper.selectList(any())).thenReturn(items);
         when(orderItemMapper.selectActiveItemsByOrderIds(any())).thenReturn(items);
-        when(ktvSessionMapper.selectList(any())).thenReturn(sessions);
-        when(serverSessionMapper.selectList(any())).thenReturn(serverSessions);
+        // 账单按单个订单取会话；订单投影按整页订单批量取会话——两个端口方法都要给。
+        when(ktvSessionRepository.listByOrderId(any())).thenReturn(sessions);
+        when(ktvSessionRepository.listByOrderIds(any())).thenReturn(sessions);
+        when(serverSessionRepository.listByOrderId(any())).thenReturn(serverSessions);
     }
 
     private static OrderPo order(BigDecimal totalAmount, String status) {
@@ -393,19 +379,15 @@ class OrderBillBoardConsistencyTest {
         return po;
     }
 
-    private static KtvSessionPo session(String status, LocalDateTime billingStartAt, LocalDateTime closedAt,
-                                        KtvPricingPlan plan) {
-        KtvSessionPo po = new KtvSessionPo();
-        po.setId(59L);
-        po.setTenantId(TENANT_ID);
-        po.setOrderId(ORDER_ID);
-        po.setStatus(status);
-        po.setOpenedAt(billingStartAt);
-        po.setBillingStartAt(billingStartAt);
-        po.setClosedAt(closedAt);
-        po.setPausedSeconds(0);
-        po.setBillingRuleSnapshotJson(plan.toSnapshotJson());
-        return po;
+    private static KtvSession session(String status, LocalDateTime billingStartAt, LocalDateTime closedAt,
+                                      KtvPricingPlan plan) {
+        return KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", ORDER_ID, 3001L, null, null)
+                .withId(59L)
+                .withStatus(status)
+                .withOpenedAt(billingStartAt)
+                .withBillingStartAt(billingStartAt)
+                .withClosedAt(closedAt)
+                .withBillingRuleSnapshotJson(plan.toSnapshotJson());
     }
 
     private static OrderItemPo product(Long id, String name, BigDecimal amount) {

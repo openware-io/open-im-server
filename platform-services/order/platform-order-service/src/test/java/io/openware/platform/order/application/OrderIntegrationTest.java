@@ -16,13 +16,13 @@ import io.openware.infrastructure.mq.MqConsumerFactory;
 import io.openware.infrastructure.mq.MqProducer;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
@@ -83,7 +83,7 @@ class OrderIntegrationTest {
   private SettlementApplicationService settlementApplicationService;
 
   @Autowired
-  private KtvSessionMapper ktvSessionMapper;
+  private KtvSessionRepository ktvSessionRepository;
 
   @Autowired
   private OrderMapper orderMapper;
@@ -107,25 +107,24 @@ class OrderIntegrationTest {
     OrderPo order = newOrder();
     orderMapper.insert(order);
 
-    KtvSessionPo session = newSession(order.getId());
-    ktvSessionMapper.insert(session);
+    KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
 
     // 开台：RESERVED → OPEN，订单 DRAFT → SERVING
-    KtvSessionPo opened = ktvSessionApplicationService.open(session.getId(), null);
-    assertEquals("OPEN", opened.getStatus());
-    assertNotNull(opened.getOpenedAt());
-    assertNotNull(opened.getBillingStartAt());
-    assertNotNull(opened.getBillingRuleSnapshotJson());
+    KtvSession opened = ktvSessionApplicationService.open(session.id(), null);
+    assertEquals("OPEN", opened.status());
+    assertNotNull(opened.openedAt());
+    assertNotNull(opened.billingStartAt());
+    assertNotNull(opened.billingRuleSnapshotJson());
     assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
 
     // 回拨计费起点到 90 分钟前，确保结台能产出正计时费（否则 billable≈0）。
-    opened.setBillingStartAt(LocalDateTime.now().minusMinutes(90));
-    ktvSessionMapper.updateById(opened);
+    // 这是「整实体写回」（迁移前就是 updateById，不带 CAS），端口上的 update 逐字保留该语义。
+    ktvSessionRepository.update(opened.withBillingStartAt(LocalDateTime.now().minusMinutes(90)));
 
     // 结台：OPEN → CLOSED，写入 ROOM_FEE 明细；订单 SERVING →（结台即结算）WAITING_PAYMENT
-    KtvSessionPo closed = ktvSessionApplicationService.close(session.getId());
-    assertEquals("CLOSED", closed.getStatus());
-    assertNotNull(closed.getClosedAt());
+    KtvSession closed = ktvSessionApplicationService.close(session.id());
+    assertEquals("CLOSED", closed.status());
+    assertNotNull(closed.closedAt());
     assertEquals("WAITING_PAYMENT", orderMapper.selectById(order.getId()).getStatus(),
         "结台即结算：没有待确认的客户自助加项时，结台后直接进入待收款");
 
@@ -163,10 +162,9 @@ class OrderIntegrationTest {
   void cancel_voidsOrderAndReleasesRoomSessionAndOccupation() {
     OrderPo order = newOrder();
     orderMapper.insert(order);
-    KtvSessionPo session = newSession(order.getId());
-    ktvSessionMapper.insert(session);
+    KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
     // 开台：占用登记（mock 返回 occupationId=1）并把订单推进到 SERVING
-    ktvSessionApplicationService.open(session.getId(), null);
+    ktvSessionApplicationService.open(session.id(), null);
     assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
 
     OrderPo cancelled = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
@@ -174,8 +172,8 @@ class OrderIntegrationTest {
     assertEquals("VOIDED", cancelled.getStatus());
     assertNotNull(cancelled.getCancelledAt());
     assertEquals("VOIDED", orderMapper.selectById(order.getId()).getStatus());
-    KtvSessionPo released = ktvSessionMapper.selectById(session.getId());
-    assertEquals("CANCELLED", released.getStatus());
+    KtvSession released = ktvSessionRepository.findById(session.id()).orElseThrow();
+    assertEquals("CANCELLED", released.status());
     verify(resourceStateClient).release(1L);
   }
 
@@ -185,9 +183,8 @@ class OrderIntegrationTest {
     OrderPo order = newOrder();
     order.setPaidAmount(new BigDecimal("100.000000"));
     orderMapper.insert(order);
-    KtvSessionPo session = newSession(order.getId());
-    ktvSessionMapper.insert(session);
-    ktvSessionApplicationService.open(session.getId(), null);
+    KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
+    ktvSessionApplicationService.open(session.id(), null);
 
     ApiException ex = assertThrows(ApiException.class,
         () -> orderCancellationApplicationService.cancel(order.getId(), "客人要求取消"));
@@ -195,7 +192,7 @@ class OrderIntegrationTest {
     assertEquals(409, ex.getStatus());
     assertEquals("ORDER_HAS_PAYMENT_REFUND_FIRST", ex.getCode());
     assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
-    assertEquals("OPEN", ktvSessionMapper.selectById(session.getId()).getStatus());
+    assertEquals("OPEN", ktvSessionRepository.findById(session.id()).orElseThrow().status());
   }
 
   /** 重复取消同一订单：幂等返回既有结果，不重复释放占用。 */
@@ -203,9 +200,8 @@ class OrderIntegrationTest {
   void cancel_isIdempotentOnSecondCall() {
     OrderPo order = newOrder();
     orderMapper.insert(order);
-    KtvSessionPo session = newSession(order.getId());
-    ktvSessionMapper.insert(session);
-    ktvSessionApplicationService.open(session.getId(), null);
+    KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
+    ktvSessionApplicationService.open(session.id(), null);
 
     orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
     OrderPo second = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
@@ -267,21 +263,14 @@ class OrderIntegrationTest {
     return po;
   }
 
-  private KtvSessionPo newSession(Long orderId) {
-    KtvSessionPo po = new KtvSessionPo();
-    po.setTenantId(TENANT_ID);
-    po.setOrderId(orderId);
-    po.setRoomResourceId(3001L);
-    po.setReservedStartAt(LocalDateTime.now().minusMinutes(30));
-    po.setReservedEndAt(LocalDateTime.now().plusMinutes(120));
-    po.setBillingUnit("HOUR");
-    po.setFreeWaitMinutes(0);
-    po.setPausedSeconds(0);
-    po.setOvertimeRate(new BigDecimal("1.0"));
-    po.setStatus("RESERVED");
-    po.setVersion(0);
-    po.setCreatedAt(LocalDateTime.now());
-    po.setUpdatedAt(LocalDateTime.now());
-    return po;
+  /**
+   * 预留会话夹具：领域模型不可变，直接构造（字段与迁移前的持久化对象逐列对应）。
+   * 预留到店/离店时间必须真的写进去——房费「标准时长」基准用它，缺了会改变结台金额。
+   */
+  private KtvSession newSession(Long orderId) {
+    LocalDateTime now = LocalDateTime.now();
+    return new KtvSession(null, TENANT_ID, null, "KTV", orderId, 3001L, null, null, null, null, null, null,
+        now.minusMinutes(30), now.plusMinutes(120), null, null, "HOUR", null, 0, 0, null,
+        new BigDecimal("1.0"), null, KtvSession.STATUS_RESERVED, 0);
   }
 }

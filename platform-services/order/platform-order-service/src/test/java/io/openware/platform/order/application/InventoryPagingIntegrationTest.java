@@ -15,9 +15,9 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.InventoryTransactionView;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Statement;
@@ -36,9 +36,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 /**
  * 三个只读端点的**真库分页与筛选**集成测试（H2 + Flyway + MyBatis，仅 mock MQ/审计）。
  *
- * <p>存在的理由：分页要靠 MyBatis-Plus 的 {@code PaginationInnerInterceptor} 才会拼 LIMIT 与 count，
- * 缺插件时 {@code selectPage} 会「静默返回全表且 total=0」；Mockito 单测只能断言下发的 Page 参数，
- * 证明不了真实 SQL。这里真跑 SQL，守住：
+ * <p>存在的理由：分页要靠**真实 SQL** 才验证得了。迁移前应用层下发 MyBatis-Plus 的 {@code Page}，
+ * 缺 {@code PaginationInnerInterceptor} 时会「静默返回全表且 total=0」；迁移后端口只接受「偏移 + 上限」，
+ * 由适配器翻译成 {@code COUNT} + {@code LIMIT/OFFSET}，因此这里真跑 SQL 守住：
  * <ol>
  *   <li>materials 分页信封（records/total/current/size）与 id desc 排序；</li>
  *   <li>materials 关键字/分类/状态筛选；</li>
@@ -86,42 +86,42 @@ class InventoryPagingIntegrationTest {
     CurrencyContextHolder.clear();
   }
 
-  /** 物料分页：total 是全量命中条数，records 只给当前页，排序 id desc（分页插件真的拼了 LIMIT）。 */
+  /** 物料分页：total 是全量命中条数，records 只给当前页，排序 id desc（真 SQL 真的拼了 LIMIT/OFFSET）。 */
   @Test
   void materialsPagingReturnsEnvelopeAndRealLimit() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_PAGE, 0L, 0));
     List<Long> createdIds = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
-      createdIds.add(newMaterial(STORE_MATERIAL_PAGE, "分页物料" + i).getId());
+      createdIds.add(newMaterial(STORE_MATERIAL_PAGE, "分页物料" + i).id());
     }
 
-    Page<InventoryMaterialPo> first = inventoryService.listMaterials(1L, 2L, STORE_MATERIAL_PAGE, "ACTIVE", null, null, TimeRange.none());
+    Page<InventoryMaterialView> first = inventoryService.listMaterials(1L, 2L, STORE_MATERIAL_PAGE, "ACTIVE", null, null, TimeRange.none());
     assertEquals(3L, first.getTotal(), "total 必须是该门店的命中物料总数，而不是当前页条数（分页插件未注册时为 0）");
     assertEquals(2, first.getRecords().size(), "pageSize=2 时第一页必须只返回 2 条（未注册插件会返回全表）");
     assertEquals(1L, first.getCurrent());
     assertEquals(2L, first.getSize());
-    assertTrue(first.getRecords().get(0).getId() > first.getRecords().get(1).getId(), "必须按 id desc 排序");
-    assertEquals(createdIds.get(2), first.getRecords().get(0).getId(), "最新的物料排在第一页第一条");
+    assertTrue(first.getRecords().get(0).id() > first.getRecords().get(1).id(), "必须按 id desc 排序");
+    assertEquals(createdIds.get(2), first.getRecords().get(0).id(), "最新的物料排在第一页第一条");
 
-    Page<InventoryMaterialPo> second = inventoryService.listMaterials(2L, 2L, STORE_MATERIAL_PAGE, "ACTIVE", null, null, TimeRange.none());
+    Page<InventoryMaterialView> second = inventoryService.listMaterials(2L, 2L, STORE_MATERIAL_PAGE, "ACTIVE", null, null, TimeRange.none());
     assertEquals(3L, second.getTotal());
     assertEquals(1, second.getRecords().size());
-    assertEquals(createdIds.get(0), second.getRecords().get(0).getId());
+    assertEquals(createdIds.get(0), second.getRecords().get(0).id());
   }
 
   /** 物料筛选：关键字命中名称或编码，分类/状态精确匹配，且能相互叠加。 */
   @Test
   void materialsFilterByKeywordCategoryAndStatus() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_FILTER, 0L, 0));
-    InventoryMaterialPo cola = newMaterial(STORE_MATERIAL_FILTER, "可乐 330ml", "饮品");
+    InventoryMaterialView cola = newMaterial(STORE_MATERIAL_FILTER, "可乐 330ml", "饮品");
     newMaterial(STORE_MATERIAL_FILTER, "毛巾", "耗材");
 
-    Page<InventoryMaterialPo> byName = inventoryService.listMaterials(1L, 20L, STORE_MATERIAL_FILTER, null, null, "可乐", TimeRange.none());
+    Page<InventoryMaterialView> byName = inventoryService.listMaterials(1L, 20L, STORE_MATERIAL_FILTER, null, null, "可乐", TimeRange.none());
     assertEquals(1L, byName.getTotal());
-    assertEquals(cola.getId(), byName.getRecords().get(0).getId());
+    assertEquals(cola.id(), byName.getRecords().get(0).id());
 
-    Page<InventoryMaterialPo> byCode =
-        inventoryService.listMaterials(1L, 20L, STORE_MATERIAL_FILTER, null, null, cola.getMaterialCode(), TimeRange.none());
+    Page<InventoryMaterialView> byCode =
+        inventoryService.listMaterials(1L, 20L, STORE_MATERIAL_FILTER, null, null, cola.materialCode(), TimeRange.none());
     assertEquals(1L, byCode.getTotal(), "关键字也必须能命中物料编码");
 
     assertEquals(1L, inventoryService.listMaterials(1L, 20L, STORE_MATERIAL_FILTER, null, "饮品", null, TimeRange.none()).getTotal());
@@ -133,7 +133,8 @@ class InventoryPagingIntegrationTest {
    * 物料创建时间区间（真库）：`created_at` 是建档时写入的 `now()`，因此「今天」的闭区间必须命中，
    * 「昨天」的单日区间必须为 0 —— 两端都是日期形态，直接验证 `from`/`to` 的整天收口。
    *
-   * <p>`total` 与 `records` 由同一次 `selectPage` 得出，所以过滤后的 total 必须是命中数而不是门店全量。
+   * <p>`total` 与 `records` 由同一次端口查询得出（适配器用同一套过滤条件做 COUNT 与 LIMIT 取页），
+   * 所以过滤后的 total 必须是命中数而不是门店全量。
    */
   @Test
   void materialsFilterByCreatedAtClosedDayRangeUsesRealSql() {
@@ -146,7 +147,7 @@ class InventoryPagingIntegrationTest {
     LocalDate yesterday = today.minusDays(1);
 
     // 今天（闭区间：from 00:00:00 ~ to 23:59:59.999）
-    Page<InventoryMaterialPo> sameDay = inventoryService.listMaterials(1L, 20L, storeId, "ACTIVE", null, null,
+    Page<InventoryMaterialView> sameDay = inventoryService.listMaterials(1L, 20L, storeId, "ACTIVE", null, null,
             TimeRangeParams.parse(today.toString(), today.toString()));
     assertEquals(2L, sameDay.getTotal(), "当天闭合区间必须命中当天建档的全部物料");
     assertEquals(2, sameDay.getRecords().size(), "records 与 total 口径必须一致");
@@ -171,14 +172,14 @@ class InventoryPagingIntegrationTest {
   @Test
   void transactionsFilterByTypeSourceKeywordAndClosedDateRange() throws Exception {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_TRANSACTION, 0L, 0));
-    InventoryMaterialPo cola = newMaterial(STORE_TRANSACTION, "可乐", "饮品");
-    InventoryMaterialPo towel = newMaterial(STORE_TRANSACTION, "毛巾", "耗材");
-    inventoryService.changeStock(cola.getId(), new BigDecimal("5"), "RECEIPT", "RECEIPT", null,
-        "采购入库", "paging-receipt-" + cola.getId(), null);
-    inventoryService.changeStock(towel.getId(), new BigDecimal("3"), "RECEIPT", "RECEIPT", null,
-        "采购入库", "paging-receipt-" + towel.getId(), null);
-    inventoryService.changeStock(cola.getId(), new BigDecimal("2"), "CONSUME", "ORDER_ITEM", "9",
-        "点单扣减", "paging-consume-" + cola.getId());
+    InventoryMaterialView cola = newMaterial(STORE_TRANSACTION, "可乐", "饮品");
+    InventoryMaterialView towel = newMaterial(STORE_TRANSACTION, "毛巾", "耗材");
+    inventoryService.changeStock(cola.id(), new BigDecimal("5"), "RECEIPT", "RECEIPT", null,
+        "采购入库", "paging-receipt-" + cola.id(), null);
+    inventoryService.changeStock(towel.id(), new BigDecimal("3"), "RECEIPT", "RECEIPT", null,
+        "采购入库", "paging-receipt-" + towel.id(), null);
+    inventoryService.changeStock(cola.id(), new BigDecimal("2"), "CONSUME", "ORDER_ITEM", "9",
+        "点单扣减", "paging-consume-" + cola.id());
 
     assertEquals(3L, inventoryService
         .listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, null), null).getTotal());
@@ -187,7 +188,7 @@ class InventoryPagingIntegrationTest {
     assertEquals(1L, inventoryService
         .listTransactions(1L, 20L, null, null, "ORDER_ITEM", TimeRangeParams.parse(null, null), null).getTotal());
     assertEquals(2L, inventoryService
-        .listTransactions(1L, 20L, cola.getId(), null, null, TimeRangeParams.parse(null, null), null).getTotal(),
+        .listTransactions(1L, 20L, cola.id(), null, null, TimeRangeParams.parse(null, null), null).getTotal(),
         "可乐有采购入库 + 销售出库两条流水");
     assertEquals(1L, inventoryService
         .listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, null), "毛巾").getTotal(), "关键字按物料名过滤");
@@ -195,8 +196,8 @@ class InventoryPagingIntegrationTest {
         .listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, null), "不存在").getTotal());
 
     // 把流水钉到固定日期，验证闭区间按天命中（不依赖运行时钟）：可乐两条 09-14，毛巾一条 09-13
-    rawUpdateCreatedAt(STORE_TRANSACTION, cola.getId(), "2026-09-14 12:00:00");
-    rawUpdateCreatedAt(STORE_TRANSACTION, towel.getId(), "2026-09-13 08:30:00");
+    rawUpdateCreatedAt(STORE_TRANSACTION, cola.id(), "2026-09-14 12:00:00");
+    rawUpdateCreatedAt(STORE_TRANSACTION, towel.id(), "2026-09-13 08:30:00");
     assertEquals(2L, inventoryService
         .listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse("2026-09-14", "2026-09-14"), null).getTotal(),
         "同一天作为起止必须命中午夜到 23:59:59.999999999 之间的全部流水");
@@ -221,16 +222,16 @@ class InventoryPagingIntegrationTest {
         .listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, "2026-09-14T23:59:59"), null).getTotal(),
         "只给结束端点时，早于该时刻的全部流水都要命中");
 
-    Page<InventoryTransactionPo> page = inventoryService
+    Page<InventoryTransactionView> page = inventoryService
         .listTransactions(1L, 1L, null, "RECEIPT", null, TimeRangeParams.parse(null, null), null);
     assertEquals(2L, page.getTotal(), "total 必须是全部命中流水数");
     assertEquals(1, page.getRecords().size(), "pageSize=1 时第一页只有 1 条");
 
-    Page<InventoryTransactionPo> secondPage = inventoryService
+    Page<InventoryTransactionView> secondPage = inventoryService
         .listTransactions(2L, 1L, null, "RECEIPT", null, TimeRangeParams.parse(null, null), null);
     assertEquals(2L, secondPage.getTotal(), "翻页后 total 不随页码变化");
     assertEquals(1, secondPage.getRecords().size(), "pageSize=1 时第二页也只有 1 条");
-    assertFalse(secondPage.getRecords().get(0).getId().equals(page.getRecords().get(0).getId()),
+    assertFalse(secondPage.getRecords().get(0).id().equals(page.getRecords().get(0).id()),
         "第二页必须是另一条流水（偏移真的生效）");
   }
 
@@ -239,11 +240,11 @@ class InventoryPagingIntegrationTest {
   void costsPageRowsButEnvelopeCoversAllMatchedRows() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_COST, 0L, 0));
     CurrencyContextHolder.set(Currency.CNY);
-    InventoryMaterialPo cola = newMaterial(STORE_COST, "可乐", "饮品", new BigDecimal("300"));
-    InventoryMaterialPo towel = newMaterial(STORE_COST, "毛巾", "耗材", new BigDecimal("1250"));
-    inventoryService.changeStock(cola.getId(), new BigDecimal("2"), "RECEIPT", "RECEIPT", null,
+    InventoryMaterialView cola = newMaterial(STORE_COST, "可乐", "饮品", new BigDecimal("300"));
+    InventoryMaterialView towel = newMaterial(STORE_COST, "毛巾", "耗材", new BigDecimal("1250"));
+    inventoryService.changeStock(cola.id(), new BigDecimal("2"), "RECEIPT", "RECEIPT", null,
         "入库", "cost-page-cola", null);
-    inventoryService.changeStock(towel.getId(), BigDecimal.ONE, "RECEIPT", "RECEIPT", null,
+    inventoryService.changeStock(towel.id(), BigDecimal.ONE, "RECEIPT", "RECEIPT", null,
         "入库", "cost-page-towel", null);
 
     InventoryApplicationService.InventoryCostReport first = inventoryService.inventoryCosts(1L, 1L, STORE_COST, null);
@@ -260,7 +261,7 @@ class InventoryPagingIntegrationTest {
 
     InventoryApplicationService.InventoryCostRow colaRow = List.of(first, second).stream()
         .flatMap(report -> report.getRecords().stream())
-        .filter(row -> row.materialId().equals(cola.getId())).findFirst().orElseThrow();
+        .filter(row -> row.materialId().equals(cola.id())).findFirst().orElseThrow();
     assertEquals(0, colaRow.inventoryCost().compareTo(new BigDecimal("600")), "2 件 × 300 = 600");
 
     assertEquals(1L, inventoryService.inventoryCosts(1L, 20L, STORE_COST, "毛巾").getTotal(), "关键字按物料名过滤");
@@ -269,19 +270,19 @@ class InventoryPagingIntegrationTest {
 
   // —— 辅助 ——
 
-  private InventoryMaterialPo newMaterial(long storeId, String name) {
+  private InventoryMaterialView newMaterial(long storeId, String name) {
     return newMaterial(storeId, name, "耗材");
   }
 
-  private InventoryMaterialPo newMaterial(long storeId, String name, String category) {
+  private InventoryMaterialView newMaterial(long storeId, String name, String category) {
     return newMaterial(storeId, name, category, null);
   }
 
-  private InventoryMaterialPo newMaterial(long storeId, String name, String category, BigDecimal purchasePrice) {
+  private InventoryMaterialView newMaterial(long storeId, String name, String category, BigDecimal purchasePrice) {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0));
-    InventoryMaterialPo material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
+    InventoryMaterialView material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         storeId, "PAGE-" + System.nanoTime(), name, category, "件", BigDecimal.ZERO, purchasePrice, null, null, null));
-    assertNotNull(material.getId());
+    assertNotNull(material.id());
     return material;
   }
 

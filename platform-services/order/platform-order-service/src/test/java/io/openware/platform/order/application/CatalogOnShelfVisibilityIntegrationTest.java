@@ -16,7 +16,7 @@ import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -113,11 +113,11 @@ class CatalogOnShelfVisibilityIntegrationTest {
   @Test
   void soldOutStockControlledProductStaysVisibleButUnavailable() {
     long suffix = System.nanoTime();
-    InventoryMaterialPo material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
+    InventoryMaterialView material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         STORE_ID, "VIS-M-" + suffix, "可见性物料", "耗材", "包", BigDecimal.ZERO, null, "物料描述", null, null));
     ProductView product = productService.create(new ProductApplicationService.ProductCommand(
         STORE_ID, "VIS-P2-" + suffix, "售罄商品", "饮品", "瓶", new BigDecimal("1000"),
-        material.getId(), true, 0, null, null, null));
+        material.id(), true, 0, null, null, null));
     productService.onShelf(product.id());
     Long catalogItemId = product.catalogItemId();
 
@@ -126,7 +126,7 @@ class CatalogOnShelfVisibilityIntegrationTest {
     assertFalse(soldOut.available());
     assertEquals("已售罄", soldOut.unavailableReason());
 
-    inventoryService.changeStock(material.getId(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "vis-" + suffix);
+    inventoryService.changeStock(material.id(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "vis-" + suffix);
 
     CatalogItemView inStock = visibleCatalogItem(catalogItemId);
     assertNotNull(inStock);
@@ -140,11 +140,11 @@ class CatalogOnShelfVisibilityIntegrationTest {
   @Test
   void staleCatalogStockFlagIsIgnoredBecauseProductIsAuthoritative() {
     long suffix = System.nanoTime();
-    InventoryMaterialPo material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
+    InventoryMaterialView material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         STORE_ID, "VIS-M2-" + suffix, "缓存脏数据物料", "耗材", "包", BigDecimal.ZERO, null, null, null, null));
     ProductView product = productService.create(new ProductApplicationService.ProductCommand(
         STORE_ID, "VIS-P3-" + suffix, "缓存脏数据商品", "饮品", "瓶", new BigDecimal("1000"),
-        material.getId(), true, 0, null, null, null));
+        material.id(), true, 0, null, null, null));
     productService.onShelf(product.id());
     Long catalogItemId = product.catalogItemId();
 
@@ -158,7 +158,7 @@ class CatalogOnShelfVisibilityIntegrationTest {
     assertEquals("已售罄", soldOut.unavailableReason());
     assertTrue(soldOut.stockControlled(), "响应里必须回写商品的权威库存控制标记");
 
-    inventoryService.changeStock(material.getId(), new BigDecimal("3"), "RECEIPT", "集成测试入库", "stale-" + suffix);
+    inventoryService.changeStock(material.id(), new BigDecimal("3"), "RECEIPT", "集成测试入库", "stale-" + suffix);
 
     assertTrue(visibleCatalogItem(catalogItemId).available(), "回补库存后必须恢复可点");
   }

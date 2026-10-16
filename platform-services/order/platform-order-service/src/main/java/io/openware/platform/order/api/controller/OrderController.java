@@ -12,6 +12,8 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.KtvServerSessionView;
+import io.openware.platform.order.api.dto.KtvSessionView;
 import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.DailySerialNumberGenerator.DocType;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
@@ -19,11 +21,11 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.application.VoidRuleApplicationService;
+import io.openware.platform.order.domain.ktv.model.KtvServerSession;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvServerSessionPo;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -194,29 +196,32 @@ public class OrderController {
         for (OrderPo order : orders) {
             KtvSessionApplicationService.OrderAmountSums sums =
                     itemSums.getOrDefault(order.getId(), KtvSessionApplicationService.OrderAmountSums.ZERO);
-            KtvSessionPo session = sessions.get(order.getId());
+            KtvSession session = sessions.get(order.getId());
             if (session == null) {
                 // 没有会话（非 KTV 单/未选包厢）：库内合计（或明细回退）就是终值。
                 order.setLiveTotalAmount(BigDecimal.valueOf(
                         OrderAmountApplicationService.totalBasisMinor(order, sums.activeItemsMinor())));
                 continue;
             }
-            ktvSessionService.fillLiveEstimate(session, order.getStoreId());
-            order.setSessionId(session.getId());
-            order.setRoomResourceId(session.getRoomResourceId());
-            order.setRoomName(session.getRoomNameSnapshot());
-            order.setRoomCode(session.getRoomCodeSnapshot());
-            order.setSessionStatus(session.getStatus());
-            order.setPartySize(session.getPartySize());
-            order.setServerId(session.getServerId());
-            order.setServerName(session.getServerName());
-            order.setRoomElapsedSeconds(session.getElapsedSeconds());
-            order.setRoomEstimatedFee(session.getEstimatedRoomFee());
+            // 实时计时/实时房费是**读投影**（领域模型上没有它们，见 KtvSessionView）：由统一计费入口算出，
+            // 非开台中会话或不按时长计费的方案返回 null，此时一律按「没有实时房费」处理。
+            KtvSessionApplicationService.LiveEstimate live = ktvSessionService.liveEstimate(session,
+                    order.getStoreId());
+            order.setSessionId(session.id());
+            order.setRoomResourceId(session.roomResourceId());
+            order.setRoomName(session.roomNameSnapshot());
+            order.setRoomCode(session.roomCodeSnapshot());
+            order.setSessionStatus(session.status());
+            order.setPartySize(session.partySize());
+            order.setServerId(session.serverId());
+            order.setServerName(session.serverName());
+            order.setRoomElapsedSeconds(live == null ? null : live.elapsedSeconds());
+            order.setRoomEstimatedFee(live == null ? null : live.estimatedRoomFee());
             // 订单维度的「消费时间」只能从会话取：订单 created_at（下单/预约时刻）与 completed_at 之间
             // 可能夹着多次开台，直接相减会把多次消费算成一段。
-            order.setSessionOpenedAt(session.getOpenedAt());
-            order.setSessionClosedAt(session.getClosedAt());
-            order.setLiveTotalAmount(liveTotal(order, session, sums));
+            order.setSessionOpenedAt(session.openedAt());
+            order.setSessionClosedAt(session.closedAt());
+            order.setLiveTotalAmount(liveTotal(order, live, sums));
         }
     }
 
@@ -230,34 +235,39 @@ public class OrderController {
      *   <li>未开台/已结台/没有实时房费（一口价套餐）：库内合计即终值，原样返回。</li>
      * </ul>
      *
-     * <p>这里的实时估算来自 {@code session.estimatedRoomFee}（由
-     * {@code KtvSessionApplicationService#fillLiveEstimate} → {@code liveRoomFee} 算出），
-     * 本方法**只做加减，不重新实现任何计费公式**；未取到估算（如一口价套餐不按时长计费）时按无实时房费处理，
-     * 此时库内合计就是终值。结果兜底不为负，避免脏数据导致展示负数。
+     * <p>这里的实时估算来自 {@link KtvSessionApplicationService#liveEstimate}（内部走
+     * {@code liveRoomFee} 唯一计费入口），本方法**只做加减，不重新实现任何计费公式**；
+     * 未取到估算（非开台中，或一口价套餐不按时长计费）时按无实时房费处理，此时库内合计就是终值。
+     * 结果兜底不为负，避免脏数据导致展示负数。
      *
      * <p>合计基数（库内合计为 0 时按明细回退）与差额法都委托
      * {@link OrderAmountApplicationService}，账单与投影因此共用同一份口径。
      */
-    private static BigDecimal liveTotal(OrderPo order, KtvSessionPo session,
+    private static BigDecimal liveTotal(OrderPo order, KtvSessionApplicationService.LiveEstimate live,
                                         KtvSessionApplicationService.OrderAmountSums sums) {
         long basisMinor = OrderAmountApplicationService.totalBasisMinor(order, sums.activeItemsMinor());
-        Long liveRoomFeeMinor = isOpenSession(session) ? session.getEstimatedRoomFee() : null;
-        if (liveRoomFeeMinor == null) {
+        if (live == null) {
             return BigDecimal.valueOf(basisMinor);
         }
         return BigDecimal.valueOf(OrderAmountApplicationService.withRoomFeeReplaced(
-                basisMinor, sums.roomFeeItemsMinor(), liveRoomFeeMinor));
+                basisMinor, sums.roomFeeItemsMinor(), live.estimatedRoomFee()));
     }
 
-    /** 会话是否「开台中」（OPEN/PAUSED）：只有这两个状态的房费还在随时间增长。 */
-    private static boolean isOpenSession(KtvSessionPo session) {
-        return session != null && ("OPEN".equals(session.getStatus()) || "PAUSED".equals(session.getStatus()));
+    /**
+     * 会话的对外视图；{@code GET /orders/{id}/session} 额外带上实时计时与实时房费
+     * （原实现由 {@code fillLiveEstimate} 写进持久化对象的两个瞬态字段，值相同）。
+     */
+    private KtvSessionView liveView(KtvSession session) {
+        KtvSessionApplicationService.LiveEstimate live = ktvSessionService.liveEstimate(session, null);
+        return live == null
+                ? KtvSessionView.from(session)
+                : KtvSessionView.from(session, live.elapsedSeconds(), live.estimatedRoomFee());
     }
 
     /** 按订单查 KTV 会话（点单/结台/续台/转台需 sessionId）。 */
     @GetMapping("/orders/{id}/session")
-    public KtvSessionPo session(@PathVariable Long id) {
-        return ktvSessionService.findByOrderId(id);
+    public KtvSessionView session(@PathVariable Long id) {
+        return liveView(ktvSessionService.findByOrderId(id));
     }
 
     /**
@@ -367,8 +377,8 @@ public class OrderController {
 
         // 同步创建包厢会话（RESERVED），关联 orderId + 包厢 resourceId，返回 sessionId 供开台/计时/结台使用。
         if ("KTV".equals(businessType) && req.resourceId() != null) {
-            KtvSessionPo session = ktvSessionService.create(tenantId, po.getId(), req.resourceId());
-            po.setSessionId(session.getId());
+            KtvSession session = ktvSessionService.create(tenantId, po.getId(), req.resourceId());
+            po.setSessionId(session.id());
         }
         return po;
     }
@@ -417,9 +427,9 @@ public class OrderController {
         if (order == null || order.getId() == null) {
             return order;
         }
-        KtvSessionPo session = ktvSessionService.listByOrderIds(List.of(order.getId())).get(order.getId());
+        KtvSession session = ktvSessionService.listByOrderIds(List.of(order.getId())).get(order.getId());
         if (session != null) {
-            order.setSessionId(session.getId());
+            order.setSessionId(session.id());
         }
         return order;
     }
@@ -455,41 +465,44 @@ public class OrderController {
 
     /** 开台：可选登记到店人数（partySize）；非空时必须 > 0 且不超过包厢容量，否则 400。 */
     @PostMapping("/ktv/sessions/{id}/open")
-    public KtvSessionPo open(@PathVariable Long id, @RequestBody OpenRequest req) {
+    public KtvSessionView open(@PathVariable Long id, @RequestBody OpenRequest req) {
         PermissionGuard.require("ktv.session.open");
-        return ktvSessionService.open(id, req == null ? null : req.freeWaitMinutes(),
-                req == null ? null : req.partySize());
+        // 写路径不下发实时估算（与迁移前一致：开台响应里的计时/预估字段为空）。
+        return KtvSessionView.from(ktvSessionService.open(id, req == null ? null : req.freeWaitMinutes(),
+                req == null ? null : req.partySize()));
     }
 
     @PostMapping("/ktv/sessions/{id}/pause")
-    public KtvSessionPo pause(@PathVariable Long id) {
+    public KtvSessionView pause(@PathVariable Long id) {
         PermissionGuard.require("ktv.session.open");
-        return ktvSessionService.pause(id);
+        return KtvSessionView.from(ktvSessionService.pause(id));
     }
 
     @PostMapping("/ktv/sessions/{id}/resume")
-    public KtvSessionPo resume(@PathVariable Long id) {
+    public KtvSessionView resume(@PathVariable Long id) {
         PermissionGuard.require("ktv.session.open");
-        return ktvSessionService.resume(id);
+        return KtvSessionView.from(ktvSessionService.resume(id));
     }
 
     @PostMapping("/ktv/sessions/{id}/close")
-    public KtvSessionPo close(@PathVariable Long id) {
+    public KtvSessionView close(@PathVariable Long id) {
         PermissionGuard.require("ktv.session.operate");
-        return ktvSessionService.close(id);
+        return KtvSessionView.from(ktvSessionService.close(id));
     }
 
     @PostMapping("/ktv/sessions/{id}/cancel")
-    public KtvSessionPo cancel(@PathVariable Long id) {
+    public KtvSessionView cancel(@PathVariable Long id) {
         PermissionGuard.require("ktv.session.open");
-        return ktvSessionService.cancel(id);
+        return KtvSessionView.from(ktvSessionService.cancel(id));
     }
 
     /** 点服务人员：POST /business/orders/{id}/servers → ORDERED（计时开始，KTV_BUSINESS_01 §5.2）。 */
     @PostMapping("/orders/{id}/servers")
-    public KtvServerSessionPo orderServer(@PathVariable Long id, @RequestBody OrderServerRequest req) {
+    public KtvServerSessionView orderServer(@PathVariable Long id, @RequestBody OrderServerRequest req) {
         PermissionGuard.require("ktv.server.order");
-        return ktvServerSessionService.order(requireContext().tenantId(), id, req.ktvSessionId(), req.serverResourceId(), req.catalogItemId());
+        KtvServerSession ordered = ktvServerSessionService.order(requireContext().tenantId(), id,
+                req.ktvSessionId(), req.serverResourceId(), req.catalogItemId());
+        return KtvServerSessionView.from(ordered);
     }
 
     /** 挂单：SERVING 内操作标记，不结台、不改商业状态（KTV_BUSINESS_01 §11.1）。 */
@@ -586,11 +599,11 @@ public class OrderController {
 
     /** 转台：换包厢，计时继承（累计）不重置（KTV_BUSINESS_01 §11.2）。 */
     @PostMapping("/orders/{id}/transfer")
-    public KtvSessionPo transfer(@PathVariable Long id, @RequestBody TransferRequest req) {
+    public KtvSessionView transfer(@PathVariable Long id, @RequestBody TransferRequest req) {
         PermissionGuard.require("order.transfer");
         OrderPo order = requireOrder(id);
-        KtvSessionPo session = ktvSessionService.findByOrderId(order.getId());
-        return ktvSessionService.transfer(session.getId(), req.targetResourceId());
+        KtvSession session = ktvSessionService.findByOrderId(order.getId());
+        return KtvSessionView.from(ktvSessionService.transfer(session.id(), req.targetResourceId()));
     }
 
     /**
@@ -633,9 +646,9 @@ public class OrderController {
 
     /** 暂停修正：店长/财务修正 paused_seconds（KTV_BUSINESS_01 §11.5）。 */
     @PostMapping("/ktv/sessions/{id}/correct-pause")
-    public KtvSessionPo correctPause(@PathVariable Long id, @RequestBody CorrectPauseRequest req) {
+    public KtvSessionView correctPause(@PathVariable Long id, @RequestBody CorrectPauseRequest req) {
         PermissionGuard.require("ktv.session.correct_pause");
-        return ktvSessionService.correctPause(id, req.pausedSeconds());
+        return KtvSessionView.from(ktvSessionService.correctPause(id, req.pausedSeconds()));
     }
 
     /** 订单查询（404 不存在 / 403 跨租户）：口径集中在取消服务，避免多处各写一套。 */

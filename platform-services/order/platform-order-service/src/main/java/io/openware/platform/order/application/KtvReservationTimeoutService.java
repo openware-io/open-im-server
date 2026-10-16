@@ -3,10 +3,10 @@ package io.openware.platform.order.application;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
 import io.openware.platform.order.infra.persistence.mapper.ReservationMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import io.openware.platform.order.infra.persistence.po.ReservationPo;
 import java.time.LocalDateTime;
@@ -47,20 +47,20 @@ public class KtvReservationTimeoutService {
     private static final Set<String> TERMINAL_ORDER_STATUSES =
             Set.of("COMPLETED", "CANCELLED", "VOIDED", "REFUNDED", "PARTIAL_REFUNDED");
 
-    private final KtvSessionMapper sessionMapper;
+    private final KtvSessionRepository sessionRepository;
     private final ReservationMapper reservationMapper;
     private final OrderMapper orderMapper;
     private final KtvSessionApplicationService ktvSessionService;
     private final OrderCancellationApplicationService orderCancellationService;
     private final ReservationApplicationService reservationService;
 
-    public KtvReservationTimeoutService(KtvSessionMapper sessionMapper,
+    public KtvReservationTimeoutService(KtvSessionRepository sessionRepository,
                                         ReservationMapper reservationMapper,
                                         OrderMapper orderMapper,
                                         KtvSessionApplicationService ktvSessionService,
                                         OrderCancellationApplicationService orderCancellationService,
                                         ReservationApplicationService reservationService) {
-        this.sessionMapper = sessionMapper;
+        this.sessionRepository = sessionRepository;
         this.reservationMapper = reservationMapper;
         this.orderMapper = orderMapper;
         this.ktvSessionService = ktvSessionService;
@@ -86,17 +86,17 @@ public class KtvReservationTimeoutService {
         int releasedOrders = 0;
         int orphanSessions = 0;
         int needsManual = 0;
-        for (KtvSessionPo session : safe(sessionMapper.selectReservedOverdue(cutoff))) {
+        for (KtvSession session : safe(sessionRepository.findReservedOverdue(cutoff))) {
             TenantContext previous = TenantContextHolder.get();
             try {
-                TenantContextHolder.set(new TenantContext(session.getTenantId(), null, null, 0L, 0));
-                OrderPo order = orderMapper.selectById(session.getOrderId());
+                TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
+                OrderPo order = orderMapper.selectById(session.orderId());
                 if (order == null || TERMINAL_ORDER_STATUSES.contains(order.getStatus())) {
                     // 孤儿会话：订单已终结（作废/取消/已完成）但会话还停在「已预留」——只收敛会话，释放包厢。
-                    ktvSessionService.cancelByOrder(session.getOrderId());
+                    ktvSessionService.cancelByOrder(session.orderId());
                     orphanSessions++;
                     log.info("收敛孤儿预留会话: sessionId={}, orderId={}, orderStatus={}",
-                            session.getId(), session.getOrderId(), order == null ? "MISSING" : order.getStatus());
+                            session.id(), session.orderId(), order == null ? "MISSING" : order.getStatus());
                     continue;
                 }
                 try {
@@ -114,7 +114,7 @@ public class KtvReservationTimeoutService {
                 }
             } catch (RuntimeException failure) {
                 log.warn("预约超时释放包厢失败（下一轮重试）: sessionId={}, cause={}",
-                        session.getId(), failure.getMessage());
+                        session.id(), failure.getMessage());
             } finally {
                 restoreTenant(previous);
             }

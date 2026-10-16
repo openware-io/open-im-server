@@ -1,12 +1,11 @@
 package io.openware.platform.order.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.mq.MqConsumerFactory;
@@ -14,17 +13,18 @@ import io.openware.infrastructure.mq.MqProducer;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.controller.InventoryRecoveryAdminController;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
 import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.inventory.model.InventoryStock;
+import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
+import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionQuery;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryTransactionMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
@@ -77,10 +77,10 @@ class InventoryStockIntegrationTest {
   private ProductApplicationService productService;
 
   @Autowired
-  private InventoryStockMapper stockMapper;
+  private InventoryStockRepository stockRepository;
 
   @Autowired
-  private InventoryTransactionMapper transactionMapper;
+  private InventoryTransactionRepository transactionRepository;
 
   @Autowired
   private CatalogItemRepository catalogItemRepository;
@@ -106,37 +106,38 @@ class InventoryStockIntegrationTest {
 
   @Test
   void consumeRejectsWhenAvailableStockIsInsufficientAndKeepsStockUntouched() {
-    InventoryMaterialPo material = newMaterial("不足拒绝");
-    inventoryService.changeStock(material.getId(), new BigDecimal("2"), "RECEIPT", "集成测试入库", "ins-" + material.getId());
+    InventoryMaterialView material = newMaterial("不足拒绝");
+    inventoryService.changeStock(material.id(), new BigDecimal("2"), "RECEIPT", "集成测试入库", "ins-" + material.id());
 
     BusinessException error = assertThrows(BusinessException.class, () -> inventoryService.changeStock(
-        material.getId(), new BigDecimal("3"), "CONSUME", "ORDER_ITEM", "1", "超量扣减", "consume-fail-" + material.getId()));
+        material.id(), new BigDecimal("3"), "CONSUME", "ORDER_ITEM", "1", "超量扣减", "consume-fail-" + material.id()));
 
     assertEquals("INVENTORY_INSUFFICIENT", error.getCode());
-    assertEquals(0, onHand(material.getId()).compareTo(new BigDecimal("2")));
-    assertTrue(consumedTransactions(material.getId()).isEmpty(), "扣减失败不能留下流水");
+    assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("2")));
+    assertTrue(consumedTransactions(material.id()).isEmpty(), "扣减失败不能留下流水");
   }
 
   /** 条件更新语义：可用量不足时受影响 0 行，库存一动不动（不依赖应用层「先读后判」）。 */
   @Test
   void conditionalDeductAffectsZeroRowsWhenNotEnough() {
-    InventoryMaterialPo material = newMaterial("条件更新");
-    inventoryService.changeStock(material.getId(), new BigDecimal("2"), "RECEIPT", "集成测试入库", "cond-" + material.getId());
+    InventoryMaterialView material = newMaterial("条件更新");
+    inventoryService.changeStock(material.id(), new BigDecimal("2"), "RECEIPT", "集成测试入库", "cond-" + material.id());
 
-    int affected = stockMapper.deductAvailable(TENANT_ID, STORE_ID, material.getId(), new BigDecimal("3"), LocalDateTime.now());
-    assertEquals(0, affected);
-    assertEquals(0, onHand(material.getId()).compareTo(new BigDecimal("2")));
+    // 条件更新的返回值就是权威结论：可用量不足 → false（0 行受影响），库存一动不动。
+    assertFalse(stockRepository.deductAvailable(TENANT_ID, STORE_ID, material.id(), new BigDecimal("3"), LocalDateTime.now()),
+        "可用量不足时条件更新必须 0 行受影响（端口把「>0 行」表达成 boolean）");
+    assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("2")));
 
-    int ok = stockMapper.deductAvailable(TENANT_ID, STORE_ID, material.getId(), new BigDecimal("2"), LocalDateTime.now());
-    assertEquals(1, ok);
-    assertEquals(0, onHand(material.getId()).signum(), "扣到 0 可以，绝不允许为负");
+    assertTrue(stockRepository.deductAvailable(TENANT_ID, STORE_ID, material.id(), new BigDecimal("2"), LocalDateTime.now()),
+        "可用量恰好够时条件更新必须命中 1 行");
+    assertEquals(0, onHand(material.id()).signum(), "扣到 0 可以，绝不允许为负");
   }
 
   /** 并发扣减不超卖：8 线程抢 5 件 → 5 成功 3 失败（全部 INVENTORY_INSUFFICIENT），库存归零不为负。 */
   @Test
   void concurrentConsumeNeverOversells() throws Exception {
-    InventoryMaterialPo material = newMaterial("并发扣减");
-    inventoryService.changeStock(material.getId(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "conc-" + material.getId());
+    InventoryMaterialView material = newMaterial("并发扣减");
+    inventoryService.changeStock(material.id(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "conc-" + material.id());
 
     int threads = 8;
     ExecutorService pool = Executors.newFixedThreadPool(threads);
@@ -153,8 +154,8 @@ class InventoryStockIntegrationTest {
           TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
           ready.countDown();
           start.await(30, TimeUnit.SECONDS);
-          inventoryService.changeStock(material.getId(), BigDecimal.ONE, "CONSUME", "ORDER_ITEM",
-              String.valueOf(index), "并发抢购", "conc-consume-" + material.getId() + "-" + index);
+          inventoryService.changeStock(material.id(), BigDecimal.ONE, "CONSUME", "ORDER_ITEM",
+              String.valueOf(index), "并发抢购", "conc-consume-" + material.id() + "-" + index);
           success.incrementAndGet();
         } catch (BusinessException e) {
           if ("INVENTORY_INSUFFICIENT".equals(e.getCode())) {
@@ -178,8 +179,8 @@ class InventoryStockIntegrationTest {
     assertEquals(5, success.get(), "库存 5 件必须恰好成功 5 单");
     assertEquals(3, insufficient.get(), "其余请求必须被明确拒绝（库存不足）");
     assertEquals(0, unexpected.get(), "不应出现库存不足以外的异常");
-    assertEquals(0, onHand(material.getId()).signum());
-    assertEquals(5, consumedTransactions(material.getId()).size());
+    assertEquals(0, onHand(material.id()).signum());
+    assertEquals(5, consumedTransactions(material.id()).size());
   }
 
   /** 作废回补：CONSUMED 明细经后台确认后加回库存，且同一明细不可重复回补。 */
@@ -187,8 +188,8 @@ class InventoryStockIntegrationTest {
   void voidedOrderRecoveryReturnsStockAndIsIdempotent() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, List.of(
         "inventory.recovery.view", "inventory.recovery.confirm")));
-    InventoryMaterialPo material = newMaterial("作废回补");
-    inventoryService.changeStock(material.getId(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "rev-" + material.getId());
+    InventoryMaterialView material = newMaterial("作废回补");
+    inventoryService.changeStock(material.id(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "rev-" + material.id());
 
     OrderPo order = newOrder("VOIDED");
     OrderItemPo item = new OrderItemPo();
@@ -208,12 +209,12 @@ class InventoryStockIntegrationTest {
     item.setUpdatedAt(LocalDateTime.now());
     orderItemMapper.insert(item);
     // 模拟加项扣减 2 件（幂等键与 Controller 回补键同一明细维度）
-    inventoryService.changeStock(material.getId(), new BigDecimal("2"), "CONSUME", "ORDER_ITEM",
+    inventoryService.changeStock(material.id(), new BigDecimal("2"), "CONSUME", "ORDER_ITEM",
         String.valueOf(item.getId()), "订单加项扣减", "order-item:" + item.getId() + ":consume");
     item.setInventoryStatus("CONSUMED");
-    item.setInventoryMaterialId(material.getId());
+    item.setInventoryMaterialId(material.id());
     orderItemMapper.updateById(item);
-    assertEquals(0, onHand(material.getId()).compareTo(new BigDecimal("3")));
+    assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("3")));
 
     List<OrderItemPo> pending = recoveryController.list(order.getId());
     assertEquals(1, pending.size(), "作废订单的已扣减明细必须出现在回补列表");
@@ -222,12 +223,12 @@ class InventoryStockIntegrationTest {
         new InventoryRecoveryAdminController.RecoveryRequest(true, "作废回补"));
     assertEquals("REVERSED", recovered.getInventoryStatus());
     assertEquals("RECOVERED", recovered.getInventoryRecoveryDecision());
-    assertEquals(0, onHand(material.getId()).compareTo(new BigDecimal("5")), "回补后库存必须回到 5");
+    assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("5")), "回补后库存必须回到 5");
 
     BusinessException repeated = assertThrows(BusinessException.class, () -> recoveryController.decide(
         order.getId(), item.getId(), new InventoryRecoveryAdminController.RecoveryRequest(true, "重复回补")));
     assertEquals("INVENTORY_RECOVERY_INVALID", repeated.getCode());
-    assertEquals(0, onHand(material.getId()).compareTo(new BigDecimal("5")), "重复回补不能重复加库存");
+    assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("5")), "重复回补不能重复加库存");
   }
 
   /** 不回补：明细标记 NOT_RECOVERED，库存不变。 */
@@ -235,7 +236,7 @@ class InventoryStockIntegrationTest {
   void recoveryDecisionCanRefuseWithoutTouchingStock() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, List.of(
         "inventory.recovery.view", "inventory.recovery.confirm")));
-    InventoryMaterialPo material = newMaterial("拒绝回补");
+    InventoryMaterialView material = newMaterial("拒绝回补");
     OrderPo order = newOrder("VOIDED");
     OrderItemPo item = new OrderItemPo();
     item.setTenantId(TENANT_ID);
@@ -249,7 +250,7 @@ class InventoryStockIntegrationTest {
     item.setTotalAmount(new BigDecimal("1000"));
     item.setStatus("ACTIVE");
     item.setInventoryStatus("CONSUMED");
-    item.setInventoryMaterialId(material.getId());
+    item.setInventoryMaterialId(material.id());
     item.setCreatedAt(LocalDateTime.now());
     item.setUpdatedAt(LocalDateTime.now());
     orderItemMapper.insert(item);
@@ -259,16 +260,16 @@ class InventoryStockIntegrationTest {
 
     assertEquals("NOT_RECOVERED", decided.getInventoryStatus());
     assertEquals("NOT_RECOVERED", decided.getInventoryRecoveryDecision());
-    assertEquals(0, onHand(material.getId()).signum());
+    assertEquals(0, onHand(material.id()).signum());
   }
 
   /** F3：syncCatalog 必须把商品的「是否扣库存」回写到目录项缓存列，否则加项就漏扣库存。 */
   @Test
   void syncCatalogWritesStockControlledCacheColumn() {
-    InventoryMaterialPo material = newMaterial("同步列");
+    InventoryMaterialView material = newMaterial("同步列");
     ProductView product = productService.create(new ProductApplicationService.ProductCommand(
         STORE_ID, "SYNC-P-" + System.nanoTime(), "实物商品", "饮品", "瓶", new BigDecimal("1000"),
-        material.getId(), true, 0, null, null, null));
+        material.id(), true, 0, null, null, null));
 
     assertNotNull(product.catalogItemId());
     assertEquals(Boolean.TRUE, loadCatalogItem(product.catalogItemId()).stockControlled(),
@@ -290,21 +291,21 @@ class InventoryStockIntegrationTest {
   /** 点单列表的批量库存读：一次取回多个物料，未建库存行的按 0（售罄），并写入 TTL 缓存。 */
   @Test
   void batchAvailabilityReturnsPerMaterialQuantities() {
-    InventoryMaterialPo inStock = newMaterial("批量有货");
-    InventoryMaterialPo neverReceived = newMaterial("批量无货");
-    inventoryService.changeStock(inStock.getId(), new BigDecimal("3"), "RECEIPT", "集成测试入库", "batch-" + inStock.getId());
+    InventoryMaterialView inStock = newMaterial("批量有货");
+    InventoryMaterialView neverReceived = newMaterial("批量无货");
+    inventoryService.changeStock(inStock.id(), new BigDecimal("3"), "RECEIPT", "集成测试入库", "batch-" + inStock.id());
 
     java.util.Map<Long, BigDecimal> availability = inventoryService.availableQuantities(
-        TENANT_ID, STORE_ID, List.of(inStock.getId(), neverReceived.getId()));
+        TENANT_ID, STORE_ID, List.of(inStock.id(), neverReceived.id()));
 
-    assertEquals(0, availability.get(inStock.getId()).compareTo(new BigDecimal("3")));
-    assertEquals(0, availability.get(neverReceived.getId()).signum(), "没有库存行的物料按售罄（0）处理");
+    assertEquals(0, availability.get(inStock.id()).compareTo(new BigDecimal("3")));
+    assertEquals(0, availability.get(neverReceived.id()).signum(), "没有库存行的物料按售罄（0）处理");
     // 再读一次命中缓存，结果一致（缓存不影响正确性）
-    assertEquals(0, inventoryService.availableQuantities(TENANT_ID, STORE_ID, List.of(inStock.getId()))
-        .get(inStock.getId()).compareTo(new BigDecimal("3")));
+    assertEquals(0, inventoryService.availableQuantities(TENANT_ID, STORE_ID, List.of(inStock.id()))
+        .get(inStock.id()).compareTo(new BigDecimal("3")));
   }
 
-  private InventoryMaterialPo newMaterial(String name) {
+  private InventoryMaterialView newMaterial(String name) {
     return inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         STORE_ID, "INV-" + System.nanoTime(), name, "耗材", "件", BigDecimal.ZERO, null, null, null, null));
   }
@@ -332,16 +333,13 @@ class InventoryStockIntegrationTest {
   }
 
   private BigDecimal onHand(Long materialId) {
-    InventoryStockPo stock = stockMapper.selectOne(new LambdaQueryWrapper<InventoryStockPo>()
-        .eq(InventoryStockPo::getTenantId, TENANT_ID)
-        .eq(InventoryStockPo::getStoreId, STORE_ID)
-        .eq(InventoryStockPo::getMaterialId, materialId));
-    return stock == null ? BigDecimal.ZERO : stock.getOnHandQty();
+    InventoryStock stock = stockRepository.find(TENANT_ID, STORE_ID, materialId).orElse(null);
+    return stock == null ? BigDecimal.ZERO : stock.onHandQty();
   }
 
-  private List<InventoryTransactionPo> consumedTransactions(Long materialId) {
-    return transactionMapper.selectList(new QueryWrapper<InventoryTransactionPo>()
-        .eq("tenant_id", TENANT_ID).eq("store_id", STORE_ID)
-        .eq("material_id", materialId).eq("transaction_type", "CONSUME"));
+  /** 本门店该物料的 CONSUME 流水（端口分页读，行数口径不变）。 */
+  private List<InventoryTransaction> consumedTransactions(Long materialId) {
+    return transactionRepository.findPage(TransactionQuery.inStore(TENANT_ID, STORE_ID, materialId, "CONSUME",
+        null, null, null, null, 0L, 100L)).transactions();
   }
 }

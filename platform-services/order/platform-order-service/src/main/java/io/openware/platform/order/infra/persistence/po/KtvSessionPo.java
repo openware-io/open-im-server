@@ -1,7 +1,6 @@
 package io.openware.platform.order.infra.persistence.po;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
@@ -9,6 +8,16 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 包厢会话持久化对象：与 {@code ord_ktv_session} 逐列对应。
+ *
+ * <p>本次迁移删除了原有两个 {@code @TableField(exist = false)} 的展示字段
+ * （{@code elapsedSeconds} 已计费时长 / {@code estimatedRoomFee} 实时房费估算）：
+ * 它们是**读投影**（由计价方案在响应期算出），既不是会话自身的事实、也不落库，
+ * 已经移到响应视图 {@code KtvSessionView} 上。留下来只会给写入路径留一个
+ * 「对非列字段生成列引用 → 运行时 {@code can not find lambda cache for this property}」的坑，
+ * 而 {@code test-compile} 看不出任何异常。
+ */
 @Getter
 @Setter
 @TableName("ord_ktv_session")
@@ -48,11 +57,4 @@ public class KtvSessionPo {
     private LocalDateTime createdAt;
     private Long updatedBy;
     private LocalDateTime updatedAt;
-
-    /** 非持久化：已计费时长（秒），开台中实时计算，供订单/会话展示「包厢计时中」。 */
-    @TableField(exist = false)
-    private Long elapsedSeconds;
-    /** 非持久化：当前包厢计时费（最小货币单位），开台中按计价方案实时估算。 */
-    @TableField(exist = false)
-    private Long estimatedRoomFee;
 }

@@ -14,10 +14,10 @@ import static org.mockito.Mockito.when;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.dto.PendingApprovalView;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.cache.PendingApprovalCache;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
@@ -69,11 +69,9 @@ class PendingApprovalApplicationServiceTest {
     when(orderMapper.selectBatchIds(any())).thenReturn(List.of(
         order(1L, STORE_ID, "O202609190001"),
         order(2L, OTHER_STORE_ID, "O202609190002")));
-    KtvSessionPo session = new KtvSessionPo();
-    session.setId(9L);
-    session.setRoomNameSnapshot("K01");
-    session.setRoomCodeSnapshot("K01");
-    session.setStatus("OPEN");
+    KtvSession session = KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", 1L, null, "K01", "K01")
+        .withId(9L)
+        .withStatus(KtvSession.STATUS_OPEN);
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of(1L, session));
 
     PendingApprovalView view = service.pendingForCurrentStore();
@@ -151,14 +149,14 @@ class PendingApprovalApplicationServiceTest {
     when(orderItemMapper.selectList(any())).thenReturn(List.of(item(41L, 1L, "精酿啤酒", "1", "100", "CNY", now(1))));
     when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
     // 会话只剩编码快照（开台时资源服务给不出名称）
-    KtvSessionPo codeOnly = session(1L, 9L, "", "K01");
+    KtvSession codeOnly = session(1L, 9L, "", "K01");
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of(1L, codeOnly));
 
     assertEquals("K01", service.pendingForCurrentStore().orders().get(0).roomName());
 
     // 名称/编码快照都为空（开台时资源服务不可达）：按 roomResourceId 回源一次
     service.invalidateCurrentStore();
-    KtvSessionPo blank = session(1L, 9L, null, "   ");
+    KtvSession blank = session(1L, 9L, null, "   ");
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of(1L, blank));
     when(ktvSessionService.roomNameFromResource(9L)).thenReturn("小包 K01");
 
@@ -211,15 +209,10 @@ class PendingApprovalApplicationServiceTest {
   }
 
   /** KTV 会话：包厢快照可能为空（开台时资源服务不可达），只留 roomResourceId。 */
-  private static KtvSessionPo session(Long orderId, Long roomResourceId, String roomName, String roomCode) {
-    KtvSessionPo po = new KtvSessionPo();
-    po.setId(9L);
-    po.setOrderId(orderId);
-    po.setRoomResourceId(roomResourceId);
-    po.setRoomNameSnapshot(roomName);
-    po.setRoomCodeSnapshot(roomCode);
-    po.setStatus("OPEN");
-    return po;
+  private static KtvSession session(Long orderId, Long roomResourceId, String roomName, String roomCode) {
+    return KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", orderId, roomResourceId, roomName, roomCode)
+        .withId(9L)
+        .withStatus(KtvSession.STATUS_OPEN);
   }
 
   private static LocalDateTime now(int plusSeconds) {

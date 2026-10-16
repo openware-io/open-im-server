@@ -4,10 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.dto.PendingApprovalView;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.cache.PendingApprovalCache;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.stereotype.Service;
@@ -130,7 +130,7 @@ public class PendingApprovalApplicationService {
         orderMapper.selectBatchIds(orderIds).stream()
                 .filter(order -> storeId.equals(order.getStoreId()))
                 .forEach(order -> orders.put(order.getId(), order));
-        Map<Long, KtvSessionPo> sessions = ktvSessionService.listByOrderIds(new ArrayList<>(orders.keySet()));
+        Map<Long, KtvSession> sessions = ktvSessionService.listByOrderIds(new ArrayList<>(orders.keySet()));
 
         Map<Long, List<OrderItemPo>> grouped = new LinkedHashMap<>();
         long pendingCount = 0;
@@ -154,7 +154,7 @@ public class PendingApprovalApplicationService {
         List<PendingApprovalView.PendingOrder> groupViews = new ArrayList<>();
         grouped.forEach((orderId, items) -> {
             OrderPo order = orders.get(orderId);
-            KtvSessionPo session = sessions == null ? null : sessions.get(orderId);
+            KtvSession session = sessions == null ? null : sessions.get(orderId);
             long groupAmount = 0;
             List<PendingApprovalView.PendingItem> itemViews = new ArrayList<>(items.size());
             for (OrderItemPo item : items) {
@@ -174,9 +174,13 @@ public class PendingApprovalApplicationService {
                     order.getOrderNo(),
                     order.getStoreId(),
                     roomNameOf(session),
-                    session == null ? null : text(session.getRoomCodeSnapshot()),
-                    session == null ? null : session.getStatus(),
-                    session == null ? null : session.getElapsedSeconds(),
+                    session == null ? null : text(session.roomCodeSnapshot()),
+                    session == null ? null : session.status(),
+                    // 已计费时长是**读投影**（计价方案在响应期算出），不在领域模型上。
+                    // 这里保持迁移前的既有行为：本路径从不计算它，因此恒为 null——迁移前读的是持久化对象上
+                    // 那个没有任何代码写入的瞬态字段，同样是 null。改成实时计算会把一个一直为空的下发字段
+                    // 变成有值（并给本列表路径引入按会话的计价方案读取），那是另一件有意的事，不夹在本次迁移里。
+                    null,
                     itemViews.size(),
                     groupAmount,
                     itemViews));
@@ -200,19 +204,19 @@ public class PendingApprovalApplicationService {
      * （或历史数据）就只剩资源 ID，前端只能显示「—」，门店根本不知道是哪间包厢点的。
      * 回源失败仍返回 null（读路径降级，不打断提醒链路），由前端统一显示「未关联包厢」。
      */
-    private String roomNameOf(KtvSessionPo session) {
+    private String roomNameOf(KtvSession session) {
         if (session == null) {
             return null;
         }
-        String name = text(session.getRoomNameSnapshot());
+        String name = text(session.roomNameSnapshot());
         if (name != null) {
             return name;
         }
-        String code = text(session.getRoomCodeSnapshot());
+        String code = text(session.roomCodeSnapshot());
         if (code != null) {
             return code;
         }
-        return ktvSessionService == null ? null : text(ktvSessionService.roomNameFromResource(session.getRoomResourceId()));
+        return ktvSessionService == null ? null : text(ktvSessionService.roomNameFromResource(session.roomResourceId()));
     }
 
     /** 去空白；空白与 null 一视同仁（快照列可能存了空串）。 */

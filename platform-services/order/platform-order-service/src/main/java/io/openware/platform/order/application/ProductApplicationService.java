@@ -1,7 +1,6 @@
 package io.openware.platform.order.application;
 
 import io.openware.common.exception.BusinessException;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.TenantContext;
@@ -15,10 +14,10 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.client.ResourceStateClient.ServerSnapshot;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,9 +38,10 @@ import org.springframework.dao.DuplicateKeyException;
  * 更不能进任何列引用（对 {@code exist = false} 的字段生成列引用会在运行时抛
  * {@code can not find lambda cache for this property [...]}）。
  *
- * <p>仍直接依赖 {@code InventoryMaterialMapper} 的原因：校验「关联物料存在且启用」与取物料图片
- * 要读 {@code ord_inventory_material}，物料属于**库存子域**，本次不迁移库存。这里保持既有的窄用法
- * （只 {@code selectById}/{@code selectOne}），把库存子域的端口化留给库存切片。
+ * <p>跨子域读走库存子域的 {@link InventoryMaterialRepository} 端口：校验「关联物料存在且启用」与取物料
+ * 图片（目录项图片回退）都要读 {@code ord_inventory_material}，迁移前直接持有
+ * {@code InventoryMaterialMapper}；库存切片把端口建好后就换成了端口，本类不再依赖持久化实现。
+ * 用法保持窄：只 {@code findById} / {@code findInStore}。
  *
  * <p><b>商品类型权威口径</b>：{@code ord_product.item_type}（PRODUCT 实物商品 / SERVICE 服务）。
  * 服务是「人员的服务」，因此服务型商品必须关联一名启用的本门店服务人员
@@ -70,31 +70,31 @@ public class ProductApplicationService {
 
     private final ProductRepository productRepository;
     private final CatalogItemRepository catalogItemRepository;
-    private final InventoryMaterialMapper materialMapper;
+    private final InventoryMaterialRepository materialRepository;
     private final AuditClient auditClient;
     private final ResourceStateClient resourceStateClient;
 
     @Autowired
     public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
-                                     InventoryMaterialMapper materialMapper, AuditClient auditClient,
+                                     InventoryMaterialRepository materialRepository, AuditClient auditClient,
                                      ResourceStateClient resourceStateClient) {
         this.productRepository = productRepository;
         this.catalogItemRepository = catalogItemRepository;
-        this.materialMapper = materialMapper;
+        this.materialRepository = materialRepository;
         this.auditClient = auditClient;
         this.resourceStateClient = resourceStateClient;
     }
 
     /** 兼容既有单测装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
     public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
-                                     InventoryMaterialMapper materialMapper, AuditClient auditClient) {
-        this(productRepository, catalogItemRepository, materialMapper, auditClient, null);
+                                     InventoryMaterialRepository materialRepository, AuditClient auditClient) {
+        this(productRepository, catalogItemRepository, materialRepository, auditClient, null);
     }
 
     /** 兼容既有单测装配：不传审计客户端与服务人员校验客户端时两者都关闭（服务型商品此时无法保存）。 */
     public ProductApplicationService(ProductRepository productRepository, CatalogItemRepository catalogItemRepository,
-                                     InventoryMaterialMapper materialMapper) {
-        this(productRepository, catalogItemRepository, materialMapper, AuditClient.disabled(), null);
+                                     InventoryMaterialRepository materialRepository) {
+        this(productRepository, catalogItemRepository, materialRepository, AuditClient.disabled(), null);
     }
 
     /**
@@ -486,11 +486,11 @@ public class ProductApplicationService {
         if (product.materialId() == null) {
             return List.of();
         }
-        InventoryMaterialPo material = materialMapper.selectById(product.materialId());
-        if (material == null || material.getImageUrls() == null || material.getImageUrls().isEmpty()) {
+        InventoryMaterial material = materialRepository.findById(product.materialId()).orElse(null);
+        if (material == null || material.imagesOrEmpty().isEmpty()) {
             return List.of();
         }
-        return material.getImageUrls();
+        return material.imagesOrEmpty();
     }
 
     /** 目录项主图与 {@link #catalogImages} 同源（商品主图；回退物料主图；都无则 null）。 */
@@ -501,8 +501,7 @@ public class ProductApplicationService {
         if (images.isEmpty() || product.materialId() == null) {
             return null;
         }
-        InventoryMaterialPo material = materialMapper.selectById(product.materialId());
-        return material == null ? null : material.getMainImageUrl();
+        return materialRepository.findById(product.materialId()).map(InventoryMaterial::mainImageUrl).orElse(null);
     }
 
     private Product find(Long id) {
@@ -522,21 +521,23 @@ public class ProductApplicationService {
         }
     }
 
-    /** 关联物料必须存在且 ACTIVE（只读一次，跨子域读保持在既有的窄用法）。 */
+    /**
+     * 关联物料必须存在且 ACTIVE（跨子域窄读：一次 {@code findInStore}）。
+     *
+     * <p>「存在且启用」是业务判断，落在应用层：端口只回答「这个门店里有没有这一行」，
+     * 是否启用由 {@link InventoryMaterial#active()} 判定，错误码仍由本类给出。
+     */
     private boolean materialActive(Long materialId, Long tenantId, Long storeId) {
-        return materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-            .eq(InventoryMaterialPo::getTenantId, tenantId)
-            .eq(InventoryMaterialPo::getStoreId, storeId)
-            .eq(InventoryMaterialPo::getId, materialId)
-            .eq(InventoryMaterialPo::getStatus, "ACTIVE")) != null;
+        return materialRepository.findInStore(tenantId, storeId, materialId)
+            .filter(InventoryMaterial::active)
+            .isPresent();
     }
 
     private void requireMaterial(Long materialId, TenantContext context) {
-        InventoryMaterialPo material = materialMapper.selectOne(new LambdaQueryWrapper<InventoryMaterialPo>()
-            .eq(InventoryMaterialPo::getTenantId, context.tenantId())
-            .eq(InventoryMaterialPo::getStoreId, context.storeId())
-            .eq(InventoryMaterialPo::getId, materialId));
-        if (material == null || !"ACTIVE".equals(material.getStatus())) {
+        InventoryMaterial material = materialRepository
+            .findInStore(context.tenantId(), context.storeId(), materialId)
+            .orElse(null);
+        if (material == null || !material.active()) {
             throw new BusinessException("MATERIAL_NOT_FOUND", "关联物料不存在或已停用");
         }
     }

@@ -6,11 +6,11 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.common.exception.ApiException;
+import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ReservationPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -60,7 +60,7 @@ public class ReservationController {
      * 也接受 {@code yyyy-MM-ddTHH:mm:ss}；为空 = 不筛；{@code from > to} → 400 {@code TIME_RANGE_INVALID}。
      */
     @GetMapping
-    public List<ReservationPo> list(@RequestParam(required = false) String from,
+    public List<ReservationView> list(@RequestParam(required = false) String from,
                                     @RequestParam(required = false) String to) {
         PermissionGuard.require("reservation.view");
         return reservationService.list(TimeRangeParams.parse(from, to));
@@ -68,7 +68,7 @@ public class ReservationController {
 
     /** 预约详情（当前租户；跨租户由租户拦截器过滤为 404 语义）。 */
     @GetMapping("/{id}")
-    public ReservationPo get(@PathVariable Long id) {
+    public ReservationView get(@PathVariable Long id) {
         PermissionGuard.require("reservation.view");
         return reservationService.get(id);
     }
@@ -81,7 +81,7 @@ public class ReservationController {
      * 具体包厢到店后才分配。这里不做静默忽略 —— 否则调用方会误以为它选的包厢已经被预约锁定。
      */
     @PostMapping
-    public ReservationPo create(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+    public ReservationView create(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                 @RequestBody CreateReservationRequest req) {
         PermissionGuard.require("reservation.create");
         Long tenantId = requireTenant();
@@ -117,13 +117,13 @@ public class ReservationController {
 
     /** 确认预约：POST /business/reservations/{id}/confirm（PENDING → CONFIRMED，乐观锁 expectedVersion）。 */
     @PostMapping("/{id}/confirm")
-    public ReservationPo confirm(@PathVariable Long id, @RequestBody ConfirmReservationRequest req) {
+    public ReservationView confirm(@PathVariable Long id, @RequestBody ConfirmReservationRequest req) {
         PermissionGuard.require("reservation.confirm");
         return reservationService.confirm(id, req.expectedVersion());
     }
 
     @PostMapping("/{id}/reschedule")
-    public ReservationPo reschedule(@PathVariable Long id, @RequestBody RescheduleReservationRequest req) {
+    public ReservationView reschedule(@PathVariable Long id, @RequestBody RescheduleReservationRequest req) {
         PermissionGuard.require("reservation.create");
         if (req == null) throw new ApiException(400, "RESERVATION_TIME_REQUIRED", "缺少新预约时间");
         return reservationService.reschedule(id, req.startAt(), req.endAt(), req.expectedVersion());
@@ -131,7 +131,7 @@ public class ReservationController {
 
     /** 到店：POST /business/reservations/{id}/arrival（CONFIRMED → ARRIVED，写 arrived_at 真实到店时间）。 */
     @PostMapping("/{id}/arrival")
-    public ReservationPo arrival(@PathVariable Long id, @RequestBody(required = false) ArrivalReservationRequest req) {
+    public ReservationView arrival(@PathVariable Long id, @RequestBody(required = false) ArrivalReservationRequest req) {
         PermissionGuard.require("reservation.arrival");
         return reservationService.arrival(id, req == null ? null : req.operatorNote());
     }
@@ -143,7 +143,7 @@ public class ReservationController {
      * 不新增 IAM 基线之外的孤立权限码）；状态与错误码见 {@link ReservationApplicationService#noShow}。
      */
     @PostMapping("/{id}/no-show")
-    public ReservationPo noShow(@PathVariable Long id) {
+    public ReservationView noShow(@PathVariable Long id) {
         PermissionGuard.require("reservation.arrival");
         return reservationService.noShow(id);
     }
@@ -190,7 +190,7 @@ public class ReservationController {
     }
 
     @PostMapping("/{id}/assign-room")
-    public ReservationPo assignRoom(@PathVariable Long id, @RequestBody(required = false) AssignRoomRequest req) {
+    public ReservationView assignRoom(@PathVariable Long id, @RequestBody(required = false) AssignRoomRequest req) {
         PermissionGuard.require("reservation.arrival");
         if (req == null || req.resourceId() == null) {
             throw new ApiException(400, "RESOURCE_ID_REQUIRED", "缺少 resourceId");
@@ -219,7 +219,7 @@ public class ReservationController {
      * 原因必填、状态与审计口径见 {@link ReservationApplicationService#cancel}。
      */
     @PostMapping("/{id}/cancel")
-    public ReservationPo cancel(@PathVariable Long id, @RequestBody(required = false) CancelReservationRequest req) {
+    public ReservationView cancel(@PathVariable Long id, @RequestBody(required = false) CancelReservationRequest req) {
         PermissionGuard.require("reservation.cancel");
         return reservationService.cancel(id, req == null ? null : req.reason());
     }

@@ -1,7 +1,5 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
@@ -11,17 +9,20 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.ReservationView;
+import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository.AuditSnapshot;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository.Persisted;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository.WriteAudit;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomTypeView;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomView;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ReservationMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ReservationPo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -34,9 +35,9 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -67,7 +68,9 @@ import org.springframework.beans.factory.annotation.Autowired;
  * <ul>
  *   <li>租户上下文：tenant_id 取自 {@link TenantContextHolder}（由 X-Tenant-Context 过滤器注入），
  *       查询/更新由 TenantLineInnerInterceptor 自动追加 tenant_id 过滤，跨租户访问按 404 处理。</li>
- *   <li>乐观锁：写路径通过 version 字段做 WHERE version = 旧值 的乐观更新，冲突抛 RESERVATION_VERSION_CONFLICT。</li>
+ *   <li>乐观锁：写路径通过 {@link ReservationRepository} 的具名 CAS 方法做
+ *       {@code WHERE version = 旧值} 的条件更新，更新 0 行抛 RESERVATION_VERSION_CONFLICT；
+ *       应用层读出来比对只用于更快的错误提示，判定点在适配器发出的那条 SQL 上。</li>
  *   <li>幂等：create 以 Idempotency-Key 落 idempotency_key 列，唯一键 (tenant_id, idempotency_key) 兜底，
  *       重试返回已有预约。</li>
  *   <li>单号：预约号 {@code R<yyyyMMdd><当日序号>}、开台产生的订单号 {@code O<yyyyMMdd><当日序号>}，
@@ -76,12 +79,17 @@ import org.springframework.beans.factory.annotation.Autowired;
  *   <li>房型/包厢数据在资源域：写路径读不到就**失败关闭**（{@code RESOURCE_STATE_UNAVAILABLE}），
  *       读路径只丢展示字段（房型名/包厢名），不推翻预约本身。</li>
  * </ul>
+ *
+ * <p><b>持久化边界</b>：本类只依赖领域端口 {@link ReservationRepository} 与领域模型
+ * {@link Reservation}；{@code ReservationPo}/{@code ReservationMapper} 不再出现。
+ * 响应装配走 {@link ReservationView}（字段名与原 PO 一致），其中
+ * {@code roomTypeCode}/{@code roomTypeName}/{@code resourceName} 三个**非列**展示字段只存在于视图里。
  */
 @Slf4j
 @Service
 public class ReservationApplicationService {
 
-    private final ReservationMapper reservationMapper;
+    private final ReservationRepository reservationRepository;
     private final OrderMapper orderMapper;
     private final KtvSessionApplicationService ktvSessionService;
     private final ResourceStateClient resourceStateClient;
@@ -91,7 +99,7 @@ public class ReservationApplicationService {
     private final DailySerialNumberGenerator dailySerialNumberGenerator;
     private ReservationRuleApplicationService reservationRuleService;
 
-    public ReservationApplicationService(ReservationMapper reservationMapper,
+    public ReservationApplicationService(ReservationRepository reservationRepository,
                                          OrderMapper orderMapper,
                                          KtvSessionApplicationService ktvSessionService,
                                          ResourceStateClient resourceStateClient,
@@ -99,7 +107,7 @@ public class ReservationApplicationService {
                                          TenantBusinessHoursClient businessHoursClient,
                                          AuditClient auditClient,
                                          DailySerialNumberGenerator dailySerialNumberGenerator) {
-        this.reservationMapper = reservationMapper;
+        this.reservationRepository = reservationRepository;
         this.orderMapper = orderMapper;
         this.ktvSessionService = ktvSessionService;
         this.resourceStateClient = resourceStateClient;
@@ -134,7 +142,7 @@ public class ReservationApplicationService {
      * 不再发号）；并发重试那一路即使多发了一个号，返回给调用方的仍是既有预约的号。
      */
     @Transactional
-    public ReservationPo create(Long tenantId, String idempotencyKey, CreateReservationCommand cmd) {
+    public ReservationView create(Long tenantId, String idempotencyKey, CreateReservationCommand cmd) {
         requireTenant(tenantId);
         validateCreate(cmd);
         // 营业时间（统一原则）：到店时间必须落在营业时段内。放在最前面 —— 它是本域就能判定的规则，
@@ -147,9 +155,10 @@ public class ReservationApplicationService {
 
         // 幂等：同租户同 Idempotency-Key 已创建则直接返回（重试语义）。
         if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-            ReservationPo existing = findByIdempotencyKey(tenantId, idempotencyKey);
-            if (existing != null) {
-                return existing;
+            Optional<Persisted<Reservation>> existing = reservationRepository.findByIdempotencyKey(tenantId,
+                    idempotencyKey);
+            if (existing.isPresent()) {
+                return viewOf(existing.get());
             }
         }
 
@@ -158,43 +167,25 @@ public class ReservationApplicationService {
         long enabledRooms = requireEnabledRooms(cmd.storeId(), roomType);
         requireRoomTypeNotOverbooked(tenantId, cmd, enabledRooms);
 
-        LocalDateTime now = LocalDateTime.now();
-        ReservationPo po = new ReservationPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(cmd.storeId());
-        po.setReservationNo(dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.RESERVATION,
-                tenantId));
-        po.setIdempotencyKey(blankToNull(idempotencyKey));
-        po.setCustomerId(cmd.customerId());
-        po.setBusinessType(cmd.businessType());
-        // 预约创建时不写具体包厢：到店分配后再写，避免「预约就锁房」与多端抢房。
-        po.setResourceId(null);
-        po.setRoomTypeId(cmd.roomTypeId());
-        po.setRoomTypeCode(roomType.code());
-        po.setRoomTypeName(roomType.name());
-        po.setStartAt(toBusinessLocal(cmd.startAt()));
-        po.setEndAt(toBusinessLocal(cmd.endAt()));
-        po.setPartySize(cmd.partySize() == null ? 1 : cmd.partySize());
-        po.setContact(blankToNull(cmd.contact()));
-        po.setStatus(ReservationStatus.PENDING.name());
-        po.setOrderId(null);
-        po.setVersion(0);
-        po.setCreatedBy(operatorId());
-        po.setCreatedAt(now);
-        po.setUpdatedBy(operatorId());
-        po.setUpdatedAt(now);
+        Reservation draft = Reservation.draft(tenantId, cmd.storeId(),
+                dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.RESERVATION, tenantId),
+                blankToNull(idempotencyKey), cmd.customerId(), cmd.businessType(), cmd.roomTypeId(),
+                toBusinessLocal(cmd.startAt()), toBusinessLocal(cmd.endAt()), cmd.partySize(),
+                blankToNull(cmd.contact()));
 
         try {
-            reservationMapper.insert(po);
+            Persisted<Reservation> inserted = reservationRepository.insert(draft, writeAudit());
+            // 展示字段：房型名/编码来自本次校验的资源域快照，只进视图、不落库（DDL 里没有这两列）。
+            return viewOf(inserted).withRoomType(roomType.code(), roomType.name());
         } catch (DuplicateKeyException e) {
             // 并发重试：唯一键 (tenant_id, idempotency_key) 命中后返回已存在记录。
-            ReservationPo existing = findByIdempotencyKey(tenantId, idempotencyKey);
-            if (existing != null) {
-                return existing;
+            Optional<Persisted<Reservation>> existing = reservationRepository.findByIdempotencyKey(tenantId,
+                    idempotencyKey);
+            if (existing.isPresent()) {
+                return viewOf(existing.get());
             }
             throw e;
         }
-        return po;
     }
 
     /**
@@ -204,42 +195,41 @@ public class ReservationApplicationService {
      * （统一 {@code from}/{@code to} 口径，见 {@link TimeRangeParams}）；为空 = 不筛。
      * 落在 {@code start_at} 列上、不用函数包裹，保持索引可用；排序不变。
      */
-    public List<ReservationPo> list(TimeRange range) {
-        List<ReservationPo> rows = reservationMapper.selectList(new LambdaQueryWrapper<ReservationPo>()
-                .ge(range != null && range.hasFrom(), ReservationPo::getStartAt,
-                        range == null ? null : range.fromInclusive())
-                .le(range != null && range.hasTo(), ReservationPo::getStartAt,
-                        range == null ? null : range.toInclusive())
-                .orderByDesc(ReservationPo::getStartAt));
-        return enrichDisplayFields(rows);
+    public List<ReservationView> list(TimeRange range) {
+        return enrichDisplayFields(reservationRepository.findByStartAtRange(
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive()));
     }
 
     /** 预约详情（当前租户；跨租户由租户拦截器过滤为 null，返回 404 语义）。 */
-    public ReservationPo get(Long id) {
+    public ReservationView get(Long id) {
         return enrichDisplayFields(List.of(require(id))).get(0);
     }
 
     /**
-     * 只读路径的展示字段回填（供其它只读入口复用，如 C 端「我的预约」{@code /me/reservations}）：
-     * 按 room_type_id 回填房型名/编码、按 resource_id 回填包厢名；资源域不可达时只丢展示字段。
+     * C 端「我的预约」只读入口：按会员取全部预约（时段开始时间倒序）并回填房型名/包厢名。
+     *
+     * <p>与 {@link #list} 同一展示装配口径（读路径降级：资源域不可达时只丢展示字段）。
+     * 会员身份由 controller 从已认证账号解析后传入，本方法不读请求上下文里的账号。
      */
-    public List<ReservationPo> enrichForDisplay(List<ReservationPo> rows) {
-        return enrichDisplayFields(rows);
+    public List<ReservationView> listMine(Long customerId) {
+        return enrichDisplayFields(reservationRepository.findMine(customerId));
     }
 
     /** 确认预约：PENDING → CONFIRMED；expectedVersion 用于乐观锁校验。 */
     @Transactional
-    public ReservationPo confirm(Long id, Integer expectedVersion) {
+    public ReservationView confirm(Long id, Integer expectedVersion) {
         try {
-            ReservationPo po = require(id);
-            requireStatus(po, ReservationStatus.PENDING, "确认");
-            assertVersion(po, expectedVersion);
-            ReservationPo confirmed = updateStatus(po, ReservationStatus.CONFIRMED, po.getOrderId());
+            Persisted<Reservation> row = require(id);
+            requireStatus(row.aggregate(), ReservationStatus.PENDING, "确认");
+            assertVersion(row.aggregate(), expectedVersion);
+            Persisted<Reservation> confirmed = transition(row, ReservationStatus.CONFIRMED, null, null);
             // 确认是预约进入可到店状态的唯一入口，此前成功/失败都没有留痕。
-            recordReservationAudit("reservation.confirm", "预约确认", confirmed,
-                    "{\"reservationNo\":" + jsonText(confirmed.getReservationNo())
-                            + ",\"beforeStatus\":\"PENDING\",\"afterStatus\":" + jsonText(confirmed.getStatus()) + "}");
-            return confirmed;
+            Reservation after = confirmed.aggregate();
+            recordReservationAudit("reservation.confirm", "预约确认", after,
+                    "{\"reservationNo\":" + jsonText(after.reservationNo())
+                            + ",\"beforeStatus\":\"PENDING\",\"afterStatus\":" + jsonText(statusName(after)) + "}");
+            return viewOf(confirmed);
         } catch (RuntimeException failure) {
             recordFailure("reservation.confirm", id, failure);
             throw failure;
@@ -253,19 +243,19 @@ public class ReservationApplicationService {
      * 运营若要一次完成「客人到了就直接开台」，可直接调 {@link #openTable}（隐含到店）。
      */
     @Transactional
-    public ReservationPo arrival(Long id, String operatorNote) {
+    public ReservationView arrival(Long id, String operatorNote) {
         try {
-            ReservationPo po = require(id);
-            requireStatus(po, ReservationStatus.CONFIRMED, "到店");
+            Persisted<Reservation> row = require(id);
+            requireStatus(row.aggregate(), ReservationStatus.CONFIRMED, "到店");
             // operatorNote 暂无落库字段，仅作接口兼容。
-            LocalDateTime arrivedAt = LocalDateTime.now();
-            ReservationPo arrived = updateStatus(po, ReservationStatus.ARRIVED, po.getOrderId(), arrivedAt);
+            Persisted<Reservation> arrived = transition(row, ReservationStatus.ARRIVED, null, LocalDateTime.now());
             // 到店是「客人已到」的事实登记，是开台与超时判定的依据，此前成功/失败都没有留痕。
-            recordReservationAudit("reservation.arrival", "预约到店", arrived,
-                    "{\"reservationNo\":" + jsonText(arrived.getReservationNo())
-                            + ",\"beforeStatus\":\"CONFIRMED\",\"afterStatus\":" + jsonText(arrived.getStatus())
-                            + ",\"arrivedAt\":" + jsonText(String.valueOf(arrived.getArrivedAt())) + "}");
-            return arrived;
+            Reservation after = arrived.aggregate();
+            recordReservationAudit("reservation.arrival", "预约到店", after,
+                    "{\"reservationNo\":" + jsonText(after.reservationNo())
+                            + ",\"beforeStatus\":\"CONFIRMED\",\"afterStatus\":" + jsonText(statusName(after))
+                            + ",\"arrivedAt\":" + jsonText(String.valueOf(after.arrivedAt())) + "}");
+            return viewOf(arrived);
         } catch (RuntimeException failure) {
             recordFailure("reservation.arrival", id, failure);
             throw failure;
@@ -274,37 +264,34 @@ public class ReservationApplicationService {
 
     /** 改期：仅 PENDING/CONFIRMED 可改期，规则校验旧时段窗口与新时段提前时间。 */
     @Transactional
-    public ReservationPo reschedule(Long id, OffsetDateTime newStartAt, OffsetDateTime newEndAt,
-                                     Integer expectedVersion) {
+    public ReservationView reschedule(Long id, OffsetDateTime newStartAt, OffsetDateTime newEndAt,
+                                      Integer expectedVersion) {
         try {
-            ReservationPo po = require(id);
-            if (!ReservationStatus.PENDING.name().equals(po.getStatus())
-                    && !ReservationStatus.CONFIRMED.name().equals(po.getStatus())) {
+            Persisted<Reservation> row = require(id);
+            Reservation po = row.aggregate();
+            if (!po.preArrival()) {
                 throw new ApiException(409, "RESERVATION_STATUS_INVALID", "仅待确认或已确认预约可改期");
             }
             if (newStartAt == null || newEndAt == null || !newEndAt.isAfter(newStartAt)) {
                 throw new ApiException(400, "RESERVATION_TIME_INVALID", "新预约时间无效");
             }
             if (reservationRuleService != null) {
-                reservationRuleService.validateReschedule(po.getTenantId(), po.getBusinessType(), po.getStoreId(),
-                        po.getStartAt(), toBusinessLocal(newStartAt));
+                reservationRuleService.validateReschedule(po.tenantId(), po.businessType(), po.storeId(),
+                        po.startAt(), toBusinessLocal(newStartAt));
             }
             assertVersion(po, expectedVersion);
             LocalDateTime start = toBusinessLocal(newStartAt);
             LocalDateTime end = toBusinessLocal(newEndAt);
-            int oldVersion = po.getVersion() == null ? 0 : po.getVersion();
-            int updated = reservationMapper.update(null, new LambdaUpdateWrapper<ReservationPo>()
-                    .eq(ReservationPo::getId, po.getId()).eq(ReservationPo::getVersion, oldVersion)
-                    .set(ReservationPo::getStartAt, start).set(ReservationPo::getEndAt, end)
-                    .set(ReservationPo::getVersion, oldVersion + 1).set(ReservationPo::getUpdatedBy, operatorId())
-                    .set(ReservationPo::getUpdatedAt, LocalDateTime.now()));
-            if (updated == 0) throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
-            po.setStartAt(start); po.setEndAt(end); po.setVersion(oldVersion + 1);
-            po.setUpdatedBy(operatorId()); po.setUpdatedAt(LocalDateTime.now());
-            recordReservationAudit("reservation.reschedule", "预约改期", po,
+            Reservation rescheduled = po.rescheduledTo(start, end);
+            WriteAudit write = writeAudit();
+            // CAS：只写 start_at/end_at（+ version/审计），WHERE version = 读出来的值。
+            if (!reservationRepository.updateScheduleWithVersion(rescheduled, po.currentVersion(), write)) {
+                throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
+            }
+            recordReservationAudit("reservation.reschedule", "预约改期", rescheduled,
                     "{\"afterStartAt\":" + jsonText(String.valueOf(start)) + ",\"afterEndAt\":"
                             + jsonText(String.valueOf(end)) + "}");
-            return po;
+            return viewOf(new Persisted<>(rescheduled, afterWrite(row.audit(), write)));
         } catch (RuntimeException failure) {
             recordFailure("reservation.reschedule", id, failure);
             throw failure;
@@ -326,31 +313,32 @@ public class ReservationApplicationService {
      * <p>预约本身不占资源占用（见 {@link #assignRoom}），因此只改状态 + 留痕，不释放占用、不碰订单。
      */
     @Transactional
-    public ReservationPo noShow(Long id) {
+    public ReservationView noShow(Long id) {
         try {
-            ReservationPo po = require(id);
+            Persisted<Reservation> row = require(id);
+            Reservation po = row.aggregate();
             if (reservationRuleService != null) {
-                reservationRuleService.validateCancel(po.getTenantId(), po.getBusinessType(), po.getStoreId(), po.getStartAt());
+                reservationRuleService.validateCancel(po.tenantId(), po.businessType(), po.storeId(), po.startAt());
             }
-            String beforeStatus = po.getStatus();
-            if (!ReservationStatus.PENDING.name().equals(beforeStatus)
-                    && !ReservationStatus.CONFIRMED.name().equals(beforeStatus)) {
+            ReservationStatus beforeStatus = po.status();
+            if (!po.preArrival()) {
                 throw new ApiException(409, "RESERVATION_STATUS_INVALID", noShowConflictMessage(po));
             }
-            if (po.getOrderId() != null) {
+            if (po.orderId() != null) {
                 throw new ApiException(409, "RESERVATION_STATUS_INVALID", noShowConflictMessage(po));
             }
-            if (po.getStartAt() != null && po.getStartAt().isAfter(LocalDateTime.now())) {
+            if (po.startAt() != null && po.startAt().isAfter(LocalDateTime.now())) {
                 throw new ApiException(409, "RESERVATION_NOT_STARTED",
-                        "预约开始时间还没到（" + po.getStartAt() + "），不能标记未到店");
+                        "预约开始时间还没到（" + po.startAt() + "），不能标记未到店");
             }
-            ReservationPo noShow = updateStatus(po, ReservationStatus.NO_SHOW, po.getOrderId());
-            recordReservationAudit("reservation.no_show", "预约未到店", noShow,
-                    "{\"reservationNo\":" + jsonText(noShow.getReservationNo())
-                            + ",\"beforeStatus\":" + jsonText(beforeStatus)
-                            + ",\"afterStatus\":" + jsonText(noShow.getStatus())
-                            + ",\"startAt\":" + jsonText(String.valueOf(noShow.getStartAt())) + "}");
-            return noShow;
+            Persisted<Reservation> noShow = transition(row, ReservationStatus.NO_SHOW, null, null);
+            Reservation after = noShow.aggregate();
+            recordReservationAudit("reservation.no_show", "预约未到店", after,
+                    "{\"reservationNo\":" + jsonText(after.reservationNo())
+                            + ",\"beforeStatus\":" + jsonText(statusName(beforeStatus))
+                            + ",\"afterStatus\":" + jsonText(statusName(after))
+                            + ",\"startAt\":" + jsonText(String.valueOf(after.startAt())) + "}");
+            return viewOf(noShow);
         } catch (RuntimeException failure) {
             recordFailure("reservation.no_show", id, failure);
             throw failure;
@@ -358,15 +346,14 @@ public class ReservationApplicationService {
     }
 
     /** 不可标记未到店时的中文提示：已到店/已开台的要明确引导改走「取消订单」。 */
-    private static String noShowConflictMessage(ReservationPo po) {
-        if (po.getOrderId() != null || ReservationStatus.ARRIVED.name().equals(po.getStatus())
-                || ReservationStatus.CONVERTED.name().equals(po.getStatus())) {
+    private static String noShowConflictMessage(Reservation po) {
+        if (po.orderId() != null || po.arrivedOrConverted()) {
             return "该预约已到店或已开台，不能标记未到店";
         }
-        if (ReservationStatus.NO_SHOW.name().equals(po.getStatus())) {
+        if (po.status() == ReservationStatus.NO_SHOW) {
             return "该预约已标记未到店，请勿重复标记";
         }
-        return "仅到店前（PENDING/CONFIRMED）预约可标记未到店，当前状态：" + po.getStatus();
+        return "仅到店前（PENDING/CONFIRMED）预约可标记未到店，当前状态：" + po.status();
     }
 
     /**
@@ -391,7 +378,7 @@ public class ReservationApplicationService {
      * @param override 已分配包厢时是否允许改派（true = 显式覆盖并留痕）
      */
     @Transactional
-    public ReservationPo assignRoom(Long reservationId, Long resourceId, boolean override) {
+    public ReservationView assignRoom(Long reservationId, Long resourceId, boolean override) {
         try {
             return doAssignRoom(reservationId, resourceId, override);
         } catch (RuntimeException failure) {
@@ -401,25 +388,24 @@ public class ReservationApplicationService {
         }
     }
 
-    private ReservationPo doAssignRoom(Long reservationId, Long resourceId, boolean override) {
-        ReservationPo po = require(reservationId);
+    private ReservationView doAssignRoom(Long reservationId, Long resourceId, boolean override) {
+        Persisted<Reservation> row = require(reservationId);
+        Reservation po = row.aggregate();
         if (resourceId == null) {
             throw new ApiException(400, "RESOURCE_ID_REQUIRED", "缺少 resourceId");
         }
-        if (!ReservationStatus.PENDING.name().equals(po.getStatus())
-                && !ReservationStatus.CONFIRMED.name().equals(po.getStatus())
-                && !ReservationStatus.ARRIVED.name().equals(po.getStatus())) {
+        if (!po.occupiesSlot()) {
             throw new ApiException(409, "RESERVATION_STATUS_INVALID", "仅未取消未开台的预约可分配包厢");
         }
-        if (po.getRoomTypeId() == null) {
+        if (po.roomTypeId() == null) {
             throw new ApiException(409, "RESERVATION_ROOM_TYPE_REQUIRED",
                     "该预约未记录房型（历史预约），不能分配包厢，请改用开台或转台");
         }
         // 幂等：重复提交同一个包厢直接成功（后台按钮重试/网络重发不应报错，也不应重复留痕）。
-        if (resourceId.equals(po.getResourceId())) {
-            return po;
+        if (resourceId.equals(po.resourceId())) {
+            return viewOf(row);
         }
-        if (po.getResourceId() != null && !override) {
+        if (po.resourceId() != null && !override) {
             throw new ApiException(409, "RESERVATION_ROOM_ASSIGNED",
                     "该预约已分配包厢，如需改派请显式确认覆盖");
         }
@@ -427,13 +413,16 @@ public class ReservationApplicationService {
             throw new BusinessException("RESOURCE_STATE_UNAVAILABLE", "房态服务不可用，无法校验包厢，请稍后重试");
         }
 
-        Long previousResourceId = po.getResourceId();
-        String previousResourceName = po.getResourceName();
+        Long previousResourceId = po.resourceId();
+        // 改派前的包厢名结构性为 null：resourceName 不是列（原 PO 上是 @TableField(exist = false)），
+        // 读路径既不入库也不回填它，因此审计的 before 只能给出包厢 id（改造前生产路径同样是 null，
+        // 旧单测能给出名字只是因为它把名字塞进了 stub 返回的持久化对象）。
+        String previousResourceName = null;
         ResourceStateClient.RoomSnapshot room = resourceStateClient.requireRoom(resourceId);
-        if (room.roomTypeId() == null || !room.roomTypeId().equals(po.getRoomTypeId())) {
+        if (room.roomTypeId() == null || !room.roomTypeId().equals(po.roomTypeId())) {
             throw new ApiException(400, "ROOM_TYPE_MISMATCH", "所选包厢不属于该预约的房型，请重新选择");
         }
-        if (room.storeId() != null && !room.storeId().equals(po.getStoreId())) {
+        if (room.storeId() != null && !room.storeId().equals(po.storeId())) {
             throw new ApiException(400, "ROOM_STORE_MISMATCH", "所选包厢不属于该预约的门店，请重新选择");
         }
         ResourceStateClient.RoomState state = resourceStateClient.requireState(resourceId);
@@ -445,55 +434,32 @@ public class ReservationApplicationService {
         // 时段冲突（fail-closed）：房态只反映「此刻」的占用，而预约锁的是**时段**。
         // 预约本身不写资源占用（见类注释），所以「今晚 20:00 已被别的预约指定到同一包厢」在房态上
         // 仍是空闲；不查这一条，同一包厢同一个时段可以被两个预约同时占用。
-        ReservationPo conflict = findResourceOverlap(po, resourceId);
+        Reservation conflict = reservationRepository.findRoomOverlap(po.storeId(), resourceId, po.id(),
+                po.startAt(), po.endAt()).orElse(null);
         if (conflict != null) {
             throw new ApiException(409, "ROOM_RESERVED_OVERLAP",
                     "包厢「" + (room.name() == null ? resourceId : room.name()) + "」在 "
-                            + formatWindow(po) + " 已被预约 " + conflict.getReservationNo()
+                            + formatWindow(po) + " 已被预约 " + conflict.reservationNo()
                             + " 占用（" + formatWindow(conflict) + "），请改选其它包厢或时段");
         }
 
-        ReservationPo updated = writeAssignment(po, resourceId, room.name());
-        // 审计（含 before/after）：换包厢与首次分配都留痕，便于复盘「谁在什么时候把哪个预约指到了哪个包厢」。
-        auditAssignRoom(updated, previousResourceId, previousResourceName, resourceId, room.name(), override);
-        return updated;
-    }
-
-    /**
-     * 该预约在指定包厢上的**时段冲突**预约（同门店 + 同包厢 + 时段重叠 + 仍占用时段的状态）。
-     *
-     * <p>重叠判定与超订软保护同一口径（左闭右开）：{@code other.startAt < this.endAt && other.endAt > this.startAt}，
-     * 于是「上一场 22:00 结束、下一场 22:00 开始」不算冲突。
-     *
-     * <p>只把<b>仍然占用时段</b>的状态算作冲突：{@code PENDING / CONFIRMED / ARRIVED}。
-     * {@code CANCELLED / NO_SHOW} 已释放时段；{@code CONVERTED}（已开台）的时段归属由**资源占用**
-     * 承载（房态校验 + 开台占用同一包厢会 409），不再用预约行重复判一次。
-     */
-    private ReservationPo findResourceOverlap(ReservationPo po, Long resourceId) {
-        if (resourceId == null || po.getStartAt() == null || po.getEndAt() == null) {
-            return null;
+        Reservation assigned = po.assignedTo(resourceId);
+        WriteAudit write = writeAudit();
+        // CAS：只写 resource_id（+ version/审计），**不写 status**。
+        if (!reservationRepository.updateAssignmentWithVersion(assigned, po.currentVersion(), write)) {
+            throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
         }
-        List<ReservationPo> conflicts = reservationMapper.selectList(new LambdaQueryWrapper<ReservationPo>()
-                .eq(ReservationPo::getStoreId, po.getStoreId())
-                .eq(ReservationPo::getResourceId, resourceId)
-                .ne(ReservationPo::getId, po.getId())
-                .in(ReservationPo::getStatus, OCCUPYING_STATUSES)
-                .lt(ReservationPo::getStartAt, po.getEndAt())
-                .gt(ReservationPo::getEndAt, po.getStartAt())
-                .orderByAsc(ReservationPo::getStartAt));
-        return conflicts == null || conflicts.isEmpty() ? null : conflicts.get(0);
+        // 审计（含 before/after）：换包厢与首次分配都留痕，便于复盘「谁在什么时候把哪个预约指到了哪个包厢」。
+        auditAssignRoom(assigned, previousResourceId, previousResourceName, resourceId, room.name(), override);
+        // 包厢名是展示字段（非列）：本响应带本次分配的包厢名，与改造前一致。
+        return viewOf(new Persisted<>(assigned, afterWrite(row.audit(), write))).withResourceName(room.name());
     }
-
-    /** 预约时段仍被占用的状态（分配包厢的时段冲突判定用）。 */
-    private static final List<String> OCCUPYING_STATUSES = List.of(
-            ReservationStatus.PENDING.name(), ReservationStatus.CONFIRMED.name(),
-            ReservationStatus.ARRIVED.name());
 
     /** 预约时段的展示文案（门店本地墙上时间，如 {@code 09-19 20:00–23:00}）。 */
-    private static String formatWindow(ReservationPo po) {
+    private static String formatWindow(Reservation po) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd HH:mm");
-        LocalDateTime start = po.getStartAt();
-        LocalDateTime end = po.getEndAt();
+        LocalDateTime start = po.startAt();
+        LocalDateTime end = po.endAt();
         if (start == null || end == null) {
             return "所选时段";
         }
@@ -515,63 +481,47 @@ public class ReservationApplicationService {
      * 房态读不到时失败关闭（{@code RESOURCE_STATE_UNAVAILABLE}），不返回空列表。
      */
     public List<AssignableRoom> assignableRooms(Long reservationId) {
-        ReservationPo po = require(reservationId);
-        if (!ReservationStatus.PENDING.name().equals(po.getStatus())
-                && !ReservationStatus.CONFIRMED.name().equals(po.getStatus())
-                && !ReservationStatus.ARRIVED.name().equals(po.getStatus())) {
+        Reservation po = require(reservationId).aggregate();
+        if (!po.occupiesSlot()) {
             throw new ApiException(409, "RESERVATION_STATUS_INVALID", "仅未取消未开台的预约可分配包厢");
         }
-        if (po.getRoomTypeId() == null) {
+        if (po.roomTypeId() == null) {
             throw new ApiException(409, "RESERVATION_ROOM_TYPE_REQUIRED",
                     "该预约未记录房型（历史预约），不能分配包厢，请改用开台或转台");
         }
         List<ResourceStateClient.RoomStateView> rooms =
-                resourceStateClient.roomStates(RoomTypeCatalogClient.ROOM_RESOURCE_TYPE, po.getStoreId());
-        Map<Long, ReservationPo> conflicts = overlappingByResource(po);
+                resourceStateClient.roomStates(RoomTypeCatalogClient.ROOM_RESOURCE_TYPE, po.storeId());
+        Map<Long, Reservation> conflicts = overlappingByResource(po);
         List<AssignableRoom> result = new ArrayList<>();
         for (ResourceStateClient.RoomStateView room : rooms) {
-            if (room.id() == null || !po.getRoomTypeId().equals(room.roomTypeId())) {
+            if (room.id() == null || !po.roomTypeId().equals(room.roomTypeId())) {
                 continue;
             }
-            ReservationPo conflict = conflicts.get(room.id());
-            boolean currentAssignment = room.id().equals(po.getResourceId());
+            Reservation conflict = conflicts.get(room.id());
+            boolean currentAssignment = room.id().equals(po.resourceId());
             String reason = null;
             if (!room.available()) {
                 reason = room.unavailableReason() == null || room.unavailableReason().isBlank()
                         ? "当前不可分配（" + (room.state() == null ? "占用中" : room.state()) + "）"
                         : room.unavailableReason();
             } else if (conflict != null && !currentAssignment) {
-                reason = "本时段已被预约 " + conflict.getReservationNo() + "（" + formatWindow(conflict) + "）占用";
+                reason = "本时段已被预约 " + conflict.reservationNo() + "（" + formatWindow(conflict) + "）占用";
             }
             boolean assignable = reason == null;
             result.add(new AssignableRoom(room.id(), room.name(), room.resourceCode(), room.roomTypeId(),
                     room.roomTypeName(), assignable, reason, currentAssignment,
-                    conflict == null ? null : conflict.getReservationNo(),
+                    conflict == null ? null : conflict.reservationNo(),
                     conflict == null ? null : formatWindow(conflict), room.state()));
         }
         return result;
     }
 
     /** 本预约时段内、按包厢聚合的冲突预约（一个包厢最多取最早的一条用于提示）。 */
-    private Map<Long, ReservationPo> overlappingByResource(ReservationPo po) {
-        Map<Long, ReservationPo> result = new LinkedHashMap<>();
-        if (po.getStartAt() == null || po.getEndAt() == null) {
-            return result;
+    private Map<Long, Reservation> overlappingByResource(Reservation po) {
+        if (po.startAt() == null || po.endAt() == null) {
+            return Map.of();
         }
-        List<ReservationPo> conflicts = reservationMapper.selectList(new LambdaQueryWrapper<ReservationPo>()
-                .eq(ReservationPo::getStoreId, po.getStoreId())
-                .isNotNull(ReservationPo::getResourceId)
-                .ne(ReservationPo::getId, po.getId())
-                .in(ReservationPo::getStatus, OCCUPYING_STATUSES)
-                .lt(ReservationPo::getStartAt, po.getEndAt())
-                .gt(ReservationPo::getEndAt, po.getStartAt())
-                .orderByAsc(ReservationPo::getStartAt));
-        if (conflicts != null) {
-            for (ReservationPo conflict : conflicts) {
-                result.putIfAbsent(conflict.getResourceId(), conflict);
-            }
-        }
-        return result;
+        return reservationRepository.findRoomOverlaps(po.storeId(), po.id(), po.startAt(), po.endAt());
     }
 
     /**
@@ -600,6 +550,9 @@ public class ReservationApplicationService {
      *
      * <p>开台前必须有具体包厢：新预约由「到店分配包厢」写入；历史预约的 resource_id 仍是下单时选定的包厢，
      * 因此旧数据无需回填也能开台。
+     *
+     * <p><b>KTV 会话仍走 {@link KtvSessionApplicationService}</b>（不变量：创建会话并开台计时），
+     * 本类只消费它返回的会话标识，不接触会话持久化对象。
      */
     @Transactional
     public OrderPo openTable(Long reservationId, Integer freeWaitMinutes) {
@@ -613,26 +566,27 @@ public class ReservationApplicationService {
     }
 
     private OrderPo doOpenTable(Long reservationId, Integer freeWaitMinutes) {
-        ReservationPo r = require(reservationId);
+        Persisted<Reservation> row = require(reservationId);
+        Reservation r = row.aggregate();
 
         // 幂等：已开台（order_id 已回填且订单存在）则直接返回已有订单，附上会话 id。
         // 必须放在状态校验之前：开台成功后预约已是 CONVERTED，重复提交应返回既有订单而不是 409。
-        if (r.getOrderId() != null) {
-            OrderPo existing = orderMapper.selectById(r.getOrderId());
+        if (r.orderId() != null) {
+            OrderPo existing = orderMapper.selectById(r.orderId());
             if (existing != null) {
-                existing.setSessionId(ktvSessionService.findByOrderId(existing.getId()).getId());
+                existing.setSessionId(ktvSessionService.findByOrderId(existing.getId()).id());
                 return existing;
             }
         }
 
         // CONFIRMED 开台 = 「客人到了，直接开台」：到店事实在此一并登记（arrived_at），
         // 不再强制运营先点一次「客户到店」；PENDING 仍需先确认，避免未确认的预约直接进计费。
-        boolean arrivalImplied = ReservationStatus.CONFIRMED.name().equals(r.getStatus());
-        if (!arrivalImplied && !ReservationStatus.ARRIVED.name().equals(r.getStatus())) {
+        boolean arrivalImplied = r.status() == ReservationStatus.CONFIRMED;
+        if (!r.openTableEligible()) {
             throw new BusinessException("RESERVATION_STATUS_INVALID",
-                    "仅已确认（CONFIRMED）或已到店（ARRIVED）预约可开台，当前状态：" + r.getStatus());
+                    "仅已确认（CONFIRMED）或已到店（ARRIVED）预约可开台，当前状态：" + r.status());
         }
-        if (r.getResourceId() == null) {
+        if (r.resourceId() == null) {
             throw new ApiException(409, "RESERVATION_ROOM_NOT_ASSIGNED",
                     "预约尚未分配具体包厢，请先分配包厢后再开台");
         }
@@ -641,18 +595,18 @@ public class ReservationApplicationService {
         TenantContext ctx = TenantContextHolder.get();
         Long organizationId = ctx == null ? null : ctx.organizationId();
         if (organizationId == null) {
-            organizationId = r.getStoreId();
+            organizationId = r.storeId();
         }
 
         LocalDateTime now = LocalDateTime.now();
         OrderPo order = new OrderPo();
-        order.setTenantId(r.getTenantId());
+        order.setTenantId(r.tenantId());
         order.setOrganizationId(organizationId);
-        order.setStoreId(r.getStoreId());
+        order.setStoreId(r.storeId());
         order.setOrderNo(dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER,
-                r.getTenantId()));
-        order.setBusinessType(r.getBusinessType());
-        order.setCustomerId(r.getCustomerId());
+                r.tenantId()));
+        order.setBusinessType(r.businessType());
+        order.setCustomerId(r.customerId());
         order.setStatus("DRAFT");
         // 币种取当前请求租户币种（docs/standards/16_CURRENCY_CONVENTIONS.md §2/§3.3），
         // 不再硬编码 CNY：缺 claim 时 CurrencyResolver 回退 USD，绝不因缺 claim 失败。
@@ -672,38 +626,40 @@ public class ReservationApplicationService {
 
         // 创建包厢会话并开台计时：RESERVED → OPEN（订单 DRAFT → SERVING，开始计费）。
         // 预约人数随开台写入会话（party_size），订单列表与房态看板据此展示「人数」。
-        KtvSessionPo session = ktvSessionService.create(r.getTenantId(), order.getId(), r.getResourceId());
-        ktvSessionService.open(session.getId(), freeWaitMinutes, r.getPartySize());
+        Long sessionId = ktvSessionService.create(r.tenantId(), order.getId(), r.resourceId()).id();
+        ktvSessionService.open(sessionId, freeWaitMinutes, r.partySize());
 
         // 回填预约 order_id 并完成生命周期转换，避免 ARRIVED 记录长期悬挂。
         // CONFIRMED 直接开台时一并登记到店时间（arrivalImplied）：到店事实不能只靠状态推断。
-        updateStatus(r, ReservationStatus.CONVERTED, order.getId(), arrivalImplied ? now : null);
+        Persisted<Reservation> converted = transition(row, ReservationStatus.CONVERTED, order.getId(),
+                arrivalImplied ? now : null);
+        Reservation after = converted.aggregate();
 
         // 预约开台此前没有任何留痕：它同时产生订单与计费会话，是最需要可回溯的写操作。
         // 幂等键按预约 ID 稳定，重复提交（已回填 order_id）在上面的分支直接返回，不会重复留痕。
         if (auditClient != null) {
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(r.getTenantId())
-                    .storeId(r.getStoreId())
+                    .tenantId(after.tenantId())
+                    .storeId(after.storeId())
                     .operatorId(operatorId())
                     .action("reservation.open_table")
                     .actionLabel("预约开台")
                     .resourceType("reservation")
-                    .resourceId(String.valueOf(r.getId()))
-                    .resourceName(r.getReservationNo())
+                    .resourceId(String.valueOf(after.id()))
+                    .resourceName(after.reservationNo())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .idempotencyKey("reservation-open-table:" + r.getId())
-                    .detailJson("{\"reservationNo\":" + jsonText(r.getReservationNo())
+                    .idempotencyKey("reservation-open-table:" + after.id())
+                    .detailJson("{\"reservationNo\":" + jsonText(after.reservationNo())
                             + ",\"orderId\":" + order.getId()
-                            + ",\"resourceId\":" + r.getResourceId()
-                            + ",\"status\":" + jsonText(r.getStatus())
+                            + ",\"resourceId\":" + after.resourceId()
+                            + ",\"status\":" + jsonText(statusName(after))
                             + ",\"arrivalImplied\":" + arrivalImplied + "}")
                     .build());
         }
 
         // 重新读取订单：开台后订单状态已由 DRAFT 流转为 SERVING，返回真实状态。
         order = orderMapper.selectById(order.getId());
-        order.setSessionId(session.getId());
+        order.setSessionId(sessionId);
         return order;
     }
 
@@ -724,19 +680,19 @@ public class ReservationApplicationService {
      * 是原因的唯一留存处**：detailJson 带 beforeStatus/afterStatus/reason/reservationNo/roomTypeId。
      */
     @Transactional
-    public ReservationPo cancel(Long id, String reason) {
+    public ReservationView cancel(Long id, String reason) {
         // 原因校验（无状态前置）留在 try 之外：参数非法不产生业务副作用，不为它留失败痕迹。
         String normalizedReason = CancelReasons.require(reason, "取消预约必须填写原因");
         try {
-            ReservationPo po = require(id);
-            String beforeStatus = po.getStatus();
-            if (!ReservationStatus.PENDING.name().equals(beforeStatus)
-                    && !ReservationStatus.CONFIRMED.name().equals(beforeStatus)) {
+            Persisted<Reservation> row = require(id);
+            Reservation po = row.aggregate();
+            ReservationStatus beforeStatus = po.status();
+            if (!po.preArrival()) {
                 throw new ApiException(409, "RESERVATION_STATUS_INVALID", cancelConflictMessage(po));
             }
-            ReservationPo cancelled = updateStatus(po, ReservationStatus.CANCELLED, po.getOrderId());
-            auditCancel(cancelled, beforeStatus, normalizedReason);
-            return cancelled;
+            Persisted<Reservation> cancelled = transition(row, ReservationStatus.CANCELLED, null, null);
+            auditCancel(cancelled.aggregate(), beforeStatus, normalizedReason);
+            return viewOf(cancelled);
         } catch (RuntimeException failure) {
             // 取消失败留痕（预约不存在/状态已到店或已开台/并发冲突）：与成功路径同码 order=reservation.cancel。
             recordFailure("reservation.cancel", id, failure);
@@ -770,62 +726,61 @@ public class ReservationApplicationService {
                 .build());
     }
 
-    /** 预约成功留痕（欠补齐动作：确认/到店）：与失败同码，detail 只放预约号与前后状态。 */
-    private void recordReservationAudit(String action, String actionLabel, ReservationPo po, String detailJson) {
+    /** 预约成功留痕（欠补齐动作：确认/到店/改期/未到店）：与失败同码，detail 只放预约号与前后状态。 */
+    private void recordReservationAudit(String action, String actionLabel, Reservation po, String detailJson) {
         if (auditClient == null) {
             return;
         }
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
+                .tenantId(po.tenantId())
+                .storeId(po.storeId())
                 .operatorId(operatorId())
                 .action(action)
                 .actionLabel(actionLabel)
                 .resourceType("reservation")
-                .resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getReservationNo())
+                .resourceId(String.valueOf(po.id()))
+                .resourceName(po.reservationNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .detailJson(detailJson)
                 .build());
     }
 
     /** 不可取消时的中文提示：到店/已开台的要明确引导改走「取消订单」，避免运营在后台反复试。 */
-    private static String cancelConflictMessage(ReservationPo po) {
-        if (ReservationStatus.CANCELLED.name().equals(po.getStatus())) {
+    private static String cancelConflictMessage(Reservation po) {
+        if (po.status() == ReservationStatus.CANCELLED) {
             return "该预约已取消，请勿重复取消";
         }
-        if (po.getOrderId() != null || ReservationStatus.ARRIVED.name().equals(po.getStatus())
-                || ReservationStatus.CONVERTED.name().equals(po.getStatus())) {
+        if (po.orderId() != null || po.arrivedOrConverted()) {
             return "该预约已到店或已开台，不能取消预约，请改走「取消订单」取消对应订单";
         }
-        return "仅到店前（PENDING/CONFIRMED）预约可取消，当前状态：" + po.getStatus();
+        return "仅到店前（PENDING/CONFIRMED）预约可取消，当前状态：" + po.status();
     }
 
     /** 取消预约审计：动作码 {@code reservation.cancel}，detail 带前后状态与原因（历史行 roomTypeId 可为 null）。 */
-    private void auditCancel(ReservationPo po, String beforeStatus, String reason) {
+    private void auditCancel(Reservation po, ReservationStatus beforeStatus, String reason) {
         if (auditClient == null) {
             return;
         }
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
+                .tenantId(po.tenantId())
+                .storeId(po.storeId())
                 .operatorId(operatorId())
                 .action("reservation.cancel")
                 .actionLabel("预约取消")
                 .resourceType("reservation")
-                .resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getReservationNo())
+                .resourceId(String.valueOf(po.id()))
+                .resourceName(po.reservationNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .idempotencyKey("reservation-cancel:" + po.getId())
+                .idempotencyKey("reservation-cancel:" + po.id())
                 .detailJson(cancelDetail(po, beforeStatus, reason))
                 .build());
     }
 
-    private static String cancelDetail(ReservationPo po, String beforeStatus, String reason) {
-        return "{\"reservationNo\":" + jsonText(po.getReservationNo())
-                + ",\"roomTypeId\":" + po.getRoomTypeId()
-                + ",\"beforeStatus\":" + jsonText(beforeStatus)
-                + ",\"afterStatus\":" + jsonText(po.getStatus())
+    private static String cancelDetail(Reservation po, ReservationStatus beforeStatus, String reason) {
+        return "{\"reservationNo\":" + jsonText(po.reservationNo())
+                + ",\"roomTypeId\":" + po.roomTypeId()
+                + ",\"beforeStatus\":" + jsonText(statusName(beforeStatus))
+                + ",\"afterStatus\":" + jsonText(statusName(po))
                 + ",\"reason\":" + jsonText(reason) + "}";
     }
 
@@ -899,22 +854,14 @@ public class ReservationApplicationService {
     }
 
     /**
-     * 仍然占用「预约名额」的状态：待确认 / 已确认 / 已到店（未开台）。
-     *
-     * <p>**只有这些算名额**。已取消（CANCELLED）、未到店（NO_SHOW）自然不算；
+     * 超订软保护（规格 §3）：同门店 + 同房型 + 时段重叠（左闭右开）的**仍占名额**预约数
+     * ≥ 该房型启用包厢数 → 409 {@code ROOM_TYPE_FULL}；统计口径是
+     * {@link ReservationStatus#occupiesSlot()}（由适配器的 SQL 固化）：
+     * 已取消（CANCELLED）与未到店（NO_SHOW）自然不算；
      * 尤其**已开台（CONVERTED）不能算**：预约一旦兑现成会话，包厢的真实占用已经由资源域的
      * {@code res_occupation} / 会话状态硬校验，再把它算进预约数就是**同一间房算两次**——
      * 客人开台后（甚至早早结束、包厢已经空闲）这个时段仍会一直显示「已满」，
      * 让 C 端今天根本约不出小包（真实缺陷：DEBUG 现场 3 间小包被 3 条 CONVERTED 预约锁死）。
-     */
-    private static final List<String> SLOT_HOLDING_STATUSES = List.of(
-            ReservationStatus.PENDING.name(),
-            ReservationStatus.CONFIRMED.name(),
-            ReservationStatus.ARRIVED.name());
-
-    /**
-     * 超订软保护（规格 §3）：同门店 + 同房型 + 时段重叠（左闭右开）的**仍占名额**预约数
-     * ≥ 该房型启用包厢数 → 409 {@code ROOM_TYPE_FULL}；统计口径见 {@link #SLOT_HOLDING_STATUSES}。
      *
      * <p>这是软保护而非锁房：预约阶段不占用具体包厢，实际可用性以到店分配为准
      * （分配时用 {@link ResourceStateClient} 的占用门禁做硬校验）。
@@ -924,14 +871,8 @@ public class ReservationApplicationService {
     private void requireRoomTypeNotOverbooked(Long tenantId, CreateReservationCommand cmd, long enabledRooms) {
         LocalDateTime startAt = toBusinessLocal(cmd.startAt());
         LocalDateTime endAt = toBusinessLocal(cmd.endAt());
-        Long booked = reservationMapper.selectCount(new LambdaQueryWrapper<ReservationPo>()
-                .eq(ReservationPo::getTenantId, tenantId)
-                .eq(ReservationPo::getStoreId, cmd.storeId())
-                .eq(ReservationPo::getRoomTypeId, cmd.roomTypeId())
-                .in(ReservationPo::getStatus, SLOT_HOLDING_STATUSES)
-                .lt(ReservationPo::getStartAt, endAt)
-                .gt(ReservationPo::getEndAt, startAt));
-        long overlapping = booked == null ? 0L : booked;
+        long overlapping = reservationRepository.countSlotHolding(tenantId, cmd.storeId(), cmd.roomTypeId(),
+                startAt, endAt);
         if (overlapping >= enabledRooms) {
             throw new ApiException(409, "ROOM_TYPE_FULL",
                     "该房型在所选时段已约满（" + enabledRooms + " 间），请改选其它房型或时段");
@@ -940,131 +881,75 @@ public class ReservationApplicationService {
 
     // ------------------------------------------------------------------ helpers
 
-    private ReservationPo require(Long id) {
-        ReservationPo po = reservationMapper.selectById(id);
-        if (po == null) {
-            throw new BusinessException("RESERVATION_NOT_FOUND", "预约不存在");
-        }
-        return po;
+    private Persisted<Reservation> require(Long id) {
+        return reservationRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("RESERVATION_NOT_FOUND", "预约不存在"));
     }
 
-    private void requireStatus(ReservationPo po, ReservationStatus expected, String action) {
-        if (!expected.name().equals(po.getStatus())) {
+    private void requireStatus(Reservation po, ReservationStatus expected, String action) {
+        if (po.status() != expected) {
             throw new BusinessException("RESERVATION_STATUS_INVALID",
                     "仅 " + expected.name() + " 预约可" + action);
         }
     }
 
-    private void assertVersion(ReservationPo po, Integer expectedVersion) {
-        int current = po.getVersion() == null ? 0 : po.getVersion();
-        if (expectedVersion != null && !Integer.valueOf(current).equals(expectedVersion)) {
+    private void assertVersion(Reservation po, Integer expectedVersion) {
+        if (expectedVersion != null && !Integer.valueOf(po.currentVersion()).equals(expectedVersion)) {
             throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约版本冲突，请重试");
         }
     }
 
-    /** 乐观锁状态流转：WHERE version = 旧值，version + 1；更新 0 行视为并发冲突。 */
-    private ReservationPo updateStatus(ReservationPo po, ReservationStatus target, Long orderId) {
-        return updateStatus(po, target, orderId, null);
-    }
-
     /**
-     * 乐观锁状态流转（带可选到店时间）：{@code arrivedAt} 非空时一并写 {@code arrived_at}，
-     * 为空则保持原值（不覆盖此前登记的到店时间）。
-     */
-    private ReservationPo updateStatus(ReservationPo po, ReservationStatus target, Long orderId,
-                                       LocalDateTime arrivedAt) {
-        int oldVersion = po.getVersion() == null ? 0 : po.getVersion();
-        LocalDateTime now = LocalDateTime.now();
-
-        LambdaUpdateWrapper<ReservationPo> uw = new LambdaUpdateWrapper<ReservationPo>()
-                .eq(ReservationPo::getId, po.getId())
-                .eq(ReservationPo::getVersion, oldVersion)
-                .set(ReservationPo::getStatus, target.name())
-                .set(ReservationPo::getVersion, oldVersion + 1)
-                .set(ReservationPo::getUpdatedBy, operatorId())
-                .set(ReservationPo::getUpdatedAt, now);
-        if (orderId != null) {
-            uw.set(ReservationPo::getOrderId, orderId);
-        }
-        if (arrivedAt != null) {
-            uw.set(ReservationPo::getArrivedAt, arrivedAt);
-        }
-
-        int updated = reservationMapper.update(null, uw);
-        if (updated == 0) {
-            throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
-        }
-
-        po.setStatus(target.name());
-        po.setVersion(oldVersion + 1);
-        po.setUpdatedBy(operatorId());
-        po.setUpdatedAt(now);
-        if (orderId != null) {
-            po.setOrderId(orderId);
-        }
-        if (arrivedAt != null) {
-            po.setArrivedAt(arrivedAt);
-        }
-        return po;
-    }
-
-    /**
-     * 分配包厢落库：**只写 resource_id，状态保持不变**（PENDING 仍是待确认、CONFIRMED 仍是已预订）。
+     * 乐观锁状态流转：{@code WHERE version = 旧值}，版本 +1；更新 0 行视为并发冲突。
      *
-     * <p>「预约锁房」与「客人到店」是两件事：运营经常在客人到店前就把包厢提前指定好（备房、排班），
-     * 此前这里同时把状态置 ARRIVED，导致后台看板对未到店的预约显示「客户已到店」并直接给出「到店开台」，
-     * 把「已预订」的包厢误算成「客人已到店」。做到店登记只能走
-     * {@link #arrival}（CONFIRMED → ARRIVED）或 {@link #openTable}（到店并开台，隐含到店）。
+     * <p>判定点在适配器发出的那条单语句 CAS 上，不在本方法里读出来的版本比对上：
+     * 版本比对只给出更快的错误提示（standards/10「乐观锁的可检验判据」）。
      */
-    private ReservationPo writeAssignment(ReservationPo po, Long resourceId, String resourceName) {
-        int oldVersion = po.getVersion() == null ? 0 : po.getVersion();
-        LocalDateTime now = LocalDateTime.now();
-        LambdaUpdateWrapper<ReservationPo> uw = new LambdaUpdateWrapper<ReservationPo>()
-                .eq(ReservationPo::getId, po.getId())
-                .eq(ReservationPo::getVersion, oldVersion)
-                .set(ReservationPo::getResourceId, resourceId)
-                .set(ReservationPo::getVersion, oldVersion + 1)
-                .set(ReservationPo::getUpdatedBy, operatorId())
-                .set(ReservationPo::getUpdatedAt, now);
-        int updated = reservationMapper.update(null, uw);
-        if (updated == 0) {
+    private Persisted<Reservation> transition(Persisted<Reservation> current, ReservationStatus target,
+                                              Long orderId, LocalDateTime arrivedAt) {
+        Reservation before = current.aggregate();
+        Reservation after = before.transitionedTo(target, orderId, arrivedAt);
+        WriteAudit write = writeAudit();
+        if (!reservationRepository.updateStatusWithVersion(after, before.currentVersion(), write)) {
             throw new BusinessException("RESERVATION_VERSION_CONFLICT", "预约已被并发修改，请重试");
         }
-        po.setResourceId(resourceId);
-        po.setResourceName(resourceName);
-        po.setVersion(oldVersion + 1);
-        po.setUpdatedBy(operatorId());
-        po.setUpdatedAt(now);
-        return po;
+        return new Persisted<>(after, afterWrite(current.audit(), write));
     }
 
-    /** 分配包厢审计：动作码 {@code reservation.assign_room}，detail 带 before/after（含换包厢）。 */
-    private void auditAssignRoom(ReservationPo po, Long beforeResourceId, String beforeResourceName,
+    /**
+     * 分配包厢审计：动作码 {@code reservation.assign_room}，detail 带 before/after（含换包厢）。
+     *
+     * <p>{@code beforeResourceName} 为 {@code null}：包厢名不是列（原 PO 上是
+     * {@code @TableField(exist = false)}），读路径不落库也不回填它，因此审计里只能给出改派前的包厢 id。
+     * 改造前审计读到的是「本次请求读到的 PO」，其 {@code resourceName} 同样恒为 {@code null}
+     * （只有 {@code assignRoom} 在内存里补过一次），故 before 的名字口径保持不变。
+     */
+    private void auditAssignRoom(Reservation po, Long beforeResourceId, String beforeResourceName,
                                  Long afterResourceId, String afterResourceName, boolean override) {
         if (auditClient == null) {
             return;
         }
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
-                .storeId(po.getStoreId())
+                .tenantId(po.tenantId())
+                .storeId(po.storeId())
                 .operatorId(operatorId())
                 .action("reservation.assign_room")
                 .actionLabel("预约分配包厢")
                 .resourceType("reservation")
-                .resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getReservationNo())
+                .resourceId(String.valueOf(po.id()))
+                .resourceName(po.reservationNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .idempotencyKey("reservation-assign-room:" + po.getId() + ":" + afterResourceId)
+                .idempotencyKey("reservation-assign-room:" + po.id() + ":" + afterResourceId)
                 .detailJson(assignRoomDetail(po, beforeResourceId, beforeResourceName, afterResourceId,
                         afterResourceName, override))
                 .build());
     }
 
-    private static String assignRoomDetail(ReservationPo po, Long beforeResourceId, String beforeResourceName,
+    private static String assignRoomDetail(Reservation po, Long beforeResourceId, String beforeResourceName,
                                            Long afterResourceId, String afterResourceName, boolean override) {
-        return "{\"reservationNo\":" + jsonText(po.getReservationNo())
-                + ",\"roomTypeId\":" + po.getRoomTypeId()
-                + ",\"status\":" + jsonText(po.getStatus())
+        return "{\"reservationNo\":" + jsonText(po.reservationNo())
+                + ",\"roomTypeId\":" + po.roomTypeId()
+                + ",\"status\":" + jsonText(statusName(po))
                 + ",\"override\":" + override
                 + ",\"before\":{\"resourceId\":" + beforeResourceId
                 + ",\"resourceName\":" + jsonText(beforeResourceName) + "}"
@@ -1098,16 +983,6 @@ public class ReservationApplicationService {
         return sb.append('"').toString();
     }
 
-    private ReservationPo findByIdempotencyKey(Long tenantId, String idempotencyKey) {
-        if (idempotencyKey == null || idempotencyKey.isBlank()) {
-            return null;
-        }
-        return reservationMapper.selectOne(new LambdaQueryWrapper<ReservationPo>()
-                .eq(ReservationPo::getTenantId, tenantId)
-                .eq(ReservationPo::getIdempotencyKey, idempotencyKey)
-                .last("LIMIT 1"));
-    }
-
     private void validateCreate(CreateReservationCommand cmd) {
         if (cmd == null || cmd.businessType() == null || cmd.businessType().isBlank()) {
             throw new ApiException(400, "BUSINESS_TYPE_REQUIRED", "缺少 businessType");
@@ -1138,6 +1013,34 @@ public class ReservationApplicationService {
         return ctx == null ? 0L : ctx.accountId();
     }
 
+    /** 本次写入的记账值：操作人取请求上下文，时刻取一次 {@code now}（库与响应复用同一个值）。 */
+    private WriteAudit writeAudit() {
+        return new WriteAudit(operatorId(), LocalDateTime.now());
+    }
+
+    /**
+     * 写入后响应视图的记账值：{@code created_*} 保持读取时的值（不可变列），
+     * {@code updated_*} 取本次写入的操作人与时刻。
+     */
+    private static AuditSnapshot afterWrite(AuditSnapshot before, WriteAudit write) {
+        return new AuditSnapshot(before == null ? null : before.createdBy(),
+                before == null ? null : before.createdAt(),
+                write.operatorId(), write.at());
+    }
+
+    /** 装配响应视图（展示字段为未回填状态：与改造前返回「刚读到的行」一致，只有读路径才回填）。 */
+    private static ReservationView viewOf(Persisted<Reservation> row) {
+        return ReservationView.from(row.aggregate(), row.audit());
+    }
+
+    private static String statusName(Reservation reservation) {
+        return reservation.status() == null ? null : reservation.status().name();
+    }
+
+    private static String statusName(ReservationStatus status) {
+        return status == null ? null : status.name();
+    }
+
     /**
      * 读路径回填房型名/编码与包厢名（列表/详情展示「包厢类型」与已分配包厢）。
      *
@@ -1147,37 +1050,48 @@ public class ReservationApplicationService {
      *
      * <p>历史预约（无 room_type_id、只有 resource_id）同样按 resource_id 回填包厢名，
      * 于是旧数据在列表里仍显示当初选定的包厢。
+     *
+     * <p>这三个字段**不是列**（原 PO 上标 {@code @TableField(exist = false)}）：它们只存在于
+     * {@link ReservationView}，绝不回到领域模型或写入语句里。
      */
-    private List<ReservationPo> enrichDisplayFields(List<ReservationPo> rows) {
-        if (rows == null || rows.isEmpty() || roomTypeCatalogClient == null || resourceStateClient == null) {
-            return rows;
+    private List<ReservationView> enrichDisplayFields(List<Persisted<Reservation>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        List<ReservationView> views = new ArrayList<>(rows.size());
+        for (Persisted<Reservation> row : rows) {
+            views.add(viewOf(row));
+        }
+        if (roomTypeCatalogClient == null || resourceStateClient == null) {
+            return views;
         }
         Map<Long, Map<Long, RoomTypeView>> roomTypesByStore = new HashMap<>();
         Map<Long, Map<Long, RoomView>> roomsByStore = new HashMap<>();
-        for (ReservationPo po : rows) {
-            if (po.getStoreId() == null) {
-                continue;
-            }
-            Long storeId = po.getStoreId();
-            if (po.getRoomTypeId() != null) {
-                RoomTypeView roomType = roomTypesByStore
-                        .computeIfAbsent(storeId, this::roomTypesOfStore)
-                        .get(po.getRoomTypeId());
-                if (roomType != null) {
-                    po.setRoomTypeCode(roomType.code());
-                    po.setRoomTypeName(roomType.name());
+        List<ReservationView> enriched = new ArrayList<>(views.size());
+        for (ReservationView view : views) {
+            ReservationView result = view;
+            if (view.storeId() != null) {
+                Long storeId = view.storeId();
+                if (view.roomTypeId() != null) {
+                    RoomTypeView roomType = roomTypesByStore
+                            .computeIfAbsent(storeId, this::roomTypesOfStore)
+                            .get(view.roomTypeId());
+                    if (roomType != null) {
+                        result = result.withRoomType(roomType.code(), roomType.name());
+                    }
+                }
+                if (view.resourceId() != null) {
+                    RoomView room = roomsByStore
+                            .computeIfAbsent(storeId, this::roomsOfStore)
+                            .get(view.resourceId());
+                    if (room != null) {
+                        result = result.withResourceName(room.name());
+                    }
                 }
             }
-            if (po.getResourceId() != null) {
-                RoomView room = roomsByStore
-                        .computeIfAbsent(storeId, this::roomsOfStore)
-                        .get(po.getResourceId());
-                if (room != null) {
-                    po.setResourceName(room.name());
-                }
-            }
+            enriched.add(result);
         }
-        return rows;
+        return enriched;
     }
 
     /** 门店房型字典（读路径降级：读不到返回空映射，不影响预约列表本身）。 */

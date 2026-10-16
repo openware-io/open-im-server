@@ -11,14 +11,16 @@ import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.platform.order.application.dto.BillResult;
+import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
+import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
+import io.openware.platform.order.domain.ktv.model.KtvServerSession;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
-import io.openware.platform.order.infra.persistence.mapper.KtvServerSessionMapper;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
+import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvServerSessionPo;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
@@ -34,12 +36,12 @@ class BillApplicationServiceTest {
 
   private final OrderMapper orderMapper = mock(OrderMapper.class);
   private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
-  private final KtvSessionMapper ktvSessionMapper = mock(KtvSessionMapper.class);
-  private final KtvServerSessionMapper serverSessionMapper = mock(KtvServerSessionMapper.class);
+  private final KtvSessionRepository ktvSessionRepository = mock(KtvSessionRepository.class);
+  private final KtvServerSessionRepository serverSessionRepository = mock(KtvServerSessionRepository.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
 
   private final BillApplicationService service = new BillApplicationService(
-      orderMapper, orderItemMapper, ktvSessionMapper, serverSessionMapper, pricingPlanProvider, null);
+      orderMapper, orderItemMapper, ktvSessionRepository, serverSessionRepository, pricingPlanProvider, null);
 
   @Test
   void billIncludesAllConsumptionLinesAndBalancesToTotal() {
@@ -54,8 +56,8 @@ class BillApplicationServiceTest {
         item(2L, "SERVICE", "服务员点歌", null, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000")),
         serverFeeItem,
         item(4L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("5000"), new BigDecimal("3"), new BigDecimal("15000"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closedSession()));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(serverSession()));
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(serverSession()));
 
     BillResult bill = service.buildBill(1L);
 
@@ -90,8 +92,8 @@ class BillApplicationServiceTest {
     serverFeeItem.setPriceSnapshotJson("{\"serverPricePerInc\":5000}");
     OrderItemPo addOn = item(2L, "SERVICE", "服务员点歌", 9L, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000"));
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(serverFeeItem, addOn));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(serverSession()));
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(serverSession()));
 
     BillResult bill = service.buildBill(1L);
 
@@ -109,8 +111,8 @@ class BillApplicationServiceTest {
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("5000"), new BigDecimal("3"), new BigDecimal("15000"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -131,18 +133,18 @@ class BillApplicationServiceTest {
     order.setStatus("SERVING");
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    KtvSessionPo paused = openSession();
-    paused.setStatus("PAUSED");
     // 开台 10:00 → 暂停 10:30（停表）→ 现在 12:30：计费时长只能是 30 分钟 = 1 块。
-    paused.setBillingStartAt(LocalDateTime.now().minusMinutes(150));
-    paused.setPauseStartedAt(LocalDateTime.now().minusMinutes(120));
-    paused.setBillingRuleSnapshotJson(plan().toSnapshotJson());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(paused));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    KtvSession paused = openSession()
+        .withStatus(KtvSession.STATUS_PAUSED)
+        .withBillingStartAt(LocalDateTime.now().minusMinutes(150))
+        .withPauseStartedAt(LocalDateTime.now().minusMinutes(120))
+        .withBillingRuleSnapshotJson(plan().toSnapshotJson());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(paused));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
-    assertEquals("PAUSED", paused.getStatus());
+    assertEquals("PAUSED", paused.status());
     assertEquals(1800L, bill.roomFee().durationSeconds(), "暂停期间不计费：时长停在暂停时刻");
     assertEquals(1500L, bill.roomFee().amount(), "30 分钟 → 1 块 × ¥15.00（方案 ¥30.00/小时、30 分钟一档）");
     assertEquals(1L, bill.roomFee().quantity());
@@ -167,17 +169,12 @@ class BillApplicationServiceTest {
     roomFee.setPriceSnapshotJson(plan().toSnapshotJson());
     roomFee.setUpdatedAt(LocalDateTime.of(2026, 9, 20, 7, 22, 15));
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
-    KtvSessionPo cancelled = new KtvSessionPo();
-    cancelled.setId(58L);
-    cancelled.setTenantId(100L);
-    cancelled.setOrderId(1L);
-    cancelled.setStatus("CANCELLED");
-    cancelled.setBillingStartAt(LocalDateTime.of(2026, 9, 20, 6, 58, 48));
-    cancelled.setClosedAt(null);
-    cancelled.setPausedSeconds(0);
-    cancelled.setBillingRuleSnapshotJson(plan().toSnapshotJson());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(cancelled));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    // 作废单 + CANCELLED 会话、closed_at IS NULL：领域模型不可变，显式构造（closedAt 传 null）。
+    KtvSession cancelled = new KtvSession(58L, 100L, null, null, 1L, 3001L, null, null, null, null, null, null,
+        null, null, null, null, null, LocalDateTime.of(2026, 9, 20, 6, 58, 48), 0, 0, null, null,
+        plan().toSnapshotJson(), KtvSession.STATUS_CANCELLED, 0);
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(cancelled));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -202,13 +199,13 @@ class BillApplicationServiceTest {
     roomFee.setPriceSnapshotJson(plan().toSnapshotJson());
     roomFee.setUpdatedAt(LocalDateTime.of(2026, 9, 20, 10, 0));
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
-    KtvSessionPo closed = closedSession();
     // 标准时长 120 分钟；计费 180 分钟 → 超时 60 分钟（超时倍率 1.5：4 块 × 1.5 + ... 由明细固化，不在此复算）
-    closed.setBillingStartAt(LocalDateTime.of(2026, 9, 20, 7, 0));
-    closed.setClosedAt(LocalDateTime.of(2026, 9, 20, 10, 0));
-    closed.setBillingRuleSnapshotJson(plan().toSnapshotJson());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closed));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    KtvSession closed = closedSession()
+        .withBillingStartAt(LocalDateTime.of(2026, 9, 20, 7, 0))
+        .withClosedAt(LocalDateTime.of(2026, 9, 20, 10, 0))
+        .withBillingRuleSnapshotJson(plan().toSnapshotJson());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closed));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -239,10 +236,9 @@ class BillApplicationServiceTest {
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "PRODUCT", "果盘", null, new BigDecimal("6800"), new BigDecimal("1"), new BigDecimal("6800")),
         item(2L, "PACKAGE_FEE", "欢唱套餐", null, new BigDecimal("20000"), new BigDecimal("1"), new BigDecimal("20000"))));
-    KtvSessionPo open = openSession();
-    open.setBillingRuleSnapshotJson(packagePlan().toSnapshotJson());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(open));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    KtvSession open = openSession().withBillingRuleSnapshotJson(packagePlan().toSnapshotJson());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(open));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -261,17 +257,14 @@ class BillApplicationServiceTest {
     order.setStatus("SERVING");
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    KtvSessionPo olderClosed = closedSession();
-    olderClosed.setId(11L);
-    olderClosed.setOrderId(1L);
-    KtvSessionPo currentOpen = openSession();
-    currentOpen.setId(12L);
-    currentOpen.setOrderId(1L);
-    currentOpen.setBillingStartAt(LocalDateTime.now().minusMinutes(40));
-    currentOpen.setBillingRuleSnapshotJson(plan().toSnapshotJson());
+    KtvSession olderClosed = closedSession().withId(11L);
+    KtvSession currentOpen = openSession()
+        .withId(12L)
+        .withBillingStartAt(LocalDateTime.now().minusMinutes(40))
+        .withBillingRuleSnapshotJson(plan().toSnapshotJson());
     // 故意把已结束会话放在前面：账单不能 findFirst 取到它。
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(olderClosed, currentOpen));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(olderClosed, currentOpen));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -288,8 +281,8 @@ class BillApplicationServiceTest {
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("4000"), new BigDecimal("1"), new BigDecimal("4000")),
         item(2L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("2000"), new BigDecimal("1"), new BigDecimal("2000"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closedSession()));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -307,10 +300,9 @@ class BillApplicationServiceTest {
         new BigDecimal("4000"), new BigDecimal("1"), new BigDecimal("4000"));
     roomFee.setPriceSnapshotJson("{ this is not json");
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
-    KtvSessionPo closed = closedSession();
-    closed.setBillingRuleSnapshotJson("{ also broken");
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closed));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    KtvSession closed = closedSession().withBillingRuleSnapshotJson("{ also broken");
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closed));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -341,8 +333,8 @@ class BillApplicationServiceTest {
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "PRODUCT", "矿泉水", null, new BigDecimal("500"), new BigDecimal("1"), new BigDecimal("500")),
         item(2L, "SERVICE", "服务员点歌", null, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -358,10 +350,9 @@ class BillApplicationServiceTest {
     OrderPo order = order(BigDecimal.ZERO);
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    KtvServerSessionPo ordered = serverSession();
-    ordered.setStatus("SERVING");
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(ordered));
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
+    KtvServerSession ordered = serverSession().withStatus("SERVING");
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(ordered));
 
     BillResult bill = service.buildBill(1L);
 
@@ -382,8 +373,8 @@ class BillApplicationServiceTest {
     when(orderMapper.selectById(1L)).thenReturn(order);
     // 存量开台订单：库里还没有房费明细（本轮修复前开的台），合计也是 0。
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(openSession()));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(openSession()));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(any(), any())).thenReturn(
         new io.openware.platform.order.domain.ktv.model.KtvPricingPlan(
             io.openware.platform.order.domain.ktv.model.KtvBillingUnit.HOUR, 3000L, 120, 0,
@@ -398,15 +389,12 @@ class BillApplicationServiceTest {
     assertEquals(bill.roomFee().amount(), bill.payableAmount(), "应收 = 实时合计 − 已收");
   }
 
-  private static KtvSessionPo openSession() {
-    KtvSessionPo po = new KtvSessionPo();
-    po.setId(1L);
-    po.setTenantId(100L);
-    po.setOrderId(1L);
-    po.setStatus("OPEN");
-    po.setBillingStartAt(LocalDateTime.now().minusMinutes(30));
-    po.setPausedSeconds(0);
-    return po;
+  /** 开台中的会话夹具（领域模型不可变：工厂造出后按需 with* 派生）。 */
+  private static KtvSession openSession() {
+    return KtvSession.reserved(100L, 100L, "KTV", 1L, 3001L, null, null)
+        .withId(1L)
+        .withStatus(KtvSession.STATUS_OPEN)
+        .withBillingStartAt(LocalDateTime.now().minusMinutes(30));
   }
 
   private static OrderPo order(BigDecimal totalAmount) {
@@ -439,38 +427,25 @@ class BillApplicationServiceTest {
     return po;
   }
 
-  private static KtvSessionPo closedSession() {
-    KtvSessionPo po = new KtvSessionPo();
-    po.setId(1L);
-    po.setTenantId(100L);
-    po.setOrderId(1L);
-    po.setStatus("CLOSED");
-    po.setBillingStartAt(LocalDateTime.now().minusMinutes(90));
-    po.setClosedAt(LocalDateTime.now());
-    po.setPausedSeconds(0);
-    return po;
+  /** 已结台的会话夹具（计费 90 分钟、刚结台）。 */
+  private static KtvSession closedSession() {
+    return KtvSession.reserved(100L, 100L, "KTV", 1L, 3001L, null, null)
+        .withId(1L)
+        .withStatus(KtvSession.STATUS_CLOSED)
+        .withBillingStartAt(LocalDateTime.now().minusMinutes(90))
+        .withClosedAt(LocalDateTime.now());
   }
 
-  private static KtvServerSessionPo serverSession() {
-    KtvServerSessionPo po = new KtvServerSessionPo();
-    po.setId(1L);
-    po.setTenantId(100L);
-    po.setOrderId(1L);
-    po.setKtvSessionId(20L);
-    po.setServerResourceId(9L);
-    po.setStatus("ENDED");
-    po.setDurationSeconds(3600);
-    po.setPricePerInc(5000L);
-    po.setTotalAmount(BigDecimal.valueOf(10000L));
-    return po;
+  /** 已结束的服务人员点单夹具（领域模型不可变：工厂造出后回填主键与固化金额）。 */
+  private static KtvServerSession serverSession() {
+    return new KtvServerSession(1L, 100L, 100L, "KTV", 1L, 20L, 9L, null, null, null, null,
+        "HOUR", 30, "CONSUMER_FAVOR", 5000L, 3600, 60, BigDecimal.valueOf(10000L), "CNY", null,
+        "ENDED", 0);
   }
 
-  private static KtvServerSessionPo serverSession(long id, long serverResourceId, BigDecimal amount) {
-    KtvServerSessionPo po = serverSession();
-    po.setId(id);
-    po.setServerResourceId(serverResourceId);
-    po.setTotalAmount(amount);
-    return po;
+  private static KtvServerSession serverSession(long id, long serverResourceId, BigDecimal amount) {
+    return new KtvServerSession(id, 100L, 100L, "KTV", 1L, 20L, serverResourceId, null, null, null, null,
+        "HOUR", 30, "CONSUMER_FAVOR", 5000L, 3600, 60, amount, "CNY", null, "ENDED", 0);
   }
 
   // —— 包厢费已含 1 名标准服务人员：servers 分区按创建顺序标注免费名额，且不重不漏 ——
@@ -490,10 +465,10 @@ class BillApplicationServiceTest {
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500")),
         freeItem, extraItem));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closedSession()));
-    KtvServerSessionPo free = serverSession(1L, 9L, BigDecimal.ZERO);
-    KtvServerSessionPo extra = serverSession(2L, 10L, BigDecimal.valueOf(10000L));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(free, extra));
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
+    KtvServerSession free = serverSession(1L, 9L, BigDecimal.ZERO);
+    KtvServerSession extra = serverSession(2L, 10L, BigDecimal.valueOf(10000L));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(free, extra));
 
     BillResult bill = service.buildBill(1L);
 
@@ -520,8 +495,8 @@ class BillApplicationServiceTest {
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closedSession()));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
 
     BillResult bill = service.buildBill(1L);
 
@@ -537,8 +512,8 @@ class BillApplicationServiceTest {
     when(orderMapper.selectById(1L)).thenReturn(order);
     when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500"))));
-    when(ktvSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(closedSession()));
-    when(serverSessionMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
+    when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(
         serverSession(1L, 9L, BigDecimal.ZERO),
         serverSession(2L, 10L, BigDecimal.valueOf(10000L)),
         serverSession(3L, 11L, BigDecimal.valueOf(10000L))));

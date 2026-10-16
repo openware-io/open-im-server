@@ -1,25 +1,26 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.infrastructure.time.TimeRangeParams;
-import io.openware.platform.order.infra.persistence.mapper.CatalogItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
-import io.openware.platform.order.infra.persistence.mapper.InventoryTransactionMapper;
-import io.openware.platform.order.infra.persistence.mapper.ProductMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
+import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.InventoryTransactionView;
+import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.catalog.repository.ProductRepository;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryStock;
+import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialPage;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialQuery;
+import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionPage;
+import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionQuery;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -41,48 +42,44 @@ import static org.mockito.Mockito.when;
 /**
  * 仓库管理 / 出入库记录 / 库存成本三块的**分页与查询**口径（Mockito 单测，不连库）。
  *
- * <p>守住的契约：
+ * <p>守住的契约（迁移后按**端口调用**断言，不再是下发给 mapper 的 SQL）：
  * <ul>
- *   <li>分页参数归一：{@code page < 1} → 1，{@code pageSize} 非正或 &gt; 200 → 默认 20（下发给 mapper 的 Page 就是这个值）；</li>
- *   <li>物料：状态/分类/关键字（名称或编码）条件与 {@code id desc} 排序；空白筛选不得变成「匹配空串」；</li>
- *   <li>流水：类型/来源精确匹配，{@code from}/{@code to} 按 {@code created_at} 闭区间（结束日 23:59:59.999999999），
- *       {@code from > to} 或日期格式非法 → 400 {@code INVENTORY_FILTER_INVALID}；</li>
- *   <li>流水关键字：先取命中物料 id 再 IN，命中为空直接空页（绝不下发 {@code IN ()}）；</li>
+ *   <li>分页参数归一：{@code page < 1} → 1，{@code pageSize} 非正或 &gt; 200 → 默认 20
+ *       （端口只接受「偏移 + 上限」，因此这里断言 {@code offset}/{@code limit} 与响应信封）；</li>
+ *   <li>物料：状态/分类/关键字（名称或编码）条件变成 {@code MaterialQuery} 的字段；
+ *       空白筛选不得变成「匹配空串」（必须是 null）；</li>
+ *   <li>流水：类型/来源精确匹配，{@code from}/{@code to} 按 {@code created_at} 闭区间
+ *       （结束日 23:59:59.999999999），端点值以 {@code LocalDateTime} 交给端口；</li>
+ *   <li>流水关键字：先取命中物料 id 再按白名单过滤，命中为空直接空页（绝不下发 {@code IN ()}）；</li>
  *   <li>成本：分页作用于物料行，但 {@code total} 与币种信封（{@code currencyCode}/{@code mixedCurrency}）
  *       按全部命中行计算，翻页不漂移。</li>
  * </ul>
  *
- * <p>真库分页（LIMIT/OFFSET 与 count）由 {@code InventoryPagingIntegrationTest} 在 H2 上验证。
+ * <p><b>SQL 形状去适配器测试</b>：{@code LIKE} 的拼法、{@code ORDER BY id DESC}、{@code LIMIT/OFFSET}、
+ * {@code IN} 白名单这些**查询语法**由适配器负责，断言在
+ * {@code InventoryMaterialRepositoryAdapterTest} / {@code InventoryTransactionRepositoryAdapterTest}
+ * （真实适配器 + mock mapper，用 {@code getTargetSql()} 求值）。本类只钉住「服务要什么」。
  */
 class InventoryQueryPagingTest {
 
     private static final long TENANT_ID = 1L;
     private static final long STORE_ID = 3L;
 
-    private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
-    private final InventoryStockMapper stockMapper = mock(InventoryStockMapper.class);
-    private final InventoryTransactionMapper transactionMapper = mock(InventoryTransactionMapper.class);
-    private final ProductMapper productMapper = mock(ProductMapper.class);
-    private final CatalogItemMapper catalogItemMapper = mock(CatalogItemMapper.class);
+    private final InventoryMaterialRepository materialRepository = mock(InventoryMaterialRepository.class);
+    private final InventoryStockRepository stockRepository = mock(InventoryStockRepository.class);
+    private final InventoryTransactionRepository transactionRepository = mock(InventoryTransactionRepository.class);
+    private final ProductRepository productRepository = mock(ProductRepository.class);
+    private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
     private final InventoryApplicationService service = new InventoryApplicationService(
-            materialMapper, stockMapper, transactionMapper, productMapper, catalogItemMapper);
+            materialRepository, stockRepository, transactionRepository, productRepository, catalogItemRepository);
 
-    /** 下发给 mapper 的 Page（断言归一后的 current/size）。 */
-    private Page<?> requestedPage;
-    /** 下发给 mapper 的查询条件。 */
-    private LambdaQueryWrapper<InventoryMaterialPo> materialQuery;
-    private LambdaQueryWrapper<InventoryTransactionPo> transactionQuery;
-
-    @BeforeAll
-    static void initTableInfo() {
-        for (Class<?> entity : List.of(InventoryMaterialPo.class, InventoryStockPo.class, InventoryTransactionPo.class)) {
-            TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), entity);
-        }
-    }
+    /** 下发给物料端口的查询条件（断言归一后的偏移/上限与过滤字段）。 */
+    private MaterialQuery materialQuery;
+    /** 下发给流水端口的查询条件。 */
+    private TransactionQuery transactionQuery;
 
     @BeforeEach
     void setUp() {
-        requestedPage = null;
         materialQuery = null;
         transactionQuery = null;
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
@@ -99,11 +96,13 @@ class InventoryQueryPagingTest {
     void materialPageSizeFallsBackToDefaultWhenOutOfRange() {
         stubMaterialPage();
 
-        service.listMaterials(1L, 500L, null, null, null, null, TimeRange.none());
+        Page<InventoryMaterialView> result = service.listMaterials(1L, 500L, null, null, null, null, TimeRange.none());
 
-        assertEquals(InventoryApplicationService.DEFAULT_PAGE_SIZE, requestedPage.getSize(),
+        assertEquals(InventoryApplicationService.DEFAULT_PAGE_SIZE, materialQuery.limit(),
                 "pageSize 超过上限 200 必须回落到默认 20（而不是静默截断成 200）");
-        assertEquals(1L, requestedPage.getCurrent());
+        assertEquals(0L, materialQuery.offset(), "第 1 页的偏移必须是 0");
+        assertEquals(InventoryApplicationService.DEFAULT_PAGE_SIZE, result.getSize());
+        assertEquals(1L, result.getCurrent());
     }
 
     @Test
@@ -112,8 +111,8 @@ class InventoryQueryPagingTest {
 
         service.listMaterials(0L, 0L, null, null, null, null, TimeRange.none());
 
-        assertEquals(1L, requestedPage.getCurrent(), "page < 1 回落到第 1 页");
-        assertEquals(InventoryApplicationService.DEFAULT_PAGE_SIZE, requestedPage.getSize(), "pageSize <= 0 回落到默认值");
+        assertEquals(0L, materialQuery.offset(), "page < 1 回落到第 1 页（偏移 0）");
+        assertEquals(InventoryApplicationService.DEFAULT_PAGE_SIZE, materialQuery.limit(), "pageSize <= 0 回落到默认值");
     }
 
     @Test
@@ -122,7 +121,18 @@ class InventoryQueryPagingTest {
 
         service.listMaterials(1L, InventoryApplicationService.MAX_PAGE_SIZE, null, null, null, null, TimeRange.none());
 
-        assertEquals(InventoryApplicationService.MAX_PAGE_SIZE, requestedPage.getSize());
+        assertEquals(InventoryApplicationService.MAX_PAGE_SIZE, materialQuery.limit());
+    }
+
+    /** 第 N 页 → 偏移 (N-1)×limit：端口只认偏移，换算在应用层。 */
+    @Test
+    void materialPageNumberIsTranslatedToOffset() {
+        stubMaterialPage();
+
+        service.listMaterials(3L, 20L, null, null, null, null, TimeRange.none());
+
+        assertEquals(40L, materialQuery.offset());
+        assertEquals(20L, materialQuery.limit());
     }
 
     // —— 物料筛选 ——
@@ -133,12 +143,12 @@ class InventoryQueryPagingTest {
 
         service.listMaterials(1L, 20L, null, "ACTIVE", "耗材", "纸巾", TimeRange.none());
 
-        String sql = materialQuery.getSqlSegment();
-        assertTrue(sql.contains("status"), sql);
-        assertTrue(sql.contains("category"), sql);
-        assertTrue(sql.contains("name LIKE"), "关键字要能命中物料名称: " + sql);
-        assertTrue(sql.contains("material_code LIKE"), "关键字要能命中物料编码: " + sql);
-        assertTrue(sql.contains("ORDER BY id DESC"), "排序必须是 id desc（与仓库其它分页端点一致）: " + sql);
+        assertEquals(TENANT_ID, materialQuery.tenantId());
+        assertEquals("ACTIVE", materialQuery.status());
+        assertEquals("耗材", materialQuery.category());
+        assertEquals("纸巾", materialQuery.nameOrCode(),
+                "关键字是「名称或编码模糊」的业务语义条件，具体 LIKE 拼法由适配器负责");
+        // 排序（id desc）是适配器的固定口径，断言见 InventoryMaterialRepositoryAdapterTest。
     }
 
     @Test
@@ -147,10 +157,32 @@ class InventoryQueryPagingTest {
 
         service.listMaterials(1L, 20L, null, "   ", null, "  ", TimeRange.none());
 
-        String sql = materialQuery.getSqlSegment();
-        assertFalse(sql.contains("status"), "空白状态必须当作未传，不能去匹配空串: " + sql);
-        assertFalse(sql.contains("category"), sql);
-        assertFalse(sql.contains("LIKE"), "空白关键字必须当作未传: " + sql);
+        assertNull(materialQuery.status(), "空白状态必须当作未传，不能去匹配空串");
+        assertNull(materialQuery.category());
+        assertNull(materialQuery.nameOrCode(), "空白关键字必须当作未传");
+    }
+
+    /** 物料创建时间闭区间按物料时间列过滤（统一 from/to 口径）。 */
+    @Test
+    void materialsApplyCreatedAtClosedRange() {
+        stubMaterialPage();
+
+        service.listMaterials(1L, 20L, null, null, null, null, TimeRangeParams.parse("2026-09-01", "2026-09-30"));
+
+        assertEquals(LocalDateTime.of(2026, 9, 1, 0, 0), materialQuery.createdFrom(),
+                "起始端点必须按当天 00:00:00 收口");
+        assertEquals(LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000), materialQuery.createdTo(),
+                "结束端点必须按当天最后一毫秒收口（闭区间）；不用 LocalTime.MAX，避免被 DATETIME(3) 进位到次日");
+    }
+
+    /** 越权门店必须拒绝，且不查库。 */
+    @Test
+    void materialsRejectForeignStore() {
+        BusinessException error = assertThrows(BusinessException.class,
+                () -> service.listMaterials(1L, 20L, 999L, null, null, null, TimeRange.none()));
+
+        assertEquals("STORE_SCOPE_DENIED", error.getCode());
+        verifyNoInteractions(materialRepository);
     }
 
     // —— 流水筛选 ——
@@ -161,19 +193,19 @@ class InventoryQueryPagingTest {
 
         service.listTransactions(1L, 20L, 7L, "RECEIPT", "RECEIPT", TimeRangeParams.parse("2026-09-01", "2026-09-30"), null);
 
-        String sql = transactionQuery.getSqlSegment();
-        assertTrue(sql.contains("transaction_type"), sql);
-        assertTrue(sql.contains("source_type"), sql);
-        assertTrue(sql.contains("created_at >="), "时间区间过滤必须落在 created_at（本表没有 occurred_at 列）: " + sql);
-        assertTrue(sql.contains("created_at <="), sql);
-        assertTrue(sql.contains("ORDER BY id DESC"), sql);
+        assertEquals(TENANT_ID, transactionQuery.tenantId());
+        assertEquals(STORE_ID, transactionQuery.storeId());
+        assertEquals(7L, transactionQuery.materialId());
+        assertEquals("RECEIPT", transactionQuery.transactionType());
+        assertEquals("RECEIPT", transactionQuery.sourceType());
+        assertEquals(0L, transactionQuery.offset());
+        assertEquals(20L, transactionQuery.limit());
         // 闭区间：起始日从 00:00:00 起，结束日收口到当天最后一毫秒（整天都能命中）
-        assertTrue(transactionQuery.getParamNameValuePairs().values()
-                        .contains(LocalDateTime.of(2026, 9, 1, 0, 0)),
+        assertEquals(LocalDateTime.of(2026, 9, 1, 0, 0), transactionQuery.createdFrom(),
                 "起始端点必须按当天 00:00:00 收口");
-        assertTrue(transactionQuery.getParamNameValuePairs().values()
-                        .contains(LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000)),
+        assertEquals(LocalDateTime.of(2026, 9, 30, 23, 59, 59, 999_000_000), transactionQuery.createdTo(),
                 "结束端点必须按当天最后一毫秒收口（闭区间）；不用 LocalTime.MAX，避免被 DATETIME(3) 进位到次日");
+        // 排序（id desc）与 created_at 过滤的 SQL 形状断言见 InventoryTransactionRepositoryAdapterTest。
     }
 
     /**
@@ -182,34 +214,33 @@ class InventoryQueryPagingTest {
      *   <li>{@code from > to} / 格式非法 → {@code TimeRangeParamsTest} 断言 400 {@code TIME_RANGE_INVALID}；</li>
      *   <li>HTTP 层的 400 与「不落到服务层」→ {@code InventoryControllerWebTest} 断言。</li>
      * </ul>
-     * 本类只保留「服务层拿到区间后 SQL 怎么拼」的断言（见上）。
+     * 本类只保留「服务层拿到区间后怎么交给端口」的断言（见上）。
      */
 
-    /** 关键字没命中任何物料：直接空页，不下发 {@code IN ()}（那是非法 SQL），也不查流水。 */
+    /** 关键字没命中任何物料：直接空页，不查流水（避免 {@code IN ()} 这种非法 SQL）。 */
     @Test
     void transactionsReturnEmptyPageWhenKeywordMatchesNoMaterial() {
-        when(materialMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        when(materialRepository.findIdsByNameOrCode(TENANT_ID, STORE_ID, "不存在")).thenReturn(List.of());
 
-        Page<InventoryTransactionPo> result =
+        Page<InventoryTransactionView> result =
                 service.listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, null), "不存在");
 
         assertEquals(0L, result.getTotal());
         assertTrue(result.getRecords().isEmpty());
-        verifyNoInteractions(transactionMapper);
+        verifyNoInteractions(transactionRepository);
     }
 
-    /** 关键字命中物料：用 IN(id 集合) 过滤，不逐行回查（无 N+1）。 */
+    /** 关键字命中物料：把命中的 id 白名单交给端口（不逐行回查，N+1 由端口一次 IN 完成）。 */
     @Test
     void transactionsFilterByMatchedMaterialIdsWithoutPerRowLookup() {
-        InventoryMaterialPo hit = new InventoryMaterialPo();
-        hit.setId(11L);
-        when(materialMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(hit));
+        when(materialRepository.findIdsByNameOrCode(TENANT_ID, STORE_ID, "可乐")).thenReturn(List.of(11L));
         stubTransactionPage();
 
         service.listTransactions(1L, 20L, null, null, null, TimeRangeParams.parse(null, null), "可乐");
 
-        assertTrue(transactionQuery.getSqlSegment().contains("material_id IN"), transactionQuery.getSqlSegment());
-        verify(materialMapper).selectList(any(LambdaQueryWrapper.class));
+        assertEquals(List.of(11L), transactionQuery.materialIds(),
+                "命中物料 id 必须作为白名单一次交给端口；空集合由本类提前返回空页");
+        verify(materialRepository).findIdsByNameOrCode(TENANT_ID, STORE_ID, "可乐");
     }
 
     // —— 库存成本分页与信封口径 ——
@@ -251,9 +282,7 @@ class InventoryQueryPagingTest {
     /** 成本关键字：只保留命中物料的库存行，total 也随之收敛。 */
     @Test
     void costsFilterByMaterialKeyword() {
-        InventoryMaterialPo hit = new InventoryMaterialPo();
-        hit.setId(12L);
-        when(materialMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of(hit));
+        when(materialRepository.findIdsByNameOrCode(TENANT_ID, STORE_ID, "可乐")).thenReturn(List.of(12L));
         stubCostSources(stock(11L, "2", "300", "CNY"), stock(12L, "1", "100", "CNY"));
 
         InventoryApplicationService.InventoryCostReport report = service.inventoryCosts(1L, 20L, null, "可乐");
@@ -283,56 +312,39 @@ class InventoryQueryPagingTest {
 
     // —— 辅助 ——
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void stubMaterialPage(InventoryMaterialPo... records) {
-        when(materialMapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
-            Page page = invocation.getArgument(0);
-            requestedPage = page;
-            materialQuery = invocation.getArgument(1);
-            page.setRecords(List.of(records));
-            page.setTotal(records.length);
-            return page;
+    /** 物料分页桩：记录下发给端口的查询条件，并回一页记录与命中总数。 */
+    private void stubMaterialPage(InventoryMaterial... records) {
+        when(materialRepository.findPage(any(MaterialQuery.class))).thenAnswer(invocation -> {
+            materialQuery = invocation.getArgument(0);
+            return new MaterialPage(List.of(records), records.length);
         });
-        when(materialMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(List.of());
+        // 列表读路径会用一次 IN 查询回填结存/预占（非列字段，见 InventoryMaterialView）。
+        when(stockRepository.findByMaterials(any(), any(), any())).thenReturn(List.of());
+        when(materialRepository.findIdsByNameOrCode(any(), any(), any())).thenReturn(List.of());
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
-    private void stubTransactionPage(InventoryTransactionPo... records) {
-        when(transactionMapper.selectPage(any(Page.class), any())).thenAnswer(invocation -> {
-            Page page = invocation.getArgument(0);
-            requestedPage = page;
-            transactionQuery = invocation.getArgument(1);
-            page.setRecords(List.of(records));
-            page.setTotal(records.length);
-            return page;
+    /** 流水分页桩：同上。 */
+    private void stubTransactionPage(InventoryTransaction... records) {
+        when(transactionRepository.findPage(any(TransactionQuery.class))).thenAnswer(invocation -> {
+            transactionQuery = invocation.getArgument(0);
+            return new TransactionPage(List.of(records), records.length);
         });
     }
 
-    private void stubCostSources(InventoryStockPo... stocks) {
-        when(stockMapper.selectByStore(TENANT_ID, STORE_ID)).thenReturn(List.of(stocks));
-        List<InventoryMaterialPo> materials = java.util.Arrays.stream(stocks)
-                .map(stock -> material(stock.getMaterialId())).toList();
-        when(materialMapper.selectBatchIds(any())).thenReturn(materials);
+    private void stubCostSources(InventoryStock... stocks) {
+        when(stockRepository.findByStore(TENANT_ID, STORE_ID)).thenReturn(List.of(stocks));
+        List<InventoryMaterial> materials = java.util.Arrays.stream(stocks)
+                .map(stock -> material(stock.materialId())).toList();
+        when(materialRepository.findByIds(any())).thenReturn(materials);
     }
 
-    private static InventoryStockPo stock(Long materialId, String onHand, String avgCost, String currency) {
-        InventoryStockPo stock = new InventoryStockPo();
-        stock.setTenantId(TENANT_ID);
-        stock.setStoreId(STORE_ID);
-        stock.setMaterialId(materialId);
-        stock.setOnHandQty(new BigDecimal(onHand));
-        stock.setReservedQty(BigDecimal.ZERO);
-        stock.setAvgCost(new BigDecimal(avgCost));
-        stock.setCurrencyCode(currency);
-        return stock;
+    private static InventoryStock stock(Long materialId, String onHand, String avgCost, String currency) {
+        return new InventoryStock(20L, TENANT_ID, STORE_ID, materialId, new BigDecimal(onHand), BigDecimal.ZERO,
+                new BigDecimal(avgCost), currency, 0);
     }
 
-    private static InventoryMaterialPo material(Long id) {
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(id);
-        material.setMaterialCode("M-" + id);
-        material.setName("物料" + id);
-        material.setUnit("件");
-        return material;
+    private static InventoryMaterial material(Long id) {
+        return new InventoryMaterial(id, TENANT_ID, STORE_ID, "M-" + id, "物料" + id, "耗材", "件", null,
+                BigDecimal.ZERO, null, "USD", null, null, "ACTIVE", 0, LocalDateTime.now());
     }
 }

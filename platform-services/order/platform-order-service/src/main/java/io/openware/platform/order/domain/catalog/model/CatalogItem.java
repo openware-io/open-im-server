@@ -141,6 +141,18 @@ public record CatalogItem(
         imageUrls, mainImageUrl, status, newStockControlled, sortOrder);
   }
 
+  /**
+   * 图片镜像（物料换图后回填到镜像该物料的目录项；返回新实例）。
+   *
+   * <p>**不是死代码**：库存子域的 {@code InventoryApplicationService.syncCatalogImages} 在物料图片变更后
+   * 用它把新图片写回镜像该物料的目录项（商品自己有图时跳过），这是该写入路径唯一的领域侧出口——
+   * 记录是不可变的，没有 setter，只能靠 {@code with*} 产生新实例。
+   */
+  public CatalogItem withMirroredImages(List<String> urls, String main) {
+    return new CatalogItem(id, productId, tenantId, storeId, category, itemType, name, unit, unitPrice, description,
+        urls == null ? List.of() : urls, main, status, stockControlled, sortOrder);
+  }
+
   /** 停用（软删，返回新实例）。 */
   public CatalogItem disabled() {
     return new CatalogItem(id, productId, tenantId, storeId, category, itemType, name, unit, unitPrice, description,

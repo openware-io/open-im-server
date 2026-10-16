@@ -4,9 +4,9 @@ import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -186,7 +186,7 @@ public class OrderCancellationApplicationService {
             requireNoCollectedPayment(order);
 
             // 释放包厢占用：同一事务内取消活动会话并释放占用（会话取消/释放语义统一在 KTV 会话服务里）。
-            KtvSessionPo releasedSession = ktvSessionService.cancelByOrder(order.getId());
+            KtvSession releasedSession = ktvSessionService.cancelByOrder(order.getId());
 
             LocalDateTime now = LocalDateTime.now();
             // 条件更新：只有库中仍是判定的那个状态才算作废成功。上面按 beforeStatus 的判定不是并发保护——
@@ -260,12 +260,12 @@ public class OrderCancellationApplicationService {
 
     /** 取消/作废审计：动作码按 kind 分叉，detail 带前后状态、原因与释放的会话/包厢（无会话时为 null）。 */
     private void audit(OrderPo order, String beforeStatus, String reason, CancelKind kind,
-                       KtvSessionPo releasedSession) {
+                       KtvSession releasedSession) {
         if (auditClient == null) {
             return;
         }
-        Long releasedSessionId = releasedSession == null ? null : releasedSession.getId();
-        Long releasedResourceId = releasedSession == null ? null : releasedSession.getRoomResourceId();
+        Long releasedSessionId = releasedSession == null ? null : releasedSession.id();
+        Long releasedResourceId = releasedSession == null ? null : releasedSession.roomResourceId();
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .tenantId(order.getTenantId())
                 .storeId(order.getStoreId())

@@ -17,6 +17,7 @@ import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
@@ -132,14 +133,10 @@ class OrderDetailAuthorizationTest {
     void detailCarriesSessionProjection() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of("order.view")));
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order(ORDER_ID, 500L));
-        io.openware.platform.order.infra.persistence.po.KtvSessionPo session =
-                new io.openware.platform.order.infra.persistence.po.KtvSessionPo();
-        session.setId(48L);
-        session.setOrderId(ORDER_ID);
-        session.setRoomResourceId(1023L);
-        session.setRoomNameSnapshot("豪华包 XL02");
-        session.setRoomCodeSnapshot("XL02");
-        session.setStatus("OPEN");
+        KtvSession session = KtvSession
+                .reserved(TENANT_ID, 100L, null, ORDER_ID, 1023L, "豪华包 XL02", "XL02")
+                .withId(48L)
+                .withStatus(KtvSession.STATUS_OPEN);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(java.util.Map.of(ORDER_ID, session));
 
         OrderPo detail = controller.detail(ORDER_ID);

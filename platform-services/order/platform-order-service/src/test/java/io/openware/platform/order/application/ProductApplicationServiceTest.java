@@ -10,7 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -21,8 +20,8 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -39,14 +38,16 @@ import org.mockito.ArgumentCaptor;
  * <p><b>迁移后的断言口径</b>：商品/目录项改经领域端口，夹具是**不可变 record**
  * （没有 setter），因此「编辑后的字段」从返回值（{@link ProductView}）读、
  * 「确实落库」从端口调用参数读，而不是对某个 PO 断言就地改名。
+ * 跨子域读（关联物料是否存在/启用、物料图片回退）同样走
+ * {@link InventoryMaterialRepository} 端口。
  */
 class ProductApplicationServiceTest {
 
     private final ProductRepository productRepository = mock(ProductRepository.class);
     private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
-    private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
+    private final InventoryMaterialRepository materialRepository = mock(InventoryMaterialRepository.class);
     private final ProductApplicationService service =
-            new ProductApplicationService(productRepository, catalogItemRepository, materialMapper);
+            new ProductApplicationService(productRepository, catalogItemRepository, materialRepository);
 
     @BeforeEach
     void stubPersistence() {
@@ -212,11 +213,8 @@ class ProductApplicationServiceTest {
                 existing(10L).withCatalogItemId(77L).edited("可乐", "饮品", "瓶", new BigDecimal("100"), "PRODUCT",
                         null, false, 55L, null, List.of(), null)));
         when(catalogItemRepository.findById(77L)).thenReturn(Optional.of(catalogItem(77L)));
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(55L);
-        material.setImageUrls(List.of("/m-a.png"));
-        material.setMainImageUrl("/m-a.png");
-        when(materialMapper.selectById(55L)).thenReturn(material);
+        when(materialRepository.findById(55L)).thenReturn(Optional.of(material(55L, "ACTIVE",
+                List.of("/m-a.png"), "/m-a.png")));
 
         service.update(10L, new ProductApplicationService.ProductCommand(null, null, null, null, null, null,
                 null, null, null, null, null, null));
@@ -336,10 +334,7 @@ class ProductApplicationServiceTest {
     void updatePersistsStockControlledSwitchWithMaterial() {
         TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
         when(productRepository.findById(10L)).thenReturn(Optional.of(existing(10L)));
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(55L);
-        material.setStatus("ACTIVE");
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(material);
+        when(materialRepository.findInStore(1L, 3L, 55L)).thenReturn(Optional.of(material(55L, "ACTIVE", null, null)));
 
         ProductView updated = service.update(10L, new ProductApplicationService.ProductCommand(
                 null, null, null, null, null, null, 55L, true, null, null, null, null));
@@ -387,12 +382,15 @@ class ProductApplicationServiceTest {
         when(productRepository.findById(10L)).thenReturn(Optional.of(existing(10L)
                 .edited("可乐", "饮品", "瓶", new BigDecimal("100"), "PRODUCT", null, true, 55L, null,
                         List.of(), null)));
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(55L);
-        material.setStatus("ACTIVE");
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(material);
+        when(materialRepository.findInStore(1L, 3L, 55L)).thenReturn(Optional.of(material(55L, "ACTIVE", null, null)));
 
         assertEquals("ON_SHELF", service.onShelf(10L).status());
+    }
+
+    /** 一行物料领域模型（跨子域窄读的夹具）。 */
+    private static InventoryMaterial material(Long id, String status, List<String> images, String mainImage) {
+        return new InventoryMaterial(id, 1L, 3L, "M-" + id, "物料" + id, "耗材", "件", null, BigDecimal.ZERO,
+                null, "USD", images, mainImage, status, 0, LocalDateTime.now());
     }
 
     private static ProductApplicationService.ProductCommand command(List<String> imageUrls, String mainImageUrl) {

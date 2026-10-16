@@ -12,8 +12,9 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -34,7 +35,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
  * <p>覆盖 V1__ord_order_baseline.sql 新增的 purchase_price 列：
  * 1) 新建带采购价可写入并读回，且列表接口（listMaterials）返回该字段；
  * 2) 「0 = 清空」在真实 UPDATE 语句里写成 NULL —— MyBatis-Plus 默认 NOT_NULL 会跳过 null 字段，
- *    这里用原始 JDBC 读列值来证明清空不是静默失效（PO 侧靠 updateStrategy=ALWAYS 生效）；
+ *    这里用原始 JDBC 读列值来证明清空不是静默失效（迁移后由适配器把可编辑列**整组显式写出**，
+ *    见 {@code InventoryMaterialRepositoryAdapter#update}，因此 NULL 必然进 SET）；
  * 3) 不传采购价（null）时保留库中原值。
  */
 @SpringBootTest
@@ -60,7 +62,7 @@ class InventoryPurchasePricePersistenceTest {
   private InventoryApplicationService inventoryService;
 
   @Autowired
-  private InventoryMaterialMapper materialMapper;
+  private InventoryMaterialRepository materialRepository;
 
   @Autowired
   private DataSource dataSource;
@@ -77,66 +79,67 @@ class InventoryPurchasePricePersistenceTest {
 
   @Test
   void createMaterialPersistsPurchasePriceAndListReturnsIt() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("可乐 330ml", new BigDecimal("350")));
+    InventoryMaterialView created = inventoryService.createMaterial(command("可乐 330ml", new BigDecimal("350")));
 
-    assertEquals(0, created.getPurchasePrice().compareTo(new BigDecimal("350")));
-    assertEquals(0, rawPurchasePrice(created.getId()).compareTo(new BigDecimal("350")), "分必须原样落库，不做单位换算");
+    assertEquals(0, created.purchasePrice().compareTo(new BigDecimal("350")));
+    assertEquals(0, rawPurchasePrice(created.id()).compareTo(new BigDecimal("350")), "分必须原样落库，不做单位换算");
 
-    List<InventoryMaterialPo> listed = inventoryService
+    List<InventoryMaterialView> listed = inventoryService
         .listMaterials(1L, InventoryApplicationService.MAX_PAGE_SIZE, STORE_ID, null, null, null, TimeRange.none())
         .getRecords();
-    InventoryMaterialPo hit = listed.stream().filter(row -> row.getId().equals(created.getId())).findFirst().orElse(null);
+    InventoryMaterialView hit = listed.stream().filter(row -> row.id().equals(created.id())).findFirst().orElse(null);
     assertNotNull(hit, "列表必须返回新建的物料");
-    assertNotNull(hit.getPurchasePrice(), "列表接口必须带上采购价");
-    assertEquals(0, hit.getPurchasePrice().compareTo(new BigDecimal("350")));
+    assertNotNull(hit.purchasePrice(), "列表接口必须带上采购价");
+    assertEquals(0, hit.purchasePrice().compareTo(new BigDecimal("350")));
   }
 
   @Test
   void updateMaterialReplacesPurchasePrice() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("雪碧 330ml", new BigDecimal("350")));
+    InventoryMaterialView created = inventoryService.createMaterial(command("雪碧 330ml", new BigDecimal("350")));
 
-    inventoryService.updateMaterial(created.getId(), command(null, new BigDecimal("420")));
+    inventoryService.updateMaterial(created.id(), command(null, new BigDecimal("420")));
 
-    assertEquals(0, rawPurchasePrice(created.getId()).compareTo(new BigDecimal("420")));
+    assertEquals(0, rawPurchasePrice(created.id()).compareTo(new BigDecimal("420")));
   }
 
   @Test
   void updateMaterialClearsPurchasePriceToNullWhenZero() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("芬达 330ml", new BigDecimal("350")));
+    InventoryMaterialView created = inventoryService.createMaterial(command("芬达 330ml", new BigDecimal("350")));
 
-    inventoryService.updateMaterial(created.getId(), command(null, BigDecimal.ZERO));
+    inventoryService.updateMaterial(created.id(), command(null, BigDecimal.ZERO));
 
-    assertNull(rawPurchasePrice(created.getId()), "0 = 清空，列值必须是 NULL 而不是 0");
-    assertNull(materialMapper.selectById(created.getId()).getPurchasePrice());
+    assertNull(rawPurchasePrice(created.id()), "0 = 清空，列值必须是 NULL 而不是 0");
+    // 端口读回也必须是 null（领域模型没有 setter，「清空」只能靠适配器显式写出 NULL 才成立）。
+    assertNull(materialRepository.findById(created.id()).orElseThrow().purchasePrice());
   }
 
   @Test
   void updateMaterialKeepsPurchasePriceWhenNotProvided() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("冰红茶", new BigDecimal("350")));
+    InventoryMaterialView created = inventoryService.createMaterial(command("冰红茶", new BigDecimal("350")));
 
-    inventoryService.updateMaterial(created.getId(), command("冰红茶 500ml", null));
+    inventoryService.updateMaterial(created.id(), command("冰红茶 500ml", null));
 
-    InventoryMaterialPo reloaded = materialMapper.selectById(created.getId());
-    assertEquals("冰红茶 500ml", reloaded.getName());
-    assertNotNull(reloaded.getPurchasePrice(), "null = 不修改，不能把已维护的采购价冲掉");
-    assertEquals(0, reloaded.getPurchasePrice().compareTo(new BigDecimal("350")));
+    InventoryMaterial reloaded = materialRepository.findById(created.id()).orElseThrow();
+    assertEquals("冰红茶 500ml", reloaded.name());
+    assertNotNull(reloaded.purchasePrice(), "null = 不修改，不能把已维护的采购价冲掉");
+    assertEquals(0, reloaded.purchasePrice().compareTo(new BigDecimal("350")));
   }
 
   /** 未填采购价的新建物料，落库必须是 NULL（而不是 0），避免与「采购价 0 分」混用。 */
   @Test
   void createMaterialWithoutPurchasePriceKeepsColumnNull() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("毛巾", null));
+    InventoryMaterialView created = inventoryService.createMaterial(command("毛巾", null));
 
-    assertNull(created.getPurchasePrice());
-    assertNull(rawPurchasePrice(created.getId()));
+    assertNull(created.purchasePrice());
+    assertNull(rawPurchasePrice(created.id()));
   }
 
   /** 采购价上限 10^13 分：等于上限可写入，超过由 service 直接 400（见单测），这里守住列宽可容纳上限。 */
   @Test
   void purchasePriceUpperBoundFitsColumn() throws Exception {
-    InventoryMaterialPo created = inventoryService.createMaterial(command("上限物料", new BigDecimal("10000000000000")));
+    InventoryMaterialView created = inventoryService.createMaterial(command("上限物料", new BigDecimal("10000000000000")));
 
-    assertEquals(0, rawPurchasePrice(created.getId()).compareTo(new BigDecimal("10000000000000")));
+    assertEquals(0, rawPurchasePrice(created.id()).compareTo(new BigDecimal("10000000000000")));
   }
 
   private static InventoryApplicationService.MaterialCommand command(String name, BigDecimal purchasePrice) {

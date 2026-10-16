@@ -22,7 +22,7 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,7 +52,7 @@ class CatalogItemAuditTest {
 
     private CatalogItemRepository catalogItemRepository;
     private ProductRepository productRepository;
-    private InventoryMaterialMapper materialMapper;
+    private InventoryMaterialRepository materialRepository;
     private InventoryApplicationService inventoryService;
     private AuditClient auditClient;
     private CatalogController controller;
@@ -61,10 +61,10 @@ class CatalogItemAuditTest {
     void setUp() {
         catalogItemRepository = mock(CatalogItemRepository.class);
         productRepository = mock(ProductRepository.class);
-        materialMapper = mock(InventoryMaterialMapper.class);
+        materialRepository = mock(InventoryMaterialRepository.class);
         inventoryService = mock(InventoryApplicationService.class);
         auditClient = mock(AuditClient.class);
-        controller = new CatalogController(catalogItemRepository, productRepository, materialMapper,
+        controller = new CatalogController(catalogItemRepository, productRepository, materialRepository,
                 inventoryService, auditClient);
         // 写端点先过权限门禁：上下文必须带 tenant.store.manage，否则只会留一条 PERMISSION_DENIED。
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1,

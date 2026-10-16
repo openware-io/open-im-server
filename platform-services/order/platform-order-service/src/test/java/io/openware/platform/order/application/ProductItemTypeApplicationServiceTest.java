@@ -12,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
@@ -26,8 +25,8 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.client.ResourceStateClient.ServerSnapshot;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
+import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -52,10 +51,10 @@ class ProductItemTypeApplicationServiceTest {
 
     private final ProductRepository productRepository = mock(ProductRepository.class);
     private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
-    private final InventoryMaterialMapper materialMapper = mock(InventoryMaterialMapper.class);
+    private final InventoryMaterialRepository materialRepository = mock(InventoryMaterialRepository.class);
     private final ResourceStateClient resourceStateClient = mock(ResourceStateClient.class);
     private final ProductApplicationService service = new ProductApplicationService(
-            productRepository, catalogItemRepository, materialMapper, AuditClient.disabled(), resourceStateClient);
+            productRepository, catalogItemRepository, materialRepository, AuditClient.disabled(), resourceStateClient);
 
     @BeforeEach
     void stubPersistence() {
@@ -177,7 +176,8 @@ class ProductItemTypeApplicationServiceTest {
     @Test
     void createPhysicalProductIgnoresServerResourceWithoutCallingResourceService() {
         tenant();
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(activeMaterial(55L));
+        when(materialRepository.findInStore(TENANT_ID, STORE_ID, 55L))
+                .thenReturn(Optional.of(activeMaterial(55L)));
 
         ProductView created = service.create(new ProductApplicationService.ProductCommand(STORE_ID, "P-1", "可乐", "饮品",
                 "瓶", new BigDecimal("100"), 55L, true, 0, null, null, null, "PRODUCT", 9L));
@@ -220,7 +220,8 @@ class ProductItemTypeApplicationServiceTest {
         Product serviceEntity = serviceProduct(10L, 5L);
         when(productRepository.findById(10L)).thenReturn(Optional.of(serviceEntity));
         when(catalogItemRepository.findById(77L)).thenReturn(Optional.of(catalogItem(77L, "SERVICE")));
-        when(materialMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(activeMaterial(55L));
+        when(materialRepository.findInStore(TENANT_ID, STORE_ID, 55L))
+                .thenReturn(Optional.of(activeMaterial(55L)));
 
         ProductView updated = service.update(10L, new ProductApplicationService.ProductCommand(
                 null, null, null, null, null, null, 55L, true, null, null, null, null, "PRODUCT", 5L));
@@ -321,11 +322,10 @@ class ProductItemTypeApplicationServiceTest {
                 new BigDecimal("100"), null, List.of(), null, "INACTIVE", false, 0);
     }
 
-    private static InventoryMaterialPo activeMaterial(Long id) {
-        InventoryMaterialPo material = new InventoryMaterialPo();
-        material.setId(id);
-        material.setStatus("ACTIVE");
-        return material;
+    /** 一行启用的物料领域模型（跨子域窄读的夹具：端口返回 Optional）。 */
+    private static InventoryMaterial activeMaterial(Long id) {
+        return new InventoryMaterial(id, TENANT_ID, STORE_ID, "M-" + id, "物料" + id, "耗材", "件", null,
+                BigDecimal.ZERO, null, "USD", null, null, "ACTIVE", 0, LocalDateTime.now());
     }
 
     /** 端口返回值：聚合 + 审计快照（领域模型不承载审计列）。 */

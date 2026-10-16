@@ -7,13 +7,13 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.ktv.service.KtvRoomFeeCalculator;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.KtvSessionMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import io.openware.infrastructure.tenant.TenantContext;
@@ -27,21 +27,28 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * KTV 会话状态机（RESERVED→OPEN→PAUSED(可选)→CLOSED）。
  * 计时不可倒退；开台/结台读取计价方案（暂无 pricing 服务，用可配置默认）并固化规则快照。
+ *
+ * <p><b>持久化边界</b>：本服务只依赖领域端口 {@link KtvSessionRepository} 与领域模型
+ * {@link KtvSession}，不再接触 MyBatis Mapper 或持久化对象。会话的并发保护仍是端口里的
+ * {@code UPDATE ... WHERE id = ? AND version = ?}（{@code ord_ktv_session} 没有
+ * MyBatis-Plus {@code @Version}，工程里也没有乐观锁拦截器），本服务只负责把「受影响 0 行」
+ * 转成明确的 {@code SESSION_VERSION_CONFLICT}。
  */
 @Slf4j
 @Service
 public class KtvSessionApplicationService {
-    private final KtvSessionMapper sessionMapper;
+    private final KtvSessionRepository sessionRepository;
     private final OrderMapper orderMapper;
     private final OrderItemMapper orderItemMapper;
     private final KtvPricingPlanProvider pricingPlanProvider;
@@ -55,7 +62,7 @@ public class KtvSessionApplicationService {
     private static final ObjectMapper SNAPSHOT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
     @Autowired
-    public KtvSessionApplicationService(KtvSessionMapper sessionMapper,
+    public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
                                         OrderMapper orderMapper,
                                         OrderItemMapper orderItemMapper,
                                         KtvPricingPlanProvider pricingPlanProvider,
@@ -63,7 +70,7 @@ public class KtvSessionApplicationService {
                                         OrderAmountApplicationService orderAmounts,
                                         ResourceStateClient resourceStateClient,
                                         SettlementApplicationService settlementService) {
-        this.sessionMapper = sessionMapper;
+        this.sessionRepository = sessionRepository;
         this.orderMapper = orderMapper;
         this.orderItemMapper = orderItemMapper;
         this.pricingPlanProvider = pricingPlanProvider;
@@ -74,30 +81,31 @@ public class KtvSessionApplicationService {
     }
 
     /** 兼容既有装配/单元测试：无资源客户端时跳过占用与清洁同步（可用性降级）。 */
-    public KtvSessionApplicationService(KtvSessionMapper sessionMapper,
+    public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
                                         OrderMapper orderMapper,
                                         OrderItemMapper orderItemMapper,
                                         KtvPricingPlanProvider pricingPlanProvider,
                                         AuditClient auditClient,
                                         OrderAmountApplicationService orderAmounts) {
-        this(sessionMapper, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, null, null);
+        this(sessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts,
+                null, null);
     }
 
     /** 兼容既有装配/单元测试：有资源客户端、但不做结台即结算（结算服务缺省）。 */
-    public KtvSessionApplicationService(KtvSessionMapper sessionMapper,
+    public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
                                         OrderMapper orderMapper,
                                         OrderItemMapper orderItemMapper,
                                         KtvPricingPlanProvider pricingPlanProvider,
                                         AuditClient auditClient,
                                         OrderAmountApplicationService orderAmounts,
                                         ResourceStateClient resourceStateClient) {
-        this(sessionMapper, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts,
+        this(sessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts,
                 resourceStateClient, null);
     }
 
     /** 包厢名称/编码快照：资源服务不可达时保持原值（订单列表退回只显示包厢 ID）。 */
-    private void applyRoomSnapshot(KtvSessionPo po) {
-        applySnapshot(po, roomSnapshot(po.getRoomResourceId()));
+    private KtvSession applyRoomSnapshot(KtvSession session) {
+        return applySnapshot(session, roomSnapshot(session.roomResourceId()));
     }
 
     /** 读取资源快照（名称/编码/容量/房型与房型单价）；资源服务不可达返回 null（读路径降级）。 */
@@ -108,12 +116,12 @@ public class KtvSessionApplicationService {
         return resourceStateClient.room(roomResourceId).orElse(null);
     }
 
-    private static void applySnapshot(KtvSessionPo po, ResourceStateClient.RoomSnapshot snapshot) {
+    /** 快照写入（领域模型不可变，返回新实例）；快照为空时原样返回，保持既有名称不被清空。 */
+    private static KtvSession applySnapshot(KtvSession session, ResourceStateClient.RoomSnapshot snapshot) {
         if (snapshot == null) {
-            return;
+            return session;
         }
-        po.setRoomNameSnapshot(snapshot.name());
-        po.setRoomCodeSnapshot(snapshot.resourceCode());
+        return session.withRoomSnapshot(snapshot.name(), snapshot.resourceCode());
     }
 
     /**
@@ -146,35 +154,28 @@ public class KtvSessionApplicationService {
 
     /** 创建包厢会话：RESERVED（快速开台 createOrder 同步创建，关联 orderId + 包厢 resourceId，打通开台→计时→结台链路）。 */
     @Transactional
-    public KtvSessionPo create(Long tenantId, Long orderId, Long roomResourceId) {
-        LocalDateTime now = LocalDateTime.now();
-        KtvSessionPo po = new KtvSessionPo();
-        po.setTenantId(tenantId);
+    public KtvSession create(Long tenantId, Long orderId, Long roomResourceId) {
         OrderPo order = orderMapper == null ? null : orderMapper.selectById(orderId);
+        Long storeId = null;
+        String businessType = null;
         if (order != null) {
             if (!tenantId.equals(order.getTenantId())) {
                 throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
             }
-            po.setStoreId(order.getStoreId());
-            po.setBusinessType(order.getBusinessType());
+            storeId = order.getStoreId();
+            businessType = order.getBusinessType();
         }
-        po.setOrderId(orderId);
-        po.setRoomResourceId(roomResourceId);
-        applyRoomSnapshot(po);
-        po.setStatus("RESERVED");
-        po.setFreeWaitMinutes(0);
-        po.setPausedSeconds(0);
-        po.setPauseStartedAt(null);
-        po.setVersion(0);
-        po.setCreatedAt(now);
-        po.setUpdatedAt(now);
-        sessionMapper.insert(po);
-        return po;
+        // 包厢名/编码快照在创建时取一次（资源服务不可达时为空，读路径允许回源一次）。
+        ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(roomResourceId);
+        KtvSession session = KtvSession.reserved(tenantId, storeId, businessType, orderId, roomResourceId,
+                snapshot == null ? null : snapshot.name(), snapshot == null ? null : snapshot.resourceCode());
+        // 审计四列（created_at/updated_at）由适配器在落库时填充：它们是记账信息，不进领域模型。
+        return sessionRepository.insert(session);
     }
 
     /** 开台（不登记人数）：RESERVED → OPEN。 */
     @Transactional
-    public KtvSessionPo open(Long sessionId, Integer freeWaitMinutes) {
+    public KtvSession open(Long sessionId, Integer freeWaitMinutes) {
         return open(sessionId, freeWaitMinutes, null);
     }
 
@@ -187,7 +188,7 @@ public class KtvSessionApplicationService {
      * @param partySize 到店人数；null = 不登记。非空时必须 &gt; 0 且不超过包厢容量，否则 400 且不产生占用
      */
     @Transactional
-    public KtvSessionPo open(Long sessionId, Integer freeWaitMinutes, Integer partySize) {
+    public KtvSession open(Long sessionId, Integer freeWaitMinutes, Integer partySize) {
         try {
             return doOpen(sessionId, freeWaitMinutes, partySize);
         } catch (RuntimeException failure) {
@@ -197,21 +198,22 @@ public class KtvSessionApplicationService {
         }
     }
 
-    private KtvSessionPo doOpen(Long sessionId, Integer freeWaitMinutes, Integer partySize) {
-        KtvSessionPo po = require(sessionId);
-        if (!"RESERVED".equals(po.getStatus())) {
+    private KtvSession doOpen(Long sessionId, Integer freeWaitMinutes, Integer partySize) {
+        KtvSession session = require(sessionId);
+        if (!session.reserved()) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅 RESERVED 会话可开台");
         }
-        OrderPo order = orderMapper.selectById(po.getOrderId());
+        OrderPo order = orderMapper.selectById(session.orderId());
         // 资源快照（名称/编码/容量/房型与房型单价）在占用之前读取：人数上限校验与按房型定价都要用它，
         // 而校验必须在占用登记之前完成，否则非法人数会把占用留在资源侧（订单没开台，房态却显示使用中）。
-        ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(po.getRoomResourceId());
+        ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(session.roomResourceId());
         requirePartySize(partySize, snapshot);
         // 清洁中/使用中的包厢不能开台：占用冲突原本只由 occupy 判定，但「清洁中」没有占用记录，
         // 会从 /ktv/sessions/{id}/open 与「预约开台」绕过快速开台那道门禁直接开台。
         // 与快速开台同一口径（fail-closed：房态服务不可达时 requireState 抛 RESOURCE_STATE_UNAVAILABLE）。
-        requireRoomAvailable(po.getRoomResourceId());
-        KtvPricingPlan plan = pricingPlanProvider.resolve(po.getTenantId(), order == null ? null : order.getStoreId());
+        requireRoomAvailable(session.roomResourceId());
+        KtvPricingPlan plan = pricingPlanProvider.resolve(session.tenantId(),
+                order == null ? null : order.getStoreId());
         KtvPricingPlan effective = snapshot == null ? plan
                 : plan.forRoomType(snapshot.roomTypeCode(), snapshot.roomTypeName(),
                         snapshot.roomTypeUnitPrice(), snapshot.roomTypeServerUnitPrice());
@@ -220,24 +222,23 @@ public class KtvSessionApplicationService {
         // 开台即占用包厢（IN_USE）：其他端看到的可用性随之变化。
         // 时段冲突直接拒绝；资源服务不可达/无门店上下文时**失败关闭**——拿不到占用登记就不开台，
         // 否则会出现「订单已开台但资源侧无占用」，可被重复开台并重复计费。
-        if (resourceStateClient != null && po.getOccupationId() == null && po.getRoomResourceId() != null) {
+        if (resourceStateClient != null && session.occupationId() == null && session.roomResourceId() != null) {
             Long occupationId = resourceStateClient
-                    .occupy(po.getRoomResourceId(), "ORDER", po.getOrderId(), now, now.plusHours(24))
+                    .occupy(session.roomResourceId(), "ORDER", session.orderId(), now, now.plusHours(24))
                     .orElseThrow(() -> new BusinessException("RESOURCE_STATE_UNAVAILABLE",
                             "房态服务未返回占用登记，已拒绝本次开台，请稍后重试"));
-            po.setOccupationId(occupationId);
+            session = session.withOccupationId(occupationId);
         }
-        applySnapshot(po, snapshot);
-        po.setPartySize(partySize);
-        po.setStatus("OPEN");
-        po.setOpenedAt(now);
-        po.setBillingUnit(effective.billingUnit().name());
-        po.setFreeWaitMinutes(freeWait);
-        po.setOvertimeRate(effective.overtimeRate());
-        po.setBillingStartAt(now.plusMinutes(freeWait));
-        po.setBillingRuleSnapshotJson(effective.toSnapshotJson());
-        po.setUpdatedAt(now);
-        applyOptimisticUpdate(po);
+        session = applySnapshot(session, snapshot);
+        session = session.withPartySize(partySize)
+                .withStatus(KtvSession.STATUS_OPEN)
+                .withOpenedAt(now)
+                .withBillingUnit(effective.billingUnit().name())
+                .withFreeWaitMinutes(freeWait)
+                .withOvertimeRate(effective.overtimeRate())
+                .withBillingStartAt(now.plusMinutes(freeWait))
+                .withBillingRuleSnapshotJson(effective.toSnapshotJson());
+        session = applyOptimisticUpdate(session);
 
         if (order != null) {
             if ("DRAFT".equals(order.getStatus()) || "WAITING_ARRIVAL".equals(order.getStatus())) {
@@ -246,7 +247,7 @@ public class KtvSessionApplicationService {
             // 开台即计费（2026-09-19）：把房费（含 1 名标准服务人员）写成 ROOM_FEE 明细并重算订单金额。
             // 只写会话不写费用时，开台后的账单/收银只有加项金额、房费要等结台才出现——门店看到的就是「应收 0」。
             // 计费起点 billing_start_at 已含免费等待，因此刚开台的金额与「此刻结台」完全一致。
-            upsertRoomFeeItem(po, order, now);
+            upsertRoomFeeItem(session, order, now);
             orderAmounts.recalculate(order);
             order.setUpdatedAt(now);
             persistOrderGuarded(order);
@@ -255,14 +256,14 @@ public class KtvSessionApplicationService {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("order.ktv_session.open")
                 .resourceType("ktv_session").resourceId(String.valueOf(sessionId))
-                .resourceName(po.getRoomNameSnapshot())
+                .resourceName(session.roomNameSnapshot())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey("ktv-session-open:" + sessionId)
-                .detailJson("{\"orderId\":" + po.getOrderId() + ",\"roomResourceId\":" + po.getRoomResourceId()
-                        + ",\"occupationId\":" + po.getOccupationId() + ",\"partySize\":" + po.getPartySize()
-                        + ",\"freeWaitMinutes\":" + po.getFreeWaitMinutes() + "}")
+                .detailJson("{\"orderId\":" + session.orderId() + ",\"roomResourceId\":" + session.roomResourceId()
+                        + ",\"occupationId\":" + session.occupationId() + ",\"partySize\":" + session.partySize()
+                        + ",\"freeWaitMinutes\":" + session.freeWaitMinutes() + "}")
                 .build());
-        return po;
+        return session;
     }
 
     /**
@@ -308,22 +309,21 @@ public class KtvSessionApplicationService {
                         + "；请等待清洁完成或改选其它包厢");
     }
 
-    /** 暂停：OPEN → PAUSED（仅累计 paused_seconds 的入口，计时不可倒退）。 */    @Transactional
-    public KtvSessionPo pause(Long sessionId) {
+    /** 暂停：OPEN → PAUSED（仅累计 paused_seconds 的入口，计时不可倒退）。 */
+    @Transactional
+    public KtvSession pause(Long sessionId) {
         try {
-            KtvSessionPo po = require(sessionId);
-            if (!"OPEN".equals(po.getStatus())) {
+            KtvSession session = require(sessionId);
+            if (!KtvSession.STATUS_OPEN.equals(session.status())) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 OPEN 会话可暂停");
             }
-            LocalDateTime now = LocalDateTime.now();
-            po.setStatus("PAUSED");
-            po.setPauseStartedAt(now);
-            po.setUpdatedAt(now);
-            applyOptimisticUpdate(po);
+            session = applyOptimisticUpdate(session
+                    .withStatus(KtvSession.STATUS_PAUSED)
+                    .withPauseStartedAt(LocalDateTime.now()));
             // 暂停会直接影响计时与计费基数，此前成功/失败都没有留痕。
-            recordSessionAudit("order.ktv_session.pause", "会话暂停", po, "{\"orderId\":" + po.getOrderId()
+            recordSessionAudit("order.ktv_session.pause", "会话暂停", session, "{\"orderId\":" + session.orderId()
                     + ",\"status\":\"PAUSED\"}");
-            return po;
+            return session;
         } catch (RuntimeException failure) {
             recordFailure("order.ktv_session.pause", sessionId, failure);
             throw failure;
@@ -332,25 +332,26 @@ public class KtvSessionApplicationService {
 
     /** 恢复：PAUSED → OPEN。 */
     @Transactional
-    public KtvSessionPo resume(Long sessionId) {
+    public KtvSession resume(Long sessionId) {
         try {
-            KtvSessionPo po = require(sessionId);
-            if (!"PAUSED".equals(po.getStatus())) {
+            KtvSession session = require(sessionId);
+            if (!KtvSession.STATUS_PAUSED.equals(session.status())) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 PAUSED 会话可恢复");
             }
             LocalDateTime now = LocalDateTime.now();
-            if (po.getPauseStartedAt() != null) {
-                long elapsed = Math.max(0, java.time.Duration.between(po.getPauseStartedAt(), now).getSeconds());
-                po.setPausedSeconds((po.getPausedSeconds() == null ? 0 : po.getPausedSeconds()) + Math.toIntExact(elapsed));
-                po.setPauseStartedAt(null);
+            if (session.pauseStartedAt() != null) {
+                long elapsed = Math.max(0,
+                        java.time.Duration.between(session.pauseStartedAt(), now).getSeconds());
+                session = session.withPausedSeconds(
+                        (session.pausedSeconds() == null ? 0 : session.pausedSeconds()) + Math.toIntExact(elapsed));
             }
-            po.setStatus("OPEN");
-            po.setUpdatedAt(now);
-            applyOptimisticUpdate(po);
+            session = applyOptimisticUpdate(session
+                    .withPauseStartedAt(null)
+                    .withStatus(KtvSession.STATUS_OPEN));
             // 恢复即重新开始计费，必须与暂停成对留痕。
-            recordSessionAudit("order.ktv_session.resume", "会话恢复", po, "{\"orderId\":" + po.getOrderId()
-                    + ",\"status\":\"OPEN\",\"pausedSeconds\":" + po.getPausedSeconds() + "}");
-            return po;
+            recordSessionAudit("order.ktv_session.resume", "会话恢复", session, "{\"orderId\":" + session.orderId()
+                    + ",\"status\":\"OPEN\",\"pausedSeconds\":" + session.pausedSeconds() + "}");
+            return session;
         } catch (RuntimeException failure) {
             recordFailure("order.ktv_session.resume", sessionId, failure);
             throw failure;
@@ -359,33 +360,28 @@ public class KtvSessionApplicationService {
 
     /** 取消：RESERVED → CANCELLED（未开台可取消，终止会话），同步取消资源占用。 */
     @Transactional
-    public KtvSessionPo cancel(Long sessionId) {
+    public KtvSession cancel(Long sessionId) {
         try {
-            KtvSessionPo po = require(sessionId);
-            if (!"RESERVED".equals(po.getStatus())) {
+            KtvSession session = require(sessionId);
+            if (!session.reserved()) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 RESERVED 会话可取消");
             }
-            po.setStatus("CANCELLED");
-            po.setUpdatedAt(LocalDateTime.now());
-            applyOptimisticUpdate(po);
-            releaseOccupationForCancel(po, true);
+            session = applyOptimisticUpdate(session.withStatus(KtvSession.STATUS_CANCELLED));
+            releaseOccupationForCancel(session, true);
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("order.ktv_session.cancel")
                     .actionLabel("会话取消")
                     .resourceType("ktv_session").resourceId(String.valueOf(sessionId))
-                    .resourceName(po.getRoomNameSnapshot())
+                    .resourceName(session.roomNameSnapshot())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .detailJson("{\"orderId\":" + po.getOrderId() + ",\"status\":\"CANCELLED\"}")
+                    .detailJson("{\"orderId\":" + session.orderId() + ",\"status\":\"CANCELLED\"}")
                     .build());
-            return po;
+            return session;
         } catch (RuntimeException failure) {
             recordFailure("order.ktv_session.cancel", sessionId, failure);
             throw failure;
         }
     }
-
-    /** 仍需释放占用的会话状态：已开台（OPEN/PAUSED）与未开台（RESERVED）。 */
-    private static final java.util.Set<String> ACTIVE_SESSION_STATUSES = java.util.Set.of("RESERVED", "OPEN", "PAUSED");
 
     /**
      * 订单取消/作废时终结其**活动包厢会话**并释放包厢占用（订单取消与既有作废共用本入口，
@@ -401,47 +397,45 @@ public class KtvSessionApplicationService {
      * 所以这一步是订单取消的必需部分，而不是可选补偿。
      */
     @Transactional
-    public KtvSessionPo cancelByOrder(Long orderId) {
+    public KtvSession cancelByOrder(Long orderId) {
         if (orderId == null) {
             return null;
         }
-        KtvSessionPo po = sessionMapper.selectByOrderId(orderId);
-        if (po == null || !ACTIVE_SESSION_STATUSES.contains(po.getStatus())) {
+        KtvSession session = sessionRepository.findLatestByOrderId(orderId).orElse(null);
+        if (session == null || !session.active()) {
             return null;
         }
-        boolean reserved = "RESERVED".equals(po.getStatus());
-        Long occupationId = po.getOccupationId();
-        po.setStatus("CANCELLED");
-        po.setUpdatedAt(LocalDateTime.now());
-        applyOptimisticUpdate(po);
-        releaseOccupationForCancel(po, reserved);
+        boolean reserved = session.reserved();
+        Long occupationId = session.occupationId();
+        session = applyOptimisticUpdate(session.withStatus(KtvSession.STATUS_CANCELLED));
+        releaseOccupationForCancel(session, reserved);
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("order.ktv_session.cancel")
-                .resourceType("ktv_session").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getRoomNameSnapshot())
-                .idempotencyKey("ktv-session-cancel:" + po.getId())
-                .detailJson("{\"orderId\":" + po.getOrderId() + ",\"status\":\"CANCELLED\""
-                        + ",\"roomResourceId\":" + po.getRoomResourceId()
+                .resourceType("ktv_session").resourceId(String.valueOf(session.id()))
+                .resourceName(session.roomNameSnapshot())
+                .idempotencyKey("ktv-session-cancel:" + session.id())
+                .detailJson("{\"orderId\":" + session.orderId() + ",\"status\":\"CANCELLED\""
+                        + ",\"roomResourceId\":" + session.roomResourceId()
                         + ",\"occupationId\":" + occupationId + "}")
                 .build());
-        return po;
+        return session;
     }
 
     /** 取消会话后的占用释放：RESERVED（未开台）用 cancel，OPEN/PAUSED（已 IN_USE）用 release；失败只记录。 */
-    private void releaseOccupationForCancel(KtvSessionPo po, boolean reserved) {
-        if (resourceStateClient == null || po.getOccupationId() == null) {
+    private void releaseOccupationForCancel(KtvSession session, boolean reserved) {
+        if (resourceStateClient == null || session.occupationId() == null) {
             return;
         }
         if (reserved) {
-            resourceStateClient.cancel(po.getOccupationId());
+            resourceStateClient.cancel(session.occupationId());
         } else {
-            resourceStateClient.release(po.getOccupationId());
+            resourceStateClient.release(session.occupationId());
         }
     }
 
     /** 结台：OPEN/PAUSED → CLOSED，读取计价方案计算包厢计时费并生成 ROOM_FEE 明细；订单 SERVING → WAITING_SETTLEMENT。 */
     @Transactional
-    public KtvSessionPo close(Long sessionId) {
+    public KtvSession close(Long sessionId) {
         try {
             return doClose(sessionId);
         } catch (RuntimeException failure) {
@@ -451,26 +445,31 @@ public class KtvSessionApplicationService {
         }
     }
 
-    private KtvSessionPo doClose(Long sessionId) {
-        KtvSessionPo po = require(sessionId);
-        if (!"OPEN".equals(po.getStatus()) && !"PAUSED".equals(po.getStatus())) {
+    private KtvSession doClose(Long sessionId) {
+        KtvSession session = require(sessionId);
+        if (!session.ongoing()) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅 OPEN/PAUSED 会话可结台");
         }
         LocalDateTime now = LocalDateTime.now();
-        if ("PAUSED".equals(po.getStatus()) && po.getPauseStartedAt() != null) {
-            long elapsed = Math.max(0, java.time.Duration.between(po.getPauseStartedAt(), now).getSeconds());
-            po.setPausedSeconds((po.getPausedSeconds() == null ? 0 : po.getPausedSeconds()) + Math.toIntExact(elapsed));
-            po.setPauseStartedAt(null);
+        // 只有「PAUSED 且记了暂停起点」这一支才折算暂停并清空起点：其余情况（含脏数据里
+        // status=OPEN 却留着 pause_started_at）保持原样写回，与迁移前的分支逐字对应。
+        boolean foldingPause = KtvSession.STATUS_PAUSED.equals(session.status())
+                && session.pauseStartedAt() != null;
+        if (foldingPause) {
+            long elapsed = Math.max(0, java.time.Duration.between(session.pauseStartedAt(), now).getSeconds());
+            session = session.withPausedSeconds(
+                    (session.pausedSeconds() == null ? 0 : session.pausedSeconds()) + Math.toIntExact(elapsed));
         }
-        po.setStatus("CLOSED");
-        po.setClosedAt(now);
-        po.setUpdatedAt(now);
-        applyOptimisticUpdate(po);
+        session = session.withStatus(KtvSession.STATUS_CLOSED).withClosedAt(now);
+        if (foldingPause) {
+            session = session.withPauseStartedAt(null);
+        }
+        session = applyOptimisticUpdate(session);
 
-        OrderPo order = orderMapper.selectById(po.getOrderId());
+        OrderPo order = orderMapper.selectById(session.orderId());
         if (order != null) {
             // 结台：把同一行 ROOM_FEE 明细更新成最终金额（开台时已写过一遍，这里**不能新增第二行**，否则重复计费）。
-            upsertRoomFeeItem(po, order, po.getClosedAt());
+            upsertRoomFeeItem(session, order, session.closedAt());
             // 包厢计时费刚落入明细，必须在本实例上重算订单金额后再写库，否则旧金额会覆盖新快照。
             orderAmounts.recalculate(order);
             if ("SERVING".equals(order.getStatus())) {
@@ -481,26 +480,26 @@ public class KtvSessionApplicationService {
         }
         // 高风险写操作（结台）审计：异步占位，失败仅告警不阻断结台（真实实现可改同步或 Outbox 兜底）。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
+                .tenantId(session.tenantId())
                 .action("order.ktv_session.close")
                 .actionLabel("结台")
                 .resourceType("ktv_session")
                 .resourceId(String.valueOf(sessionId))
                 .idempotencyKey("ktv-session-close:" + sessionId)
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"orderId\":" + po.getOrderId() + ",\"status\":\"CLOSED\"}")
+                .detailJson("{\"orderId\":" + session.orderId() + ",\"status\":\"CLOSED\"}")
                 .build());
         // 结台释放占用并进入「清洁中」：包厢本身不可再被开台/预约，直到门店确认清洁完成。
         if (resourceStateClient != null) {
-            if (po.getOccupationId() != null) {
-                resourceStateClient.release(po.getOccupationId());
+            if (session.occupationId() != null) {
+                resourceStateClient.release(session.occupationId());
             }
-            resourceStateClient.setCleaning(po.getRoomResourceId(), true);
+            resourceStateClient.setCleaning(session.roomResourceId(), true);
         }
         if (order != null) {
             autoSettleAfterClose(order);
         }
-        return po;
+        return session;
     }
 
     /**
@@ -531,15 +530,16 @@ public class KtvSessionApplicationService {
      * 写入/刷新订单的包厢计时费明细（ROOM_FEE，订单内唯一一行）。
      *
      * <p>计费口径 = 递增粒度（{@code increment_minutes}）+ 舍入方向（默认让利消费者），
-     * 与开台中的实时预估（{@link #fillLiveEstimate}）共用 {@link #calculateRoomFee}，禁止两处各写一套。
+     * 与开台中的实时预估（{@link #liveEstimate}）共用 {@link #calculateRoomFee}，禁止两处各写一套。
      * 新口径下包厢费基数已含 1 名标准服务人员（{@link KtvPricingPlan#billableRoomPricePerIncrement()}），
      * 明细名称随之标注；历史快照（旧口径）保持「包厢计时费」原样。
      *
      * <p>三条路径共用本方法：**开台**（endAt=now，开台即计费）、**开台中刷新**（endAt=now，定时任务）、
      * **结台**（endAt=closed_at，最终金额）。已存在则更新同一行——多行会把房费重复计入订单合计。
      */
-    private void upsertRoomFeeItem(KtvSessionPo session, OrderPo order, LocalDateTime endAt) {
-        KtvPricingPlan plan = snapshotPlan(session.getBillingRuleSnapshotJson(), session.getTenantId(), order.getStoreId());
+    private void upsertRoomFeeItem(KtvSession session, OrderPo order, LocalDateTime endAt) {
+        KtvPricingPlan plan = snapshotPlan(session.billingRuleSnapshotJson(), session.tenantId(),
+                order.getStoreId());
         if (!KtvRoomFeeCalculator.durationBillable(plan)) {
             // PACKAGE 为固定时长固定价套餐，特判逻辑后续接入 pricing 服务实现。
             return;
@@ -547,13 +547,13 @@ public class KtvSessionApplicationService {
         KtvRoomFeeCalculator.Fee fee = calculateRoomFee(session, plan, endAt);
 
         LocalDateTime now = LocalDateTime.now();
-        OrderItemPo existing = findRoomFeeItem(session.getOrderId());
+        OrderItemPo existing = findRoomFeeItem(session.orderId());
         OrderItemPo item = existing == null ? new OrderItemPo() : existing;
         if (existing == null) {
-            item.setTenantId(session.getTenantId());
+            item.setTenantId(session.tenantId());
             item.setStoreId(order.getStoreId());
             item.setBusinessType(order.getBusinessType());
-            item.setOrderId(session.getOrderId());
+            item.setOrderId(session.orderId());
             item.setItemType("ROOM_FEE");
             item.setStatus("ACTIVE");
             item.setDiscountAmount(BigDecimal.ZERO);
@@ -625,6 +625,18 @@ public class KtvSessionApplicationService {
     }
 
     /**
+     * 开台中会话的**实时计时与实时房费**（读投影）。
+     *
+     * <p>这两个值**不在领域模型上**：它们由计价方案在响应期算出，不落库、可以随定价规则变化，
+     * 属于视图数据（原持久化对象上的两个 {@code @TableField(exist = false)} 字段已随之移除）。
+     *
+     * @param elapsedSeconds   已计费时长（秒）
+     * @param estimatedRoomFee 当前包厢计时费（最小货币单位）
+     */
+    public record LiveEstimate(long elapsedSeconds, long estimatedRoomFee) {
+    }
+
+    /**
      * 批量取多个订单的「已生效明细合计 + 其中房费明细合计」：订单投影一次查询拿齐两个数
      * （差额法要扣房费快照，回退基数要全明细合计），逐单查就是 N+1。
      *
@@ -670,7 +682,7 @@ public class KtvSessionApplicationService {
      * 刷新「开台中」（OPEN/PAUSED）会话的房费明细与订单金额，返回处理的会话数。
      *
      * <p>为什么需要：开台即计费后金额随时间增长。账单与看板本身取实时值
-     * （{@link #fillLiveEstimate} 与 {@code BillApplicationService} 对 OPEN 会话按「此刻结台」计算），
+     * （{@link #liveEstimate} 与 {@code BillApplicationService} 对 OPEN 会话按「此刻结台」计算），
      * 本方法负责让**库里**的 ROOM_FEE 明细与订单合计也跟上时间——既修复本轮之前开台、明细缺失的存量订单，
      * 也避免长开台订单的合计长期停在旧值。会话与订单状态机仍由各入口维护，这里只碰金额字段。
      *
@@ -679,19 +691,19 @@ public class KtvSessionApplicationService {
      */
     @Transactional
     public int refreshOpenRoomFees() {
-        List<KtvSessionPo> sessions = sessionMapper.selectOpenSessions();
+        List<KtvSession> sessions = sessionRepository.findOpenSessions();
         if (sessions == null || sessions.isEmpty()) {
             return 0;
         }
         LocalDateTime now = LocalDateTime.now();
         int refreshed = 0;
-        for (KtvSessionPo session : sessions) {
+        for (KtvSession session : sessions) {
             // 定时任务线程没有租户上下文，而订单/明细的 mapper 走 TenantLineInnerInterceptor（缺上下文直接抛）。
             // 这里按会话自带 tenantId 逐个设置上下文：既满足拦截器，也天然限制「只能写这个租户的行」。
             TenantContext previousContext = TenantContextHolder.get();
             try {
-                TenantContextHolder.set(new TenantContext(session.getTenantId(), null, null, 0L, 0));
-                OrderPo order = orderMapper.selectById(session.getOrderId());
+                TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
+                OrderPo order = orderMapper.selectById(session.orderId());
                 if (order == null || !"SERVING".equals(order.getStatus())) {
                     // 会话残留但订单已终结（取消/作废）：交回状态机处理，这里不动金额。
                     continue;
@@ -703,7 +715,7 @@ public class KtvSessionApplicationService {
                 refreshed++;
             } catch (RuntimeException failure) {
                 log.warn("刷新开台中包厢房费失败（下一轮重试）: sessionId={}, cause={}",
-                        session.getId(), failure.getMessage());
+                        session.id(), failure.getMessage());
             } finally {
                 if (previousContext == null) {
                     TenantContextHolder.clear();
@@ -724,10 +736,11 @@ public class KtvSessionApplicationService {
      * 包厢计时费唯一计算入口：结台落库与开台中实时预估都必须调用本方法。
      * endAt 为计费截止时间（结台用 closed_at，预估用当前时间或暂停时刻）。
      */
-    static KtvRoomFeeCalculator.Fee calculateRoomFee(KtvSessionPo session, KtvPricingPlan plan, LocalDateTime endAt) {
-        int paused = session.getPausedSeconds() == null ? 0 : session.getPausedSeconds();
-        long billable = KtvRoomFeeCalculator.billableSeconds(session.getBillingStartAt(), endAt, paused);
-        long standard = KtvRoomFeeCalculator.standardSeconds(session.getBillingStartAt(), session.getReservedEndAt(),
+    static KtvRoomFeeCalculator.Fee calculateRoomFee(KtvSession session, KtvPricingPlan plan,
+            LocalDateTime endAt) {
+        int paused = session.pausedSeconds() == null ? 0 : session.pausedSeconds();
+        long billable = KtvRoomFeeCalculator.billableSeconds(session.billingStartAt(), endAt, paused);
+        long standard = KtvRoomFeeCalculator.standardSeconds(session.billingStartAt(), session.reservedEndAt(),
                 plan.defaultSessionMinutes());
         return KtvRoomFeeCalculator.calculate(plan, billable, standard);
     }
@@ -744,9 +757,10 @@ public class KtvSessionApplicationService {
      * 而看板与结台都停在暂停时刻——同一张挂单，看板 ¥8000 / 账单 ¥12000，客人一看就对不上。
      * 计费规则取「停表」这一侧（结台固化的就是它，不是新规则）。
      */
-    public static LocalDateTime billableEndAt(KtvSessionPo session, LocalDateTime now) {
-        if (session != null && "PAUSED".equals(session.getStatus()) && session.getPauseStartedAt() != null) {
-            return session.getPauseStartedAt();
+    public static LocalDateTime billableEndAt(KtvSession session, LocalDateTime now) {
+        if (session != null && KtvSession.STATUS_PAUSED.equals(session.status())
+                && session.pauseStartedAt() != null) {
+            return session.pauseStartedAt();
         }
         return now;
     }
@@ -756,7 +770,7 @@ public class KtvSessionApplicationService {
      * 计划不按时长计费（PACKAGE 一口价）时返回 {@code null}：此时没有房费明细、也不产生实时房费，
      * 调用方一律按「合计即库内值」处理，绝不凭空造一条 0 元房费行。
      */
-    static KtvRoomFeeCalculator.Fee liveRoomFee(KtvSessionPo session, KtvPricingPlan plan, LocalDateTime now) {
+    static KtvRoomFeeCalculator.Fee liveRoomFee(KtvSession session, KtvPricingPlan plan, LocalDateTime now) {
         if (!KtvRoomFeeCalculator.durationBillable(plan)) {
             return null;
         }
@@ -774,20 +788,18 @@ public class KtvSessionApplicationService {
 
     /** 转台：换包厢，计时继承（累计）不重置（KTV_BUSINESS_01 §11.2）；资源占用随之切换。 */
     @Transactional
-    public KtvSessionPo transfer(Long sessionId, Long newResourceId) {
+    public KtvSession transfer(Long sessionId, Long newResourceId) {
         try {
-            KtvSessionPo po = require(sessionId);
-            if (!"OPEN".equals(po.getStatus()) && !"PAUSED".equals(po.getStatus())) {
+            KtvSession session = require(sessionId);
+            if (!session.ongoing()) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 OPEN/PAUSED 会话可转台");
             }
             if (newResourceId == null) {
                 throw new ApiException(400, "AMOUNT_INVALID", "目标包厢不能为空");
             }
-            Long previousOccupationId = po.getOccupationId();
-            po.setRoomResourceId(newResourceId);
-            applyRoomSnapshot(po);
-            po.setUpdatedAt(LocalDateTime.now());
-            if (sessionMapper.transferRoom(po) == 0) {
+            Long previousOccupationId = session.occupationId();
+            session = applyRoomSnapshot(session.withRoomResourceId(newResourceId));
+            if (!sessionRepository.transferRoom(session)) {
                 throw new BusinessException("SESSION_VERSION_CONFLICT", "KTV 会话已被并发修改，请重试");
             }
             if (resourceStateClient != null) {
@@ -795,22 +807,26 @@ public class KtvSessionApplicationService {
                     resourceStateClient.release(previousOccupationId);
                 }
                 LocalDateTime now = LocalDateTime.now();
-                resourceStateClient.occupy(newResourceId, "ORDER", po.getOrderId(), now, now.plusHours(24))
-                        .ifPresent(occupationId -> {
-                            po.setOccupationId(occupationId);
-                            sessionMapper.updateById(po);
-                        });
+                Optional<Long> allocated = resourceStateClient
+                        .occupy(newResourceId, "ORDER", session.orderId(), now, now.plusHours(24));
+                if (allocated.isPresent()) {
+                    session = session.withOccupationId(allocated.get());
+                    // 新占用必须落库；这是迁移前那条无条件的 updateById，语义与缺陷都原样保留
+                    // （见 KtvSessionRepository#update 的说明）。
+                    sessionRepository.update(session);
+                }
             }
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("order.transfer")
                     .actionLabel("订单转台")
                     .resourceType("ktv_session").resourceId(String.valueOf(sessionId))
-                    .resourceName(po.getRoomNameSnapshot())
+                    .resourceName(session.roomNameSnapshot())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .detailJson("{\"orderId\":" + po.getOrderId() + ",\"previousOccupationId\":" + previousOccupationId
+                    .detailJson("{\"orderId\":" + session.orderId() + ",\"previousOccupationId\":"
+                            + previousOccupationId
                             + ",\"targetResourceId\":" + newResourceId + "}")
                     .build());
-            return po;
+            return session;
         } catch (RuntimeException failure) {
             // 转台失败留痕：换包厢失败会留下「订单还在旧包厢/占用未切换」的中间态，必须可回溯。
             recordFailure("order.transfer", sessionId, failure);
@@ -820,29 +836,28 @@ public class KtvSessionApplicationService {
 
     /** 暂停修正：店长/财务修正 paused_seconds（KTV_BUSINESS_01 §11.5，写审计）。 */
     @Transactional
-    public KtvSessionPo correctPause(Long sessionId, Integer correctedPausedSeconds) {
+    public KtvSession correctPause(Long sessionId, Integer correctedPausedSeconds) {
         try {
-            KtvSessionPo po = require(sessionId);
-            if (!"OPEN".equals(po.getStatus()) && !"PAUSED".equals(po.getStatus())) {
+            KtvSession session = require(sessionId);
+            if (!session.ongoing()) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 OPEN/PAUSED 会话可修正暂停");
             }
             if (correctedPausedSeconds == null || correctedPausedSeconds < 0) {
                 throw new ApiException(400, "AMOUNT_INVALID", "修正后的暂停秒数不能为负");
             }
-            po.setPausedSeconds(correctedPausedSeconds);
-            po.setUpdatedAt(LocalDateTime.now());
-            applyOptimisticUpdate(po);
+            session = applyOptimisticUpdate(session.withPausedSeconds(correctedPausedSeconds));
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getTenantId())
+                    .tenantId(session.tenantId())
                     .action("order.ktv_session.correct_pause")
                     .actionLabel("暂停时长修正")
                     .resourceType("ktv_session")
                     .resourceId(String.valueOf(sessionId))
                     .idempotencyKey("ktv-session-correct-pause:" + sessionId)
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .detailJson("{\"orderId\":" + po.getOrderId() + ",\"pausedSeconds\":" + correctedPausedSeconds + "}")
+                    .detailJson("{\"orderId\":" + session.orderId() + ",\"pausedSeconds\":"
+                            + correctedPausedSeconds + "}")
                     .build());
-            return po;
+            return session;
         } catch (RuntimeException failure) {
             // 暂停修正是店长/财务的特权动作，失败同样要留痕（谁在什么时候试图改计费基数）。
             recordFailure("order.ktv_session.correct_pause", sessionId, failure);
@@ -868,28 +883,26 @@ public class KtvSessionApplicationService {
     }
 
     /** 会话成功留痕：欠补齐的动作（暂停/恢复）与失败同码，detail 只放检索字段。 */
-    private void recordSessionAudit(String action, String actionLabel, KtvSessionPo po, String detailJson) {
+    private void recordSessionAudit(String action, String actionLabel, KtvSession session, String detailJson) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(po.getTenantId())
+                .tenantId(session.tenantId())
                 .action(action)
                 .actionLabel(actionLabel)
-                .resourceType("ktv_session").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getRoomNameSnapshot())
+                .resourceType("ktv_session").resourceId(String.valueOf(session.id()))
+                .resourceName(session.roomNameSnapshot())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .detailJson(detailJson)
                 .build());
     }
 
     /** 按订单 ID 批量查会话（订单列表一次查询带出包厢信息，避免 N+1）。 */
-    public Map<Long, KtvSessionPo> listByOrderIds(List<Long> orderIds) {
+    public Map<Long, KtvSession> listByOrderIds(List<Long> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return Map.of();
         }
-        QueryWrapper<KtvSessionPo> query = new QueryWrapper<>();
-        query.in("order_id", orderIds);
-        return sessionMapper.selectList(query)
+        return sessionRepository.listByOrderIds(orderIds)
                 .stream()
-                .collect(Collectors.toMap(KtvSessionPo::getOrderId, session -> session,
+                .collect(Collectors.toMap(KtvSession::orderId, session -> session,
                         KtvSessionApplicationService::currentSessionOf));
     }
 
@@ -904,52 +917,48 @@ public class KtvSessionApplicationService {
      * <p>可见性：账单（{@code BillApplicationService}）与订单投影必须挑**同一条**会话，
      * 否则同一张单的「包厢费」会一个按本次开台实时算、一个按上一次已结台会话的固化值展示。
      */
-    public static KtvSessionPo currentSessionOf(KtvSessionPo first, KtvSessionPo second) {
+    public static KtvSession currentSessionOf(KtvSession first, KtvSession second) {
         int rankFirst = sessionCurrentRank(first);
         int rankSecond = sessionCurrentRank(second);
         if (rankFirst != rankSecond) {
             return rankSecond > rankFirst ? second : first;
         }
-        long idFirst = first == null || first.getId() == null ? Long.MIN_VALUE : first.getId();
-        long idSecond = second == null || second.getId() == null ? Long.MIN_VALUE : second.getId();
+        long idFirst = first == null || first.id() == null ? Long.MIN_VALUE : first.id();
+        long idSecond = second == null || second.id() == null ? Long.MIN_VALUE : second.id();
         return idSecond > idFirst ? second : first;
     }
 
     /** 「当前」程度排序：进行中 2 > 待开台 1 > 已结束（CLOSED/CANCELLED）0。 */
-    private static int sessionCurrentRank(KtvSessionPo session) {
-        if (session == null || session.getStatus() == null) {
+    private static int sessionCurrentRank(KtvSession session) {
+        if (session == null || session.status() == null) {
             return Integer.MIN_VALUE;
         }
-        return switch (session.getStatus()) {
-            case "OPEN", "PAUSED" -> 2;
-            case "RESERVED" -> 1;
+        return switch (session.status()) {
+            case KtvSession.STATUS_OPEN, KtvSession.STATUS_PAUSED -> 2;
+            case KtvSession.STATUS_RESERVED -> 1;
             default -> 0;
         };
     }
 
     /**
-     * 从订单的**全部**会话里挑出「当前这一次」：与 {@link #currentSessionOf(KtvSessionPo, KtvSessionPo)}
+     * 从订单的**全部**会话里挑出「当前这一次」：与 {@link #currentSessionOf(KtvSession, KtvSession)}
      * 同一条规则（见其说明），供账单这类一次只能拿到 List 的调用方复用，避免两处各写一套挑选逻辑。
      */
-    public static KtvSessionPo currentSessionOf(List<KtvSessionPo> sessions) {
+    public static KtvSession currentSessionOf(List<KtvSession> sessions) {
         if (sessions == null || sessions.isEmpty()) {
             return null;
         }
-        KtvSessionPo current = null;
-        for (KtvSessionPo session : sessions) {
+        KtvSession current = null;
+        for (KtvSession session : sessions) {
             current = current == null ? session : currentSessionOf(current, session);
         }
         return current;
     }
 
     /** 按订单 ID 查会话（转台/作废等按订单命令驱动）；开台中附带实时计时与预估计时费。 */
-    public KtvSessionPo findByOrderId(Long orderId) {
-        KtvSessionPo po = sessionMapper.selectByOrderId(orderId);
-        if (po == null) {
-            throw new BusinessException("ORDER_NOT_FOUND", "订单对应的 KTV 会话不存在");
-        }
-        fillLiveEstimate(po, null);
-        return po;
+    public KtvSession findByOrderId(Long orderId) {
+        return sessionRepository.findLatestByOrderId(orderId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单对应的 KTV 会话不存在"));
     }
 
     /**
@@ -959,32 +968,36 @@ public class KtvSessionApplicationService {
      * <p>暂停中（PAUSED）**停表**：截止时刻取 pause_started_at，与结台固化口径一致（见
      * {@link #billableEndAt}）；否则取当前时刻。金额由 {@link #liveRoomFee} 唯一算出，
      * 账单实时值、定时刷新与看板三处共用同一条公式。
+     *
+     * <p>返回值是**读投影**（原持久化对象上两个 {@code @TableField(exist = false)} 字段的替代）：
+     * 非开台中会话、或方案不按时长计费（PACKAGE 一口价）时返回 {@code null}，
+     * 调用方按「没有实时估算」处理，绝不凭空造一个 0。
      */
-    public void fillLiveEstimate(KtvSessionPo po, Long storeId) {
-        if (po == null || !"OPEN".equals(po.getStatus()) && !"PAUSED".equals(po.getStatus())) {
-            return;
+    public LiveEstimate liveEstimate(KtvSession session, Long storeId) {
+        if (session == null || !session.ongoing()) {
+            return null;
         }
         Long effectiveStoreId = storeId;
         if (effectiveStoreId == null) {
-            OrderPo order = po.getOrderId() == null ? null : orderMapper.selectById(po.getOrderId());
+            OrderPo order = session.orderId() == null ? null : orderMapper.selectById(session.orderId());
             effectiveStoreId = order == null ? null : order.getStoreId();
         }
-        KtvPricingPlan plan = snapshotPlan(po.getBillingRuleSnapshotJson(), po.getTenantId(), effectiveStoreId);
+        KtvPricingPlan plan = snapshotPlan(session.billingRuleSnapshotJson(), session.tenantId(),
+                effectiveStoreId);
         // 与结台写库同一条计算路径：预估金额必须等于「此刻结台」的 ROOM_FEE 金额。
-        KtvRoomFeeCalculator.Fee fee = liveRoomFee(po, plan, LocalDateTime.now());
+        KtvRoomFeeCalculator.Fee fee = liveRoomFee(session, plan, LocalDateTime.now());
         if (fee == null) {
-            return;
+            return null;
         }
-        po.setElapsedSeconds(fee.billableSeconds());
-        po.setEstimatedRoomFee(fee.amountMinor());
+        return new LiveEstimate(fee.billableSeconds(), fee.amountMinor());
     }
 
-    /** 乐观锁提交：version 不匹配（受影响 0 行）时抛并发冲突。 */
-    private void applyOptimisticUpdate(KtvSessionPo po) {
-        if (sessionMapper.updateWithVersion(po) == 0) {
+    /** 乐观锁提交：version 不匹配（受影响 0 行）时抛并发冲突，成功后推进内存版本并返回新实例。 */
+    private KtvSession applyOptimisticUpdate(KtvSession session) {
+        if (!sessionRepository.updateWithVersion(session)) {
             throw new BusinessException("SESSION_VERSION_CONFLICT", "KTV 会话已被并发修改，请重试");
         }
-        po.setVersion((po.getVersion() == null ? 0 : po.getVersion()) + 1);
+        return session.withVersion(session.versionOrZero() + 1);
     }
 
     /**
@@ -1082,14 +1095,14 @@ public class KtvSessionApplicationService {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-    private KtvSessionPo require(Long sessionId) {
-        KtvSessionPo po = sessionMapper.selectById(sessionId);
-        if (po == null) {
-            if (sessionMapper.selectTenantIdById(sessionId) != null) {
+    private KtvSession require(Long sessionId) {
+        Optional<KtvSession> session = sessionRepository.findById(sessionId);
+        if (session.isEmpty()) {
+            if (sessionRepository.findTenantIdById(sessionId) != null) {
                 throw new ApiException(403, "TENANT_SCOPE_DENIED", "无权访问其他租户的会话");
             }
             throw new BusinessException("ORDER_NOT_FOUND", "KTV 会话不存在");
         }
-        return po;
+        return session.get();
     }
 }

@@ -3,9 +3,9 @@ package io.openware.platform.order.api.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.InventoryTransactionView;
 import io.openware.platform.order.application.InventoryApplicationService;
-import io.openware.platform.order.infra.persistence.po.InventoryMaterialPo;
-import io.openware.platform.order.infra.persistence.po.InventoryTransactionPo;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -26,43 +26,45 @@ public class InventoryController {
      * {@code status}、{@code category}、{@code keyword}（名称或编码模糊）、
      * {@code from}/{@code to}（按**物料创建时间** {@code created_at} 的闭区间，统一口径见
      * {@link TimeRangeParams}）。排序 {@code id desc}。
-     * 响应为 MyBatis-Plus 分页信封（{@code records}/{@code total}/{@code current}/{@code size}）。
+     * 响应为分页信封（{@code records}/{@code total}/{@code current}/{@code size}），行是
+     * {@link InventoryMaterialView}（字段名与原持久化对象一致；其中 {@code onHandQty}/{@code reservedQty}
+     * 不是列，由服务在列表读路径批量回填到视图）。
      */
     @GetMapping("/materials")
-    public Page<InventoryMaterialPo> materials(@RequestParam(defaultValue = "1") long page,
-                                                @RequestParam(defaultValue = "20") long pageSize,
-                                                @RequestParam(required = false) Long storeId,
-                                                @RequestParam(required = false) String status,
-                                                @RequestParam(required = false) String category,
-                                                @RequestParam(required = false) String keyword,
-                                                @RequestParam(required = false) String from,
-                                                @RequestParam(required = false) String to) {
+    public Page<InventoryMaterialView> materials(@RequestParam(defaultValue = "1") long page,
+                                                 @RequestParam(defaultValue = "20") long pageSize,
+                                                 @RequestParam(required = false) Long storeId,
+                                                 @RequestParam(required = false) String status,
+                                                 @RequestParam(required = false) String category,
+                                                 @RequestParam(required = false) String keyword,
+                                                 @RequestParam(required = false) String from,
+                                                 @RequestParam(required = false) String to) {
         PermissionGuard.require("inventory.material.view");
         return service.listMaterials(page, pageSize, storeId, status, category, keyword,
                 TimeRangeParams.parse(from, to));
     }
 
     @PostMapping("/materials")
-    public InventoryMaterialPo createMaterial(@RequestBody MaterialRequest request) {
+    public InventoryMaterialView createMaterial(@RequestBody MaterialRequest request) {
         PermissionGuard.require("inventory.material.manage");
         return service.createMaterial(toCommand(request));
     }
 
     @PutMapping("/materials/{id}")
-    public InventoryMaterialPo updateMaterial(@PathVariable Long id, @RequestBody MaterialRequest request) {
+    public InventoryMaterialView updateMaterial(@PathVariable Long id, @RequestBody MaterialRequest request) {
         PermissionGuard.require("inventory.material.manage");
         return service.updateMaterial(id, toCommand(request));
     }
 
     @PostMapping("/receipts")
-    public InventoryTransactionPo receipt(@RequestBody StockRequest request) {
+    public InventoryTransactionView receipt(@RequestBody StockRequest request) {
         PermissionGuard.require("inventory.receipt.create");
         return service.changeStock(request.materialId(), request.quantity(), "RECEIPT", "RECEIPT", null,
                 request.reason(), request.idempotencyKey(), request.unitCost());
     }
 
     @PostMapping("/adjustments")
-    public InventoryTransactionPo adjust(@RequestBody AdjustmentRequest request) {
+    public InventoryTransactionView adjust(@RequestBody AdjustmentRequest request) {
         PermissionGuard.require("inventory.adjust");
         String type = request.direction() == null || "IN".equalsIgnoreCase(request.direction()) ? "ADJUST_IN" : "ADJUST_OUT";
         return service.changeStock(request.materialId(), request.quantity(), type, "ADJUSTMENT", null,
@@ -83,14 +85,14 @@ public class InventoryController {
      * 以 {@link TimeRangeParams.TimeRange} 交给应用服务；应用层不再解析时间字符串。
      */
     @GetMapping("/transactions")
-    public Page<InventoryTransactionPo> transactions(@RequestParam(defaultValue = "1") long page,
-                                                      @RequestParam(defaultValue = "20") long pageSize,
-                                                      @RequestParam(required = false) Long materialId,
-                                                      @RequestParam(required = false) String transactionType,
-                                                      @RequestParam(required = false) String sourceType,
-                                                      @RequestParam(required = false) String from,
-                                                      @RequestParam(required = false) String to,
-                                                      @RequestParam(required = false) String keyword) {
+    public Page<InventoryTransactionView> transactions(@RequestParam(defaultValue = "1") long page,
+                                                       @RequestParam(defaultValue = "20") long pageSize,
+                                                       @RequestParam(required = false) Long materialId,
+                                                       @RequestParam(required = false) String transactionType,
+                                                       @RequestParam(required = false) String sourceType,
+                                                       @RequestParam(required = false) String from,
+                                                       @RequestParam(required = false) String to,
+                                                       @RequestParam(required = false) String keyword) {
         PermissionGuard.require("inventory.transaction.view");
         return service.listTransactions(page, pageSize, materialId, transactionType, sourceType,
                 TimeRangeParams.parse(from, to), keyword);

@@ -17,9 +17,9 @@ import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.KtvSessionPo;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -99,8 +99,9 @@ class OrderCreateIdempotencyTest {
         existing.setTenantId(TENANT_ID);
         existing.setOrderNo("O202609190003");
         when(orderMapper.selectOne(any())).thenReturn(existing);
-        KtvSessionPo session = new KtvSessionPo();
-        session.setId(555L);
+        // 已有会话（领域模型不可变：工厂造出后回填主键），回放必须把它带出来。
+        KtvSession session = KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", 88L, 3001L, null, null)
+                .withId(555L);
         when(ktvSessionService.listByOrderIds(any())).thenReturn(java.util.Map.of(88L, session));
 
         OrderPo replayed = controller.createOrder("idem-abc",

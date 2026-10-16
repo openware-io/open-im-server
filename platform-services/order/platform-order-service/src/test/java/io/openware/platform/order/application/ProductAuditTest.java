@@ -19,7 +19,7 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.AuditSnapshot;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository.Persisted;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.InventoryMaterialMapper;
+import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -40,7 +40,7 @@ class ProductAuditTest {
 
     private ProductRepository productRepository;
     private CatalogItemRepository catalogItemRepository;
-    private InventoryMaterialMapper materialMapper;
+    private InventoryMaterialRepository materialRepository;
     private AuditClient auditClient;
     private ProductApplicationService service;
 
@@ -48,9 +48,9 @@ class ProductAuditTest {
     void setUp() {
         productRepository = mock(ProductRepository.class);
         catalogItemRepository = mock(CatalogItemRepository.class);
-        materialMapper = mock(InventoryMaterialMapper.class);
+        materialRepository = mock(InventoryMaterialRepository.class);
         auditClient = mock(AuditClient.class);
-        service = new ProductApplicationService(productRepository, catalogItemRepository, materialMapper, auditClient);
+        service = new ProductApplicationService(productRepository, catalogItemRepository, materialRepository, auditClient);
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
         // 上下架会同步目录项：商品无回指时走「新建目录项」分支，端口返回值必须是聚合+审计快照。
         when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->

@@ -15,8 +15,17 @@ import org.springframework.stereotype.Repository;
  * {@link InventoryStockRepository} 的持久化适配器。
  *
  * <p>只做模型转换与委托，不承载业务判断：库存是否够扣由数据库条件更新决定，不由本层或应用层先读后判。
- * {@link #deductAvailable} 直接委托 mapper 的原子 UPDATE，返回受影响行数是否为 1，
- * 因此并发下不可能把库存扣成负数。
+ * {@link #deductAvailable} 直接委托 mapper 的原子 UPDATE（{@code SET on_hand_qty = on_hand_qty - n
+ * WHERE ... AND on_hand_qty - reserved_qty >= n}），返回受影响行数是否为 1，因此并发下不可能把库存扣成负数；
+ * {@link #increaseOnHand} 把「加现有量」与「落库新的移动加权平均成本」放在同一条语句里
+ * （{@code avg_cost = #{avgCost}}），调用方在 {@link #findForUpdate} 的行锁内算好新成本。
+ * <b>这三条语句的形状是刻意保留的</b>（SQL 在 {@code InventoryStockMapper} 的注解里，本适配器不改写、
+ * 不拆成「先读后判再写回」），{@code InventoryStockRepositoryAdapterTest} 会逐条钉住它们。
+ *
+ * <p><b>审计列的归属</b>：{@code created_by / updated_by / updated_at} 是记账信息，领域模型不承载它们；
+ * {@code created_at} 是 {@code NOT NULL} 列，由 {@link #save} 在插入时填当前时刻。
+ *
+ * <p><b>没有整行写回</b>：{@link #save} 只插入。库存变更只能走上面两条原子语句——见端口的说明。
  */
 @Repository
 public class InventoryStockRepositoryAdapter implements InventoryStockRepository {
@@ -42,6 +51,10 @@ public class InventoryStockRepositoryAdapter implements InventoryStockRepository
 
   @Override
   public List<InventoryStock> findByMaterials(Long tenantId, Long storeId, List<Long> materialIds) {
+    if (materialIds == null || materialIds.isEmpty()) {
+      // 空集合直接返回空列表：绝不能下发 IN ()（非法 SQL），也不该为空集合白查一次库。
+      return List.of();
+    }
     return mapper.selectList(new LambdaQueryWrapper<InventoryStockPo>()
             .eq(InventoryStockPo::getTenantId, tenantId)
             .eq(InventoryStockPo::getStoreId, storeId)
@@ -79,15 +92,14 @@ public class InventoryStockRepositoryAdapter implements InventoryStockRepository
     po.setAvgCost(stock.avgCost());
     po.setCurrencyCode(stock.currencyCode());
     po.setVersion(stock.version());
-    po.setCreatedBy(stock.createdBy());
-    po.setCreatedAt(stock.createdAt());
-    po.setUpdatedBy(stock.updatedBy());
-    po.setUpdatedAt(stock.updatedAt());
-    if (po.getId() == null) {
-      mapper.insert(po);
-    } else {
-      mapper.updateById(po);
-    }
+    // 审计时间由适配器兜底（领域模型不承载记账列）：created_at 是 NOT NULL，插入时必须给值。
+    LocalDateTime now = LocalDateTime.now();
+    po.setCreatedAt(now);
+    po.setUpdatedAt(now);
+    // 只插入，不提供「按 id 覆盖写余额行」的分支：库存的每次变更都必须走 deductAvailable/increaseOnHand
+    // 的原子条件语句，整行写回会把防超卖重新变成「先读后判再写回」的竞态（见端口说明）。
+    // currency_code 为 null 时 NOT_NULL 策略会跳过该列，由 DDL 的 DEFAULT 'USD' 填充（与迁移前一致）。
+    mapper.insert(po);
     return toDomain(po);
   }
 
@@ -97,7 +109,6 @@ public class InventoryStockRepositoryAdapter implements InventoryStockRepository
     }
     return new InventoryStock(
         po.getId(), po.getTenantId(), po.getStoreId(), po.getMaterialId(),
-        po.getOnHandQty(), po.getReservedQty(), po.getAvgCost(), po.getCurrencyCode(),
-        po.getVersion(), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+        po.getOnHandQty(), po.getReservedQty(), po.getAvgCost(), po.getCurrencyCode(), po.getVersion());
   }
 }
