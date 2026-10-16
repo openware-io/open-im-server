@@ -7,6 +7,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $textExtensions = @('.bat', '.java', '.md', '.properties', '.ps1', '.py', '.sql', '.xml', '.yaml', '.yml')
 $utf8 = [System.Text.UTF8Encoding]::new($false, $true)
+# Non-throwing twin, used only for the mojibake probe below; see the comment at its use site.
+$lenient = [System.Text.UTF8Encoding]::new($false, $false)
 $gbk = [System.Text.Encoding]::GetEncoding(936)
 $violations = [System.Collections.Generic.List[string]]::new()
 
@@ -45,14 +47,13 @@ try {
     $lineNumber = 0
     foreach ($line in $text -split "`r?`n") {
       $lineNumber++
-      try {
-        $recovered = $utf8.GetString($gbk.GetBytes($line))
-      } catch {
-        continue
-      }
-      if ($line -match '[\uE000-\uF8FF]' -and
-          $recovered -ne $line -and
-          $recovered -match '[\u4E00-\u9FFF]{2,}') {
+      # Why non-throwing here: the mojibake recovery re-encodes a correct line to GBK, whose bytes are
+      # usually NOT valid UTF-8. Decoding them with the throwing decoder raises and the old `catch
+      # { continue }` then skipped the line - i.e. it skipped exactly the lines that carry the evidence.
+      # Replayed against the incident this gate exists for, that version flagged 1 of 4 real corrupted
+      # lines; this one flags all 4, with no false positive across the repository.
+      $recovered = $lenient.GetString($gbk.GetBytes($line))
+      if ($recovered -ne $line -and $recovered -match '[\u4E00-\u9FFF]{2,}') {
         $violations.Add("Possible UTF8-GBK mojibake: ${relativePath}:$lineNumber")
       }
     }

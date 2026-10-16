@@ -39,7 +39,12 @@ if (-not $baselineTag) {
   exit 0
 }
 
-$changed = git -C $root diff --name-status "$baselineTag..HEAD" -- '*db/migration/*.sql'
+# The pathspec below is '*db/migration*/*.sql', not '*db/migration/*.sql'. The narrower form missed
+# common-audit-service/src/main/resources/db/migration-audit/, so its three migrations could be rewritten
+# after the freeze with nothing failing: 19 of the 22 tracked migration files were covered. The wildcard
+# after 'migration' matches every migration root (flyway-conventions discovers them the same way, by
+# directory name prefix, so the two gates now agree on what a migration is).
+$changed = git -C $root diff --name-status "$baselineTag..HEAD" -- '*db/migration*/*.sql'
 foreach ($line in $changed) {
   if ([string]::IsNullOrWhiteSpace($line)) { continue }
   $parts = $line -split "`t"
@@ -54,7 +59,7 @@ foreach ($line in $changed) {
 # and not commit yet, and a "$baselineTag..HEAD" diff cannot see the working tree at all - a probe that
 # appended a line to a frozen migration passed this gate before the check below existed. Compare the
 # working tree against HEAD as well, so both committed and uncommitted rewrites are caught.
-$worktree = git -C $root diff --name-status HEAD -- '*db/migration/*.sql'
+$worktree = git -C $root diff --name-status HEAD -- '*db/migration*/*.sql'
 foreach ($line in $worktree) {
   if ([string]::IsNullOrWhiteSpace($line)) { continue }
   $parts = $line -split "`t"
@@ -64,7 +69,7 @@ foreach ($line in $worktree) {
     $violations.Add("${status}: $file (uncommitted migration change while frozen at $baselineTag)")
   }
 }
-$untracked = git -C $root ls-files --others --exclude-standard -- '*db/migration/*.sql'
+$untracked = git -C $root ls-files --others --exclude-standard -- '*db/migration*/*.sql'
 foreach ($file in $untracked) {
   if ([string]::IsNullOrWhiteSpace($file)) { continue }
   # New migrations are allowed; they are listed for visibility only, not as violations.
