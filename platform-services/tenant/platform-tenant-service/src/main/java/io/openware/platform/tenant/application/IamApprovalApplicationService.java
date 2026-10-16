@@ -1,12 +1,9 @@
 package io.openware.platform.tenant.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.platform.tenant.domain.approval.IamApproval;
-import io.openware.platform.tenant.domain.approval.IamApprovalStatus;
-import io.openware.platform.tenant.infra.persistence.mapper.IamApprovalMapper;
-import io.openware.platform.tenant.infra.persistence.po.IamApprovalPo;
+import io.openware.platform.tenant.domain.approval.repository.IamApprovalRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +20,11 @@ import java.util.Objects;
 @Service
 public class IamApprovalApplicationService {
 
-    private final IamApprovalMapper mapper;
+    private final IamApprovalRepository approvalRepository;
     private final AuditClient auditClient;
 
-    public IamApprovalApplicationService(IamApprovalMapper mapper, AuditClient auditClient) {
-        this.mapper = mapper;
+    public IamApprovalApplicationService(IamApprovalRepository approvalRepository, AuditClient auditClient) {
+        this.approvalRepository = approvalRepository;
         this.auditClient = auditClient;
     }
 
@@ -37,16 +34,16 @@ public class IamApprovalApplicationService {
         Objects.requireNonNull(command.tenantId(), "tenantId 必填");
         Objects.requireNonNull(command.actionType(), "actionType 必填");
         if (command.idempotencyKey() != null && !command.idempotencyKey().isBlank()) {
-            IamApprovalPo existing = mapper.selectOne(new QueryWrapper<IamApprovalPo>()
-                    .eq("idempotency_key", command.idempotencyKey()));
+            IamApproval existing = approvalRepository
+                    .findByIdempotencyKey(command.idempotencyKey()).orElse(null);
             if (existing != null) {
-                return toDomain(existing);
+                return existing;
             }
         }
         IamApproval approval = IamApproval.submit(command.tenantId(), command.actionType(), command.resourceType(),
                 command.resourceId(), command.operatorId(), command.detailJson(), command.idempotencyKey(),
                 LocalDateTime.now());
-        mapper.insert(toPo(approval));
+        approval = approvalRepository.save(approval);
         auditClient.recordAsync(AuditClient.AuditRecord.of(
                 command.tenantId(), command.operatorId(), "iam.approval.submit", command.resourceType(),
                 command.resourceId(), null, command.idempotencyKey(), command.detailJson()));
@@ -68,18 +65,15 @@ public class IamApprovalApplicationService {
     private IamApproval review(Long id, Long approverId, String comment, boolean approve) {
         String action = approve ? "iam.approval.approve" : "iam.approval.reject";
         try {
-            IamApprovalPo po = mapper.selectById(id);
-            if (po == null) {
-                throw new IllegalStateException("复核请求不存在: id=" + id);
-            }
-            IamApproval approval = toDomain(po);
+            IamApproval approval = approvalRepository.findById(id)
+                    .orElseThrow(() -> new IllegalStateException("复核请求不存在: id=" + id));
             LocalDateTime now = LocalDateTime.now();
             if (approve) {
                 approval.approve(approverId, comment, now);
             } else {
                 approval.reject(approverId, comment, now);
             }
-            mapper.updateById(toPo(approval));
+            approvalRepository.save(approval);
             auditClient.recordAsync(AuditClient.AuditRecord.of(
                     approval.getTenantId(), approverId, action, approval.getResourceType(),
                     approval.getResourceId(), null, approval.getIdempotencyKey(),
@@ -102,44 +96,12 @@ public class IamApprovalApplicationService {
 
     @Transactional(readOnly = true)
     public IamApproval get(Long id) {
-        IamApprovalPo po = mapper.selectById(id);
-        return po == null ? null : toDomain(po);
+        return id == null ? null : approvalRepository.findById(id).orElse(null);
     }
 
     @Transactional(readOnly = true)
     public List<IamApproval> list(String actionType, String status) {
-        QueryWrapper<IamApprovalPo> qw = new QueryWrapper<>();
-        qw.eq(actionType != null && !actionType.isBlank(), "action_type", actionType)
-                .eq(status != null && !status.isBlank(), "status", status)
-                .orderByDesc("created_at");
-        return mapper.selectList(qw).stream().map(IamApprovalApplicationService::toDomain).toList();
-    }
-
-    private static IamApproval toDomain(IamApprovalPo po) {
-        IamApproval approval = new IamApproval();
-        approval.restore(po.getId(), po.getTenantId(), po.getActionType(), po.getResourceType(), po.getResourceId(),
-                po.getOperatorId(), po.getDetailJson(), IamApprovalStatus.valueOf(po.getStatus()), po.getIdempotencyKey(),
-                po.getApproverId(), po.getReviewComment(), po.getCreatedAt(), po.getUpdatedAt(), po.getReviewedAt());
-        return approval;
-    }
-
-    private static IamApprovalPo toPo(IamApproval approval) {
-        IamApprovalPo po = new IamApprovalPo();
-        po.setId(approval.getId());
-        po.setTenantId(approval.getTenantId());
-        po.setActionType(approval.getActionType());
-        po.setResourceType(approval.getResourceType());
-        po.setResourceId(approval.getResourceId());
-        po.setOperatorId(approval.getOperatorId());
-        po.setDetailJson(approval.getDetailJson());
-        po.setStatus(approval.getStatus().name());
-        po.setIdempotencyKey(approval.getIdempotencyKey());
-        po.setApproverId(approval.getApproverId());
-        po.setReviewComment(approval.getReviewComment());
-        po.setCreatedAt(approval.getCreatedAt());
-        po.setUpdatedAt(approval.getUpdatedAt());
-        po.setReviewedAt(approval.getReviewedAt());
-        return po;
+        return approvalRepository.list(actionType, status);
     }
 
     public record IamApprovalSubmitCommand(Long tenantId, String actionType, String resourceType, String resourceId,
