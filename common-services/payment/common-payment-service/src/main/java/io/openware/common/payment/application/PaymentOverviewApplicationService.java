@@ -1,6 +1,6 @@
 package io.openware.common.payment.application;
 
-import io.openware.common.payment.infra.persistence.mapper.PaymentOverviewMapper;
+import io.openware.common.payment.domain.overview.repository.PaymentOverviewRepository;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 import java.util.List;
@@ -9,23 +9,24 @@ import org.springframework.stereotype.Service;
 /** Payment 总部汇总用例；控制器不直接依赖持久化 Mapper。 */
 @Service
 public class PaymentOverviewApplicationService {
-  private final PaymentOverviewMapper mapper;
+  private final PaymentOverviewRepository overviewRepository;
 
-  public PaymentOverviewApplicationService(PaymentOverviewMapper mapper) {
-    this.mapper = mapper;
+  public PaymentOverviewApplicationService(PaymentOverviewRepository overviewRepository) {
+    this.overviewRepository = overviewRepository;
   }
 
   public List<PaymentOverviewRow> query(long tenantId, List<Long> storeIds,
-      LocalDateTime from, LocalDateTime to) {
-    return mapper.selectSucceeded(tenantId, storeIds, from, to).stream()
-        .map(row -> new PaymentOverviewRow(row.getProvider(), row.getCurrencyCode(),
-            row.getTransactionCount(), row.getAmount())).toList();
+                                        LocalDateTime from, LocalDateTime to) {
+    return overviewRepository.summarizeSucceededTransactions(tenantId, storeIds, from, to).stream()
+        .map(row -> new PaymentOverviewRow(row.provider(), row.currencyCode(),
+            row.transactionCount(), row.amount()))
+        .toList();
   }
 
   public List<RefundOverviewRow> queryRefunds(long tenantId, List<Long> storeIds,
-      LocalDateTime from, LocalDateTime to) {
-    return mapper.selectRefunded(tenantId, storeIds, from, to).stream()
-        .map(row -> new RefundOverviewRow(row.getCurrencyCode(), row.getRefundCount(), row.getAmount()))
+                                              LocalDateTime from, LocalDateTime to) {
+    return overviewRepository.summarizeRefunds(tenantId, storeIds, from, to).stream()
+        .map(row -> new RefundOverviewRow(row.currencyCode(), row.refundCount(), row.refundAmount()))
         .toList();
   }
 

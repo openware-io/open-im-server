@@ -7,20 +7,22 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
-import io.openware.common.payment.infra.persistence.mapper.DailyClosingMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
-import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
-import io.openware.common.payment.infra.persistence.mapper.ShiftMapper;
-import io.openware.common.payment.infra.persistence.po.DailyClosingPo;
-import io.openware.common.payment.infra.persistence.po.PayIntentPo;
-import io.openware.common.payment.infra.persistence.po.ShiftPo;
+import io.openware.common.payment.domain.cashier.model.ConfirmedCollectLine;
+import io.openware.common.payment.domain.cashier.model.RefundCurrencyAggregate;
+import io.openware.common.payment.domain.cashier.repository.CashierReportRepository;
+import io.openware.common.payment.domain.closing.model.DailyClosing;
+import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
+import io.openware.common.payment.domain.intent.model.PaymentIntent;
+import io.openware.common.payment.domain.shift.model.Shift;
+import io.openware.common.payment.domain.shift.repository.ShiftRepository;
+
 import io.openware.infrastructure.audit.AuditClient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,14 +39,25 @@ class CashierApplicationServiceTest {
   // 单位口径（冻结，勿误读）：openingCash/actualCash 与 pay_intent.amount 一律为**最小货币单位**
   // （CNY 分 / USD cent）的整数，不做分/元换算；本夹具全部为分量级：100 = 1.00 元、600 = 6.00 元。
 
-  private final ShiftMapper shiftMapper = mock(ShiftMapper.class);
-  private final DailyClosingMapper dailyClosingMapper = mock(DailyClosingMapper.class);
-  private final PayIntentMapper payIntentMapper = mock(PayIntentMapper.class);
-  private final RefundMapper refundMapper = mock(RefundMapper.class);
-  private final PayCollectMapper payCollectMapper = mock(PayCollectMapper.class);
+  private final ShiftRepository shiftRepository = mock(ShiftRepository.class);
+  private final DailyClosingRepository dailyClosingRepository = mock(DailyClosingRepository.class);
+  private final CashierReportRepository reports = mock(CashierReportRepository.class);
   private final AuditClient auditClient = mock(AuditClient.class);
-  private final CashierApplicationService service = new CashierApplicationService(shiftMapper,
-      dailyClosingMapper, payIntentMapper, refundMapper, payCollectMapper, auditClient);
+  private final CashierApplicationService service = new CashierApplicationService(shiftRepository,
+      dailyClosingRepository, reports, auditClient);
+
+  /**
+   * 端口的新增返回落库后的聚合（含回填主键），与真实适配器一致。
+   *
+   * <p>不桩设的话 Mockito 默认返回 null，服务在取回填主键时会 NPE——那是替身与真实适配器的差异，
+   * 不是被测行为，所以统一在 setUp 里补齐；需要失败路径的用例再各自覆盖。
+   */
+  @org.junit.jupiter.api.BeforeEach
+  void setUpInsertReturnsSavedAggregate() {
+    when(shiftRepository.insert(any(Shift.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailyClosingRepository.insert(any(DailyClosing.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+  }
 
   @Test
   void openShift_createsOpenShiftWithZeroExpectedCash() {
@@ -56,7 +69,7 @@ class CashierApplicationServiceTest {
     assertEquals(0, BigDecimal.ZERO.compareTo(result.expectedCash()));
     // 开班即固化币种快照：租户未配置币种时缺省 USD（16_CURRENCY_CONVENTIONS §1/§5）。
     assertEquals("USD", result.currencyCode());
-    verify(shiftMapper).insert(any(ShiftPo.class));
+    verify(shiftRepository).insert(any(Shift.class));
   }
 
   @Test
@@ -97,15 +110,16 @@ class CashierApplicationServiceTest {
 
   @Test
   void closeShift_accumulatesCashReceiptsIntoExpectedCashAndYieldsZeroDifference() {
-    ShiftPo shift = shift("OPEN");
-    shift.setOpeningCash(new BigDecimal("100"));
-    shift.setOpenedAt(LocalDateTime.of(2025, 1, 1, 8, 0));
-    when(shiftMapper.selectById(shift.getId())).thenReturn(shift);
-    when(payIntentMapper.sumCashSucceeded(any(), any(), any(), any(), any()))
+    Shift shift = shift("OPEN");
+    shift = withOpeningCash(shift, "100");
+    shift = withOpenedAt(shift, LocalDateTime.of(2025, 1, 1, 8, 0));
+    when(shiftRepository.findById(shift.id())).thenReturn(java.util.Optional.of(shift));
+    when(shiftRepository.updateClosing(any(Shift.class))).thenReturn(true);
+    when(reports.sumCashSucceeded(any(), any(), any(), any(), any()))
         .thenReturn(new BigDecimal("500"));
 
     // 600 分 = 5.00 元现金实收，与 openingCash(100 分) + 现金收款(500 分) 同单位相加。
-    ShiftDto result = service.closeShift(shift.getId(), new BigDecimal("600"), "现金全额收款无差异");
+    ShiftDto result = service.closeShift(shift.id(), new BigDecimal("600"), "现金全额收款无差异");
 
     assertEquals("CLOSED", result.status());
     assertEquals(0, new BigDecimal("600").compareTo(result.actualCash()));
@@ -113,51 +127,51 @@ class CashierApplicationServiceTest {
     assertEquals(0, BigDecimal.ZERO.compareTo(result.differenceAmount()));
     // 历史班次币种为空 → 归一为 USD 后再按币种汇总现金（不同币种不得相加）
     assertEquals("USD", result.currencyCode());
-    verify(payIntentMapper).sumCashSucceeded(1L, 2L, "USD", shift.getOpenedAt(), shift.getClosedAt());
-    verify(shiftMapper).updateById(shift);
+    // 现金汇总窗口：[opened_at, closed_at)，闭口由服务用 now 填实；这里只锁币种与门店维度。
+    verify(reports).sumCashSucceeded(eq(1L), eq(2L), eq("USD"), eq(shift.openedAt()),
+        any(LocalDateTime.class));
+    verify(shiftRepository).updateClosing(any(Shift.class));
   }
 
   @Test
   void closeShift_computesDifferenceWhenActualCashDiffers() {
-    ShiftPo shift = shift("OPEN");
-    shift.setOpeningCash(new BigDecimal("100"));
-    shift.setOpenedAt(LocalDateTime.of(2025, 1, 1, 8, 0));
-    when(shiftMapper.selectById(shift.getId())).thenReturn(shift);
-    when(payIntentMapper.sumCashSucceeded(any(), any(), any(), any(), any()))
+    Shift shift = withOpenedAt(withOpeningCash(shift("OPEN"), "100"), LocalDateTime.of(2025, 1, 1, 8, 0));
+    when(shiftRepository.findById(shift.id())).thenReturn(java.util.Optional.of(shift));
+    when(shiftRepository.updateClosing(any(Shift.class))).thenReturn(true);
+    when(reports.sumCashSucceeded(any(), any(), any(), any(), any()))
         .thenReturn(new BigDecimal("500"));
 
-    ShiftDto result = service.closeShift(shift.getId(), new BigDecimal("620"), "备注");
+    ShiftDto result = service.closeShift(shift.id(), new BigDecimal("620"), "备注");
 
     assertEquals("CLOSED", result.status());
     assertEquals(0, new BigDecimal("620").compareTo(result.actualCash()));
     assertEquals(0, new BigDecimal("600").compareTo(result.expectedCash()));
     assertEquals(0, new BigDecimal("20").compareTo(result.differenceAmount()));
-    verify(shiftMapper).updateById(shift);
+    verify(shiftRepository).updateClosing(any(Shift.class));
   }
 
   @Test
   void closeShift_treatsMissingOpeningCashAsZero() {
-    ShiftPo shift = shift("OPEN");
-    shift.setOpenedAt(LocalDateTime.of(2025, 1, 1, 8, 0));
-    when(shiftMapper.selectById(shift.getId())).thenReturn(shift);
-    when(payIntentMapper.sumCashSucceeded(any(), any(), any(), any(), any()))
+    Shift shift = withOpenedAt(shift("OPEN"), LocalDateTime.of(2025, 1, 1, 8, 0));
+    when(shiftRepository.findById(shift.id())).thenReturn(java.util.Optional.of(shift));
+    when(shiftRepository.updateClosing(any(Shift.class))).thenReturn(true);
+    when(reports.sumCashSucceeded(any(), any(), any(), any(), any()))
         .thenReturn(new BigDecimal("500"));
 
-    ShiftDto result = service.closeShift(shift.getId(), new BigDecimal("500"), "备注");
+    ShiftDto result = service.closeShift(shift.id(), new BigDecimal("500"), "备注");
 
     assertEquals(0, BigDecimal.ZERO.compareTo(result.differenceAmount()));
   }
 
   @Test
   void closeShift_treatsNullActualCashAsZero() {
-    ShiftPo shift = shift("OPEN");
-    shift.setOpeningCash(new BigDecimal("100"));
-    shift.setOpenedAt(LocalDateTime.of(2025, 1, 1, 8, 0));
-    when(shiftMapper.selectById(shift.getId())).thenReturn(shift);
-    when(payIntentMapper.sumCashSucceeded(any(), any(), any(), any(), any()))
+    Shift shift = withOpenedAt(withOpeningCash(shift("OPEN"), "100"), LocalDateTime.of(2025, 1, 1, 8, 0));
+    when(shiftRepository.findById(shift.id())).thenReturn(java.util.Optional.of(shift));
+    when(shiftRepository.updateClosing(any(Shift.class))).thenReturn(true);
+    when(reports.sumCashSucceeded(any(), any(), any(), any(), any()))
         .thenReturn(new BigDecimal("500"));
 
-    ShiftDto result = service.closeShift(shift.getId(), null, "未实盘");
+    ShiftDto result = service.closeShift(shift.id(), null, "未实盘");
 
     assertEquals(0, BigDecimal.ZERO.compareTo(result.actualCash()));
     assertEquals(0, new BigDecimal("-600").compareTo(result.differenceAmount()));
@@ -184,7 +198,7 @@ class CashierApplicationServiceTest {
 
   @Test
   void closeShift_rejectsWhenNotOpen() {
-    when(shiftMapper.selectById(1L)).thenReturn(shift("CLOSED"));
+    when(shiftRepository.findById(1L)).thenReturn(java.util.Optional.ofNullable(shift("CLOSED")));
 
     assertThrows(IllegalStateException.class,
         () -> service.closeShift(1L, new BigDecimal("120"), "备注"));
@@ -201,9 +215,9 @@ class CashierApplicationServiceTest {
     assertEquals(7L, result.submittedBy());
     // 日结按币种出具：未配置租户币种时缺省 USD（16_CURRENCY_CONVENTIONS §1/§5）。
     assertEquals("USD", result.currencyCode());
-    ArgumentCaptor<DailyClosingPo> captor = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(captor.capture());
-    assertEquals(1L, captor.getValue().getTenantId());
+    ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(captor.capture());
+    assertEquals(1L, captor.getValue().tenantId());
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -214,10 +228,10 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_singleCurrency_writesGroupedSummaryWithAmounts() {
     LocalDate date = LocalDate.of(2025, 1, 1);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(
         intent(11L, "CNY", "CASH", "5000"), intent(12L, "CNY", "ALIPAY", "3000")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of(shiftWithCurrency(21L, "CNY", "-100")));
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any()))
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of(shiftWithCurrency(21L, "CNY", "-100")));
+    when(reports.summarizeRefunds(any(), any(), any(), any()))
         .thenReturn(List.of(refund("CNY", 1L, "2000")));
 
     DailyClosingDto result = service.submitDailyClosing(1L, 2L, date, 7L);
@@ -246,25 +260,25 @@ class CashierApplicationServiceTest {
         new DailyClosingSummary.ProviderLine("CASH", 1L, 5000L)), line.providers());
 
     // 落库形态：结构固定、字段名与既有接口风格一致（*Amount 为最小货币单位整数）
-    ArgumentCaptor<DailyClosingPo> captor = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(captor.capture());
-    assertEquals("CNY", captor.getValue().getCurrencyCode());
+    ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(captor.capture());
+    assertEquals("CNY", captor.getValue().currencyCode());
     assertEquals("{\"businessDate\":\"2025-01-01\",\"storeId\":2,\"currencyCode\":\"CNY\",\"mixedCurrency\":false,"
         + "\"currencies\":[{\"currencyCode\":\"CNY\",\"collectionCount\":2,\"collectedAmount\":8000,\"cashCount\":1,"
         + "\"cashAmount\":5000,\"refundCount\":1,\"refundAmount\":2000,\"shiftCount\":1,\"shiftDifferenceAmount\":-100,"
         + "\"providers\":[{\"provider\":\"ALIPAY\",\"count\":1,\"amount\":3000},"
-        + "{\"provider\":\"CASH\",\"count\":1,\"amount\":5000}]}]}", captor.getValue().getSummaryJson());
-    assertEquals(summary, DailyClosingSummary.parse(captor.getValue().getSummaryJson()));
+        + "{\"provider\":\"CASH\",\"count\":1,\"amount\":5000}]}]}", captor.getValue().summaryJson());
+    assertEquals(summary, DailyClosingSummary.parse(captor.getValue().summaryJson()));
   }
 
   @Test
   void submitDailyClosing_multipleCurrencies_groupsByCurrencyAndMarksMixed() {
     LocalDate date = LocalDate.of(2025, 1, 2);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(
         intent(11L, "CNY", "CASH", "5000"), intent(12L, "USD", "CASH", "700"),
         intent(13L, "USD", "WECHAT", "300")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of(shiftWithCurrency(21L, "CNY", "100")));
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of(shiftWithCurrency(21L, "CNY", "100")));
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingDto result = service.submitDailyClosing(1L, 2L, date, 7L);
 
@@ -291,10 +305,10 @@ class CashierApplicationServiceTest {
     assertEquals(0L, usd.shiftDifferenceAmount());
     assertEquals(0L, usd.refundAmount());
 
-    ArgumentCaptor<DailyClosingPo> captor = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(captor.capture());
+    ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(captor.capture());
     // 混币种时列上保留当时租户币种（缺省 USD），混币种事实由 summary.mixedCurrency 表达
-    assertEquals("USD", captor.getValue().getCurrencyCode());
+    assertEquals("USD", captor.getValue().currencyCode());
   }
 
   @Test
@@ -320,23 +334,23 @@ class CashierApplicationServiceTest {
     assertEquals(0L, line.shiftDifferenceAmount());
     assertTrue(line.providers().isEmpty());
 
-    ArgumentCaptor<DailyClosingPo> captor = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(captor.capture());
+    ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(captor.capture());
     // 空营业日也必须落完整结构：不写 null、不抛错
-    assertNotNull(captor.getValue().getSummaryJson());
-    assertFalse(captor.getValue().getSummaryJson().contains("null"),
-        captor.getValue().getSummaryJson());
+    assertNotNull(captor.getValue().summaryJson());
+    assertFalse(captor.getValue().summaryJson().contains("null"),
+        captor.getValue().summaryJson());
   }
 
   @Test
   void submitDailyClosing_shiftDifferences_sumOnlySameCurrencyShifts() {
     // 同一天两个 CNY 班次 + 一个 USD 班次：长短款必须按班次币种快照分别汇总，
     // 把 100 + (-40) + (-50) 相加会得出一个没有业务含义的「长短款」。
-    when(payIntentMapper.selectList(any())).thenReturn(List.of());
-    when(shiftMapper.selectList(any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of(
         shiftWithCurrency(21L, "CNY", "100"), shiftWithCurrency(22L, "CNY", "-40"),
         shiftWithCurrency(23L, "USD", "-50")));
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingSummary summary = service.submitDailyClosing(1L, 2L, LocalDate.of(2025, 1, 4), 7L).summary();
 
@@ -358,34 +372,34 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_repeatedSubmission_recomputesSameSummaryAndKeepsUniqueKeyRejection() {
     LocalDate date = LocalDate.of(2025, 1, 5);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingDto first = service.submitDailyClosing(1L, 2L, date, 7L);
-    ArgumentCaptor<DailyClosingPo> firstInsert = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(firstInsert.capture());
+    ArgumentCaptor<DailyClosing> firstInsert = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(firstInsert.capture());
 
     // 第二次提交：沿用既有实现——仍按当时数据重算汇总后 insert，由唯一键
     // uk_pay_daily_tenant_store_date 拒绝（本方法不吞异常、不改成覆盖更新）。
-    List<DailyClosingPo> rejected = new ArrayList<>();
+    List<DailyClosing> rejected = new ArrayList<>();
     doAnswer(invocation -> {
       rejected.add(invocation.getArgument(0));
       throw new DuplicateKeyException("uk_pay_daily_tenant_store_date");
-    }).when(dailyClosingMapper).insert(any(DailyClosingPo.class));
+    }).when(dailyClosingRepository).insert(any(DailyClosing.class));
 
     assertThrows(DuplicateKeyException.class, () -> service.submitDailyClosing(1L, 2L, date, 7L));
 
     assertEquals(1, rejected.size());
-    assertEquals(firstInsert.getValue().getSummaryJson(), rejected.get(0).getSummaryJson());
-    assertEquals(first.summary(), DailyClosingSummary.parse(rejected.get(0).getSummaryJson()));
+    assertEquals(firstInsert.getValue().summaryJson(), rejected.get(0).summaryJson());
+    assertEquals(first.summary(), DailyClosingSummary.parse(rejected.get(0).summaryJson()));
     assertEquals(5000L, first.summary().currencies().get(0).collectedAmount());
   }
 
   @Test
   void submitDailyClosing_fractionalMinorUnitAmount_rejectsInsteadOfRounding() {
     // 5000.5 分是「非法分」：与交班现金同一冻结口径，拒绝而不是静默取整成 5000 或 5001。
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000.5")));
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000.5")));
 
     ApiException ex = assertThrows(ApiException.class,
         () -> service.submitDailyClosing(1L, 2L, LocalDate.of(2025, 1, 6), 7L));
@@ -405,14 +419,10 @@ class CashierApplicationServiceTest {
   @Test
   void dailyClosingDto_toleratesLegacySummaryJson() {
     // 本改动之前提交的历史日结 summary_json 从不写入（或已被手工改坏）：列表接口降级为 null 汇总，不抛错。
-    DailyClosingPo po = new DailyClosingPo();
-    po.setId(9L);
-    po.setStoreId(2L);
-    po.setBusinessDate(LocalDate.of(2025, 1, 7));
-    po.setCurrencyCode("USD");
-    po.setSummaryJson("{\"businessDate\":");
+    DailyClosing closing = new DailyClosing(9L, 1L, 2L, LocalDate.of(2025, 1, 7), 7L, null, "USD",
+        "{\"businessDate\":", "SUBMITTED", null, null);
 
-    DailyClosingDto dto = DailyClosingDto.from(po);
+    DailyClosingDto dto = DailyClosingDto.from(closing);
 
     assertNull(dto.summary());
     assertEquals("USD", dto.currencyCode());
@@ -431,12 +441,12 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_includesWalletBillOffsetAsSeparateProviderLine() {
     LocalDate date = LocalDate.of(2025, 2, 1);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
-    when(payCollectMapper.selectConfirmedByStoreAndWindow(any(), any(), any(), any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
+    when(reports.listConfirmedCollects(any(), any(), any(), any())).thenReturn(List.of(
         collect("CNY", "{\"remainingAmount\":0,\"collectedByMethod\":["
             + "{\"method\":\"WALLET\",\"amount\":3000},{\"method\":\"CASH\",\"amount\":5000}]}")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingSummary summary = service.submitDailyClosing(1L, 2L, date, 7L).summary();
 
@@ -458,12 +468,12 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_includesPointBillOffsetAsSeparateProviderLine() {
     LocalDate date = LocalDate.of(2025, 2, 2);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
-    when(payCollectMapper.selectConfirmedByStoreAndWindow(any(), any(), any(), any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
+    when(reports.listConfirmedCollects(any(), any(), any(), any())).thenReturn(List.of(
         collect("CNY", "{\"remainingAmount\":0,\"collectedByMethod\":["
             + "{\"method\":\"POINT\",\"amount\":2000},{\"method\":\"CASH\",\"amount\":5000}]}")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingSummary summary = service.submitDailyClosing(1L, 2L, date, 7L).summary();
 
@@ -483,18 +493,18 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_walletAndPointLinesCarryBillOffsetNotTokenCounts() {
     LocalDate date = LocalDate.of(2025, 2, 7);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
-    when(payCollectMapper.selectConfirmedByStoreAndWindow(any(), any(), any(), any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of(intent(11L, "CNY", "CASH", "5000")));
+    when(reports.listConfirmedCollects(any(), any(), any(), any())).thenReturn(List.of(
         collect("CNY", "{\"collectedByMethod\":[{\"method\":\"WALLET\",\"amount\":3000},"
             + "{\"method\":\"POINT\",\"amount\":2000}]}")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     service.submitDailyClosing(1L, 2L, date, 7L);
 
-    ArgumentCaptor<DailyClosingPo> captor = ArgumentCaptor.forClass(DailyClosingPo.class);
-    verify(dailyClosingMapper).insert(captor.capture());
-    String json = captor.getValue().getSummaryJson();
+    ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
+    verify(dailyClosingRepository).insert(captor.capture());
+    String json = captor.getValue().summaryJson();
     // 没有代币/积分数量字段（命名不得为 *Amount/数量，也不得带币种）
     assertFalse(json.contains("Tokens"), json);
     assertFalse(json.contains("tokens"), json);
@@ -516,12 +526,12 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_groupsWalletAndPointOffsetsByTheirOwnCurrency() {
     LocalDate date = LocalDate.of(2025, 2, 3);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of());
-    when(payCollectMapper.selectConfirmedByStoreAndWindow(any(), any(), any(), any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.listConfirmedCollects(any(), any(), any(), any())).thenReturn(List.of(
         collect("CNY", "{\"collectedByMethod\":[{\"method\":\"WALLET\",\"amount\":3000}]}"),
         collect("USD", "{\"collectedByMethod\":[{\"method\":\"POINT\",\"amount\":700}]}")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingSummary summary = service.submitDailyClosing(1L, 2L, date, 7L).summary();
 
@@ -542,8 +552,8 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_toleratesEmptyOrBrokenCollectResponseJson() {
     LocalDate date = LocalDate.of(2025, 2, 4);
-    when(payIntentMapper.selectList(any())).thenReturn(List.of());
-    when(payCollectMapper.selectConfirmedByStoreAndWindow(any(), any(), any(), any())).thenReturn(List.of(
+    when(reports.listSucceededIntentsBetween(any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.listConfirmedCollects(any(), any(), any(), any())).thenReturn(List.of(
         collect("CNY", null),
         collect(null, "   "),
         collect("CNY", "{\"businessDate\":"),
@@ -552,8 +562,8 @@ class CashierApplicationServiceTest {
         collect("CNY", "{\"collectedByMethod\":[{\"amount\":3000},{\"method\":\"WALLET\"},"
             + "{\"method\":\"WALLET\",\"amount\":\"x\"},{\"method\":\"WALLET\",\"amount\":0}]}"),
         collect("CNY", "{\"collectedByMethod\":[{\"method\":\"WALLET\",\"amount\":3000}]}")));
-    when(shiftMapper.selectList(any())).thenReturn(List.of());
-    when(refundMapper.sumRefundedByCurrency(any(), any(), any(), any())).thenReturn(List.of());
+    when(shiftRepository.listClosedBetween(any(), any(), any(), any(), any())).thenReturn(List.of());
+    when(reports.summarizeRefunds(any(), any(), any(), any())).thenReturn(List.of());
 
     DailyClosingSummary summary = service.submitDailyClosing(1L, 2L, date, 7L).summary();
 
@@ -598,7 +608,7 @@ class CashierApplicationServiceTest {
 
   @Test
   void openShift_writesFailureAuditWithExceptionClassName() {
-    when(shiftMapper.insert(any(ShiftPo.class))).thenThrow(new IllegalStateException("db down"));
+    when(shiftRepository.insert(any(Shift.class))).thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class, () -> service.openShift(1L, 2L, 3L, 4L, new BigDecimal("100")));
 
@@ -613,7 +623,7 @@ class CashierApplicationServiceTest {
 
   @Test
   void closeShift_writesFailureAuditWhenShiftNotOpen() {
-    when(shiftMapper.selectById(1L)).thenReturn(shift("CLOSED"));
+    when(shiftRepository.findById(1L)).thenReturn(java.util.Optional.ofNullable(shift("CLOSED")));
 
     assertThrows(IllegalStateException.class, () -> service.closeShift(1L, new BigDecimal("120"), "备注"));
 
@@ -627,14 +637,13 @@ class CashierApplicationServiceTest {
 
   @Test
   void closeShift_writesSucceededAudit() {
-    ShiftPo shift = shift("OPEN");
-    shift.setOpeningCash(new BigDecimal("100"));
-    shift.setOpenedAt(LocalDateTime.of(2025, 1, 1, 8, 0));
-    when(shiftMapper.selectById(shift.getId())).thenReturn(shift);
-    when(payIntentMapper.sumCashSucceeded(any(), any(), any(), any(), any()))
+    Shift shift = withOpenedAt(withOpeningCash(shift("OPEN"), "100"), LocalDateTime.of(2025, 1, 1, 8, 0));
+    when(shiftRepository.findById(shift.id())).thenReturn(java.util.Optional.of(shift));
+    when(shiftRepository.updateClosing(any(Shift.class))).thenReturn(true);
+    when(reports.sumCashSucceeded(any(), any(), any(), any(), any()))
         .thenReturn(new BigDecimal("500"));
 
-    service.closeShift(shift.getId(), new BigDecimal("600"), "现金全额收款无差异");
+    service.closeShift(shift.id(), new BigDecimal("600"), "现金全额收款无差异");
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("cashier.shift.close", record.action());
@@ -655,7 +664,7 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_writesFailureAuditOnDuplicateSubmission() {
     LocalDate date = LocalDate.of(2025, 2, 6);
-    when(dailyClosingMapper.insert(any(DailyClosingPo.class)))
+    when(dailyClosingRepository.insert(any(DailyClosing.class)))
         .thenThrow(new DuplicateKeyException("uk_pay_daily_tenant_store_date"));
 
     assertThrows(DuplicateKeyException.class, () -> service.submitDailyClosing(1L, 2L, date, 7L));
@@ -668,11 +677,8 @@ class CashierApplicationServiceTest {
     assertNull(record.idempotencyKey());
   }
 
-  private static PayCollectMapper.ConfirmedCollectRow collect(String currencyCode, String responseJson) {
-    PayCollectMapper.ConfirmedCollectRow row = new PayCollectMapper.ConfirmedCollectRow();
-    row.setCurrencyCode(currencyCode);
-    row.setResponseJson(responseJson);
-    return row;
+  private static ConfirmedCollectLine collect(String currencyCode, String responseJson) {
+    return new ConfirmedCollectLine(currencyCode, responseJson);
   }
 
   /** WALLET 分项的抵扣账单金额（无该分项时 0）。 */
@@ -696,38 +702,37 @@ class CashierApplicationServiceTest {
     return captor.getValue();
   }
 
-  private static PayIntentPo intent(Long id, String currencyCode, String provider, String amount) {
-    PayIntentPo po = new PayIntentPo();
-    po.setId(id);
-    po.setCurrencyCode(currencyCode);
-    po.setProvider(provider);
-    po.setAmount(new BigDecimal(amount));
-    po.setStatus("SUCCEEDED");
-    return po;
+  private static PaymentIntent intent(Long id, String currencyCode, String provider, String amount) {
+    return new PaymentIntent(id, 1L, 2L, null, null, provider, null, new BigDecimal(amount),
+        currencyCode, "SUCCEEDED", null, null, null, null);
   }
 
-  private static ShiftPo shiftWithCurrency(Long id, String currencyCode, String differenceAmount) {
-    ShiftPo po = shift("CLOSED");
-    po.setId(id);
-    po.setCurrencyCode(currencyCode);
-    po.setDifferenceAmount(new BigDecimal(differenceAmount));
-    return po;
+  private static Shift shiftWithCurrency(Long id, String currencyCode, String differenceAmount) {
+    return new Shift(id, 1L, 2L, null, null, null, null, null, null, null,
+        new BigDecimal(differenceAmount), currencyCode, "CLOSED", null, null);
   }
 
-  private static RefundMapper.RefundCurrencyAggregate refund(String currencyCode, long count, String amount) {
-    RefundMapper.RefundCurrencyAggregate row = new RefundMapper.RefundCurrencyAggregate();
-    row.setCurrencyCode(currencyCode);
-    row.setRefundCount(count);
-    row.setRefundAmount(new BigDecimal(amount));
-    return row;
+  private static RefundCurrencyAggregate refund(String currencyCode, long count, String amount) {
+    return new RefundCurrencyAggregate(currencyCode, count, new BigDecimal(amount));
   }
 
-  private static ShiftPo shift(String status) {
-    ShiftPo po = new ShiftPo();
-    po.setId(1L);
-    po.setTenantId(1L);
-    po.setStoreId(2L);
-    po.setStatus(status);
-    return po;
+  private static Shift shift(String status) {
+    return new Shift(1L, 1L, 2L, null, null, null, null, null, null, null, null, null, status, null, null);
+  }
+
+  /** 不可变聚合按需生成新实例（record 没有 setter）。 */
+  private static Shift withOpeningCash(Shift shift, String openingCash) {
+    return new Shift(shift.id(), shift.tenantId(), shift.storeId(), shift.terminalId(),
+        shift.operatorId(), shift.openedAt(), shift.closedAt(), new BigDecimal(openingCash),
+        shift.expectedCash(), shift.actualCash(), shift.differenceAmount(), shift.currencyCode(),
+        shift.status(), shift.createdAt(), shift.updatedAt());
+  }
+
+  /** 不可变聚合按需生成新实例（record 没有 setter）。 */
+  private static Shift withOpenedAt(Shift shift, LocalDateTime openedAt) {
+    return new Shift(shift.id(), shift.tenantId(), shift.storeId(), shift.terminalId(),
+        shift.operatorId(), openedAt, shift.closedAt(), shift.openingCash(), shift.expectedCash(),
+        shift.actualCash(), shift.differenceAmount(), shift.currencyCode(), shift.status(),
+        shift.createdAt(), shift.updatedAt());
   }
 }

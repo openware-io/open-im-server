@@ -20,4 +20,11 @@ public interface PaymentTransactionRepository {
    * <p>币种不过滤：混币种是调用方必须显式处理的业务事实（见对账摘要），不能靠查询隐式藏掉。
    */
   List<PaymentTransaction> listSucceededBetween(Long tenantId, LocalDateTime from, LocalDateTime to);
+
+  /**
+   * 按支付意图集合（单租户、批量）列出交易（按发生时刻、标识升序）。
+   *
+   * <p>不按状态过滤：读模型要把失败/处理中的流水一并展示，让运营看到"这笔尝试了但没成功"。
+   */
+  List<PaymentTransaction> listByPaymentIntentIds(Long tenantId, List<Long> paymentIntentIds);
 }

@@ -1,15 +1,15 @@
 package io.openware.common.payment.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
-import io.openware.common.payment.infra.persistence.mapper.DailyClosingMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
-import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
-import io.openware.common.payment.infra.persistence.mapper.ShiftMapper;
-import io.openware.common.payment.infra.persistence.po.DailyClosingPo;
-import io.openware.common.payment.infra.persistence.po.PayIntentPo;
-import io.openware.common.payment.infra.persistence.po.ShiftPo;
+import io.openware.common.payment.domain.closing.model.DailyClosing;
+import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
+import io.openware.common.payment.domain.cashier.model.ConfirmedCollectLine;
+import io.openware.common.payment.domain.cashier.model.RefundCurrencyAggregate;
+import io.openware.common.payment.domain.cashier.repository.CashierReportRepository;
+import io.openware.common.payment.domain.intent.model.PaymentIntent;
+
+import io.openware.common.payment.domain.shift.model.Shift;
+import io.openware.common.payment.domain.shift.repository.ShiftRepository;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
@@ -31,7 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class CashierApplicationService {
     /** 现金支付方式/渠道代码（{@code pay_intent.provider}）。 */
     private static final String PROVIDER_CASH = "CASH";
-    /** 收款只统计成功行，与交班现金对账（{@link PayIntentMapper#sumCashSucceeded}）同一状态过滤。 */
+    /** 收款只统计成功行，与交班现金对账（{@link io.openware.common.payment.domain.cashier.repository.CashierReportRepository#sumCashSucceeded}）同一状态过滤。 */
     private static final String INTENT_SUCCEEDED = "SUCCEEDED";
     /** 已交班班次状态：正常交班与长短款待复核（{@code pay_shift.status}）。 */
     private static final String SHIFT_CLOSED = "CLOSED";
@@ -39,40 +39,27 @@ public class CashierApplicationService {
     /** 脏数据（provider 为空）在细分行里的归一值，避免写出 null 字段。 */
     private static final String PROVIDER_UNKNOWN = "UNKNOWN";
 
-    private final ShiftMapper shiftMapper;
-    private final DailyClosingMapper dailyClosingMapper;
-    private final PayIntentMapper payIntentMapper;
-    private final RefundMapper refundMapper;
-    private final PayCollectMapper payCollectMapper;
+    private final ShiftRepository shiftRepository;
+    private final DailyClosingRepository dailyClosingRepository;
+    private final CashierReportRepository cashierReportRepository;
     private final AuditClient auditClient;
     private final PaymentRuleApplicationService paymentRuleService;
 
     @Autowired
-    public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
-                                     PayIntentMapper payIntentMapper, RefundMapper refundMapper,
-                                     PayCollectMapper payCollectMapper, AuditClient auditClient,
+    public CashierApplicationService(ShiftRepository shiftRepository, DailyClosingRepository dailyClosingRepository,
+                                     CashierReportRepository cashierReportRepository, AuditClient auditClient,
                                      PaymentRuleApplicationService paymentRuleService) {
-        this.shiftMapper = shiftMapper;
-        this.dailyClosingMapper = dailyClosingMapper;
-        this.payIntentMapper = payIntentMapper;
-        this.refundMapper = refundMapper;
-        this.payCollectMapper = payCollectMapper;
+        this.shiftRepository = shiftRepository;
+        this.dailyClosingRepository = dailyClosingRepository;
+        this.cashierReportRepository = cashierReportRepository;
         this.auditClient = auditClient;
         this.paymentRuleService = paymentRuleService;
     }
 
-    /** 兼容既有装配/单测：不注入组合收款查询时，日结不含储值/积分分项（生产装配始终注入）。 */
-    public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
-                                     PayIntentMapper payIntentMapper, RefundMapper refundMapper,
-                                     AuditClient auditClient) {
-        this(shiftMapper, dailyClosingMapper, payIntentMapper, refundMapper, null, auditClient, null);
-    }
-
-    /** 兼容既有测试和非 Spring 调用方的六参数构造函数。 */
-    public CashierApplicationService(ShiftMapper shiftMapper, DailyClosingMapper dailyClosingMapper,
-                                     PayIntentMapper payIntentMapper, RefundMapper refundMapper,
-                                     PayCollectMapper payCollectMapper, AuditClient auditClient) {
-        this(shiftMapper, dailyClosingMapper, payIntentMapper, refundMapper, payCollectMapper, auditClient, null);
+    /** 兼容既有装配/单测：不注入汇总查询时，日结不含储值/积分分项（生产装配始终注入）。 */
+    public CashierApplicationService(ShiftRepository shiftRepository, DailyClosingRepository dailyClosingRepository,
+                                     CashierReportRepository cashierReportRepository, AuditClient auditClient) {
+        this(shiftRepository, dailyClosingRepository, cashierReportRepository, auditClient, null);
     }
 
     /**
@@ -87,15 +74,12 @@ public class CashierApplicationService {
     public ShiftDto openShift(Long tenantId, Long storeId, Long terminalId, Long operatorId, BigDecimal openingCash) {
         // 金额单位校验（无状态前置）在留痕范围之外：参数非法不产生业务副作用，不为它写失败痕迹。
         BigDecimal cash = requireMinorUnitCash(openingCash, "开班现金");
-        ShiftPo po = new ShiftPo();
-        po.setTenantId(tenantId); po.setStoreId(storeId); po.setTerminalId(terminalId); po.setOperatorId(operatorId);
-        po.setOpenedAt(LocalDateTime.now()); po.setOpeningCash(cash); po.setExpectedCash(BigDecimal.ZERO);
         // 币种快照（16_CURRENCY_CONVENTIONS §5/§6）：开班即固化本班次的现金盘点币种，
         // 之后租户改设置也不得重算历史班次的 expected_cash / difference_amount。
-        po.setCurrencyCode(CurrencyResolver.currentCode());
-        po.setStatus("OPEN"); po.setCreatedAt(LocalDateTime.now()); po.setUpdatedAt(LocalDateTime.now());
+        Shift draft = new Shift(null, tenantId, storeId, terminalId, operatorId, LocalDateTime.now(), null,
+                cash, BigDecimal.ZERO, null, null, CurrencyResolver.currentCode(), "OPEN", null, null);
         try {
-            shiftMapper.insert(po);
+            Shift po = shiftRepository.insert(draft);
             // 开班此前完全没有留痕：班次是交班对账与现金责任的起点，必须可回溯。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
@@ -104,14 +88,14 @@ public class CashierApplicationService {
                     .action("cashier.shift.open")
                     .actionLabel("开班")
                     .resourceType("pay_shift")
-                    .resourceId(po.getId() == null ? null : String.valueOf(po.getId()))
+                    .resourceId(po.id() == null ? null : String.valueOf(po.id()))
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"storeId\":" + storeId + ",\"terminalId\":" + terminalId
-                            + ",\"currencyCode\":" + jsonText(po.getCurrencyCode()) + "}")
+                            + ",\"currencyCode\":" + jsonText(po.currencyCode()) + "}")
                     .build());
             return ShiftDto.from(po);
         } catch (RuntimeException failure) {
-            recordFailure("cashier.shift.open", "开班", tenantId, storeId, po.getId(), failure);
+            recordFailure("cashier.shift.open", "开班", tenantId, storeId, null, failure);
             throw failure;
         }
     }
@@ -122,7 +106,7 @@ public class CashierApplicationService {
      * 现金全额收款且无长短款时 difference_amount = 0；现金退款冲减待 pay_refund 补门店/交班时间戳后接入。
      *
      * <p><b>币种（16_CURRENCY_CONVENTIONS §5/§6）</b>：本班次币种取开班时固化的快照 {@code pay_shift.currency_code}，
-     * 现金汇总按它过滤（{@link PayIntentMapper#sumCashSucceeded}），**禁止**把不同币种的现金静默相加；
+     * 现金汇总按它过滤（{@link io.openware.common.payment.domain.cashier.repository.CashierReportRepository#sumCashSucceeded}），**禁止**把不同币种的现金静默相加；
      * 快照为空（历史行）时按默认 USD 归一。
      *
      * <p><b>现金单位口径（冻结，不可再各自解释）</b>：{@code pay_intent.amount}、{@code pay_shift.opening_cash}
@@ -136,36 +120,44 @@ public class CashierApplicationService {
     public ShiftDto closeShift(Long shiftId, BigDecimal actualCash, String remark) {
         // 金额单位校验（无状态前置）在留痕范围之外。
         BigDecimal cash = requireMinorUnitCash(actualCash, "交班现金");
-        ShiftPo po = shiftMapper.selectById(shiftId);
+        Shift po = shiftRepository.findById(shiftId).orElse(null);
         try {
-            if (po == null || !"OPEN".equals(po.getStatus())) {
+            if (po == null || !"OPEN".equals(po.status())) {
                 throw new IllegalStateException("SHIFT_ALREADY_OPEN");
             }
             LocalDateTime now = LocalDateTime.now();
-            BigDecimal openingCash = po.getOpeningCash() == null ? BigDecimal.ZERO : po.getOpeningCash();
-            po.setCurrencyCode(Currency.parse(po.getCurrencyCode()).code());
-            BigDecimal expectedCash = openingCash.add(sumCashCollected(po, now));
-            po.setClosedAt(now); po.setActualCash(cash); po.setExpectedCash(expectedCash);
-            po.setDifferenceAmount(cash.subtract(expectedCash));
-            po.setStatus("CLOSED"); po.setUpdatedAt(now);
-            shiftMapper.updateById(po);
+            BigDecimal openingCash = po.openingCash() == null ? BigDecimal.ZERO : po.openingCash();
+            String currencyCode = Currency.parse(po.currencyCode()).code();
+            BigDecimal expectedCash = openingCash.add(sumCashCollected(po, currencyCode, now));
+            Shift closed = new Shift(po.id(), po.tenantId(), po.storeId(), po.terminalId(), po.operatorId(),
+                    po.openedAt(), now, po.openingCash(), expectedCash, cash,
+                    cash.subtract(expectedCash),
+                    // 币种快照归一后**写回**班次：历史行币种为空时要落成默认币种，
+                    // 否则响应与后续按币种的对账都会看到一个空币种。
+                    currencyCode, "CLOSED", po.createdAt(), now);
+            // 状态守卫：只有仍处于 OPEN 的班次才能被结账。受影响 0 行 = 已被另一位收银员结过，
+            // 此时必须报错而不是覆盖对方的实际现金与长短款。
+            if (!shiftRepository.updateClosing(closed)) {
+                throw new IllegalStateException("SHIFT_ALREADY_OPEN");
+            }
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getTenantId())
-                    .storeId(po.getStoreId())
-                    .operatorId(po.getOperatorId())
+                    .tenantId(closed.tenantId())
+                    .storeId(closed.storeId())
+                    .operatorId(closed.operatorId())
                     .action("cashier.shift.close")
                     .actionLabel("交班结账")
                     .resourceType("pay_shift")
-                    .resourceId(String.valueOf(po.getId()))
+                    .resourceId(String.valueOf(closed.id()))
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .detailJson("{\"actualCash\":" + cash + ",\"expectedCash\":" + po.getExpectedCash()
-                            + ",\"difference\":" + po.getDifferenceAmount()
-                            + ",\"currencyCode\":\"" + po.getCurrencyCode() + "\"}")
+                    .detailJson("{\"actualCash\":" + cash + ",\"expectedCash\":" + closed.expectedCash()
+                            + ",\"difference\":" + closed.differenceAmount()
+                            + ",\"currencyCode\":\"" + closed.currencyCode() + "\"}")
                     .build());
-            return ShiftDto.from(po);
+            return ShiftDto.from(closed);
         } catch (RuntimeException failure) {
             // 交班对账失败留痕（汇总读库失败/落库失败）：长短款直接关系现金责任，失败必须可回溯。
-            recordFailure("cashier.shift.close", "交班结账", po.getTenantId(), po.getStoreId(), shiftId, failure);
+            recordFailure("cashier.shift.close", "交班结账", po == null ? null : po.tenantId(),
+                    po == null ? null : po.storeId(), shiftId, failure);
             throw failure;
         }
     }
@@ -189,13 +181,13 @@ public class CashierApplicationService {
         return amount;
     }
 
-    private BigDecimal sumCashCollected(ShiftPo shift, LocalDateTime closedAt) {
-        if (shift.getOpenedAt() == null || shift.getTenantId() == null || shift.getStoreId() == null) {
+    private BigDecimal sumCashCollected(Shift shift, String currencyCode, LocalDateTime closedAt) {
+        if (shift.openedAt() == null || shift.tenantId() == null || shift.storeId() == null) {
             return BigDecimal.ZERO;
         }
-        BigDecimal sum = payIntentMapper.sumCashSucceeded(
-                shift.getTenantId(), shift.getStoreId(), Currency.parse(shift.getCurrencyCode()).code(),
-                shift.getOpenedAt(), closedAt);
+        BigDecimal sum = cashierReportRepository.sumCashSucceeded(
+                shift.tenantId(), shift.storeId(), Currency.parse(currencyCode).code(),
+                shift.openedAt(), closedAt);
         return sum == null ? BigDecimal.ZERO : sum;
     }
 
@@ -220,12 +212,12 @@ public class CashierApplicationService {
      * <p><b>门店维度与状态过滤（沿用既有实现）</b>：
      * <ul>
      *   <li><b>收款</b>：{@code pay_intent}（tenant_id + store_id + status='SUCCEEDED' + created_at ∈ 窗口）。
-     *       与交班 {@link PayIntentMapper#sumCashSucceeded}（{@code PayIntentMapper:22-28}）同一张表、同一状态
+     *       与交班 {@link io.openware.common.payment.domain.cashier.repository.CashierReportRepository#sumCashSucceeded}（{@code CashierReportRepository#sumCashSucceeded}）同一张表、同一状态
      *       过滤、同一窗口语义，所以日结的现金合计 == 当日各班次现金收款合计；按 {@code currency_code} +
      *       {@code provider}（支付方式/渠道）细分。</li>
      *   <li><b>退款</b>：{@code pay_refund} 终态 {@code REFUNDED}，门店经 {@code ord_order.store_id} 定位，
      *       归属时间取 {@code updated_at}（退款完成时间），见
-     *       {@link RefundMapper#sumRefundedByCurrency}。</li>
+     *       {@link io.openware.common.payment.domain.cashier.repository.CashierReportRepository#summarizeRefunds}。</li>
      *   <li><b>储值币/积分</b>：{@code pay_collect} 成功终态 {@code CONFIRMED} 的
      *       {@code response_json} 分腿（{@code WALLET}/{@code POINT}），门店经 {@code ord_order.store_id}
      *       定位，归属时间取 {@code created_at}，见
@@ -253,14 +245,12 @@ public class CashierApplicationService {
         }
         try {
             DailyClosingSummary summary = summarizeBusinessDate(tenantId, storeId, businessDate);
-            DailyClosingPo po = new DailyClosingPo();
-            po.setTenantId(tenantId); po.setStoreId(storeId); po.setBusinessDate(businessDate); po.setSubmittedBy(submittedBy);
             // 币种快照：单币种营业日以该币种出具；混币种（summary.currencyCode=null）或空营业日保留当时租户币种，
             // 混币种由 summary.mixedCurrency 显式标注，调用方不得把它当成单币种金额使用。
-            po.setCurrencyCode(summary.currencyCode() == null ? CurrencyResolver.currentCode() : summary.currencyCode());
-            po.setSummaryJson(summary.toJson());
-            po.setStatus("SUBMITTED"); po.setCreatedAt(LocalDateTime.now()); po.setUpdatedAt(LocalDateTime.now());
-            dailyClosingMapper.insert(po);
+            String currencyCode = summary.currencyCode() == null
+                    ? CurrencyResolver.currentCode() : summary.currencyCode();
+            DailyClosing po = dailyClosingRepository.insert(new DailyClosing(null, tenantId, storeId,
+                    businessDate, submittedBy, null, currencyCode, summary.toJson(), "SUBMITTED", null, null));
             // 日结此前完全没有留痕：营业日结是财务对账与营业数据出具的唯一入口，必须可回溯。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
@@ -269,7 +259,7 @@ public class CashierApplicationService {
                     .action("cashier.daily_closing.close")
                     .actionLabel("营业日结")
                     .resourceType("pay_daily_closing")
-                    .resourceId(po.getId() == null ? null : String.valueOf(po.getId()))
+                    .resourceId(po.id() == null ? null : String.valueOf(po.id()))
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"businessDate\":\"" + businessDate + "\",\"storeId\":" + storeId
                             + ",\"mixedCurrency\":" + summary.mixedCurrency() + "}")
@@ -346,21 +336,20 @@ public class CashierApplicationService {
     /** 收款汇总：窗口内**成功**的 {@code pay_intent}，按币种 + provider（支付方式/渠道）分组。 */
     private void collectCollections(Map<String, CurrencyBucket> byCurrency, Long tenantId, Long storeId,
                                     LocalDateTime from, LocalDateTime to) {
-        List<PayIntentPo> intents = payIntentMapper.selectList(new LambdaQueryWrapper<PayIntentPo>()
-                .eq(PayIntentPo::getTenantId, tenantId).eq(PayIntentPo::getStoreId, storeId)
-                .eq(PayIntentPo::getStatus, INTENT_SUCCEEDED)
-                .ge(PayIntentPo::getCreatedAt, from).lt(PayIntentPo::getCreatedAt, to));
+        // 只取成功收款：INIT/HOLD/FAILED 是尝试而非收款（过滤口径收在端口方法名里）。
+        List<PaymentIntent> intents = cashierReportRepository.listSucceededIntentsBetween(tenantId, storeId,
+                from, to);
         if (intents == null) {
             return;
         }
-        for (PayIntentPo intent : intents) {
+        for (PaymentIntent intent : intents) {
             if (intent == null) {
                 continue;
             }
-            long amount = requireMinorAmount(intent.getAmount(), "pay_intent#" + intent.getId());
-            String provider = intent.getProvider() == null || intent.getProvider().isBlank()
-                    ? PROVIDER_UNKNOWN : intent.getProvider();
-            CurrencyBucket bucket = bucketOf(byCurrency, intent.getCurrencyCode());
+            long amount = requireMinorAmount(intent.amount(), "pay_intent#" + intent.id());
+            String provider = intent.provider() == null || intent.provider().isBlank()
+                    ? PROVIDER_UNKNOWN : intent.provider();
+            CurrencyBucket bucket = bucketOf(byCurrency, intent.currencyCode());
             bucket.collectionCount++;
             bucket.collectedAmount += amount;
             bucket.addProviderAmount(provider, amount);
@@ -376,7 +365,7 @@ public class CashierApplicationService {
      *
      * <p><b>数据源与口径</b>：这类抵扣不落 {@code pay_intent}（{@link CollectApplicationService#recordCash}
      * 只对现金类分腿写 pay_intent/pay_transaction），实际落在 {@code pay_collect.response_json} 的分腿记录里，
-     * 门店经 {@code ord_order.store_id} 回查（见 {@link PayCollectMapper#selectConfirmedByStoreAndWindow}）。
+     * 门店经 {@code ord_order.store_id} 回查（见 {@link io.openware.common.payment.domain.cashier.repository.CashierReportRepository#listConfirmedCollects}）。
      * 只统计 {@code state='CONFIRMED'} 的组合收款，窗口与收款侧 {@code pay_intent} 同为
      * {@code [businessDate 00:00, businessDate+1 00:00)}。
      *
@@ -399,25 +388,24 @@ public class CashierApplicationService {
      */
     private void collectWalletAndPointCollections(Map<String, CurrencyBucket> byCurrency, Long tenantId,
                                                   Long storeId, LocalDateTime from, LocalDateTime to) {
-        if (payCollectMapper == null) {
+        if (cashierReportRepository == null) {
             return;
         }
-        List<PayCollectMapper.ConfirmedCollectRow> rows =
-                payCollectMapper.selectConfirmedByStoreAndWindow(tenantId, storeId, from, to);
+        List<ConfirmedCollectLine> rows = cashierReportRepository.listConfirmedCollects(tenantId, storeId, from, to);
         if (rows == null) {
             return;
         }
-        for (PayCollectMapper.ConfirmedCollectRow row : rows) {
+        for (ConfirmedCollectLine row : rows) {
             if (row == null) {
                 continue;
             }
             // 逐行解析：单行损坏只跳过该行，不影响其余收款与整份日结。
             List<CollectResponseLegs.WalletPointLeg> legs =
-                    CollectResponseLegs.walletAndPointLegs(row.getResponseJson());
+                    CollectResponseLegs.walletAndPointLegs(row.responseJson());
             if (legs.isEmpty()) {
                 continue;
             }
-            CurrencyBucket bucket = bucketOf(byCurrency, row.getCurrencyCode());
+            CurrencyBucket bucket = bucketOf(byCurrency, row.currencyCode());
             for (CollectResponseLegs.WalletPointLeg leg : legs) {
                 bucket.addProviderAmount(leg.method().toUpperCase(java.util.Locale.ROOT), leg.amount());
             }
@@ -427,17 +415,17 @@ public class CashierApplicationService {
     /** 退款汇总：窗口内已完成（REFUNDED）的退款，按退款自身币种快照分组、门店经订单定位。 */
     private void collectRefunds(Map<String, CurrencyBucket> byCurrency, Long tenantId, Long storeId,
                                 LocalDateTime from, LocalDateTime to) {
-        List<RefundMapper.RefundCurrencyAggregate> rows = refundMapper.sumRefundedByCurrency(tenantId, storeId, from, to);
+        List<RefundCurrencyAggregate> rows = cashierReportRepository.summarizeRefunds(tenantId, storeId, from, to);
         if (rows == null) {
             return;
         }
-        for (RefundMapper.RefundCurrencyAggregate row : rows) {
+        for (RefundCurrencyAggregate row : rows) {
             if (row == null) {
                 continue;
             }
-            CurrencyBucket bucket = bucketOf(byCurrency, row.getCurrencyCode());
-            bucket.refundCount += row.getRefundCount();
-            bucket.refundAmount += requireMinorAmount(row.getRefundAmount(), "pay_refund");
+            CurrencyBucket bucket = bucketOf(byCurrency, row.currencyCode());
+            bucket.refundCount += row.refundCount();
+            bucket.refundAmount += requireMinorAmount(row.refundAmount(), "pay_refund");
         }
     }
 
@@ -446,21 +434,19 @@ public class CashierApplicationService {
                                          LocalDateTime from, LocalDateTime to) {
         // 已交班状态用 (status = CLOSED OR status = REVIEW_REQUIRED) 表达：语义与 IN 等价，
         // 但不会像 in(...) 那样在构造条件时就解析列名（纯 Mockito 单测里没有 MyBatis-Plus 元数据）。
-        List<ShiftPo> shifts = shiftMapper.selectList(new LambdaQueryWrapper<ShiftPo>()
-                .eq(ShiftPo::getTenantId, tenantId).eq(ShiftPo::getStoreId, storeId)
-                .and(status -> status.eq(ShiftPo::getStatus, SHIFT_CLOSED)
-                        .or().eq(ShiftPo::getStatus, SHIFT_REVIEW_REQUIRED))
-                .ge(ShiftPo::getClosedAt, from).lt(ShiftPo::getClosedAt, to));
+        List<Shift> shifts = shiftRepository.listClosedBetween(tenantId, storeId,
+                List.of(SHIFT_CLOSED, SHIFT_REVIEW_REQUIRED), from, to);
         if (shifts == null) {
             return;
         }
-        for (ShiftPo shift : shifts) {
+        for (Shift shift : shifts) {
             if (shift == null) {
                 continue;
             }
-            CurrencyBucket bucket = bucketOf(byCurrency, shift.getCurrencyCode());
+            CurrencyBucket bucket = bucketOf(byCurrency, shift.currencyCode());
             bucket.shiftCount++;
-            bucket.shiftDifferenceAmount += requireMinorAmount(shift.getDifferenceAmount(), "pay_shift#" + shift.getId());
+            bucket.shiftDifferenceAmount += requireMinorAmount(shift.differenceAmount(),
+                    "pay_shift#" + shift.id());
         }
     }
 

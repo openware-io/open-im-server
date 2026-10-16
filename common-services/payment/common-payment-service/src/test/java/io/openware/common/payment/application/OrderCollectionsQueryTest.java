@@ -5,7 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -13,18 +15,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.toolkit.LambdaUtils;
-import io.openware.common.payment.infra.persistence.mapper.DailyClosingMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayTransactionMapper;
-import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
-import io.openware.common.payment.infra.persistence.mapper.ShiftMapper;
-import io.openware.common.payment.infra.persistence.po.DailyClosingPo;
-import io.openware.common.payment.infra.persistence.po.PayCollectPo;
-import io.openware.common.payment.infra.persistence.po.PayIntentPo;
-import io.openware.common.payment.infra.persistence.po.PayTransactionPo;
-import io.openware.common.payment.infra.persistence.po.RefundPo;
-import io.openware.common.payment.infra.persistence.po.ShiftPo;
+import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
+import io.openware.common.payment.domain.collect.model.PayCollect;
+import io.openware.common.payment.domain.collect.repository.PayCollectRepository;
+import io.openware.common.payment.domain.intent.model.PaymentIntent;
+import io.openware.common.payment.domain.intent.repository.PaymentIntentRepository;
+import io.openware.common.payment.domain.transaction.model.PaymentTransaction;
+import io.openware.common.payment.domain.transaction.repository.PaymentTransactionRepository;
+import io.openware.common.payment.domain.refund.model.Refund;
+import io.openware.common.payment.domain.refund.repository.RefundRepository;
+import io.openware.common.payment.domain.shift.repository.ShiftRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,33 +48,28 @@ class OrderCollectionsQueryTest {
     private static final Long TENANT_ID = 100L;
     private static final Long ORDER_ID = 69L;
 
-    private final ShiftMapper shiftMapper = mock(ShiftMapper.class);
-    private final PayIntentMapper payIntentMapper = mock(PayIntentMapper.class);
-    private final DailyClosingMapper dailyClosingMapper = mock(DailyClosingMapper.class);
-    private final RefundMapper refundMapper = mock(RefundMapper.class);
-    private final PayCollectMapper payCollectMapper = mock(PayCollectMapper.class);
-    private final PayTransactionMapper payTransactionMapper = mock(PayTransactionMapper.class);
+    private final ShiftRepository shiftRepository = mock(ShiftRepository.class);
+    private final PaymentIntentRepository paymentIntentRepository = mock(PaymentIntentRepository.class);
+    private final DailyClosingRepository dailyClosingRepository = mock(DailyClosingRepository.class);
+    private final RefundRepository refundRepository = mock(RefundRepository.class);
+    private final PayCollectRepository payCollectRepository = mock(PayCollectRepository.class);
+    private final PaymentTransactionRepository paymentTransactionRepository = mock(PaymentTransactionRepository.class);
 
     private final PaymentQueryApplicationService service =
-            new PaymentQueryApplicationService(shiftMapper, payIntentMapper, dailyClosingMapper, refundMapper,
-                    payCollectMapper, payTransactionMapper);
+            new PaymentQueryApplicationService(shiftRepository, paymentIntentRepository, dailyClosingRepository, refundRepository,
+                    payCollectRepository, paymentTransactionRepository);
 
     @BeforeEach
-    void initTableInfo() {
-        for (Class<?> entity : List.of(PayCollectPo.class, PayIntentPo.class, PayTransactionPo.class,
-                RefundPo.class, ShiftPo.class, DailyClosingPo.class)) {
-            TableInfo tableInfo = TableInfoHelper.initTableInfo(
-                    new MapperBuilderAssistant(new MybatisConfiguration(), ""), entity);
-            LambdaUtils.installCache(tableInfo);
-        }
-        when(payIntentMapper.selectList(any())).thenReturn(List.of());
-        when(payTransactionMapper.selectList(any())).thenReturn(List.of());
-        when(refundMapper.selectList(any())).thenReturn(List.of());
+    void stubEmptyResults() {
+        // TableInfo 不再需要：查询条件由适配器构造，本测试的替身是领域端口，不解析列名。
+        when(paymentIntentRepository.listByOrderIds(any(), any())).thenReturn(List.of());
+        when(paymentTransactionRepository.listByPaymentIntentIds(any(), any())).thenReturn(List.of());
+        when(refundRepository.listByOrderIds(any(), any())).thenReturn(List.of());
     }
 
     @Test
     void combinedCollectionKeepsEveryLegIncludingOnlineChannel() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-1", "CNY",
                         "{\"orderId\":69,\"customerId\":7,\"currencyCode\":\"CNY\",\"payable\":3900}",
                         "{\"remainingAmount\":0,\"collectedByMethod\":["
@@ -108,7 +103,7 @@ class OrderCollectionsQueryTest {
 
     @Test
     void multipleCollectionsOnOneOrderStaySeparate() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-1", "USD",
                         "{\"orderId\":69,\"payable\":1000}",
                         "{\"collectedByMethod\":[{\"method\":\"CASH\",\"amount\":1000}]}"),
@@ -127,7 +122,7 @@ class OrderCollectionsQueryTest {
 
     @Test
     void failedAndInitCollectionsAreNotPaymentDetail() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-OK", "USD", "{\"payable\":800}",
                         "{\"collectedByMethod\":[{\"method\":\"CASH\",\"amount\":800}]}")));
 
@@ -135,26 +130,24 @@ class OrderCollectionsQueryTest {
 
         assertEquals(1, view.collections().size());
         assertEquals(800L, view.totalCollected());
-        // 只读条件里必须带 state=CONFIRMED（INIT/HOLD/FAILED 的尝试不算收款）。
-        LambdaQueryWrapper<PayCollectPo> wrapper = capturedCollectWrapper();
-        String sql = wrapper.getSqlSegment();
-        assertTrue(sql.contains("state"), "必须按 state 过滤，否则失败尝试会被当成收款: " + sql);
+        // 只读已确认收款：INIT/HOLD/FAILED 的尝试不算收款。分层后这由**端口方法本身**承载
+        // （listConfirmedByOrderIds），调用方无法表达"把尝试也算进来"。
+        verify(payCollectRepository).listConfirmedByOrderIds(eq(TENANT_ID), eq(List.of(ORDER_ID)));
     }
 
     @Test
     void tenantAndOrderScopeArePushedIntoTheQuery() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of());
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of());
 
         service.orderCollections(TENANT_ID, List.of(ORDER_ID, 70L));
 
-        String sql = capturedCollectWrapper().getSqlSegment();
-        assertTrue(sql.contains("tenant_id"), "读资金明细必须显式带租户条件: " + sql);
-        assertTrue(sql.contains("order_id"), "必须按订单过滤，禁止全表扫描: " + sql);
+        // 读资金明细必须显式带租户与订单范围：端口签名要求两者，调用方无法省略。
+        verify(payCollectRepository).listConfirmedByOrderIds(TENANT_ID, List.of(ORDER_ID, 70L));
     }
 
     @Test
     void unparseableSnapshotDoesNotBreakTheWholePage() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-BAD", "USD", "not-json", "{\"also\":\"broken\""),
                 collect(2L, "PC-OK", "USD", "{\"payable\":900}",
                         "{\"collectedByMethod\":[{\"method\":\"CASH\",\"amount\":900}]}")));
@@ -169,7 +162,7 @@ class OrderCollectionsQueryTest {
 
     @Test
     void zeroAmountLegsAreDroppedAndSingleLegIsNotCombined() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-1", "USD", "{\"payable\":900}",
                         "{\"collectedByMethod\":[{\"method\":\"CASH\",\"amount\":900},"
                                 + "{\"method\":\"POINT\",\"amount\":0}]}")));
@@ -182,7 +175,7 @@ class OrderCollectionsQueryTest {
 
     @Test
     void mixedCurrencyIsFlaggedAndNoSingleCurrencyIsGiven() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of(
                 collect(1L, "PC-CNY", "CNY", "{\"payable\":100}",
                         "{\"collectedByMethod\":[{\"method\":\"CASH\",\"amount\":100}]}"),
                 collect(2L, "PC-USD", "USD", "{\"payable\":200}",
@@ -197,30 +190,16 @@ class OrderCollectionsQueryTest {
 
     @Test
     void transactionsCarryProviderAndChannelReference() {
-        PayIntentPo intent = new PayIntentPo();
-        intent.setId(31L);
-        intent.setTenantId(TENANT_ID);
-        intent.setOrderId(ORDER_ID);
-        intent.setProvider("ALIPAY");
-        intent.setPaymentMethod("ALIPAY");
-        intent.setAmount(new BigDecimal("2000"));
-        intent.setCurrencyCode("CNY");
-        intent.setStatus("SUCCEEDED");
-        intent.setCreatedAt(LocalDateTime.of(2026, 9, 19, 12, 0));
-        when(payIntentMapper.selectList(any())).thenReturn(List.of(intent));
+        PaymentIntent intent = new PaymentIntent(31L, TENANT_ID, 1L, ORDER_ID, null, "ALIPAY", "ALIPAY",
+                new BigDecimal("2000"), "CNY", "SUCCEEDED", null, null,
+                LocalDateTime.of(2026, 9, 19, 12, 0), LocalDateTime.of(2026, 9, 19, 12, 0));
+        when(paymentIntentRepository.listByOrderIds(any(), any())).thenReturn(List.of(intent));
 
-        PayTransactionPo tx = new PayTransactionPo();
-        tx.setId(88L);
-        tx.setTenantId(TENANT_ID);
-        tx.setPaymentIntentId(31L);
-        tx.setProvider("ALIPAY");
-        tx.setProviderTransactionNo("2026091922001400000001");
-        tx.setAmount(new BigDecimal("2000"));
-        tx.setCurrencyCode("CNY");
-        tx.setStatus("SUCCEEDED");
-        tx.setOccurredAt(LocalDateTime.of(2026, 9, 19, 12, 0, 1));
-        when(payTransactionMapper.selectList(any())).thenReturn(List.of(tx));
-        when(payCollectMapper.selectList(any())).thenReturn(List.of());
+        PaymentTransaction tx = new PaymentTransaction(88L, TENANT_ID, 1L, "KTV", 31L, "ALIPAY",
+                "2026091922001400000001", null, new BigDecimal("2000"), "CNY", null, null, "SUCCEEDED",
+                LocalDateTime.of(2026, 9, 19, 12, 0, 1), null);
+        when(paymentTransactionRepository.listByPaymentIntentIds(any(), any())).thenReturn(List.of(tx));
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of());
 
         OrderCollectionsDto view = service.orderCollections(TENANT_ID, List.of(ORDER_ID)).get(0);
 
@@ -233,8 +212,8 @@ class OrderCollectionsQueryTest {
 
     @Test
     void refundsAreListedAndOnlyRefundedMoneyCountsAsRefunded() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of());
-        when(refundMapper.selectList(any())).thenReturn(List.of(
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of());
+        when(refundRepository.listByOrderIds(any(), any())).thenReturn(List.of(
                 refund(1L, "REFUNDED", "1000", "1000"),
                 refund(2L, "APPROVED", "500", "500"),
                 refund(3L, "REJECTED", "300", null)));
@@ -248,7 +227,7 @@ class OrderCollectionsQueryTest {
 
     @Test
     void ordersWithoutAnyPaymentDataAreAbsentInsteadOfZero() {
-        when(payCollectMapper.selectList(any())).thenReturn(List.of());
+        when(payCollectRepository.listConfirmedByOrderIds(any(), any())).thenReturn(List.of());
 
         List<OrderCollectionsDto> result = service.orderCollections(TENANT_ID, List.of(ORDER_ID, 70L));
 
@@ -264,38 +243,23 @@ class OrderCollectionsQueryTest {
 
     // ------------------------------------------------------------------ 测试夹具
 
-    private PayCollectPo collect(Long id, String collectNo, String currency, String requestJson, String responseJson) {
-        PayCollectPo po = new PayCollectPo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setCollectNo(collectNo);
-        po.setOrderId(ORDER_ID);
-        po.setState("CONFIRMED");
-        po.setCurrencyCode(currency);
-        po.setRequestJson(requestJson);
-        po.setResponseJson(responseJson);
-        po.setCreatedAt(LocalDateTime.of(2026, 9, 19, 12, 0).plusMinutes(id));
-        return po;
+    private PayCollect collect(Long id, String collectNo, String currency, String requestJson, String responseJson) {
+        return new PayCollect(id, TENANT_ID, 1L, ORDER_ID, collectNo, PayCollect.STATE_CONFIRMED, currency,
+                requestJson, responseJson, LocalDateTime.of(2026, 9, 19, 12, 0).plusMinutes(id));
     }
 
-    private RefundPo refund(Long id, String status, String requested, String approved) {
-        RefundPo po = new RefundPo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setOrderId(ORDER_ID);
-        po.setStatus(status);
-        po.setRequestedAmount(new BigDecimal(requested));
-        po.setApprovedAmount(approved == null ? null : new BigDecimal(approved));
-        po.setCurrencyCode("CNY");
-        po.setCreatedAt(LocalDateTime.of(2026, 9, 19, 13, 0).plusMinutes(id));
-        return po;
+    private Refund refund(Long id, String status, String requested, String approved) {
+        return new Refund(id, TENANT_ID, 1L, "KTV", ORDER_ID, null, "req-" + id,
+                new BigDecimal(requested), approved == null ? null : new BigDecimal(approved), "CNY", null,
+                status, null, 7L, null, LocalDateTime.of(2026, 9, 19, 13, 0).plusMinutes(id), null);
     }
 
+    /** 已确认收款必须是**按订单批量查询**的那一次调用：非 CONFIRMED 的尝试不得算进已收金额。 */
     @SuppressWarnings("unchecked")
-    private LambdaQueryWrapper<PayCollectPo> capturedCollectWrapper() {
-        org.mockito.ArgumentCaptor<LambdaQueryWrapper<PayCollectPo>> captor =
-                org.mockito.ArgumentCaptor.forClass(LambdaQueryWrapper.class);
-        org.mockito.Mockito.verify(payCollectMapper, org.mockito.Mockito.atLeastOnce()).selectList(captor.capture());
+    private List<Long> capturedCollectOrderIds() {
+        org.mockito.ArgumentCaptor<List<Long>> captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(payCollectRepository, org.mockito.Mockito.atLeastOnce())
+                .listConfirmedByOrderIds(org.mockito.ArgumentMatchers.any(), captor.capture());
         return captor.getValue();
     }
 }

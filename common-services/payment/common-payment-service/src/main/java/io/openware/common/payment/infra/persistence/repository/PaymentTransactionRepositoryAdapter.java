@@ -30,6 +30,19 @@ public class PaymentTransactionRepositoryAdapter implements PaymentTransactionRe
         .stream().map(PaymentTransactionRepositoryAdapter::toDomain).toList();
   }
 
+  @Override
+  public List<PaymentTransaction> listByPaymentIntentIds(Long tenantId, List<Long> paymentIntentIds) {
+    if (paymentIntentIds == null || paymentIntentIds.isEmpty()) {
+      return List.of();
+    }
+    return mapper.selectList(Wrappers.<PayTransactionPo>lambdaQuery()
+            .eq(PayTransactionPo::getTenantId, tenantId)
+            .in(PayTransactionPo::getPaymentIntentId, paymentIntentIds)
+            .orderByAsc(PayTransactionPo::getOccurredAt)
+            .orderByAsc(PayTransactionPo::getId))
+        .stream().map(PaymentTransactionRepositoryAdapter::toDomain).toList();
+  }
+
   private static PaymentTransaction toDomain(PayTransactionPo po) {
     return new PaymentTransaction(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessType(),
         po.getPaymentIntentId(), po.getProvider(), po.getProviderTransactionNo(),

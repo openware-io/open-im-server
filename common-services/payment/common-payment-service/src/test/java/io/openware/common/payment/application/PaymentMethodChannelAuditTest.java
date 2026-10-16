@@ -12,8 +12,8 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.common.payment.domain.channel.model.ChannelConfig;
 import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
-import io.openware.common.payment.infra.persistence.mapper.TenantPaymentMethodMapper;
-import io.openware.common.payment.infra.persistence.po.TenantPaymentMethodPo;
+import io.openware.common.payment.domain.method.model.TenantPaymentMethod;
+import io.openware.common.payment.domain.method.repository.TenantPaymentMethodRepository;
 import io.openware.infrastructure.audit.AuditClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ class PaymentMethodChannelAuditTest {
   private static final long TENANT_ID = 1001L;
   private static final Long STORE_ID = 2001L;
 
-  private TenantPaymentMethodMapper tenantPaymentMethodMapper;
+  private TenantPaymentMethodRepository paymentMethodRepository;
   private ChannelConfigRepository channelConfigRepository;
   private AuditClient auditClient;
   private PaymentMethodApplicationService methodService;
@@ -38,11 +38,16 @@ class PaymentMethodChannelAuditTest {
 
   @BeforeEach
   void setUp() {
-    tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
+    paymentMethodRepository = mock(TenantPaymentMethodRepository.class);
     channelConfigRepository = mock(ChannelConfigRepository.class);
     auditClient = mock(AuditClient.class);
     channelService = new ChannelApplicationService(channelConfigRepository, auditClient);
-    methodService = new PaymentMethodApplicationService(tenantPaymentMethodMapper, channelService, auditClient);
+        when(paymentMethodRepository.findByMethod(any(), any()))
+        .thenAnswer(inv -> java.util.Optional.of(method(inv.getArgument(1))));
+    when(paymentMethodRepository.insert(any(TenantPaymentMethod.class)))
+        .thenAnswer(inv -> inv.getArgument(0));
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class))).thenReturn(true);
+    methodService = new PaymentMethodApplicationService(paymentMethodRepository, channelService, auditClient);
   }
 
   @Test
@@ -59,8 +64,7 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setGrant_writesFailureAuditWithExceptionClassName() {
-    when(tenantPaymentMethodMapper.selectOne(any())).thenReturn(method("WALLET"));
-    when(tenantPaymentMethodMapper.updateById(any(TenantPaymentMethodPo.class)))
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class)))
         .thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class, () -> methodService.setGrant(TENANT_ID, "WALLET", true));
@@ -86,8 +90,7 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setUserEnabled_writesFailureAudit() {
-    when(tenantPaymentMethodMapper.selectOne(any())).thenReturn(method("POINT"));
-    when(tenantPaymentMethodMapper.updateById(any(TenantPaymentMethodPo.class)))
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class)))
         .thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class, () -> methodService.setUserEnabled(TENANT_ID, "POINT", false));
@@ -148,15 +151,9 @@ class PaymentMethodChannelAuditTest {
     verifyNoInteractions(auditClient);
   }
 
-  private static TenantPaymentMethodPo method(String method) {
-    TenantPaymentMethodPo po = new TenantPaymentMethodPo();
-    po.setId(9L);
-    po.setTenantId(TENANT_ID);
-    po.setMethod(method);
-    po.setGranted(0);
-    po.setUserEnabled(1);
-    po.setStatus("ACTIVE");
-    return po;
+  private static TenantPaymentMethod method(String method) {
+    return new TenantPaymentMethod(9L, TENANT_ID, method, false, true, TenantPaymentMethod.STATUS_ACTIVE,
+        null, null);
   }
 
   private AuditClient.AuditRecord capturedAudit() {

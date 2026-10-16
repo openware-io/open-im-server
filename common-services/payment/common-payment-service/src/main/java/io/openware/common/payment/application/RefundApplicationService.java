@@ -1,8 +1,8 @@
 package io.openware.common.payment.application;
 
+import io.openware.common.payment.domain.refund.model.Refund;
+import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
-import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
-import io.openware.common.payment.infra.persistence.po.RefundPo;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
@@ -13,7 +13,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.UUID;
 import io.openware.common.exception.ApiException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +22,10 @@ import org.springframework.beans.factory.annotation.Autowired;
  * 收银员只能申请（PENDING）；店长/财务审批（APPROVED/REJECTED，权限 payment.refund.approve）；
  * 审批通过后财务登记线下退款（REFUNDED，权限 payment.refund.offline）。
  * 申请人不能自批由上层权限码 + 审计操作者信息承载（骨架）。
+ *
+ * <p><b>并发</b>：每次状态迁移都是一条**状态守卫的条件更新**（{@code WHERE id = ? AND status = ?}）。
+ * {@code pay_refund} 没有版本列，状态本身就是唯一的并发判据；"读出来判状态再无条件写回"会让两个并发
+ * 审批者双双通过判断——对退款而言就是同一笔申请被批准两次。
  */
 @Service
 public class RefundApplicationService {
@@ -31,28 +34,29 @@ public class RefundApplicationService {
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_REFUNDED = "REFUNDED";
 
-    private final RefundMapper refundMapper;
+    private final RefundRepository refundRepository;
     private final AuditClient auditClient;
     private final OrderBillingMapper orderBillingMapper;
     private final PaymentRuleApplicationService paymentRuleService;
 
-    public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient,
+    public RefundApplicationService(RefundRepository refundRepository, AuditClient auditClient,
                                     OrderBillingMapper orderBillingMapper) {
-        this(refundMapper, auditClient, orderBillingMapper, null);
+        this(refundRepository, auditClient, orderBillingMapper, null);
     }
 
     @Autowired
-    public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient,
-                                    OrderBillingMapper orderBillingMapper, PaymentRuleApplicationService paymentRuleService) {
-        this.refundMapper = refundMapper;
+    public RefundApplicationService(RefundRepository refundRepository, AuditClient auditClient,
+                                    OrderBillingMapper orderBillingMapper,
+                                    PaymentRuleApplicationService paymentRuleService) {
+        this.refundRepository = refundRepository;
         this.auditClient = auditClient;
         this.orderBillingMapper = orderBillingMapper;
         this.paymentRuleService = paymentRuleService;
     }
 
     /** 兼容既有装配/单测：无账单查询时退款币种回退当时租户币种（缺省 USD）。 */
-    public RefundApplicationService(RefundMapper refundMapper, AuditClient auditClient) {
-        this(refundMapper, auditClient, null);
+    public RefundApplicationService(RefundRepository refundRepository, AuditClient auditClient) {
+        this(refundRepository, auditClient, null);
     }
 
     /**
@@ -60,31 +64,30 @@ public class RefundApplicationService {
      * 门店 ID 来自调用方已校验的经营上下文，不允许在支付域跨库猜测门店。
      */
     @Transactional
-    public RefundDto requestRefund(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason, Long requestedBy) {
+    public RefundDto requestRefund(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason,
+                                   Long requestedBy) {
         try {
-            RefundPo po = new RefundPo();
-            po.setTenantId(tenantId); po.setStoreId(storeId); po.setOrderId(orderId);
             TenantContext context = TenantContextHolder.get();
-            po.setBusinessType(context == null ? null : context.businessType());
-            po.setRequestId(UUID.randomUUID().toString());
-            po.setRequestedAmount(amount); po.setReason(reason); po.setRequestedBy(requestedBy);
             // 币种快照（16_CURRENCY_CONVENTIONS §5/§6.3）：退款必须退**原币种**，与申请金额同事务落库。
-            po.setCurrencyCode(resolveRefundCurrency(tenantId, orderId));
-            po.setStatus(STATUS_PENDING); po.setCreatedAt(LocalDateTime.now()); po.setUpdatedAt(LocalDateTime.now());
-            refundMapper.insert(po);
+            String currencyCode = resolveRefundCurrency(tenantId, orderId);
+            String requestId = UUID.randomUUID().toString();
+            Refund draft = new Refund(null, tenantId, storeId,
+                    context == null ? null : context.businessType(), orderId, null, requestId, amount, null,
+                    currencyCode, null, STATUS_PENDING, reason, requestedBy, null, null, null);
+            Refund saved = refundRepository.insert(draft);
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
                     .operatorId(requestedBy)
                     .action("payment.refund.request")
                     .actionLabel("退款申请")
                     .resourceType("refund")
-                    .resourceId(po.getRequestId())
-                    .idempotencyKey(po.getRequestId())
+                    .resourceId(saved.requestId())
+                    .idempotencyKey(saved.requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"orderId\":" + orderId + ",\"amount\":\"" + amount + "\",\"currencyCode\":\""
-                            + po.getCurrencyCode() + "\"}")
+                            + saved.currencyCode() + "\"}")
                     .build());
-            return RefundDto.from(po);
+            return RefundDto.from(saved);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.request", "退款申请", tenantId, null, orderId, failure);
             throw failure;
@@ -109,31 +112,28 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto approveRefund(Long refundId, BigDecimal approvedAmount, Long approvedBy) {
         try {
-            RefundPo po = requireRefund(refundId);
-            requireStatus(po, STATUS_PENDING, "approve");
+            Refund refund = requireRefund(refundId);
+            requireStatus(refund, STATUS_PENDING, "approve");
             if (approvedAmount == null || approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalStateException("REFUND_AMOUNT_INVALID");
             }
-            if (po.getRequestedAmount() != null && approvedAmount.compareTo(po.getRequestedAmount()) > 0) {
+            if (refund.requestedAmount() != null && approvedAmount.compareTo(refund.requestedAmount()) > 0) {
                 throw new IllegalStateException("REFUND_AMOUNT_EXCEEDS_REQUEST");
             }
-            po.setStatus(STATUS_APPROVED);
-            po.setApprovedAmount(approvedAmount);
-            po.setApprovedBy(approvedBy);
-            po.setUpdatedAt(LocalDateTime.now());
-            refundMapper.updateById(po);
+            Refund approved = withStatus(refund, STATUS_APPROVED, approvedAmount, approvedBy, null);
+            transactionGuarded(approved, STATUS_PENDING, "approve");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getTenantId())
+                    .tenantId(refund.tenantId())
                     .operatorId(approvedBy)
                     .action("payment.refund.approve")
                     .actionLabel("退款审批通过")
                     .resourceType("refund")
-                    .resourceId(po.getRequestId())
-                    .idempotencyKey(po.getRequestId())
+                    .resourceId(refund.requestId())
+                    .idempotencyKey(refund.requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"approvedAmount\":\"" + approvedAmount + "\"}")
                     .build());
-            return RefundDto.from(po);
+            return RefundDto.from(approved);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.approve", "退款审批通过", null, refundId, null, failure);
             throw failure;
@@ -144,23 +144,21 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto rejectRefund(Long refundId, Long rejectedBy) {
         try {
-            RefundPo po = requireRefund(refundId);
-            requireStatus(po, STATUS_PENDING, "reject");
-            po.setStatus(STATUS_REJECTED);
-            po.setApprovedBy(rejectedBy);
-            po.setUpdatedAt(LocalDateTime.now());
-            refundMapper.updateById(po);
+            Refund refund = requireRefund(refundId);
+            requireStatus(refund, STATUS_PENDING, "reject");
+            Refund rejected = withStatus(refund, STATUS_REJECTED, refund.approvedAmount(), rejectedBy, null);
+            transactionGuarded(rejected, STATUS_PENDING, "reject");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getTenantId())
+                    .tenantId(refund.tenantId())
                     .operatorId(rejectedBy)
                     .action("payment.refund.reject")
                     .actionLabel("退款审批驳回")
                     .resourceType("refund")
-                    .resourceId(po.getRequestId())
-                    .idempotencyKey(po.getRequestId())
+                    .resourceId(refund.requestId())
+                    .idempotencyKey(refund.requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .build());
-            return RefundDto.from(po);
+            return RefundDto.from(rejected);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.reject", "退款审批驳回", null, refundId, null, failure);
             throw failure;
@@ -171,35 +169,60 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto markRefunded(Long refundId, String providerRefundNo, Long operatorId) {
         try {
-            RefundPo po = requireRefund(refundId);
-            requireStatus(po, STATUS_APPROVED, "refund");
+            Refund refund = requireRefund(refundId);
+            requireStatus(refund, STATUS_APPROVED, "refund");
             if (paymentRuleService != null) {
                 PaymentRuleApplicationService.RefundRuleView rule = paymentRuleService.resolveRefund(
-                        po.getTenantId(), po.getStoreId(), po.getBusinessType());
+                        refund.tenantId(), refund.storeId(), refund.businessType());
                 if (!rule.offlineRefundEnabled()) {
                     throw new ApiException(422, "OFFLINE_REFUND_DISABLED", "当前业态或门店不允许线下退款");
                 }
             }
-            po.setStatus(STATUS_REFUNDED);
-            po.setProviderRefundNo(providerRefundNo);
-            po.setUpdatedAt(LocalDateTime.now());
-            refundMapper.updateById(po);
+            Refund refunded = withStatus(refund, STATUS_REFUNDED, refund.approvedAmount(), refund.approvedBy(),
+                    providerRefundNo);
+            transactionGuarded(refunded, STATUS_APPROVED, "refund");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getTenantId())
+                    .tenantId(refund.tenantId())
                     .operatorId(operatorId)
                     .action("payment.refund.offline")
                     .actionLabel("线下退款登记")
                     .resourceType("refund")
-                    .resourceId(po.getRequestId())
-                    .idempotencyKey(po.getRequestId())
+                    .resourceId(refund.requestId())
+                    .idempotencyKey(refund.requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                    .detailJson("{\"providerRefundNo\":\"" + (providerRefundNo == null ? "" : providerRefundNo) + "\"}")
+                    .detailJson("{\"providerRefundNo\":\""
+                            + (providerRefundNo == null ? "" : providerRefundNo) + "\"}")
                     .build());
-            return RefundDto.from(po);
+            return RefundDto.from(refunded);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.offline", "线下退款登记", null, refundId, null, failure);
             throw failure;
         }
+    }
+
+    /**
+     * 执行状态迁移（状态守卫的 CAS）。
+     *
+     * <p>受影响 0 行 = 状态已被他人改变。这里报 {@code REFUND_STATE_INVALID} 而不是冲突码：
+     * 对调用方而言语义相同（这次迁移没生效、钱没退出去），而错误里的状态说明更有助于排查。
+     */
+    private void transactionGuarded(Refund target, String expectedStatus, String action) {
+        if (!refundRepository.updateStatusGuarded(target, expectedStatus)) {
+            throw new IllegalStateException(
+                    "REFUND_STATE_INVALID: cannot " + action + " refund in state " + expectedStatus);
+        }
+    }
+
+    /** 生成迁移后的退款单快照（不可变模型按需替换字段）。 */
+    private static Refund withStatus(Refund refund, String status, BigDecimal approvedAmount,
+                                     Long approvedBy, String providerRefundNo) {
+        return new Refund(refund.id(), refund.tenantId(), refund.storeId(), refund.businessType(),
+                refund.orderId(), refund.paymentTransactionId(), refund.requestId(),
+                refund.requestedAmount(), approvedAmount, refund.currencyCode(),
+                providerRefundNo == null ? refund.providerRefundNo() : providerRefundNo, status,
+                refund.reason(), refund.requestedBy(),
+                approvedBy == null ? refund.approvedBy() : approvedBy, refund.createdAt(),
+                refund.updatedAt());
     }
 
     /**
@@ -226,18 +249,15 @@ public class RefundApplicationService {
                 .build());
     }
 
-    private RefundPo requireRefund(Long refundId) {
-        RefundPo po = refundMapper.selectById(refundId);
-        if (po == null) {
-            throw new IllegalStateException("REFUND_NOT_FOUND");
-        }
-        return po;
+    private Refund requireRefund(Long refundId) {
+        return refundRepository.findById(refundId)
+                .orElseThrow(() -> new IllegalStateException("REFUND_NOT_FOUND"));
     }
 
-    private void requireStatus(RefundPo po, String expected, String action) {
-        if (!expected.equals(po.getStatus())) {
+    private void requireStatus(Refund refund, String expected, String action) {
+        if (!expected.equals(refund.status())) {
             throw new IllegalStateException(
-                    "REFUND_STATE_INVALID: cannot " + action + " refund in state " + po.getStatus());
+                    "REFUND_STATE_INVALID: cannot " + action + " refund in state " + refund.status());
         }
     }
 }
