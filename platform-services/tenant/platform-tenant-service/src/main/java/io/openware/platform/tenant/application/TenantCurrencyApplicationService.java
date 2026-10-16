@@ -1,19 +1,16 @@
 package io.openware.platform.tenant.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.currency.Currency;
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.WalletAccountCurrencyMapper;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
-import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
-import io.openware.platform.tenant.infra.persistence.po.WalletAccountCurrencyPo;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigReader;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
+import io.openware.platform.tenant.domain.currency.model.WalletAccount;
+import io.openware.platform.tenant.domain.currency.repository.WalletAccountCurrencyPort;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -24,28 +21,31 @@ import java.util.List;
  *
  * <p>切换币种必须显式处理 §2.2 的三条联动，不许静默：门店写穿、钱包余额保护、审计留痕
  * （支付方式能力校验在支付服务侧按当前上下文币种执行）。
+ *
+ * <p>持久化经领域端口；其中钱包账户属另一限界上下文，按 standards/10“跨上下文读取”走 tenant 拥有的
+ * **受限只读/币种端口**，不接触该上下文的持久化实现。
  */
 @Service
 public class TenantCurrencyApplicationService {
 
     /** 租户级配置键：币种。 */
-    public static final String CONFIG_KEY_CURRENCY = "currency";
+    public static final String CONFIG_KEY_CURRENCY = TenantConfig.KEY_CURRENCY;
     /** store_id=0 表示租户级（不分叉到门店）。 */
-    private static final long TENANT_LEVEL_STORE_ID = 0L;
+    private static final long TENANT_LEVEL_STORE_ID = TenantConfig.TENANT_LEVEL_STORE_ID;
 
-    private final TenantConfigMapper tenantConfigMapper;
-    private final InternalTenantConfigMapper internalTenantConfigMapper;
-    private final StoreMapper storeMapper;
-    private final WalletAccountCurrencyMapper walletAccountMapper;
+    private final TenantConfigReader tenantConfigReader;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final StoreRepository storeRepository;
+    private final WalletAccountCurrencyPort walletAccountCurrencyPort;
 
-    public TenantCurrencyApplicationService(TenantConfigMapper tenantConfigMapper,
-                                            InternalTenantConfigMapper internalTenantConfigMapper,
-                                            StoreMapper storeMapper,
-                                            WalletAccountCurrencyMapper walletAccountMapper) {
-        this.tenantConfigMapper = tenantConfigMapper;
-        this.internalTenantConfigMapper = internalTenantConfigMapper;
-        this.storeMapper = storeMapper;
-        this.walletAccountMapper = walletAccountMapper;
+    public TenantCurrencyApplicationService(TenantConfigReader tenantConfigReader,
+                                            TenantConfigRepository tenantConfigRepository,
+                                            StoreRepository storeRepository,
+                                            WalletAccountCurrencyPort walletAccountCurrencyPort) {
+        this.tenantConfigReader = tenantConfigReader;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.storeRepository = storeRepository;
+        this.walletAccountCurrencyPort = walletAccountCurrencyPort;
     }
 
     /**
@@ -56,7 +56,8 @@ public class TenantCurrencyApplicationService {
         if (tenantId == null || tenantId <= 0) {
             return Currency.DEFAULT;
         }
-        return Currency.parse(internalTenantConfigMapper.selectTenantConfigValue(tenantId, CONFIG_KEY_CURRENCY));
+        return Currency.parse(tenantConfigReader
+                .findValue(tenantId, TENANT_LEVEL_STORE_ID, CONFIG_KEY_CURRENCY).orElse(null));
     }
 
     /** 严格解析请求币种；不在支持列表内返回 400 CURRENCY_UNSUPPORTED。 */
@@ -82,7 +83,8 @@ public class TenantCurrencyApplicationService {
         Currency before = resolve(tenantId);
 
         // §2.2.2 钱包/储值余额保护：先算受影响账户，再决定阻断还是改写。
-        List<WalletAccountCurrencyPo> affected = nonZeroAccountsInOtherCurrency(tenantId, target);
+        List<WalletAccount> affected = walletAccountCurrencyPort
+                .listNonZeroInOtherCurrency(tenantId, target.code());
         if (!affected.isEmpty() && !migrateBalances) {
             throw new ApiException(409, "CURRENCY_SWITCH_BLOCKED_BY_BALANCE",
                     "存在 " + affected.size() + " 个非零余额且币种不同的钱包/储值账户，"
@@ -90,85 +92,23 @@ public class TenantCurrencyApplicationService {
         }
         int migrated = 0;
         int skipped = 0;
-        for (WalletAccountCurrencyPo account : affected) {
-            if (targetAccountExists(tenantId, account, target)) {
+        for (WalletAccount account : affected) {
+            if (walletAccountCurrencyPort.existsForSubject(tenantId, account.customerId(),
+                    account.legalEntityId(), target.code())) {
                 // 同主体同目标币种账户已存在：改写会撞唯一键并造成事实上的合并（=跨币种折算，禁区），跳过并留痕。
                 skipped++;
                 continue;
             }
-            WalletAccountCurrencyPo patch = new WalletAccountCurrencyPo();
-            patch.setId(account.getId());
-            patch.setCurrencyCode(target.code());
-            patch.setUpdatedAt(LocalDateTime.now());
-            walletAccountMapper.updateById(patch);
+            walletAccountCurrencyPort.changeCurrency(account.id(), target.code());
             migrated++;
         }
 
         // §2.2.1 门店写穿：同事务把所有门店 default_currency 改为目标币种，保证门店级界面与租户一致。
-        int storesUpdated = writeThroughStores(tenantId, target);
+        int storesUpdated = storeRepository.changeDefaultCurrency(tenantId, target.code());
 
-        upsertTenantConfig(tenantId, target);
+        tenantConfigRepository.upsert(TenantConfig.tenantLevel(CONFIG_KEY_CURRENCY, tenantId, target.code()));
 
         return new CurrencySwitchResult(before, target, storesUpdated, migrated, skipped, affected.size());
-    }
-
-    private List<WalletAccountCurrencyPo> nonZeroAccountsInOtherCurrency(Long tenantId, Currency target) {
-        return walletAccountMapper.selectList(new QueryWrapper<WalletAccountCurrencyPo>()
-                .eq("tenant_id", tenantId)
-                .ne("currency_code", target.code())
-                .apply("(available_amount <> 0 OR frozen_amount <> 0)"));
-    }
-
-    private boolean targetAccountExists(Long tenantId, WalletAccountCurrencyPo account, Currency target) {
-        QueryWrapper<WalletAccountCurrencyPo> query = new QueryWrapper<WalletAccountCurrencyPo>()
-                .eq("tenant_id", tenantId)
-                .eq("customer_id", account.getCustomerId())
-                .eq("currency_code", target.code());
-        // legal_entity_id 可为 null，eq(null) 在 SQL 里永远不成立，必须显式 IS NULL。
-        if (account.getLegalEntityId() == null) {
-            query.isNull("legal_entity_id");
-        } else {
-            query.eq("legal_entity_id", account.getLegalEntityId());
-        }
-        return walletAccountMapper.selectCount(query) > 0;
-    }
-
-    private int writeThroughStores(Long tenantId, Currency target) {
-        List<StorePo> stores = storeMapper.selectList(new QueryWrapper<StorePo>().eq("tenant_id", tenantId));
-        List<Long> mismatched = stores.stream()
-                .filter(store -> !target.code().equals(store.getDefaultCurrency()))
-                .map(StorePo::getId)
-                .toList();
-        if (mismatched.isEmpty()) {
-            return 0;
-        }
-        StorePo patch = new StorePo();
-        patch.setDefaultCurrency(target.code());
-        patch.setUpdatedAt(LocalDateTime.now());
-        storeMapper.update(patch, new QueryWrapper<StorePo>().in("id", mismatched));
-        return mismatched.size();
-    }
-
-    private void upsertTenantConfig(Long tenantId, Currency target) {
-        List<TenantConfigPo> rows = tenantConfigMapper.selectList(new QueryWrapper<TenantConfigPo>()
-                .eq("tenant_id", tenantId).eq("store_id", TENANT_LEVEL_STORE_ID).eq("config_key", CONFIG_KEY_CURRENCY));
-        if (!rows.isEmpty()) {
-            TenantConfigPo po = rows.get(0);
-            po.setConfigValue(target.code());
-            po.setUpdatedAt(LocalDateTime.now());
-            tenantConfigMapper.updateById(po);
-            return;
-        }
-        TenantConfigPo po = new TenantConfigPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(TENANT_LEVEL_STORE_ID);
-        po.setConfigKey(CONFIG_KEY_CURRENCY);
-        po.setConfigValue(target.code());
-        po.setStatus("ACTIVE");
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        tenantConfigMapper.insert(po);
     }
 
     /**

@@ -31,6 +31,17 @@ public interface StoreRepository {
   Optional<Store> findById(Long storeId);
 
   /**
+   * 把某租户下所有门店的默认币种改为目标币种，返回受影响门店数。
+   *
+   * <p>**只改币种列**：门店其它配置（时区、营业日切点等）不参与币种联动，
+   * 用整体保存会把并发编辑改动的列一起写回。
+   *
+   * <p>已在目标币种的门店不产生写入（条件 UPDATE），因此返回的受影响行数可直接作为
+   * "实际写穿了几家门店"上报审计。
+   */
+  int changeDefaultCurrency(Long tenantId, String targetCurrencyCode);
+
+  /**
    * 按标识读取门店**归属的租户**，且**忽略租户拦截器**。
    *
    * <p>刻意独立于 {@link #findById}：调用方需要区分「门店不存在」与「门店存在但属于别的租户」，

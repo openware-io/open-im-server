@@ -47,6 +47,18 @@ public class StoreRepositoryAdapter implements StoreRepository {
   }
 
   @Override
+  public int changeDefaultCurrency(Long tenantId, String targetCurrencyCode) {
+    // 条件 UPDATE：已在目标币种的门店不参与，受影响行数即"实际改了几家"。
+    // 等价于 SQL: UPDATE tnt_store SET default_currency = ?, updated_at = ?
+    //            WHERE tenant_id = ? AND default_currency <> ?
+    return mapper.update(null, Wrappers.<StorePo>lambdaUpdate()
+        .eq(StorePo::getTenantId, tenantId)
+        .ne(StorePo::getDefaultCurrency, targetCurrencyCode)
+        .set(StorePo::getDefaultCurrency, targetCurrencyCode)
+        .set(StorePo::getUpdatedAt, LocalDateTime.now()));
+  }
+
+  @Override
   public boolean updateSchedule(Long storeId, String timezone, String businessDayCutoff,
                                  String businessType, Long operatorId) {
     return mapper.update(null, Wrappers.<StorePo>lambdaUpdate()

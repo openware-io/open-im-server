@@ -7,10 +7,11 @@ import static org.mockito.Mockito.when;
 import io.openware.platform.tenant.api.controller.InternalTenantConfigController.InternalTenantWalletToken;
 import io.openware.platform.tenant.application.TenantCurrencyApplicationService;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigReader;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
+import io.openware.platform.tenant.domain.currency.repository.WalletAccountCurrencyPort;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.WalletAccountCurrencyMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -32,8 +33,8 @@ class InternalWalletTokenConfigControllerTest {
     void setUp() {
         internalTenantConfigMapper = mock(InternalTenantConfigMapper.class);
         TenantCurrencyApplicationService currencyService = new TenantCurrencyApplicationService(
-                mock(TenantConfigMapper.class), internalTenantConfigMapper, mock(StoreMapper.class),
-                mock(WalletAccountCurrencyMapper.class));
+                mock(TenantConfigReader.class), mock(TenantConfigRepository.class), mock(StoreRepository.class),
+                mock(WalletAccountCurrencyPort.class));
         controller = new InternalTenantConfigController(currencyService,
                 new WalletTokenConfigApplicationService(internalTenantConfigMapper));
     }
