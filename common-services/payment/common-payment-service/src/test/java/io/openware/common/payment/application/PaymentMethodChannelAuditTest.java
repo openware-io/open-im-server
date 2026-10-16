@@ -10,7 +10,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
-import io.openware.common.payment.infra.persistence.mapper.ChannelConfigMapper;
+import io.openware.common.payment.domain.channel.model.ChannelConfig;
+import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
 import io.openware.common.payment.infra.persistence.mapper.TenantPaymentMethodMapper;
 import io.openware.common.payment.infra.persistence.po.TenantPaymentMethodPo;
 import io.openware.infrastructure.audit.AuditClient;
@@ -30,7 +31,7 @@ class PaymentMethodChannelAuditTest {
   private static final Long STORE_ID = 2001L;
 
   private TenantPaymentMethodMapper tenantPaymentMethodMapper;
-  private ChannelConfigMapper channelConfigMapper;
+  private ChannelConfigRepository channelConfigRepository;
   private AuditClient auditClient;
   private PaymentMethodApplicationService methodService;
   private ChannelApplicationService channelService;
@@ -38,9 +39,9 @@ class PaymentMethodChannelAuditTest {
   @BeforeEach
   void setUp() {
     tenantPaymentMethodMapper = mock(TenantPaymentMethodMapper.class);
-    channelConfigMapper = mock(ChannelConfigMapper.class);
+    channelConfigRepository = mock(ChannelConfigRepository.class);
     auditClient = mock(AuditClient.class);
-    channelService = new ChannelApplicationService(channelConfigMapper, auditClient);
+    channelService = new ChannelApplicationService(channelConfigRepository, auditClient);
     methodService = new PaymentMethodApplicationService(tenantPaymentMethodMapper, channelService, auditClient);
   }
 
@@ -108,6 +109,9 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setEnabled_writesSucceededAudit() {
+    // 端口新增返回落库后的聚合（真实适配器回填主键，测试替身等价模拟）。
+    when(channelConfigRepository.insert(any(ChannelConfig.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
     channelService.setEnabled(TENANT_ID, STORE_ID, "ALIPAY", true, "merchant-001");
 
     AuditClient.AuditRecord record = capturedAudit();
@@ -121,7 +125,8 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setEnabled_writesFailureAudit() {
-    when(channelConfigMapper.selectOne(any())).thenThrow(new IllegalStateException("db down"));
+    when(channelConfigRepository.findByScope(any(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class,
         () -> channelService.setEnabled(TENANT_ID, STORE_ID, "ALIPAY", true, "merchant-001"));
