@@ -233,14 +233,14 @@ class InventoryMaterialRepositoryAdapterTest {
     verify(mapper, never()).selectById(any());
   }
 
-  /** 批量读走 selectBatchIds；空集合不查库。 */
+  /** 批量读走 selectByIds；空集合不查库。 */
   @Test
   void findByIdsDelegatesToBatchSelect() {
-    when(mapper.selectBatchIds(any())).thenReturn(List.of(po()));
+    when(mapper.selectByIds(any())).thenReturn(List.of(po()));
 
     assertEquals(1, adapter.findByIds(List.of(MATERIAL_ID)).size());
     assertTrue(adapter.findByIds(List.of()).isEmpty(), "空集合直接返回空列表");
-    verify(mapper).selectBatchIds(any());
+    verify(mapper).selectByIds(any());
   }
 
   /**

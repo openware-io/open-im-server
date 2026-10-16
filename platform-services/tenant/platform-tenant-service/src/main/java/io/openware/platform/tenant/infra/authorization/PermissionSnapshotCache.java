@@ -3,6 +3,7 @@ package io.openware.platform.tenant.infra.authorization;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.platform.tenant.domain.authorization.PermissionSnapshot;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.connection.RedisKeyCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.ScanOptions;
@@ -92,7 +93,11 @@ public class PermissionSnapshotCache {
     private Set<String> scan(String pattern) {
         Set<String> keys = new HashSet<>();
         redis.execute(connection -> {
-            try (Cursor<byte[]> cursor = connection.scan(ScanOptions.scanOptions().match(pattern).count(200).build())) {
+            // 必须显式按 RedisKeyCommands 调用：lambda 参数的静态类型 RedisConnection 继承了
+            // DefaultedRedisConnection.scan(ScanOptions)，而那个覆盖版本在 Spring Data Redis 4 已弃用；
+            // RedisKeyCommands 上的同签名方法未弃用，行为一致（同一个 SCAN 命令）。
+            try (Cursor<byte[]> cursor =
+                     ((RedisKeyCommands) connection).scan(ScanOptions.scanOptions().match(pattern).count(200).build())) {
                 cursor.forEachRemaining(value -> keys.add(new String(value, StandardCharsets.UTF_8)));
             }
             return null;

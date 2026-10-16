@@ -14,10 +14,18 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 /** Order 域总部经营汇总客户端；Admin 不直连 Order 数据库。 */
 @Component
 public class OrderOverviewDomainClient {
+
+    /**
+     * 用 TypeReference 而不是 {@code convertValue(..., Map.class)}：后者传裸 {@code Class}，
+     * 赋给 {@code Map<String, Object>} 会产生「未经检查的转换」告警，且要先建树再转换。
+     */
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+
     private final RestClient client;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -48,7 +56,7 @@ public class OrderOverviewDomainClient {
         try {
             String response = client.get().uri(uri.toString()).header("X-Tenant-Context", token)
                     .retrieve().body(String.class);
-            return objectMapper.convertValue(objectMapper.readTree(response), Map.class);
+            return objectMapper.readValue(response, MAP_TYPE);
         } catch (RestClientResponseException e) {
             throw new ApiException(e.getStatusCode().value(), "ORDER_OVERVIEW_FAILED", "订单汇总查询失败");
         } catch (Exception e) {

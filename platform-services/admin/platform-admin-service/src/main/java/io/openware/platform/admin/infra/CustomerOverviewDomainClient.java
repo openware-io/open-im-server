@@ -13,10 +13,17 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import java.nio.charset.StandardCharsets;
-
+import com.fasterxml.jackson.core.type.TypeReference;
 /** Customer 总部汇总内部客户端；只传递已签名 TenantContext，不携带可伪造租户字段。 */
 @Component
 public class CustomerOverviewDomainClient {
+
+    /**
+     * 用 TypeReference 而不是 {@code convertValue(..., Map.class)}：后者传裸 {@code Class}，
+     * 赋给 {@code Map<String, Object>} 会产生「未经检查的转换」告警，且要先建树再转换。
+     * TypeReference 保留了泛型信息，直接把响应体反序列化成目标类型。
+     */
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
     private final RestClient client;
     private final ObjectMapper objectMapper = new ObjectMapper();
     public CustomerOverviewDomainClient(
@@ -47,7 +54,7 @@ public class CustomerOverviewDomainClient {
         try {
             String response = client.get().uri(uri.toString()).header("X-Tenant-Context", token)
                     .retrieve().body(String.class);
-            return objectMapper.convertValue(objectMapper.readTree(response), Map.class);
+            return objectMapper.readValue(response, MAP_TYPE);
         } catch (RestClientResponseException e) {
             throw new ApiException(e.getStatusCode().value(), "CUSTOMER_OVERVIEW_FAILED", "客户汇总查询失败");
         } catch (Exception e) {

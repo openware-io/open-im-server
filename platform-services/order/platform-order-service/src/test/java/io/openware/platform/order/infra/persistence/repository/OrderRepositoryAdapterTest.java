@@ -191,7 +191,7 @@ class OrderRepositoryAdapterTest {
     assertTrue(adapter.findByIds(List.of()).isEmpty());
     assertTrue(adapter.findByIds(null).isEmpty());
 
-    when(mapper.selectBatchIds(List.of(ORDER_ID))).thenReturn(List.of(po(ORDER_ID)));
+    when(mapper.selectByIds(List.of(ORDER_ID))).thenReturn(List.of(po(ORDER_ID)));
 
     List<Order> orders = adapter.findByIds(List.of(ORDER_ID));
 

@@ -67,7 +67,7 @@ public class OrderRepositoryAdapter implements OrderRepository {
             // 空集合不能下推：会拼出非法的 IN ()，调用方按「没有订单」处理。
             return List.of();
         }
-        List<OrderPo> rows = mapper.selectBatchIds(ids);
+        List<OrderPo> rows = mapper.selectByIds(ids);
         return rows == null ? List.of() : rows.stream().map(OrderRepositoryAdapter::toDomain).toList();
     }
 

@@ -60,6 +60,15 @@ public class TenantContextFilter extends OncePerRequestFilter {
                 .build().parseSignedClaims(token).getPayload();
     }
 
+    /**
+     * 验签后的 claims → 上下文。
+     *
+     * <p><b>为什么需要 {@code @SuppressWarnings("unchecked")}</b>：{@code TenantContext} 的
+     * {@code permissions} 是 {@code List<String>}，而 JJWT 只能按裸 {@code List.class} 取集合，
+     * 运行时无法校验元素类型，javac 因此报「未经检查的转换」。该抑制的范围仅限本方法
+     * （record 构造器调用），不影响其它位置；token 已在本类内验签，这是可信来源。
+     */
+    @SuppressWarnings("unchecked")
     private static TenantContext toContext(Claims claims) {
         long accountId = Long.parseLong(claims.getSubject());
         if (accountId <= 0) {

@@ -1100,7 +1100,9 @@ public class KtvSessionApplicationService {
             return java.util.Map.of();
         }
         java.util.Map<String, Long> prices = new java.util.LinkedHashMap<>();
-        node.fields().forEachRemaining(entry -> {
+        // Jackson 3：properties() 取代已过时的 fields()；返回 Set 而非 Iterator，
+        // 因此用 forEach 而非 forEachRemaining，插入顺序与写入口径不变。
+        node.properties().forEach(entry -> {
             long price = entry.getValue().asLong(0L);
             if (price > 0) {
                 prices.put(entry.getKey(), price);

@@ -141,6 +141,36 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <!-- 统一编译告警口径（standards/20：禁止业务模块自行漂移编译参数）。
+               开启后 javac 会把「已过时 API」与「未检查转换」报到构建日志；
+               不开启时 javac 静默，同一处过时 API 只能靠人肉发现——本仓的真实案例是
+               WebJsonConfig 使用 Spring 7 已弃用的 extendMessageConverters(List) 长期无人察觉。 -->
+          <showWarnings>true</showWarnings>
+          <compilerArgs>
+            <arg>-Xlint:deprecation</arg>
+            <arg>-Xlint:unchecked</arg>
+          </compilerArgs>
+          <!-- 让上述告警直接失败，而不是只出现在日志里。
+               动机是本仓的真实教训：WebJsonConfig 使用 Spring 7 已弃用的
+               extendMessageConverters(List) 长期无人察觉，因为
+               (a) javac 默认不报弃用、(b) java-deprecated-api-usage 门禁只 grep 源码里的
+               @Deprecated 注解，扫不到第三方（Spring/Jackson/MyBatis-Plus）的弃用。
+               编译器是唯一能看见第三方弃用的环节，所以由编译器把住这道门。
+               当前全 67 个模块主代码 javac 告警为 0，因此开启后不会挡住既有代码。 -->
+          <failOnWarning>true</failOnWarning>
+        </configuration>
+        <executions>
+          <!-- 只对生产源码（src/main/java）要求零告警，与 standards/20 的口径一致
+               （该条只约束 src/main/java）。测试代码不在同一严格度上，否则
+               测试里的 mock 泛型等噪声会挡住构建。 -->
+          <execution>
+            <id>default-testCompile</id>
+            <configuration>
+              <failOnWarning>false</failOnWarning>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

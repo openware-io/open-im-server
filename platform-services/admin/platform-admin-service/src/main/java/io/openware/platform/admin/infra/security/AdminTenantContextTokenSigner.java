@@ -118,7 +118,13 @@ public class AdminTenantContextTokenSigner {
    * @param token 会话中保存的运营上下文 Token
    * @return 解析出的租户上下文
    * @throws ApiException 401 + {@code SAAS_CONTEXT_INVALID}：Token 过期、签名/受众不符或结构损坏
+   *
+   * <p><b>为什么需要 {@code @SuppressWarnings("unchecked")}</b>：{@code TenantContext} 的
+   * {@code permissions} 是 {@code List<String>}，而 JJWT 只能按裸 {@code List.class} 取集合，
+   * 运行时无法校验元素类型，javac 因此报「未经检查的转换」。抑制范围仅限本方法
+   * （record 构造器调用）；Token 已在本类验证签名与受众，属可信来源。
    */
+  @SuppressWarnings("unchecked")
   public TenantContext verify(String token) {
     Claims claims = parseContextClaims(token);
     Number tenant = claims.get("tenantId", Number.class);

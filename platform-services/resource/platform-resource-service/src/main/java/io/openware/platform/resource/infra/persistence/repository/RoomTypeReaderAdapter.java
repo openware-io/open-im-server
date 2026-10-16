@@ -32,7 +32,7 @@ public class RoomTypeReaderAdapter implements RoomTypeReader {
     if (roomTypeIds == null || roomTypeIds.isEmpty()) {
       return List.of();
     }
-    return mapper.selectBatchIds(roomTypeIds).stream().map(this::toDomain).toList();
+    return mapper.selectByIds(roomTypeIds).stream().map(this::toDomain).toList();
   }
 
   private RoomType toDomain(RoomTypePo po) {

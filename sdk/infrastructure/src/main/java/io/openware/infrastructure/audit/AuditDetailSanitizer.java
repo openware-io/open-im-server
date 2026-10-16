@@ -81,9 +81,9 @@ public final class AuditDetailSanitizer {
   private static JsonNode scrub(JsonNode node) {
     if (node.isObject()) {
       ObjectNode result = MAPPER.createObjectNode();
-      java.util.Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
-      while (fields.hasNext()) {
-        Map.Entry<String, JsonNode> entry = fields.next();
+      // Jackson 3：properties() 取代已过时的 fields()；返回 Set<Entry> 而非 Iterator，
+      // 迭代语义与顺序（插入顺序）不变。直接用 for 遍历，不再自行 hasNext/next。
+      for (Map.Entry<String, JsonNode> entry : node.properties()) {
         String key = entry.getKey();
         String normalized = normalize(key);
         if (SECRET_KEYS.contains(normalized)) {

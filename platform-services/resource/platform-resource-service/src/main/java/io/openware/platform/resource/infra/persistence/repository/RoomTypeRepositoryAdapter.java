@@ -59,7 +59,7 @@ public class RoomTypeRepositoryAdapter implements RoomTypeRepository {
     if (ids == null || ids.isEmpty()) {
       return List.of();
     }
-    return mapper.selectBatchIds(ids).stream().map(this::toDomain).toList();
+    return mapper.selectByIds(ids).stream().map(this::toDomain).toList();
   }
 
   @Override

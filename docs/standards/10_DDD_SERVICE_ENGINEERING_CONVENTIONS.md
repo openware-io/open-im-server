@@ -359,6 +359,15 @@
 | `domain-model-purity` | `domain` 包内不得出现 `@TableName`/`@TableId`/`@TableField`/`@Entity`/`@Data`，不得 import `infra.*` 或 `*.persistence.*` |
 | `port-contract` | `domain.repository` 接口不得暴露 `Wrapper`/`PO`/`Mapper`/`IPage`，返回类型不得是 PO |
 | `po-containment` | `infra.persistence.po.*` 不得被 `api`/`application`/`domain` import |
+| `javac -Xlint` + `failOnWarning`（编译器门禁） | `src/main/java` 的「已过时 API」与「未检查转换」告警必须为 0 |
+
+**为什么弃用检测要由编译器把门**：`java-deprecated-api-usage` 脚本只 grep 源码里的 `@Deprecated` 注解，
+**扫不到第三方（Spring / Jackson / MyBatis-Plus / Spring Data Redis）的弃用**——而依赖升级造成的弃用
+恰恰都在这里。本仓的真实案例：`WebJsonConfig` 使用 Spring Framework 7 已标记「过时且待删除」的
+`extendMessageConverters(List)`，编译器能报，脚本门禁却永远是绿的。
+因此编译期开启 `-Xlint:deprecation -Xlint:unchecked`，并让**生产源码**的告警直接失败
+（`failOnWarning`；测试编译单独放宽，因为该条只约束 `src/main/java`）。
+新增第三方弃用时构建会失败并指出确切位置，修法只有两条：迁移到未弃用的 API，或显式抑制并写明理由。
 
 ## 应用服务规则
 

@@ -74,7 +74,7 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
     if (ids == null || ids.isEmpty()) {
       return List.of();
     }
-    return mapper.selectBatchIds(ids).stream().map(InventoryMaterialRepositoryAdapter::toDomain).toList();
+    return mapper.selectByIds(ids).stream().map(InventoryMaterialRepositoryAdapter::toDomain).toList();
   }
 
   @Override
