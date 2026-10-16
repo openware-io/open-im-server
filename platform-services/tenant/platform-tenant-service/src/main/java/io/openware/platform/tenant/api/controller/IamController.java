@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -80,7 +81,7 @@ public class IamController {
     }
 
     @GetMapping("/roles")
-    public List<RoleView> listRoles(@org.springframework.web.bind.annotation.RequestParam Long tenantId) {
+    public List<RoleView> listRoles(@RequestParam Long tenantId) {
         return roleRepository.listActiveByTenant(tenantId).stream().map(IamConverter::toView).toList();
     }
 

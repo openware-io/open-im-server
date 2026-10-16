@@ -4,6 +4,7 @@ import io.openware.platform.tenant.domain.authorization.ConsumerAuthorization;
 import io.openware.platform.tenant.domain.authorization.IamContext;
 import io.openware.platform.tenant.domain.authorization.RoleBinding;
 import io.openware.platform.tenant.domain.authorization.RoleScope;
+import io.openware.platform.tenant.domain.iam.model.MaskingRole;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,7 +39,7 @@ public interface IamAuthorizationRepository {
   boolean grantConsumerAuthorization(String appId, Long accountId, String scope);
 
   /** 脱敏权限管理：预置角色及其可见 PII 状态（跨租户只读）。 */
-  List<io.openware.platform.tenant.domain.iam.model.MaskingRole> findMaskingRoles();
+  List<MaskingRole> findMaskingRoles();
 
   /** 账号角色绑定视图（角色名 + 作用域 + 门店名，供运营人员列表展示）。 */
   List<RoleBinding> findRoleBindings(Long accountId);

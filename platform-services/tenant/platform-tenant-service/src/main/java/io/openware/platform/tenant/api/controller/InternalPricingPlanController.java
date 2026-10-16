@@ -3,6 +3,7 @@ package io.openware.platform.tenant.api.controller;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.PricingPlanConverter;
+import io.openware.platform.tenant.domain.pricing.model.PricingPlan;
 import io.openware.platform.tenant.api.dto.PricingPlanView;
 import io.openware.platform.tenant.application.PricingPlanApplicationService;
 import io.openware.platform.tenant.application.PricingPlanApplicationService.StoreScopeItem;
@@ -79,7 +80,7 @@ public class InternalPricingPlanController {
         return pricingPlanService.validateStoreScope(tenantId, req.businessType(), req.storeIds());
     }
 
-    private io.openware.platform.tenant.domain.pricing.model.PricingPlan save(long tenantId,
+    private PricingPlan save(long tenantId,
                                                                              CreatePricingRequest req) {
         return pricingPlanService.save(tenantId, req.tenantId(), req.storeId(), req.businessType(),
                 req.resourceType(), req.billingUnit(), req.incrementMinutes(), req.roundingDirection(),

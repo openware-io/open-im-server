@@ -7,6 +7,9 @@ import io.openware.platform.tenant.domain.authorization.RoleScope;
 import io.openware.platform.tenant.domain.authorization.repository.IamAuthorizationRepository;
 import io.openware.platform.tenant.domain.iam.model.MaskingRole;
 import io.openware.platform.tenant.infra.persistence.mapper.IamSnapshotMapper;
+import io.openware.platform.tenant.infra.persistence.row.IamContextRow;
+import io.openware.platform.tenant.infra.persistence.row.IamRoleBindingRow;
+import io.openware.platform.tenant.infra.persistence.row.IamRoleRow;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -69,7 +72,7 @@ public class IamAuthorizationRepositoryAdapter implements IamAuthorizationReposi
 
   @Override
   public List<RoleBinding> findRoleBindings(Long accountId) {
-    List<io.openware.platform.tenant.infra.persistence.row.IamRoleBindingRow> rows =
+    List<IamRoleBindingRow> rows =
         mapper.selectRoleBindings(accountId);
     if (rows == null || rows.isEmpty()) {
       return List.of();
@@ -104,13 +107,13 @@ public class IamAuthorizationRepositoryAdapter implements IamAuthorizationReposi
 
   @Override
   public List<IamContext> findContexts(Long accountId) {
-    List<io.openware.platform.tenant.infra.persistence.row.IamContextRow> rows = mapper.selectContexts(accountId);
+    List<IamContextRow> rows = mapper.selectContexts(accountId);
     return rows == null ? List.of() : rows.stream().map(IamAuthorizationRepositoryAdapter::toContext).toList();
   }
 
   @Override
   public List<RoleScope> findRoleScopes(Long accountId) {
-    List<io.openware.platform.tenant.infra.persistence.row.IamRoleRow> rows = mapper.selectRoles(accountId);
+    List<IamRoleRow> rows = mapper.selectRoles(accountId);
     if (rows == null) {
       return List.of();
     }
@@ -128,12 +131,12 @@ public class IamAuthorizationRepositoryAdapter implements IamAuthorizationReposi
 
   @Override
   public List<IamContext> findActiveStores(Long tenantId, Long organizationId) {
-    List<io.openware.platform.tenant.infra.persistence.row.IamContextRow> rows =
+    List<IamContextRow> rows =
         mapper.selectActiveStores(tenantId, organizationId);
     return rows == null ? List.of() : rows.stream().map(IamAuthorizationRepositoryAdapter::toContext).toList();
   }
 
-  private static IamContext toContext(io.openware.platform.tenant.infra.persistence.row.IamContextRow row) {
+  private static IamContext toContext(IamContextRow row) {
     return new IamContext(row.getTenantId(), row.getTenantName(), row.getOrganizationId(),
         row.getOrganizationName(), row.getStoreId(), row.getStoreName(), row.getScopeType(),
         row.getBusinessType(), row.getTimezone());
