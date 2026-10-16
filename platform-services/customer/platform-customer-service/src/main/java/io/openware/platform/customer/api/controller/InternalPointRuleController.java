@@ -4,8 +4,8 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.customer.api.dto.PointRuleConfigView;
 import io.openware.platform.customer.application.PointRuleConfigApplicationService;
-import io.openware.platform.customer.infra.persistence.po.CstPointRuleConfigPo;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,16 +30,16 @@ public class InternalPointRuleController {
     }
 
     @PutMapping
-    public CstPointRuleConfigPo save(@RequestBody SaveRequest body) {
+    public PointRuleConfigView save(@RequestBody SaveRequest body) {
         verify();
         TenantContext context = requireContext();
         Long storeId = body.storeId();
         if (storeId != null && storeId > 0 && context.storeId() != null && !storeId.equals(context.storeId())) {
             throw new ApiException(403, "STORE_SCOPE_FORBIDDEN", "配置门店不在当前签名作用域");
         }
-        return service.save(new PointRuleConfigApplicationService.SaveCommand(context.tenantId(), storeId,
-                body.businessType(), body.earnRate(), body.redeemRate(), body.expiryDays(), body.redeemCapPoints(),
-                body.version(), body.idempotencyKey()));
+        return PointRuleConfigView.from(service.save(new PointRuleConfigApplicationService.SaveCommand(
+                context.tenantId(), storeId, body.businessType(), body.earnRate(), body.redeemRate(),
+                body.expiryDays(), body.redeemCapPoints(), body.version(), body.idempotencyKey())));
     }
 
     private TenantContext requireContext() {
