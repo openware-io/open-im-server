@@ -19,7 +19,7 @@
 | KTV | `domain/ktv/model/{KtvSession,KtvServerSession}` | `KtvSessionRepository` / `KtvServerSessionRepository` | 端口保留全部既有 CAS 语句 |
 | 预约 | `domain/reservation/model/{Reservation,ReservationRuleConfig,ReservationStatus}` | `ReservationRepository` / `ReservationRuleConfigRepository` | 状态集合在 `ReservationStatus` 上定义一次 |
 | 订单核心 | `domain/order/model/{Order,OrderItem,OrderVoidApproval,VoidRuleConfig}` | `OrderRepository` / `OrderItemRepository` / `OrderVoidApprovalRepository` / `VoidRuleConfigRepository` / `DailySerialRepository` | `Order` 是本域枢纽 |
-| 跨上下文只读 | — | `domain/order/port/MemberLookupProvider` | 会员查询；**只读端口归调用方所有** |
+| 跨上下文只读 | — | `domain/order/repository/MemberLookupProvider` | 会员查询；**只读端口归调用方所有** |
 
 ## 2. 订单聚合与 13 个非列字段（本域最容易踩的坑）
 

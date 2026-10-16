@@ -12,7 +12,7 @@ class FriendNotificationArchitectureTest {
   @Test
   void shouldKeepFriendDomainFreeOfInfrastructureDependencies() throws IOException {
     String source = Files.readString(Path.of(
-        "src/main/java/io/openware/im/user/domain/social/port/FriendEventOutbox.java"));
+        "src/main/java/io/openware/im/user/domain/social/repository/FriendEventOutbox.java"));
     String publisher = Files.readString(
         Path.of("src/main/java/io/openware/im/user/infra/messaging/outbox/OutboxFriendEventAppender.java"));
 

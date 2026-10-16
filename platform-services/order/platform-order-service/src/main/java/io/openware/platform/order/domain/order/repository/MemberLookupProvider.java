@@ -9,7 +9,7 @@ import java.util.Optional;
  * —— order 域需要「当前账号是哪个会员」来收紧读路径（{@code /me/orders}、消费者会话的订单详情/账单/加项），
  * 但会员档案的写入与生命周期归 customer 域。端口只声明 order 域**需要什么**，
  * 由 infra 用一个只读查询适配 customer 域的表；customer 域因此不必知道 order 域的存在
- * （同 {@code domain.ktv.port.KtvPricingPlanProvider} 对计价域的取舍）。
+ * （同 {@code domain.ktv.repository.KtvPricingPlanProvider} 对计价域的取舍）。
  *
  * <p><b>只读</b>：没有任何写方法。会员档案的创建/绑定走 customer 域自己的入口，
  * order 域不会、也不应该在这里创建会员。
