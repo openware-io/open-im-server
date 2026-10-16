@@ -1,0 +1,158 @@
+package io.openware.platform.tenant.application;
+
+import io.openware.common.exception.ApiException;
+import io.openware.platform.tenant.domain.iam.model.Permission;
+import io.openware.platform.tenant.domain.iam.model.Role;
+import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
+import io.openware.platform.tenant.domain.iam.repository.PermissionRepository;
+import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
+import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
+import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * IAM 授权编排（角色-权限授予、账号-角色绑定）。
+ *
+ * <p>领域规则不在这里：作用域白名单判定在 {@link Permission#grantableTo}，作用域与归属字段的形状约束在
+ * {@link UserRoleBinding#scopeShapeValid}。本服务只做"取事实 → 交给领域判定 → 落库 → 失效缓存"的编排，
+ * 这正是应用服务应有的职责边界（standards/10）。
+ */
+@Service
+public class IamAuthorizationApplicationService {
+
+  /** 授权目标作用域非法（越出权限白名单，或作用域与归属字段不自洽）。 */
+  private static final String CODE_INVALID_GRANT_SCOPE = "INVALID_GRANT_SCOPE";
+
+  private static final String CODE_ROLE_NOT_FOUND = "ROLE_NOT_FOUND";
+
+  private static final String CODE_PERMISSION_NOT_FOUND = "PERMISSION_NOT_FOUND";
+
+  private final RoleRepository roleRepository;
+  private final PermissionRepository permissionRepository;
+  private final RoleGrantRepository roleGrantRepository;
+  private final UserRoleRepository userRoleRepository;
+  private final PermissionSnapshotProvider permissionSnapshotProvider;
+
+  public IamAuthorizationApplicationService(RoleRepository roleRepository,
+                                            PermissionRepository permissionRepository,
+                                            RoleGrantRepository roleGrantRepository,
+                                            UserRoleRepository userRoleRepository,
+                                            PermissionSnapshotProvider permissionSnapshotProvider) {
+    this.roleRepository = roleRepository;
+    this.permissionRepository = permissionRepository;
+    this.roleGrantRepository = roleGrantRepository;
+    this.userRoleRepository = userRoleRepository;
+    this.permissionSnapshotProvider = permissionSnapshotProvider;
+  }
+
+  /**
+   * 用给定权限集合整体替换角色的授予关系。
+   *
+   * <p>校验顺序是先"权限是否都存在"再"是否都可授予"：请求了不存在的权限标识必须拒绝，
+   * 不能静默忽略——否则前端以为授予成功，实际少授了。
+   */
+  @Transactional
+  public Role assignPermissions(Long roleId, List<Long> permissionIds) {
+    Role role = requireActiveRole(roleId);
+    List<Long> ids = permissionIds == null ? List.of() : permissionIds;
+    if (!ids.isEmpty()) {
+      List<Permission> permissions = permissionRepository.findByIds(ids);
+      if (permissions.size() != ids.size()
+          || permissions.stream().anyMatch(permission -> !permission.grantableTo(role.scopeLevel()))) {
+        throw invalidGrantScope();
+      }
+    }
+    roleGrantRepository.replaceRolePermissions(roleId, ids);
+    // 角色-权限变更影响权限快照：逐出缓存
+    permissionSnapshotProvider.evictAll();
+    return role;
+  }
+
+  /**
+   * 切换单个权限的授予状态。
+   *
+   * <p>{@code granted} 为真时授予、为假时撤销，两者都幂等。
+   */
+  @Transactional
+  public Role togglePermission(Long roleId, String permissionCode, boolean granted) {
+    Permission permission = permissionRepository.findByCode(permissionCode)
+        .orElseThrow(() -> new ApiException(404, CODE_PERMISSION_NOT_FOUND, "权限不存在"));
+    Role role = roleRepository.findById(roleId).orElse(null);
+    if (role == null || !permission.grantableTo(role.scopeLevel())) {
+      throw invalidGrantScope();
+    }
+    if (granted) {
+      roleGrantRepository.grant(roleId, permission.id());
+    } else {
+      roleGrantRepository.revoke(roleId, permission.id());
+    }
+    permissionSnapshotProvider.evictAll();
+    return role;
+  }
+
+  /** 角色已授予的权限编码（按标识集合解析成对人可读的编码）。 */
+  @Transactional(readOnly = true)
+  public List<String> listRolePermissionCodes(Long roleId) {
+    List<Long> ids = roleGrantRepository.findPermissionIdsByRole(roleId);
+    if (ids.isEmpty()) {
+      return List.of();
+    }
+    return permissionRepository.findByIds(ids).stream().map(Permission::code).toList();
+  }
+
+  /**
+   * 给账号绑定角色。
+   *
+   * <p>三重边界：角色必须存在且可用、绑定的作用域类型必须与角色作用域层级一致、
+   * 归属字段必须与该作用域自洽（平台级不得挂租户等）。
+   */
+  @Transactional
+  public UserRoleBinding assignUserRole(Long accountId, Long tenantId, Long organizationId, Long storeId,
+                                        Long roleId, String scopeType) {
+    String effectiveScope = scopeType == null || scopeType.isBlank()
+        ? UserRoleBinding.SCOPE_TENANT : scopeType;
+    Role role = roleRepository.findById(roleId).orElse(null);
+    if (role == null || !role.active() || !role.hasScopeLevel(effectiveScope)
+        || !UserRoleBinding.scopeShapeValid(effectiveScope, tenantId, organizationId, storeId)) {
+      throw invalidGrantScope();
+    }
+    UserRoleBinding binding = userRoleRepository.insert(
+        UserRoleBinding.create(accountId, tenantId, organizationId, storeId, roleId, effectiveScope));
+    // iam_user_role 写操作：逐出该账号权限快照缓存
+    permissionSnapshotProvider.evict(accountId);
+    return binding;
+  }
+
+  /**
+   * 撤销账号-角色绑定（软删 status → REVOKED），返回被撤销绑定归属的账号。
+   *
+   * <p>账号要返回给调用方：它既是审计详情的内容，也是快照逐出的依据——撤销只逐出该账号的缓存，
+   * 而不是像角色-权限变更那样全量逐出（那会把所有账号的快照一并打掉）。
+   *
+   * @return 归属账号；绑定不存在时为空，调用方据此返回 404 而不是静默成功
+   */
+  @Transactional
+  public Long revokeUserRole(Long userRoleId) {
+    Long accountId = userRoleRepository.findAccountIdById(userRoleId).orElse(null);
+    if (accountId == null) {
+      return null;
+    }
+    userRoleRepository.revoke(userRoleId);
+    permissionSnapshotProvider.evict(accountId);
+    return accountId;
+  }
+
+  private Role requireActiveRole(Long roleId) {
+    Role role = roleRepository.findById(roleId).orElse(null);
+    if (role == null || !role.active()) {
+      throw new ApiException(404, CODE_ROLE_NOT_FOUND, "角色不存在");
+    }
+    return role;
+  }
+
+  private static ApiException invalidGrantScope() {
+    return new ApiException(400, CODE_INVALID_GRANT_SCOPE, "权限或角色不允许授予目标作用域");
+  }
+}
