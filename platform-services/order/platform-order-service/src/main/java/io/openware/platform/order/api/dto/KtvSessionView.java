@@ -53,6 +53,15 @@ import java.time.LocalDateTime;
  * @param version                  乐观锁版本号
  * @param elapsedSeconds           非列：已计费时长（秒），仅开台中（OPEN/PAUSED）有值
  * @param estimatedRoomFee         非列：当前包厢计时费（最小货币单位），仅开台中且按时长计费时有值
+ * @param createdBy                创建操作人；领域模型不承载审计字段，此处恒为 {@code null}
+ * @param createdAt                创建时间；同上
+ * @param updatedBy                最后更新操作人；同上
+ * @param updatedAt                最后更新时间；同上
+ *
+ * <p><b>为什么保留四个恒为 null 的审计字段</b>：它们原本就在会话响应里（原实现直接序列化持久化对象），
+ * 且 {@code docs/contracts/openapi/platform-order-service.json} 仍列着它们。删字段是**破坏已发布契约**，
+ * 而按 standards/10 审计字段又不该进领域模型——两者相权，保留字段名、值取 null 与其余八个切片
+ * （钱包 / 积分 / 商品 / 库存 / 会员）一致；真值可以在适配器读回，属于另一次有意识的变更。
  */
 public record KtvSessionView(
     Long id,
@@ -81,7 +90,11 @@ public record KtvSessionView(
     String status,
     Integer version,
     Long elapsedSeconds,
-    Long estimatedRoomFee) {
+    Long estimatedRoomFee,
+    Long createdBy,
+    LocalDateTime createdAt,
+    Long updatedBy,
+    LocalDateTime updatedAt) {
 
   /** 由领域模型装配，不带实时估算（未开台/已结台，或调用方不需要展示计时）。 */
   public static KtvSessionView from(KtvSession session) {
@@ -105,6 +118,6 @@ public record KtvSessionView(
         session.reservedStartAt(), session.reservedEndAt(), session.openedAt(), session.closedAt(),
         session.billingUnit(), session.billingStartAt(), session.freeWaitMinutes(), session.pausedSeconds(),
         session.pauseStartedAt(), session.overtimeRate(), session.billingRuleSnapshotJson(), session.status(),
-        session.version(), elapsedSeconds, estimatedRoomFee);
+        session.version(), elapsedSeconds, estimatedRoomFee, null, null, null, null);
   }
 }

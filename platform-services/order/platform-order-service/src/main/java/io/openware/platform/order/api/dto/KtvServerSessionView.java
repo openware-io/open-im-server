@@ -63,7 +63,11 @@ public record KtvServerSessionView(
     String currencyCode,
     String priceSnapshotJson,
     String status,
-    Integer version) {
+    Integer version,
+    Long createdBy,
+    LocalDateTime createdAt,
+    Long updatedBy,
+    LocalDateTime updatedAt) {
 
   /** 由领域模型装配。 */
   public static KtvServerSessionView from(KtvServerSession session) {
@@ -75,6 +79,6 @@ public record KtvServerSessionView(
         session.orderedAt(), session.startedAt(), session.endedAt(), session.billingUnit(),
         session.incrementMinutes(), session.roundingDirection(), session.pricePerInc(),
         session.durationSeconds(), session.durationMinutes(), session.totalAmount(), session.currencyCode(),
-        session.priceSnapshotJson(), session.status(), session.version());
+        session.priceSnapshotJson(), session.status(), session.version(), null, null, null, null);
   }
 }
