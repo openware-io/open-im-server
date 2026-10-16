@@ -2,7 +2,7 @@
 
 > 本文档仅适用于 **Android 直装 APK**。Windows 桌面端 EXE 发版见 [`RELEASE_RUNBOOK.md`](../RELEASE_RUNBOOK.md) 第 5.6 节；Windows 同样必须在后台创建并提交客户端发布记录。
 > 对 Android APK 而言，本文档是唯一、可执行的发版操作手册。任何 AI 或人类执行 Android 发版时，先读本文档，再直接运行快捷脚本，不要自行推断打包命令或版本规则。
-> 打包命令以 [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。
+> 打包命令以 [open-chat-app/BUILD.md](https://github.com/openware-io/open-chat-app/blob/develop/2.2.0-auth/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。
 > 治理规则（版本命名、灰度、审计、安全门禁）见 [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md)。
 
 ## 0. 目标与适用范围
@@ -14,7 +14,7 @@
 **非目标**：
 - 不覆盖 Windows 桌面端 EXE 发版（见 [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) 第 5.6 节）；
 - 不覆盖 Google Play 上架（AAB）；
-- 不替代打包命令的权威来源：命令以 [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) 为准；
+- 不替代打包命令的权威来源：命令以 [open-chat-app/BUILD.md](https://github.com/openware-io/open-chat-app/blob/develop/2.2.0-auth/BUILD.md) 为准；
 - 不定义治理规则本身（版本命名、灰度、审计、安全门禁见 [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md)）。
 
 ## 0.1 术语与前置假设
@@ -214,6 +214,6 @@ cd open-chat-app
 | --- | --- | --- |
 | 依赖 | [14_CLIENT_RELEASE_GOVERNANCE.md](14_CLIENT_RELEASE_GOVERNANCE.md) | 版本命名、渠道、灰度、审计与安全门禁的规则来源 |
 | 引用 | [RELEASE_RUNBOOK](../RELEASE_RUNBOOK.md) | 桌面端发版（第 5.6 节）与后端/后台/官网部署（第 4/6/7 节） |
-| 引用 | [open-chat-app/BUILD.md](../../../open-chat-app/BUILD.md) | 打包命令的权威来源 |
+| 引用 | [open-chat-app/BUILD.md](https://github.com/openware-io/open-chat-app/blob/develop/2.2.0-auth/BUILD.md) | 打包命令的权威来源 |
 | 关联 | [20_MAVEN_ENGINEERING_CONVENTIONS.md](20_MAVEN_ENGINEERING_CONVENTIONS.md) | 后端版本治理；客户端与后端版本各自独立 bump |
 | 关联 | [43_E2E_TESTING_CONVENTIONS.md](43_E2E_TESTING_CONVENTIONS.md) | 发版前的端到端验收与真实设备要求 |
