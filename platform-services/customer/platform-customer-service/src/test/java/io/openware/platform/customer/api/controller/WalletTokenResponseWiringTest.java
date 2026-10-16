@@ -2,7 +2,6 @@ package io.openware.platform.customer.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -13,16 +12,20 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.customer.api.controller.MemberController.MemberMeResponse;
+import io.openware.platform.customer.api.dto.WalletAccountView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.wallet.model.WalletAccount;
+import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient.WalletTokenConfig;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -32,6 +35,9 @@ import org.junit.jupiter.api.Test;
 /**
  * 钱包展示字段的接线回归：C 端「余额 / 我的资产 / 流水」与后台「会员钱包 / 会员流水」响应
  * 必须走 {@link WalletTokenDisplayService} 补上 {@code tokenAmount} / {@code tokenBrandName}。
+ *
+ * <p>控制器现在返回 API 视图（{@link WalletAccountView} / {@link WalletLedgerPageView}），
+ * 领域模型经 {@code WalletAccountView.from(...)} 转换后再补展示字段；本类断言的就是这条接线。
  */
 class WalletTokenResponseWiringTest {
 
@@ -67,25 +73,26 @@ class WalletTokenResponseWiringTest {
   void meWalletResponseCarriesTokenFields() {
     when(walletService.balance(MEMBER_ID)).thenReturn(account(100L, 0L));
 
-    CstWalletAccountPo wallet = myAssetsController.wallet();
+    WalletAccountView wallet = myAssetsController.wallet();
 
-    assertEquals("100", wallet.getTokenAmount());
-    assertEquals("A380币", wallet.getTokenBrandName());
-    assertEquals(100L, wallet.getAvailableAmount());
+    assertEquals("100", wallet.tokenAmount());
+    assertEquals("A380币", wallet.tokenBrandName());
+    assertEquals(100L, wallet.availableAmount());
   }
 
   /** C 端流水（GET /me/wallet/ledger）。 */
   @Test
   void meWalletLedgerResponseCarriesTokenFieldsPerRow() {
-    Page<CstWalletLedgerPo> page = new Page<>(1, 20, 1);
-    page.setRecords(List.of(ledger(250L, 250L)));
+    LedgerPage page = ledgerPage(ledger(250L, 250L));
     when(walletService.ledger(MEMBER_ID, 1L, 20L)).thenReturn(page);
 
-    Page<CstWalletLedgerPo> result = myAssetsController.walletLedger(1L, 20L);
+    WalletLedgerPageView result = myAssetsController.walletLedger(1L, 20L);
 
-    assertSame(page, result);
-    assertEquals("250", result.getRecords().get(0).getTokenAmount());
-    assertEquals("A380币", result.getRecords().get(0).getTokenBrandName());
+    assertEquals(1, result.records().size());
+    assertEquals(1L, result.total());
+    assertEquals(1L, result.current());
+    assertEquals("250", result.records().get(0).tokenAmount());
+    assertEquals("A380币", result.records().get(0).tokenBrandName());
   }
 
   /** C 端「我的资产」（GET /business/members/me）内嵌的钱包对象同样带展示字段。 */
@@ -96,10 +103,10 @@ class WalletTokenResponseWiringTest {
 
     MemberMeResponse me = memberController.me();
 
-    assertEquals("100", me.wallet().getTokenAmount());
-    assertEquals("A380币", me.wallet().getTokenBrandName());
+    assertEquals("100", me.wallet().tokenAmount());
+    assertEquals("A380币", me.wallet().tokenBrandName());
     // 冻结 500 不影响可用代币展示口径，且冻结金额字段原样保留
-    assertEquals(500L, me.wallet().getFrozenAmount());
+    assertEquals(500L, me.wallet().frozenAmount());
     // 积分仍是数量口径：只有个数，没有币种/代币字段
     assertEquals(1200L, me.points().getAvailablePoints());
   }
@@ -108,13 +115,11 @@ class WalletTokenResponseWiringTest {
   @Test
   void adminMemberWalletAndLedgerCarryTokenFields() {
     when(walletService.balance(MEMBER_ID)).thenReturn(account(300L, 0L));
-    Page<CstWalletLedgerPo> page = new Page<>(1, 20, 1);
-    page.setRecords(List.of(ledger(300L, 300L)));
-    when(walletService.ledger(MEMBER_ID, 1L, 20L)).thenReturn(page);
+    when(walletService.ledger(MEMBER_ID, 1L, 20L)).thenReturn(ledgerPage(ledger(300L, 300L)));
 
-    assertEquals("300", memberController.wallet(MEMBER_ID).getTokenAmount());
+    assertEquals("300", memberController.wallet(MEMBER_ID).tokenAmount());
     assertEquals("300", memberController.walletLedger(MEMBER_ID, 1L, 20L)
-        .getRecords().get(0).getTokenAmount());
+        .records().get(0).tokenAmount());
   }
 
   /** 租户配置读取失败时，接线仍要给出缺省品牌与缺省比例换算的数量（不让响应缺字段）。 */
@@ -123,10 +128,10 @@ class WalletTokenResponseWiringTest {
     when(client.resolve(TENANT_ID)).thenReturn(WalletTokenConfig.DEFAULT);
     when(walletService.balance(MEMBER_ID)).thenReturn(account(100L, 0L));
 
-    CstWalletAccountPo wallet = memberController.wallet(MEMBER_ID);
+    WalletAccountView wallet = memberController.wallet(MEMBER_ID);
 
-    assertEquals("A380币", wallet.getTokenBrandName());
-    assertEquals("100", wallet.getTokenAmount());
+    assertEquals("A380币", wallet.tokenBrandName());
+    assertEquals("100", wallet.tokenAmount());
   }
 
   /**
@@ -135,17 +140,12 @@ class WalletTokenResponseWiringTest {
    */
   @Test
   void zeroWalletViewIsMarkedNotOpened() {
-    CstWalletAccountPo zero = new CstWalletAccountPo();
-    zero.setCustomerId(MEMBER_ID);
-    zero.setCurrencyCode("USD");
-    zero.setAvailableAmount(0L);
-    zero.setFrozenAmount(0L);
-    when(walletService.balance(MEMBER_ID)).thenReturn(zero);
+    when(walletService.balance(MEMBER_ID)).thenReturn(zeroAccount());
 
-    CstWalletAccountPo wallet = memberController.wallet(MEMBER_ID);
+    WalletAccountView wallet = memberController.wallet(MEMBER_ID);
 
-    assertFalse(wallet.getAccountOpened(), "没有账户行 = 未开立");
-    assertEquals("0", wallet.getTokenAmount());
+    assertFalse(wallet.accountOpened(), "没有账户行 = 未开立");
+    assertEquals("0", wallet.tokenAmount());
   }
 
   /** 已开立账户的响应标记 {@code accountOpened=true}。 */
@@ -153,9 +153,9 @@ class WalletTokenResponseWiringTest {
   void openedWalletViewIsMarkedOpened() {
     when(walletService.balance(MEMBER_ID)).thenReturn(account(300L, 0L));
 
-    CstWalletAccountPo wallet = memberController.wallet(MEMBER_ID);
+    WalletAccountView wallet = memberController.wallet(MEMBER_ID);
 
-    assertTrue(wallet.getAccountOpened(), "有账户行 = 已开立");
+    assertTrue(wallet.accountOpened(), "有账户行 = 已开立");
   }
 
   /**
@@ -193,23 +193,24 @@ class WalletTokenResponseWiringTest {
     return po;
   }
 
-  private static CstWalletAccountPo account(Long available, Long frozen) {
-    CstWalletAccountPo po = new CstWalletAccountPo();
-    po.setId(1L);
-    po.setCustomerId(MEMBER_ID);
-    po.setCurrencyCode("USD");
-    po.setAvailableAmount(available);
-    po.setFrozenAmount(frozen);
-    return po;
+  /** 已开户的领域账户 → 控制器入参。 */
+  private static WalletAccount account(Long available, Long frozen) {
+    return new WalletAccount(1L, TENANT_ID, MEMBER_ID, 1L, "USD", available, frozen,
+        null, null, true, WalletAccount.STATUS_ACTIVE, 0);
   }
 
-  private static CstWalletLedgerPo ledger(long amount, long balanceAfter) {
-    CstWalletLedgerPo po = new CstWalletLedgerPo();
-    po.setId(1L);
-    po.setAmount(amount);
-    po.setBalanceAfter(balanceAfter);
-    po.setCurrencyCode("USD");
-    return po;
+  /** 零额只读视图：没有账户行，{@code id == null}。 */
+  private static WalletAccount zeroAccount() {
+    return WalletAccount.zeroFor(MEMBER_ID, 1L, "USD");
+  }
+
+  private static LedgerPage ledgerPage(WalletLedgerEntry... rows) {
+    return new LedgerPage(List.of(rows), rows.length);
+  }
+
+  private static WalletLedgerEntry ledger(long amount, long balanceAfter) {
+    return new WalletLedgerEntry(1L, TENANT_ID, null, 1L, "RECHARGE", amount, balanceAfter, "USD",
+        null, null, null, null, null, LocalDateTime.now());
   }
 
   private static CstPointAccountPo pointAccount() {

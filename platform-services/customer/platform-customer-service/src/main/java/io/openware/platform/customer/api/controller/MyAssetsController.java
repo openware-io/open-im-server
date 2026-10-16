@@ -1,17 +1,17 @@
 package io.openware.platform.customer.api.controller;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.customer.api.dto.WalletAccountView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.MemberPointsView;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -42,21 +42,21 @@ public class MyAssetsController {
   }
 
   @GetMapping("/wallet")
-  public CstWalletAccountPo wallet() {
+  public WalletAccountView wallet() {
     CstMemberPo member = currentMember();
     // 币种不再硬编码 CNY：取当时租户币种（缺省 USD，16_CURRENCY_CONVENTIONS §1/§2）。
     // 储值账户懒初始化：没有账户即余额 0（零额只读视图），不因为访问资产页就落库建账户。
-    return walletTokenDisplayService.decorate(walletService.balance(member.getId()));
+    return walletTokenDisplayService.decorate(WalletAccountView.from(walletService.balance(member.getId())));
   }
 
   @GetMapping("/wallet/ledger")
-  public Page<CstWalletLedgerPo> walletLedger(@RequestParam(defaultValue = "1") long page,
-                                               @RequestParam(defaultValue = "20") long pageSize) {
+  public WalletLedgerPageView walletLedger(@RequestParam(defaultValue = "1") long page,
+                                           @RequestParam(defaultValue = "20") long pageSize) {
     TenantContext context = TenantContextHolder.get();
-    Page<CstWalletLedgerPo> ledger = context == null || context.storeId() == null
+    LedgerPage ledger = context == null || context.storeId() == null
         ? walletService.ledger(currentMember().getId(), page, pageSize)
         : walletService.ledger(currentMember().getId(), context.storeId(), page, pageSize);
-    return walletTokenDisplayService.decorate(ledger);
+    return walletTokenDisplayService.decorate(ledger, page, pageSize);
   }
 
   @GetMapping("/points")

@@ -11,12 +11,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.customer.api.dto.WalletAccountView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView;
+import io.openware.platform.customer.domain.wallet.model.WalletAccount;
+import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient.WalletTokenConfig;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointLedgerPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +28,9 @@ import org.junit.jupiter.api.Test;
 /**
  * 三端共享的响应契约（序列化层）：钱包响应新增的 {@code tokenAmount} 必须是<b>纯数量字符串</b>
  * （无货币符号/币种），原货币字段保持数值语义；积分响应不含币种、不含 tokenAmount。
+ *
+ * <p>输入是领域模型 / 端口分页，输出是 API 视图（{@link WalletAccountView} /
+ * {@link WalletLedgerPageView}）——契约断言因此作用在<b>真正被序列化的那个对象</b>上。
  */
 class WalletTokenResponseContractTest {
 
@@ -43,13 +50,9 @@ class WalletTokenResponseContractTest {
   void walletAccountJsonCarriesTokenQuantityAndKeepsMoneyFields() throws Exception {
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, 1L, 1));
     when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
-    CstWalletAccountPo account = new CstWalletAccountPo();
-    account.setId(1L);
-    account.setCustomerId(7L);
-    account.setCurrencyCode("USD");
-    account.setAvailableAmount(100L);
-    account.setFrozenAmount(0L);
-    displayService.decorate(account);
+    WalletAccountView account = displayService.decorate(WalletAccountView.from(
+        new WalletAccount(1L, null, 7L, null, "USD", 100L, 0L, null, null, true,
+            WalletAccount.STATUS_ACTIVE, 0)));
 
     String json = objectMapper.writeValueAsString(account);
     JsonNode node = objectMapper.readTree(json);
@@ -71,18 +74,12 @@ class WalletTokenResponseContractTest {
   void walletLedgerJsonCarriesTokenQuantityPerRow() throws Exception {
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, 1L, 1));
     when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("皇冠币", 200L));
-    Page<CstWalletLedgerPo> page = new Page<>(1, 20, 1);
-    CstWalletLedgerPo row = new CstWalletLedgerPo();
-    row.setId(9L);
-    row.setEntryType("RECHARGE");
-    row.setAmount(50L);
-    row.setBalanceAfter(50L);
-    row.setCurrencyCode("USD");
-    page.setRecords(List.of(row));
-    displayService.decorate(page);
+    WalletLedgerEntry row = new WalletLedgerEntry(9L, null, null, 1L, "RECHARGE", 50L, 50L, "USD",
+        null, null, null, null, null, LocalDateTime.now());
+    WalletLedgerPageView page = displayService.decorate(new LedgerPage(List.of(row), 1L), 1L, 20L);
 
-    JsonNode record = objectMapper.readTree(objectMapper.writeValueAsString(page))
-        .path("records").get(0);
+    JsonNode pageNode = objectMapper.readTree(objectMapper.writeValueAsString(page));
+    JsonNode record = pageNode.path("records").get(0);
 
     assertTrue(record.path("tokenAmount").isTextual());
     assertEquals("100", record.path("tokenAmount").asText()); // 50 最小单位 ÷ 100 × 200 = 100
@@ -90,6 +87,11 @@ class WalletTokenResponseContractTest {
     assertEquals(50L, record.path("amount").asLong());
     assertEquals(50L, record.path("balanceAfter").asLong());
     assertEquals("USD", record.path("currencyCode").asText());
+    // 分页外形照搬原 MyBatis-Plus Page 的字段名（records/total/size/current/pages）
+    assertEquals(1L, pageNode.path("total").asLong());
+    assertEquals(20L, pageNode.path("size").asLong());
+    assertEquals(1L, pageNode.path("current").asLong());
+    assertEquals(1L, pageNode.path("pages").asLong());
   }
 
   /** 积分响应：只有积分「个数」，不含币种、不含 tokenAmount（积分既非货币也非储值代币）。 */

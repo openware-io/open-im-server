@@ -2,7 +2,7 @@ package io.openware.platform.customer.api.controller;
 
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
+import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -33,20 +33,22 @@ public class WalletAdminController {
 
     /** 储值充值（账本 RECHARGE，幂等）。 */
     @PostMapping("/recharge")
-    public CstWalletAccountPo recharge(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+    public WalletAccountView recharge(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                        @RequestBody RechargeRequest req) {
         PermissionGuard.require("wallet.recharge");
-        return walletTokenDisplayService.decorate(walletService.recharge(requireStoreContext(), req.customerId(), req.amount(),
-                req.currency(), req.paymentMethod(), req.referenceNo(), idempotencyKey));
+        return walletTokenDisplayService.decorate(WalletAccountView.from(walletService.recharge(requireStoreContext(),
+                req.customerId(), req.amount(), req.currency(), req.paymentMethod(), req.referenceNo(),
+                idempotencyKey)));
     }
 
     /** 储值退还（账本 REFUND，审批占位）。 */
     @PostMapping("/refund")
-    public CstWalletAccountPo refund(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+    public WalletAccountView refund(@RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
                                      @RequestBody RefundRequest req) {
         PermissionGuard.require("wallet.refund");
-        return walletTokenDisplayService.decorate(
-                walletService.refund(requireStoreContext(), req.customerId(), req.amount(), req.reason(), idempotencyKey));
+        return walletTokenDisplayService.decorate(WalletAccountView.from(
+                walletService.refund(requireStoreContext(), req.customerId(), req.amount(), req.reason(),
+                        idempotencyKey)));
     }
 
     private Long requireStoreContext() {

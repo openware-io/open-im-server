@@ -1,14 +1,17 @@
 package io.openware.platform.customer.application;
 
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.customer.api.dto.WalletAccountView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView.WalletLedgerRowView;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient.WalletTokenConfig;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
@@ -72,37 +75,38 @@ public class WalletTokenDisplayService {
     }
 
     /**
-     * 为钱包账户响应补充代币展示字段（{@code tokenAmount} / {@code tokenBrandName}）与
-     * {@code accountOpened}（是否已开立真实账户行：{@code id != null}）。
+     * 为钱包账户响应补充代币展示字段（{@code tokenAmount} / {@code tokenBrandName}）。
      * 货币字段（availableAmount / frozenAmount / currencyCode）原样不动；冻结金额不影响可用代币口径。
      *
-     * <p>懒初始化下「没有账户」= 零额只读视图（{@code id == null}）：此时 {@code accountOpened=false}，
-     * 界面可显示「未开立」而不是把它当成一个余额为 0 的真实账户。
+     * <p>{@code accountOpened} 由视图按 {@code id != null} 推导：懒初始化下「没有账户」= 零额只读视图，
+     * 此时为 false，界面可显示「未开立」而不是把它当成一个余额为 0 的真实账户。
      */
-    public CstWalletAccountPo decorate(CstWalletAccountPo account) {
+    public WalletAccountView decorate(WalletAccountView account) {
         if (account == null) {
             return null;
         }
         WalletTokenConfig config = currentConfig();
-        account.setTokenBrandName(config.brandName());
-        account.setTokenAmount(tokenAmount(account.getAvailableAmount(), config.ratio()));
-        account.setAccountOpened(account.getId() != null);
-        return account;
+        return account.withTokenDisplay(tokenAmount(account.availableAmount(), config.ratio()),
+                config.brandName());
     }
 
     /**
      * 为钱包流水分页补充代币展示字段：每行按本笔发生额（{@code amount}）换算数量。
      * 金额字段（amount / balanceAfter / currencyCode）原样不动。
+     *
+     * <p>返回新的一页而不是就地修改：领域条目是不可变 record，改不了也不该改。
      */
-    public Page<CstWalletLedgerPo> decorate(Page<CstWalletLedgerPo> page) {
-        if (page == null || page.getRecords() == null) {
-            return page;
+    public WalletLedgerPageView decorate(LedgerPage page, long pageNo, long pageSize) {
+        WalletLedgerPageView view = WalletLedgerPageView.from(page, pageNo, pageSize);
+        if (view.records() == null || view.records().isEmpty()) {
+            return view;
         }
         WalletTokenConfig config = currentConfig();
-        for (CstWalletLedgerPo row : page.getRecords()) {
-            row.setTokenBrandName(config.brandName());
-            row.setTokenAmount(tokenAmount(row.getAmount(), config.ratio()));
+        List<WalletLedgerRowView> decorated = new ArrayList<>(view.records().size());
+        for (WalletLedgerRowView row : view.records()) {
+            decorated.add(row.withTokenDisplay(tokenAmount(row.amount(), config.ratio()),
+                    config.brandName()));
         }
-        return page;
+        return new WalletLedgerPageView(decorated, view.total(), view.size(), view.current(), view.pages());
     }
 }

@@ -6,7 +6,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
+import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import jakarta.servlet.http.HttpServletRequest;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import org.springframework.web.bind.annotation.*;
@@ -38,10 +38,10 @@ public class InternalCustomerController {
     public WalletDeductResponse deductWallet(@RequestBody WalletDeductRequest req) {
         verifyInternalAuth();
         Long storeId = requireStoreContext();
-        CstWalletAccountPo po = walletService.consume(storeId, req.customerId(), req.amount(), req.currency(), req.orderId(),
-                req.idempotencyKey());
-        return new WalletDeductResponse(po.getId(), po.getCustomerId(), po.getAvailableAmount(), po.getFrozenAmount(),
-                po.getCurrencyCode());
+        WalletAccount wallet = walletService.consume(storeId, req.customerId(), req.amount(), req.currency(),
+                req.orderId(), req.idempotencyKey());
+        return new WalletDeductResponse(wallet.id(), wallet.customerId(), wallet.available(),
+                wallet.frozen(), wallet.currencyCode());
     }
 
     /** 储值释放（组合收款失败补偿，RELEASE，幂等）。 */
@@ -49,10 +49,10 @@ public class InternalCustomerController {
     public WalletReleaseResponse releaseWallet(@RequestBody WalletReleaseRequest req) {
         verifyInternalAuth();
         Long storeId = requireStoreContext();
-        CstWalletAccountPo po = walletService.release(storeId, req.customerId(), req.amount(), req.currency(), req.orderId(),
-                req.idempotencyKey());
-        return new WalletReleaseResponse(po.getId(), po.getCustomerId(), po.getAvailableAmount(), po.getFrozenAmount(),
-                po.getCurrencyCode());
+        WalletAccount wallet = walletService.release(storeId, req.customerId(), req.amount(), req.currency(),
+                req.orderId(), req.idempotencyKey());
+        return new WalletReleaseResponse(wallet.id(), wallet.customerId(), wallet.available(),
+                wallet.frozen(), wallet.currencyCode());
     }
 
     /** 积分抵扣（REDEEM，扣减前校验余额，幂等）。 */
@@ -105,9 +105,9 @@ public class InternalCustomerController {
     @GetMapping("/wallets/{customerId}")
     public WalletBalanceResponse walletBalance(@PathVariable Long customerId) {
         verifyInternalAuth();
-        CstWalletAccountPo po = walletService.balance(customerId);
-        return new WalletBalanceResponse(po.getCustomerId(), po.getAvailableAmount(), po.getFrozenAmount(),
-                po.getCurrencyCode());
+        WalletAccount wallet = walletService.balance(customerId);
+        return new WalletBalanceResponse(wallet.customerId(), wallet.available(), wallet.frozen(),
+                wallet.currencyCode());
     }
 
     /** 积分余额查询（组合收款抵扣前校验）。 */

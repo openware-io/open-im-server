@@ -1,16 +1,14 @@
 package io.openware.platform.customer.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
-import io.openware.platform.customer.infra.persistence.mapper.WalletAccountMapper;
-import io.openware.platform.customer.infra.persistence.mapper.WalletLedgerMapper;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
+import io.openware.platform.customer.domain.wallet.model.WalletAccount;
+import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -34,11 +32,18 @@ import java.util.Map;
  *
  * <p>储值账户是<b>租户级</b>资产：按 {@code (tenant_id, customer_id, legal_entity_id, currency_code)}
  * 唯一，同一租户内<b>跨门店共用</b>，与门店上下文无关。
+ *
+ * <p><b>余额写入一律走乐观锁 CAS（{@link #persist}）</b>：本表没有其他并发保护手段，而
+ * "读余额 → 判定够不够 → 写回"在并发下会各自覆盖对方——两个扣减都读到同一余额、都判定够扣、
+ * 各自写回自己的结果，于是一笔钱被花两次而账本只记一次成功。
  */
 @Service
 public class WalletApplicationService {
-    private final WalletAccountMapper accountMapper;
-    private final WalletLedgerMapper ledgerMapper;
+
+    /** CAS 冲突后的重试次数；用尽仍冲突则拒绝，不降级为无条件写入。 */
+    private static final int CAS_MAX_ATTEMPTS = 3;
+
+    private final WalletAccountRepository repository;
     private final AuditClient auditClient;
     private final CustomerEventOutbox eventOutbox;
 
@@ -46,51 +51,49 @@ public class WalletApplicationService {
     @Value("${app.wallet.default-legal-entity-id:1}")
     private Long defaultLegalEntityId;
 
-    public WalletApplicationService(WalletAccountMapper accountMapper, WalletLedgerMapper ledgerMapper,
-                                    AuditClient auditClient) {
-        this(accountMapper, ledgerMapper, auditClient, CustomerEventOutbox.disabled());
+    public WalletApplicationService(WalletAccountRepository repository, AuditClient auditClient) {
+        this(repository, auditClient, CustomerEventOutbox.disabled());
     }
 
     @Autowired
-    public WalletApplicationService(WalletAccountMapper accountMapper, WalletLedgerMapper ledgerMapper,
-                                    AuditClient auditClient, CustomerEventOutbox eventOutbox) {
-        this.accountMapper = accountMapper;
-        this.ledgerMapper = ledgerMapper;
+    public WalletApplicationService(WalletAccountRepository repository, AuditClient auditClient,
+                                    CustomerEventOutbox eventOutbox) {
+        this.repository = repository;
         this.auditClient = auditClient;
         this.eventOutbox = eventOutbox;
     }
 
     /** 充值（现金/线下转账），追加 RECHARGE 流水，幂等。 */
     @Transactional
-    public CstWalletAccountPo recharge(Long customerId, Long amount, String currency,
-                                       String paymentMethod, String referenceNo, String idempotencyKey) {
+    public WalletAccount recharge(Long customerId, Long amount, String currency,
+                                  String paymentMethod, String referenceNo, String idempotencyKey) {
         return recharge(null, customerId, amount, currency, paymentMethod, referenceNo, idempotencyKey);
     }
 
     /** 门店归因写路径：storeId 由入站适配器从已验签 TenantContext 提取。 */
     @Transactional
-    public CstWalletAccountPo recharge(Long storeId, Long customerId, Long amount, String currency,
-                                       String paymentMethod, String referenceNo, String idempotencyKey) {
+    public WalletAccount recharge(Long storeId, Long customerId, Long amount, String currency,
+                                  String paymentMethod, String referenceNo, String idempotencyKey) {
         try {
             validateAmount(amount);
             if (currency == null || currency.isBlank()) {
                 throw new ApiException(400, "CURRENCY_REQUIRED", "缺少币种");
             }
             assertIdempotent(idempotencyKey);
-            CstWalletAccountPo account = findOrCreate(customerId, Currency.parse(currency).code());
-            // 线下转账需关联凭证 referenceNo，真实实现写 audit_log + 财务/店长复核
-            long balanceAfter = account.getAvailableAmount() + amount;
-            appendLedger(storeId, account, "RECHARGE", amount, balanceAfter, null, idempotencyKey);
-            appendFact("RECHARGE", account, storeId, amount, balanceAfter);
-            account.setAvailableAmount(balanceAfter);
-            bump(account);
-            accountMapper.updateById(account);
+            String normalizedCurrency = Currency.parse(currency).code();
+            WalletAccount account = repository.findByCustomerAndCurrency(customerId, normalizedCurrency)
+                    .orElseGet(() -> repository.insert(
+                            WalletAccount.open(customerId, defaultLegalEntityId, normalizedCurrency)));
+            WalletAccount credited = account.credit(amount);
+            WalletAccount saved = persist(credited, WalletLedgerEntry.TYPE_RECHARGE, storeId, amount,
+                    null, idempotencyKey);
             // 高风险写操作（储值充值）审计：异步占位；tenantId 真实实现应从 TenantContext 解析。
             auditClient.recordAsync(AuditClient.AuditRecord.of(
                     null, null, "wallet.recharge", "wallet_account",
-                    String.valueOf(account.getId()), null, idempotencyKey,
-                    "{\"customerId\":" + customerId + ",\"amount\":" + amount + ",\"currency\":\"" + currency + "\"}"));
-            return account;
+                    String.valueOf(saved.id()), null, idempotencyKey,
+                    "{\"customerId\":" + customerId + ",\"amount\":" + amount + ",\"currency\":\""
+                            + normalizedCurrency + "\"}"));
+            return saved;
         } catch (RuntimeException failure) {
             recordFailure("wallet.recharge", "cst_wallet_account", customerId, failure);
             throw failure;
@@ -99,26 +102,18 @@ public class WalletApplicationService {
 
     /** 储值退还（余额扣减，账本 REFUND，审批占位）。没有账户 = 余额 0，按余额不足拒绝（不建账户）。 */
     @Transactional
-    public CstWalletAccountPo refund(Long customerId, Long amount, String reason, String idempotencyKey) {
+    public WalletAccount refund(Long customerId, Long amount, String reason, String idempotencyKey) {
         return refund(null, customerId, amount, reason, idempotencyKey);
     }
 
     @Transactional
-    public CstWalletAccountPo refund(Long storeId, Long customerId, Long amount, String reason, String idempotencyKey) {
+    public WalletAccount refund(Long storeId, Long customerId, Long amount, String reason, String idempotencyKey) {
         try {
             validateAmount(amount);
             assertIdempotent(idempotencyKey);
-            CstWalletAccountPo account = findByMember(customerId);
-            if (account == null || account.getAvailableAmount() < amount) {
-                throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
-            }
-            long balanceAfter = account.getAvailableAmount() - amount;
-            appendLedger(storeId, account, "REFUND", amount, balanceAfter, null, idempotencyKey);
-            appendFact("REFUND", account, storeId, -amount, balanceAfter);
-            account.setAvailableAmount(balanceAfter);
-            bump(account);
-            accountMapper.updateById(account);
-            return account;
+            WalletAccount account = requireAccountWithBalance(customerId, amount);
+            return persist(account.deduct(amount), WalletLedgerEntry.TYPE_REFUND, storeId, amount, null,
+                    idempotencyKey);
         } catch (RuntimeException failure) {
             recordFailure("wallet.refund", "cst_wallet_account", customerId, failure);
             throw failure;
@@ -131,40 +126,33 @@ public class WalletApplicationService {
      * 没有账户的会员按余额 0 处理：同样回 LEDGER_INSUFFICIENT（**不是** 404，也不为失败路径建账户）。
      */
     @Transactional
-    public CstWalletAccountPo consume(Long customerId, Long amount, String currency, Long orderId,
-                                      String idempotencyKey) {
+    public WalletAccount consume(Long customerId, Long amount, String currency, Long orderId,
+                                 String idempotencyKey) {
         return consume(null, customerId, amount, currency, orderId, idempotencyKey);
     }
 
     @Transactional
-    public CstWalletAccountPo consume(Long storeId, Long customerId, Long amount, String currency, Long orderId,
-                                      String idempotencyKey) {
+    public WalletAccount consume(Long storeId, Long customerId, Long amount, String currency, Long orderId,
+                                 String idempotencyKey) {
         try {
             validateAmount(amount);
             assertIdempotent(idempotencyKey);
-            CstWalletAccountPo account = findByMember(customerId);
-            // 没有储值账户 = 可用余额 0：先按余额不足拒绝（懒初始化下「没有账户」不是异常态）。
-            if (account == null) {
-                throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
-            }
+            WalletAccount account = repository.findByCustomer(customerId)
+                    // 没有储值账户 = 可用余额 0：先按余额不足拒绝（懒初始化下「没有账户」不是异常态）。
+                    .orElseThrow(() -> new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足"));
             // 跨币种储值消费**默认关闭**（16_CURRENCY_CONVENTIONS §2.1「钱包账户币种已做跨币种拒绝」/
             // KTV_BUSINESS_01 §「CURRENCY_CORRIDOR_DISABLED 跨币种禁止」）：请求币种与账户币种不一致即拒绝，
             // 不做任何汇率换算、也不静默按账户币种消费。
             if (currency != null && !currency.isBlank()
-                    && !Currency.parse(currency).code().equals(Currency.parse(account.getCurrencyCode()).code())) {
+                    && account.differsFromNormalizedCurrency(Currency.parse(currency).code())) {
                 throw new ApiException(422, "CURRENCY_CORRIDOR_DISABLED", "禁止跨币种储值消费");
             }
-            if (account.getAvailableAmount() < amount) {
+            if (!account.canCover(amount)) {
                 throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
             }
             // 冻结-扣减合一占位：真实实现先 HOLD（available→frozen）→ 结算成功 CONSUME（frozen 扣除）→ 失败 RELEASE（frozen→available）。
-            long balanceAfter = account.getAvailableAmount() - amount;
-            appendLedger(storeId, account, "CONSUME", amount, balanceAfter, orderId, idempotencyKey);
-            appendFact("CONSUME", account, storeId, -amount, balanceAfter);
-            account.setAvailableAmount(balanceAfter);
-            bump(account);
-            accountMapper.updateById(account);
-            return account;
+            return persist(account.deduct(amount), WalletLedgerEntry.TYPE_CONSUME, storeId, amount, orderId,
+                    idempotencyKey);
         } catch (RuntimeException failure) {
             recordFailure("wallet.consume", "cst_wallet_account", customerId, failure);
             throw failure;
@@ -173,33 +161,28 @@ public class WalletApplicationService {
 
     /** 储值释放（组合收款失败补偿，账本 RELEASE，幂等）：归还已扣减的储值。真实 HOLD 语义下为 frozen→available。 */
     @Transactional
-    public CstWalletAccountPo release(Long customerId, Long amount, String currency, Long orderId,
-                                      String idempotencyKey) {
+    public WalletAccount release(Long customerId, Long amount, String currency, Long orderId,
+                                 String idempotencyKey) {
         return release(null, customerId, amount, currency, orderId, idempotencyKey);
     }
 
     @Transactional
-    public CstWalletAccountPo release(Long storeId, Long customerId, Long amount, String currency, Long orderId,
-                                      String idempotencyKey) {
+    public WalletAccount release(Long storeId, Long customerId, Long amount, String currency, Long orderId,
+                                 String idempotencyKey) {
         validateAmount(amount);
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new ApiException(400, "IDEMPOTENCY_KEY_REQUIRED", "缺少 Idempotency-Key");
         }
-        CstWalletAccountPo account = findByMember(customerId);
+        WalletAccount account = repository.findByCustomer(customerId).orElse(null);
         if (account == null) {
             // 没有账户 = 此前没有任何储值扣减可归还：补偿天然幂等，直接回零额视图，不建账户、不改库。
             return zeroAccount(customerId);
         }
-        if (ledgerExists(idempotencyKey)) {
+        if (repository.ledgerExists(idempotencyKey)) {
             return account;
         }
-        long balanceAfter = account.getAvailableAmount() + amount;
-        appendLedger(storeId, account, "RELEASE", amount, balanceAfter, orderId, idempotencyKey);
-        appendFact("RELEASE", account, storeId, amount, balanceAfter);
-        account.setAvailableAmount(balanceAfter);
-        bump(account);
-        accountMapper.updateById(account);
-        return account;
+        return persist(account.credit(amount), WalletLedgerEntry.TYPE_RELEASE, storeId, amount, orderId,
+                idempotencyKey);
     }
 
     /**
@@ -208,27 +191,24 @@ public class WalletApplicationService {
      * <p><b>懒初始化读路径</b>：没有账户的会员<b>不会</b>被创建账户，而是返回零额只读视图
      * （{@code id == null}、可用/冻结均为 0、币种取当时租户币种），因此读接口永不 404。
      */
-    public CstWalletAccountPo balance(Long memberId) {
-        CstWalletAccountPo account = findByMember(memberId);
-        return account == null ? zeroAccount(memberId) : account;
+    public WalletAccount balance(Long memberId) {
+        return repository.findByCustomer(memberId).orElseGet(() -> zeroAccount(memberId));
     }
 
     /** 储值账本分页（C 端/后台明细）。没有账户 = 无流水，返回空页，不创建账户。 */
-    public Page<CstWalletLedgerPo> ledger(Long memberId, long page, long pageSize) {
+    public LedgerPage ledger(Long memberId, long page, long pageSize) {
         return ledger(memberId, null, page, pageSize);
     }
 
     /** 流水读范围：总部不传门店看租户全量，门店上下文只看本店发生的流水。 */
-    public Page<CstWalletLedgerPo> ledger(Long memberId, Long storeId, long page, long pageSize) {
-        CstWalletAccountPo account = findByMember(memberId);
+    public LedgerPage ledger(Long memberId, Long storeId, long page, long pageSize) {
+        WalletAccount account = repository.findByCustomer(memberId).orElse(null);
         if (account == null) {
-            return new Page<>(page, pageSize);
+            return new LedgerPage(List.of(), 0L);
         }
-        LambdaQueryWrapper<CstWalletLedgerPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletLedgerPo::getWalletAccountId, account.getId())
-                .eq(storeId != null, CstWalletLedgerPo::getStoreId, storeId)
-                .orderByDesc(CstWalletLedgerPo::getId);
-        return ledgerMapper.selectPage(new Page<>(page, pageSize), qw);
+        long safePage = page < 1 ? 1 : page;
+        long safeSize = pageSize < 1 ? 1 : pageSize;
+        return repository.listLedger(account.id(), storeId, (safePage - 1) * safeSize, safeSize);
     }
 
     /**
@@ -236,84 +216,103 @@ public class WalletApplicationService {
      * 避免「按会员逐个查余额」的 N+1，也避免没有账户的会员触发任何异常。
      * 返回的 Map <b>只含已开立账户</b>的会员；调用方按「缺失 = 余额 0、未开立」处理。
      */
-    public Map<Long, CstWalletAccountPo> balances(List<Long> memberIds) {
+    public Map<Long, WalletAccount> balances(List<Long> memberIds) {
         if (memberIds == null || memberIds.isEmpty()) {
             return Map.of();
         }
-        LambdaQueryWrapper<CstWalletAccountPo> qw = new LambdaQueryWrapper<>();
-        qw.in(CstWalletAccountPo::getCustomerId, memberIds);
-        Map<Long, CstWalletAccountPo> result = new LinkedHashMap<>();
-        for (CstWalletAccountPo po : accountMapper.selectList(qw)) {
+        Map<Long, WalletAccount> found = repository.findByCustomers(memberIds);
+        Map<Long, WalletAccount> result = new LinkedHashMap<>();
+        for (Long memberId : memberIds) {
             // 同会员多币种账户时以第一条为准：列表只展示「主余额」，逐会员明细由 /{id}/wallet 提供。
-            result.putIfAbsent(po.getCustomerId(), po);
+            WalletAccount account = found.get(memberId);
+            if (account != null) {
+                result.putIfAbsent(memberId, account);
+            }
         }
         return result;
     }
 
-    private CstWalletAccountPo findOrCreate(Long customerId, String currency) {
-        LambdaQueryWrapper<CstWalletAccountPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletAccountPo::getCustomerId, customerId)
-          .eq(CstWalletAccountPo::getCurrencyCode, currency)
-          .last("LIMIT 1");
-        CstWalletAccountPo po = accountMapper.selectOne(qw);
-        if (po != null) return po;
-        po = new CstWalletAccountPo();
-        po.setCustomerId(customerId);
-        po.setLegalEntityId(defaultLegalEntityId);
-        po.setCurrencyCode(currency);
-        po.setAvailableAmount(0L);
-        po.setFrozenAmount(0L);
-        po.setStatus("ACTIVE");
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        accountMapper.insert(po);
-        return po;
+    /**
+     * 落库一次余额变更：CAS 成功后再写流水与事实事件。
+     *
+     * <p>顺序是刻意的——先确认余额真的写进去了，再记流水。反过来（先写流水再改余额）在 CAS 失败时
+     * 会留下一条"钱动过"的流水而余额没动，对账只能相信流水。
+     *
+     * <p>CAS 冲突时重新读账户重算；重试用尽仍冲突则拒绝（{@code WALLET_CONCURRENT_MODIFICATION}），
+     * **不降级为无条件写入**——那正是本方法要修掉的行为。
+     *
+     * <p>重试依赖事务语义：本方法在写事务内被调用，失败那一轮的流水与事件必须随事务一起作废，
+     * 下一轮才是从干净状态重算的。重试用尽则明确拒绝——宁可让调用方重试，也不接受一次
+     * "看起来成功"的覆盖。
+     */
+    private WalletAccount persist(WalletAccount candidate, String entryType, Long storeId, long amount,
+                                  Long orderId, String idempotencyKey) {
+        for (int attempt = 0; attempt < CAS_MAX_ATTEMPTS; attempt++) {
+            if (repository.updateBalanceWithVersion(candidate, candidate.currentVersion())) {
+                long balanceAfter = candidate.available();
+                repository.insertLedger(new WalletLedgerEntry(null, candidate.tenantId(), storeId,
+                        candidate.id(), entryType, amount, balanceAfter,
+                        // 币种快照（§5）：账本自证币种，不再依赖回查账户；取账户币种保证
+                        // 「账户 ↔ 流水」永不出现两种币种。
+                        Currency.parse(candidate.currencyCode()).code(), candidate.tokenAmount(),
+                        candidate.tokenBrandName(), orderId, null, idempotencyKey, LocalDateTime.now()));
+                appendFact(entryType, candidate, storeId,
+                        WalletLedgerEntry.TYPE_CONSUME.equals(entryType)
+                                || WalletLedgerEntry.TYPE_REFUND.equals(entryType) ? -amount : amount,
+                        balanceAfter);
+                return withVersion(candidate, candidate.currentVersion() + 1);
+            }
+            // 冲突：本轮余额已被他人改动，重新读账户与版本再算一次。
+            candidate = repository.findById(candidate.id())
+                    .map(fresh -> applyDelta(fresh, entryType, amount))
+                    .orElseThrow(() -> new ApiException(409, "WALLET_CONCURRENT_MODIFICATION",
+                            "储值账户并发更新，请重试"));
+        }
+        throw new ApiException(409, "WALLET_CONCURRENT_MODIFICATION", "储值账户并发更新，请重试");
+    }
+
+    /** 在最新余额上重新应用本次变动；余额不足时抛出（重试期间余额可能已被他人扣走）。 */
+    private WalletAccount applyDelta(WalletAccount fresh, String entryType, long amount) {
+        if (WalletLedgerEntry.TYPE_CONSUME.equals(entryType) || WalletLedgerEntry.TYPE_REFUND.equals(entryType)) {
+            if (!fresh.canCover(amount)) {
+                throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
+            }
+            return fresh.deduct(amount);
+        }
+        return fresh.credit(amount);
+    }
+
+    private static WalletAccount withVersion(WalletAccount account, int version) {
+        return new WalletAccount(account.id(), account.tenantId(), account.customerId(),
+                account.legalEntityId(), account.currencyCode(), account.available(), account.frozen(),
+                account.tokenAmount(), account.tokenBrandName(), account.accountOpened(), account.status(),
+                version);
+    }
+
+    /** 取账户并确认余额足够；没有账户或余额不足一律 {@code LEDGER_INSUFFICIENT}（不是 404）。 */
+    private WalletAccount requireAccountWithBalance(Long customerId, Long amount) {
+        WalletAccount account = repository.findByCustomer(customerId).orElse(null);
+        if (account == null || !account.canCover(amount)) {
+            throw new ApiException(422, "LEDGER_INSUFFICIENT", "储值余额不足");
+        }
+        return account;
     }
 
     /**
      * 零额只读视图：**没有账户**时的余额口径。不是数据库行（{@code id == null}），
      * 因此不会被 update/审计当成真实账户；币种口径与真实账户创建时一致（当时租户币种）。
      */
-    private CstWalletAccountPo zeroAccount(Long customerId) {
-        CstWalletAccountPo po = new CstWalletAccountPo();
-        po.setCustomerId(customerId);
-        po.setLegalEntityId(defaultLegalEntityId);
-        po.setCurrencyCode(CurrencyResolver.currentCode());
-        po.setAvailableAmount(0L);
-        po.setFrozenAmount(0L);
-        po.setVersion(0);
-        return po;
+    private WalletAccount zeroAccount(Long customerId) {
+        return WalletAccount.zeroFor(customerId, defaultLegalEntityId, CurrencyResolver.currentCode());
     }
 
-    /** 按会员取储值账户；**没有账户返回 null**（懒初始化：调用方决定是零额视图还是拒绝），不再抛 404。 */
-    private CstWalletAccountPo findByMember(Long customerId) {
-        LambdaQueryWrapper<CstWalletAccountPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletAccountPo::getCustomerId, customerId).last("LIMIT 1");
-        return accountMapper.selectOne(qw);
-    }
-
-    private void appendLedger(Long storeId, CstWalletAccountPo account, String entryType, long amount, long balanceAfter,
-                              Long orderId, String idempotencyKey) {
-        CstWalletLedgerPo ledger = new CstWalletLedgerPo();
-        ledger.setStoreId(storeId);
-        ledger.setWalletAccountId(account.getId());
-        ledger.setEntryType(entryType);
-        ledger.setAmount(amount);
-        ledger.setBalanceAfter(balanceAfter);
-        // 币种快照（§5）：账本自证币种，不再依赖回查账户；取账户币种保证「账户 ↔ 流水」永不出现两种币种。
-        ledger.setCurrencyCode(Currency.parse(account.getCurrencyCode()).code());
-        ledger.setOrderId(orderId);
-        ledger.setIdempotencyKey(idempotencyKey);
-        ledger.setOccurredAt(LocalDateTime.now());
-        ledger.setCreatedAt(LocalDateTime.now());
-        ledgerMapper.insert(ledger);
-    }
-
-    private void appendFact(String entryType, CstWalletAccountPo account, Long storeId, long delta, long balanceAfter) {
+    private void appendFact(String entryType, WalletAccount account, Long storeId, long delta, long balanceAfter) {
+        if (!account.persisted()) {
+            return;
+        }
         eventOutbox.append(new CustomerFactEvent("customer.wallet.changed", "wallet_account",
-                String.valueOf(account.getId()), "{\"entryType\":\"" + entryType + "\",\"customerId\":"
-                        + account.getCustomerId() + ",\"storeId\":" + storeId + ",\"delta\":" + delta
+                String.valueOf(account.id()), "{\"entryType\":\"" + entryType + "\",\"customerId\":"
+                        + account.customerId() + ",\"storeId\":" + storeId + ",\"delta\":" + delta
                         + ",\"balanceAfter\":" + balanceAfter + "}"));
     }
 
@@ -328,22 +327,10 @@ public class WalletApplicationService {
             throw new ApiException(400, "IDEMPOTENCY_KEY_REQUIRED", "缺少 Idempotency-Key");
         }
         // 幂等占位：唯一键 uk_cst_wallet_ledger_idem(tenant_id, idempotency_key) 由 Flyway 兜底。
-        LambdaQueryWrapper<CstWalletLedgerPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletLedgerPo::getIdempotencyKey, idempotencyKey);
-        if (ledgerMapper.selectCount(qw) > 0) {
+        // 这里的预检只覆盖"先到者已提交"的常见情形；真正防重仍靠唯一键（并发同键时后到者撞键回滚）。
+        if (repository.ledgerExists(idempotencyKey)) {
             throw new ApiException(409, "IDEMPOTENCY_CONFLICT", "幂等键已存在");
         }
-    }
-
-    private boolean ledgerExists(String idempotencyKey) {
-        LambdaQueryWrapper<CstWalletLedgerPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(CstWalletLedgerPo::getIdempotencyKey, idempotencyKey);
-        return ledgerMapper.selectCount(qw) > 0;
-    }
-
-    private void bump(CstWalletAccountPo account) {
-        account.setVersion(account.getVersion() == null ? 1 : account.getVersion() + 1);
-        account.setUpdatedAt(LocalDateTime.now());
     }
 
     /**

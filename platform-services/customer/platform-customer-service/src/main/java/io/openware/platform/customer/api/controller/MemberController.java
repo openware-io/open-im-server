@@ -7,6 +7,8 @@ import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.customer.api.dto.WalletAccountView;
+import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.MemberApplicationService.MemberPointsRow;
 import io.openware.platform.customer.application.MemberPointsView;
@@ -14,10 +16,10 @@ import io.openware.platform.customer.application.NameIndexRebuildResult;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.wallet.model.WalletAccount;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
 import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletAccountPo;
-import io.openware.platform.customer.infra.persistence.po.CstWalletLedgerPo;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -163,8 +165,8 @@ public class MemberController {
         // 币种不再硬编码 CNY：取当时租户币种（缺省 USD，16_CURRENCY_CONVENTIONS §1/§2）。
         // 钱包响应补代币数量/品牌展示字段；积分响应只给积分「个数」（无币种、无代币字段）。
         // 储值走懒初始化读路径（balance）：没有账户即余额 0，不因为「看了一眼资产」就给会员建空账户。
-        CstWalletAccountPo wallet = walletTokenDisplayService.decorate(
-                walletService.balance(member.getId()));
+        WalletAccountView wallet = walletTokenDisplayService.decorate(
+                WalletAccountView.from(walletService.balance(member.getId())));
         CstPointAccountPo points = pointService.ensureAccount(member.getId());
         return new MemberMeResponse(member.getId(), member.getMemberNo(), wallet, points);
     }
@@ -215,8 +217,8 @@ public class MemberController {
 
     /** 会员储值余额（同主体同币种，租户级、跨门店共用）+ 代币展示数量。没有账户即余额 0（不创建账户）。 */
     @GetMapping("/{id}/wallet")
-    public CstWalletAccountPo wallet(@PathVariable Long id) {
-        return walletTokenDisplayService.decorate(walletService.balance(id));
+    public WalletAccountView wallet(@PathVariable Long id) {
+        return walletTokenDisplayService.decorate(WalletAccountView.from(walletService.balance(id)));
     }
 
     /**
@@ -239,17 +241,15 @@ public class MemberController {
         Page<CstMemberPo> members = memberService.list(page, pageSize, keyword, null, null,
                 TimeRangeParams.parse(from, to));
         List<Long> memberIds = members.getRecords().stream().map(CstMemberPo::getId).toList();
-        Map<Long, CstWalletAccountPo> balances = walletService.balances(memberIds);
+        Map<Long, WalletAccount> balances = walletService.balances(memberIds);
         long ratio = walletTokenDisplayService.currentConfig().ratio();
         List<MemberWalletRow> rows = members.getRecords().stream().map(member -> {
-            CstWalletAccountPo account = balances.get(member.getId());
-            long available = account == null || account.getAvailableAmount() == null
-                    ? 0L : account.getAvailableAmount();
-            long frozen = account == null || account.getFrozenAmount() == null
-                    ? 0L : account.getFrozenAmount();
+            WalletAccount account = balances.get(member.getId());
+            long available = account == null ? 0L : account.available();
+            long frozen = account == null ? 0L : account.frozen();
             return new MemberWalletRow(member.getId(), member.getMemberNo(), member.getName(), member.getPhone(),
                     available, frozen, walletTokenDisplayService.tokenAmount(available, ratio),
-                    account == null ? CurrencyResolver.currentCode() : account.getCurrencyCode(),
+                    account == null ? CurrencyResolver.currentCode() : account.currencyCode(),
                     account != null);
         }).toList();
         Page<MemberWalletRow> result = new Page<>(page, pageSize, members.getTotal());
@@ -259,14 +259,14 @@ public class MemberController {
 
     /** 会员储值账本（C 端明细）+ 每笔代币展示数量。 */
     @GetMapping("/{id}/wallet/ledger")
-    public Page<CstWalletLedgerPo> walletLedger(@PathVariable Long id,
-                                                @RequestParam(defaultValue = "1") long page,
-                                                @RequestParam(defaultValue = "20") long pageSize) {
+    public WalletLedgerPageView walletLedger(@PathVariable Long id,
+                                             @RequestParam(defaultValue = "1") long page,
+                                             @RequestParam(defaultValue = "20") long pageSize) {
         TenantContext context = TenantContextHolder.get();
-        Page<CstWalletLedgerPo> ledger = context == null || context.storeId() == null
+        LedgerPage ledger = context == null || context.storeId() == null
                 ? walletService.ledger(id, page, pageSize)
                 : walletService.ledger(id, context.storeId(), page, pageSize);
-        return walletTokenDisplayService.decorate(ledger);
+        return walletTokenDisplayService.decorate(ledger, page, pageSize);
     }
 
     public record CreateMemberRequest(Long accountId, String name, String phone, Boolean consent,
@@ -276,7 +276,7 @@ public class MemberController {
     /** 姓名盲索引回填请求：{@code tenantId} 省略 = 当前上下文租户。 */
     public record NameIndexRebuildRequest(Long tenantId) {}
     public record AdjustPointsRequest(Long points, String reason, String commandId) {}
-    public record MemberMeResponse(Long memberId, String memberNo, CstWalletAccountPo wallet, CstPointAccountPo points) {}
+    public record MemberMeResponse(Long memberId, String memberNo, WalletAccountView wallet, CstPointAccountPo points) {}
 
     /** 储值管理列表行：会员 + 余额（最小货币单位）+ 代币展示数量；没有账户时余额 0、{@code accountOpened=false}。 */
     public record MemberWalletRow(Long memberId, String memberNo, String name, String phone,
