@@ -118,12 +118,31 @@
 
 ## 7. 遗留
 
-1. **OpenAPI 快照未重新导出**：`platform-order-service.json` 的 `KtvSessionPo` schema 缺少
-   `storeId` / `businessType`（这两个字段在本次迁移**之前**就已存在，属快照陈旧，非本次引入）。
-   重新导出需要按 `docs/contracts/openapi/README.md` 起服务（kind 部署），
-   且**明令禁止手工编造快照**。
-2. `MemberLookupProviderAdapter` 是单行委派，无独立适配器测试。
-3. `Order.withAmounts/withStatus` 的未使用时间戳参数已移除；`held`/`voided` 的仍在使用
+### 7.1 OpenAPI 快照未重新导出（已查明具体原因与做法）
+
+`platform-order-service.json` 的 `KtvSessionPo` schema **缺少 `storeId` / `businessType`**，
+且 `KtvSessionView` 现在是该 schema 的**超集**（多出 `createdBy`/`createdAt`/`updatedBy`/`updatedAt`
+与 `version`）。**这两个字段早于本次迁移就存在**，属快照陈旧，**不是本次引入**——
+本次为保住契约，专门把 KTV 的四个审计字段恢复为"字段名保留、值为 null"。
+
+**为什么本次没有重导**（这是查证过的，不是省略）：
+
+1. 重导需要**运行中的服务**，不能用陈旧镜像。集群 `open-im-local` 里
+   `platform-order-service` pod 的镜像是 `code-sha=5b20e04`、构建于 `2026-10-14T10:45Z`、
+   部署于 `2026-10-14T11:02Z`，而本次迁移的提交都在 **2026-10-16**。
+   **从那个 pod 导出会把快照回退到两天前的 shape，比不导出更糟。**
+2. 正确做法需要**重建并重部署 order 镜像**（`mvnw package` + `docker build` + 重部署）；
+   `springdoc-openapi-starter-webmvc-ui` 依赖已在 `platform-order-service/pom.xml` 里，
+   端口 4130、路径 `/v3/api-docs`（见 `docs/contracts/openapi/README.md` 的导出表）。
+3. `docs/contracts/openapi/README.md` **明令禁止手工编造快照**，所以不能手改 JSON。
+
+**没有任何门禁校验快照内容**，所以这不阻塞构建；但按 README 的要求，
+重新部署 order 服务后应导出一次，并在提交前复核路径、参数、响应信封与安全 scheme。
+
+### 7.2 其他
+
+1. `MemberLookupProviderAdapter` 是单行委派，无独立适配器测试。
+2. `Order.withAmounts/withStatus` 的未使用时间戳参数已移除；`held`/`voided` 的仍在使用
    （分别写 `hold_at`/`cancelled_at`），**不要一并删掉**。
 
 ## 8. 验证命令
