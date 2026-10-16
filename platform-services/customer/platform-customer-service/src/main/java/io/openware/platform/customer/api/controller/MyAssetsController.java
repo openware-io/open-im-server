@@ -3,10 +3,10 @@ package io.openware.platform.customer.api.controller;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.customer.api.dto.MemberPointsView;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
-import io.openware.platform.customer.application.MemberPointsView;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
@@ -65,9 +65,10 @@ public class MyAssetsController {
     CstMemberPo member = currentMember();
     pointService.ensureAccount(member.getId());
     TenantContext context = TenantContextHolder.get();
-    return context == null || context.storeId() == null
+    PointApplicationService.MemberPointsData data = context == null || context.storeId() == null
         ? pointService.view(member.getId(), page, pageSize)
         : pointService.view(member.getId(), context.storeId(), page, pageSize);
+    return MemberPointsView.from(data.account(), data.ledger(), data.page(), data.pageSize());
   }
 
   private CstMemberPo currentMember() {

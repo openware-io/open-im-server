@@ -7,19 +7,20 @@ import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.customer.api.dto.MemberPointsView;
+import io.openware.platform.customer.api.dto.PointAccountView;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.MemberApplicationService.MemberPointsRow;
-import io.openware.platform.customer.application.MemberPointsView;
 import io.openware.platform.customer.application.NameIndexRebuildResult;
 import io.openware.platform.customer.application.PointApplicationService;
+import io.openware.platform.customer.application.PointApplicationService.MemberPointsData;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
-import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -167,7 +168,7 @@ public class MemberController {
         // 储值走懒初始化读路径（balance）：没有账户即余额 0，不因为「看了一眼资产」就给会员建空账户。
         WalletAccountView wallet = walletTokenDisplayService.decorate(
                 WalletAccountView.from(walletService.balance(member.getId())));
-        CstPointAccountPo points = pointService.ensureAccount(member.getId());
+        PointAccountView points = PointAccountView.from(pointService.ensureAccount(member.getId()));
         return new MemberMeResponse(member.getId(), member.getMemberNo(), wallet, points);
     }
 
@@ -192,16 +193,22 @@ public class MemberController {
                                    @RequestParam(defaultValue = "1") long page,
                                    @RequestParam(defaultValue = "20") long pageSize) {
         TenantContext context = TenantContextHolder.get();
-        return context == null || context.storeId() == null
+        return toView(context == null || context.storeId() == null
                 ? pointService.view(id, page, pageSize)
-                : pointService.view(id, context.storeId(), page, pageSize);
+                : pointService.view(id, context.storeId(), page, pageSize));
     }
 
-    /** 积分调整（高风险审计，命令幂等 commandId）。 */
+    /** 积分调整（高风险审计，命令幂等 commandId）。响应形状照搬原持久化对象，见 {@link PointAccountView}。 */
     @PostMapping("/{id}/points/adjust")
-    public CstPointAccountPo adjustPoints(@PathVariable Long id, @RequestBody AdjustPointsRequest req) {
+    public PointAccountView adjustPoints(@PathVariable Long id, @RequestBody AdjustPointsRequest req) {
         PermissionGuard.require("points.adjust");
-        return pointService.adjust(requireStoreContext(), id, req.points(), req.reason(), req.commandId());
+        return PointAccountView.from(
+                pointService.adjust(requireStoreContext(), id, req.points(), req.reason(), req.commandId()));
+    }
+
+    /** 领域数据 → 响应视图（唯一装配点：领域条目不会被直接序列化出去）。 */
+    private static MemberPointsView toView(MemberPointsData data) {
+        return MemberPointsView.from(data.account(), data.ledger(), data.page(), data.pageSize());
     }
 
     private Long requireStoreContext() {
@@ -276,7 +283,8 @@ public class MemberController {
     /** 姓名盲索引回填请求：{@code tenantId} 省略 = 当前上下文租户。 */
     public record NameIndexRebuildRequest(Long tenantId) {}
     public record AdjustPointsRequest(Long points, String reason, String commandId) {}
-    public record MemberMeResponse(Long memberId, String memberNo, WalletAccountView wallet, CstPointAccountPo points) {}
+    public record MemberMeResponse(Long memberId, String memberNo, WalletAccountView wallet,
+                                   PointAccountView points) {}
 
     /** 储值管理列表行：会员 + 余额（最小货币单位）+ 代币展示数量；没有账户时余额 0、{@code accountOpened=false}。 */
     public record MemberWalletRow(Long memberId, String memberNo, String name, String phone,

@@ -23,7 +23,7 @@
 1. **`save` 原本是读-判-写 + 无条件写回**（`version = existing.version + 1`）。两个并发写者都不带版本号时会同时通过比对——版本比对**只在调用方显式传了版本号时才执行**。已改为单条 CAS。积分倍率被静默改错会让此后每一次积分计算都错，所以这里必须由 SQL 判定。
 2. **作用域优先级**原本是三层嵌套 `orElseGet`，只能靠 mock mapper 触达。已抽成纯函数 `PointRuleResolver`，可单独验证。两条**刻意的不对称**：限定业态的租户级默认**不**匹配"未指定业态"的查询；不限业态的默认**可以**匹配任意指定业态（它存在的意义就是兜底）。停用行不参与解析，但**写路径必须能看到它并复用**——否则会在同一作用域插入第二行。
 
-### 1.2 储值账户与账本（`WalletAccount` / `WalletLedgerEntry`）—— 生产侧完成，待提交
+### 1.2 储值账户与账本（`WalletAccount` / `WalletLedgerEntry`）—— 已提交 `ec297e5`
 
 - `domain/wallet/model/{WalletAccount,WalletLedgerEntry}.java`
 - `domain/wallet/repository/WalletAccountRepository.java`（含 `LedgerPage` record）
@@ -31,6 +31,41 @@
 - `application/WalletApplicationService.java` 重写；`application/WalletTokenDisplayService.java` 改为面向视图
 - `api/dto/{WalletAccountView,WalletLedgerPageView}.java`
 - 4 个控制器改造：`WalletAdminController`、`InternalCustomerController`、`MemberController`、`MyAssetsController`
+
+### 1.3 积分账户与账本（`PointAccount` / `PointLedgerEntry`）—— 生产侧完成，待提交
+
+- `domain/point/model/{PointAccount,PointLedgerEntry}.java`
+- `domain/point/repository/PointAccountRepository.java`（含 `LedgerPage` record）
+- `infra/persistence/repository/PointAccountRepositoryAdapter.java`
+- `application/PointApplicationService.java` 重写（返回领域模型 + `MemberPointsData`）
+- `api/dto/{PointAccountView,PointLedgerRow,MemberPointsView}.java`
+  （`MemberPointsView` / `PointLedgerRow` 由 `application` 包**移到** `api/dto`：它们是响应视图，
+  迁移时顺手放回它们该在的层）
+- 3 个控制器改造：`MemberController`、`MyAssetsController`、`InternalCustomerController`
+
+**该切片的三个要点**：
+
+1. **本表的 CAS 是真的，不是"看起来有"**（与钱包 §2 相反，务必不要混为一谈）。
+   迁移前 `updateAccountOptimistic` 就是
+   `... WHERE id = ? AND version = ? SET available_points = ?, version = ?, updated_at = ?`，
+   0 行受影响抛 409 `POINT_ACCOUNT_VERSION_CONFLICT`，且 `accountMapper.updateById` 从未被调用。
+   适配器把这条语句的形状**原样保留**为 `updateBalanceWithVersion`：版本自增写在 SQL 里、只写真实列、
+   返回 `false` 由服务侧转 409，**不降级为无条件写入**。迁移没有"修"任何东西——这一点是逐条核对后确认的，
+   不是假定的。
+2. **写入顺序改成"先 CAS，再写流水"**。迁移前四个写路径都是 `appendLedger(...)` 在前、
+   `updateAccountOptimistic(...)` 在后，只靠外层 `@Transactional` 在 CAS 抛错时把流水滚回去；
+   一旦有人把这段挪出事务，账本就会记着"积分动过"而余额没动，而**对账只能相信账本**。
+   顺序锁进了两条测试（`adjustWritesBalanceBeforeLedger` 用 `InOrder` 断言；
+   `casConflictIs409AndLeavesNoLedgerRow` 断言 CAS 失败不写流水）。业务行为无变化，全部既有断言照旧通过。
+3. **API 外形照搬**（与钱包 §4 同一处境）：`MemberPointsView` 保留 `records/total/size/current/pages`
+   五个键（原 `Page` 的 `orders/optimizeCountSql/searchCount/maxLimit/countId` 不承载分页信息，未保留）；
+   `PointAccountView` 保留 `id/tenantId/customerId/programId/availablePoints/frozenPoints/version` 与
+   四个审计列名——**审计时间戳字段仍在但是 `null`**（领域模型不承载审计字段，适配器只回填主键与版本）。
+   `PointLedgerRow` 保留 8 个键（含真实列 `createdAt`）。收紧字段集与恢复审计值都要单独一次带版本说明的变更。
+
+**迁移时确认过、值得记住的一条**：`CstPointLedgerPo` 上**没有** `@TableField(exist = false)` 字段
+（逐字段核对 + 与 DDL 对齐），所以积分适配器不需要像钱包那样跳过展示字段；
+`PointLedgerEntry` 保留 `createdAt`（NOT NULL 真实列，且是响应字段），但不带 `createdBy/updatedBy/updatedAt`。
 
 ## 2. 本域最严重的发现：**看起来有乐观锁，实际没有**
 
@@ -76,6 +111,13 @@ accountMapper.updateById(account);                      // 无条件写回
 6. **`decorate` 是服务端唯一代币换算点**（`余额 ÷ 100 × ratio`，HALF_UP）。C 端/后台/B 端不得各自换算。
 7. **失败留痕只走 `recordAsync`，业务异常原样抛出**：留痕绝不改变业务结果；detail 只放会员 ID，
    **金额与支付凭证不入详情**。
+8. **积分不是钱包**（别把两者的懒初始化混为一谈）：积分账户由 C 端入口
+   `ensureAccount` **显式建出**，`balance` / `view` 对没有账户的会员就是 **404 `POINT_ACCOUNT_NOT_FOUND`**，
+   没有"零额只读视图"。积分没有币种字段，流水里的 `currency_code` 只是当时租户币种快照。
+9. **积分的审计入口只有 `adjust`**（`points.adjust`，成功与失败都留痕）；
+   `redeem`/`release`/`earn` 是内部调用，本来就不留痕——不要顺手加，那会改变审计口径。
+10. **积分账本的写入顺序是"先 CAS 再流水"**（见 §1.3 要点 2）：对账只能相信账本，
+    所以绝不能出现"账本说动过、余额没动"。
 
 ## 4. 一处我**没有**顺手做的收紧
 
@@ -94,24 +136,57 @@ accountMapper.updateById(account);                      // 无条件写回
 | 项 | 状态 |
 |---|---|
 | 钱包相关 5 个测试文件 | **已迁到端口**（`WalletApplicationServiceTest`、`WalletTokenDisplayServiceTest`、`WalletTokenResponseContractTest`、`WalletTokenResponseWiringTest`、`CustomerIntegrationTest`） |
-| 积分切片（`PointApplicationService` 等 10 个文件） | **未开始** |
+| 积分切片（`PointApplicationService` 等） | **已完成**（生产侧 + 测试侧，见 §1.3） |
+| 积分切片测试 | `PointApplicationServiceTest`（27，端口语义）、`PointAccountRepositoryAdapterTest`（14，SQL 形状/列保真）、`PointAccountIntegrationTest`（8，H2 真库）、`WalletTokenResponseContractTest`/`WiringTest` 的积分部分已迁 |
 | 会员切片（`MemberApplicationService` 758 行、`MemberPurgeApplicationService` 等） | **未开始** |
 | `domain` 包整体 | 只建了 `point` 与 `wallet` 两个子域 |
 
-`platform-customer-service` 当前 **126 测试全绿**，全部阻断门禁通过。
+`platform-customer-service` 当前 **172 测试全绿**（迁移前 126），全部阻断门禁通过；
+客户域 `po-containment` 21 → 15，`service-api-boundaries` 9 → 5。
 
-### 5.1 一个必须补的缺口：CAS 路径**没有适配器测试**
+**还留在 `po` 上的客户域引用（下一次切片的目标）**：
+`MemberApplicationService`（3 行，含 `pointsList` 直接读 `CstPointAccountPo`）、
+`MemberPurgeApplicationService`（6 行，直接删 `cst_point_account` / `cst_point_ledger`）、
+`CustomerOverviewApplicationService`（4 行）、`MemberController.list`（返回 `CstMemberPo`）、
+`MyAssetsController`（`CstMemberPo`）。**本切片按约定只动积分切片的 8 行，没有顺手改会员切片**——
+但要注意 `MemberApplicationService.pointsList` 与 `MemberPurgeApplicationService` 仍直接用积分 Mapper
+读/删积分账户（值仍是正确的，因为适配器包装的就是同一张表；只是分层尚未收敛）。
 
-原服务测试里的 SQL 形状/列保真断言**已随迁移消失**（按测试层分工，它们本就该在适配器测试里）。
-目前 **不存在 `WalletAccountRepositoryAdapterTest`**，后果是：
+### 5.1 缺口已补：积分切片有适配器测试了
 
-> **CAS 的 SQL 形状与列集合没有任何测试锁定。**
+§5.1 记的缺口（CAS 的 SQL 形状与列集合没有测试锁定）在积分切片**已补上**：
+`PointAccountRepositoryAdapterTest` = 真适配器 + mock mapper，覆盖
+CAS 带 `version = ?` 条件、`version = version + 1` 在 SQL 里而非 Java 加一、只 set 真实列、
+`LIMIT/OFFSET` 与 id 倒序、幂等键计数、INSERT 默认值与时间戳。
 
-这不是理论问题——本轮就因此炸了一次（见 §5.2）。补一个适配器测试（真适配器 + 假 mapper）应当覆盖：
-CAS 语句带 `version = ?` 条件、只 set 真实列、`version = version + 1` 在 SQL 里而非由 Java 加一、
-以及 `LedgerPage` 的 id 倒序与 OFFSET/LIMIT。
+<details>
+<summary>写这个测试时踩到的两个坑（下一个切片会再遇到）</summary>
 
-### 5.2 本轮真实炸掉的一次：`@TableField(exist = false)` 被写进 UPDATE
+1. **lambda 列名解析需要 `TableInfo` 注册**。单测里没有 Spring，`TableInfoHelper` 从未被调用，
+   于是 `eq()/set()` 只登记方法引用、不解析列名，`getParamNameValuePairs()` 是空的、
+   `getSqlSet()` 里没有列——表现为"断言莫名其妙地空"，不是报错。
+   用 `TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Po.class)`
+   在 `@BeforeAll` 里注册即可。
+2. **条件参数值是 `getTargetSql()` 触发、懒加进参数表的**（MyBatis-Plus 3.5.17）：
+   `set` 的值在 `set()` 时就进了表，`eq` 的值要等 SQL 求值才进。
+   所以断言顺序必须是"先求值 SQL，再读参数表"。另外条件值按 Java 类型装箱（`Integer` vs `Long`），
+   `containsValue(11L)` 会假失败——按数值比较。
+</details>
+
+`WalletAccountRepositoryAdapterTest` **仍然不存在**（钱包切片的缺口没补）。
+
+### 5.2 又一个"从未真跑过"的运行时洞
+
+`src/test/resources/db/test-migration/V1__cst_h2_schema.sql` **原先只有钱包两张表**。
+后果：**积分写路径从未碰过真实数据库**——积分切片的集成测试是第一批真正跑到积分表的测试。
+已补 `cst_point_account`、`cst_point_ledger`、`cst_point_rule_config`（镜像生产列集；
+`cst_point_rule_config` 是必需的，因为 `PointRuleConfigApplicationService.resolve` 会读它）。
+
+这与 §5.3 钱包 `@TableField(exist = false)` 缺陷能溜过去是**同一个洞**：H2 测试 schema
+只镜像"当前测试用到的表"，于是**任何新写路径默认都没有真实数据库覆盖**。
+**新增写路径时，先确认它的表在测试 schema 里存在**——否则整套集成测试都不会碰它。
+
+### 5.3 本轮真实炸掉的一次：`@TableField(exist = false)` 被写进 UPDATE
 
 CAS 适配器最初对 `tokenAmount` / `tokenBrandName` / `accountOpened` 调了 `.set(...)`。
 这三个字段在 PO 上标了 **`@TableField(exist = false)`**（DDL 里也没有列），于是 MyBatis-Plus 抛：
@@ -128,6 +203,12 @@ can not find lambda cache for this property [tokenAmount] of entity [CstWalletAc
    （为了让视图从一处装配），但**列集合必须只来自真实 DDL**。
 2. **这一条只有集成测试能抓到。** 该 CAS 路径在集成测试真正跑起来之前**没有任何运行时覆盖**——
    单元测试用 mock 适配器，编译期又查不出列名。**"编译通过 + 单测绿"不等于这条 SQL 能跑。**
+
+**积分切片顺带补上了这条运行时的路**：`src/test/resources/db/test-migration/V1__cst_h2_schema.sql`
+此前**只有钱包两张表**（`cst_wallet_account` / `cst_wallet_ledger`）与 outbox，没有积分表，
+所以积分写路径在真库上从来没有跑过。现在补了 `cst_point_account` / `cst_point_ledger` /
+`cst_point_rule_config`（后者的缺失一度让积分集成测试直接报 `Table not found`）。
+**新切片加集成测试时，先确认 H2 测试 schema 里有这张表**，否则第一个报错会是 Flyway/表缺失而不是你要验的东西。
 
 
 ## 6. 验证命令

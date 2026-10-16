@@ -12,19 +12,23 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.customer.api.controller.MemberController.MemberMeResponse;
+import io.openware.platform.customer.api.dto.PointAccountView;
+import io.openware.platform.customer.api.dto.PointLedgerRow;
 import io.openware.platform.customer.api.dto.WalletAccountView;
 import io.openware.platform.customer.api.dto.WalletLedgerPageView;
 import io.openware.platform.customer.application.MemberApplicationService;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
 import io.openware.platform.customer.application.WalletTokenDisplayService;
+import io.openware.platform.customer.domain.point.model.PointAccount;
+import io.openware.platform.customer.domain.point.model.PointLedgerEntry;
+import io.openware.platform.customer.domain.point.repository.PointAccountRepository;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import io.openware.platform.customer.domain.wallet.model.WalletLedgerEntry;
-import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository.LedgerPage;
+import io.openware.platform.customer.domain.wallet.repository.WalletAccountRepository;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient;
 import io.openware.platform.customer.infra.client.TenantWalletTokenClient.WalletTokenConfig;
 import io.openware.platform.customer.infra.persistence.po.CstMemberPo;
-import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -83,7 +87,7 @@ class WalletTokenResponseWiringTest {
   /** C 端流水（GET /me/wallet/ledger）。 */
   @Test
   void meWalletLedgerResponseCarriesTokenFieldsPerRow() {
-    LedgerPage page = ledgerPage(ledger(250L, 250L));
+    WalletAccountRepository.LedgerPage page = ledgerPage(ledger(250L, 250L));
     when(walletService.ledger(MEMBER_ID, 1L, 20L)).thenReturn(page);
 
     WalletLedgerPageView result = myAssetsController.walletLedger(1L, 20L);
@@ -93,6 +97,31 @@ class WalletTokenResponseWiringTest {
     assertEquals(1L, result.current());
     assertEquals("250", result.records().get(0).tokenAmount());
     assertEquals("A380币", result.records().get(0).tokenBrandName());
+  }
+
+  /**
+   * C 端积分（GET /me/points）：控制器把领域数据装配成响应视图，形状与迁移前一致。
+   *
+   * <p>账户此前直接返回持久化对象，{@code records} 此前是 MyBatis-Plus {@code Page} 的记录数组；
+   * 这里断言装配后的键仍是旧键，且流水行只给「个数」（无币种、无代币字段）。
+   */
+  @Test
+  void mePointsResponseKeepsLegacyFieldNames() {
+    when(pointService.view(MEMBER_ID, 1L, 20L)).thenReturn(new PointApplicationService.MemberPointsData(
+        pointAccount(), new PointAccountRepository.LedgerPage(List.of(pointLedger()), 1L), 1L, 20L));
+
+    var view = myAssetsController.points(1L, 20L);
+
+    assertEquals(1200L, view.account().availablePoints());
+    assertEquals(30L, view.account().frozenPoints());
+    assertEquals(1L, view.account().programId());
+    assertEquals(1, view.records().size());
+    assertEquals(100L, view.records().get(0).points());
+    assertEquals(1200L, view.records().get(0).balanceAfter());
+    assertEquals(1L, view.total());
+    assertEquals(20L, view.size());
+    assertEquals(1L, view.current());
+    assertEquals(1L, view.pages());
   }
 
   /** C 端「我的资产」（GET /business/members/me）内嵌的钱包对象同样带展示字段。 */
@@ -108,7 +137,8 @@ class WalletTokenResponseWiringTest {
     // 冻结 500 不影响可用代币展示口径，且冻结金额字段原样保留
     assertEquals(500L, me.wallet().frozenAmount());
     // 积分仍是数量口径：只有个数，没有币种/代币字段
-    assertEquals(1200L, me.points().getAvailablePoints());
+    assertEquals(1200L, me.points().availablePoints());
+    assertEquals(30L, me.points().frozenPoints());
   }
 
   /** 后台会员钱包（GET /business/members/{id}/wallet）与会员流水。 */
@@ -204,8 +234,8 @@ class WalletTokenResponseWiringTest {
     return WalletAccount.zeroFor(MEMBER_ID, 1L, "USD");
   }
 
-  private static LedgerPage ledgerPage(WalletLedgerEntry... rows) {
-    return new LedgerPage(List.of(rows), rows.length);
+  private static WalletAccountRepository.LedgerPage ledgerPage(WalletLedgerEntry... rows) {
+    return new WalletAccountRepository.LedgerPage(List.of(rows), rows.length);
   }
 
   private static WalletLedgerEntry ledger(long amount, long balanceAfter) {
@@ -213,12 +243,12 @@ class WalletTokenResponseWiringTest {
         null, null, null, null, null, LocalDateTime.now());
   }
 
-  private static CstPointAccountPo pointAccount() {
-    CstPointAccountPo po = new CstPointAccountPo();
-    po.setId(1L);
-    po.setCustomerId(MEMBER_ID);
-    po.setAvailablePoints(1200L);
-    po.setFrozenPoints(30L);
-    return po;
+  private static PointAccount pointAccount() {
+    return new PointAccount(1L, TENANT_ID, MEMBER_ID, 1L, 1200L, 30L, 0);
+  }
+
+  private static PointLedgerEntry pointLedger() {
+    return new PointLedgerEntry(5L, TENANT_ID, null, 1L, "ADJUST", 100L, "USD", 1200L, null, null,
+        "cmd-1", null, null, LocalDateTime.now(), LocalDateTime.now());
   }
 }

@@ -5,7 +5,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.customer.application.PointApplicationService;
 import io.openware.platform.customer.application.WalletApplicationService;
-import io.openware.platform.customer.infra.persistence.po.CstPointAccountPo;
+import io.openware.platform.customer.domain.point.model.PointAccount;
 import io.openware.platform.customer.domain.wallet.model.WalletAccount;
 import jakarta.servlet.http.HttpServletRequest;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
@@ -60,8 +60,10 @@ public class InternalCustomerController {
     public PointRedeemResponse redeemPoints(@RequestBody PointRedeemRequest req) {
         verifyInternalAuth();
         Long storeId = requireStoreContext();
-        CstPointAccountPo po = pointService.redeem(storeId, req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
-        return new PointRedeemResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+        PointAccount account = pointService.redeem(storeId, req.customerId(), req.points(), req.orderId(),
+                req.idempotencyKey());
+        return new PointRedeemResponse(account.id(), account.customerId(), account.availablePoints(),
+                account.frozenPoints());
     }
 
     /** 积分释放（组合收款失败补偿，REVERSE，幂等）。 */
@@ -69,8 +71,10 @@ public class InternalCustomerController {
     public PointReleaseResponse releasePoints(@RequestBody PointReleaseRequest req) {
         verifyInternalAuth();
         Long storeId = requireStoreContext();
-        CstPointAccountPo po = pointService.release(storeId, req.customerId(), req.points(), req.orderId(), req.idempotencyKey());
-        return new PointReleaseResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+        PointAccount account = pointService.release(storeId, req.customerId(), req.points(), req.orderId(),
+                req.idempotencyKey());
+        return new PointReleaseResponse(account.id(), account.customerId(), account.availablePoints(),
+                account.frozenPoints());
     }
 
     /** 收款确认后的积分获得；仅由内部支付服务调用，收入金额由服务端账单提供。 */
@@ -78,8 +82,10 @@ public class InternalCustomerController {
     public PointEarnResponse earnPoints(@RequestBody PointEarnRequest req) {
         verifyInternalAuth();
         Long storeId = requireStoreContext();
-        CstPointAccountPo po = pointService.earn(storeId, req.customerId(), req.eligibleAmountMinor(), req.orderId(), req.idempotencyKey());
-        return new PointEarnResponse(po.getId(), po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+        PointAccount account = pointService.earn(storeId, req.customerId(), req.eligibleAmountMinor(),
+                req.orderId(), req.idempotencyKey());
+        return new PointEarnResponse(account.id(), account.customerId(), account.availablePoints(),
+                account.frozenPoints());
     }
 
     @GetMapping("/points/amount-to-points")
@@ -114,8 +120,8 @@ public class InternalCustomerController {
     @GetMapping("/points/{customerId}")
     public PointBalanceResponse pointsBalance(@PathVariable Long customerId) {
         verifyInternalAuth();
-        CstPointAccountPo po = pointService.balance(customerId);
-        return new PointBalanceResponse(po.getCustomerId(), po.getAvailablePoints(), po.getFrozenPoints());
+        PointAccount account = pointService.balance(customerId);
+        return new PointBalanceResponse(account.customerId(), account.availablePoints(), account.frozenPoints());
     }
 
     private void verifyInternalAuth() {

@@ -1,7 +1,5 @@
 package io.openware.platform.customer.domain.wallet.model;
 
-import java.math.BigDecimal;
-
 /**
  * 储值账户（领域模型）。
  *
@@ -126,17 +124,5 @@ public record WalletAccount(
   public boolean differsFromNormalizedCurrency(String normalizedCurrencyCode) {
     String account = currencyCodeOrNull();
     return account != null && normalizedCurrencyCode != null && !account.equals(normalizedCurrencyCode);
-  }
-
-  /** 代币数量按 BigDecimal 读取（展示路径）；为空视为 0。 */
-  public BigDecimal tokenAmountOrZero() {
-    if (tokenAmount == null || tokenAmount.isBlank()) {
-      return BigDecimal.ZERO;
-    }
-    try {
-      return new BigDecimal(tokenAmount);
-    } catch (NumberFormatException malformed) {
-      return BigDecimal.ZERO;
-    }
   }
 }
