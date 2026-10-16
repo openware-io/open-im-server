@@ -1,9 +1,10 @@
 # Pre-existing non-ASCII .ps1 files deferred out of validate-powershell-ascii-only.ps1.
 #
-# This is a DEFERRAL list, not an exemption list. Every entry is a BOM-less .ps1 that already
-# contained non-ASCII bytes in the initial open-source commit (4971e22), so it is not a regression
-# introduced by the gate. Each entry names the batch that clears it and why it is not cleared now.
-# Counts below are non-ASCII BYTES (what the gate reports), not characters.
+# This is a DEFERRAL list, not an exemption list. Each entry names the batch that clears it.
+# Counts are non-ASCII BYTES (what the gate reports), not characters.
+#
+# EMPTY as of batch 4: every scripts/**/*.ps1 is now ASCII-only, so the gate is fully blocking
+# with no deferrals. The file is kept so the mechanism and its rules stay documented.
 #
 # Rules for this file:
 #   - one entry per line:  <repo-relative-path> | <clearing batch> | <reason>
@@ -11,10 +12,21 @@
 #   - when a file becomes ASCII-only the entry is DELETED: a stale entry is itself a gate failure;
 #   - entries are never added back after removal, and new files are never added.
 #
+# Two claims that used to be in this header were measured and found false, and are corrected here
+# so they do not get repeated:
+#
+#   - Not every offender was BOM-less "since the initial commit" as a deferral: `scripts/verify/
+#     verify-a380-ktv-closure.ps1` had a Chinese room-type name in an SQL literal that is only ever
+#     used as an id, so no assertion depended on it; and four `.ps1` files in `scripts/verify/`
+#     already declared "must be ASCII-only" in their own headers. The N-20 record in
+#     docs/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md describes it as an identified
+#     residual hazard, not as content to preserve.
+#   - Chinese comments in a BOM-less .ps1 are NOT mis-decoded into parse failures by Windows
+#     PowerShell 5.1. Measured with the 5.1 executable that this repository actually uses
+#     (%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe): all 60 scripts under
+#     scripts/ parse with zero errors both before and after the batch-4 translation, and a
+#     BOM-less .ps1 containing a Chinese comment executes correctly. The real hazard the gate
+#     guards is a non-ASCII byte inside a regex or string literal being decoded as ANSI, which
+#     silently changes matching; that is why the rule stays ASCII-only rather than "BOM required".
+#
 # Empty lines and lines starting with '#' are ignored.
-
-scripts/deploy/build-saas-release.ps1 | batch 4 (standards cleanup) | 930 non-ASCII bytes (310 chars) in Chinese progress/output strings of a release packaging helper; the strings are user-facing, so clearing them means deciding whether the output stays Chinese (which would require a BOM or an explicit UTF-8 output convention), not a mechanical comment translation.
-scripts/deploy/k8s.ps1 | batch 4 (standards cleanup) | 198 non-ASCII bytes (66 chars) in Chinese progress messages of a local kind/k8s bootstrap helper; same user-facing-output question as build-saas-release.ps1, and it has no gate coverage of its own.
-scripts/set-domain-version.ps1 | batch 4 (standards cleanup) | 228 non-ASCII bytes (76 chars) in Chinese usage/help text of a release versioning helper; untouched since the initial import, so it converts together with the other two root/deploy helpers.
-scripts/verify/verify-a380-ktv-closure.ps1 | batch 4 (standards cleanup) | 6 non-ASCII bytes (2 chars) at line 99 only: the SQL fixture inserts a room type whose name literal is Chinese test data (standards/30 N-20). Changing the literal changes the asserted fixture value, so it is a behavior decision, not an encoding cleanup.
-scripts/verify/verify-unread-secret-toggle.ps1 | batch 4 (standards cleanup) | 393 non-ASCII bytes (131 chars) in Chinese comments describing the unread-badge toggle scenario (bug#8); comments only, but the file runs on Windows PowerShell 5.1, so they are mis-decoded at parse time.

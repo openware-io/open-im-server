@@ -48,12 +48,12 @@ function Replace-Version {
 
     $content = [System.IO.File]::ReadAllText($PomPath, [System.Text.Encoding]::UTF8)
     if ([string]::IsNullOrEmpty($content)) { throw "POM is empty or unreadable: $PomPath." }
-    # 必须用 ${1} 而非 $1：后者会与紧随其后的版本号连成 "$11.0.30"，被正则当作第 11 个捕获组。
+    # ${1} is required instead of $1: the latter would run into the version that follows and form "$11.0.30", which the regex reads as capture group 11.
     $updated = [regex]::Replace($content, $Pattern, "`${1}$NewVersion", 1)
     if ($updated -eq $content) {
         throw "Version node was not found: $PomPath."
     }
-    # 护栏：替换结果必须是仍可解析的 XML，且包含预期版本号；否则拒绝落盘（历史上曾出现写空文件）。
+    # Guardrail: the replacement result must still be parseable XML containing the expected version; otherwise nothing is written to disk (an empty file was written here once before).
     if ($updated.Length -lt ($content.Length / 2)) { throw "Refusing to shrink $PomPath drastically (content $($content.Length) -> $($updated.Length) chars)." }
     try { [xml]$null = $updated } catch { throw "Version replacement produced invalid XML for ${PomPath}: $($_.Exception.Message)" }
     if ($updated -notmatch [regex]::Escape($NewVersion)) { throw "Replacement did not apply version $Version to $PomPath." }

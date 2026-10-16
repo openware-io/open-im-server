@@ -407,8 +407,8 @@ $infrastructureImages = @(
 )
 foreach ($image in $infrastructureImages) { Import-KubernetesRegistryImage -Image $image }
 $rocketmqImage = 'apache/rocketmq:5.3.1'
-# 本地已构建过就复用：基镜像 apache/rocketmq:5.3.1 只在首次构建时从 Docker Hub 拉取，
-# 无外网/代理抖动时重建会让整个 Kind 部署在应用清单之前直接失败（该镜像不参与发布清单校验）。
+# Reuse the image if it has already been built locally: the apache/rocketmq:5.3.1 base image is pulled from Docker Hub only on the first build, so
+# rebuilding it while the network or a proxy is flaky fails the whole Kind deploy before the application manifests (this image is not covered by release-manifest validation).
 $savedErrorActionPreference = $ErrorActionPreference
 try {
   $ErrorActionPreference = 'Continue'

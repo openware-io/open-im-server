@@ -7,9 +7,9 @@ param(
   [string]$Username,
   [string]$Password
 )
-# 验证后台功能开关对未读角标的影响（bug#8 场景）：
-# secret/secret_group 两开关 ON 时计入 msg_secret_unread 投影；OFF 时服务端排除（count=0 且按会话为空）。
-# 一次性数据与配置在 finally 中清理恢复，幂等可重复。需 root MySQL 密码（读 open-im-env secret）。
+# Verifies the effect of the backend feature flags on the unread badge (the bug#8 scenario):
+# with the secret/secret_group flags ON the rows count toward the msg_secret_unread projection; with them OFF the server excludes them (count=0 and an empty by-conversation list).
+# The one-off rows and config are cleaned up and restored in the finally block, so reruns are idempotent and repeatable. Needs the root MySQL password (read from the open-im-env secret).
 $ErrorActionPreference = 'Stop'
 if (!$Username -or !$Password) { throw 'Provide -Username/-Password of a disposable account.' }
 
@@ -32,17 +32,17 @@ $uid = [long]$login.user.id
 $nowUtc = (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss.fff')
 $fail = $false
 try {
-  # 1) 写入两条秘密消息未读投影（secret / secret_group）
+  # 1) Insert two secret-message unread projections (secret / secret_group).
   MySql "DELETE FROM msg_secret_unread WHERE user_id=$uid AND conversation_id IN (99999901,99999902);"
   MySql "INSERT INTO msg_secret_unread(chat_type,conversation_id,user_id,msg_id,seq,created_at) VALUES ('secret',99999901,$uid,'toggle-u1',1,NOW(3)),('secret_group',99999902,$uid,'toggle-u2',1,NOW(3));"
 
-  # 2) 两开关显式置 true，等待适配器 TTL 后断言计入
+  # 2) Force both flags to true, wait out the adapter TTL, then assert the rows are counted.
   MySql "INSERT INTO adm_system_config(config_key,config_value,config_group,description,created_at,updated_at) VALUES ('feature.secretChatEnabled','true','feature','unread-toggle-verify','$nowUtc','$nowUtc'),('feature.secretGroupChatEnabled','true','feature','unread-toggle-verify','$nowUtc','$nowUtc') ON DUPLICATE KEY UPDATE config_value='true',updated_at='$nowUtc';"
   Start-Sleep -Seconds 65
   $on = UnreadCount $token
   if ($on -notmatch '"count"\s*:\s*2') { Write-Output "FAIL expected count 2 with flags ON, got $on"; $fail = $true }
 
-  # 3) 两开关置 false，等待 TTL 后断言排除
+  # 3) Set both flags to false, wait out the TTL, then assert the rows are excluded.
   MySql "UPDATE adm_system_config SET config_value='false',updated_at='$nowUtc' WHERE config_key IN ('feature.secretChatEnabled','feature.secretGroupChatEnabled');"
   Start-Sleep -Seconds 65
   $off = UnreadCount $token
@@ -52,7 +52,7 @@ try {
   Write-Output "PASS flags ON => $on ; OFF => $off ; by-conv => $byConv"
 }
 finally {
-  # 4) 清理临时数据并恢复开关（默认 true）
+  # 4) Remove the temporary rows and restore the flags (default true).
   MySql "UPDATE adm_system_config SET config_value='true',updated_at='$nowUtc' WHERE config_key IN ('feature.secretChatEnabled','feature.secretGroupChatEnabled');"
   MySql "DELETE FROM msg_secret_unread WHERE user_id=$uid AND conversation_id IN (99999901,99999902);"
   Write-Output 'cleanup done (rows removed, flags restored to true).'

@@ -96,7 +96,7 @@ try {
   if ($adminContext.permissions -notcontains 'order.add_item') { throw 'A380 context did not receive order.add_item after IAM migration.' }
   $script:testRoomId = [long](SqlValue "SELECT id FROM res_resource WHERE tenant_id=100 AND store_id=100 AND resource_type='KTV_ROOM' AND status='ENABLED' AND cleaning_status='IDLE' AND room_type_id IS NULL ORDER BY id LIMIT 1;")
   if (!$script:testRoomId) { throw 'No unbound enabled KTV room is available for the disposable fixture.' }
-  $script:testRoomTypeId = [long](SqlValue "INSERT INTO res_room_type(tenant_id,store_id,code,name,capacity,unit_price,server_unit_price,sort_order,status,created_by,created_at,updated_by,updated_at) VALUES(100,100,'E2E_$script:suffix','E2E 房型 $script:suffix',8,12800,5000,999,'ACTIVE',0,NOW(3),0,NOW(3)); SELECT LAST_INSERT_ID();")
+  $script:testRoomTypeId = [long](SqlValue "INSERT INTO res_room_type(tenant_id,store_id,code,name,capacity,unit_price,server_unit_price,sort_order,status,created_by,created_at,updated_by,updated_at) VALUES(100,100,'E2E_$script:suffix','E2E RoomType $script:suffix',8,12800,5000,999,'ACTIVE',0,NOW(3),0,NOW(3)); SELECT LAST_INSERT_ID();")
   Sql "UPDATE res_resource SET room_type_id=$script:testRoomTypeId, updated_at=NOW(3) WHERE id=$script:testRoomId AND room_type_id IS NULL;"
   $roomTypeId=$script:testRoomTypeId; $roomId=$script:testRoomId
   $start = [DateTimeOffset]::Now.AddHours(2); $created = Json 'POST' '/api/v1/business/reservations' @{businessType='KTV';roomTypeId=$roomTypeId;startAt=$start.ToString('o');endAt=$start.AddHours(2).ToString('o');partySize=2;contact='KTV Gate 13800138000'} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-$script:suffix"}

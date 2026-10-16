@@ -5,8 +5,8 @@ param(
   [switch]$SkipPackage,
   [switch]$FormalRelease,
   [string[]]$FormalTargets = @(),
-  # 增量开发发版：只构建/推送列出的服务，清单里也只列出这些服务（配合 k8s-scoped.ps1 部署）。
-  # 留空表示按既有行为构建全部服务；不能与 -FormalRelease 同时使用（正式发版用 -FormalTargets）。
+  # Incremental development release: build/push only the listed services, and list only those services in the manifest (deploy it together with k8s-scoped.ps1).
+  # Leaving it empty keeps the existing behavior of building every service; it cannot be combined with -FormalRelease (formal releases use -FormalTargets).
   [string[]]$Targets = @(),
   [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = '',
@@ -60,9 +60,9 @@ function Get-RegistryImageLabels([string]$image){
   try{return $raw|ConvertFrom-Json}catch{return $null}
 }
 function Get-LocalImageRevision([string]$image,[string]$tag){
-  # Windows PowerShell 5.1 会把原生命令的 stderr 提升为 ErrorRecord；在 $ErrorActionPreference='Stop'
-  # 下 `docker image inspect` 查不到本地镜像会直接终止整个发布构建（bump 版本后的新 tag 必然查不到）。
-  # 与文件内其它 docker 辅助函数保持一致，临时降级 ErrorActionPreference 并只按退出码判定。
+  # Windows PowerShell 5.1 promotes native-command stderr to an ErrorRecord, so under $ErrorActionPreference='Stop'
+  # a failing `docker image inspect` for a missing local image would abort the entire release build (a fresh tag after a version bump is guaranteed to miss).
+  # As in the other docker helpers in this file, ErrorActionPreference is downgraded temporarily and only the exit code decides.
   $saved=$ErrorActionPreference
   try{$ErrorActionPreference='Continue';$raw=(& docker image inspect $image --format '{{json .Config.Labels}}' 2>$null|Out-String).Trim();$code=$LASTEXITCODE}finally{$ErrorActionPreference=$saved}
   if($code -ne 0 -or !$raw){return ''}
@@ -96,7 +96,7 @@ function Remove-ReplacedLocalImage([string]$oldId,[string]$newId){
   Write-Host "Removed replaced local image: $oldId"
 }
 function Assert-NoDanglingReleaseImage([string]$Name,[string]$Tag){
-  # 不使用 docker image prune：只检查带有本发布服务标识的镜像，绝不误删其他项目的本地构建缓存。
+  # docker image prune is deliberately avoided here: only images carrying this release service identity are inspected, so the local build cache of another project is never deleted by mistake.
   $dangling=@()
   $dangling+=@(& docker image ls --filter dangling=true --quiet --no-trunc 2>$null | Where-Object{$_} | Select-Object -Unique)
   foreach($id in $dangling){
@@ -204,8 +204,8 @@ if ($FormalRelease -and $Targets.Count -gt 0) {
 if ($FormalRelease -and $FormalTargets.Count -eq 0) {
   throw 'Formal release requires -FormalTargets. List only the services or frontends intentionally promoted in this release.'
 }
-# 本次实际构建/推送的服务集合：正式发版取 -FormalTargets，增量开发发版取 -Targets，留空表示全部。
-# 外层 @() 不可去掉：StrictMode 下 Select-Object -Unique 单值结果会退化成字符串，.Count 会抛错。
+# The set of services actually built/pushed in this run: -FormalTargets for a formal release, -Targets for an incremental development release, empty meaning all.
+# The outer @() must not be dropped: under StrictMode a single-value Select-Object -Unique result degrades to a string and .Count then throws.
 $selectedTargets = @(@($FormalTargets) + @($Targets) | Select-Object -Unique)
 $unknownFormalTargets = @($selectedTargets | Where-Object { $_ -notin $knownFormalTargets })
 if ($unknownFormalTargets.Count -gt 0) {
@@ -228,10 +228,10 @@ foreach($e in $defs.GetEnumerator()) {
   }
 }
 if(!$SkipPackage){
-  # Maven/JVM 会把提示（如 sun.misc.Unsafe 弃用）写到 stderr；本脚本顶部是
-  # $ErrorActionPreference='Stop'，直接调用会让原生 stderr 变成终止性错误、把构建打断
-  # （表现为「只看到一条 WARNING 就退出 1」）。与下方 docker 调用同样处理：临时 Continue，
-  # 只以 $LASTEXITCODE 判定成败。
+  # Maven/JVM writes advisories (for example the sun.misc.Unsafe deprecation) to stderr, and this script sets
+  # $ErrorActionPreference='Stop' at the top, so invoking it directly turns that native stderr into a terminating error that aborts the build
+  # (it looks like "exit 1 after a single WARNING"). Handled like the docker calls below: temporarily Continue,
+  # and success or failure is judged by $LASTEXITCODE alone.
   $savedMvn=$ErrorActionPreference
   try{$ErrorActionPreference='Continue';& (Join-Path $root 'mvnw.cmd') -B -ntp clean package;$code=$LASTEXITCODE}finally{$ErrorActionPreference=$savedMvn}
   if($code){throw 'Maven package failed.'}
