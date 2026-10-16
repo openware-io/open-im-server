@@ -97,4 +97,22 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
     @Update("UPDATE ord_order SET hold_at = NULL, hold_reason = NULL, updated_at = #{updatedAt} "
             + "WHERE id = #{id} AND hold_at IS NOT NULL")
     int unholdIfHeld(@Param("id") Long id, @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 取消/作废的条件更新：仅当库中状态仍是 {@code expectedStatus} 时写入 VOIDED。
+     *
+     * <p>判据用 {@code status} 而不是 version 是刻意的：取消流程不写金额，而**重复取消是幂等语义**
+     * （已 VOIDED 时直接回既有结果）。若按 version 守卫，一次无害的重试会因为"期间有别的写入改过版本"
+     * 而失败；按 status 守卫则精确表达"只有仍是原状态才允许作废"。
+     *
+     * <p>没有这条条件时，两个并发取消都读到同一非终结状态、都通过应用层判定，
+     * 于是 {@code cancelByOrder} 被调用两次（两次释放/取消同一会话）、审计写两条，
+     * 后写者的原因与时间覆盖前者——而 CALLER 两次都收到成功。
+     *
+     * @return 受影响行数；0 表示期间已被他人转换
+     */
+    @Update("UPDATE ord_order SET status = 'VOIDED', cancelled_at = #{cancelledAt}, "
+            + "updated_at = #{cancelledAt} WHERE id = #{id} AND status = #{expectedStatus}")
+    int voidIfStatus(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
+                     @Param("cancelledAt") LocalDateTime cancelledAt);
 }

@@ -8,6 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -84,6 +87,7 @@ class OrderCancellationApplicationServiceTest {
     void voidKeepsOptionalReason() {
         OrderPo order = order("SERVING", BigDecimal.ZERO);
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(1);
 
         OrderPo result = service.voidOrder(ORDER_ID, null);
 
@@ -211,14 +215,15 @@ class OrderCancellationApplicationServiceTest {
     void cancelVoidsOrderReleasesSessionAndWritesAudit() {
         OrderPo order = order("SERVING", BigDecimal.ZERO);
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(1);
         when(ktvSessionService.cancelByOrder(ORDER_ID)).thenReturn(session(SESSION_ID, ROOM_RESOURCE_ID));
 
         OrderPo result = service.cancel(ORDER_ID, " 客人要求取消 ");
 
         assertEquals("VOIDED", result.getStatus());
         assertNotNull(result.getCancelledAt());
-        verify(orderMapper).updateById(order);
+        // 作废走状态守卫的条件更新：只有库中仍是判定时的状态才算成功。
+        verify(orderMapper).voidIfStatus(eq(ORDER_ID), eq("SERVING"), any());
         verify(ktvSessionService).cancelByOrder(ORDER_ID);
 
         AuditClient.AuditRecord record = capturedAudit();
@@ -239,7 +244,7 @@ class OrderCancellationApplicationServiceTest {
     @Test
     void cancelWithoutActiveSessionWritesNullReleaseFields() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("DRAFT", BigDecimal.ZERO));
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(1);
         when(ktvSessionService.cancelByOrder(ORDER_ID)).thenReturn(null);
 
         OrderPo result = service.cancel(ORDER_ID, "客人要求取消");
@@ -254,7 +259,7 @@ class OrderCancellationApplicationServiceTest {
     @Test
     void cancelEscapesReasonInAuditDetail() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("SERVING", BigDecimal.ZERO));
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(1);
 
         service.cancel(ORDER_ID, "客人说\"不要了\"\\改约");
 

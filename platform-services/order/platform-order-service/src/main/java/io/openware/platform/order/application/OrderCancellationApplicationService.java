@@ -189,10 +189,14 @@ public class OrderCancellationApplicationService {
             KtvSessionPo releasedSession = ktvSessionService.cancelByOrder(order.getId());
 
             LocalDateTime now = LocalDateTime.now();
+            // 条件更新：只有库中仍是判定的那个状态才算作废成功。上面按 beforeStatus 的判定不是并发保护——
+            // 两个并发取消都会读到同一非终结状态并通过判定，从而各自释放一次会话、各写一条审计。
+            if (orderMapper.voidIfStatus(order.getId(), beforeStatus, now) == 0) {
+                throw new ApiException(409, "ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
+            }
             order.setStatus("VOIDED");
             order.setCancelledAt(now);
             order.setUpdatedAt(now);
-            orderMapper.updateById(order);
             audit(order, beforeStatus, reason, kind, releasedSession);
             return order;
         } catch (RuntimeException failure) {

@@ -274,7 +274,13 @@ public class KtvServerSessionApplicationService {
         }
         orderAmounts.recalculate(order);
         order.setUpdatedAt(now);
-        orderMapper.updateById(order);
+        // 条件更新：同一订单上的两个服务人员会话可以各自通过自己的会话 CAS，
+        // 随后两次重算都会写订单——无条件写回会让后写者覆盖前者算出的服务人员费。
+        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
+        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+            throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
+        }
+        order.setVersion(expectedVersion + 1);
     }
 
     /**

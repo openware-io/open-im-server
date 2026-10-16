@@ -1,5 +1,7 @@
 package io.openware.platform.order.application;
 
+import io.openware.common.exception.BusinessException;
+
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
@@ -24,7 +26,11 @@ import java.util.List;
  * {@code ord_order.total_amount} 会一直是 0 —— 订单列表（B 端卡片）、收银应付校验
  * （{@code PAYMENT_AMOUNT_MISMATCH}）与账单三处口径不一致，表现为「开台加项后金额不对」。
  *
- * <p>只改金额字段，不改状态与乐观锁版本：状态与版本由结算等状态流转维护。
+ * <p>只改金额字段。**版本参与判定并自增**（见下），状态原样写回当前值。
+ *
+ * <p>落库走带版本条件的乐观锁提交：本方法有直连 {@code /business/**} 的调用方
+ * （{@code OrderItemController} 加项后重算），没有上层守卫；
+ * 两个并发加项/重算都读到同一 version 时，无条件写回会让后写者覆盖前者算出的应付金额。
  */
 @Service
 public class OrderAmountApplicationService {
@@ -47,7 +53,13 @@ public class OrderAmountApplicationService {
         }
         recalculate(order);
         order.setUpdatedAt(LocalDateTime.now());
-        orderMapper.updateById(order);
+        // 条件更新：只有库中版本仍是刚读到的那个才写入。受影响 0 行 = 期间已被他人重算，
+        // 必须报冲突而不是静默覆盖对方算出的金额。
+        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
+        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+            throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
+        }
+        order.setVersion(expectedVersion + 1);
         return order;
     }
 

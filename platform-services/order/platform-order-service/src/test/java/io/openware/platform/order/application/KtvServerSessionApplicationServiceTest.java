@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -30,6 +31,7 @@ import io.openware.platform.order.infra.persistence.po.OrderPo;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -44,6 +46,17 @@ class KtvServerSessionApplicationServiceTest {
   private final KtvSessionMapper ktvSessionMapper = mock(KtvSessionMapper.class);
   private final KtvServerSessionApplicationService service =
       new KtvServerSessionApplicationService(sessionMapper, orderMapper, pricingPlanProvider, auditClient, orderItemMapper);
+
+  /**
+   * 订单金额写入走乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
+   *
+   * <p>Mockito 对未 stub 的 int 返回 0，等于"CAS 失败"，而失败会被转成 ORDER_VERSION_CONFLICT——
+   * 所以涉及订单金额重算的用例都以 CAS 成功为前提，在这里统一给出。
+   */
+  @BeforeEach
+  void stubOrderCasSuccess() {
+    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(1);
+  }
 
   @Test
   void order_createsOrderedSessionWithZeroAmount() {
@@ -416,7 +429,7 @@ class KtvServerSessionApplicationServiceTest {
 
     assertEquals(0, new BigDecimal("10000").compareTo(order.getTotalAmount()),
         "订单合计必须立刻包含服务人员费");
-    verify(orderMapper).updateById(order);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   private static KtvPricingPlan plan() {
