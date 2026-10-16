@@ -1,9 +1,10 @@
 package io.openware.platform.tenant.application;
 
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfigValue;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
+import io.openware.platform.tenant.domain.store.model.Store;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import io.openware.common.exception.ApiException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,12 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -51,21 +50,14 @@ public class KtvBusinessHoursApplicationService {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
     private static final String SEPARATOR = "-";
 
-    private final InternalTenantConfigMapper tenantConfigMapper;
-    private final TenantConfigMapper configWriter;
-    private final StoreMapper storeMapper;
-
-    public KtvBusinessHoursApplicationService(InternalTenantConfigMapper tenantConfigMapper) {
-        this(tenantConfigMapper, null, null);
-    }
+    private final TenantConfigRepository tenantConfigRepository;
+    private final StoreRepository storeRepository;
 
     @Autowired
-    public KtvBusinessHoursApplicationService(InternalTenantConfigMapper tenantConfigMapper,
-                                              TenantConfigMapper configWriter,
-                                              StoreMapper storeMapper) {
-        this.tenantConfigMapper = tenantConfigMapper;
-        this.configWriter = configWriter;
-        this.storeMapper = storeMapper;
+    public KtvBusinessHoursApplicationService(TenantConfigRepository tenantConfigRepository,
+                                              StoreRepository storeRepository) {
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.storeRepository = storeRepository;
     }
 
     /**
@@ -84,32 +76,38 @@ public class KtvBusinessHoursApplicationService {
             return KtvBusinessHours.DEFAULT;
         }
         String businessType = normalizeBusinessType(requestedBusinessType);
-        if (storeId != null && storeId > 0 && tenantConfigMapper != null) {
-            String actualBusinessType = normalizeBusinessType(tenantConfigMapper.selectStoreBusinessType(tenantId, storeId));
+        if (storeId != null && storeId > 0) {
+            // 门店事实（归属租户 + 业态）经门店端口读取：这里只用它做一致性判定，
+            // 门店不属于本租户时按"门店未知"处理（不抛异常），保持本方法原有的读路径容错。
+            String actualBusinessType = storeRepository.findById(storeId)
+                    .filter(store -> Objects.equals(store.tenantId(), tenantId))
+                    .map(Store::businessType)
+                    .map(KtvBusinessHoursApplicationService::normalizeBusinessType)
+                    .orElse(null);
             if (businessType != null && actualBusinessType != null
                     && !businessType.equalsIgnoreCase(actualBusinessType)) {
                 throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "业态与门店不匹配");
             }
-            if (businessType == null) businessType = actualBusinessType;
+            if (businessType == null) {
+                businessType = actualBusinessType;
+            }
         }
         if (storeId != null && storeId > 0) {
-            String raw = businessType == null
-                    ? tenantConfigMapper.selectStoreConfigValue(tenantId, storeId, CONFIG_KEY)
-                    : tenantConfigMapper.selectStoreConfigValueByBusinessType(tenantId, storeId, businessType, CONFIG_KEY);
-            KtvBusinessHours store = parse(raw, "STORE");
+            KtvBusinessHours store = parse(tenantConfigRepository
+                    .findStoreValue(tenantId, storeId, businessType, CONFIG_KEY).orElse(null));
             if (store != null) {
                 return store;
             }
         }
         if (businessType != null) {
-            KtvBusinessHours business = parse(
-                    tenantConfigMapper.selectBusinessConfigValue(tenantId, businessType, CONFIG_KEY), "BUSINESS");
+            KtvBusinessHours business = parse(tenantConfigRepository
+                    .findBusinessValue(tenantId, businessType, CONFIG_KEY).orElse(null));
             if (business != null) {
                 return business;
             }
         }
         KtvBusinessHours tenant = parse(
-                tenantConfigMapper.selectTenantConfigValue(tenantId, CONFIG_KEY), "TENANT");
+                tenantConfigRepository.findTenantValue(tenantId, CONFIG_KEY).orElse(null));
         return tenant == null ? KtvBusinessHours.DEFAULT : tenant;
     }
 
@@ -117,9 +115,6 @@ public class KtvBusinessHoursApplicationService {
     @Transactional
     public void update(Long tenantId, List<Long> requestedStoreIds, String requestedBusinessType,
                        LocalTime open, LocalTime close) {
-        if (configWriter == null) {
-            throw new IllegalStateException("配置写入适配器未初始化");
-        }
         String businessType = normalizeBusinessType(requestedBusinessType);
         Set<Long> storeIds = new LinkedHashSet<>();
         if (requestedStoreIds != null) {
@@ -134,11 +129,16 @@ public class KtvBusinessHoursApplicationService {
             if (storeId <= 0) {
                 throw new IllegalArgumentException("storeId 必须为正数");
             }
-            Long ownerTenant = storeMapper == null ? null : storeMapper.selectTenantIdById(storeId);
+            // 归属校验用 owner 查询而不是普通读取：门店可能属于别的租户，
+            // 需要区分"不存在"与"越权"，两者都拒绝但语义不同。
+            Long ownerTenant = storeRepository.findOwnerTenantId(storeId).orElse(null);
             if (!Objects.equals(ownerTenant, tenantId)) {
                 throw new IllegalArgumentException("STORE_SCOPE_FORBIDDEN");
             }
-            String actual = normalizeBusinessType(storeMapper.selectBusinessTypeById(storeId));
+            String actual = storeRepository.findById(storeId)
+                    .map(Store::businessType)
+                    .map(KtvBusinessHoursApplicationService::normalizeBusinessType)
+                    .orElse(null);
             if (actual == null) {
                 throw new IllegalArgumentException("BUSINESS_TYPE_MISSING");
             }
@@ -153,30 +153,16 @@ public class KtvBusinessHoursApplicationService {
         }
     }
 
+    /**
+     * 写入某作用域下的营业时间。
+     *
+     * <p>业态是作用域的一部分（同一个键在"不限业态"与"某业态"下各有一条），
+     * 因此交给端口的草稿必须带业态；端口按四元组定位，同一作用域只会有一条。
+     */
     private void upsert(Long tenantId, Long storeId, String businessType, String value) {
-        TenantConfigPo po = configWriter.selectOne(new QueryWrapper<TenantConfigPo>()
-                .eq("tenant_id", tenantId).eq("store_id", storeId)
-                .eq("business_type", businessType == null ? "" : businessType)
-                .eq("config_key", CONFIG_KEY).last("LIMIT 1"));
-        LocalDateTime now = LocalDateTime.now();
-        if (po == null) {
-            po = new TenantConfigPo();
-            po.setTenantId(tenantId);
-            po.setStoreId(storeId);
-            po.setBusinessType(businessType == null ? "" : businessType);
-            po.setConfigKey(CONFIG_KEY);
-            po.setConfigValue(value);
-            po.setStatus("ACTIVE");
-            po.setVersion(0);
-            po.setCreatedAt(now);
-            po.setUpdatedAt(now);
-            configWriter.insert(po);
-        } else {
-            po.setConfigValue(value);
-            po.setVersion(po.getVersion() == null ? 1 : po.getVersion() + 1);
-            po.setUpdatedAt(now);
-            configWriter.updateById(po);
-        }
+        tenantConfigRepository.upsert(new TenantConfig(null, tenantId, storeId,
+                businessType == null ? TenantConfig.ANY_BUSINESS_TYPE : businessType, CONFIG_KEY, value,
+                TenantConfig.STATUS_ACTIVE, 0));
     }
 
     private static String normalizeBusinessType(String businessType) {
@@ -184,12 +170,18 @@ public class KtvBusinessHoursApplicationService {
         return businessType.trim().toUpperCase();
     }
 
-    /** 解析配置值；缺行/空值返回 null（调用方继续回退），格式非法记 WARN 后按缺行处理。 */
-    private KtvBusinessHours parse(String raw, String source) {
-        if (raw == null || raw.isBlank()) {
+    /**
+     * 解析配置值；缺行/空值返回 null（调用方继续回退），格式非法记 WARN 后按缺行处理。
+     *
+     * <p>作用域来源由端口随值一起返回，不再由调用方各自传字符串：来源会回显成
+     * "门店覆盖/业态默认/租户默认"，写错会让配置页把继承来源显示反。
+     */
+    private KtvBusinessHours parse(TenantConfigValue config) {
+        if (config == null || config.value() == null || config.value().isBlank()) {
             return null;
         }
-        String value = raw.trim();
+        String value = config.value().trim();
+        String source = config.source().name();
         int separator = value.indexOf(SEPARATOR);
         if (separator <= 0 || separator == value.length() - 1) {
             log.warn("非法营业时间配置（应为 HH:mm-HH:mm），按缺省处理: source={}, value={}", source, value);

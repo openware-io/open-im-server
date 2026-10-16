@@ -12,9 +12,9 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService;
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigReader;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,18 +30,18 @@ class TenantConfigControllerTest {
 
   private static final long TENANT_ID = 100L;
 
-  private TenantConfigMapper tenantConfigMapper;
-  private InternalTenantConfigMapper internalTenantConfigMapper;
+  private TenantConfigRepository tenantConfigRepository;
+  private TenantConfigReader tenantConfigReader;
   private AuditClient auditClient;
   private TenantConfigController controller;
 
   @BeforeEach
   void setUp() {
-    tenantConfigMapper = mock(TenantConfigMapper.class);
-    internalTenantConfigMapper = mock(InternalTenantConfigMapper.class);
+    tenantConfigRepository = mock(TenantConfigRepository.class);
+    tenantConfigReader = mock(TenantConfigReader.class);
     auditClient = mock(AuditClient.class);
-    controller = new TenantConfigController(tenantConfigMapper, auditClient,
-        new WalletTokenConfigApplicationService(internalTenantConfigMapper));
+    controller = new TenantConfigController(tenantConfigRepository, auditClient,
+        new WalletTokenConfigApplicationService(tenantConfigReader));
   }
 
   @AfterEach
@@ -52,7 +52,7 @@ class TenantConfigControllerTest {
   @Test
   void updateRecordsSuccessAuditWithBrandAndRatio() {
     withContext("tenant.tenant.manage");
-    when(tenantConfigMapper.selectList(any())).thenReturn(List.of());
+    when(tenantConfigRepository.upsert(any(TenantConfig.class))).thenAnswer(i -> i.getArgument(0));
 
     controller.update(new TenantConfigController.UpdateRequest(null, "A380币", 100));
 
@@ -94,15 +94,14 @@ class TenantConfigControllerTest {
     assertThat(record.errorCode()).isEqualTo("TENANT_SCOPE_DENIED");
     // 失败记录只能落在请求声明的租户上，便于排查越权；写入本身已被拒绝（无 insert/update）。
     assertThat(record.tenantId()).isEqualTo(200L);
-    verify(tenantConfigMapper, org.mockito.Mockito.never()).insert(any(TenantConfigPo.class));
+    verify(tenantConfigRepository, org.mockito.Mockito.never()).upsert(any(TenantConfig.class));
   }
 
   /** ③ 失败留痕：落库异常（框架级失败）退化为异常类名，绝不能出现空错误码。 */
   @Test
   void updateDatabaseFailureRecordsFailureAuditWithClassName() {
     withContext("tenant.tenant.manage");
-    when(tenantConfigMapper.selectList(any())).thenReturn(List.of());
-    when(tenantConfigMapper.insert(any(TenantConfigPo.class)))
+    when(tenantConfigRepository.upsert(any(TenantConfig.class)))
         .thenThrow(new IllegalStateException("数据库连接不可用"));
 
     assertThatThrownBy(() -> controller.update(new TenantConfigController.UpdateRequest(null, "A380币", 100)))

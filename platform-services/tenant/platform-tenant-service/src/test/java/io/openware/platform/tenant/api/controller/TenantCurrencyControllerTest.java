@@ -24,7 +24,6 @@ import io.openware.platform.tenant.domain.configuration.repository.TenantConfigR
 import io.openware.platform.tenant.domain.currency.model.WalletAccount;
 import io.openware.platform.tenant.domain.currency.repository.WalletAccountCurrencyPort;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -50,7 +49,6 @@ class TenantCurrencyControllerTest {
     private TenantConfigRepository tenantConfigRepository;
     private StoreRepository storeRepository;
     private WalletAccountCurrencyPort walletAccountCurrencyPort;
-    private InternalTenantConfigMapper internalTenantConfigMapper;
     private AuditClient auditClient;
     private TenantCurrencyController controller;
 
@@ -60,7 +58,6 @@ class TenantCurrencyControllerTest {
         tenantConfigRepository = mock(TenantConfigRepository.class);
         storeRepository = mock(StoreRepository.class);
         walletAccountCurrencyPort = mock(WalletAccountCurrencyPort.class);
-        internalTenantConfigMapper = mock(InternalTenantConfigMapper.class);
         auditClient = mock(AuditClient.class);
         when(auditClient.recordAsync(any())).thenReturn(CompletableFuture.completedFuture(1L));
         when(tenantConfigRepository.upsert(any(TenantConfig.class))).thenAnswer(i -> i.getArgument(0));
@@ -135,7 +132,7 @@ class TenantCurrencyControllerTest {
     void updateReusesExistingConfigRow() {
         when(storeRepository.changeDefaultCurrency(TENANT_ID, "USD")).thenReturn(0);
         when(walletAccountCurrencyPort.listNonZeroInOtherCurrency(TENANT_ID, "USD")).thenReturn(List.of());
-        when(tenantConfigRepository.findByScope(TENANT_ID, 0L, "currency"))
+        when(tenantConfigRepository.findByScope(TENANT_ID, 0L, null, "currency"))
                 .thenReturn(Optional.of(new TenantConfig(9L, TENANT_ID, 0L, "", "currency", "CNY",
                         TenantConfig.STATUS_ACTIVE, 0)));
         withContext("tenant.currency.manage");
@@ -340,7 +337,7 @@ class TenantCurrencyControllerTest {
     @Test
     void internalEndpointResolvesTargetTenantCurrency() {
         InternalTenantConfigController internal = new InternalTenantConfigController(
-                newService(), new WalletTokenConfigApplicationService(internalTenantConfigMapper));
+                newService(), new WalletTokenConfigApplicationService(tenantConfigReader));
         when(tenantConfigReader.findValue(200L, 0L, "currency")).thenReturn(Optional.empty());
         assertThat(internal.tenantCurrency(200L).currencyCode()).isEqualTo("USD");
 

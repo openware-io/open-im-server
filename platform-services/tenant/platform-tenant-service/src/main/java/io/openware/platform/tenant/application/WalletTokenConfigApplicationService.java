@@ -1,6 +1,6 @@
 package io.openware.platform.tenant.application;
 
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigReader;
 import org.springframework.stereotype.Service;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,10 +32,10 @@ public class WalletTokenConfigApplicationService {
     /** 缺省比例：1 个主单位 = 100 个代币。 */
     public static final long DEFAULT_RATIO = 100L;
 
-    private final InternalTenantConfigMapper internalTenantConfigMapper;
+    private final TenantConfigReader tenantConfigReader;
 
-    public WalletTokenConfigApplicationService(InternalTenantConfigMapper internalTenantConfigMapper) {
-        this.internalTenantConfigMapper = internalTenantConfigMapper;
+    public WalletTokenConfigApplicationService(TenantConfigReader tenantConfigReader) {
+        this.tenantConfigReader = tenantConfigReader;
     }
 
     /**
@@ -49,9 +49,9 @@ public class WalletTokenConfigApplicationService {
             return TenantWalletTokenConfig.DEFAULT;
         }
         String brandName = normalizeBrandName(
-                internalTenantConfigMapper.selectTenantConfigValue(tenantId, CONFIG_KEY_BRAND_NAME));
+                tenantConfigReader.findValue(tenantId, 0L, CONFIG_KEY_BRAND_NAME).orElse(null));
         return new TenantWalletTokenConfig(brandName, parseRatio(
-                internalTenantConfigMapper.selectTenantConfigValue(tenantId, CONFIG_KEY_RATIO)));
+                tenantConfigReader.findValue(tenantId, 0L, CONFIG_KEY_RATIO).orElse(null)));
     }
 
     /** 品牌展示名归一化：空值/空白回退缺省名；去首尾空白。品牌名是展示文案，不是币种。 */

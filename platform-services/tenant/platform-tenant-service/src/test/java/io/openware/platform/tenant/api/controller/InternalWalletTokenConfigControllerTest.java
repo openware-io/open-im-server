@@ -11,7 +11,6 @@ import io.openware.platform.tenant.domain.configuration.repository.TenantConfigR
 import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
 import io.openware.platform.tenant.domain.currency.repository.WalletAccountCurrencyPort;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
-import io.openware.platform.tenant.infra.persistence.mapper.InternalTenantConfigMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,24 +25,24 @@ class InternalWalletTokenConfigControllerTest {
 
     private static final long TENANT_ID = 100L;
 
-    private InternalTenantConfigMapper internalTenantConfigMapper;
+    private TenantConfigReader tenantConfigReader;
     private InternalTenantConfigController controller;
 
     @BeforeEach
     void setUp() {
-        internalTenantConfigMapper = mock(InternalTenantConfigMapper.class);
+        tenantConfigReader = mock(TenantConfigReader.class);
         TenantCurrencyApplicationService currencyService = new TenantCurrencyApplicationService(
                 mock(TenantConfigReader.class), mock(TenantConfigRepository.class), mock(StoreRepository.class),
                 mock(WalletAccountCurrencyPort.class));
         controller = new InternalTenantConfigController(currencyService,
-                new WalletTokenConfigApplicationService(internalTenantConfigMapper));
+                new WalletTokenConfigApplicationService(tenantConfigReader));
     }
 
     /** 有配置：按租户配置返回品牌名与比例（自定义品牌，如「皇冠币」）。 */
     @Test
     void returnsConfiguredBrandNameAndRatio() {
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_brand_name")).thenReturn("皇冠币");
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn("500");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.of("皇冠币"));
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("500"));
 
         InternalTenantWalletToken token = controller.tenantWalletToken(TENANT_ID);
 
@@ -55,8 +54,8 @@ class InternalWalletTokenConfigControllerTest {
     /** 无配置（缺行）：回退缺省 A380币 / 100。 */
     @Test
     void fallsBackToDefaultsWhenTenantHasNoConfig() {
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_brand_name")).thenReturn(null);
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn(null);
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.empty());
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.empty());
 
         InternalTenantWalletToken token = controller.tenantWalletToken(TENANT_ID);
 
@@ -67,27 +66,27 @@ class InternalWalletTokenConfigControllerTest {
     /** 非法/空值：品牌空白、比例非数字/零/负数一律回退缺省，且不抛异常。 */
     @Test
     void fallsBackToDefaultsForBlankBrandAndInvalidRatio() {
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_brand_name")).thenReturn("   ");
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn("abc");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.of("   "));
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("abc"));
         InternalTenantWalletToken notANumber = controller.tenantWalletToken(TENANT_ID);
         assertThat(notANumber.brandName()).isEqualTo("A380币");
         assertThat(notANumber.ratio()).isEqualTo(100L);
 
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn("0");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("0"));
         assertThat(controller.tenantWalletToken(TENANT_ID).ratio()).isEqualTo(100L);
 
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn("-5");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("-5"));
         assertThat(controller.tenantWalletToken(TENANT_ID).ratio()).isEqualTo(100L);
 
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn("");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of(""));
         assertThat(controller.tenantWalletToken(TENANT_ID).ratio()).isEqualTo(100L);
     }
 
     /** 品牌名去除首尾空白后返回（展示文案不允许带无意义空白）。 */
     @Test
     void trimsConfiguredBrandName() {
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_brand_name")).thenReturn(" 储值币 ");
-        when(internalTenantConfigMapper.selectTenantConfigValue(TENANT_ID, "wallet_ratio")).thenReturn(" 200 ");
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.of(" 储值币 "));
+        when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of(" 200 "));
 
         InternalTenantWalletToken token = controller.tenantWalletToken(TENANT_ID);
 

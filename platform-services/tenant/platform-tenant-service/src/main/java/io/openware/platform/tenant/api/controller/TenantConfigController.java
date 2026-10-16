@@ -1,6 +1,5 @@
 package io.openware.platform.tenant.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
@@ -9,13 +8,10 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService.TenantWalletTokenConfig;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantConfigPo;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 /**
  * 租户级钱包代币（储值品牌）配置：代币展示名 + 主单位与代币的比例（默认 1:100）。
@@ -35,13 +31,13 @@ import java.util.List;
 @RequestMapping("/admin/tenant/config")
 public class TenantConfigController {
 
-    private final TenantConfigMapper tenantConfigMapper;
+    private final TenantConfigRepository tenantConfigRepository;
     private final AuditClient auditClient;
     private final WalletTokenConfigApplicationService walletTokenConfigService;
 
-    public TenantConfigController(TenantConfigMapper tenantConfigMapper, AuditClient auditClient,
+    public TenantConfigController(TenantConfigRepository tenantConfigRepository, AuditClient auditClient,
                                   WalletTokenConfigApplicationService walletTokenConfigService) {
-        this.tenantConfigMapper = tenantConfigMapper;
+        this.tenantConfigRepository = tenantConfigRepository;
         this.auditClient = auditClient;
         this.walletTokenConfigService = walletTokenConfigService;
     }
@@ -122,25 +118,9 @@ public class TenantConfigController {
     }
 
     private void upsert(Long tenantId, String key, String value) {
-        List<TenantConfigPo> rows = tenantConfigMapper.selectList(new QueryWrapper<TenantConfigPo>()
-                .eq("tenant_id", tenantId).eq("store_id", 0L).eq("config_key", key));
-        if (!rows.isEmpty()) {
-            TenantConfigPo po = rows.get(0);
-            po.setConfigValue(value);
-            po.setUpdatedAt(LocalDateTime.now());
-            tenantConfigMapper.updateById(po);
-            return;
-        }
-        TenantConfigPo po = new TenantConfigPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(0L);
-        po.setConfigKey(key);
-        po.setConfigValue(value);
-        po.setStatus("ACTIVE");
-        po.setVersion(0);
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        tenantConfigMapper.insert(po);
+        // 存在则改值、不存在则新增，由端口承担：调用方无法表达"插入还是更新"，
+        // 也就无法插出重复行（同一作用域键应当只有一条）。
+        tenantConfigRepository.upsert(TenantConfig.tenantLevel(key, tenantId, value));
     }
 
     public record WalletTokenConfig(String brandName, long ratio) {}

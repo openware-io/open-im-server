@@ -16,7 +16,6 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantConfigMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -38,12 +37,6 @@ public class KtvBusinessHoursController {
 
     private final KtvBusinessHoursApplicationService businessHoursService;
     private final AuditClient auditClient;
-
-    public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
-                                      TenantConfigMapper ignored,
-                                      AuditClient auditClient) {
-        this(businessHoursService, auditClient);
-    }
 
     @Autowired
     public KtvBusinessHoursController(KtvBusinessHoursApplicationService businessHoursService,
