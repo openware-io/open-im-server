@@ -1,6 +1,5 @@
 package io.openware.platform.tenant.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
@@ -10,8 +9,10 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.StoreApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.application.StoreApplicationService.StoreUpdateResult;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
+
+import io.openware.platform.tenant.api.converter.StoreConverter;
+import io.openware.platform.tenant.api.dto.StoreView;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,7 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  *
  * <p>读写契约：
  * <ul>
- *   <li>{@code GET  /admin/tenant/stores?status=} → {@code StorePo[]}，含 {@code timezone} 与
+ *   <li>{@code GET  /admin/tenant/stores?status=} → {@code StoreView[]}，含 {@code timezone} 与
  *       {@code businessDayCutoff}（多时区展示与编辑的真源，字段名与
  *       `docs/renovation/MULTI_TIMEZONE_DESIGN.md` 一致）；</li>
      *   <li>{@code PUT  /admin/tenant/stores/{id}} body {@code {timezone?, businessDayCutoff?, businessType?}} → 变更后的 {@code StorePo}。</li>
@@ -65,40 +66,38 @@ public class StoreController {
     /** 审计资源类型。 */
     private static final String RESOURCE_TYPE_STORE = "tnt_store";
 
-    private final StoreMapper storeMapper;
+    private final StoreRepository storeRepository;
     private final StoreApplicationService storeService;
     private final AuditClient auditClient;
     private final PermissionSnapshotProvider permissionSnapshotProvider;
 
     /** Spring wiring path;业态变更成功后立即逐出按门店维度的权限快照。 */
     @Autowired
-    public StoreController(StoreMapper storeMapper, StoreApplicationService storeService, AuditClient auditClient,
-                           PermissionSnapshotProvider permissionSnapshotProvider) {
-        this.storeMapper = storeMapper;
+    public StoreController(StoreRepository storeRepository, StoreApplicationService storeService,
+                           AuditClient auditClient, PermissionSnapshotProvider permissionSnapshotProvider) {
+        this.storeRepository = storeRepository;
         this.storeService = storeService;
         this.auditClient = auditClient;
         this.permissionSnapshotProvider = permissionSnapshotProvider;
     }
 
     /** 保留单元测试及旧构造调用。 */
-    public StoreController(StoreMapper storeMapper, StoreApplicationService storeService, AuditClient auditClient) {
-        this(storeMapper, storeService, auditClient, null);
+    public StoreController(StoreRepository storeRepository, StoreApplicationService storeService,
+                           AuditClient auditClient) {
+        this(storeRepository, storeService, auditClient, null);
     }
 
     /** 当前租户门店列表（可选状态过滤）。 */
     @GetMapping
-    public List<StorePo> list(@RequestParam(required = false) String status) {
-        LambdaQueryWrapper<StorePo> qw = new LambdaQueryWrapper<>();
-        if (status != null && !status.isBlank()) {
-            qw.eq(StorePo::getStatus, status);
-        }
-        qw.orderByAsc(StorePo::getId);
-        return storeMapper.selectList(qw);
+    public List<StoreView> list(@RequestParam(required = false) String status) {
+        Long tenantId = TenantContextHolder.tenantIdOrNull();
+        return storeRepository.listByTenant(tenantId, null, null, status).stream()
+                .map(StoreConverter::toView).toList();
     }
 
     /** 修改门店时区 / 营业日切点（权限 + 门店/租户边界 + 校验 + 审计，文档 §2.1 S16）。 */
     @PutMapping("/{id}")
-    public StorePo update(@PathVariable Long id, @RequestBody(required = false) UpdateStoreRequest request) {
+    public StoreView update(@PathVariable Long id, @RequestBody(required = false) UpdateStoreRequest request) {
         try {
             // 先判「有没有身份」（401），再判「有没有权限」（403），避免无身份被误报成越权。
             TenantContext context = requireContext();
@@ -118,14 +117,14 @@ public class StoreController {
                     .action(ACTION_STORE_UPDATE)
                     .resourceType(RESOURCE_TYPE_STORE)
                     .resourceId(String.valueOf(id))
-                    .resourceName(result.store().getName())
+                    .resourceName(result.store().name())
                     .detailJson(detailJson(result))
                     .build());
             if (permissionSnapshotProvider != null && request != null && request.businessType() != null) {
                 permissionSnapshotProvider.evictAll();
             }
 
-            return result.store();
+            return StoreConverter.toView(result.store());
         } catch (RuntimeException failure) {
             // 失败出口留痕（缺权限/越权门店/跨租户/时区非法/切点非法/落库失败）：审计只 WARN，异常原样抛出。
             recordFailure(id, request, failure);

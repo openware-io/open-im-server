@@ -2,9 +2,8 @@ package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.time.StoreTimeService;
-import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
-import io.openware.platform.tenant.infra.persistence.po.StorePo;
-import java.time.LocalDateTime;
+import io.openware.platform.tenant.domain.store.model.Store;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Locale;
@@ -20,7 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
  * <p>边界与失败口径：
  * <ul>
  *   <li><b>租户边界</b>：门店必须属于签名上下文的租户，否则 403 {@code TENANT_SCOPE_DENIED}；
- *       用 {@link StoreMapper#selectTenantIdById(Long)}（忽略租户拦截）区分「不存在」与「跨租户」，
+ *       用 {@link StoreRepository#findOwnerTenantId(Long)}（忽略租户拦截）区分「不存在」与「跨租户」，
  *       不让越权访问被静默降级成 404；</li>
  *   <li><b>门店边界</b>：签名上下文带门店时，路径门店必须是同一门店，否则 403 {@code STORE_SCOPE_DENIED}；</li>
  *   <li><b>校验</b>：时区与切点一律由 {@link StoreTimeService} 校验（非法 400，且不产生任何写入），
@@ -47,10 +46,10 @@ public class StoreApplicationService {
     /** 错误码：业态为空、格式非法或不在 ACTIVE 业态字典中。 */
     public static final String CODE_BUSINESS_TYPE_INVALID = "BUSINESS_TYPE_INVALID";
 
-    private final StoreMapper storeMapper;
+    private final StoreRepository storeRepository;
 
-    public StoreApplicationService(StoreMapper storeMapper) {
-        this.storeMapper = storeMapper;
+    public StoreApplicationService(StoreRepository storeRepository) {
+        this.storeRepository = storeRepository;
     }
 
     /**
@@ -70,30 +69,23 @@ public class StoreApplicationService {
                 ? null : StoreTimeService.requireBusinessDayCutoff(businessDayCutoff);
         String normalizedBusinessType = businessType == null ? null : requireBusinessType(businessType);
 
-        StorePo store = requireScopedStore(tenantId, contextStoreId, storeId);
-        String timezoneBefore = store.getTimezone();
-        String cutoffBefore = store.getBusinessDayCutoff();
-        String businessTypeBefore = store.getBusinessType();
+        Store store = requireScopedStore(tenantId, contextStoreId, storeId);
+        String timezoneBefore = store.timezone();
+        String cutoffBefore = store.businessDayCutoff();
+        String businessTypeBefore = store.businessType();
         String timezoneAfter = zone == null ? timezoneBefore : zone.getId();
         String cutoffAfter = cutoff == null ? cutoffBefore : StoreTimeService.formatBusinessDayCutoff(cutoff) + ":00";
         String businessTypeAfter = normalizedBusinessType == null ? businessTypeBefore : normalizedBusinessType;
 
-        StorePo patch = new StorePo();
-        patch.setId(storeId);
-        if (zone != null) patch.setTimezone(timezoneAfter);
-        if (cutoff != null) patch.setBusinessDayCutoff(cutoffAfter);
-        if (normalizedBusinessType != null) patch.setBusinessType(businessTypeAfter);
-        patch.setUpdatedBy(operatorId);
-        LocalDateTime updatedAt = LocalDateTime.now();
-        patch.setUpdatedAt(updatedAt);
-        storeMapper.updateById(patch);
+        // 只写本次提交的列：门店字段很多，整体保存会覆盖并发编辑改动的其它列。
+        storeRepository.updateSchedule(storeId,
+                zone != null ? timezoneAfter : null,
+                cutoff != null ? cutoffAfter : null,
+                normalizedBusinessType != null ? businessTypeAfter : null,
+                operatorId);
 
-        store.setTimezone(timezoneAfter);
-        store.setBusinessDayCutoff(cutoffAfter);
-        store.setBusinessType(businessTypeAfter);
-        store.setUpdatedBy(operatorId);
-        store.setUpdatedAt(updatedAt);
-        return new StoreUpdateResult(store, timezoneBefore, timezoneAfter, cutoffBefore, cutoffAfter,
+        Store updated = withSchedule(store, timezoneAfter, cutoffAfter, businessTypeAfter);
+        return new StoreUpdateResult(updated, timezoneBefore, timezoneAfter, cutoffBefore, cutoffAfter,
                 businessTypeBefore, businessTypeAfter);
     }
 
@@ -122,7 +114,7 @@ public class StoreApplicationService {
         if (normalized.isEmpty() || normalized.length() > 32) {
             throw new ApiException(400, CODE_BUSINESS_TYPE_INVALID, "businessType 非法");
         }
-        String activeCode = storeMapper.selectActiveBusinessType(normalized);
+        String activeCode = storeRepository.findActiveBusinessTypeCode(normalized);
         if (activeCode == null) {
             throw new ApiException(400, CODE_BUSINESS_TYPE_INVALID, "businessType 不是 ACTIVE 业态");
         }
@@ -134,38 +126,39 @@ public class StoreApplicationService {
      *
      * <p>先判门店边界再查库：门店上下文是最便宜的一次比较，越权请求不必触达数据库。
      */
-    public StorePo requireScopedStore(long tenantId, Long contextStoreId, Long storeId) {
+    public Store requireScopedStore(long tenantId, Long contextStoreId, Long storeId) {
         if (contextStoreId != null && !contextStoreId.equals(storeId)) {
             throw new ApiException(403, CODE_STORE_SCOPE_DENIED, "只能修改当前上下文门店的门店配置");
         }
-        Long ownerTenantId = storeMapper.selectTenantIdById(storeId);
-        if (ownerTenantId == null) {
-            throw new ApiException(404, CODE_STORE_NOT_FOUND, "门店不存在: " + storeId);
-        }
+        Long ownerTenantId = storeRepository.findOwnerTenantId(storeId)
+                .orElseThrow(() -> new ApiException(404, CODE_STORE_NOT_FOUND, "门店不存在: " + storeId));
         if (ownerTenantId != tenantId) {
             throw new ApiException(403, CODE_TENANT_SCOPE_DENIED, "只能修改当前上下文租户的门店配置");
         }
-        StorePo store = storeMapper.selectById(storeId);
-        if (store == null) {
-            throw new ApiException(404, CODE_STORE_NOT_FOUND, "门店不存在: " + storeId);
-        }
-        return store;
+        return storeRepository.findById(storeId)
+                .orElseThrow(() -> new ApiException(404, CODE_STORE_NOT_FOUND, "门店不存在: " + storeId));
+    }
+
+    /** 变更后的门店快照：不可变聚合按需生成新实例（审计字段由适配器负责）。 */
+    private static Store withSchedule(Store store, String timezone, String cutoff, String businessType) {
+        return new Store(store.id(), store.tenantId(), store.organizationId(), store.code(), store.name(),
+                businessType, store.countryCode(), store.regionCode(), timezone, store.defaultCurrency(),
+                store.locale(), store.taxProfileId(), cutoff, store.status());
     }
 
     /**
-     * 门店时区/切点变更结果。
-     *
+     * 门店时区/切点变更结果。     *
      * @param store          变更后的门店（已回填新值，直接作为响应体）
      * @param timezoneBefore 变更前门店时区
      * @param timezoneAfter  变更后门店时区
      * @param cutoffBefore   变更前营业日切点（DB 的 `HH:mm:ss` 文本）
      * @param cutoffAfter    变更后营业日切点（DB 的 `HH:mm:ss` 文本）
      */
-    public record StoreScheduleResult(StorePo store, String timezoneBefore, String timezoneAfter,
+    public record StoreScheduleResult(Store store, String timezoneBefore, String timezoneAfter,
                                       String cutoffBefore, String cutoffAfter) {
     }
 
-    public record StoreUpdateResult(StorePo store, String timezoneBefore, String timezoneAfter,
+    public record StoreUpdateResult(Store store, String timezoneBefore, String timezoneAfter,
                                     String cutoffBefore, String cutoffAfter,
                                     String businessTypeBefore, String businessTypeAfter) {
     }

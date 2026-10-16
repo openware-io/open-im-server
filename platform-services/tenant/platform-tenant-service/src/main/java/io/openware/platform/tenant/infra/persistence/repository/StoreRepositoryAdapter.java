@@ -5,6 +5,7 @@ import io.openware.platform.tenant.domain.store.model.Store;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.StoreMapper;
 import io.openware.platform.tenant.infra.persistence.po.StorePo;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
@@ -25,11 +26,12 @@ public class StoreRepositoryAdapter implements StoreRepository {
   }
 
   @Override
-  public List<Store> listByTenant(Long tenantId, List<Long> storeIds, String businessType) {
+  public List<Store> listByTenant(Long tenantId, List<Long> storeIds, String businessType, String status) {
     return mapper.selectList(Wrappers.<StorePo>lambdaQuery()
             .eq(StorePo::getTenantId, tenantId)
             .in(storeIds != null && !storeIds.isEmpty(), StorePo::getId, storeIds)
             .eq(businessType != null && !businessType.isBlank(), StorePo::getBusinessType, businessType)
+            .eq(status != null && !status.isBlank(), StorePo::getStatus, status)
             .orderByAsc(StorePo::getId))
         .stream().map(this::toDomain).toList();
   }
@@ -37,6 +39,23 @@ public class StoreRepositoryAdapter implements StoreRepository {
   @Override
   public Optional<Store> findById(Long storeId) {
     return Optional.ofNullable(mapper.selectById(storeId)).map(this::toDomain);
+  }
+
+  @Override
+  public Optional<Long> findOwnerTenantId(Long storeId) {
+    return Optional.ofNullable(mapper.selectTenantIdById(storeId));
+  }
+
+  @Override
+  public boolean updateSchedule(Long storeId, String timezone, String businessDayCutoff,
+                                 String businessType, Long operatorId) {
+    return mapper.update(null, Wrappers.<StorePo>lambdaUpdate()
+        .eq(StorePo::getId, storeId)
+        .set(timezone != null, StorePo::getTimezone, timezone)
+        .set(businessDayCutoff != null, StorePo::getBusinessDayCutoff, businessDayCutoff)
+        .set(businessType != null, StorePo::getBusinessType, businessType)
+        .set(StorePo::getUpdatedBy, operatorId)
+        .set(StorePo::getUpdatedAt, LocalDateTime.now())) > 0;
   }
 
   @Override
