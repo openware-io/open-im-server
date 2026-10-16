@@ -1,24 +1,30 @@
 package io.openware.platform.tenant.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantPo;
-import org.springframework.web.bind.annotation.*;
+import io.openware.platform.tenant.api.converter.TenantConverter;
+import io.openware.platform.tenant.api.dto.TenantView;
+import io.openware.platform.tenant.domain.tenant.model.Tenant;
+import io.openware.platform.tenant.domain.tenant.repository.TenantRepository;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDateTime;
+import java.util.List;
 
 @RestController
 @RequestMapping("/admin/platform/tenants")
 public class TenantController {
-    private final TenantMapper tenantMapper;
+    private final TenantRepository tenantRepository;
     private final AuditClient auditClient;
 
-    public TenantController(TenantMapper tenantMapper, AuditClient auditClient) {
-        this.tenantMapper = tenantMapper;
+    public TenantController(TenantRepository tenantRepository, AuditClient auditClient) {
+        this.tenantRepository = tenantRepository;
         this.auditClient = auditClient;
     }
 
@@ -30,47 +36,37 @@ public class TenantController {
      * {@code from > to} → 400 {@code TIME_RANGE_INVALID}）。下拉调用不传即不筛，行为不变。
      */
     @GetMapping
-    public java.util.List<TenantPo> list(@RequestParam(required = false) String from,
-                                         @RequestParam(required = false) String to) {
+    public List<TenantView> list(@RequestParam(required = false) String from,
+                                 @RequestParam(required = false) String to) {
         TimeRange range = TimeRangeParams.parse(from, to);
-        return tenantMapper.selectList(new LambdaQueryWrapper<TenantPo>()
-                .ge(range.hasFrom(), TenantPo::getCreatedAt, range.fromInclusive())
-                .le(range.hasTo(), TenantPo::getCreatedAt, range.toInclusive())
-                .orderByDesc(TenantPo::getId));
+        return tenantRepository.listCreatedBetween(range.fromInclusive(), range.toInclusive()).stream()
+                .map(TenantConverter::toView).toList();
     }
 
     /** 平台运营创建租户（ADM-02）。幂等：tenantCode 已存在则返回既有租户，不重复落库。 */
     @PostMapping
-    public TenantPo create(@RequestBody CreateTenantRequest req) {
+    public TenantView create(@RequestBody CreateTenantRequest req) {
         try {
-            TenantPo existing = tenantMapper.selectOne(
-                new LambdaQueryWrapper<TenantPo>().eq(TenantPo::getTenantCode, req.tenantCode()));
+            Tenant existing = tenantRepository.findByCode(req.tenantCode()).orElse(null);
             if (existing != null) {
-                return existing;
+                return TenantConverter.toView(existing);
             }
-            TenantPo po = new TenantPo();
-            po.setTenantCode(req.tenantCode());
-            po.setName(req.name());
-            po.setStatus("PENDING");
-            po.setDefaultLocale(req.defaultLocale());
-            po.setDefaultTimezone(req.defaultTimezone());
-            po.setCreatedAt(LocalDateTime.now());
-            po.setUpdatedAt(LocalDateTime.now());
-            tenantMapper.insert(po);
+            Tenant tenant = tenantRepository.insert(
+                    Tenant.create(req.tenantCode(), req.name(), req.defaultLocale(), req.defaultTimezone()));
             // 平台级动作：tenant_id 记为新租户（便于按租户检索），operator_type 强制 PLATFORM。
             // 操作人由网关注入的平台作用域签名上下文补全（tenantId=0 + scopeType=PLATFORM + subject=平台账号）：
             // /api/v1/admin/platform/** 在网关属 PLATFORM_CONTEXT 路由，运营未选择租户上下文时下发平台 token。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                    .tenantId(po.getId())
+                    .tenantId(tenant.id())
                     .action("tenant.create")
                     .operatorType(AuditClient.AuditRecord.OPERATOR_TYPE_PLATFORM)
-                    .resourceType("tnt_tenant").resourceId(String.valueOf(po.getId()))
+                    .resourceType("tnt_tenant").resourceId(String.valueOf(tenant.id()))
                     .resourceName(req.name())
                     .idempotencyKey("tenant-create:" + req.tenantCode())
                     .detailJson("{\"tenantCode\":\"" + req.tenantCode() + "\",\"name\":\"" + req.name()
-                            + "\",\"status\":\"PENDING\"}")
+                            + "\",\"status\":\"" + tenant.status() + "\"}")
                     .build());
-            return po;
+            return TenantConverter.toView(tenant);
         } catch (RuntimeException failure) {
             // 失败留痕（编号冲突/参数非法/落库失败）：审计只 WARN，业务异常原样抛出。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
