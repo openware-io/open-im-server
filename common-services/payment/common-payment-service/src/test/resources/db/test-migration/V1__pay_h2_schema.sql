@@ -113,6 +113,30 @@ CREATE TABLE pay_channel_config (
 INSERT INTO pay_channel_config (tenant_id, store_id, channel, enabled, status, created_at, updated_at)
 VALUES (1001, NULL, 'ALIPAY', 1, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
+-- 支付事件 Outbox（镜像生产 V1__pay_baseline.sql 的 pay_event_outbox）。
+-- 该表此前缺失，恰好掩盖了一个装配缺陷：CollectApplicationService 的 @Autowired 曾标在少一个参数的
+-- 构造器上，eventOutbox 始终为 null，于是"收款确认事件"从未真正写入 Outbox 也从未报错。
+-- 补上本表后，组合收款成功路径会真实地在这里落一行（与 pay_collect 的 CONFIRMED 同事务）。
+-- 注：payload_json 生产为 JSON，这里用 TEXT，理由同 pay_collect.request_json。
+CREATE TABLE pay_event_outbox (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT,
+  event_id VARCHAR(64) NOT NULL,
+  event_type VARCHAR(64) NOT NULL,
+  aggregate_type VARCHAR(32) NOT NULL,
+  aggregate_id VARCHAR(64) NOT NULL,
+  payload_json TEXT NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  retry_count INT NOT NULL DEFAULT 0,
+  next_retry_at TIMESTAMP,
+  published_at TIMESTAMP,
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL,
+  CONSTRAINT uk_pay_event_outbox_event UNIQUE (event_id)
+);
+
 CREATE TABLE ord_order (
   id BIGINT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,

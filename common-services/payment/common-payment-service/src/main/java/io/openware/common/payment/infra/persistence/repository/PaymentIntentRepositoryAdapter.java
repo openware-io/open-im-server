@@ -1,5 +1,6 @@
 package io.openware.common.payment.infra.persistence.repository;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.common.payment.domain.intent.model.PaymentIntent;
 import io.openware.common.payment.domain.intent.repository.PaymentIntentRepository;
 import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
@@ -28,8 +29,7 @@ public class PaymentIntentRepositoryAdapter implements PaymentIntentRepository {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
       return Optional.empty();
     }
-    return mapper.selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers
-            .<PayIntentPo>lambdaQuery()
+    return mapper.selectList(Wrappers.<PayIntentPo>lambdaQuery()
             .eq(PayIntentPo::getTenantId, tenantId)
             .eq(PayIntentPo::getIdempotencyKey, idempotencyKey))
         .stream().findFirst().map(PaymentIntentRepositoryAdapter::toDomain);
@@ -59,7 +59,7 @@ public class PaymentIntentRepositoryAdapter implements PaymentIntentRepository {
   @Override
   public java.util.List<PaymentIntent> listByCreatedAtBetween(java.time.LocalDateTime fromInclusive,
                                                               java.time.LocalDateTime toInclusive) {
-    return mapper.selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers.<PayIntentPo>lambdaQuery()
+    return mapper.selectList(Wrappers.<PayIntentPo>lambdaQuery()
             .ge(fromInclusive != null, PayIntentPo::getCreatedAt, fromInclusive)
             .le(toInclusive != null, PayIntentPo::getCreatedAt, toInclusive)
             .orderByDesc(PayIntentPo::getCreatedAt))
@@ -71,7 +71,7 @@ public class PaymentIntentRepositoryAdapter implements PaymentIntentRepository {
     if (orderIds == null || orderIds.isEmpty()) {
       return java.util.List.of();
     }
-    return mapper.selectList(com.baomidou.mybatisplus.core.toolkit.Wrappers.<PayIntentPo>lambdaQuery()
+    return mapper.selectList(Wrappers.<PayIntentPo>lambdaQuery()
             .eq(PayIntentPo::getTenantId, tenantId)
             .in(PayIntentPo::getOrderId, orderIds)
             .orderByAsc(PayIntentPo::getCreatedAt)

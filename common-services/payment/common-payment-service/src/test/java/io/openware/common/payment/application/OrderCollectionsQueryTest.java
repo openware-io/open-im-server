@@ -244,8 +244,9 @@ class OrderCollectionsQueryTest {
     // ------------------------------------------------------------------ 测试夹具
 
     private PayCollect collect(Long id, String collectNo, String currency, String requestJson, String responseJson) {
-        return new PayCollect(id, TENANT_ID, 1L, ORDER_ID, collectNo, PayCollect.STATE_CONFIRMED, currency,
-                requestJson, responseJson, LocalDateTime.of(2026, 9, 19, 12, 0).plusMinutes(id));
+        LocalDateTime now = LocalDateTime.of(2026, 9, 19, 12, 0).plusMinutes(id);
+        return new PayCollect(id, TENANT_ID, 1L, "KTV", collectNo, ORDER_ID, "idem-" + id,
+                PayCollect.STATE_CONFIRMED, currency, requestJson, responseJson, now, now);
     }
 
     private Refund refund(Long id, String status, String requested, String approved) {

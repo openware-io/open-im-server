@@ -2,7 +2,7 @@ package io.openware.common.payment.application;
 
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
-import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
+import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
@@ -36,21 +36,21 @@ public class RefundApplicationService {
 
     private final RefundRepository refundRepository;
     private final AuditClient auditClient;
-    private final OrderBillingMapper orderBillingMapper;
+    private final OrderBillingRepository orderBillingRepository;
     private final PaymentRuleApplicationService paymentRuleService;
 
     public RefundApplicationService(RefundRepository refundRepository, AuditClient auditClient,
-                                    OrderBillingMapper orderBillingMapper) {
-        this(refundRepository, auditClient, orderBillingMapper, null);
+                                    OrderBillingRepository orderBillingRepository) {
+        this(refundRepository, auditClient, orderBillingRepository, null);
     }
 
     @Autowired
     public RefundApplicationService(RefundRepository refundRepository, AuditClient auditClient,
-                                    OrderBillingMapper orderBillingMapper,
+                                    OrderBillingRepository orderBillingRepository,
                                     PaymentRuleApplicationService paymentRuleService) {
         this.refundRepository = refundRepository;
         this.auditClient = auditClient;
-        this.orderBillingMapper = orderBillingMapper;
+        this.orderBillingRepository = orderBillingRepository;
         this.paymentRuleService = paymentRuleService;
     }
 
@@ -99,10 +99,11 @@ public class RefundApplicationService {
      * 回退当时租户币种（缺省 USD）。跨币种退款是合规禁区，因此这里不做任何汇率换算。
      */
     private String resolveRefundCurrency(Long tenantId, Long orderId) {
-        if (orderBillingMapper != null && tenantId != null && orderId != null) {
-            String orderCurrency = orderBillingMapper.selectCurrencyCode(tenantId, orderId);
-            if (orderCurrency != null && !orderCurrency.isBlank()) {
-                return Currency.parse(orderCurrency).code();
+        if (orderBillingRepository != null && tenantId != null && orderId != null) {
+            // 只读、不加锁：建退款单不需要锁住订单主行，否则退款申请会与收款互相阻塞。
+            var orderCurrency = orderBillingRepository.findCurrencyCode(tenantId, orderId);
+            if (orderCurrency.isPresent() && !orderCurrency.get().isBlank()) {
+                return Currency.parse(orderCurrency.get()).code();
             }
         }
         return CurrencyResolver.currentCode();

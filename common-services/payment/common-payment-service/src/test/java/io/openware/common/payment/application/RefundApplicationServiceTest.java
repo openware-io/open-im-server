@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
+import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.infrastructure.audit.AuditClient;
@@ -102,10 +102,10 @@ class RefundApplicationServiceTest {
   /** 退款退**原币种**：能读到原订单时取订单币种快照，而不是当前租户币种（§5/§6.3）。 */
   @Test
   void requestRefund_snapshotsOrderCurrencyAsOriginalCurrency() {
-    OrderBillingMapper orderBillingMapper = mock(OrderBillingMapper.class);
-    when(orderBillingMapper.selectCurrencyCode(1L, 9L)).thenReturn("CNY");
+    OrderBillingRepository orderBillingRepository = mock(OrderBillingRepository.class);
+    when(orderBillingRepository.findCurrencyCode(1L, 9L)).thenReturn(java.util.Optional.of("CNY"));
     RefundApplicationService serviceWithBilling =
-        new RefundApplicationService(refundRepository, auditClient, orderBillingMapper);
+        new RefundApplicationService(refundRepository, auditClient, orderBillingRepository);
 
     RefundDto result = serviceWithBilling.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L);
 

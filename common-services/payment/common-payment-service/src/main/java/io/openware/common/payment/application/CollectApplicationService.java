@@ -1,25 +1,23 @@
 package io.openware.common.payment.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
+import io.openware.common.payment.domain.billing.model.OrderReceivable;
+import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
+import io.openware.common.payment.domain.collect.model.PayCollect;
+import io.openware.common.payment.domain.collect.repository.PayCollectRepository;
+import io.openware.common.payment.domain.event.model.PaymentEventOutboxEntry;
+import io.openware.common.payment.domain.event.repository.PaymentEventOutbox;
+import io.openware.common.payment.domain.intent.model.PaymentIntent;
+import io.openware.common.payment.domain.intent.repository.PaymentIntentRepository;
+import io.openware.common.payment.domain.transaction.model.PaymentTransaction;
+import io.openware.common.payment.domain.transaction.repository.PaymentTransactionRepository;
 import io.openware.common.payment.infra.client.CustomerClient;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayTransactionMapper;
-import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
-import io.openware.common.payment.infra.persistence.mapper.EventOutboxMapper;
-import io.openware.common.payment.infra.persistence.po.OrderBillingPo;
-import io.openware.common.payment.infra.persistence.po.PayCollectPo;
-import io.openware.common.payment.infra.persistence.po.PayIntentPo;
-import io.openware.common.payment.infra.persistence.po.PayTransactionPo;
-import io.openware.common.payment.infra.persistence.po.PayEventOutboxPo;
 import io.openware.protocol.mq.event.CollectConfirmedEvent;
 import io.openware.protocol.mq.event.PayEventTypes;
 import lombok.extern.slf4j.Slf4j;
@@ -66,56 +64,57 @@ public class CollectApplicationService {
     private static final int METHOD_WALLET = 1;
     private static final int METHOD_CASH = 2;
 
-    private static final String STATE_INIT = "INIT";
-    private static final String STATE_CONFIRMED = "CONFIRMED";
-    private static final String STATE_FAILED = "FAILED";
-
     private static final String LEG_POINT = "POINT";
     private static final String LEG_WALLET = "WALLET";
 
-    private final PayIntentMapper payIntentMapper;
-    private final PayTransactionMapper payTransactionMapper;
-    private final PayCollectMapper payCollectMapper;
+    private final PaymentIntentRepository paymentIntentRepository;
+    private final PaymentTransactionRepository paymentTransactionRepository;
+    private final PayCollectRepository payCollectRepository;
     private final CustomerClient customerClient;
     private final PaymentMethodApplicationService paymentMethodService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final TransactionTemplate transactionTemplate;
     private final AuditClient auditClient;
-    private final OrderBillingMapper orderBillingMapper;
-    private final EventOutboxMapper eventOutboxMapper;
+    private final OrderBillingRepository orderBillingRepository;
+    private final PaymentEventOutbox eventOutbox;
 
-    public CollectApplicationService(PayIntentMapper payIntentMapper,
-                                     PayTransactionMapper payTransactionMapper,
-                                     PayCollectMapper payCollectMapper,
+    /**
+     * 生产装配。{@code @Autowired} **必须**标在这个九参构造器上：标在下面的兼容构造器上会让 Spring
+     * 注入 {@code eventOutbox = null}，于是"收款确认事件"永远写不进 Outbox——
+     * 收款本身成功，但下游（积分/权益）永远收不到通知，且没有任何报错。
+     */
+    @Autowired
+    public CollectApplicationService(PaymentIntentRepository paymentIntentRepository,
+                                     PaymentTransactionRepository paymentTransactionRepository,
+                                     PayCollectRepository payCollectRepository,
                                      CustomerClient customerClient,
                                      PaymentMethodApplicationService paymentMethodService,
                                      PlatformTransactionManager transactionManager,
                                      AuditClient auditClient,
-                                     OrderBillingMapper orderBillingMapper,
-                                     EventOutboxMapper eventOutboxMapper) {
-        this.payIntentMapper = payIntentMapper;
-        this.payTransactionMapper = payTransactionMapper;
-        this.payCollectMapper = payCollectMapper;
+                                     OrderBillingRepository orderBillingRepository,
+                                     PaymentEventOutbox eventOutbox) {
+        this.paymentIntentRepository = paymentIntentRepository;
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.payCollectRepository = payCollectRepository;
         this.customerClient = customerClient;
         this.paymentMethodService = paymentMethodService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
         this.auditClient = auditClient;
-        this.orderBillingMapper = orderBillingMapper;
-        this.eventOutboxMapper = eventOutboxMapper;
+        this.orderBillingRepository = orderBillingRepository;
+        this.eventOutbox = eventOutbox;
     }
 
-    /** Backward-compatible constructor for isolated unit tests. */
-    @Autowired
-    public CollectApplicationService(PayIntentMapper payIntentMapper,
-                                     PayTransactionMapper payTransactionMapper,
-                                     PayCollectMapper payCollectMapper,
+    /** 兼容既有装配/单测：不注入 Outbox 时跳过事件追加（生产装配始终注入）。 */
+    public CollectApplicationService(PaymentIntentRepository paymentIntentRepository,
+                                     PaymentTransactionRepository paymentTransactionRepository,
+                                     PayCollectRepository payCollectRepository,
                                      CustomerClient customerClient,
                                      PaymentMethodApplicationService paymentMethodService,
                                      PlatformTransactionManager transactionManager,
                                      AuditClient auditClient,
-                                     OrderBillingMapper orderBillingMapper) {
-        this(payIntentMapper, payTransactionMapper, payCollectMapper, customerClient, paymentMethodService,
-                transactionManager, auditClient, orderBillingMapper, null);
+                                     OrderBillingRepository orderBillingRepository) {
+        this(paymentIntentRepository, paymentTransactionRepository, payCollectRepository, customerClient,
+                paymentMethodService, transactionManager, auditClient, orderBillingRepository, null);
     }
 
     /**
@@ -133,28 +132,28 @@ public class CollectApplicationService {
         }
 
         // 幂等优先：已确认的同一 Idempotency-Key 直接回放首次结果，不再重复校验/落库/调下游。
-        PayCollectPo existing = findByIdempotencyKey(tenantId, idempotencyKey);
-        if (existing != null && STATE_CONFIRMED.equals(existing.getState()) && existing.getResponseJson() != null) {
-            return deserializeResult(existing.getResponseJson());
+        PayCollect existing = payCollectRepository.findByIdempotencyKey(tenantId, idempotencyKey).orElse(null);
+        if (existing != null && existing.replayable()) {
+            return deserializeResult(existing.responseJson());
         }
-        if (existing != null && !STATE_FAILED.equals(existing.getState())) {
-            // INIT/HOLD：首次请求仍在处理中，或进程在落库前中断，无法确认 customer 侧扣减状态。
+        if (existing != null && !existing.failed()) {
+            // INIT：首次请求仍在处理中，或进程在落库前中断，无法确认 customer 侧扣减状态。
             throw new ApiException(409, "PAYMENT_PROCESSING", "组合收款处理中，请勿重复提交");
         }
 
         // 服务端应收校验（只读一次并复用，避免校验阶段重复查库）：应收以服务端账单为准。
-        OrderBillingPo billing = orderBillingMapper == null ? null : orderBillingMapper.selectForUpdate(tenantId, orderId);
+        OrderReceivable billing = orderBillingRepository == null ? null
+                : orderBillingRepository.findForUpdate(tenantId, orderId).orElse(null);
         BigDecimal billPaid = null;
         BigDecimal billTotal = null;
         if (billing != null) {
-            billTotal = billing.getTotalAmount() == null ? BigDecimal.ZERO : billing.getTotalAmount();
-            billPaid = billing.getPaidAmount() == null ? BigDecimal.ZERO : billing.getPaidAmount();
-            long serverPayable = billTotal.subtract(billPaid).max(BigDecimal.ZERO).longValueExact();
+            billTotal = billing.totalOrZero();
+            billPaid = billing.paidOrZero();
+            long serverPayable = billing.remainingPayable();
             if (payable != serverPayable) {
                 throw new ApiException(422, "PAYMENT_AMOUNT_MISMATCH", "应收金额必须以服务端账单为准");
             }
-            if ("CANCELLED".equals(billing.getStatus()) || "VOIDED".equals(billing.getStatus())
-                    || "COMPLETED".equals(billing.getStatus())) {
+            if (!billing.collectable()) {
                 throw new ApiException(422, "ORDER_STATUS_INVALID", "订单当前不可收款");
             }
         }
@@ -167,31 +166,32 @@ public class CollectApplicationService {
         // 前置校验：所有分腿在落库之前一次性校验（金额、方式、合计），不满足直接 422 且不落任何行。
         List<PaymentItem> ordered = validateLegs(tenantId, storeId, payable, effectiveCurrency, payments);
 
-        PayCollectPo collect;
+        PayCollect collect;
         if (existing != null) {
             // 重跑前先续做上一次未完成的补偿（释放端点按幂等键幂等，重复调用不会重复归还）；
             // 补偿未落地或旧记录缺少补偿快照时拒绝重跑，避免重复扣减。
             settlePendingReleases(existing, tenantId, storeId, orderId, customerId, effectiveCurrency);
-            if (!claimFailedRecord(existing)) {
+            if (!payCollectRepository.claimFailedAsInit(existing.id())) {
                 throw new ApiException(409, "PAYMENT_PROCESSING", "组合收款处理中，请勿重复提交");
             }
-            collect = existing;
+            collect = existing.claimedForRetry();
         } else {
             collect = newCollectRecord(tenantId, storeId, orderId, customerId, effectiveCurrency, payable, payments, idempotencyKey);
             try {
-                payCollectMapper.insert(collect);
+                collect = payCollectRepository.insert(collect);
             } catch (DuplicateKeyException dup) {
                 // 唯一键 uk_pay_collect_idem 兜底并发：另一请求已建立同一幂等键的记录。
-                PayCollectPo winner = findByIdempotencyKey(tenantId, idempotencyKey);
-                if (winner != null && STATE_CONFIRMED.equals(winner.getState()) && winner.getResponseJson() != null) {
-                    return deserializeResult(winner.getResponseJson());
+                PayCollect winner = payCollectRepository.findByIdempotencyKey(tenantId, idempotencyKey)
+                        .orElse(null);
+                if (winner != null && winner.replayable()) {
+                    return deserializeResult(winner.responseJson());
                 }
                 throw new ApiException(409, "PAYMENT_PROCESSING", "组合收款处理中，请勿重复提交");
             }
         }
 
         // 本次尝试独立的分腿幂等键前缀（收款单号 + 随机段）：重跑不复用，避免撞上 customer 侧已消费的键。
-        String attemptKey = newAttemptKey(collect.getCollectNo());
+        String attemptKey = newAttemptKey(collect.collectNo());
         List<HeldLeg> heldLegs = new ArrayList<>();
         List<PaymentItem> cashLegs = new ArrayList<>();
         List<CollectedMethod> collected = new ArrayList<>();
@@ -221,6 +221,9 @@ public class CollectApplicationService {
             List<PaymentItem> cashLegsFinal = List.copyOf(cashLegs);
             BigDecimal expectedPaid = billPaid;
             BigDecimal total = billTotal;
+            // 事务 lambda 需要一个 effectively-final 引用：collect 在新建分支里被重新赋值（回填主键），
+            // 因此在这里固定下来。事务内必须用这个引用，否则会写一条 id 为空的行。
+            final PayCollect confirmedCollect = collect;
             // CONSUME：现金/线上分腿 + 订单落账 + pay_collect 状态机在同一事务内提交，失败一起回滚。
             transactionTemplate.executeWithoutResult(status -> {
                 for (int legNo = 0; legNo < cashLegsFinal.size(); legNo++) {
@@ -229,12 +232,12 @@ public class CollectApplicationService {
                 }
                 if (billing != null) {
                     BigDecimal newPaid = expectedPaid.add(BigDecimal.valueOf(payable));
-                    if (orderBillingMapper.markPaid(tenantId, orderId, expectedPaid, newPaid, total) != 1) {
+                    if (!orderBillingRepository.markPaid(tenantId, orderId, expectedPaid, newPaid, total)) {
                         throw new ApiException(409, "PAYMENT_ORDER_CONFLICT", "订单已被其他收款操作更新，请重试");
                     }
                 }
-                markConfirmed(collect, result);
-                appendCollectConfirmedOutbox(collect, customerId, cashLegsFinal);
+                markConfirmed(confirmedCollect, result);
+                appendCollectConfirmedOutbox(confirmedCollect, customerId, cashLegsFinal);
             });
 
             // 高风险写操作（组合收款）审计：异步占位，失败仅告警不阻断收款。
@@ -243,7 +246,7 @@ public class CollectApplicationService {
                     .action("payment.collect")
                     .actionLabel("组合收款")
                     .resourceType("collect")
-                    .resourceId(collect.getCollectNo())
+                    .resourceId(collect.collectNo())
                     .idempotencyKey(idempotencyKey)
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"orderId\":" + orderId + ",\"payable\":" + payable + ",\"collected\":" + payable + "}")
@@ -258,7 +261,7 @@ public class CollectApplicationService {
             } catch (RuntimeException recordEx) {
                 // 失败处理不得掩盖原始异常：记录告警后继续抛出业务失败。
                 log.error("组合收款失败状态记录失败，需人工核对: collectNo={} orderId={}",
-                        collect.getCollectNo(), orderId, recordEx);
+                        collect.collectNo(), orderId, recordEx);
             }
             // 领域失败留痕：/business/** 组合收款没有 BFF 兜底，资金收款失败必须能按稳定码检索。
             // 放在补偿与失败快照之后、抛出之前：留痕只 WARN，绝不改变业务结果，也绝不掩盖原始异常。
@@ -275,7 +278,7 @@ public class CollectApplicationService {
      * 不带幂等键（同一收款动作重复失败必须各自留痕，也绝不覆盖成功路径的幂等键）；
      * detail 只放订单/收款单号标识，<b>不含</b>金额、支付方式明细与会员信息。
      */
-    private void recordCollectFailure(Long tenantId, Long storeId, Long orderId, PayCollectPo collect,
+    private void recordCollectFailure(Long tenantId, Long storeId, Long orderId, PayCollect collect,
                                      RuntimeException failure) {
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .tenantId(tenantId)
@@ -283,11 +286,11 @@ public class CollectApplicationService {
                 .action("payment.collect")
                 .actionLabel("组合收款")
                 .resourceType("collect")
-                .resourceId(collect == null ? null : collect.getCollectNo())
+                .resourceId(collect == null ? null : collect.collectNo())
                 .result(AuditClient.AuditRecord.RESULT_FAILURE)
                 .errorCode(AuditErrorCodes.of(failure))
                 .detailJson("{\"orderId\":" + orderId + ",\"collectNo\":"
-                        + jsonText(collect == null ? null : collect.getCollectNo()) + "}")
+                        + jsonText(collect == null ? null : collect.collectNo()) + "}")
                 .build());
     }
 
@@ -304,7 +307,7 @@ public class CollectApplicationService {
         if (tenantId == null || orderId == null || accountId == null || accountId <= 0) {
             return null;
         }
-        return orderBillingMapper.selectOwnedCustomerId(tenantId, orderId, accountId);
+        return orderBillingRepository.findOwnedCustomerId(tenantId, orderId, accountId).orElse(null);
     }
 
     /**
@@ -322,15 +325,12 @@ public class CollectApplicationService {
         if (tenantId == null || orderId == null) {
             return new OrderCollected(orderId, null, false, 0L, 0L, 0L, 0L, List.of());
         }
-        List<PayCollectPo> rows = payCollectMapper.selectList(new LambdaQueryWrapper<PayCollectPo>()
-                .eq(PayCollectPo::getTenantId, tenantId)
-                .eq(PayCollectPo::getOrderId, orderId)
-                .eq(PayCollectPo::getState, STATE_CONFIRMED));
+        List<PayCollect> rows = payCollectRepository.listConfirmedByOrderIds(tenantId, List.of(orderId));
         Map<String, Long> byMethod = new LinkedHashMap<>();
         Set<String> currencies = new LinkedHashSet<>();
         long total = 0L;
-        for (PayCollectPo row : rows) {
-            String json = row.getResponseJson();
+        for (PayCollect row : rows) {
+            String json = row.responseJson();
             if (json == null || json.isBlank()) {
                 continue;
             }
@@ -344,7 +344,7 @@ public class CollectApplicationService {
             if (result.collectedByMethod() == null) {
                 continue;
             }
-            currencies.add(Currency.parse(row.getCurrencyCode()).code());
+            currencies.add(Currency.parse(row.currencyCode()).code());
             for (CollectedMethod leg : result.collectedByMethod()) {
                 if (leg.amount() <= 0) {
                     continue;
@@ -402,23 +402,17 @@ public class CollectApplicationService {
         return ordered;
     }
 
-    private PayCollectPo newCollectRecord(Long tenantId, Long storeId, Long orderId, Long customerId, String currencyCode,
-                                          long payable, List<PaymentItem> payments, String idempotencyKey) {
-        PayCollectPo collect = new PayCollectPo();
-        collect.setTenantId(tenantId);
-        collect.setStoreId(storeId);
+    private PayCollect newCollectRecord(Long tenantId, Long storeId, Long orderId, Long customerId, String currencyCode,
+                                        long payable, List<PaymentItem> payments, String idempotencyKey) {
         var context = TenantContextHolder.get();
-        collect.setBusinessType(context == null ? null : context.businessType());
-        collect.setCollectNo(nextCollectNo());
-        collect.setOrderId(orderId);
-        collect.setIdempotencyKey(idempotencyKey);
-        collect.setState(STATE_INIT);
-        // 币种快照（§5）：分腿与找零的币种固化为列，便于对账按币种过滤（金额只在 request/response JSON 里）。
-        collect.setCurrencyCode(currencyCode);
-        collect.setRequestJson(toJson(new CollectRequestSnapshot(orderId, customerId, currencyCode, payable, payments)));
-        collect.setCreatedAt(LocalDateTime.now());
-        collect.setUpdatedAt(LocalDateTime.now());
-        return collect;
+        LocalDateTime now = LocalDateTime.now();
+        return new PayCollect(null, tenantId, storeId,
+                context == null ? null : context.businessType(), nextCollectNo(), orderId, idempotencyKey,
+                PayCollect.STATE_INIT,
+                // 币种快照（§5）：分腿与找零的币种固化为列，便于对账按币种过滤（金额只在 request/response JSON 里）。
+                currencyCode,
+                toJson(new CollectRequestSnapshot(orderId, customerId, currencyCode, payable, payments)),
+                null, now, now);
     }
 
     /**
@@ -432,11 +426,11 @@ public class CollectApplicationService {
      *       （缺省 USD），绝不写入空币种。</li>
      * </ul>
      */
-    private static String resolveCollectCurrency(OrderBillingPo billing, String requested) {
+    private static String resolveCollectCurrency(OrderReceivable billing, String requested) {
         if (requested != null && !requested.isBlank() && !Currency.isSupported(requested)) {
             throw new ApiException(400, "CURRENCY_UNSUPPORTED", "不支持的币种: " + requested);
         }
-        String orderCurrency = billing == null ? null : billing.getCurrencyCode();
+        String orderCurrency = billing == null ? null : billing.currencyCode();
         if (orderCurrency != null && !orderCurrency.isBlank()) {
             String normalizedOrder = Currency.parse(orderCurrency).code();
             if (requested != null && !requested.isBlank()
@@ -451,35 +445,16 @@ public class CollectApplicationService {
     }
 
     /**
-     * 接管一条 FAILED 幂等记录（同键重跑）：CAS 抢占 FAILED→INIT 并清掉旧失败快照，
-     * 抢占失败说明另一并发重试已接管，返回 false。
-     */
-    private boolean claimFailedRecord(PayCollectPo row) {
-        UpdateWrapper<PayCollectPo> update = new UpdateWrapper<>();
-        update.eq("id", row.getId())
-                .eq("state", STATE_FAILED)
-                .set("state", STATE_INIT)
-                .set("response_json", null)
-                .set("updated_at", LocalDateTime.now());
-        if (payCollectMapper.update(null, update) != 1) {
-            return false;
-        }
-        row.setState(STATE_INIT);
-        row.setResponseJson(null);
-        return true;
-    }
-
-    /**
      * 同键重跑前的补偿续做：上一次失败若未能把 customer 侧扣减归还干净，按原幂等键重放归还
      * （归还端点按幂等键幂等，重复调用不会重复入账）；仍失败或快照缺失（旧版本遗留记录）时拒绝重跑，
      * 避免在资金状态不明的情况下重复扣减。
      */
-    private void settlePendingReleases(PayCollectPo existing, Long tenantId, Long storeId, Long orderId,
+    private void settlePendingReleases(PayCollect existing, Long tenantId, Long storeId, Long orderId,
                                        Long customerId, String currencyCode) {
-        FailureSnapshot snapshot = readFailure(existing.getResponseJson());
+        FailureSnapshot snapshot = readFailure(existing.responseJson());
         if (snapshot == null || snapshot.attemptKey() == null) {
             log.error("组合收款失败记录缺少补偿快照，需人工核对后再重试: collectNo={} orderId={}",
-                    existing.getCollectNo(), existing.getOrderId());
+                    existing.collectNo(), existing.orderId());
             throw new ApiException(409, "PAYMENT_RECONCILIATION_REQUIRED", "该收款单存在未结清的历史流水，请人工核对后再试");
         }
         List<HeldLeg> heldLegs = snapshot.heldLegs();
@@ -490,7 +465,7 @@ public class CollectApplicationService {
                 snapshot.attemptKey(), heldLegs);
         if (!compensated) {
             log.error("组合收款失败补偿续做仍失败，拒绝重跑以避免重复扣减: collectNo={} orderId={} attemptKey={}",
-                    existing.getCollectNo(), existing.getOrderId(), snapshot.attemptKey());
+                    existing.collectNo(), existing.orderId(), snapshot.attemptKey());
             throw new ApiException(409, "PAYMENT_RECONCILIATION_REQUIRED", "该收款单存在未结清的历史流水，请人工核对后再试");
         }
     }
@@ -517,35 +492,17 @@ public class CollectApplicationService {
      */
     private void recordCash(Long tenantId, Long storeId, Long orderId, String currencyCode, long amount,
                             String attemptKey, String method, int legNo) {
-        PayIntentPo po = new PayIntentPo();
-        po.setTenantId(tenantId);
-        po.setStoreId(storeId);
-        po.setOrderId(orderId);
-        po.setProvider(method);
-        po.setPaymentMethod(method);
-        po.setAmount(BigDecimal.valueOf(amount));
-        po.setCurrencyCode(currencyCode);
-        po.setStatus("SUCCEEDED");
-        po.setIdempotencyKey(legIdempotencyKey(attemptKey, cashLegSuffix(legNo)));
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        payIntentMapper.insert(po);
+        LocalDateTime now = LocalDateTime.now();
+        PaymentIntent intent = paymentIntentRepository.insert(new PaymentIntent(null, tenantId, storeId,
+                orderId, null, method, method, BigDecimal.valueOf(amount), currencyCode,
+                PaymentIntent.STATUS_SUCCEEDED, legIdempotencyKey(attemptKey, cashLegSuffix(legNo)), null,
+                now, now));
 
-        PayTransactionPo tx = new PayTransactionPo();
-        tx.setTenantId(tenantId);
-        tx.setStoreId(storeId);
         var context = TenantContextHolder.get();
-        tx.setBusinessType(context == null ? null : context.businessType());
-        tx.setPaymentIntentId(po.getId());
-        tx.setProvider(method);
-        tx.setAmount(BigDecimal.valueOf(amount));
-        tx.setCurrencyCode(currencyCode);
-        tx.setStatus("SUCCEEDED");
-        tx.setOccurredAt(LocalDateTime.now());
-        // 审计字段（created_at/updated_at 非空且无默认值，必须由写入方提供；操作人列留默认 0）。
-        tx.setCreatedAt(LocalDateTime.now());
-        tx.setUpdatedAt(LocalDateTime.now());
-        payTransactionMapper.insert(tx);
+        paymentTransactionRepository.insert(new PaymentTransaction(null, tenantId, storeId,
+                context == null ? null : context.businessType(), intent.id(), method, null, null,
+                BigDecimal.valueOf(amount), currencyCode, null, null,
+                PaymentTransaction.STATUS_SUCCEEDED, now, null));
     }
 
     /**
@@ -604,28 +561,20 @@ public class CollectApplicationService {
         return "CASH:" + legNo;
     }
 
-    private PayCollectPo findByIdempotencyKey(Long tenantId, String idempotencyKey) {
-        LambdaQueryWrapper<PayCollectPo> qw = new LambdaQueryWrapper<>();
-        qw.eq(PayCollectPo::getTenantId, tenantId)
-          .eq(PayCollectPo::getIdempotencyKey, idempotencyKey)
-          .last("LIMIT 1");
-        return payCollectMapper.selectOne(qw);
-    }
-
-    private void markConfirmed(PayCollectPo collect, CollectResult result) {
-        collect.setState(STATE_CONFIRMED);
-        collect.setResponseJson(toJson(result));
-        collect.setUpdatedAt(LocalDateTime.now());
-        payCollectMapper.updateById(collect);
+    private void markConfirmed(PayCollect collect, CollectResult result) {
+        // 状态与快照一起落库：端口内部是"按 id 更新状态 + 快照 + updated_at"，
+        // 收款单的身份字段（单号/订单/幂等键/币种快照/请求快照）不参与改写。
+        payCollectRepository.updateStateAndSnapshot(
+                collect.withState(PayCollect.STATE_CONFIRMED, toJson(result)));
     }
 
     /**
      * 将收款确认事实与本地确认状态放在同一事务写入 Outbox。Customer 消费者据此异步获得积分，
      * 事件只携带服务端已确认的现金/线上金额（积分、储值抵扣不重复计入），并以 eventId 幂等。
      */
-    private void appendCollectConfirmedOutbox(PayCollectPo collect, Long customerId,
+    private void appendCollectConfirmedOutbox(PayCollect collect, Long customerId,
                                               List<PaymentItem> cashLegs) {
-        if (eventOutboxMapper == null) {
+        if (eventOutbox == null) {
             return;
         }
         long eligibleAmount = cashLegs == null ? 0L
@@ -633,33 +582,25 @@ public class CollectApplicationService {
         if (customerId == null || eligibleAmount <= 0L) {
             return;
         }
-        String eventId = "pc-" + collect.getCollectNo() + "-" + UUID.randomUUID().toString().replace("-", "");
+        String eventId = "pc-" + collect.collectNo() + "-" + UUID.randomUUID().toString().replace("-", "");
         CollectConfirmedEvent event = CollectConfirmedEvent.builder()
                 .eventId(eventId)
-                .tenantId(collect.getTenantId())
-                .storeId(collect.getStoreId())
+                .tenantId(collect.tenantId())
+                .storeId(collect.storeId())
                 .customerId(customerId)
-                .orderId(collect.getOrderId())
-                .collectNo(collect.getCollectNo())
+                .orderId(collect.orderId())
+                .collectNo(collect.collectNo())
                 .eligibleAmount(eligibleAmount)
                 .occurredAt(Instant.now())
                 .build();
-        PayEventOutboxPo outbox = new PayEventOutboxPo();
-        outbox.setTenantId(collect.getTenantId());
-        outbox.setEventId(eventId);
-        outbox.setEventType(PayEventTypes.COLLECT_CONFIRMED);
-        outbox.setAggregateType("collect");
-        outbox.setAggregateId(collect.getCollectNo());
-        outbox.setPayloadJson(toJson(event));
-        outbox.setStatus("PENDING");
-        outbox.setRetryCount(0);
-        outbox.setCreatedAt(LocalDateTime.now());
-        outbox.setUpdatedAt(LocalDateTime.now());
-        eventOutboxMapper.insert(outbox);
+        // 状态（PENDING）与重试计数初值由适配器补齐：本层只表达"这条事件要发出去"。
+        eventOutbox.append(new PaymentEventOutboxEntry(collect.tenantId(), eventId,
+                PayEventTypes.COLLECT_CONFIRMED, "collect", collect.collectNo(), toJson(event),
+                LocalDateTime.now()));
     }
 
     /** 失败快照落库（本地事务已回滚后独立提交）：code/message 供排查，attemptKey/heldLegs/compensated 供同键重跑续做。 */
-    private void markFailed(PayCollectPo collect, RuntimeException ex, String attemptKey, List<HeldLeg> heldLegs,
+    private void markFailed(PayCollect collect, RuntimeException ex, String attemptKey, List<HeldLeg> heldLegs,
                             boolean compensated) {
         int status = 500;
         String code = "COLLECT_FAILED";
@@ -669,12 +610,10 @@ public class CollectApplicationService {
             code = apiEx.getCode();
             message = apiEx.getMessage();
         } else {
-            log.error("组合收款未预期失败: collectNo={} orderId={}", collect.getCollectNo(), collect.getOrderId(), ex);
+            log.error("组合收款未预期失败: collectNo={} orderId={}", collect.collectNo(), collect.orderId(), ex);
         }
-        collect.setState(STATE_FAILED);
-        collect.setResponseJson(toJson(new FailureSnapshot(status, code, message, attemptKey, compensated, heldLegs)));
-        collect.setUpdatedAt(LocalDateTime.now());
-        payCollectMapper.updateById(collect);
+        payCollectRepository.updateStateAndSnapshot(collect.withState(PayCollect.STATE_FAILED,
+                toJson(new FailureSnapshot(status, code, message, attemptKey, compensated, heldLegs))));
     }
 
     private CollectResult deserializeResult(String json) {

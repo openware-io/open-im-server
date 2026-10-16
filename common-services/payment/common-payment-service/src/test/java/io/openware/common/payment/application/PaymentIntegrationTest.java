@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -14,17 +13,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
+import io.openware.common.payment.domain.billing.model.OrderReceivable;
+import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
 import io.openware.common.payment.infra.client.CustomerClient;
 import io.openware.common.payment.infra.mq.EventOutboxRelay;
-import io.openware.common.payment.infra.persistence.mapper.PayCollectMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayIntentMapper;
-import io.openware.common.payment.infra.persistence.mapper.PayTransactionMapper;
-import io.openware.common.payment.infra.persistence.mapper.OrderBillingMapper;
-import io.openware.common.payment.infra.persistence.po.PayCollectPo;
-import io.openware.common.payment.infra.persistence.po.PayIntentPo;
-import io.openware.common.payment.infra.persistence.po.PayTransactionPo;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.mq.MqConsumerFactory;
 import io.openware.infrastructure.mq.MqProducer;
@@ -79,16 +72,7 @@ class PaymentIntegrationTest {
   private CollectApplicationService collectApplicationService;
 
   @Autowired
-  private PayCollectMapper payCollectMapper;
-
-  @Autowired
-  private PayIntentMapper payIntentMapper;
-
-  @Autowired
-  private PayTransactionMapper payTransactionMapper;
-
-  @Autowired
-  private OrderBillingMapper orderBillingMapper;
+  private OrderBillingRepository orderBillingRepository;
 
   @Autowired
   private DataSource dataSource;
@@ -125,35 +109,43 @@ class PaymentIntegrationTest {
     assertTrue(walletKey.getValue().endsWith(":WALLET"), walletKey.getValue());
 
     // 幂等记录真落库且 CONFIRMED
-    List<PayCollectPo> collects = collectRows("pay-it-key");
+    List<PayCollectRow> collects = collectRows("pay-it-key");
     assertEquals(1, collects.size());
-    assertEquals("CONFIRMED", collects.get(0).getState());
-    assertEquals(STORE_ID, collects.get(0).getStoreId());
-    assertNotNull(collects.get(0).getResponseJson());
+    assertEquals("CONFIRMED", collects.get(0).state());
+    assertEquals(STORE_ID, collects.get(0).storeId());
+    assertNotNull(collects.get(0).responseJson());
     // 币种快照与订单币种一致（禁止跨币种，16_CURRENCY_CONVENTIONS §5/§6）
-    assertEquals("CNY", collects.get(0).getCurrencyCode());
+    assertEquals("CNY", collects.get(0).currencyCode());
 
     // 现金差额真落库：pay_intent + pay_transaction（分腿幂等键由收款单号 + 本次尝试随机段派生）
-    List<PayIntentPo> intents = payIntentMapper.selectList(
-        new QueryWrapper<PayIntentPo>().eq("order_id", ORDER_ID).eq("provider", "CASH"));
+    List<LedgerRow> intents = payIntents(ORDER_ID);
     assertEquals(1, intents.size());
-    assertTrue(intents.get(0).getIdempotencyKey().startsWith(collects.get(0).getCollectNo() + "#"),
-        intents.get(0).getIdempotencyKey());
-    assertTrue(intents.get(0).getIdempotencyKey().endsWith(":CASH:1"), intents.get(0).getIdempotencyKey());
-    assertEquals(0, intents.get(0).getAmount().compareTo(new BigDecimal("5000.00")));
-    assertEquals("SUCCEEDED", intents.get(0).getStatus());
-    assertEquals("CNY", intents.get(0).getCurrencyCode());
+    assertTrue(intents.get(0).idempotencyKey().startsWith(collects.get(0).collectNo() + "#"),
+        intents.get(0).idempotencyKey());
+    assertTrue(intents.get(0).idempotencyKey().endsWith(":CASH:1"), intents.get(0).idempotencyKey());
+    assertEquals(0, intents.get(0).amount().compareTo(new BigDecimal("5000.00")));
+    assertEquals("SUCCEEDED", intents.get(0).status());
+    assertEquals("CNY", intents.get(0).currencyCode());
 
-    List<PayTransactionPo> txs = payTransactionMapper.selectList(
-        new QueryWrapper<PayTransactionPo>().eq("payment_intent_id", intents.get(0).getId()));
+    List<LedgerRow> txs = transactionsOf(intents.get(0).id());
     assertEquals(1, txs.size());
-    assertEquals(0, txs.get(0).getAmount().compareTo(new BigDecimal("5000.00")));
-    assertEquals("SUCCEEDED", txs.get(0).getStatus());
-    assertEquals(STORE_ID, txs.get(0).getStoreId());
+    assertEquals(0, txs.get(0).amount().compareTo(new BigDecimal("5000.00")));
+    assertEquals("SUCCEEDED", txs.get(0).status());
+    assertEquals(STORE_ID, txs.get(0).storeId());
 
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, ORDER_ID);
-    assertEquals("COMPLETED", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("8000")));
+    OrderReceivable order = requireOrder(ORDER_ID);
+    assertEquals("COMPLETED", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
+
+    // 收款确认事件必须真的写进 Outbox（与上面那行 CONFIRMED 同事务）。
+    // 回归点：@Autowired 曾标在少一个参数的构造器上，eventOutbox 恒为 null，
+    // 事件从未落库、下游永远收不到通知，而且不报任何错。
+    List<OutboxRow> events = outboxRows("collect", collectRows("pay-it-key").get(0).collectNo());
+    assertEquals(1, events.size(), "收款确认事件必须写入 pay_event_outbox");
+    assertEquals("PENDING", events.get(0).status());
+    assertEquals(0, events.get(0).retryCount());
+    assertTrue(events.get(0).payloadJson().contains("\"occurredAt\""),
+        "载荷必须能序列化含 Instant 的领域事件（ObjectMapper 未注册 JavaTimeModule 时会在此炸掉）");
   }
 
   @Test
@@ -183,18 +175,17 @@ class PaymentIntegrationTest {
     assertTrue(keys.getAllValues().get(0).endsWith(":POINT"), keys.getAllValues().get(0));
     assertTrue(keys.getAllValues().get(1).endsWith(":WALLET"), keys.getAllValues().get(1));
 
-    List<PayIntentPo> intents = payIntents(orderId);
+    List<LedgerRow> intents = payIntents(orderId);
     assertEquals(1, intents.size());
-    assertEquals(0, intents.get(0).getAmount().compareTo(new BigDecimal("5000")));
-    List<PayTransactionPo> txs = payTransactionMapper.selectList(
-        new QueryWrapper<PayTransactionPo>().eq("payment_intent_id", intents.get(0).getId()));
+    assertEquals(0, intents.get(0).amount().compareTo(new BigDecimal("5000")));
+    List<LedgerRow> txs = transactionsOf(intents.get(0).id());
     assertEquals(1, txs.size());
-    assertEquals(0, txs.get(0).getAmount().compareTo(new BigDecimal("5000")));
+    assertEquals(0, txs.get(0).amount().compareTo(new BigDecimal("5000")));
 
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("COMPLETED", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("10000")));
-    assertEquals("CONFIRMED", collectRows("it-success-key").get(0).getState());
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("COMPLETED", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("10000")));
+    assertEquals("CONFIRMED", collectRows("it-success-key").get(0).state());
   }
 
   @Test
@@ -246,14 +237,14 @@ class PaymentIntegrationTest {
         any());
     // 本库无任何资金流水残留，pay_collect 只留 FAILED（不残留 SUCCEEDED/CONFIRMED）
     assertNoLedger(orderId);
-    List<PayCollectPo> collects = collectRows("it-midleg-key");
+    List<PayCollectRow> collects = collectRows("it-midleg-key");
     assertEquals(1, collects.size());
-    assertEquals("FAILED", collects.get(0).getState());
-    assertTrue(collects.get(0).getResponseJson().contains("\"compensated\":true"),
-        collects.get(0).getResponseJson());
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("WAITING_SETTLEMENT", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(BigDecimal.ZERO));
+    assertEquals("FAILED", collects.get(0).state());
+    assertTrue(collects.get(0).responseJson().contains("\"compensated\":true"),
+        collects.get(0).responseJson());
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(BigDecimal.ZERO));
   }
 
   @Test
@@ -270,7 +261,7 @@ class PaymentIntegrationTest {
 
     assertEquals("LEDGER_INSUFFICIENT", ex.getCode());
     assertNoLedger(orderId);
-    assertEquals("FAILED", collectRows("it-wallet-key").get(0).getState());
+    assertEquals("FAILED", collectRows("it-wallet-key").get(0).state());
   }
 
   /**
@@ -295,12 +286,12 @@ class PaymentIntegrationTest {
     assertEquals("PAYMENT_ORDER_CONFLICT", ex.getCode());
     // 现金分腿写过但随事务回滚：无 pay_intent/pay_transaction 残留
     assertNoLedger(orderId);
-    assertEquals("FAILED", collectRows("it-cashfail-key").get(0).getState());
+    assertEquals("FAILED", collectRows("it-cashfail-key").get(0).state());
     verify(customerClient).releaseWallet(eq(TENANT_ID), eq(STORE_ID), eq(CUSTOMER_ID), eq(3000L), eq("CNY"),
         eq(orderId), any());
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("WAITING_SETTLEMENT", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("1000")));
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("1000")));
   }
 
   /**
@@ -324,35 +315,32 @@ class PaymentIntegrationTest {
         new CollectApplicationService.CollectedMethod("ALIPAY", 3000L),
         new CollectApplicationService.CollectedMethod("CASH", 5000L)), result.collectedByMethod());
 
-    List<PayIntentPo> intents = payIntentMapper.selectList(
-        new QueryWrapper<PayIntentPo>().eq("order_id", orderId).orderByAsc("id"));
+    List<LedgerRow> intents = payIntentsAllProviders(orderId);
     assertEquals(2, intents.size(), "两笔现金类分腿各写一条 pay_intent");
-    PayIntentPo alipay = intents.get(0);
-    PayIntentPo cash = intents.get(1);
-    assertEquals("ALIPAY", alipay.getProvider());
-    assertEquals("CASH", cash.getProvider());
-    assertEquals(0, alipay.getAmount().compareTo(new BigDecimal("3000")));
-    assertEquals(0, cash.getAmount().compareTo(new BigDecimal("5000")));
-    assertTrue(alipay.getIdempotencyKey().endsWith(":CASH:1"), alipay.getIdempotencyKey());
-    assertTrue(cash.getIdempotencyKey().endsWith(":CASH:2"), cash.getIdempotencyKey());
-    assertNotEquals(alipay.getIdempotencyKey(), cash.getIdempotencyKey());
-    assertTrue(alipay.getIdempotencyKey().length() < 64 && cash.getIdempotencyKey().length() < 64,
+    LedgerRow alipay = intents.get(0);
+    LedgerRow cash = intents.get(1);
+    assertEquals("ALIPAY", alipay.provider());
+    assertEquals("CASH", cash.provider());
+    assertEquals(0, alipay.amount().compareTo(new BigDecimal("3000")));
+    assertEquals(0, cash.amount().compareTo(new BigDecimal("5000")));
+    assertTrue(alipay.idempotencyKey().endsWith(":CASH:1"), alipay.idempotencyKey());
+    assertTrue(cash.idempotencyKey().endsWith(":CASH:2"), cash.idempotencyKey());
+    assertNotEquals(alipay.idempotencyKey(), cash.idempotencyKey());
+    assertTrue(alipay.idempotencyKey().length() < 64 && cash.idempotencyKey().length() < 64,
         "分腿幂等键必须小于 pay_intent.idempotency_key 的 varchar(64)");
-    assertEquals("SUCCEEDED", alipay.getStatus());
-    assertEquals("SUCCEEDED", cash.getStatus());
+    assertEquals("SUCCEEDED", alipay.status());
+    assertEquals("SUCCEEDED", cash.status());
 
-    assertEquals(1, payTransactionMapper.selectList(new QueryWrapper<PayTransactionPo>()
-        .eq("payment_intent_id", alipay.getId())).size());
-    List<PayTransactionPo> cashTx = payTransactionMapper.selectList(
-        new QueryWrapper<PayTransactionPo>().eq("payment_intent_id", cash.getId()));
+    assertEquals(1, transactionsOf(alipay.id()).size());
+    List<LedgerRow> cashTx = transactionsOf(cash.id());
     assertEquals(1, cashTx.size());
-    assertEquals(0, cashTx.get(0).getAmount().compareTo(new BigDecimal("5000")));
-    assertEquals("SUCCEEDED", cashTx.get(0).getStatus());
+    assertEquals(0, cashTx.get(0).amount().compareTo(new BigDecimal("5000")));
+    assertEquals("SUCCEEDED", cashTx.get(0).status());
 
-    assertEquals("CONFIRMED", collectRows("it-split-key").get(0).getState());
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("COMPLETED", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("8000")));
+    assertEquals("CONFIRMED", collectRows("it-split-key").get(0).state());
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("COMPLETED", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
   }
 
   @Test
@@ -373,7 +361,7 @@ class PaymentIntegrationTest {
     verify(customerClient, times(1)).deductWallet(any(), any(), any(), any(), any(), any(), any());
     assertEquals(1, payIntents(orderId).size());
     assertEquals(1, collectRows("it-replay-key").size());
-    assertEquals(0, orderBillingMapper.selectForUpdate(TENANT_ID, orderId).getPaidAmount()
+    assertEquals(0, requireOrder(orderId).paidAmount()
         .compareTo(new BigDecimal("8000")));
   }
 
@@ -404,18 +392,17 @@ class PaymentIntegrationTest {
     verify(customerClient, times(2)).redeemPoints(any(), any(), any(), any(), any(), redeemKeys.capture());
     assertNotEquals(redeemKeys.getAllValues().get(0), redeemKeys.getAllValues().get(1),
         "重跑必须使用新的分腿幂等键");
-    List<PayIntentPo> intents = payIntents(orderId);
+    List<LedgerRow> intents = payIntents(orderId);
     assertEquals(1, intents.size());
-    assertEquals(0, intents.get(0).getAmount().compareTo(new BigDecimal("3000")));
-    List<PayTransactionPo> txs = payTransactionMapper.selectList(
-        new QueryWrapper<PayTransactionPo>().eq("payment_intent_id", intents.get(0).getId()));
+    assertEquals(0, intents.get(0).amount().compareTo(new BigDecimal("3000")));
+    List<LedgerRow> txs = transactionsOf(intents.get(0).id());
     assertEquals(1, txs.size());
-    List<PayCollectPo> collects = collectRows("it-retry-key");
+    List<PayCollectRow> collects = collectRows("it-retry-key");
     assertEquals(1, collects.size());
-    assertEquals("CONFIRMED", collects.get(0).getState());
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("COMPLETED", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(new BigDecimal("8000")));
+    assertEquals("CONFIRMED", collects.get(0).state());
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("COMPLETED", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
   }
 
   /**
@@ -448,38 +435,97 @@ class PaymentIntegrationTest {
     collectApplicationService.collect(TENANT_ID, STORE_ID, orderId, CUSTOMER_ID, null, 8000L,
         List.of(new CollectApplicationService.PaymentItem("CASH", 8000L)), "it-blank-currency-key");
 
-    assertEquals("CNY", payIntents(orderId).get(0).getCurrencyCode());
-    assertEquals("CNY", collectRows("it-blank-currency-key").get(0).getCurrencyCode());
+    assertEquals("CNY", payIntents(orderId).get(0).currencyCode());
+    assertEquals("CNY", collectRows("it-blank-currency-key").get(0).currencyCode());
   }
 
-  private List<PayCollectPo> collectRows(String idempotencyKey) {
-    return payCollectMapper.selectList(
-        new QueryWrapper<PayCollectPo>().eq("idempotency_key", idempotencyKey));
+  /**
+   * 落库断言一律走原生 SQL，而不是生产端口：
+   * 本测试要验证的正是"写入端真的把列写对了"，经生产读路径自证会让读写的同一个错误互相掩盖。
+   */
+  private List<PayCollectRow> collectRows(String idempotencyKey) {    return jdbc.query("SELECT id, collect_no, state, store_id, currency_code, response_json"
+            + " FROM pay_collect WHERE tenant_id = ? AND idempotency_key = ?",
+        (rs, i) -> new PayCollectRow(rs.getLong("id"), rs.getString("collect_no"), rs.getString("state"),
+            rs.getLong("store_id"), rs.getString("currency_code"), rs.getString("response_json")),
+        TENANT_ID, idempotencyKey);
   }
 
-  private List<PayIntentPo> payIntents(long orderId) {
-    return payIntentMapper.selectList(
-        new QueryWrapper<PayIntentPo>().eq("order_id", orderId).eq("provider", "CASH"));
+  private List<LedgerRow> payIntents(long orderId) {
+    return ledger("SELECT id, provider, amount, currency_code, status, idempotency_key, store_id"
+        + " FROM pay_intent WHERE tenant_id = ? AND order_id = ? AND provider = 'CASH'", orderId);
+  }
+
+  private List<LedgerRow> payIntentsAllProviders(long orderId) {
+    return ledger("SELECT id, provider, amount, currency_code, status, idempotency_key, store_id"
+        + " FROM pay_intent WHERE tenant_id = ? AND order_id = ? ORDER BY id", orderId);
+  }
+
+  private List<LedgerRow> transactionsOf(long paymentIntentId) {
+    // pay_transaction 没有 idempotency_key 列（幂等键在 pay_intent 上）。
+    return jdbc.query("SELECT id, provider, amount, currency_code, status, store_id"
+            + " FROM pay_transaction WHERE payment_intent_id = ?",
+        (rs, i) -> new LedgerRow(rs.getLong("id"), rs.getString("provider"), rs.getBigDecimal("amount"),
+            rs.getString("currency_code"), rs.getString("status"), null, rs.getLong("store_id")),
+        paymentIntentId);
+  }
+
+  private List<LedgerRow> ledger(String sql, long orderId) {
+    return jdbc.query(sql,
+        (rs, i) -> new LedgerRow(rs.getLong("id"), rs.getString("provider"), rs.getBigDecimal("amount"),
+            rs.getString("currency_code"), rs.getString("status"), rs.getString("idempotency_key"),
+            rs.getLong("store_id")),
+        TENANT_ID, orderId);
   }
 
   /** 前置校验失败的请求：不得有任何 pay_collect/pay_intent/pay_transaction 行，订单也不变。 */
   private void assertNoResidue(long orderId, String idempotencyKey) {
     assertEquals(0, collectRows(idempotencyKey).size());
     assertNoLedger(orderId);
-    var order = orderBillingMapper.selectForUpdate(TENANT_ID, orderId);
-    assertEquals("WAITING_SETTLEMENT", order.getStatus());
-    assertEquals(0, order.getPaidAmount().compareTo(BigDecimal.ZERO));
+    OrderReceivable order = requireOrder(orderId);
+    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals(0, order.paidOrZero().compareTo(BigDecimal.ZERO));
   }
 
   /** 本订单不得有任何资金流水（pay_intent 及其 pay_transaction）。 */
   private void assertNoLedger(long orderId) {
-    List<PayIntentPo> intents = payIntentMapper.selectList(
-        new QueryWrapper<PayIntentPo>().eq("order_id", orderId));
-    assertEquals(0, intents.size(), "不应有任何 pay_intent 残留");
-    assertEquals(0, payTransactionMapper.selectCount(new QueryWrapper<PayTransactionPo>()
-        .inSql("payment_intent_id", "SELECT id FROM pay_intent WHERE order_id = " + orderId)),
-        "本订单不应有任何 pay_transaction 残留");
+    assertEquals(0, payIntentsAllProviders(orderId).size(), "不应有任何 pay_intent 残留");
+    Integer txCount = jdbc.queryForObject(
+        "SELECT COUNT(*) FROM pay_transaction WHERE payment_intent_id IN"
+            + " (SELECT id FROM pay_intent WHERE order_id = ?)",
+        Integer.class, orderId);
+    assertEquals(0, txCount == null ? 0 : txCount, "本订单不应有任何 pay_transaction 残留");
   }
+
+  /**
+   * 经生产端口读订单：{@code findForUpdate} 带行锁，且在测试事务内可见本用例刚写入的行。
+   */
+  private OrderReceivable requireOrder(long orderId) {
+    return orderBillingRepository.findForUpdate(TENANT_ID, orderId)
+        .orElseThrow(() -> new AssertionError("订单不存在: " + orderId));
+  }
+
+  /** pay_event_outbox 的落库断言视图。 */
+  private List<OutboxRow> outboxRows(String aggregateType, String aggregateId) {
+    return jdbc.query("SELECT event_id, event_type, aggregate_type, aggregate_id, payload_json,"
+            + " status, retry_count FROM pay_event_outbox"
+            + " WHERE tenant_id = ? AND aggregate_type = ? AND aggregate_id = ?",
+        (rs, i) -> new OutboxRow(rs.getString("event_id"), rs.getString("event_type"),
+            rs.getString("aggregate_type"), rs.getString("aggregate_id"), rs.getString("payload_json"),
+            rs.getString("status"), rs.getInt("retry_count")),
+        TENANT_ID, aggregateType, aggregateId);
+  }
+
+  /** pay_intent / pay_transaction 的落库断言视图。 */
+  private record LedgerRow(long id, String provider, BigDecimal amount, String currencyCode, String status,
+                           String idempotencyKey, long storeId) {}
+
+  /** pay_event_outbox 的落库断言视图。 */
+  private record OutboxRow(String eventId, String eventType, String aggregateType, String aggregateId,
+                           String payloadJson, String status, int retryCount) {}
+
+  /** pay_collect 的落库断言视图。 */
+  private record PayCollectRow(long id, String collectNo, String state, long storeId, String currencyCode,
+                               String responseJson) {}
 
   private void insertOrder(long orderId, long totalAmount) {
     jdbc.update("INSERT INTO ord_order (id, tenant_id, status, currency_code, total_amount, paid_amount,"
