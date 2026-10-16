@@ -135,3 +135,43 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
   （13 个模块的 jsqlparser 去向），不属于"顺手改"。
 - **未新增** §5 列出的门禁。新增门禁会把当前违规变成构建失败，顺序必须先于改造单独决定。
 - **未修改**任何规范正文。
+
+## 8. 处置进展与**顺序判断**（2026-10-16 更新）
+
+### 8.1 已完成
+
+| 违规 | 处理 |
+|---|---|
+| V4 `domain/<ctx>/port/` 39 个文件 | ✅ 迁入 `domain/<ctx>/repository/`，173 处引用更新，4 模块编译通过（`6b7e888`） |
+| `port-contract` 作用域缺陷 | ✅ 改为 `-match '/domain/([^/]+/)*port/'` 并覆盖全部 Java 文件；**变异验证**：注入 `port/ProbePort.java` → 门禁指名失败 |
+| `text-encoding` 乱码检测失效 | ✅ 改用非抛出解码器（`3723cbd`） |
+| `flyway-immutability` 漏扫 3 个迁移 | ✅ pathspec 改为 `*db/migration*/*.sql`（`3723cbd`） |
+
+### 8.2 **顺序判断：V1 + V2 + V3 必须一起做**
+
+逐条复核后确认三者**相互耦合**，分开做会让同一段代码被反复重构：
+
+| 违规 | 真实修法 | 与其它项的关系 |
+|---|---|---|
+| **V1** 12 处控制器 `@Transactional` | 把方法体搬进应用服务 | **不能只删注解**：12 处里 **2 处控制器直调仓储**（`IamController.createRole`、`OrderItemController.confirm`）、其余 10 处调**私有 helper**（`upsert`/`doDecide`/`save`）——业务逻辑确实在控制器里 |
+| **V2** 21 个领域模型的审计字段 | 审计字段由**适配器或拦截器填充** | 填充点**就在 V1 搬进去的那个应用服务写路径上** |
+| **V3** 3 处领域模型 `@Setter` | 补**领域变更方法**（`markSent()`/`markFailed()`） | `@Setter` 揭示的正是"**领域变更逻辑写在应用服务里**"（`SmsApplicationService` 的 `log.setStatus("SENT")`）——与 V1 同源 |
+
+**具体反例（说明不能机械处理）**：`TenantConfigController.update` 标着 `@Transactional`，
+看似"只委托服务"，实际调用私有 `upsert(...)` 做**两次写**——事务是**必需的**，
+但按规范它属于应用服务的编排。删注解会**丢掉原子性**。
+
+**证据**：`IamController` 的类注释自称"**控制器只做协议转换与审计**"，
+而它注入了 **3 个 Repository** 并有 **5 个写方法**——**注释描述的是目标态，代码是违规态**。
+
+### 8.3 待决事项（需要决定，不能由我单方面选择）
+
+**`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
+已查证：`mybatis-plus-3.5.17.pom` 把它标为 `<optional>true</optional>`（**不会传递**），
+而 **10 个模块使用 `PaginationInnerInterceptor`、14 处调用 `selectPage`** → 分页扩展**运行时需要**它。
+规范 L42/L92 禁止 `mybatis-plus-jsqlparser-*`。三个选项：
+**(A)** 修订规范（把 jsqlparser 从禁令移出，说明它是分页扩展的必需解析器）；
+**(B)** 严格执行（移除 13 处声明，**破坏分页**）；
+**(C)** 改用手写 SQL / 移除分页（改造量最大）。
+**注意**：其余被禁组件（`core`/`extension`/`annotation`/`mybatis-spring`）实测**声明模块数均为 0**，
+说明禁令对它们有效——问题只出在 jsqlparser 这一项。
