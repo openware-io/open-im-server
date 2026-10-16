@@ -3,6 +3,7 @@ package io.openware.platform.order.infra.persistence.mapper;
 import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import io.openware.platform.order.infra.persistence.po.OrderPo;
+import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -38,4 +39,45 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
             + "version = version + 1, updated_at = #{po.updatedAt} "
             + "WHERE id = #{po.id} AND version = #{expectedVersion}")
     int settleWithVersion(@Param("po") OrderPo po, @Param("expectedVersion") int expectedVersion);
+
+    /**
+     * 状态转换的条件更新：仅当库中状态仍是 {@code expectedStatus} 时写入新状态。
+     *
+     * <p>{@code ord_order} 没有版本列可用于状态机（{@code OrderPo} 无 {@code @Version}、工程无乐观锁拦截器），
+     * 而状态转换的判定列就是状态本身。只靠应用层"读出来比对"不是并发保护：
+     * 两个并发确认都读到 {@code DRAFT}、都通过比对、都写入成功——订单被确认两次，各自的后续动作都会执行。
+     *
+     * @return 受影响行数；0 表示期间已被他人转换
+     */
+    @Update("UPDATE ord_order SET status = #{newStatus}, updated_at = #{updatedAt} "
+            + "WHERE id = #{id} AND status = #{expectedStatus}")
+    int updateStatusGuarded(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
+                            @Param("newStatus") String newStatus,
+                            @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 挂单的条件更新：仅当订单**尚未挂单**（{@code hold_at IS NULL}）时写入。
+     *
+     * <p>判据是 {@code hold_at} 而不是 {@code status}：挂单是 {@code SERVING} 内的标记，**不改商业状态**。
+     * 若按 {@code status = 'SERVING'} 做条件，两个并发挂单都会通过——两次挂单各自的理由与时间互相覆盖，
+     * 而审计里那条 {@code order-hold:{id}:{holdAt}} 幂等键也随之对不上其中一次。
+     *
+     * @return 受影响行数；0 表示已被他人挂单
+     */
+    @Update("UPDATE ord_order SET hold_at = #{holdAt}, hold_reason = #{holdReason}, "
+            + "updated_at = #{updatedAt} WHERE id = #{id} AND hold_at IS NULL")
+    int holdIfNotHeld(@Param("id") Long id, @Param("holdAt") LocalDateTime holdAt,
+                      @Param("holdReason") String holdReason, @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 解挂的条件更新：仅当订单**确实处于挂单中**（{@code hold_at IS NOT NULL}）时清空。
+     *
+     * <p>与 {@link #holdIfNotHeld} 对称。没有这条条件时，两个并发解挂都会"成功"，
+     * 而其中一次的审计与真实变更都对不上（第二次其实什么都没改）。
+     *
+     * @return 受影响行数；0 表示当前并未挂单
+     */
+    @Update("UPDATE ord_order SET hold_at = NULL, hold_reason = NULL, updated_at = #{updatedAt} "
+            + "WHERE id = #{id} AND hold_at IS NOT NULL")
+    int unholdIfHeld(@Param("id") Long id, @Param("updatedAt") LocalDateTime updatedAt);
 }

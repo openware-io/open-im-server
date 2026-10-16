@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -63,7 +64,7 @@ class OrderControllerAuditTest {
     @Test
     void hold_writesSucceededAudit() {
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(1);
 
         OrderPo held = controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来"));
 
@@ -72,6 +73,22 @@ class OrderControllerAuditTest {
         assertEquals("order.hold", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
         assertNull(record.errorCode());
+    }
+
+    /**
+     * 挂单落库必须带「尚未挂单」条件：受影响 0 行 = 期间已被他人挂单，此时必须报错而不是当成成功。
+     * 按 status 做条件挡不住这种并发（挂单不改商业状态），所以判据是 hold_at。
+     */
+    @Test
+    void hold_raisesConflictWhenAlreadyHeldConcurrently() {
+        when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
+        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(0);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来")));
+
+        assertEquals("ORDER_STATUS_INVALID", ex.getCode());
+        assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, captured().result());
     }
 
     @Test
@@ -96,7 +113,7 @@ class OrderControllerAuditTest {
         OrderPo serving = order("SERVING");
         serving.setHoldReason("等客人回来");
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(serving);
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.unholdIfHeld(anyLong(), any())).thenReturn(1);
 
         OrderPo released = controller.unhold(ORDER_ID);
 

@@ -442,9 +442,14 @@ public class OrderController {
         if (!"DRAFT".equals(po.getStatus())) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅 DRAFT 订单可确认");
         }
+        // 条件更新：只有库中仍是 DRAFT 才转换成功。上面那句比对不是并发保护——
+        // 两个并发确认都会读到 DRAFT，真正的判定在这条 UPDATE 的 status 条件上。
+        LocalDateTime now = LocalDateTime.now();
+        if (orderMapper.updateStatusGuarded(id, "DRAFT", "WAITING_SETTLEMENT", now) == 0) {
+            throw new BusinessException("ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
+        }
         po.setStatus("WAITING_SETTLEMENT");
-        po.setUpdatedAt(LocalDateTime.now());
-        orderMapper.updateById(po);
+        po.setUpdatedAt(now);
         return po;
     }
 
@@ -496,10 +501,15 @@ public class OrderController {
             if (!"SERVING".equals(po.getStatus())) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅 SERVING 订单可挂单");
             }
+            // 条件更新：只有 hold_at 仍为空才算挂单成功。按 status 做条件挡不住并发挂单
+            // （挂单不改商业状态），两次挂单的理由与时间会互相覆盖。
+            LocalDateTime holdAt = LocalDateTime.now();
+            if (orderMapper.holdIfNotHeld(id, holdAt, req.reason(), holdAt) == 0) {
+                throw new BusinessException("ORDER_STATUS_INVALID", "订单已处于挂单中，请重试");
+            }
             po.setHoldReason(req.reason());
-            po.setHoldAt(LocalDateTime.now());
-            po.setUpdatedAt(LocalDateTime.now());
-            orderMapper.updateById(po);
+            po.setHoldAt(holdAt);
+            po.setUpdatedAt(holdAt);
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(po.getTenantId())
                     .storeId(po.getStoreId())
@@ -523,10 +533,14 @@ public class OrderController {
         PermissionGuard.require("order.hold");
         try {
             OrderPo po = requireOrder(id);
+            // 条件更新：只有确实处于挂单中才算解挂成功，与 holdIfNotHeld 对称。
+            LocalDateTime now = LocalDateTime.now();
+            if (orderMapper.unholdIfHeld(id, now) == 0) {
+                throw new BusinessException("ORDER_STATUS_INVALID", "订单当前并未挂单，请重试");
+            }
             po.setHoldReason(null);
             po.setHoldAt(null);
-            po.setUpdatedAt(LocalDateTime.now());
-            orderMapper.updateById(po);
+            po.setUpdatedAt(now);
             // 解挂此前完全没有留痕：解挂后订单不再被挂牌提示，是否有人解挂必须可回溯。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(po.getTenantId())
