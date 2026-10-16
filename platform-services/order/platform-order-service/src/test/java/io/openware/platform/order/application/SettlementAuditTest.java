@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -42,16 +44,44 @@ class SettlementAuditTest {
     @Test
     void settle_writesSucceededAudit() {
         when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
-        when(orderMapper.updateById(any(OrderPo.class))).thenReturn(1);
+        // 结台落库走带 version 条件的乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
+        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
 
         OrderPo settled = service.settle(ORDER_ID, 0);
 
         assertEquals("WAITING_PAYMENT", settled.getStatus());
+        assertEquals(1, settled.getVersion(), "CAS 成功后内存对象版本与库一致");
         AuditClient.AuditRecord record = captured();
         assertEquals("order.settle", record.action());
         assertEquals("结台结算", record.actionLabel());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
         assertNull(record.errorCode());
+    }
+
+    /**
+     * 乐观锁落库失败（受影响 0 行）必须转成冲突，**不得**当成成功：
+     * 两个并发结算都读到同一 version，只靠应用层比对挡不住，真正的判定在这条 UPDATE 上。
+     */
+    @Test
+    void settle_raisesVersionConflictWhenCasAffectsNoRow() {
+        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
+        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(0);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 0));
+
+        assertEquals("ORDER_VERSION_CONFLICT", ex.getCode());
+        assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, captured().result());
+    }
+
+    /** CAS 必须带上调用方给的期望版本，而不是内存对象上的版本。 */
+    @Test
+    void settle_passesExpectedVersionToCas() {
+        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 4));
+        when(orderMapper.settleWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
+
+        service.settle(ORDER_ID, 4);
+
+        verify(orderMapper).settleWithVersion(any(OrderPo.class), eq(4));
     }
 
     @Test
