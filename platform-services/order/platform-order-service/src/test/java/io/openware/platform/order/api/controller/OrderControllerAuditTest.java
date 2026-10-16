@@ -19,9 +19,12 @@ import io.openware.platform.order.application.KtvServerSessionApplicationService
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +40,7 @@ class OrderControllerAuditTest {
     private static final long TENANT_ID = 1001L;
     private static final Long STORE_ID = 2001L;
 
-    private OrderMapper orderMapper;
+    private OrderRepository orderMapper;
     private OrderCancellationApplicationService orderCancellationService;
     private AuditClient auditClient;
     private DailySerialNumberGenerator dailySerialNumberGenerator;
@@ -45,7 +48,7 @@ class OrderControllerAuditTest {
 
     @BeforeEach
     void setUp() {
-        orderMapper = mock(OrderMapper.class);
+        orderMapper = mock(OrderRepository.class);
         orderCancellationService = mock(OrderCancellationApplicationService.class);
         auditClient = mock(AuditClient.class);
         dailySerialNumberGenerator = mock(DailySerialNumberGenerator.class);
@@ -64,11 +67,11 @@ class OrderControllerAuditTest {
     @Test
     void hold_writesSucceededAudit() {
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
-        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(1);
+        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(true);
 
-        OrderPo held = controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来"));
+        OrderView held = controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来"));
 
-        assertNotNull(held.getHoldAt());
+        assertNotNull(held.holdAt());
         AuditClient.AuditRecord record = captured();
         assertEquals("order.hold", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
@@ -82,7 +85,7 @@ class OrderControllerAuditTest {
     @Test
     void hold_raisesConflictWhenAlreadyHeldConcurrently() {
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
-        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(0);
+        when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(false);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来")));
@@ -110,15 +113,14 @@ class OrderControllerAuditTest {
 
     @Test
     void unhold_writesSucceededAudit() {
-        OrderPo serving = order("SERVING");
-        serving.setHoldReason("等客人回来");
+        Order serving = order("SERVING", "等客人回来");
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(serving);
-        when(orderMapper.unholdIfHeld(anyLong(), any())).thenReturn(1);
+        when(orderMapper.unholdIfHeld(anyLong(), any())).thenReturn(true);
 
-        OrderPo released = controller.unhold(ORDER_ID);
+        OrderView released = controller.unhold(ORDER_ID);
 
-        assertNull(released.getHoldReason());
-        assertNull(released.getHoldAt());
+        assertNull(released.holdReason());
+        assertNull(released.holdAt());
         AuditClient.AuditRecord record = captured();
         assertEquals("order.unhold", record.action());
         assertEquals("订单解挂", record.actionLabel());
@@ -149,26 +151,27 @@ class OrderControllerAuditTest {
                 List.of("ktv.session.open")));
         when(dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, TENANT_ID))
                 .thenReturn("O202609190001");
-        when(orderMapper.insert(any(OrderPo.class))).thenReturn(1);
+        when(orderMapper.insert(any(Order.class), any())).thenAnswer(inv -> ((Order) inv.getArgument(0)).withId(7L));
 
-        OrderPo created = controller.createOrder(null,
+        OrderView created = controller.createOrder(null,
                 new OrderController.CreateOrderRequest(null, null, null, "RETAIL", null, null));
 
-        ArgumentCaptor<OrderPo> captor = ArgumentCaptor.forClass(OrderPo.class);
-        verify(orderMapper).insert(captor.capture());
-        assertEquals("O202609190001", captor.getValue().getOrderNo());
-        assertNull(captor.getValue().getIdempotencyKey(), "不带 Idempotency-Key 时不得写入幂等键");
-        assertEquals("O202609190001", created.getOrderNo());
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderMapper).insert(captor.capture(), any());
+        assertEquals("O202609190001", captor.getValue().orderNo());
+        assertNull(captor.getValue().idempotencyKey(), "不带 Idempotency-Key 时不得写入幂等键");
+        assertEquals("O202609190001", created.orderNo());
     }
 
-    private static OrderPo order(String status) {
-        OrderPo po = new OrderPo();
-        po.setId(ORDER_ID);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setOrderNo("ORD-20260918-0001");
-        po.setStatus(status);
-        return po;
+    private static Order order(String status) {
+        return order(status, null);
+    }
+
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(String status, String holdReason) {
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status,
+                "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, holdReason, null, 0);
     }
 
     private AuditClient.AuditRecord captured() {

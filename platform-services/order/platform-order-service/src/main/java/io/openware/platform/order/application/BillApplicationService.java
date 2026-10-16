@@ -1,6 +1,5 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.platform.order.application.dto.BillResult;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
@@ -11,10 +10,12 @@ import io.openware.platform.order.domain.ktv.repository.KtvServerSessionReposito
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.ktv.service.KtvRoomFeeCalculator;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import org.springframework.stereotype.Service;
 
@@ -53,21 +54,21 @@ public class BillApplicationService {
     /** 包厢费行金额来源：历史固化明细，会话没有结台时刻 → 时长不可知，只能按块数 × 单价自证。 */
     static final String SOURCE_HISTORICAL = "HISTORICAL";
 
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final KtvSessionRepository ktvSessionRepository;
     private final KtvServerSessionRepository serverSessionRepository;
     private final KtvPricingPlanProvider pricingPlanProvider;
     private final PaymentCollectedClient paymentCollectedClient;
 
-    public BillApplicationService(OrderMapper orderMapper,
-                                  OrderItemMapper orderItemMapper,
+    public BillApplicationService(OrderRepository orderRepository,
+                                  OrderItemRepository orderItemRepository,
                                   KtvSessionRepository ktvSessionRepository,
                                   KtvServerSessionRepository serverSessionRepository,
                                   KtvPricingPlanProvider pricingPlanProvider,
                                   PaymentCollectedClient paymentCollectedClient) {
-        this.orderMapper = orderMapper;
-        this.orderItemMapper = orderItemMapper;
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
         this.ktvSessionRepository = ktvSessionRepository;
         this.serverSessionRepository = serverSessionRepository;
         this.pricingPlanProvider = pricingPlanProvider;
@@ -75,15 +76,17 @@ public class BillApplicationService {
     }
 
     public BillResult buildBill(Long orderId) {
-        OrderPo order = requireOrder(orderId);
-        List<OrderItemPo> items = queryItems(orderId);
+        Order order = requireOrder(orderId);
+        // 明细的 updated_at 是房费金额的「固化时刻」（账单里要展示），因此读回行 + 记账快照。
+        List<Persisted<OrderItem>> itemRows = queryItems(orderId);
+        List<OrderItem> items = itemRows.stream().map(Persisted::aggregate).toList();
         List<KtvSession> sessions = querySessions(orderId);
         List<KtvServerSession> servers = queryServerSessions(orderId);
 
         // 与订单投影同一条挑选规则：多会话订单必须两边取「当前这一次」，否则包厢费一个按本次开台实时算、
         // 一个按上一次已结台会话的固化值展示。
         KtvSession current = KtvSessionApplicationService.currentSessionOf(sessions);
-        BillResult.RoomFee roomFee = buildRoomFee(order, current, items);
+        BillResult.RoomFee roomFee = buildRoomFee(order, current, items, roomFeeFixedAt(itemRows));
         List<BillResult.ServerLine> serverLines = buildServerLines(servers);
         Set<Long> serverSessionResourceIds = servers.stream()
                 .filter(s -> "ENDED".equals(s.status()))
@@ -104,7 +107,7 @@ public class BillApplicationService {
             totalMinor = OrderAmountApplicationService.withRoomFeeReplaced(
                     totalMinor, roomFeeItemsMinor, roomFee.amount());
         }
-        long paidMinor = toMinor(order.getPaidAmount());
+        long paidMinor = toMinor(order.paidAmount());
         long payableMinor = Math.max(0L, totalMinor - paidMinor);
         BillResult.Collected collected = buildCollected(order, orderId, paidMinor);
         long change = Math.max(0L, collected.cash() - totalMinor);
@@ -114,9 +117,22 @@ public class BillApplicationService {
                 + serverLines.stream().mapToLong(BillResult.ServerLine::amount).sum();
         long discountMinor = promotions.stream().mapToLong(BillResult.PromotionLine::amount).sum();
 
-        return new BillResult(order.getStatus(), order.getCurrencyCode(), roomFee, itemLines, serverLines,
-                promotions, subtotalMinor, discountMinor, toMinor(order.getTaxAmount()),
+        return new BillResult(order.status(), order.currencyCode(), roomFee, itemLines, serverLines,
+                promotions, subtotalMinor, discountMinor, toMinor(order.taxAmount()),
                 totalMinor, paidMinor, payableMinor, collected, change);
+    }
+
+    /**
+     * 房费明细的「固化时刻」（{@code updated_at}）：记账列不进领域模型，因此由适配器随行读回，
+     * 这里取第一行房费明细的快照值传给账单（历史固化口径下要展示「这笔金额是什么时候定的」）。
+     */
+    private static LocalDateTime roomFeeFixedAt(List<Persisted<OrderItem>> itemRows) {
+        for (Persisted<OrderItem> row : itemRows) {
+            if ("ROOM_FEE".equals(row.aggregate().itemType())) {
+                return row.audit() == null ? null : row.audit().updatedAt();
+            }
+        }
+        return null;
     }
 
     /**
@@ -134,12 +150,13 @@ public class BillApplicationService {
      *   <li>没有会话：同样只在有固化明细时展示（非 KTV 单没有房费行）。</li>
      * </ol>
      */
-    private BillResult.RoomFee buildRoomFee(OrderPo order, KtvSession current, List<OrderItemPo> items) {
-        List<OrderItemPo> roomItems = roomFeeItems(items);
+    private BillResult.RoomFee buildRoomFee(Order order, KtvSession current, List<OrderItem> items,
+                                            LocalDateTime roomFeeFixedAt) {
+        List<OrderItem> roomItems = roomFeeItems(items);
         if (isOpenSession(current)) {
             KtvPricingPlan plan = planFromSnapshotOrNull(current.billingRuleSnapshotJson());
             if (plan == null) {
-                plan = pricingPlanProvider.resolve(order.getTenantId(), order.getStoreId());
+                plan = pricingPlanProvider.resolve(order.tenantId(), order.storeId());
             }
             LocalDateTime now = LocalDateTime.now();
             KtvRoomFeeCalculator.Fee fee = KtvSessionApplicationService.liveRoomFee(current, plan, now);
@@ -174,9 +191,9 @@ public class BillApplicationService {
             return null;
         }
         // 已固化：金额/单价/块数全部取明细快照（历史脏数据多行时一并求和，与订单合计的重算口径一致）。
-        long amountMinor = roomItems.stream().mapToLong(i -> toMinor(i.getTotalAmount())).sum();
-        long quantity = roomItems.stream().mapToLong(i -> toMinor(i.getQuantity())).sum();
-        OrderItemPo first = roomItems.getFirst();
+        long amountMinor = roomItems.stream().mapToLong(i -> toMinor(i.totalAmount())).sum();
+        long quantity = roomItems.stream().mapToLong(i -> toMinor(i.quantity())).sum();
+        OrderItem first = roomItems.getFirst();
         KtvPricingPlan plan = frozenPlan(current, roomItems);
         int paused = pausedSeconds(current);
         LocalDateTime start = current != null && current.billingStartAt() != null
@@ -190,7 +207,7 @@ public class BillApplicationService {
         return new BillResult.RoomFee(roomFeeName(roomItems, plan),
                 start == null ? null : start.toString(),
                 end == null ? null : end.toString(),
-                toMinor(first.getUnitPrice()),
+                toMinor(first.unitPrice()),
                 durationKnown ? KtvRoomFeeCalculator.billableSeconds(start, end, paused) : 0L,
                 amountMinor,
                 quantity, paused,
@@ -206,7 +223,7 @@ public class BillApplicationService {
                 plan == null ? 0L : plan.serverUnitPrice(),
                 plan != null && plan.roomFeeIncludesServer(),
                 false, source, durationKnown,
-                first.getUpdatedAt() == null ? null : first.getUpdatedAt().toString());
+                roomFeeFixedAt == null ? null : roomFeeFixedAt.toString());
     }
 
     /**
@@ -216,8 +233,8 @@ public class BillApplicationService {
      * <p>解析失败一律降级为 {@code null}（本方法只服务账单展示）：读路径绝不能让一份脏快照把整张账单打成 500，
      * 而写路径（结台/刷新）仍走严格的 {@code planFromSnapshot}（快照坏了就不许结台）。
      */
-    private KtvPricingPlan frozenPlan(KtvSession current, List<OrderItemPo> roomItems) {
-        KtvPricingPlan plan = planFromSnapshotOrNull(roomItems.getFirst().getPriceSnapshotJson());
+    private KtvPricingPlan frozenPlan(KtvSession current, List<OrderItem> roomItems) {
+        KtvPricingPlan plan = planFromSnapshotOrNull(roomItems.getFirst().priceSnapshotJson());
         if (plan == null && current != null) {
             plan = planFromSnapshotOrNull(current.billingRuleSnapshotJson());
         }
@@ -241,9 +258,9 @@ public class BillApplicationService {
      * 包厢费分区名称：优先取结台固化的明细名（历史账单保持「包厢计时费」），
      * 明细缺失（回退复算）时按同一口径由计价方案推导，前端不硬编码。
      */
-    private static String roomFeeName(List<OrderItemPo> roomItems, KtvPricingPlan plan) {
-        if (roomItems != null && !roomItems.isEmpty() && roomItems.getFirst().getNameSnapshot() != null) {
-            return roomItems.getFirst().getNameSnapshot();
+    private static String roomFeeName(List<OrderItem> roomItems, KtvPricingPlan plan) {
+        if (roomItems != null && !roomItems.isEmpty() && roomItems.getFirst().nameSnapshot() != null) {
+            return roomItems.getFirst().nameSnapshot();
         }
         return plan == null ? "包厢费" : KtvSessionApplicationService.roomFeeItemName(plan);
     }
@@ -255,15 +272,15 @@ public class BillApplicationService {
      * 2) 服务人员计时费（item_type=SERVICE 且 resourceId 命中某个服务人员会话）—— 由 {@link BillResult#servers()} 单独展示。
      * 于是 sum(items) + sum(servers) + roomFee == totalAmount 恒成立（见 BillApplicationServiceTest）。
      */
-    private List<BillResult.ItemLine> buildItemLines(List<OrderItemPo> items, Set<Long> serverSessionResourceIds) {
+    private List<BillResult.ItemLine> buildItemLines(List<OrderItem> items, Set<Long> serverSessionResourceIds) {
         return items.stream()
-                .filter(i -> !"ROOM_FEE".equals(i.getItemType()))
+                .filter(i -> !"ROOM_FEE".equals(i.itemType()))
                 .filter(i -> !isServerSessionFeeItem(i, serverSessionResourceIds))
                 .map(i -> new BillResult.ItemLine(
-                        i.getNameSnapshot(),
-                        toMinor(i.getUnitPrice()),
-                        i.getQuantity(),
-                        toMinor(i.getTotalAmount())))
+                        i.nameSnapshot(),
+                        toMinor(i.unitPrice()),
+                        i.quantity(),
+                        toMinor(i.totalAmount())))
                 .toList();
     }
 
@@ -273,11 +290,11 @@ public class BillApplicationService {
      * 三个条件同时成立才算，避免把「服务员点歌」这类同样是 SERVICE、且恰好带了 resourceId 的
      * 加项明细误并从 items 里剔除（那会让 sum(items)+sum(servers) 少算这笔钱）。
      */
-    private static boolean isServerSessionFeeItem(OrderItemPo item, Set<Long> serverSessionResourceIds) {
-        return "SERVICE".equals(item.getItemType())
-                && item.getResourceId() != null
-                && item.getPriceSnapshotJson() != null
-                && serverSessionResourceIds.contains(item.getResourceId());
+    private static boolean isServerSessionFeeItem(OrderItem item, Set<Long> serverSessionResourceIds) {
+        return "SERVICE".equals(item.itemType())
+                && item.resourceId() != null
+                && item.priceSnapshotJson() != null
+                && serverSessionResourceIds.contains(item.resourceId());
     }
 
     /**
@@ -312,9 +329,9 @@ public class BillApplicationService {
                 : "额外服务人员#" + s.serverResourceId();
     }
 
-    private List<BillResult.PromotionLine> buildPromotions(OrderPo order) {
+    private List<BillResult.PromotionLine> buildPromotions(Order order) {
         List<BillResult.PromotionLine> lines = new ArrayList<>();
-        long discount = toMinor(order.getDiscountAmount());
+        long discount = toMinor(order.discountAmount());
         if (discount > 0) {
             lines.add(new BillResult.PromotionLine("DISCOUNT", discount));
         }
@@ -328,21 +345,21 @@ public class BillApplicationService {
     }
 
     /** 全部 ACTIVE 明细合计（差额法回退基数用；与订单重算/投影同一口径）。 */
-    private long sumItemsMinor(List<OrderItemPo> items) {
-        return items.stream().mapToLong(i -> toMinor(i.getTotalAmount())).sum();
+    private long sumItemsMinor(List<OrderItem> items) {
+        return items.stream().mapToLong(i -> toMinor(i.totalAmount())).sum();
     }
 
     /** 订单的房费明细行（ACTIVE 已在 queryItems 收口）。 */
-    private static List<OrderItemPo> roomFeeItems(List<OrderItemPo> items) {
-        return items.stream().filter(i -> "ROOM_FEE".equals(i.getItemType())).toList();
+    private static List<OrderItem> roomFeeItems(List<OrderItem> items) {
+        return items.stream().filter(i -> "ROOM_FEE".equals(i.itemType())).toList();
     }
 
     /**
      * 明细里的房费快照合计（开台中/回退展示时用它换出展示口径的房费；历史仅一行，多行也一并合计）。
      * 与 {@code KtvSessionApplicationService#orderAmountSumsByOrderIds}、订单重算的求和口径一致。
      */
-    private long roomFeeItemsMinor(List<OrderItemPo> items) {
-        return roomFeeItems(items).stream().mapToLong(i -> toMinor(i.getTotalAmount())).sum();
+    private long roomFeeItemsMinor(List<OrderItem> items) {
+        return roomFeeItems(items).stream().mapToLong(i -> toMinor(i.totalAmount())).sum();
     }
 
     /** 会话已累计的暂停秒数（null 视为 0）。 */
@@ -354,7 +371,7 @@ public class BillApplicationService {
      * 已收分项：优先取 payment 域按订单汇总的组合收款分腿（现金/储值/积分）；
      * 读不到（payment 不可达或上下文缺失）时退回「已收合计记现金」的兜底口径。
      */
-    private BillResult.Collected buildCollected(OrderPo order, Long orderId, long paidMinor) {
+    private BillResult.Collected buildCollected(Order order, Long orderId, long paidMinor) {
         if (paymentCollectedClient != null) {
             var breakdown = paymentCollectedClient.collected(orderId);
             if (breakdown.isPresent()) {
@@ -373,21 +390,14 @@ public class BillApplicationService {
         return amount.setScale(0, RoundingMode.HALF_UP).longValueExact();
     }
 
-    private OrderPo requireOrder(Long orderId) {
-        OrderPo order = orderMapper.selectById(orderId);
-        if (order == null) {
-            throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
-        }
-        return order;
+    private Order requireOrder(Long orderId) {
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单不存在"));
     }
 
-    private List<OrderItemPo> queryItems(Long orderId) {
-        QueryWrapper<OrderItemPo> qw = new QueryWrapper<>();
-        qw.eq("order_id", orderId);
-        // 账单只计入已生效的加项；C 端提交的待确认(PENDING_APPROVAL)/已拒绝(REJECTED)加项不计入。
-        qw.eq("status", "ACTIVE");
-        qw.orderByAsc("id");
-        return orderItemMapper.selectList(qw);
+    /** 账单只计入已生效（ACTIVE）明细；按 id 升序与改造前的排序一致。读回行 + 记账快照（房费固化时刻）。 */
+    private List<Persisted<OrderItem>> queryItems(Long orderId) {
+        return orderItemRepository.list(OrderItemQuery.activeOfOrder(orderId));
     }
 
     private List<KtvSession> querySessions(Long orderId) {

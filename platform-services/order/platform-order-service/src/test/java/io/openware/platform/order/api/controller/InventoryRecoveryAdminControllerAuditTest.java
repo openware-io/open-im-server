@@ -11,12 +11,14 @@ import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.platform.order.application.InventoryApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,16 +32,16 @@ class InventoryRecoveryAdminControllerAuditTest {
     private static final Long ITEM_ID = 501L;
     private static final Long MATERIAL_ID = 300L;
 
-    private OrderMapper orderMapper;
-    private OrderItemMapper orderItemMapper;
+    private OrderRepository orderMapper;
+    private OrderItemRepository orderItemMapper;
     private InventoryApplicationService inventoryService;
     private AuditClient auditClient;
     private InventoryRecoveryAdminController controller;
 
     @BeforeEach
     void setUp() {
-        orderMapper = mock(OrderMapper.class);
-        orderItemMapper = mock(OrderItemMapper.class);
+        orderMapper = mock(OrderRepository.class);
+        orderItemMapper = mock(OrderItemRepository.class);
         inventoryService = mock(InventoryApplicationService.class);
         auditClient = mock(AuditClient.class);
         controller = new InventoryRecoveryAdminController(orderMapper, orderItemMapper, inventoryService, auditClient);
@@ -54,13 +56,13 @@ class InventoryRecoveryAdminControllerAuditTest {
 
     @Test
     void decide_writesSucceededAudit() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("VOIDED"));
-        when(orderItemMapper.selectById(ITEM_ID)).thenReturn(item("CONSUMED"));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("VOIDED")));
+        when(orderItemMapper.findById(ITEM_ID)).thenReturn(Optional.of(item("CONSUMED")));
 
-        OrderItemPo decided = controller.decide(ORDER_ID, ITEM_ID,
+        OrderItemView decided = controller.decide(ORDER_ID, ITEM_ID,
                 new InventoryRecoveryAdminController.RecoveryRequest(true, "已退货入库"));
 
-        assertEquals("REVERSED", decided.getInventoryStatus());
+        assertEquals("REVERSED", decided.inventoryStatus());
         AuditClient.AuditRecord record = captured();
         assertEquals("order.recovery.confirm", record.action());
         assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
@@ -69,7 +71,7 @@ class InventoryRecoveryAdminControllerAuditTest {
 
     @Test
     void decide_writesFailureAuditWithStableErrorCode() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("SERVING"));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("SERVING")));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> controller.decide(ORDER_ID, ITEM_ID,
                 new InventoryRecoveryAdminController.RecoveryRequest(true, "已退货入库")));
@@ -86,8 +88,8 @@ class InventoryRecoveryAdminControllerAuditTest {
 
     @Test
     void decide_writesFailureAuditWhenItemAlreadyHandled() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("VOIDED"));
-        when(orderItemMapper.selectById(ITEM_ID)).thenReturn(item("REVERSED"));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("VOIDED")));
+        when(orderItemMapper.findById(ITEM_ID)).thenReturn(Optional.of(item("REVERSED")));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> controller.decide(ORDER_ID, ITEM_ID,
                 new InventoryRecoveryAdminController.RecoveryRequest(false, "不回了")));
@@ -99,25 +101,18 @@ class InventoryRecoveryAdminControllerAuditTest {
         assertEquals("INVENTORY_RECOVERY_INVALID", record.errorCode());
     }
 
-    private static OrderPo order(String status) {
-        OrderPo po = new OrderPo();
-        po.setId(ORDER_ID);
-        po.setTenantId(1001L);
-        po.setStoreId(2001L);
-        po.setStatus(status);
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(String status) {
+        return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
     }
 
-    private static OrderItemPo item(String inventoryStatus) {
-        OrderItemPo po = new OrderItemPo();
-        po.setId(ITEM_ID);
-        po.setTenantId(1001L);
-        po.setOrderId(ORDER_ID);
-        po.setInventoryMaterialId(MATERIAL_ID);
-        po.setInventoryStatus(inventoryStatus);
-        po.setQuantity(new BigDecimal("2"));
-        po.setNameSnapshot("纸巾");
-        return po;
+    private static OrderItem item(String inventoryStatus) {
+        return new OrderItem(ITEM_ID, 1001L, 2001L, "KTV", ORDER_ID, "ADD_ON", null, null, "纸巾",
+                new BigDecimal("2"), new BigDecimal("2"), BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("4"), "CNY", null, OrderItem.STATUS_ACTIVE, OrderItem.SOURCE_MERCHANT,
+                inventoryStatus, MATERIAL_ID, null, null, null, null);
     }
 
     private AuditClient.AuditRecord captured() {

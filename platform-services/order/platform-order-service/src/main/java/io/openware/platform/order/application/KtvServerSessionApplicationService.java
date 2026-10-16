@@ -12,11 +12,11 @@ import io.openware.platform.order.domain.ktv.model.KtvServerSessionStatus;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,10 +47,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Service
 public class KtvServerSessionApplicationService {
     private final KtvServerSessionRepository serverSessionRepository;
-    private final OrderMapper orderMapper;
+    private final OrderRepository orderRepository;
     private final KtvPricingPlanProvider pricingPlanProvider;
     private final AuditClient auditClient;
-    private final OrderItemMapper orderItemMapper;
+    private final OrderItemRepository orderItemRepository;
     private final KtvSessionRepository ktvSessionRepository;
     private final ResourceStateClient resourceStateClient;
     /** 服务人员费明细落库后必须同步订单金额快照（与房费同款处理）；测试装配可为 null（跳过）。 */
@@ -58,40 +58,40 @@ public class KtvServerSessionApplicationService {
 
     /** 兼容既有装配/单元测试：无会话回写依赖时跳过服务人员快照回写。 */
     public KtvServerSessionApplicationService(KtvServerSessionRepository serverSessionRepository,
-                                              OrderMapper orderMapper,
+                                              OrderRepository orderRepository,
                                               KtvPricingPlanProvider pricingPlanProvider,
                                               AuditClient auditClient,
-                                              OrderItemMapper orderItemMapper) {
-        this(serverSessionRepository, orderMapper, pricingPlanProvider, auditClient, orderItemMapper, null, null,
-                null);
+                                              OrderItemRepository orderItemRepository) {
+        this(serverSessionRepository, orderRepository, pricingPlanProvider, auditClient, orderItemRepository, null,
+                null, null);
     }
 
     /** 兼容既有装配/单元测试：有会话回写依赖，但不做订单金额重算（金额重算缺省跳过）。 */
     public KtvServerSessionApplicationService(KtvServerSessionRepository serverSessionRepository,
-                                              OrderMapper orderMapper,
+                                              OrderRepository orderRepository,
                                               KtvPricingPlanProvider pricingPlanProvider,
                                               AuditClient auditClient,
-                                              OrderItemMapper orderItemMapper,
+                                              OrderItemRepository orderItemRepository,
                                               KtvSessionRepository ktvSessionRepository,
                                               ResourceStateClient resourceStateClient) {
-        this(serverSessionRepository, orderMapper, pricingPlanProvider, auditClient, orderItemMapper,
+        this(serverSessionRepository, orderRepository, pricingPlanProvider, auditClient, orderItemRepository,
                 ktvSessionRepository, resourceStateClient, null);
     }
 
     @Autowired
     public KtvServerSessionApplicationService(KtvServerSessionRepository serverSessionRepository,
-                                              OrderMapper orderMapper,
+                                              OrderRepository orderRepository,
                                               KtvPricingPlanProvider pricingPlanProvider,
                                               AuditClient auditClient,
-                                              OrderItemMapper orderItemMapper,
+                                              OrderItemRepository orderItemRepository,
                                               KtvSessionRepository ktvSessionRepository,
                                               ResourceStateClient resourceStateClient,
                                               OrderAmountApplicationService orderAmounts) {
         this.serverSessionRepository = serverSessionRepository;
-        this.orderMapper = orderMapper;
+        this.orderRepository = orderRepository;
         this.pricingPlanProvider = pricingPlanProvider;
         this.auditClient = auditClient;
-        this.orderItemMapper = orderItemMapper;
+        this.orderItemRepository = orderItemRepository;
         this.ktvSessionRepository = ktvSessionRepository;
         this.resourceStateClient = resourceStateClient;
         this.orderAmounts = orderAmounts;
@@ -102,19 +102,19 @@ public class KtvServerSessionApplicationService {
     public KtvServerSession order(Long tenantId, Long orderId, Long ktvSessionId,
                                   Long serverResourceId, Long catalogItemId) {
         try {
-            OrderPo order = orderMapper.selectById(orderId);
+            Order order = orderRepository.findById(orderId).orElse(null);
             if (order == null) {
                 throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
             }
-            if (!"SERVING".equals(order.getStatus())) {
+            if (!"SERVING".equals(order.status())) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅服务中订单可点服务人员");
             }
-            KtvPricingPlan plan = pricingPlanProvider.resolve(tenantId, order.getStoreId());
+            KtvPricingPlan plan = pricingPlanProvider.resolve(tenantId, order.storeId());
             LocalDateTime now = LocalDateTime.now();
             // 币种快照（16_CURRENCY_CONVENTIONS §5）：服务人员费继承所属订单的币种快照。
-            KtvServerSession session = KtvServerSession.ordered(tenantId, order.getStoreId(),
-                    order.getBusinessType(), orderId, ktvSessionId, serverResourceId, catalogItemId, now, plan,
-                    Currency.parse(order.getCurrencyCode()).code());
+            KtvServerSession session = KtvServerSession.ordered(tenantId, order.storeId(),
+                    order.businessType(), orderId, ktvSessionId, serverResourceId, catalogItemId, now, plan,
+                    Currency.parse(order.currencyCode()).code());
             // 审计四列（created_at/updated_at）由适配器在落库时填充：记账信息不进领域模型。
             session = serverSessionRepository.insert(session);
             // 点单即为「本包厢的服务人员」：把服务人员快照写入 KTV 会话，订单列表/房态看板直接读。
@@ -203,38 +203,42 @@ public class KtvServerSessionApplicationService {
                 .withTotalAmount(BigDecimal.valueOf(totalMinor))
                 .withCurrencyCode(Currency.parse(session.currencyCode()).code())
                 .withStatus(KtvServerSessionStatus.ENDED.name()));
-        OrderItemPo item = new OrderItemPo();
-        item.setTenantId(session.tenantId());
-        item.setStoreId(session.storeId());
-        item.setBusinessType(session.businessType());
-        item.setOrderId(session.orderId());
-        item.setItemType("SERVICE");
-        item.setCatalogItemId(session.catalogItemId());
-        item.setResourceId(session.serverResourceId());
-        item.setNameSnapshot(serverFeeItemName(session, freeQuota));
-        // 免费名额：单价 0（金额 0），明细照写 —— servers 分区必须完整可解释，不能凭空少一名服务人员。
-        item.setUnitPrice(BigDecimal.valueOf(
-                freeQuota || session.pricePerInc() == null ? 0L : session.pricePerInc()));
-        // 明细数量 = 计费块数（与金额同源），保证「单价 × 数量 = 金额」与账单/订单合计口径一致。
-        item.setQuantity(BigDecimal.valueOf(blocks));
-        item.setDiscountAmount(BigDecimal.ZERO);
-        item.setTaxAmount(BigDecimal.ZERO);
-        item.setTotalAmount(session.totalAmount());
-        // 服务人员费明细与 ord_ktv_server_session 用同一币种快照，账单两侧口径一致。
-        item.setCurrencyCode(session.currencyCode());
-        // 快照固化「本轮是否占用免费名额」，与 rooms 分区/账单展示同源，事后可复算免了几名。
-        item.setPriceSnapshotJson(session.priceSnapshotJson() == null
-                ? null
-                : withFreeServerQuota(session.priceSnapshotJson(), freeQuota));
-        item.setStatus("ACTIVE");
-        item.setSource("MERCHANT");
-        item.setCreatedAt(endedAt);
-        item.setUpdatedAt(endedAt);
-        orderItemMapper.insert(item);
+        OrderItem item = new OrderItem(
+                null,
+                session.tenantId(),
+                session.storeId(),
+                session.businessType(),
+                session.orderId(),
+                "SERVICE",
+                session.catalogItemId(),
+                session.serverResourceId(),
+                serverFeeItemName(session, freeQuota),
+                // 免费名额：单价 0（金额 0），明细照写 —— servers 分区必须完整可解释，不能凭空少一名服务人员。
+                BigDecimal.valueOf(freeQuota || session.pricePerInc() == null ? 0L : session.pricePerInc()),
+                // 明细数量 = 计费块数（与金额同源），保证「单价 × 数量 = 金额」与账单/订单合计口径一致。
+                BigDecimal.valueOf(blocks),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                session.totalAmount(),
+                // 服务人员费明细与 ord_ktv_server_session 用同一币种快照，账单两侧口径一致。
+                session.currencyCode(),
+                // 快照固化「本轮是否占用免费名额」，与 rooms 分区/账单展示同源，事后可复算免了几名。
+                session.priceSnapshotJson() == null
+                        ? null
+                        : withFreeServerQuota(session.priceSnapshotJson(), freeQuota),
+                OrderItem.STATUS_ACTIVE,
+                OrderItem.SOURCE_MERCHANT,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+        orderItemRepository.insert(item);
         // 服务人员费刚落入明细，必须同步重算订单金额快照（与结台写房费同一款处理）。
         // 缺了这一步：库内 total_amount 不含服务人员费，账单会出现「服务人员行有钱、合计对不上」——
         // 即 sum(items)+sum(servers)+roomFee != totalAmount，且要等到下一次结算/刷新才补上（中间一直少收）。
-        recalculateOrderAmounts(session.orderId(), endedAt);
+        recalculateOrderAmounts(session.orderId());
         // 高风险写操作（结束服务并固化金额）审计：异步占位。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .tenantId(session.tenantId())
@@ -261,23 +265,21 @@ public class KtvServerSessionApplicationService {
      * 服务人员费落库后同步订单金额快照：读订单 → 在本实例上重算 → 一次写库（与结台写房费同一款顺序，
      * 避免旧实例覆盖新金额）。订单不存在或未装配金额服务（单测/降级装配）时跳过，绝不阻断结束服务。
      */
-    private void recalculateOrderAmounts(Long orderId, LocalDateTime now) {
+    private void recalculateOrderAmounts(Long orderId) {
         if (orderAmounts == null || orderId == null) {
             return;
         }
-        OrderPo order = orderMapper.selectById(orderId);
+        Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
             return;
         }
-        orderAmounts.recalculate(order);
-        order.setUpdatedAt(now);
+        order = orderAmounts.recalculate(order);
         // 条件更新：同一订单上的两个服务人员会话可以各自通过自己的会话 CAS，
         // 随后两次重算都会写订单——无条件写回会让后写者覆盖前者算出的服务人员费。
-        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
-        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+        int expectedVersion = order.currentVersion();
+        if (!orderRepository.updateAmountsAndStatusWithVersion(order, expectedVersion)) {
             throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
         }
-        order.setVersion(expectedVersion + 1);
     }
 
     /**

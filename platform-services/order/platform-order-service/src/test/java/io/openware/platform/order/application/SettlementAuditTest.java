@@ -14,9 +14,9 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import java.util.Optional;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,30 +27,31 @@ class SettlementAuditTest {
 
     private static final Long ORDER_ID = 88L;
 
-    private OrderMapper orderMapper;
+    private OrderRepository orderMapper;
     private OrderAmountApplicationService orderAmounts;
     private AuditClient auditClient;
     private SettlementApplicationService service;
 
     @BeforeEach
     void setUp() {
-        orderMapper = mock(OrderMapper.class);
+        orderMapper = mock(OrderRepository.class);
         orderAmounts = mock(OrderAmountApplicationService.class);
         auditClient = mock(AuditClient.class);
-        service = new SettlementApplicationService(orderMapper, mock(OrderItemMapper.class), auditClient,
-                orderAmounts);
+        service = new SettlementApplicationService(orderMapper, auditClient, orderAmounts);
+        // 金额重算端口化后返回新实例：mock 原样透传，结算路径才能继续（装配契约，不是行为断言）。
+        when(orderAmounts.recalculate(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @Test
     void settle_writesSucceededAudit() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("WAITING_SETTLEMENT", 0)));
         // 结台落库走带 version 条件的乐观锁提交（受影响 1 行 = 库中版本仍是期望值）。
-        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(Order.class), anyInt())).thenReturn(true);
 
-        OrderPo settled = service.settle(ORDER_ID, 0);
+        Order settled = service.settle(ORDER_ID, 0);
 
-        assertEquals("WAITING_PAYMENT", settled.getStatus());
-        assertEquals(1, settled.getVersion(), "CAS 成功后内存对象版本与库一致");
+        assertEquals("WAITING_PAYMENT", settled.status());
+        assertEquals(1, settled.version(), "CAS 成功后内存对象版本与库一致");
         AuditClient.AuditRecord record = captured();
         assertEquals("order.settle", record.action());
         assertEquals("结台结算", record.actionLabel());
@@ -64,8 +65,8 @@ class SettlementAuditTest {
      */
     @Test
     void settle_raisesVersionConflictWhenCasAffectsNoRow() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 0));
-        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(0);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("WAITING_SETTLEMENT", 0)));
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(Order.class), anyInt())).thenReturn(false);
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 0));
 
@@ -76,17 +77,17 @@ class SettlementAuditTest {
     /** CAS 必须带上调用方给的期望版本，而不是内存对象上的版本。 */
     @Test
     void settle_passesExpectedVersionToCas() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 4));
-        when(orderMapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), anyInt())).thenReturn(1);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("WAITING_SETTLEMENT", 4)));
+        when(orderMapper.updateAmountsAndStatusWithVersion(any(Order.class), anyInt())).thenReturn(true);
 
         service.settle(ORDER_ID, 4);
 
-        verify(orderMapper).updateAmountsAndStatusWithVersion(any(OrderPo.class), eq(4));
+        verify(orderMapper).updateAmountsAndStatusWithVersion(any(Order.class), eq(4));
     }
 
     @Test
     void settle_writesFailureAuditOnStatusConflict() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("DRAFT", 0));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("DRAFT", 0)));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 0));
 
@@ -103,7 +104,7 @@ class SettlementAuditTest {
 
     @Test
     void settle_writesFailureAuditOnVersionConflict() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("WAITING_SETTLEMENT", 3));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("WAITING_SETTLEMENT", 3)));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 1));
 
@@ -115,8 +116,8 @@ class SettlementAuditTest {
 
     @Test
     void settle_writesFailureAuditWhenOrderMissing() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(null);
-        when(orderMapper.selectTenantIdById(ORDER_ID)).thenReturn(null);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderMapper.findTenantIdById(ORDER_ID)).thenReturn(Optional.empty());
 
         BusinessException ex = assertThrows(BusinessException.class, () -> service.settle(ORDER_ID, 0));
 
@@ -130,8 +131,8 @@ class SettlementAuditTest {
     /** 跨租户访问：403 TENANT_SCOPE_DENIED 同样留失败痕迹，且不触碰金额复算。 */
     @Test
     void settle_writesFailureAuditOnCrossTenantAccess() {
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(null);
-        when(orderMapper.selectTenantIdById(ORDER_ID)).thenReturn(999L);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.empty());
+        when(orderMapper.findTenantIdById(ORDER_ID)).thenReturn(Optional.of(999L));
 
         ApiException ex = assertThrows(ApiException.class, () -> service.settle(ORDER_ID, 0));
 
@@ -143,18 +144,11 @@ class SettlementAuditTest {
         assertEquals("TENANT_SCOPE_DENIED", record.errorCode());
     }
 
-    private static OrderPo order(String status, int version) {
-        OrderPo po = new OrderPo();
-        po.setId(ORDER_ID);
-        po.setTenantId(1001L);
-        po.setStoreId(2001L);
-        po.setOrderNo("ORD-20260918-0001");
-        po.setStatus(status);
-        po.setVersion(version);
-        po.setTotalAmount(new BigDecimal("8000"));
-        po.setDiscountAmount(BigDecimal.ZERO);
-        po.setTaxAmount(BigDecimal.ZERO);
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(String status, int version) {
+        return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("8000"), BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, version);
     }
 
     private AuditClient.AuditRecord captured() {

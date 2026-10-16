@@ -25,11 +25,12 @@ import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -43,8 +44,8 @@ import org.mockito.ArgumentCaptor;
 class KtvSessionApplicationServiceTest {
 
   private final KtvSessionRepository sessionRepository = mock(KtvSessionRepository.class);
-  private final OrderMapper orderMapper = mock(OrderMapper.class);
-  private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+  private final OrderRepository orderMapper = mock(OrderRepository.class);
+  private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
   private final AuditClient auditClient = mock(AuditClient.class);
   private final OrderAmountApplicationService orderAmounts = new OrderAmountApplicationService(orderMapper, orderItemMapper);
@@ -59,15 +60,15 @@ class KtvSessionApplicationServiceTest {
    */
   @BeforeEach
   void stubOrderCasSuccess() {
-    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(1);
+    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(true);
   }
 
   @Test
   void open_transitionsReservedToOpenAndServingOrder() {
     KtvSession session = session("RESERVED");
-    OrderPo order = order("DRAFT");
+    Order order = order("DRAFT");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
@@ -79,9 +80,11 @@ class KtvSessionApplicationServiceTest {
     assertEquals(0, result.freeWaitMinutes());
     assertNotNull(result.billingStartAt());
     assertNotNull(result.billingRuleSnapshotJson());
-    assertEquals("SERVING", order.getStatus());
+    // 领域模型不可变：状态流转产出新实例、写库用的是它，因此断言捕获到的那次写入（而不是夹具变量）。
+    ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
+    assertEquals("SERVING", orderWrite.getValue().status());
     capturedCas(session.id(), "OPEN");
-    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   @Test
@@ -144,9 +147,9 @@ class KtvSessionApplicationServiceTest {
   void close_transitionsToClosedAndWritesRoomFeeItem() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
@@ -154,23 +157,26 @@ class KtvSessionApplicationServiceTest {
 
     assertEquals("CLOSED", result.status());
     assertNotNull(result.closedAt());
-    assertEquals("WAITING_SETTLEMENT", order.getStatus());
+    // 结台把订单推进到「待结算」：同样断言写库用的那个实例。
+    ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
+    assertEquals("WAITING_SETTLEMENT", orderWrite.getValue().status());
     capturedCas(session.id(), "CLOSED");
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals("ROOM_FEE", item.getItemType());
-    assertEquals(1L, item.getTenantId());
-    assertEquals(session.orderId(), item.getOrderId());
-    assertEquals(0, new BigDecimal("1500").compareTo(item.getTotalAmount()));
-    assertEquals(0, new BigDecimal("1500").compareTo(item.getUnitPrice()));
-    assertEquals(0, new BigDecimal("1").compareTo(item.getQuantity()));
+    OrderItem item = captor.getValue();
+    assertEquals("ROOM_FEE", item.itemType());
+    assertEquals(1L, item.tenantId());
+    assertEquals(session.orderId(), item.orderId());
+    assertEquals(0, new BigDecimal("1500").compareTo(item.totalAmount()));
+    assertEquals(0, new BigDecimal("1500").compareTo(item.unitPrice()));
+    assertEquals(0, new BigDecimal("1").compareTo(item.quantity()));
     // 快照必须固化实际使用的规则字段：递增粒度 + 舍入方向 + 每递增粒度单价。
-    assertNotNull(item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"incrementMinutes\":30"));
-    assertTrue(item.getPriceSnapshotJson().contains("\"roundingDirection\":\"CONSUMER_FAVOR\""));
-    assertTrue(item.getPriceSnapshotJson().contains("\"roomPricePerIncrement\":1500"));
+    assertNotNull(item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"incrementMinutes\":30"));
+    assertTrue(item.priceSnapshotJson().contains("\"roundingDirection\":\"CONSUMER_FAVOR\""));
+    assertTrue(item.priceSnapshotJson().contains("\"roomPricePerIncrement\":1500"));
   }
 
   /** 边界：开台 33 秒结台，让利口径下房费 0 元（而不是旧实现的「1 小时 3000 分」）。 */
@@ -178,18 +184,18 @@ class KtvSessionApplicationServiceTest {
   void close_chargesNothingForSubMinuteSession() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusSeconds(33));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     service.close(session.id());
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().getTotalAmount()));
-    assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().getQuantity()));
+    assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().totalAmount()));
+    assertEquals(0, BigDecimal.ZERO.compareTo(captor.getValue().quantity()));
   }
 
   /** 跨多块进位：方案 3000 分/小时 + 30 分钟递增，95 分钟 → 4 块 = 6000 分。 */
@@ -197,18 +203,18 @@ class KtvSessionApplicationServiceTest {
   void close_crossesIntoNextIncrementBlock() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(95).minusSeconds(5));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     service.close(session.id());
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals(0, new BigDecimal("6000").compareTo(captor.getValue().getTotalAmount()));
-    assertEquals(0, new BigDecimal("4").compareTo(captor.getValue().getQuantity()));
+    assertEquals(0, new BigDecimal("6000").compareTo(captor.getValue().totalAmount()));
+    assertEquals(0, new BigDecimal("4").compareTo(captor.getValue().quantity()));
   }
 
   /**
@@ -221,7 +227,7 @@ class KtvSessionApplicationServiceTest {
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
     session = session.withBillingRuleSnapshotJson(plan().toSnapshotJson());
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("SERVING"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("SERVING")));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
@@ -232,9 +238,9 @@ class KtvSessionApplicationServiceTest {
     assertEquals(3000L, estimated);
 
     service.close(session.id());
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals(estimated, captor.getValue().getTotalAmount().longValueExact(),
+    assertEquals(estimated, captor.getValue().totalAmount().longValueExact(),
         "实时预估金额必须等于结台 ROOM_FEE 明细金额");
   }
 
@@ -245,7 +251,7 @@ class KtvSessionApplicationServiceTest {
     BusinessException ex = assertThrows(BusinessException.class, () -> service.close(1L));
 
     assertEquals("ORDER_STATUS_INVALID", ex.getCode());
-    verify(orderItemMapper, never()).insert(any(OrderItemPo.class));
+    verify(orderItemMapper, never()).insert(any(OrderItem.class));
   }
 
   @Test
@@ -366,9 +372,9 @@ class KtvSessionApplicationServiceTest {
   @Test
   void open_recordsPartySize() {
     KtvSession session = session("RESERVED");
-    OrderPo order = order("DRAFT");
+    Order order = order("DRAFT");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
@@ -383,7 +389,7 @@ class KtvSessionApplicationServiceTest {
   void open_rejectsPartySizeAboveRoomCapacityBeforeOccupying() {
     KtvSession session = session("RESERVED").withRoomResourceId(3001L);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     KtvSessionApplicationService withResource = new KtvSessionApplicationService(sessionRepository, orderMapper,
@@ -401,7 +407,7 @@ class KtvSessionApplicationServiceTest {
   void open_rejectsNonPositivePartySize() {
     KtvSession session = session("RESERVED");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
 
     ApiException ex = assertThrows(ApiException.class, () -> service.open(session.id(), 0, 0));
 
@@ -418,7 +424,7 @@ class KtvSessionApplicationServiceTest {
   void open_rejectsCleaningRoomBeforeOccupying() {
     KtvSession session = session("RESERVED").withRoomResourceId(3001L);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L)).thenReturn(
@@ -440,7 +446,7 @@ class KtvSessionApplicationServiceTest {
   void open_rejectsOccupiedRoomBeforeOccupying() {
     KtvSession session = session("RESERVED").withRoomResourceId(3001L);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L)).thenReturn(
@@ -459,7 +465,7 @@ class KtvSessionApplicationServiceTest {
   void open_failsClosedWhenRoomStateUnavailable() {
     KtvSession session = session("RESERVED").withRoomResourceId(3001L);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(3001L)).thenReturn(java.util.Optional.of(roomSnapshot(12)));
     when(resourceClient.requireState(3001L))
@@ -483,9 +489,9 @@ class KtvSessionApplicationServiceTest {
     // （迁移前靠持久化对象就地 setter + mock 返回同一引用来模拟；记录不可变后必须显式建模，
     //  否则后面的 close 会读到开台前的 RESERVED 行。）
     KtvSession[] stored = { session(1L, 10L, "RESERVED").withRoomResourceId(3001L) };
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(1L)).thenAnswer(inv -> Optional.of(stored[0]));
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenAnswer(inv -> {
       stored[0] = inv.getArgument(0);
@@ -520,29 +526,29 @@ class KtvSessionApplicationServiceTest {
     assertTrue(snapshot.contains("\"combinedUnitPrice\":26000"), snapshot);
 
     // 开台即计费：ROOM_FEE 明细在**开台**时就落库（金额与「此刻结台」同一口径）。
-    ArgumentCaptor<OrderItemPo> openCaptor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> openCaptor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper, times(1)).insert(openCaptor.capture());
-    OrderItemPo openedItem = openCaptor.getValue();
-    assertEquals("ROOM_FEE", openedItem.getItemType());
+    OrderItem openedItem = openCaptor.getValue();
+    assertEquals("ROOM_FEE", openedItem.itemType());
     // 真库行为：结台时能查到这行 → 走「更新同一行」；mock 的 selectList 缺省返回空列表，
     // 这里显式返回开台写入的那行，断言「结台不新增第二行」（多行会把房费重复计入合计）。
-    when(orderItemMapper.selectList(any())).thenReturn(java.util.List.of(openedItem));
+    when(orderItemMapper.list(any())).thenReturn(java.util.List.of(new Persisted<>(openedItem, null)));
 
     // 结台：30 分钟 → 1 块 → 10000 分（房型价），明细快照保留房型与生效单价
     stored[0] = stored[0].withBillingStartAt(LocalDateTime.now().minusMinutes(30));
     withResource.close(1L);
 
-    verify(orderItemMapper, times(1)).insert(any(OrderItemPo.class));
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
-    verify(orderItemMapper).updateById(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals(0, new BigDecimal("10000").compareTo(item.getTotalAmount()));
-    assertEquals(0, new BigDecimal("10000").compareTo(item.getUnitPrice()));
-    assertTrue(item.getPriceSnapshotJson().contains("\"roomTypeCode\":\"VIP\""), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"roomUnitPrice\":20000"), item.getPriceSnapshotJson());
+    verify(orderItemMapper, times(1)).insert(any(OrderItem.class));
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
+    verify(orderItemMapper).update(captor.capture());
+    OrderItem item = captor.getValue();
+    assertEquals(0, new BigDecimal("10000").compareTo(item.totalAmount()));
+    assertEquals(0, new BigDecimal("10000").compareTo(item.unitPrice()));
+    assertTrue(item.priceSnapshotJson().contains("\"roomTypeCode\":\"VIP\""), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"roomUnitPrice\":20000"), item.priceSnapshotJson());
     // 房费金额仍只按房型单价计（10000 分），服务分项只是随快照固化，不并入房费
-    assertTrue(item.getPriceSnapshotJson().contains("\"serverUnitPrice\":6000"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"combinedUnitPrice\":26000"), item.getPriceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"serverUnitPrice\":6000"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"combinedUnitPrice\":26000"), item.priceSnapshotJson());
   }
 
   /** 房型未定价：开台回退门店级单价，但快照仍记录用的是哪个房型（账单可解释）。 */
@@ -550,7 +556,7 @@ class KtvSessionApplicationServiceTest {
   void open_fallsBackToStorePriceWhenRoomTypeIsNotPriced() {
     KtvSession session = session("RESERVED").withRoomResourceId(3001L);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
@@ -585,24 +591,24 @@ class KtvSessionApplicationServiceTest {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(31));
     session = session.withBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     service.close(session.id());
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals("包厢费（含 1 名服务人员）", item.getNameSnapshot());
-    assertEquals(0, new BigDecimal("8000").compareTo(item.getTotalAmount()));
-    assertEquals(0, new BigDecimal("4000").compareTo(item.getUnitPrice()));
-    assertEquals(0, new BigDecimal("2").compareTo(item.getQuantity()));
-    assertTrue(item.getPriceSnapshotJson().contains("\"roomFeeIncludesServer\":true"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"includedServerCount\":1"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"combinedUnitPrice\":8000"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"serverUnitPrice\":5000"), item.getPriceSnapshotJson());
+    OrderItem item = captor.getValue();
+    assertEquals("包厢费（含 1 名服务人员）", item.nameSnapshot());
+    assertEquals(0, new BigDecimal("8000").compareTo(item.totalAmount()));
+    assertEquals(0, new BigDecimal("4000").compareTo(item.unitPrice()));
+    assertEquals(0, new BigDecimal("2").compareTo(item.quantity()));
+    assertTrue(item.priceSnapshotJson().contains("\"roomFeeIncludesServer\":true"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"includedServerCount\":1"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"combinedUnitPrice\":8000"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"serverUnitPrice\":5000"), item.priceSnapshotJson());
   }
 
   /** 存量会话不追溯：历史快照没有 combinedUnitPrice/roomFeeIncludesServer 时仍只按房型价计。 */
@@ -614,22 +620,22 @@ class KtvSessionApplicationServiceTest {
             + "\"roomPricePerIncrement\":1500,\"defaultSessionMinutes\":120,\"freeWaitMinutes\":0,"
             + "\"overtimeRate\":1.5,\"incrementMinutes\":30,\"roundingDirection\":\"CONSUMER_FAVOR\","
             + "\"serverPricePerInc\":2500}");
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     service.close(session.id());
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals("包厢计时费", item.getNameSnapshot(), "旧快照保持旧明细名");
-    assertEquals(0, new BigDecimal("3000").compareTo(item.getTotalAmount()), "31 分钟 → 2 块 × 1500（不含服务费）");
-    assertTrue(item.getPriceSnapshotJson().contains("\"roomFeeIncludesServer\":false"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"includedServerCount\":0"), item.getPriceSnapshotJson());
-    assertTrue(item.getPriceSnapshotJson().contains("\"billableRoomPricePerIncrement\":1500"),
-        item.getPriceSnapshotJson());
+    OrderItem item = captor.getValue();
+    assertEquals("包厢计时费", item.nameSnapshot(), "旧快照保持旧明细名");
+    assertEquals(0, new BigDecimal("3000").compareTo(item.totalAmount()), "31 分钟 → 2 块 × 1500（不含服务费）");
+    assertTrue(item.priceSnapshotJson().contains("\"roomFeeIncludesServer\":false"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"includedServerCount\":0"), item.priceSnapshotJson());
+    assertTrue(item.priceSnapshotJson().contains("\"billableRoomPricePerIncrement\":1500"),
+        item.priceSnapshotJson());
   }
 
   /** 新口径下「预估 == 结台」这条既有约束继续成立（两边同一基数）。 */
@@ -639,7 +645,7 @@ class KtvSessionApplicationServiceTest {
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(40).minusSeconds(5));
     session = session.withBillingRuleSnapshotJson(combinedPlan().toSnapshotJson());
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("SERVING"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("SERVING")));
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     KtvSessionApplicationService.LiveEstimate live = service.liveEstimate(session, 100L);
@@ -648,9 +654,9 @@ class KtvSessionApplicationServiceTest {
     assertEquals(8000L, estimated);
 
     service.close(session.id());
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals(estimated, captor.getValue().getTotalAmount().longValueExact(),
+    assertEquals(estimated, captor.getValue().totalAmount().longValueExact(),
         "实时预估金额必须等于结台 ROOM_FEE 明细金额（同一基数）");
   }
 
@@ -681,23 +687,24 @@ class KtvSessionApplicationServiceTest {
   @Test
   void openWritesRoomFeeItemAndRecalculatesOrder() {
     KtvSession session = session("RESERVED");
-    OrderPo order = order("DRAFT");
+    Order order = order("DRAFT");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     service.open(session.id(), 0, 2);
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals("ROOM_FEE", item.getItemType());
-    assertEquals("ACTIVE", item.getStatus());
-    assertEquals(session.orderId(), item.getOrderId());
-    assertEquals(1L, item.getTenantId());
-    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
-    assertEquals("SERVING", order.getStatus());
+    OrderItem item = captor.getValue();
+    assertEquals("ROOM_FEE", item.itemType());
+    assertEquals("ACTIVE", item.status());
+    assertEquals(session.orderId(), item.orderId());
+    assertEquals(1L, item.tenantId());
+    ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
+    assertEquals("SERVING", orderWrite.getValue().status());
   }
 
   /**
@@ -708,21 +715,24 @@ class KtvSessionApplicationServiceTest {
   void refreshOpenRoomFeesRepairsMissingRoomFeeItem() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(60));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     // 存量订单：库里还没有房费明细（mock 的 selectList 缺省空列表）
-    when(orderItemMapper.selectList(any())).thenReturn(List.of());
+    when(orderItemMapper.list(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
     int refreshed = service.refreshOpenRoomFees();
 
     assertEquals(1, refreshed);
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals("ROOM_FEE", captor.getValue().getItemType());
-    assertTrue(captor.getValue().getTotalAmount().signum() > 0, "开台 60 分钟至少一个计费块");
-    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
+    assertEquals("ROOM_FEE", captor.getValue().itemType());
+    assertTrue(captor.getValue().totalAmount().signum() > 0, "开台 60 分钟至少一个计费块");
+    // 领域模型不可变：重算产出新实例、写库用的是它，因此断言捕获到的那次条件写（而不是夹具变量）。
+    ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
+    assertEquals(session.orderId(), orderWrite.getValue().id(), "刷新必须写回同一张订单");
   }
 
   /**
@@ -733,12 +743,12 @@ class KtvSessionApplicationServiceTest {
   void refreshOpenRoomFeesSetsTenantContextPerSession() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(60));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
-    when(orderItemMapper.selectList(any())).thenReturn(List.of());
+    when(orderItemMapper.list(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     java.util.List<Long> tenantSeenByMapper = new java.util.ArrayList<>();
-    when(orderMapper.selectById(session.orderId())).thenAnswer(invocation -> {
+    when(orderMapper.findById(session.orderId())).thenAnswer(invocation -> {
       tenantSeenByMapper.add(TenantContextHolder.tenantIdOrNull());
       return order;
     });
@@ -761,19 +771,19 @@ class KtvSessionApplicationServiceTest {
     KtvSession session = session("PAUSED");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(150));
     session = session.withPauseStartedAt(LocalDateTime.now().minusMinutes(120));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     when(sessionRepository.findOpenSessions()).thenReturn(List.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
-    when(orderItemMapper.selectList(any())).thenReturn(List.of());
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
     assertEquals(1, service.refreshOpenRoomFees());
 
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    assertEquals(0, new BigDecimal("1500").compareTo(captor.getValue().getTotalAmount()),
+    assertEquals(0, new BigDecimal("1500").compareTo(captor.getValue().totalAmount()),
         "挂单期间库内房费也必须停表（30 分钟 = 1 块）");
-    assertEquals(0, new BigDecimal("1").compareTo(captor.getValue().getQuantity()));
+    assertEquals(0, new BigDecimal("1").compareTo(captor.getValue().quantity()));
   }
 
   /**
@@ -824,15 +834,12 @@ class KtvSessionApplicationServiceTest {
         .withId(id)
         .withStatus(status);
   }
-  private static OrderPo order(String status) {
-    OrderPo po = new OrderPo();
-    po.setId(10L);
-    po.setTenantId(1L);
-    po.setStoreId(100L);
-    po.setStatus(status);
-    // 结算按 expectedVersion 做乐观锁：真实数据 version 列缺省 0，这里补上避免拆箱 NPE。
-    po.setVersion(0);
-    return po;
+  /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+  private static Order order(String status) {
+    // 结算按 expectedVersion 做乐观锁：真实数据 version 列缺省 0。
+    return new Order(10L, 1L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        BigDecimal.ZERO, null, null, null, null, 0);
   }
 
   /**
@@ -843,12 +850,12 @@ class KtvSessionApplicationServiceTest {
   void closeAutoSettlesOrderWhenNoPendingCustomerItems() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     SettlementApplicationService settlement = mock(SettlementApplicationService.class);
     KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, orderAmounts, null, settlement);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
@@ -856,8 +863,8 @@ class KtvSessionApplicationServiceTest {
 
     // 自动结台必须带上**订单金额写入之后**的版本：金额写入本身会自增版本，
     // 传写入前的版本会让结算的乐观锁条件永远不成立（或更糟，误判成他人已改）。
-    assertEquals(1, order.getVersion(), "金额写入成功后内存版本应与库一致");
-    verify(settlement).settle(order.getId(), 1);
+    // 领域模型不可变：版本推进发生在「写库返回的新实例」上，因此断言落在结算调用携带的版本上。
+    verify(settlement).settle(order.id(), 1);
   }
 
   /**
@@ -868,21 +875,25 @@ class KtvSessionApplicationServiceTest {
   void closeKeepsWaitingSettlementWhenCustomerItemsPendingApproval() {
     KtvSession session = session("OPEN");
     session = session.withBillingStartAt(LocalDateTime.now().minusMinutes(30));
-    OrderPo order = order("SERVING");
+    Order order = order("SERVING");
     OrderAmountApplicationService amounts = mock(OrderAmountApplicationService.class);
-    when(amounts.hasPendingApprovalItems(order.getId())).thenReturn(true);
+    when(amounts.hasPendingApprovalItems(order.id())).thenReturn(true);
+    // 金额重算端口化后返回新实例：mock 原样透传，结台路径才能继续（这是装配契约，不是行为断言）。
+    when(amounts.recalculate(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
     SettlementApplicationService settlement = mock(SettlementApplicationService.class);
     KtvSessionApplicationService serviceWithSettle = new KtvSessionApplicationService(sessionRepository, orderMapper,
         orderItemMapper, pricingPlanProvider, auditClient, amounts, null, settlement);
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order);
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 
     serviceWithSettle.close(session.id());
 
     verifyNoInteractions(settlement);
-    assertEquals("WAITING_SETTLEMENT", order.getStatus());
+    ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
+    assertEquals("WAITING_SETTLEMENT", orderWrite.getValue().status());
   }
 
   private static KtvPricingPlan plan() {
@@ -898,7 +909,7 @@ class KtvSessionApplicationServiceTest {
   void open_writesSucceededAudit() {
     KtvSession session = session("RESERVED");
     when(sessionRepository.findById(session.id())).thenReturn(Optional.of(session));
-    when(orderMapper.selectById(session.orderId())).thenReturn(order("DRAFT"));
+    when(orderMapper.findById(session.orderId())).thenReturn(Optional.of(order("DRAFT")));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
 

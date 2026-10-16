@@ -19,15 +19,17 @@ import io.openware.platform.order.handler.GlobalExceptionHandler;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -61,11 +63,11 @@ class OrderItemConsumerSelfServiceTest {
     private static final List<String> CONSUMER_PERMISSIONS =
             List.of("reservation.view", "reservation.create");
 
-    private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+    private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
     private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
-    private final OrderMapper orderMapper = mock(OrderMapper.class);
+    private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final ProductRepository productRepository = mock(ProductRepository.class);
-    private final CustomerLookupMapper customerLookupMapper = mock(CustomerLookupMapper.class);
+    private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
 
     private final OrderItemController controller = new OrderItemController(orderItemMapper, catalogItemRepository,
             mock(SettlementApplicationService.class), orderMapper, null, productRepository, null,
@@ -80,14 +82,26 @@ class OrderItemConsumerSelfServiceTest {
         TenantContextHolder.clear();
     }
 
+    /**
+     * 端口约定 {@code insert} 返回「带主键的聚合」：mock 必须回填主键，
+     * 控制器要用返回值继续（审计与响应都读它）。
+     */
+    @BeforeEach
+    void stubItemInsert() {
+        when(orderItemMapper.insert(any(OrderItem.class))).thenAnswer(invocation -> {
+            OrderItem inserted = invocation.getArgument(0);
+            return inserted.withId(501L);
+        });
+    }
+
     // —— 读取加项列表：曾经的 403 是「一直加载中」的直接原因 ——
 
     @Test
     void consumerSession_listsOwnOrderItems() throws Exception {
         signInConsumer();
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(MEMBER_ID));
-        when(orderItemMapper.selectList(any())).thenReturn(List.of(item("PENDING_APPROVAL")));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(MEMBER_ID)));
+        when(orderItemMapper.list(any())).thenReturn(List.of(new Persisted<>(item("PENDING_APPROVAL"), null)));
 
         mvc.perform(get("/business/orders/9/items"))
                 .andExpect(status().isOk())
@@ -97,8 +111,8 @@ class OrderItemConsumerSelfServiceTest {
     @Test
     void consumerSession_cannotReadAnotherMembersOrderItems() throws Exception {
         signInConsumer();
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(OTHER_MEMBER_ID));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(OTHER_MEMBER_ID)));
 
         mvc.perform(get("/business/orders/9/items"))
                 .andExpect(status().isForbidden())
@@ -112,8 +126,8 @@ class OrderItemConsumerSelfServiceTest {
     @Test
     void consumerSessionWithoutMemberProfile_keepsLegacyPermissionDenied() throws Exception {
         signInConsumer();
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(null);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(MEMBER_ID));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(MEMBER_ID)));
 
         mvc.perform(get("/business/orders/9/items"))
                 .andExpect(status().isForbidden())
@@ -125,8 +139,8 @@ class OrderItemConsumerSelfServiceTest {
     void merchantWithOrderViewPermission_readsAnyOrderItems() throws Exception {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, ACCOUNT_ID, 1,
                 List.of("order.view")));
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(OTHER_MEMBER_ID));
-        when(orderItemMapper.selectList(any())).thenReturn(List.of());
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(OTHER_MEMBER_ID)));
+        when(orderItemMapper.list(any())).thenReturn(List.of());
 
         mvc.perform(get("/business/orders/9/items")).andExpect(status().isOk());
 
@@ -138,8 +152,8 @@ class OrderItemConsumerSelfServiceTest {
     @Test
     void consumerAddItem_isForcedToCustomerSourceAndPendingApproval() throws Exception {
         signInConsumer();
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(MEMBER_ID));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(MEMBER_ID)));
         when(catalogItemRepository.findById(CATALOG_ITEM_ID)).thenReturn(Optional.of(serviceCatalog()));
 
         // 客户端自报 MERCHANT：必须被服务端改写，否则消费者能绕过服务人员确认直接生效。
@@ -156,8 +170,8 @@ class OrderItemConsumerSelfServiceTest {
     @Test
     void consumerAddItem_cannotTargetAnotherMembersOrder() throws Exception {
         signInConsumer();
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(OTHER_MEMBER_ID));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(OTHER_MEMBER_ID)));
 
         mvc.perform(post("/business/orders/9/items")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -171,7 +185,7 @@ class OrderItemConsumerSelfServiceTest {
     void merchantAddItem_keepsMerchantSourceAndActiveStatus() throws Exception {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, ACCOUNT_ID, 1,
                 List.of("order.add_item")));
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(OTHER_MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(OTHER_MEMBER_ID)));
         when(catalogItemRepository.findById(CATALOG_ITEM_ID)).thenReturn(Optional.of(serviceCatalog()));
 
         mvc.perform(post("/business/orders/9/items")
@@ -186,8 +200,8 @@ class OrderItemConsumerSelfServiceTest {
     @Test
     void consumerCannotConfirmOrRejectOrderItems() throws Exception {
         signInConsumer();
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(MEMBER_ID));
-        when(orderItemMapper.selectById(501L)).thenReturn(item("PENDING_APPROVAL"));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(MEMBER_ID)));
+        when(orderItemMapper.findById(501L)).thenReturn(Optional.of(item("PENDING_APPROVAL")));
 
         mvc.perform(post("/business/orders/9/items/501/confirm"))
                 .andExpect(status().isForbidden())
@@ -204,15 +218,11 @@ class OrderItemConsumerSelfServiceTest {
                 CONSUMER_PERMISSIONS));
     }
 
-    private static OrderPo order(Long customerId) {
-        OrderPo order = new OrderPo();
-        order.setId(ORDER_ID);
-        order.setTenantId(TENANT_ID);
-        order.setStoreId(STORE_ID);
-        order.setStatus("SERVING");
-        order.setCurrencyCode("CNY");
-        order.setCustomerId(customerId);
-        return order;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(Long customerId) {
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", customerId,
+                "SERVING", "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, null, 0);
     }
 
     /** 纯服务目录项：未关联商品、不占库存，单价来自目录自身（「加项能对服务加项」）。 */
@@ -221,14 +231,10 @@ class OrderItemConsumerSelfServiceTest {
                 new BigDecimal("3000"), null, List.of(), null, "ACTIVE", false, 0);
     }
 
-    private static OrderItemPo item(String status) {
-        OrderItemPo item = new OrderItemPo();
-        item.setId(501L);
-        item.setOrderId(ORDER_ID);
-        item.setNameSnapshot("陪唱服务");
-        item.setStatus(status);
-        item.setSource("CUSTOMER");
-        item.setInventoryStatus("NOT_APPLICABLE");
-        return item;
+    private static OrderItem item(String status) {
+        // 消费者自助加项：source=CUSTOMER、待服务人员确认（PENDING_APPROVAL 不计入应收）。
+        return new OrderItem(501L, TENANT_ID, STORE_ID, "KTV", ORDER_ID, "SERVICE", null, null, "陪唱服务",
+                BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "CNY",
+                null, status, OrderItem.SOURCE_CUSTOMER, "NOT_APPLICABLE", null, null, null, null, null);
     }
 }

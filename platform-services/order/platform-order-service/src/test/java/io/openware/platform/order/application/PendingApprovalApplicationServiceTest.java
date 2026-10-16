@@ -16,12 +16,15 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.dto.PendingApprovalView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.cache.PendingApprovalCache;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.AuditSnapshot;
+import io.openware.platform.order.domain.order.repository.Persisted;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -38,16 +41,16 @@ class PendingApprovalApplicationServiceTest {
   private static final long STORE_ID = 100L;
   private static final long OTHER_STORE_ID = 999L;
 
-  private OrderItemMapper orderItemMapper;
-  private OrderMapper orderMapper;
+  private OrderItemRepository orderItemMapper;
+  private OrderRepository orderMapper;
   private KtvSessionApplicationService ktvSessionService;
   private PendingApprovalCache cache;
   private PendingApprovalApplicationService service;
 
   @BeforeEach
   void setUp() {
-    orderItemMapper = mock(OrderItemMapper.class);
-    orderMapper = mock(OrderMapper.class);
+    orderItemMapper = mock(OrderItemRepository.class);
+    orderMapper = mock(OrderRepository.class);
     ktvSessionService = mock(KtvSessionApplicationService.class);
     // 缓存 TTL 用 3s（与生产默认一致），便于「命中缓存」与「失效后回源」两个分支都真实执行。
     cache = new PendingApprovalCache(3000);
@@ -62,11 +65,11 @@ class PendingApprovalApplicationServiceTest {
 
   @Test
   void groupsByOrderAndSkipsOtherStores() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(
+    when(orderItemMapper.list(any())).thenReturn(List.of(
         item(11L, 1L, "精酿啤酒", "6", "10800", "CNY", now(1)),
         item(12L, 1L, "果盘", "1", "8800", "CNY", now(2)),
         item(13L, 2L, "陪唱服务", "1", "30000", "CNY", now(3))));
-    when(orderMapper.selectBatchIds(any())).thenReturn(List.of(
+    when(orderMapper.findByIds(any())).thenReturn(List.of(
         order(1L, STORE_ID, "O202609190001"),
         order(2L, OTHER_STORE_ID, "O202609190002")));
     KtvSession session = KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", 1L, null, "K01", "K01")
@@ -98,10 +101,10 @@ class PendingApprovalApplicationServiceTest {
 
   @Test
   void mixedCurrencyIsFlaggedAndNotSummedAsOneCurrency() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(
+    when(orderItemMapper.list(any())).thenReturn(List.of(
         item(21L, 1L, "啤酒", "1", "100", "CNY", now(1)),
         item(22L, 1L, "啤酒", "1", "200", "USD", now(2))));
-    when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
+    when(orderMapper.findByIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of());
 
     PendingApprovalView view = service.pendingForCurrentStore();
@@ -113,31 +116,31 @@ class PendingApprovalApplicationServiceTest {
 
   @Test
   void emptyWhenNoPendingItems() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of());
+    when(orderItemMapper.list(any())).thenReturn(List.of());
 
     PendingApprovalView view = service.pendingForCurrentStore();
 
     assertEquals(0L, view.pendingCount());
     assertEquals(0L, view.pendingAmount());
     assertTrue(view.orders().isEmpty());
-    verify(orderMapper, never()).selectBatchIds(any());
+    verify(orderMapper, never()).findByIds(any());
   }
 
   @Test
   void secondReadHitsCacheUntilInvalidated() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(item(31L, 1L, "啤酒", "1", "100", "CNY", now(1))));
-    when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
+    when(orderItemMapper.list(any())).thenReturn(List.of(item(31L, 1L, "啤酒", "1", "100", "CNY", now(1))));
+    when(orderMapper.findByIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of());
 
     service.pendingForCurrentStore();
     service.pendingForCurrentStore();
     // 命中缓存：只回源一次
-    verify(orderItemMapper, times(1)).selectList(any());
+    verify(orderItemMapper, times(1)).list(any());
 
     // 写路径失效（客户提交加项 / 确认 / 拒绝）后必须回源，角标立即更新
     service.invalidateCurrentStore();
     service.pendingForCurrentStore();
-    verify(orderItemMapper, times(2)).selectList(any());
+    verify(orderItemMapper, times(2)).list(any());
   }
 
   /**
@@ -146,8 +149,8 @@ class PendingApprovalApplicationServiceTest {
    */
   @Test
   void roomNameFallsBackToCodeThenToResourceService() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(item(41L, 1L, "精酿啤酒", "1", "100", "CNY", now(1))));
-    when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
+    when(orderItemMapper.list(any())).thenReturn(List.of(item(41L, 1L, "精酿啤酒", "1", "100", "CNY", now(1))));
+    when(orderMapper.findByIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
     // 会话只剩编码快照（开台时资源服务给不出名称）
     KtvSession codeOnly = session(1L, 9L, "", "K01");
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of(1L, codeOnly));
@@ -172,8 +175,8 @@ class PendingApprovalApplicationServiceTest {
   /** 订单没有 KTV 会话（非包厢单）：包厢字段为 null，但提醒本身必须照常给出。 */
   @Test
   void roomNameIsNullWhenOrderHasNoSession() {
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(item(51L, 1L, "精酿啤酒", "1", "100", "CNY", now(1))));
-    when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
+    when(orderItemMapper.list(any())).thenReturn(List.of(item(51L, 1L, "精酿啤酒", "1", "100", "CNY", now(1))));
+    when(orderMapper.findByIds(any())).thenReturn(List.of(order(1L, STORE_ID, "O1")));
     when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of());
 
     PendingApprovalView view = service.pendingForCurrentStore();
@@ -183,29 +186,21 @@ class PendingApprovalApplicationServiceTest {
     assertEquals(1L, view.pendingCount());
   }
 
-  private static OrderItemPo item(Long id, Long orderId, String name, String quantity, String amount,
-                                  String currency, LocalDateTime createdAt) {
-    OrderItemPo po = new OrderItemPo();
-    po.setId(id);
-    po.setTenantId(TENANT_ID);
-    po.setOrderId(orderId);
-    po.setNameSnapshot(name);
-    po.setQuantity(new BigDecimal(quantity));
-    po.setUnitPrice(new BigDecimal(amount));
-    po.setTotalAmount(new BigDecimal(amount));
-    po.setCurrencyCode(currency);
-    po.setStatus("PENDING_APPROVAL");
-    po.setCreatedAt(createdAt);
-    return po;
+  /** 读路径的落库行 + 记账快照：待确认加项的 {@code createdAt}（提交时间）是记账列，随行带回。 */
+  private static Persisted<OrderItem> item(Long id, Long orderId, String name, String quantity, String amount,
+                                           String currency, LocalDateTime createdAt) {
+    OrderItem item = new OrderItem(id, TENANT_ID, STORE_ID, "KTV", orderId, "ADD_ON", null, null, name,
+        new BigDecimal(amount), new BigDecimal(quantity), BigDecimal.ZERO, BigDecimal.ZERO,
+        new BigDecimal(amount), currency, null, OrderItem.STATUS_PENDING_APPROVAL,
+        OrderItem.SOURCE_CUSTOMER, "NOT_APPLICABLE", null, null, null, null, null);
+    return new Persisted<>(item, new AuditSnapshot(null, createdAt, null, createdAt));
   }
 
-  private static OrderPo order(Long id, Long storeId, String orderNo) {
-    OrderPo po = new OrderPo();
-    po.setId(id);
-    po.setTenantId(TENANT_ID);
-    po.setStoreId(storeId);
-    po.setOrderNo(orderNo);
-    return po;
+  /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+  private static Order order(Long id, Long storeId, String orderNo) {
+    return new Order(id, TENANT_ID, null, storeId, orderNo, null, "KTV", null, "SERVING", "CNY",
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        BigDecimal.ZERO, null, null, null, null, 0);
   }
 
   /** KTV 会话：包厢快照可能为空（开台时资源服务不可达），只留 roomResourceId。 */

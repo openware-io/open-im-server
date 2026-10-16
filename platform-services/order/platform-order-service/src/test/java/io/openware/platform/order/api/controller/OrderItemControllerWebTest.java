@@ -12,10 +12,12 @@ import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.model.Product;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
 import org.springframework.http.MediaType;
@@ -40,18 +42,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** OrderItemController Web 层测试：settle 权限守卫 + 加项库存口径（以商品为准、库存不足回 409）。 */
 class OrderItemControllerWebTest {
 
-    private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+    private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
     private final CatalogItemRepository catalogItemRepository = mock(CatalogItemRepository.class);
-    private final OrderMapper orderMapper = mock(OrderMapper.class);
+    private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final InventoryApplicationService inventoryService = mock(InventoryApplicationService.class);
     private final ProductRepository productRepository = mock(ProductRepository.class);
-    private OrderPo settlementResult;
+    private Order settlementResult;
     private final SettlementApplicationService settlementService = new SettlementApplicationService(
-            orderMapper, orderItemMapper,
+            orderMapper,
             new AuditClient(RestClient.builder().baseUrl("http://localhost").build(), "test"),
             new OrderAmountApplicationService(orderMapper, orderItemMapper)) {
         @Override
-        public OrderPo settle(Long orderId, int expectedVersion) {
+        public Order settle(Long orderId, int expectedVersion) {
             return settlementResult;
         }
     };
@@ -74,6 +76,18 @@ class OrderItemControllerWebTest {
         TenantContextHolder.clear();
     }
 
+    /**
+     * 端口约定 {@code insert} 返回「带主键的聚合」：mock 必须回填主键，
+     * 控制器要用返回值继续（库存扣减、审计与响应都读它）。
+     */
+    @BeforeEach
+    void stubItemInsert() {
+        when(orderItemMapper.insert(any(OrderItem.class))).thenAnswer(invocation -> {
+            OrderItem inserted = invocation.getArgument(0);
+            return inserted.withId(501L);
+        });
+    }
+
     @Test
     void settle_withoutPermission_returns403PermissionDenied() throws Exception {
         TenantContextHolder.set(new TenantContext(1L, 1L, 1L, 0L, 0));
@@ -88,7 +102,7 @@ class OrderItemControllerWebTest {
     @Test
     void settle_withPermission_delegatesToService() throws Exception {
         TenantContextHolder.set(new TenantContext(1L, 1L, 1L, 0L, 0, List.of("order.settle")));
-        settlementResult = new OrderPo();
+        settlementResult = order();
 
         mvc.perform(post("/business/orders/1/settle")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -99,11 +113,9 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_withTenantContext_usesOrderStoreCatalog() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        OrderPo order = new OrderPo();
-        order.setTenantId(100L);
-        order.setStoreId(100L);
+        Order order = order();
         CatalogItem catalog = catalog(10L, 100L, "PRODUCT", "百威啤酒", "瓶", new BigDecimal("1500"), false);
-        when(orderMapper.selectById(1L)).thenReturn(order);
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
         when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(catalog));
 
         mvc.perform(post("/business/orders/1/items")
@@ -116,11 +128,9 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_withDifferentStoreContext_returns403() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, 101L, 1L, 1, List.of("order.add_item")));
-        OrderPo order = new OrderPo();
-        order.setTenantId(100L);
-        order.setStoreId(100L);
+        Order order = order();
         CatalogItem catalog = catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false);
-        when(orderMapper.selectById(1L)).thenReturn(order);
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
         when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(catalog));
 
         mvc.perform(post("/business/orders/1/items")
@@ -169,7 +179,7 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_doesNotTouchInventoryForNonStockProduct() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        when(orderMapper.selectById(1L)).thenReturn(order());
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order()));
         when(catalogItemRepository.findById(10L))
                 .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), true)));
         when(productRepository.find(any(ProductRepository.ProductQuery.class)))
@@ -188,7 +198,7 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_rejectsWhenStockControlledProductHasNoMaterial() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        when(orderMapper.selectById(1L)).thenReturn(order());
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order()));
         when(catalogItemRepository.findById(10L))
                 .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false)));
         when(productRepository.find(any(ProductRepository.ProductQuery.class)))
@@ -210,7 +220,7 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_serviceItemBillsCatalogPriceAndNeverTouchesInventory() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        when(orderMapper.selectById(1L)).thenReturn(order());
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order()));
         when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(
                 catalog(10L, 100L, "SERVICE", "陪唱服务", "次", new BigDecimal("3000"), false)));
         when(productRepository.find(any(ProductRepository.ProductQuery.class)))
@@ -232,7 +242,7 @@ class OrderItemControllerWebTest {
     @Test
     void addItem_standaloneServiceCatalogItemNeedsNoProduct() throws Exception {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        when(orderMapper.selectById(1L)).thenReturn(order());
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order()));
         // 故意把缓存列标成「占库存」：SERVICE 一律不扣库存，不能被缓存脏数据带偏。
         when(catalogItemRepository.findById(10L)).thenReturn(Optional.of(
                 catalog(10L, 100L, "SERVICE", "清洁服务", "次", new BigDecimal("2000"), true)));
@@ -251,7 +261,7 @@ class OrderItemControllerWebTest {
 
     private void givenStockControlledScenario() {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("order.add_item")));
-        when(orderMapper.selectById(1L)).thenReturn(order());
+        when(orderMapper.findById(1L)).thenReturn(Optional.of(order()));
         // 目录项缓存列是 0：历史数据还没被 V17 回填
         when(catalogItemRepository.findById(10L))
                 .thenReturn(Optional.of(catalog(10L, 100L, "PRODUCT", "实物商品", "瓶", new BigDecimal("1000"), false)));
@@ -259,13 +269,11 @@ class OrderItemControllerWebTest {
                 .thenReturn(List.of(product(50L, 55L, "PRODUCT", true)));
     }
 
-    private static OrderPo order() {
-        OrderPo order = new OrderPo();
-        order.setId(1L);
-        order.setTenantId(100L);
-        order.setStoreId(100L);
-        order.setStatus("SERVING");
-        return order;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order() {
+        return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
     }
 
     /** 目录项夹具（不可变记录；可变字段作为参数显式给出，替代迁移前的 setter 逐项覆盖）。 */

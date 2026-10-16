@@ -5,9 +5,9 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.BillApplicationService;
 import io.openware.platform.order.application.dto.BillResult;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,8 +36,8 @@ public class OrderBillController {
     private static final String PERMISSION_VIEW_ORDER = "order.view";
 
     private final BillApplicationService billService;
-    private final OrderMapper orderMapper;
-    private final CustomerLookupMapper customerLookupMapper;
+    private final OrderRepository orderRepository;
+    private final MemberLookupProvider memberLookupProvider;
 
     /** 兼容既有装配（单测/无归属校验依赖时只走商户权限码路径）。 */
     public OrderBillController(BillApplicationService billService) {
@@ -49,11 +49,11 @@ public class OrderBillController {
      * （与 OrderItemController 同款做法），否则 Spring 无法在多个候选里选择。
      */
     @Autowired
-    public OrderBillController(BillApplicationService billService, OrderMapper orderMapper,
-                               CustomerLookupMapper customerLookupMapper) {
+    public OrderBillController(BillApplicationService billService, OrderRepository orderRepository,
+                               MemberLookupProvider memberLookupProvider) {
         this.billService = billService;
-        this.orderMapper = orderMapper;
-        this.customerLookupMapper = customerLookupMapper;
+        this.orderRepository = orderRepository;
+        this.memberLookupProvider = memberLookupProvider;
     }
 
     @GetMapping("/bill")
@@ -67,16 +67,16 @@ public class OrderBillController {
         if (hasPermission(PERMISSION_VIEW_ORDER)) {
             return;
         }
-        OrderPo order = orderMapper == null ? null : orderMapper.selectById(orderId);
+        Order order = orderRepository == null ? null : orderRepository.findById(orderId).orElse(null);
         TenantContext context = TenantContextHolder.get();
-        Long memberId = context == null || customerLookupMapper == null
+        Long memberId = context == null || memberLookupProvider == null
                 ? null
-                : customerLookupMapper.findMemberId(context.tenantId(), context.accountId());
+                : memberLookupProvider.findMemberId(context.tenantId(), context.accountId()).orElse(null);
         if (memberId == null) {
             // 既没有商户权限也不是会员：与其它自助端点保持同一文案（不泄露订单是否存在）。
             throw new ApiException(403, "PERMISSION_DENIED", "缺少权限: " + PERMISSION_VIEW_ORDER);
         }
-        if (order == null || order.getCustomerId() == null || !memberId.equals(order.getCustomerId())) {
+        if (order == null || order.customerId() == null || !memberId.equals(order.customerId())) {
             throw new ApiException(403, "ORDER_SCOPE_DENIED", "只能查看和操作本人订单");
         }
     }

@@ -1,18 +1,16 @@
 package io.openware.platform.order.application;
 
 import io.openware.common.exception.BusinessException;
-
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -31,72 +29,69 @@ import java.util.List;
  * <p>落库走带版本条件的乐观锁提交：本方法有直连 {@code /business/**} 的调用方
  * （{@code OrderItemController} 加项后重算），没有上层守卫；
  * 两个并发加项/重算都读到同一 version 时，无条件写回会让后写者覆盖前者算出的应付金额。
+ *
+ * <p><b>领域模型不可变</b>：{@link #recalculate(Order)} 返回**新实例**，
+ * 调用方必须用返回值继续（`order = orderAmounts.recalculate(order);`）——原地改字段的写法已随之消失。
  */
 @Service
 public class OrderAmountApplicationService {
     private static final BigDecimal ZERO = BigDecimal.ZERO;
 
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
 
-    public OrderAmountApplicationService(OrderMapper orderMapper, OrderItemMapper orderItemMapper) {
-        this.orderMapper = orderMapper;
-        this.orderItemMapper = orderItemMapper;
+    public OrderAmountApplicationService(OrderRepository orderRepository, OrderItemRepository orderItemRepository) {
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
     }
 
     /** 按订单 id 重算金额并落库；订单不存在时返回 null（调用方已做存在性校验）。 */
     @Transactional
-    public OrderPo recalculate(Long orderId) {
-        OrderPo order = orderId == null ? null : orderMapper.selectById(orderId);
+    public Order recalculate(Long orderId) {
+        Order order = orderId == null ? null : orderRepository.findById(orderId).orElse(null);
         if (order == null) {
             return null;
         }
-        recalculate(order);
-        order.setUpdatedAt(LocalDateTime.now());
+        Order recalculated = recalculate(order);
         // 条件更新：只有库中版本仍是刚读到的那个才写入。受影响 0 行 = 期间已被他人重算，
         // 必须报冲突而不是静默覆盖对方算出的金额。
-        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
-        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+        int expectedVersion = order.currentVersion();
+        if (!orderRepository.updateAmountsAndStatusWithVersion(recalculated, expectedVersion)) {
             throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
         }
-        order.setVersion(expectedVersion + 1);
-        return order;
+        return recalculated.withVersion(expectedVersion + 1);
     }
 
     /**
-     * 在给定订单对象上重算金额字段（不落库），供需要「一次写库」的调用方复用：
-     * 例如结台时同时改状态与金额，必须先在本实例上重算再 updateById，避免被旧实例覆盖。
+     * 在给定订单对象上重算金额字段（不落库），**返回新实例**，供需要「一次写库」的调用方复用：
+     * 例如结台时同时改状态与金额，必须先用返回值再写库，避免被旧实例覆盖。
      */
-    public void recalculate(OrderPo order) {
+    public Order recalculate(Order order) {
         BigDecimal subtotal = ZERO;
         BigDecimal discount = ZERO;
         BigDecimal tax = ZERO;
-        for (OrderItemPo item : activeItems(order.getId())) {
+        for (OrderItem item : activeItems(order.id())) {
             // 以明细的 total_amount 为准（房费含超时加价、服务人员费含递增舍入，不能用 单价×数量 反推，
             // 否则订单合计会与账单明细之和对不上）；历史数据 total_amount 为空时退回 单价×数量。
             subtotal = subtotal.add(lineAmount(item));
-            discount = discount.add(item.getDiscountAmount() == null ? ZERO : item.getDiscountAmount());
-            tax = tax.add(item.getTaxAmount() == null ? ZERO : item.getTaxAmount());
+            discount = discount.add(item.discountAmount() == null ? ZERO : item.discountAmount());
+            tax = tax.add(item.taxAmount() == null ? ZERO : item.taxAmount());
         }
         BigDecimal total = subtotal.subtract(discount).add(tax);
-        BigDecimal paid = order.getPaidAmount() == null ? ZERO : order.getPaidAmount();
+        BigDecimal paid = order.paid();
         // 金额列均为 decimal(20,6)：内存值按同精度归一，避免响应里出现 14800.000000000000 这类 12 位小数。
-        order.setSubtotalAmount(scale6(subtotal));
-        order.setDiscountAmount(scale6(discount));
-        order.setTaxAmount(scale6(tax));
-        order.setTotalAmount(scale6(total));
         // 可退金额 = 已收（暂无退款回冲流程；收款时由 OrderBillingMapper.markPaid 同步）。
         // 不能写成「合计 − 已收」：未收款的订单会变成「可退一整单」。
-        order.setRefundableAmount(scale6(paid));
+        return order.withAmounts(scale6(subtotal), scale6(discount), scale6(tax), scale6(total), scale6(paid));
     }
 
     /** 明细行金额：优先 total_amount，为空时退回 unit_price × quantity。 */
-    private static BigDecimal lineAmount(OrderItemPo item) {
-        if (item.getTotalAmount() != null) {
-            return item.getTotalAmount();
+    private static BigDecimal lineAmount(OrderItem item) {
+        if (item.totalAmount() != null) {
+            return item.totalAmount();
         }
-        BigDecimal unitPrice = item.getUnitPrice() == null ? ZERO : item.getUnitPrice();
-        BigDecimal quantity = item.getQuantity() == null ? ZERO : item.getQuantity();
+        BigDecimal unitPrice = item.unitPrice() == null ? ZERO : item.unitPrice();
+        BigDecimal quantity = item.quantity() == null ? ZERO : item.quantity();
         return unitPrice.multiply(quantity);
     }
 
@@ -112,13 +107,13 @@ public class OrderAmountApplicationService {
      * @param order            订单（读 total_amount / discount_amount / tax_amount）
      * @param activeItemsMinor 该订单**全部** ACTIVE 明细的合计（最小货币单位整数）
      */
-    public static long totalBasisMinor(OrderPo order, long activeItemsMinor) {
-        long stored = minor(order == null ? null : order.getTotalAmount());
+    public static long totalBasisMinor(Order order, long activeItemsMinor) {
+        long stored = minor(order == null ? null : order.totalAmount());
         if (stored > 0) {
             return stored;
         }
-        long discount = minor(order == null ? null : order.getDiscountAmount());
-        long tax = minor(order == null ? null : order.getTaxAmount());
+        long discount = minor(order == null ? null : order.discountAmount());
+        long tax = minor(order == null ? null : order.taxAmount());
         return Math.max(0L, activeItemsMinor - discount + tax);
     }
 
@@ -129,7 +124,7 @@ public class OrderAmountApplicationService {
      * 直接相加会把包厢费算两遍（线上实测：账单 6150、卡片 10150）。差额法同时保留折扣/税的既有口径。
      * 账单与订单投影共用本方法，不允许任何一处再写一遍加减。
      *
-     * @param basisMinor            订单合计基数（见 {@link #totalBasisMinor}）
+     * @param basisMinor            订单合计基数（见 {@link #totalBasisMinor(Order, long)}）
      * @param storedRoomFeeMinor    库内 ROOM_FEE 明细合计（要被换掉的快照）
      * @param shownRoomFeeMinor     展示口径的房费（实时值或固化值）
      */
@@ -147,10 +142,10 @@ public class OrderAmountApplicationService {
     }
 
     /** 已生效加项（与账单/结算同一口径：仅 status=ACTIVE）。 */
-    public List<OrderItemPo> activeItems(Long orderId) {
-        QueryWrapper<OrderItemPo> query = new QueryWrapper<>();
-        query.eq("order_id", orderId).eq("status", "ACTIVE");
-        return orderItemMapper.selectList(query);
+    public List<OrderItem> activeItems(Long orderId) {
+        return orderItemRepository.list(OrderItemQuery.activeOfOrder(orderId)).stream()
+                .map(row -> row.aggregate())
+                .toList();
     }
 
     /**
@@ -161,11 +156,6 @@ public class OrderAmountApplicationService {
      * 因此有它们时结台不自动结算，由门店先确认/拒绝。
      */
     public boolean hasPendingApprovalItems(Long orderId) {
-        if (orderId == null) {
-            return false;
-        }
-        QueryWrapper<OrderItemPo> query = new QueryWrapper<>();
-        query.eq("order_id", orderId).eq("status", "PENDING_APPROVAL");
-        return orderItemMapper.selectCount(query) > 0;
+        return orderItemRepository.existsPendingApproval(orderId);
     }
 }

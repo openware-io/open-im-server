@@ -5,10 +5,10 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ReservationMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ReservationPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.reservation.model.Reservation;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -48,21 +48,21 @@ public class KtvReservationTimeoutService {
             Set.of("COMPLETED", "CANCELLED", "VOIDED", "REFUNDED", "PARTIAL_REFUNDED");
 
     private final KtvSessionRepository sessionRepository;
-    private final ReservationMapper reservationMapper;
-    private final OrderMapper orderMapper;
+    private final ReservationRepository reservationRepository;
+    private final OrderRepository orderRepository;
     private final KtvSessionApplicationService ktvSessionService;
     private final OrderCancellationApplicationService orderCancellationService;
     private final ReservationApplicationService reservationService;
 
     public KtvReservationTimeoutService(KtvSessionRepository sessionRepository,
-                                        ReservationMapper reservationMapper,
-                                        OrderMapper orderMapper,
+                                        ReservationRepository reservationRepository,
+                                        OrderRepository orderRepository,
                                         KtvSessionApplicationService ktvSessionService,
                                         OrderCancellationApplicationService orderCancellationService,
                                         ReservationApplicationService reservationService) {
         this.sessionRepository = sessionRepository;
-        this.reservationMapper = reservationMapper;
-        this.orderMapper = orderMapper;
+        this.reservationRepository = reservationRepository;
+        this.orderRepository = orderRepository;
         this.ktvSessionService = ktvSessionService;
         this.orderCancellationService = orderCancellationService;
         this.reservationService = reservationService;
@@ -90,24 +90,24 @@ public class KtvReservationTimeoutService {
             TenantContext previous = TenantContextHolder.get();
             try {
                 TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
-                OrderPo order = orderMapper.selectById(session.orderId());
-                if (order == null || TERMINAL_ORDER_STATUSES.contains(order.getStatus())) {
+                Order order = orderRepository.findById(session.orderId()).orElse(null);
+                if (order == null || TERMINAL_ORDER_STATUSES.contains(order.status())) {
                     // 孤儿会话：订单已终结（作废/取消/已完成）但会话还停在「已预留」——只收敛会话，释放包厢。
                     ktvSessionService.cancelByOrder(session.orderId());
                     orphanSessions++;
                     log.info("收敛孤儿预留会话: sessionId={}, orderId={}, orderStatus={}",
-                            session.id(), session.orderId(), order == null ? "MISSING" : order.getStatus());
+                            session.id(), session.orderId(), order == null ? "MISSING" : order.status());
                     continue;
                 }
                 try {
                     // 订单取消内部会级联 cancelByOrder（置 CANCELLED + 释放资源域占用）并写审计。
-                    orderCancellationService.cancel(order.getId(), AUTO_RELEASE_REASON);
+                    orderCancellationService.cancel(order.id(), AUTO_RELEASE_REASON);
                     releasedOrders++;
                 } catch (ApiException rejected) {
                     if (OrderCancellationApplicationService.PAYMENT_REFUND_FIRST_CODE.equals(rejected.getCode())) {
                         needsManual++;
                         log.warn("预约超时但订单已有收款，需人工处理: orderId={}, reason={}",
-                                order.getId(), rejected.getMessage());
+                                order.id(), rejected.getMessage());
                     } else {
                         throw rejected;
                     }
@@ -121,16 +121,16 @@ public class KtvReservationTimeoutService {
         }
 
         int noShowReservations = 0;
-        for (ReservationPo reservation : safe(reservationMapper.selectNotArrivedOverdue(cutoff))) {
+        for (Reservation reservation : safe(reservationRepository.findNotArrivedOverdue(cutoff))) {
             TenantContext previous = TenantContextHolder.get();
             try {
-                TenantContextHolder.set(new TenantContext(reservation.getTenantId(), null, null, 0L, 0));
+                TenantContextHolder.set(new TenantContext(reservation.tenantId(), null, null, 0L, 0));
                 // 已转化（有 order_id）的预约由上面的会话分支处理；这里只处理没开台的预约，标「未到店」+审计。
-                reservationService.noShow(reservation.getId());
+                reservationService.noShow(reservation.id());
                 noShowReservations++;
             } catch (RuntimeException failure) {
                 log.warn("预约标记未到店失败（下一轮重试）: reservationId={}, cause={}",
-                        reservation.getId(), failure.getMessage());
+                        reservation.id(), failure.getMessage());
             } finally {
                 restoreTenant(previous);
             }

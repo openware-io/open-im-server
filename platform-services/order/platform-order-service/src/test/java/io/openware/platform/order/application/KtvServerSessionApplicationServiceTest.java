@@ -23,11 +23,12 @@ import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -40,10 +41,10 @@ import org.mockito.ArgumentCaptor;
 class KtvServerSessionApplicationServiceTest {
 
   private final KtvServerSessionRepository sessionRepository = mock(KtvServerSessionRepository.class);
-  private final OrderMapper orderMapper = mock(OrderMapper.class);
+  private final OrderRepository orderMapper = mock(OrderRepository.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
   private final AuditClient auditClient = mock(AuditClient.class);
-  private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+  private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
   private final KtvSessionRepository ktvSessionRepository = mock(KtvSessionRepository.class);
   private final KtvServerSessionApplicationService service =
       new KtvServerSessionApplicationService(sessionRepository, orderMapper, pricingPlanProvider, auditClient, orderItemMapper);
@@ -56,7 +57,7 @@ class KtvServerSessionApplicationServiceTest {
    */
   @BeforeEach
   void stubOrderCasSuccess() {
-    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(1);
+    when(orderMapper.updateAmountsAndStatusWithVersion(any(), anyInt())).thenReturn(true);
     // 点单落库：真实适配器会把生成的主键回填进返回的聚合（记录不可变 → 返回新实例）。
     // 桩返回入参本身，与迁移前「insert 就地回填 id」的语义等价，用例里的引用仍是同一条点单。
     when(sessionRepository.insert(any(KtvServerSession.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -64,11 +65,8 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_createsOrderedSessionWithZeroAmount() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("SERVING");
-    order.setStoreId(100L);
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "SERVING", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
     KtvServerSession po = service.order(1L, 10L, 20L, 30L, 40L);
@@ -82,10 +80,8 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_rejectsWhenOrderIsNotServing() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("PAID");
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "PAID", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
 
     BusinessException ex = assertThrows(BusinessException.class,
         () -> service.order(1L, 10L, 20L, 30L, 40L));
@@ -199,11 +195,8 @@ class KtvServerSessionApplicationServiceTest {
   /** 点服务人员：把服务人员快照（ID + 资源名）写入 KTV 会话，订单列表/房态看板直接读会话。 */
   @Test
   void order_writesServerSnapshotIntoKtvSession() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("SERVING");
-    order.setStoreId(100L);
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "SERVING", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
     when(resourceClient.room(30L)).thenReturn(java.util.Optional.of(
@@ -236,11 +229,8 @@ class KtvServerSessionApplicationServiceTest {
   /** 缺少 ktvSessionId（老调用）时跳过会话回写，不能因为多一个可选依赖阻断点单。 */
   @Test
   void order_withoutKtvSessionIdSkipsSessionSnapshot() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("SERVING");
-    order.setStoreId(100L);
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "SERVING", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     KtvServerSessionApplicationService withResource = new KtvServerSessionApplicationService(
         sessionRepository, orderMapper, pricingPlanProvider, auditClient, orderItemMapper, ktvSessionRepository, null);
@@ -299,14 +289,14 @@ class KtvServerSessionApplicationServiceTest {
     KtvServerSession result = service.end(po.id());
 
     assertEquals(0L, result.totalAmount().longValueExact(), "首名服务人员已含在包厢费里，不另计费");
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals(0L, item.getUnitPrice().longValueExact());
-    assertEquals(2, item.getQuantity().intValueExact(), "免费也要记录计费块数，时长可解释");
-    assertEquals(0L, item.getTotalAmount().longValueExact());
-    assertTrue(item.getNameSnapshot().contains("不另计费"), item.getNameSnapshot());
-    assertTrue(item.getPriceSnapshotJson().contains("\"freeServerQuota\":true"), item.getPriceSnapshotJson());
+    OrderItem item = captor.getValue();
+    assertEquals(0L, item.unitPrice().longValueExact());
+    assertEquals(2, item.quantity().intValueExact(), "免费也要记录计费块数，时长可解释");
+    assertEquals(0L, item.totalAmount().longValueExact());
+    assertTrue(item.nameSnapshot().contains("不另计费"), item.nameSnapshot());
+    assertTrue(item.priceSnapshotJson().contains("\"freeServerQuota\":true"), item.priceSnapshotJson());
   }
 
   /** 第 2 名起按各自会话单价全价计（31 分钟 → 2 块 × 5000 = 10000）。 */
@@ -323,13 +313,13 @@ class KtvServerSessionApplicationServiceTest {
     KtvServerSession result = service.end(2L);
 
     assertEquals(10000L, result.totalAmount().longValueExact());
-    ArgumentCaptor<OrderItemPo> captor = ArgumentCaptor.forClass(OrderItemPo.class);
+    ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
     verify(orderItemMapper).insert(captor.capture());
-    OrderItemPo item = captor.getValue();
-    assertEquals(5000L, item.getUnitPrice().longValueExact(), "第 2 名起单价不再抹零");
-    assertEquals(10000L, item.getTotalAmount().longValueExact());
-    assertTrue(item.getNameSnapshot().startsWith("额外服务人员#"), item.getNameSnapshot());
-    assertTrue(item.getPriceSnapshotJson().contains("\"freeServerQuota\":false"), item.getPriceSnapshotJson());
+    OrderItem item = captor.getValue();
+    assertEquals(5000L, item.unitPrice().longValueExact(), "第 2 名起单价不再抹零");
+    assertEquals(10000L, item.totalAmount().longValueExact());
+    assertTrue(item.nameSnapshot().startsWith("额外服务人员#"), item.nameSnapshot());
+    assertTrue(item.priceSnapshotJson().contains("\"freeServerQuota\":false"), item.priceSnapshotJson());
   }
 
   /** 第 3 名同样全价（免费名额只有 1 个）。 */
@@ -416,38 +406,37 @@ class KtvServerSessionApplicationServiceTest {
     when(sessionRepository.findById(2L)).thenReturn(Optional.of(charged));
     when(sessionRepository.listByOrderId(10L)).thenReturn(List.of(free, charged));
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setTenantId(1L);
-    order.setStoreId(100L);
-    order.setStatus("SERVING");
-    order.setCurrencyCode("CNY");
-    order.setPaidAmount(BigDecimal.ZERO);
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "SERVING", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     // 真库行为：结台/重算读的是已落库的 ACTIVE 明细，这里回放刚写入的那条服务人员费。
-    OrderItemPo stored = new OrderItemPo();
-    stored.setId(99L);
-    stored.setOrderId(10L);
-    stored.setItemType("SERVICE");
-    stored.setStatus("ACTIVE");
-    stored.setUnitPrice(new BigDecimal("5000"));
-    stored.setQuantity(new BigDecimal("2"));
-    stored.setTotalAmount(new BigDecimal("10000"));
-    when(orderItemMapper.selectList(any())).thenReturn(List.of(stored));
+    OrderItem stored = new OrderItem(99L, 1L, 100L, "KTV", 10L, "SERVICE", null, null, "服务人员#9",
+        new BigDecimal("5000"), new BigDecimal("2"), BigDecimal.ZERO, BigDecimal.ZERO,
+        new BigDecimal("10000"), "CNY", null, OrderItem.STATUS_ACTIVE, OrderItem.SOURCE_MERCHANT,
+        null, null, null, null, null, null);
+    when(orderItemMapper.list(any())).thenReturn(List.of(new Persisted<>(stored, null)));
     KtvServerSessionApplicationService withAmounts = new KtvServerSessionApplicationService(
         sessionRepository, orderMapper, pricingPlanProvider, auditClient, orderItemMapper, ktvSessionRepository, null,
         new OrderAmountApplicationService(orderMapper, orderItemMapper));
 
     withAmounts.end(2L);
 
-    assertEquals(0, new BigDecimal("10000").compareTo(order.getTotalAmount()),
+    // 领域模型不可变：重算产出的是新实例、写库用的也是它，因此断言捕获到的那次写入（而不是夹具变量）。
+    ArgumentCaptor<Order> updated = ArgumentCaptor.forClass(Order.class);
+    verify(orderMapper).updateAmountsAndStatusWithVersion(updated.capture(), anyInt());
+    assertEquals(0, new BigDecimal("10000").compareTo(updated.getValue().totalAmount()),
         "订单合计必须立刻包含服务人员费");
-    verify(orderMapper).updateAmountsAndStatusWithVersion(eq(order), anyInt());
   }
 
   private static KtvPricingPlan plan() {
     return new KtvPricingPlan(KtvBillingUnit.HOUR, 3000L, 120, 0, new BigDecimal("1.5"), 30,
         KtvRoundingDirection.CONSUMER_FAVOR, 5000L);
+  }
+
+  /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+  private static Order order(long id, String status, long storeId) {
+    return new Order(id, 1L, null, storeId, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        BigDecimal.ZERO, null, null, null, null, 0);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -456,12 +445,8 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_writesSucceededAudit() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("SERVING");
-    order.setStoreId(100L);
-    order.setCurrencyCode("CNY");
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "SERVING", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
     service.order(1L, 10L, 20L, 30L, 40L);
@@ -475,10 +460,8 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_writesFailureAuditWithStableErrorCode() {
-    OrderPo order = new OrderPo();
-    order.setId(10L);
-    order.setStatus("PAID");
-    when(orderMapper.selectById(10L)).thenReturn(order);
+    Order order = order(10L, "PAID", 100L);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
 
     BusinessException ex = assertThrows(BusinessException.class, () -> service.order(1L, 10L, 20L, 30L, 40L));
 

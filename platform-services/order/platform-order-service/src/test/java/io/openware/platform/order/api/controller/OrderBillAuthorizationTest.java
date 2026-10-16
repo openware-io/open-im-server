@@ -13,9 +13,11 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.BillApplicationService;
 import io.openware.platform.order.application.dto.BillResult;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -33,8 +35,8 @@ class OrderBillAuthorizationTest {
     private static final long ACCOUNT_ID = 7L;
 
     private final BillApplicationService billService = mock(BillApplicationService.class);
-    private final OrderMapper orderMapper = mock(OrderMapper.class);
-    private final CustomerLookupMapper customerLookupMapper = mock(CustomerLookupMapper.class);
+    private final OrderRepository orderMapper = mock(OrderRepository.class);
+    private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
     private final OrderBillController controller =
             new OrderBillController(billService, orderMapper, customerLookupMapper);
 
@@ -52,7 +54,7 @@ class OrderBillAuthorizationTest {
         when(billService.buildBill(9L)).thenReturn(expected);
 
         assertEquals(expected, controller.bill(9L));
-        verify(orderMapper, never()).selectById(any());
+        verify(orderMapper, never()).findById(any());
     }
 
     /** 消费者读**本人**订单账单：放行（C 端「查看账单」正常路径）。 */
@@ -60,11 +62,9 @@ class OrderBillAuthorizationTest {
     void consumerSessionReadsOwnOrderBill() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1,
                 List.of("reservation.view")));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(77L);
-        OrderPo own = new OrderPo();
-        own.setId(9L);
-        own.setCustomerId(77L);
-        when(orderMapper.selectById(9L)).thenReturn(own);
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(77L));
+        Order own = order(9L, 77L);
+        when(orderMapper.findById(9L)).thenReturn(Optional.of(own));
         BillResult expected = bill();
         when(billService.buildBill(9L)).thenReturn(expected);
 
@@ -77,16 +77,21 @@ class OrderBillAuthorizationTest {
                 0L, 0L, 0L, 0L, 0L, 0L, null, 0L);
     }
 
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(Long id, Long customerId) {
+        return new Order(id, TENANT_ID, null, null, "ORD-20260918-0001", null, "KTV", customerId, "SERVING",
+                "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
+    }
+
     /** 消费者读**他人**订单账单：403 ORDER_SCOPE_DENIED，且根本不进账单服务（不泄露任何账单内容）。 */
     @Test
     void consumerSessionCannotReadOthersBill() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1,
                 List.of("reservation.view")));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(77L);
-        OrderPo others = new OrderPo();
-        others.setId(9L);
-        others.setCustomerId(88L);
-        when(orderMapper.selectById(9L)).thenReturn(others);
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(77L));
+        Order others = order(9L, 88L);
+        when(orderMapper.findById(9L)).thenReturn(Optional.of(others));
 
         ApiException ex = assertThrows(ApiException.class, () -> controller.bill(9L));
 
@@ -100,7 +105,7 @@ class OrderBillAuthorizationTest {
     void consumerWithoutMemberProfileKeepsLegacyPermissionDenied() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1,
                 List.of("reservation.view")));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(null);
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
 
         ApiException ex = assertThrows(ApiException.class, () -> controller.bill(9L));
 

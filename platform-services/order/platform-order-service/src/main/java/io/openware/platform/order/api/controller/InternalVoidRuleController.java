@@ -4,8 +4,10 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.VoidRuleConfigView;
 import io.openware.platform.order.application.VoidRuleApplicationService;
-import io.openware.platform.order.infra.persistence.po.OrdVoidRuleConfigPo;
+import io.openware.platform.order.domain.order.model.VoidRuleConfig;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,16 +31,20 @@ public class InternalVoidRuleController {
         return service.resolve(context.tenantId(), businessType, storeId);
     }
 
+    /** 保存规则：响应字段集与原持久化对象一致（{@code createdAt}/{@code updatedAt} 由记账快照装配）。 */
     @PutMapping
-    public OrdVoidRuleConfigPo save(@RequestBody SaveRequest body) {
+    public VoidRuleConfigView save(@RequestBody SaveRequest body) {
         verify();
         TenantContext context = requireContext();
         if (body.storeId() != null && body.storeId() > 0 && context.storeId() != null
                 && !body.storeId().equals(context.storeId())) {
             throw new ApiException(403, "STORE_SCOPE_FORBIDDEN", "配置门店不在当前签名作用域");
         }
-        return service.save(context.tenantId(), new VoidRuleApplicationService.SaveCommand(
-                body.businessType(), body.storeId(), body.requireApproval(), body.version(), body.idempotencyKey()));
+        Persisted<VoidRuleConfig> saved = service.save(context.tenantId(),
+                new VoidRuleApplicationService.SaveCommand(
+                        body.businessType(), body.storeId(), body.requireApproval(), body.version(),
+                        body.idempotencyKey()));
+        return VoidRuleConfigView.from(saved.aggregate(), saved.audit());
     }
 
     private TenantContext requireContext() {

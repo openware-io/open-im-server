@@ -5,7 +5,7 @@ import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -37,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ReservationControllerWebTest {
     private MockMvc mvc;
     private final ReservationApplicationService reservationService = mock(ReservationApplicationService.class);
-    private final CustomerLookupMapper customerLookupMapper = mock(CustomerLookupMapper.class);
+    private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
     private ReservationController controller;
 
     @BeforeEach
@@ -69,7 +70,7 @@ class ReservationControllerWebTest {
     @Test
     void createUsesSelectedStoreContextAndRoomType() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.create")));
-        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(99L);
+        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(Optional.of(99L));
         when(reservationService.create(eq(7L), any(), any())).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/business/reservations")
@@ -87,7 +88,7 @@ class ReservationControllerWebTest {
     @Test
     void createIgnoresForgedStoreId() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.create")));
-        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(99L);
+        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(Optional.of(99L));
         when(reservationService.create(eq(7L), any(), any())).thenReturn(reservationView());
 
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/business/reservations")
@@ -108,7 +109,7 @@ class ReservationControllerWebTest {
     @Test
     void createRejectsResourceIdExplicitly() {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.create")));
-        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(99L);
+        when(customerLookupMapper.findMemberId(7L, 42L)).thenReturn(Optional.of(99L));
 
         ApiException ex = assertThrows(ApiException.class, () -> controller.create(null,
                 new ReservationController.CreateReservationRequest("KTV", null, null, 1001L, 55L,

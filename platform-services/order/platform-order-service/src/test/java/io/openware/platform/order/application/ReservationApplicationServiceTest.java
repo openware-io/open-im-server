@@ -6,6 +6,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.reservation.model.Reservation;
@@ -19,13 +20,14 @@ import io.openware.platform.order.infra.client.RoomTypeCatalogClient;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomTypeView;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomView;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -85,7 +87,7 @@ class ReservationApplicationServiceTest {
     private static final LocalDateTime WINDOW_END = LocalDateTime.of(2026, 9, 18, 22, 0);
 
     private ReservationRepository reservationRepository;
-    private OrderMapper orderMapper;
+    private OrderRepository orderMapper;
     private KtvSessionApplicationService ktvSessionService;
     private ResourceStateClient resourceStateClient;
     private RoomTypeCatalogClient roomTypeCatalogClient;
@@ -97,7 +99,7 @@ class ReservationApplicationServiceTest {
     @BeforeEach
     void setUp() {
         reservationRepository = mock(ReservationRepository.class);
-        orderMapper = mock(OrderMapper.class);
+        orderMapper = mock(OrderRepository.class);
         ktvSessionService = mock(KtvSessionApplicationService.class);
         resourceStateClient = mock(ResourceStateClient.class);
         roomTypeCatalogClient = mock(RoomTypeCatalogClient.class);
@@ -632,32 +634,26 @@ class ReservationApplicationServiceTest {
 
         assertEquals(409, ex.getStatus());
         assertEquals("RESERVATION_ROOM_NOT_ASSIGNED", ex.getCode());
-        verify(orderMapper, never()).insert(any(OrderPo.class));
+        verify(orderMapper, never()).insert(any(Order.class), any());
     }
 
     /** 旧数据兼容：只有 resource_id 的历史预约仍可开台，用既有包厢建会话，币种取当前上下文（不再硬编码 CNY）。 */
     @Test
     void openTableStillWorksForLegacyReservationWithOnlyResourceId() {
         givenReservation(reservation(ReservationStatus.ARRIVED, 3001L, null));
-        when(orderMapper.insert(any(OrderPo.class))).thenAnswer(invocation -> {
-            OrderPo order = invocation.getArgument(0);
-            order.setId(88L);
-            return 1;
-        });
+        when(orderMapper.insert(any(Order.class), any()))
+                .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(eq(TENANT_ID), eq(88L), eq(3001L))).thenReturn(session(555L));
-        OrderPo persisted = new OrderPo();
-        persisted.setId(88L);
-        persisted.setStatus("SERVING");
-        when(orderMapper.selectById(88L)).thenReturn(persisted);
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
         CurrencyContextHolder.set(Currency.CNY);
 
-        OrderPo opened = service.openTable(9L, null);
+        OrderView opened = service.openTable(9L, null);
 
-        assertEquals(555L, opened.getSessionId());
+        assertEquals(555L, opened.sessionId());
         verify(ktvSessionService).create(TENANT_ID, 88L, 3001L);
-        ArgumentCaptor<OrderPo> orderCaptor = ArgumentCaptor.forClass(OrderPo.class);
-        verify(orderMapper).insert(orderCaptor.capture());
-        assertEquals("CNY", orderCaptor.getValue().getCurrencyCode(),
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderMapper).insert(orderCaptor.capture(), any());
+        assertEquals("CNY", orderCaptor.getValue().currencyCode(),
                 "开台订单币种取 CurrencyResolver（当前上下文 CNY），不是硬编码常量");
     }
 
@@ -665,19 +661,16 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableFallsBackToDefaultCurrencyWithoutContext() {
         givenReservation(reservation(ReservationStatus.ARRIVED, 3001L, ROOM_TYPE_ID));
-        when(orderMapper.insert(any(OrderPo.class))).thenAnswer(invocation -> {
-            OrderPo order = invocation.getArgument(0);
-            order.setId(88L);
-            return 1;
-        });
+        when(orderMapper.insert(any(Order.class), any()))
+                .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.selectById(88L)).thenReturn(new OrderPo());
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
 
         service.openTable(9L, null);
 
-        ArgumentCaptor<OrderPo> orderCaptor = ArgumentCaptor.forClass(OrderPo.class);
-        verify(orderMapper).insert(orderCaptor.capture());
-        assertEquals("USD", orderCaptor.getValue().getCurrencyCode());
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        verify(orderMapper).insert(orderCaptor.capture(), any());
+        assertEquals("USD", orderCaptor.getValue().currencyCode());
     }
 
     // ------------------------------------------------------------------ 取消预约（运营代客取消）
@@ -970,17 +963,14 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableWritesSucceededAudit() {
         givenReservation(reservation(ReservationStatus.ARRIVED, 3001L, ROOM_TYPE_ID));
-        when(orderMapper.insert(any(OrderPo.class))).thenAnswer(invocation -> {
-            OrderPo order = invocation.getArgument(0);
-            order.setId(88L);
-            return 1;
-        });
+        when(orderMapper.insert(any(Order.class), any()))
+                .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.selectById(88L)).thenReturn(new OrderPo());
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
 
-        OrderPo order = service.openTable(9L, null);
+        OrderView order = service.openTable(9L, null);
 
-        assertEquals(555L, order.getSessionId());
+        assertEquals(555L, order.sessionId());
         assertEquals(ReservationStatus.CONVERTED, capturedStatusWrite().status());
         AuditClient.AuditRecord record = capturedAudit();
         assertEquals("reservation.open_table", record.action());
@@ -993,19 +983,16 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableUsesDailySerialOrderNumber() {
         givenReservation(reservation(ReservationStatus.ARRIVED, 3001L, ROOM_TYPE_ID));
-        when(orderMapper.insert(any(OrderPo.class))).thenAnswer(invocation -> {
-            OrderPo order = invocation.getArgument(0);
-            order.setId(88L);
-            return 1;
-        });
+        when(orderMapper.insert(any(Order.class), any()))
+                .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.selectById(88L)).thenReturn(new OrderPo());
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
 
         service.openTable(9L, null);
 
-        ArgumentCaptor<OrderPo> captor = ArgumentCaptor.forClass(OrderPo.class);
-        verify(orderMapper).insert(captor.capture());
-        assertEquals(ORDER_NO, captor.getValue().getOrderNo(), "开台订单号必须来自统一生成器");
+        ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+        verify(orderMapper).insert(captor.capture(), any());
+        assertEquals(ORDER_NO, captor.getValue().orderNo(), "开台订单号必须来自统一生成器");
         verify(dailySerialNumberGenerator).next(DailySerialNumberGenerator.DocType.ORDER, TENANT_ID);
     }
 
@@ -1027,13 +1014,10 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableFromConfirmedImpliesArrival() {
         givenReservation(reservation(ReservationStatus.CONFIRMED, 3001L, ROOM_TYPE_ID));
-        when(orderMapper.insert(any(OrderPo.class))).thenAnswer(invocation -> {
-            OrderPo order = invocation.getArgument(0);
-            order.setId(88L);
-            return 1;
-        });
+        when(orderMapper.insert(any(Order.class), any()))
+                .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.selectById(88L)).thenReturn(new OrderPo());
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
 
         service.openTable(9L, null);
 
@@ -1048,17 +1032,15 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableIsIdempotentForConvertedReservation() {
         givenReservation(reservation(ReservationStatus.CONVERTED, 3001L, ROOM_TYPE_ID, 88L, null));
-        OrderPo existing = new OrderPo();
-        existing.setId(88L);
-        existing.setStatus("SERVING");
-        when(orderMapper.selectById(88L)).thenReturn(existing);
+        Order existing = order(88L, "SERVING");
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(existing));
         when(ktvSessionService.findByOrderId(88L)).thenReturn(session(555L));
 
-        OrderPo opened = service.openTable(9L, null);
+        OrderView opened = service.openTable(9L, null);
 
-        assertEquals(88L, opened.getId());
-        assertEquals(555L, opened.getSessionId());
-        verify(orderMapper, never()).insert(any(OrderPo.class));
+        assertEquals(88L, opened.id());
+        assertEquals(555L, opened.sessionId());
+        verify(orderMapper, never()).insert(any(Order.class), any());
         verifyNoInteractions(auditClient);
     }
 
@@ -1156,6 +1138,13 @@ class ReservationApplicationServiceTest {
     /** 会话是 KTV 子域的不可变记录：本测试只消费它的标识（KTV 侧细节由 KTV 测试覆盖）。 */
     private static KtvSession session(Long id) {
         return KtvSession.reserved(TENANT_ID, STORE_ID, "KTV", 88L, 3001L, "VIP 01", "V3001").withId(id);
+    }
+
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(Long id, String status) {
+        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
     }
 
     /** 库里既有预约（读路径 fixture）：审计快照固定，便于断言响应里的记账值。 */

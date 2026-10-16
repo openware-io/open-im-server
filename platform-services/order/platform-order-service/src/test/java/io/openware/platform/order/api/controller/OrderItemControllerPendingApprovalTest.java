@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -24,10 +25,12 @@ import io.openware.platform.order.infra.cache.PendingApprovalCache;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.AuditSnapshot;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -65,9 +68,9 @@ class OrderItemControllerPendingApprovalTest {
     private static final long TENANT_ID = 1001L;
     private static final Long STORE_ID = 2001L;
 
-    private OrderItemMapper orderItemMapper;
+    private OrderItemRepository orderItemMapper;
     private CatalogItemRepository catalogItemRepository;
-    private OrderMapper orderMapper;
+    private OrderRepository orderMapper;
     private ProductRepository productRepository;
     private KtvSessionApplicationService ktvSessionService;
     private PendingApprovalCache cache;
@@ -77,14 +80,13 @@ class OrderItemControllerPendingApprovalTest {
 
     @BeforeEach
     void setUp() {
-        orderItemMapper = mock(OrderItemMapper.class);
+        orderItemMapper = mock(OrderItemRepository.class);
         catalogItemRepository = mock(CatalogItemRepository.class);
-        orderMapper = mock(OrderMapper.class);
+        orderMapper = mock(OrderRepository.class);
         productRepository = mock(ProductRepository.class);
         ktvSessionService = mock(KtvSessionApplicationService.class);
         // TTL 与生产默认一致（3s）：缓存不会在测试期间自然过期，因此失效断言只可能来自写路径。
-        cache = new PendingApprovalCache(3000);
-        pendingApprovalService = new PendingApprovalApplicationService(
+        cache = new PendingApprovalCache(3000);        pendingApprovalService = new PendingApprovalApplicationService(
                 orderItemMapper, orderMapper, ktvSessionService, cache);
         controller = new OrderItemController(orderItemMapper, catalogItemRepository,
                 mock(SettlementApplicationService.class), orderMapper,
@@ -94,9 +96,14 @@ class OrderItemControllerPendingApprovalTest {
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
-        when(orderMapper.selectBatchIds(any())).thenReturn(List.of(order("DRAFT")));
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order("DRAFT"));
+        when(orderMapper.findByIds(any())).thenReturn(List.of(order("DRAFT")));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("DRAFT")));
         when(ktvSessionService.listByOrderIds(any())).thenReturn(Map.of());
+        // 端口约定 insert 返回「带主键的聚合」：mock 回填主键，控制器要用返回值继续。
+        when(orderItemMapper.insert(any(OrderItem.class))).thenAnswer(invocation -> {
+            OrderItem inserted = invocation.getArgument(0);
+            return inserted.withId(ITEM_ID);
+        });
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,
                 List.of("order.add_item")));
     }
@@ -110,13 +117,12 @@ class OrderItemControllerPendingApprovalTest {
     @Test
     void confirm_invalidatesPendingApprovalCache() {
         seedCachedPendingView();
-        when(orderItemMapper.selectById(ITEM_ID)).thenReturn(pendingItem());
-        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(1);
-        when(orderItemMapper.updateById(any(OrderItemPo.class))).thenReturn(1);
+        when(orderItemMapper.findById(ITEM_ID)).thenReturn(Optional.of(pendingItem()));
+        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(true);
 
-        OrderItemPo confirmed = controller.confirm(ORDER_ID, ITEM_ID);
+        OrderItemView confirmed = controller.confirm(ORDER_ID, ITEM_ID);
 
-        assertEquals("ACTIVE", confirmed.getStatus());
+        assertEquals("ACTIVE", confirmed.status());
         assertCacheInvalidatedAndReloads();
     }
 
@@ -124,12 +130,12 @@ class OrderItemControllerPendingApprovalTest {
     @Test
     void reject_invalidatesPendingApprovalCache() {
         seedCachedPendingView();
-        when(orderItemMapper.selectById(ITEM_ID)).thenReturn(pendingItem());
-        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(1);
+        when(orderItemMapper.findById(ITEM_ID)).thenReturn(Optional.of(pendingItem()));
+        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(true);
 
-        OrderItemPo rejected = controller.reject(ORDER_ID, ITEM_ID);
+        OrderItemView rejected = controller.reject(ORDER_ID, ITEM_ID);
 
-        assertEquals("REJECTED", rejected.getStatus());
+        assertEquals("REJECTED", rejected.status());
         assertCacheInvalidatedAndReloads();
     }
 
@@ -153,8 +159,8 @@ class OrderItemControllerPendingApprovalTest {
      */
     @Test
     void confirm_losingConcurrencyRace_returns409() throws Exception {
-        when(orderItemMapper.selectById(ITEM_ID)).thenReturn(pendingItem());
-        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(0);
+        when(orderItemMapper.findById(ITEM_ID)).thenReturn(Optional.of(pendingItem()));
+        when(orderItemMapper.markApproval(any(), any(), any(), any(), any())).thenReturn(false);
 
         mvc.perform(post("/business/orders/" + ORDER_ID + "/items/" + ITEM_ID + "/confirm")
                         .contentType(MediaType.APPLICATION_JSON))
@@ -164,7 +170,9 @@ class OrderItemControllerPendingApprovalTest {
 
     /** 前置：把「有 1 条待确认加项」的聚合视图灌进真实缓存（选择列表已回源 1 次）。 */
     private void seedCachedPendingView() {
-        when(orderItemMapper.selectList(any())).thenReturn(List.of(pendingItem()));
+        when(orderItemMapper.list(any())).thenReturn(List.of(new Persisted<>(pendingItem(),
+                new AuditSnapshot(null, LocalDateTime.of(2026, 9, 19, 20, 0, 0), null,
+                        LocalDateTime.of(2026, 9, 19, 20, 0, 0)))));
         pendingApprovalService.pendingForCurrentStore();
         assertTrue(cache.get(TENANT_ID, STORE_ID).isPresent(), "前置条件：聚合视图必须已进本门店缓存");
     }
@@ -173,17 +181,14 @@ class OrderItemControllerPendingApprovalTest {
     private void assertCacheInvalidatedAndReloads() {
         assertTrue(cache.get(TENANT_ID, STORE_ID).isEmpty(), "写路径后必须失效本门店聚合缓存（角标立即更新）");
         pendingApprovalService.pendingForCurrentStore();
-        verify(orderItemMapper, times(2)).selectList(any());
+        verify(orderItemMapper, times(2)).list(any());
     }
 
-    private static OrderPo order(String status) {
-        OrderPo po = new OrderPo();
-        po.setId(ORDER_ID);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setStatus(status);
-        po.setCurrencyCode("CNY");
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(String status) {
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status,
+                "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
     }
 
     private static CatalogItem catalogItem() {
@@ -191,19 +196,11 @@ class OrderItemControllerPendingApprovalTest {
                 new BigDecimal("500"), null, List.of(), null, "ACTIVE", false, 0);
     }
 
-    private static OrderItemPo pendingItem() {
-        OrderItemPo po = new OrderItemPo();
-        po.setId(ITEM_ID);
-        po.setTenantId(TENANT_ID);
-        po.setOrderId(ORDER_ID);
-        po.setNameSnapshot("可乐");
-        po.setQuantity(BigDecimal.ONE);
-        po.setUnitPrice(new BigDecimal("500"));
-        po.setTotalAmount(new BigDecimal("500"));
-        po.setCurrencyCode("CNY");
-        po.setStatus("PENDING_APPROVAL");
-        po.setInventoryStatus("NOT_APPLICABLE");
-        po.setCreatedAt(LocalDateTime.of(2026, 9, 19, 20, 0, 0));
-        return po;
+    private static OrderItem pendingItem() {
+        // 待确认加项：提交时间 createdAt 是记账列（不进领域模型），由读路径的记账快照带回。
+        return new OrderItem(ITEM_ID, TENANT_ID, STORE_ID, "KTV", ORDER_ID, "ADD_ON", null, null, "可乐",
+                new BigDecimal("500"), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO,
+                new BigDecimal("500"), "CNY", null, OrderItem.STATUS_PENDING_APPROVAL,
+                OrderItem.SOURCE_CUSTOMER, "NOT_APPLICABLE", null, null, null, null, null);
     }
 }

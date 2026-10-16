@@ -1,17 +1,18 @@
 package io.openware.platform.order.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.platform.order.application.InventoryApplicationService;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -23,42 +24,44 @@ import java.util.List;
 @RestController
 @RequestMapping("/admin/orders")
 public class InventoryRecoveryAdminController {
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final InventoryApplicationService inventoryService;
     private final AuditClient auditClient;
 
     @Autowired
-    public InventoryRecoveryAdminController(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
+    public InventoryRecoveryAdminController(OrderRepository orderRepository,
+                                            OrderItemRepository orderItemRepository,
                                             InventoryApplicationService inventoryService, AuditClient auditClient) {
-        this.orderMapper = orderMapper;
-        this.orderItemMapper = orderItemMapper;
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
         this.inventoryService = inventoryService;
         this.auditClient = auditClient;
     }
 
     /** 兼容既有装配：不传审计客户端时使用关闭态（生产装配始终注入真实客户端）。 */
-    public InventoryRecoveryAdminController(OrderMapper orderMapper, OrderItemMapper orderItemMapper,
+    public InventoryRecoveryAdminController(OrderRepository orderRepository,
+                                            OrderItemRepository orderItemRepository,
                                             InventoryApplicationService inventoryService) {
-        this(orderMapper, orderItemMapper, inventoryService, AuditClient.disabled());
+        this(orderRepository, orderItemRepository, inventoryService, AuditClient.disabled());
     }
 
     @GetMapping("/{id}/inventory-recovery")
-    public List<OrderItemPo> list(@PathVariable Long id) {
+    public List<OrderItemView> list(@PathVariable Long id) {
         PermissionGuard.require("inventory.recovery.view");
-        OrderPo order = requireOrder(id);
-        if (!"VOIDED".equals(order.getStatus())) {
+        Order order = requireOrder(id);
+        if (!"VOIDED".equals(order.status())) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅作废订单可处理库存回补");
         }
-        return orderItemMapper.selectList(new LambdaQueryWrapper<OrderItemPo>()
-                .eq(OrderItemPo::getTenantId, order.getTenantId()).eq(OrderItemPo::getOrderId, id)
-                .eq(OrderItemPo::getInventoryStatus, "CONSUMED").orderByAsc(OrderItemPo::getId));
+        return orderItemRepository.list(OrderItemQuery.consumedOfOrder(order.tenantId(), id)).stream()
+                .map(row -> OrderItemView.from(row.aggregate()))
+                .toList();
     }
 
     @PostMapping("/{id}/items/{itemId}/inventory-recovery")
     @Transactional
-    public OrderItemPo decide(@PathVariable Long id, @PathVariable Long itemId,
-                              @RequestBody RecoveryRequest request) {
+    public OrderItemView decide(@PathVariable Long id, @PathVariable Long itemId,
+                                @RequestBody RecoveryRequest request) {
         PermissionGuard.require("inventory.recovery.confirm");
         try {
             return doDecide(id, itemId, request);
@@ -69,52 +72,52 @@ public class InventoryRecoveryAdminController {
         }
     }
 
-    private OrderItemPo doDecide(Long id, Long itemId, RecoveryRequest request) {
-        OrderPo order = requireOrder(id);
-        if (!"VOIDED".equals(order.getStatus())) {
+    private OrderItemView doDecide(Long id, Long itemId, RecoveryRequest request) {
+        Order order = requireOrder(id);
+        if (!"VOIDED".equals(order.status())) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅作废订单可处理库存回补");
         }
-        OrderItemPo item = orderItemMapper.selectById(itemId);
-        if (item == null || !id.equals(item.getOrderId()) || !order.getTenantId().equals(item.getTenantId())) {
+        OrderItem item = orderItemRepository.findById(itemId).orElse(null);
+        if (item == null || !id.equals(item.orderId()) || !order.tenantId().equals(item.tenantId())) {
             throw new BusinessException("ORDER_ITEM_NOT_FOUND", "订单明细不存在");
         }
-        if (!"CONSUMED".equals(item.getInventoryStatus()) || item.getInventoryMaterialId() == null) {
+        if (!"CONSUMED".equals(item.inventoryStatus()) || item.inventoryMaterialId() == null) {
             throw new BusinessException("INVENTORY_RECOVERY_INVALID", "该明细无需回补或已处理");
         }
         boolean recover = Boolean.TRUE.equals(request.recover());
+        String inventoryStatus;
+        String decision;
         if (recover) {
-            inventoryService.changeStock(item.getInventoryMaterialId(), item.getQuantity(), "REVERSE", "ORDER_ITEM",
+            inventoryService.changeStock(item.inventoryMaterialId(), item.quantity(), "REVERSE", "ORDER_ITEM",
                     String.valueOf(itemId), request.reason(), "order-item:" + itemId + ":reverse");
-            item.setInventoryStatus("REVERSED");
-            item.setInventoryRecoveryDecision("RECOVERED");
+            inventoryStatus = "REVERSED";
+            decision = "RECOVERED";
         } else {
-            item.setInventoryStatus("NOT_RECOVERED");
-            item.setInventoryRecoveryDecision("NOT_RECOVERED");
+            inventoryStatus = "NOT_RECOVERED";
+            decision = "NOT_RECOVERED";
         }
         TenantContext context = TenantContextHolder.get();
-        item.setInventoryRecoveryReason(request.reason());
-        item.setInventoryRecoveryDecidedBy(context == null ? null : context.accountId());
-        item.setInventoryRecoveryDecidedAt(LocalDateTime.now());
-        item.setUpdatedAt(LocalDateTime.now());
-        orderItemMapper.updateById(item);
+        // 领域模型不可变：决定结果返回新实例，落库用的是返回值。
+        OrderItem decided = item.withInventoryRecovery(inventoryStatus, decision, request.reason(),
+                context == null ? null : context.accountId(), LocalDateTime.now());
+        orderItemRepository.update(decided);
         // 库存回补是「作废订单的补偿动作」：回补与不回补都必须留痕（含原因与决定人）。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("order.recovery.confirm")
                 .resourceType("ord_order_item").resourceId(String.valueOf(itemId))
-                .resourceName(item.getNameSnapshot())
+                .resourceName(item.nameSnapshot())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey("order-item:" + itemId + ":recovery-decision")
                 .detailJson("{\"orderId\":" + id + ",\"recovered\":" + recover + ",\"reason\":\""
                         + (request.reason() == null ? "" : request.reason().replace("\"", "\\\""))
-                        + "\",\"inventoryMaterialId\":" + item.getInventoryMaterialId() + "}")
+                        + "\",\"inventoryMaterialId\":" + item.inventoryMaterialId() + "}")
                 .build());
-        return item;
+        return OrderItemView.from(decided);
     }
 
-    private OrderPo requireOrder(Long id) {
-        OrderPo order = orderMapper.selectById(id);
-        if (order == null) throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
-        return order;
+    private Order requireOrder(Long id) {
+        return orderRepository.findById(id)
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单不存在"));
     }
 
     /**

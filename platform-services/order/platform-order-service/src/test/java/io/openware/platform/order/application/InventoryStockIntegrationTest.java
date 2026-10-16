@@ -14,6 +14,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.controller.InventoryRecoveryAdminController;
 import io.openware.platform.order.api.dto.InventoryMaterialView;
+import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
@@ -216,13 +217,13 @@ class InventoryStockIntegrationTest {
     orderItemMapper.updateById(item);
     assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("3")));
 
-    List<OrderItemPo> pending = recoveryController.list(order.getId());
+    List<OrderItemView> pending = recoveryController.list(order.getId());
     assertEquals(1, pending.size(), "作废订单的已扣减明细必须出现在回补列表");
 
-    OrderItemPo recovered = recoveryController.decide(order.getId(), item.getId(),
+    OrderItemView recovered = recoveryController.decide(order.getId(), item.getId(),
         new InventoryRecoveryAdminController.RecoveryRequest(true, "作废回补"));
-    assertEquals("REVERSED", recovered.getInventoryStatus());
-    assertEquals("RECOVERED", recovered.getInventoryRecoveryDecision());
+    assertEquals("REVERSED", recovered.inventoryStatus());
+    assertEquals("RECOVERED", recovered.inventoryRecoveryDecision());
     assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("5")), "回补后库存必须回到 5");
 
     BusinessException repeated = assertThrows(BusinessException.class, () -> recoveryController.decide(
@@ -255,11 +256,11 @@ class InventoryStockIntegrationTest {
     item.setUpdatedAt(LocalDateTime.now());
     orderItemMapper.insert(item);
 
-    OrderItemPo decided = recoveryController.decide(order.getId(), item.getId(),
+    OrderItemView decided = recoveryController.decide(order.getId(), item.getId(),
         new InventoryRecoveryAdminController.RecoveryRequest(false, "顾客已取走"));
 
-    assertEquals("NOT_RECOVERED", decided.getInventoryStatus());
-    assertEquals("NOT_RECOVERED", decided.getInventoryRecoveryDecision());
+    assertEquals("NOT_RECOVERED", decided.inventoryStatus());
+    assertEquals("NOT_RECOVERED", decided.inventoryRecoveryDecision());
     assertEquals(0, onHand(material.id()).signum());
   }
 

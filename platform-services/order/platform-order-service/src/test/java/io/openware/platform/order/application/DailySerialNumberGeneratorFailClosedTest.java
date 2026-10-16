@@ -12,14 +12,14 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.platform.order.application.DailySerialNumberGenerator.DocType;
-import io.openware.platform.order.infra.persistence.mapper.DailySerialMapper;
+import io.openware.platform.order.domain.order.repository.DailySerialRepository;
+import java.util.Optional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 单号生成的**失败语义**（失败关闭）与并发首单重试路径：
@@ -35,12 +35,12 @@ class DailySerialNumberGeneratorFailClosedTest {
     private static final Instant MOMENT = Instant.parse("2026-09-19T12:00:00Z");
     private static final LocalDate BUSINESS_DATE = LocalDate.of(2026, 9, 19);
 
-    private DailySerialMapper mapper;
+    private DailySerialRepository mapper;
     private DailySerialNumberGenerator generator;
 
     @BeforeEach
     void setUp() {
-        mapper = mock(DailySerialMapper.class);
+        mapper = mock(DailySerialRepository.class);
         generator = new DailySerialNumberGenerator(mapper);
     }
 
@@ -59,8 +59,8 @@ class DailySerialNumberGeneratorFailClosedTest {
     /** 建行语句本身失败（权限/表缺失等）：同样失败关闭，不吞异常返回号。 */
     @Test
     void insertFailureFailsClosed() {
-        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(0);
-        when(mapper.insertFirst(any(), any(), any(), any()))
+        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(false);
+        when(mapper.insertFirstIfAbsent(any(), any(), any(), any()))
                 .thenThrow(new DataAccessResourceFailureException("table missing"));
 
         BusinessException failure = assertThrows(BusinessException.class,
@@ -72,8 +72,8 @@ class DailySerialNumberGeneratorFailClosedTest {
     /** 自增成功但读回为空（数据被并发删除等异常态）：失败关闭，而不是当作 0/1 发出去。 */
     @Test
     void unreadableSequenceFailsClosed() {
-        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(1);
-        when(mapper.selectCurrentSeq(any(), any(), any())).thenReturn(null);
+        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(true);
+        when(mapper.currentSequence(any(), any(), any())).thenReturn(Optional.empty());
 
         BusinessException failure = assertThrows(BusinessException.class,
                 () -> generator.next(DocType.ORDER, TENANT_ID, MOMENT));
@@ -81,25 +81,31 @@ class DailySerialNumberGeneratorFailClosedTest {
         assertEquals(DailySerialNumberGenerator.CODE_SEQUENCE_UNAVAILABLE, failure.getCode());
     }
 
-    /** 并发首单被抢：建行撞唯一键后重试自增，最终拿到正确的下一个序号（不是失败）。 */
+    /**
+     * 并发首单被抢：建行被唯一键挡下后重试自增，最终拿到正确的下一个序号（不是失败）。
+     *
+     * <p>「撞唯一键」由端口表达成 {@code insertFirstIfAbsent == false}（适配器把
+     * {@code DuplicateKeyException} 翻成 false，见 {@code DailySerialRepositoryAdapter}）；
+     * 这里断言的是应用层的重试语义，异常→false 的翻译由适配器自己的测试钉住。
+     */
     @Test
     void concurrentFirstAllocationRetriesIncrementAndSucceeds() {
-        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(0, 1);
-        when(mapper.insertFirst(any(), any(), any(), any())).thenThrow(new DuplicateKeyException("dup"));
-        when(mapper.selectCurrentSeq(any(), any(), any())).thenReturn(2L);
+        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(false, true);
+        when(mapper.insertFirstIfAbsent(any(), any(), any(), any())).thenReturn(false);
+        when(mapper.currentSequence(any(), any(), any())).thenReturn(Optional.of(2L));
 
         String number = generator.next(DocType.ORDER, TENANT_ID, MOMENT);
 
         assertEquals("O202609190002", number);
-        verify(mapper, times(1)).insertFirst(eq(TENANT_ID), eq(DocType.ORDER.name()), eq(BUSINESS_DATE),
+        verify(mapper, times(1)).insertFirstIfAbsent(eq(TENANT_ID), eq(DocType.ORDER.name()), eq(BUSINESS_DATE),
                 any(LocalDateTime.class));
     }
 
     /** 重试上限耗尽（极端竞争/行被反复抢占）：失败关闭，宁可让创建失败也不发不确定的号。 */
     @Test
     void exhaustedAllocationAttemptsFailClosed() {
-        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(0);
-        when(mapper.insertFirst(any(), any(), any(), any())).thenThrow(new DuplicateKeyException("dup"));
+        when(mapper.incrementIfPresent(any(), any(), any(), any())).thenReturn(false);
+        when(mapper.insertFirstIfAbsent(any(), any(), any(), any())).thenReturn(false);
 
         BusinessException failure = assertThrows(BusinessException.class,
                 () -> generator.next(DocType.ORDER, TENANT_ID, MOMENT));

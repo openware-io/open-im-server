@@ -3,14 +3,13 @@ package io.openware.platform.order.application;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.time.StoreTimeService;
-import io.openware.platform.order.infra.persistence.mapper.DailySerialMapper;
+import io.openware.platform.order.domain.order.repository.DailySerialRepository;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -112,10 +111,10 @@ public class DailySerialNumberGenerator {
     /** 分配并发冲突（建行被抢）时的重试上限：正常竞争一次即成功，重试只兜异常路径。 */
     private static final int MAX_ALLOCATE_ATTEMPTS = 3;
 
-    private final DailySerialMapper dailySerialMapper;
+    private final DailySerialRepository serialRepository;
 
-    public DailySerialNumberGenerator(DailySerialMapper dailySerialMapper) {
-        this.dailySerialMapper = dailySerialMapper;
+    public DailySerialNumberGenerator(DailySerialRepository serialRepository) {
+        this.serialRepository = serialRepository;
     }
 
     /**
@@ -196,12 +195,15 @@ public class DailySerialNumberGenerator {
      *
      * <p>先自增、再建行、被抢则重试：三条语句都在同一个事务里，
      * 自增持锁期间的读回必然是本事务写入的值，因此并发下不会出现两路拿到同一个序号。
+     *
+     * <p>「被抢」由端口表达成 {@code insertFirstIfAbsent == false}（适配器把唯一键冲突翻成 {@code false}）：
+     * 建行失败不是错误，只是本轮没抢到，下一轮走自增分支。
      */
     private long allocate(Long tenantId, String bizType, LocalDate businessDate) {
         LocalDateTime now = LocalDateTime.now();
         for (int attempt = 1; attempt <= MAX_ALLOCATE_ATTEMPTS; attempt++) {
-            if (dailySerialMapper.incrementIfPresent(tenantId, bizType, businessDate, now) == 1) {
-                Long sequence = dailySerialMapper.selectCurrentSeq(tenantId, bizType, businessDate);
+            if (serialRepository.incrementIfPresent(tenantId, bizType, businessDate, now)) {
+                Long sequence = serialRepository.currentSequence(tenantId, bizType, businessDate).orElse(null);
                 if (sequence == null) {
                     // 自增成功后行必然存在；读不到就是数据被并发删除等异常态，直接失败关闭。
                     throw new BusinessException(CODE_SEQUENCE_UNAVAILABLE,
@@ -209,14 +211,12 @@ public class DailySerialNumberGenerator {
                 }
                 return sequence;
             }
-            try {
-                dailySerialMapper.insertFirst(tenantId, bizType, businessDate, now);
+            if (serialRepository.insertFirstIfAbsent(tenantId, bizType, businessDate, now)) {
                 return 1L;
-            } catch (DuplicateKeyException concurrentCreate) {
-                // 另一个事务刚建了同一行（并发首单）：本轮没抢到，下一轮走自增分支。
-                log.debug("当日序号行并发创建，重试自增: tenantId={}, bizType={}, businessDate={}, attempt={}",
-                        tenantId, bizType, businessDate, attempt);
             }
+            // 另一个事务刚建了同一行（并发首单）：本轮没抢到，下一轮走自增分支。
+            log.debug("当日序号行并发创建，重试自增: tenantId={}, bizType={}, businessDate={}, attempt={}",
+                    tenantId, bizType, businessDate, attempt);
         }
         log.warn("当日序号分配重试耗尽: tenantId={}, bizType={}, businessDate={}", tenantId, bizType, businessDate);
         throw new BusinessException(CODE_SEQUENCE_UNAVAILABLE, "单号序号分配冲突，请稍后重试");

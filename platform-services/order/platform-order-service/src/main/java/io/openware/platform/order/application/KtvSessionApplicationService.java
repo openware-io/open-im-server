@@ -1,6 +1,5 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
@@ -11,11 +10,13 @@ import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.ktv.service.KtvRoomFeeCalculator;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import lombok.extern.slf4j.Slf4j;
@@ -49,8 +50,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 @Service
 public class KtvSessionApplicationService {
     private final KtvSessionRepository sessionRepository;
-    private final OrderMapper orderMapper;
-    private final OrderItemMapper orderItemMapper;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
     private final KtvPricingPlanProvider pricingPlanProvider;
     private final AuditClient auditClient;
     private final OrderAmountApplicationService orderAmounts;
@@ -63,16 +64,16 @@ public class KtvSessionApplicationService {
 
     @Autowired
     public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
-                                        OrderMapper orderMapper,
-                                        OrderItemMapper orderItemMapper,
+                                        OrderRepository orderRepository,
+                                        OrderItemRepository orderItemRepository,
                                         KtvPricingPlanProvider pricingPlanProvider,
                                         AuditClient auditClient,
                                         OrderAmountApplicationService orderAmounts,
                                         ResourceStateClient resourceStateClient,
                                         SettlementApplicationService settlementService) {
         this.sessionRepository = sessionRepository;
-        this.orderMapper = orderMapper;
-        this.orderItemMapper = orderItemMapper;
+        this.orderRepository = orderRepository;
+        this.orderItemRepository = orderItemRepository;
         this.pricingPlanProvider = pricingPlanProvider;
         this.auditClient = auditClient;
         this.orderAmounts = orderAmounts;
@@ -82,24 +83,24 @@ public class KtvSessionApplicationService {
 
     /** 兼容既有装配/单元测试：无资源客户端时跳过占用与清洁同步（可用性降级）。 */
     public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
-                                        OrderMapper orderMapper,
-                                        OrderItemMapper orderItemMapper,
+                                        OrderRepository orderRepository,
+                                        OrderItemRepository orderItemRepository,
                                         KtvPricingPlanProvider pricingPlanProvider,
                                         AuditClient auditClient,
                                         OrderAmountApplicationService orderAmounts) {
-        this(sessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts,
+        this(sessionRepository, orderRepository, orderItemRepository, pricingPlanProvider, auditClient, orderAmounts,
                 null, null);
     }
 
     /** 兼容既有装配/单元测试：有资源客户端、但不做结台即结算（结算服务缺省）。 */
     public KtvSessionApplicationService(KtvSessionRepository sessionRepository,
-                                        OrderMapper orderMapper,
-                                        OrderItemMapper orderItemMapper,
+                                        OrderRepository orderRepository,
+                                        OrderItemRepository orderItemRepository,
                                         KtvPricingPlanProvider pricingPlanProvider,
                                         AuditClient auditClient,
                                         OrderAmountApplicationService orderAmounts,
                                         ResourceStateClient resourceStateClient) {
-        this(sessionRepository, orderMapper, orderItemMapper, pricingPlanProvider, auditClient, orderAmounts,
+        this(sessionRepository, orderRepository, orderItemRepository, pricingPlanProvider, auditClient, orderAmounts,
                 resourceStateClient, null);
     }
 
@@ -155,15 +156,15 @@ public class KtvSessionApplicationService {
     /** 创建包厢会话：RESERVED（快速开台 createOrder 同步创建，关联 orderId + 包厢 resourceId，打通开台→计时→结台链路）。 */
     @Transactional
     public KtvSession create(Long tenantId, Long orderId, Long roomResourceId) {
-        OrderPo order = orderMapper == null ? null : orderMapper.selectById(orderId);
+        Order order = orderRepository == null || orderId == null ? null : orderRepository.findById(orderId).orElse(null);
         Long storeId = null;
         String businessType = null;
         if (order != null) {
-            if (!tenantId.equals(order.getTenantId())) {
+            if (!tenantId.equals(order.tenantId())) {
                 throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
             }
-            storeId = order.getStoreId();
-            businessType = order.getBusinessType();
+            storeId = order.storeId();
+            businessType = order.businessType();
         }
         // 包厢名/编码快照在创建时取一次（资源服务不可达时为空，读路径允许回源一次）。
         ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(roomResourceId);
@@ -203,7 +204,7 @@ public class KtvSessionApplicationService {
         if (!session.reserved()) {
             throw new BusinessException("ORDER_STATUS_INVALID", "仅 RESERVED 会话可开台");
         }
-        OrderPo order = orderMapper.selectById(session.orderId());
+        Order order = orderRepository.findById(session.orderId()).orElse(null);
         // 资源快照（名称/编码/容量/房型与房型单价）在占用之前读取：人数上限校验与按房型定价都要用它，
         // 而校验必须在占用登记之前完成，否则非法人数会把占用留在资源侧（订单没开台，房态却显示使用中）。
         ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(session.roomResourceId());
@@ -213,7 +214,7 @@ public class KtvSessionApplicationService {
         // 与快速开台同一口径（fail-closed：房态服务不可达时 requireState 抛 RESOURCE_STATE_UNAVAILABLE）。
         requireRoomAvailable(session.roomResourceId());
         KtvPricingPlan plan = pricingPlanProvider.resolve(session.tenantId(),
-                order == null ? null : order.getStoreId());
+                order == null ? null : order.storeId());
         KtvPricingPlan effective = snapshot == null ? plan
                 : plan.forRoomType(snapshot.roomTypeCode(), snapshot.roomTypeName(),
                         snapshot.roomTypeUnitPrice(), snapshot.roomTypeServerUnitPrice());
@@ -241,16 +242,15 @@ public class KtvSessionApplicationService {
         session = applyOptimisticUpdate(session);
 
         if (order != null) {
-            if ("DRAFT".equals(order.getStatus()) || "WAITING_ARRIVAL".equals(order.getStatus())) {
-                order.setStatus("SERVING");
+            if ("DRAFT".equals(order.status()) || "WAITING_ARRIVAL".equals(order.status())) {
+                order = order.withStatus("SERVING");
             }
             // 开台即计费（2026-09-19）：把房费（含 1 名标准服务人员）写成 ROOM_FEE 明细并重算订单金额。
             // 只写会话不写费用时，开台后的账单/收银只有加项金额、房费要等结台才出现——门店看到的就是「应收 0」。
             // 计费起点 billing_start_at 已含免费等待，因此刚开台的金额与「此刻结台」完全一致。
             upsertRoomFeeItem(session, order, now);
-            orderAmounts.recalculate(order);
-            order.setUpdatedAt(now);
-            persistOrderGuarded(order);
+            // 领域模型不可变：重算返回新实例，写库用的是返回值（旧实例的金额是过期的）。
+            persistOrderGuarded(orderAmounts.recalculate(order));
         }
         // 高风险写操作（开台）审计：记录操作人、包厢与占用，失败仅告警不阻断开台。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -466,17 +466,16 @@ public class KtvSessionApplicationService {
         }
         session = applyOptimisticUpdate(session);
 
-        OrderPo order = orderMapper.selectById(session.orderId());
+        Order order = orderRepository.findById(session.orderId()).orElse(null);
         if (order != null) {
             // 结台：把同一行 ROOM_FEE 明细更新成最终金额（开台时已写过一遍，这里**不能新增第二行**，否则重复计费）。
             upsertRoomFeeItem(session, order, session.closedAt());
             // 包厢计时费刚落入明细，必须在本实例上重算订单金额后再写库，否则旧金额会覆盖新快照。
-            orderAmounts.recalculate(order);
-            if ("SERVING".equals(order.getStatus())) {
-                order.setStatus("WAITING_SETTLEMENT");
+            Order recalculated = orderAmounts.recalculate(order);
+            if ("SERVING".equals(recalculated.status())) {
+                recalculated = recalculated.withStatus("WAITING_SETTLEMENT");
             }
-            order.setUpdatedAt(now);
-            persistOrderGuarded(order);
+            order = persistOrderGuarded(recalculated);
         }
         // 高风险写操作（结台）审计：异步占位，失败仅告警不阻断结台（真实实现可改同步或 Outbox 兜底）。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -514,16 +513,16 @@ public class KtvSessionApplicationService {
      * <p>结算失败（例如版本冲突）会连同本次结台一起回滚：结台与「能不能收钱」是同一笔业务，
      * 允许半成品状态反而会出现「已结台却算不出账单」的坏数据。
      */
-    private void autoSettleAfterClose(OrderPo order) {
-        if (settlementService == null || !"WAITING_SETTLEMENT".equals(order.getStatus())) {
+    private void autoSettleAfterClose(Order order) {
+        if (settlementService == null || !"WAITING_SETTLEMENT".equals(order.status())) {
             return;
         }
-        if (orderAmounts != null && orderAmounts.hasPendingApprovalItems(order.getId())) {
-            log.info("结台后仍有待确认的客户自助加项，保持待结算（处理后再结算）: orderId={}", order.getId());
+        if (orderAmounts != null && orderAmounts.hasPendingApprovalItems(order.id())) {
+            log.info("结台后仍有待确认的客户自助加项，保持待结算（处理后再结算）: orderId={}", order.id());
             return;
         }
         // 版本列缺省 0（历史数据可能为空）：结算按 expectedVersion 做乐观锁，不能把 null 带进去。
-        settlementService.settle(order.getId(), order.getVersion() == null ? 0 : order.getVersion());
+        settlementService.settle(order.id(), order.currentVersion());
     }
 
     /**
@@ -537,57 +536,70 @@ public class KtvSessionApplicationService {
      * <p>三条路径共用本方法：**开台**（endAt=now，开台即计费）、**开台中刷新**（endAt=now，定时任务）、
      * **结台**（endAt=closed_at，最终金额）。已存在则更新同一行——多行会把房费重复计入订单合计。
      */
-    private void upsertRoomFeeItem(KtvSession session, OrderPo order, LocalDateTime endAt) {
+    private void upsertRoomFeeItem(KtvSession session, Order order, LocalDateTime endAt) {
         KtvPricingPlan plan = snapshotPlan(session.billingRuleSnapshotJson(), session.tenantId(),
-                order.getStoreId());
+                order.storeId());
         if (!KtvRoomFeeCalculator.durationBillable(plan)) {
             // PACKAGE 为固定时长固定价套餐，特判逻辑后续接入 pricing 服务实现。
             return;
         }
         KtvRoomFeeCalculator.Fee fee = calculateRoomFee(session, plan, endAt);
-
-        LocalDateTime now = LocalDateTime.now();
-        OrderItemPo existing = findRoomFeeItem(session.orderId());
-        OrderItemPo item = existing == null ? new OrderItemPo() : existing;
-        if (existing == null) {
-            item.setTenantId(session.tenantId());
-            item.setStoreId(order.getStoreId());
-            item.setBusinessType(order.getBusinessType());
-            item.setOrderId(session.orderId());
-            item.setItemType("ROOM_FEE");
-            item.setStatus("ACTIVE");
-            item.setDiscountAmount(BigDecimal.ZERO);
-            item.setTaxAmount(BigDecimal.ZERO);
-            item.setCreatedAt(now);
-        }
-        item.setNameSnapshot(roomFeeItemName(plan));
-        item.setUnitPrice(BigDecimal.valueOf(fee.unitPriceMinor()));
-        item.setQuantity(BigDecimal.valueOf(fee.units()));
-        item.setTotalAmount(BigDecimal.valueOf(fee.amountMinor()));
+        String name = roomFeeItemName(plan);
+        BigDecimal unitPrice = BigDecimal.valueOf(fee.unitPriceMinor());
+        BigDecimal quantity = BigDecimal.valueOf(fee.units());
+        BigDecimal totalAmount = BigDecimal.valueOf(fee.amountMinor());
         // 币种快照（16_CURRENCY_CONVENTIONS §5）：房费明细跟随其订单的币种快照。
-        item.setCurrencyCode(Currency.parse(order.getCurrencyCode()).code());
-        item.setPriceSnapshotJson(plan.toSnapshotJson());
-        item.setUpdatedAt(now);
+        String currencyCode = Currency.parse(order.currencyCode()).code();
+        String priceSnapshotJson = plan.toSnapshotJson();
+
+        OrderItem existing = findRoomFeeItem(session.orderId());
         if (existing == null) {
-            orderItemMapper.insert(item);
+            OrderItem item = new OrderItem(
+                    null,
+                    session.tenantId(),
+                    order.storeId(),
+                    order.businessType(),
+                    session.orderId(),
+                    "ROOM_FEE",
+                    null,
+                    null,
+                    name,
+                    unitPrice,
+                    quantity,
+                    BigDecimal.ZERO,
+                    BigDecimal.ZERO,
+                    totalAmount,
+                    currencyCode,
+                    priceSnapshotJson,
+                    OrderItem.STATUS_ACTIVE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null);
+            orderItemRepository.insert(item);
         } else {
-            orderItemMapper.updateById(item);
+            // 已存在则更新同一行（多行会把房费重复计入订单合计）；审计列 updated_at 由适配器刷成「现在」。
+            orderItemRepository.update(existing.withPricing(name, unitPrice, quantity, totalAmount,
+                    currencyCode, priceSnapshotJson));
         }
     }
 
     /** 订单已有的房费明细（订单内唯一一行；历史脏数据取最早一行，后续更新都落在它上面）。 */
-    private OrderItemPo findRoomFeeItem(Long orderId) {
-        QueryWrapper<OrderItemPo> query = new QueryWrapper<>();
-        query.eq("order_id", orderId).eq("item_type", "ROOM_FEE").orderByAsc("id").last("LIMIT 1");
-        List<OrderItemPo> items = orderItemMapper.selectList(query);
-        return items == null || items.isEmpty() ? null : items.get(0);
+    private OrderItem findRoomFeeItem(Long orderId) {
+        return orderItemRepository.list(OrderItemQuery.firstOfType(orderId, "ROOM_FEE")).stream()
+                .findFirst()
+                .map(Persisted::aggregate)
+                .orElse(null);
     }
 
     /**
      * 批量取多个订单「已生效（ACTIVE）房费明细金额」的合计（最小货币单位；没有房费明细的订单不在结果里）。
      *
      * <p>为什么需要批量：订单列表/详情投影一次要处理整页订单，逐单调用 {@link #findRoomFeeItem(Long)}
-     * 会变成 N+1。这里走 {@link OrderItemMapper#selectActiveRoomFeeItemsByOrderIds} 一次查完。
+     * 会变成 N+1。这里走 {@link OrderItemRepository#listActiveRoomFeeItemsByOrderIds} 一次查完。
      *
      * <p>金额口径与账单完全一致（{@code BillApplicationService#roomFeeItemsMinor}）：只取 status=ACTIVE
      * 的 ROOM_FEE 明细并按 total_amount 求和；房费在订单内只有一行，历史脏数据多行时一并求和
@@ -602,14 +614,14 @@ public class KtvSessionApplicationService {
             // 空集合不能下推（会拼出非法的 IN ()），直接返回空；调用方按「没有房费明细」处理。
             return Map.of();
         }
-        List<OrderItemPo> items = orderItemMapper.selectActiveRoomFeeItemsByOrderIds(orderIds);
+        List<OrderItem> items = orderItemRepository.listActiveRoomFeeItemsByOrderIds(orderIds);
         if (items == null || items.isEmpty()) {
             return Map.of();
         }
         Map<Long, Long> amounts = new java.util.HashMap<>();
-        for (OrderItemPo item : items) {
-            if (item.getOrderId() != null) {
-                amounts.merge(item.getOrderId(), minorOf(item.getTotalAmount()), Long::sum);
+        for (OrderItem item : items) {
+            if (item.orderId() != null) {
+                amounts.merge(item.orderId(), minorOf(item.totalAmount()), Long::sum);
             }
         }
         return amounts;
@@ -640,7 +652,7 @@ public class KtvSessionApplicationService {
      * 批量取多个订单的「已生效明细合计 + 其中房费明细合计」：订单投影一次查询拿齐两个数
      * （差额法要扣房费快照，回退基数要全明细合计），逐单查就是 N+1。
      *
-     * <p>为什么返回明细行而不是 SQL 聚合值：与 {@link OrderItemMapper#selectActiveRoomFeeItemsByOrderIds}
+     * <p>为什么返回明细行而不是 SQL 聚合值：与 {@link OrderItemRepository#listActiveRoomFeeItemsByOrderIds}
      * 同款取舍——金额列是 decimal，回读后在 Java 侧按账单同一个「BigDecimal → 最小货币单位 long」
      * 收敛，避免 SQL 聚合别名在 MySQL / 测试 H2 之间大小写不一致。行口径与账单/订单重算完全一致：
      * 只统计 {@code status=ACTIVE} 的明细（待确认/已拒绝不计入）。
@@ -650,18 +662,18 @@ public class KtvSessionApplicationService {
             // 空集合不能下推（会拼出非法的 IN ()），直接返回空；调用方按「没有明细」处理。
             return Map.of();
         }
-        List<OrderItemPo> items = orderItemMapper.selectActiveItemsByOrderIds(orderIds);
+        List<OrderItem> items = orderItemRepository.listActiveByOrderIds(orderIds);
         if (items == null || items.isEmpty()) {
             return Map.of();
         }
         Map<Long, OrderAmountSums> sums = new java.util.HashMap<>();
-        for (OrderItemPo item : items) {
-            if (item.getOrderId() == null) {
+        for (OrderItem item : items) {
+            if (item.orderId() == null) {
                 continue;
             }
-            long amount = minorOf(item.getTotalAmount());
-            boolean roomFee = "ROOM_FEE".equals(item.getItemType());
-            sums.merge(item.getOrderId(), new OrderAmountSums(amount, roomFee ? amount : 0L),
+            long amount = minorOf(item.totalAmount());
+            boolean roomFee = "ROOM_FEE".equals(item.itemType());
+            sums.merge(item.orderId(), new OrderAmountSums(amount, roomFee ? amount : 0L),
                     (left, right) -> new OrderAmountSums(
                             left.activeItemsMinor() + right.activeItemsMinor(),
                             left.roomFeeItemsMinor() + right.roomFeeItemsMinor()));
@@ -703,15 +715,13 @@ public class KtvSessionApplicationService {
             TenantContext previousContext = TenantContextHolder.get();
             try {
                 TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
-                OrderPo order = orderMapper.selectById(session.orderId());
-                if (order == null || !"SERVING".equals(order.getStatus())) {
+                Order order = orderRepository.findById(session.orderId()).orElse(null);
+                if (order == null || !"SERVING".equals(order.status())) {
                     // 会话残留但订单已终结（取消/作废）：交回状态机处理，这里不动金额。
                     continue;
                 }
                 upsertRoomFeeItem(session, order, billableEndAt(session, now));
-                orderAmounts.recalculate(order);
-                order.setUpdatedAt(now);
-                persistOrderGuarded(order);
+                persistOrderGuarded(orderAmounts.recalculate(order));
                 refreshed++;
             } catch (RuntimeException failure) {
                 log.warn("刷新开台中包厢房费失败（下一轮重试）: sessionId={}, cause={}",
@@ -979,8 +989,8 @@ public class KtvSessionApplicationService {
         }
         Long effectiveStoreId = storeId;
         if (effectiveStoreId == null) {
-            OrderPo order = session.orderId() == null ? null : orderMapper.selectById(session.orderId());
-            effectiveStoreId = order == null ? null : order.getStoreId();
+            Order order = session.orderId() == null ? null : orderRepository.findById(session.orderId()).orElse(null);
+            effectiveStoreId = order == null ? null : order.storeId();
         }
         KtvPricingPlan plan = snapshotPlan(session.billingRuleSnapshotJson(), session.tenantId(),
                 effectiveStoreId);
@@ -1009,12 +1019,22 @@ public class KtvSessionApplicationService {
      *
      * @throws BusinessException 版本已被他人改写（受影响 0 行），不静默覆盖
      */
-    private void persistOrderGuarded(OrderPo order) {
-        int expectedVersion = order.getVersion() == null ? 0 : order.getVersion();
-        if (orderMapper.updateAmountsAndStatusWithVersion(order, expectedVersion) == 0) {
+    /**
+     * 订单金额/状态的乐观锁提交：拿"刚从库里读出的 version"作为期望版本，成功后**返回推进了版本的新实例**
+     * （结台即结算要拿这个新版本去调结算，否则结算会用过期版本撞冲突）。
+     *
+     * <p>会话自身的并发由 {@link #applyOptimisticUpdate} 把关；但**同一订单上的两个不同会话**可以同时通过
+     * 各自的会话 CAS，随后两次 {@code recalculate} 都会写订单——后写者覆盖前者的金额快照。
+     * 订单侧的写入同样需要条件，{@code ord_order} 的 version 列为此而存在。
+     *
+     * @throws BusinessException 版本已被他人改写（受影响 0 行），不静默覆盖
+     */
+    private Order persistOrderGuarded(Order order) {
+        int expectedVersion = order.currentVersion();
+        if (!orderRepository.updateAmountsAndStatusWithVersion(order, expectedVersion)) {
             throw new BusinessException("ORDER_VERSION_CONFLICT", "订单金额已被并发修改，请重试");
         }
-        order.setVersion(expectedVersion + 1);
+        return order.withVersion(expectedVersion + 1);
     }
 
     /**

@@ -1,6 +1,5 @@
 package io.openware.platform.order.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
@@ -9,6 +8,8 @@ import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.platform.order.api.dto.OrderItemView;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
@@ -17,17 +18,17 @@ import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.model.Product;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -41,16 +42,16 @@ public class OrderItemController {
     /** 消费者自助加项的来源：PENDING_APPROVAL 待服务人员确认，不计入应收。 */
     private static final String SOURCE_CUSTOMER = "CUSTOMER";
 
-    private final OrderItemMapper orderItemMapper;
+    private final OrderItemRepository orderItemRepository;
     private final CatalogItemRepository catalogItemRepository;
     private final SettlementApplicationService settlementService;
-    private final OrderMapper orderMapper;
+    private final OrderRepository orderRepository;
     private final InventoryApplicationService inventoryService;
     private final ProductRepository productRepository;
     private final OrderAmountApplicationService orderAmounts;
     private final AuditClient auditClient;
     /** account_id → cst_member：消费者自助路径的订单归属校验（与 /me/orders 同一份会员口径）。 */
-    private final CustomerLookupMapper customerLookupMapper;
+    private final MemberLookupProvider memberLookupProvider;
     /**
      * 待确认加项聚合（角标/卡片标记的数据源）：确认/拒绝/客户提交后失效缓存，保证提醒**及时更新**。
      * 兼容装配下可为 null（单测），失效逻辑按空操作处理。
@@ -58,46 +59,50 @@ public class OrderItemController {
     private final PendingApprovalApplicationService pendingApprovalService;
 
     @Autowired
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
-                               SettlementApplicationService settlementService, OrderMapper orderMapper,
+    public OrderItemController(OrderItemRepository orderItemRepository,
+                               CatalogItemRepository catalogItemRepository,
+                               SettlementApplicationService settlementService, OrderRepository orderRepository,
                                InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts, AuditClient auditClient,
-                               CustomerLookupMapper customerLookupMapper,
+                               MemberLookupProvider memberLookupProvider,
                                PendingApprovalApplicationService pendingApprovalService) {
-        this.orderItemMapper = orderItemMapper;
+        this.orderItemRepository = orderItemRepository;
         this.catalogItemRepository = catalogItemRepository;
         this.settlementService = settlementService;
-        this.orderMapper = orderMapper;
+        this.orderRepository = orderRepository;
         this.inventoryService = inventoryService;
         this.productRepository = productRepository;
         this.orderAmounts = orderAmounts;
         this.auditClient = auditClient;
-        this.customerLookupMapper = customerLookupMapper;
+        this.memberLookupProvider = memberLookupProvider;
         this.pendingApprovalService = pendingApprovalService;
     }
 
     /** 兼容既有 Web 层测试与外部装配；库存能力仅在库存商品加项路径使用，审计用关闭态客户端。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
-                               SettlementApplicationService settlementService, OrderMapper orderMapper) {
-        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, null, null, null,
+    public OrderItemController(OrderItemRepository orderItemRepository,
+                               CatalogItemRepository catalogItemRepository,
+                               SettlementApplicationService settlementService, OrderRepository orderRepository) {
+        this(orderItemRepository, catalogItemRepository, settlementService, orderRepository, null, null, null,
                 AuditClient.disabled(), null, null);
     }
 
     /** 兼容既有 Web 层测试（库存 + 商品 + 金额，不含审计）。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
-                               SettlementApplicationService settlementService, OrderMapper orderMapper,
+    public OrderItemController(OrderItemRepository orderItemRepository,
+                               CatalogItemRepository catalogItemRepository,
+                               SettlementApplicationService settlementService, OrderRepository orderRepository,
                                InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts) {
-        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, inventoryService,
+        this(orderItemRepository, catalogItemRepository, settlementService, orderRepository, inventoryService,
                 productRepository, orderAmounts, AuditClient.disabled(), null, null);
     }
 
     /** 兼容既有 Web 层测试（含审计，不含消费者会员查询）。 */
-    public OrderItemController(OrderItemMapper orderItemMapper, CatalogItemRepository catalogItemRepository,
-                               SettlementApplicationService settlementService, OrderMapper orderMapper,
+    public OrderItemController(OrderItemRepository orderItemRepository,
+                               CatalogItemRepository catalogItemRepository,
+                               SettlementApplicationService settlementService, OrderRepository orderRepository,
                                InventoryApplicationService inventoryService, ProductRepository productRepository,
                                OrderAmountApplicationService orderAmounts, AuditClient auditClient) {
-        this(orderItemMapper, catalogItemRepository, settlementService, orderMapper, inventoryService,
+        this(orderItemRepository, catalogItemRepository, settlementService, orderRepository, inventoryService,
                 productRepository, orderAmounts, auditClient, null, null);
     }
 
@@ -129,7 +134,7 @@ public class OrderItemController {
      */
     @PostMapping("/items")
     @Transactional
-    public OrderItemPo addItem(@PathVariable Long orderId, @RequestBody AddItemRequest req) {
+    public OrderItemView addItem(@PathVariable Long orderId, @RequestBody AddItemRequest req) {
         AddItemRequest effective = requireAddItem(orderId, req);
         try {
             return doAddItem(orderId, effective);
@@ -140,36 +145,32 @@ public class OrderItemController {
         }
     }
 
-    private OrderItemPo doAddItem(Long orderId, AddItemRequest req) {
-        OrderPo order = requireOrder(orderId);
+    private OrderItemView doAddItem(Long orderId, AddItemRequest req) {
+        Order order = requireOrder(orderId);
         // 终态订单不可再加项：COMPLETED/VOIDED/CANCELLED 的金额快照与已收金额已经固化，
         // 允许加项会把「已收款订单」的合计改写成新值（账单凭空出现应收），不再允许。
-        if (isTerminalStatus(order.getStatus())) {
+        if (isTerminalStatus(order.status())) {
             throw new BusinessException("ORDER_STATUS_INVALID", "已完成/已作废/已取消订单不可加项");
         }
         if (req.quantity() == null || req.quantity().signum() <= 0 || req.quantity().scale() > 3) {
             throw new BusinessException("ORDER_ITEM_INVALID", "数量必须为正数且最多三位小数");
         }
-        OrderItemPo po = new OrderItemPo();
         Long tenantId = TenantContextHolder.tenantIdOrNull();
         if (tenantId == null) { throw new ApiException(401, "TENANT_CONTEXT_MISSING", "缺少租户上下文"); }
-        po.setTenantId(tenantId);
-        po.setStoreId(order.getStoreId());
-        po.setBusinessType(order.getBusinessType());
-        po.setOrderId(orderId);
 
         // 服务端价目快照：按目录项回填名称/单价，忽略客户端传入的 name/unitPrice。
         String name = req.name();
         BigDecimal unitPrice = req.unitPrice();
         String itemType = req.itemType();
         CatalogItem catalog;
+        Long catalogItemId = null;
         if (req.catalogItemId() != null) {
             catalog = catalogItemRepository.findById(req.catalogItemId())
                     .orElseThrow(() -> new BusinessException("CATALOG_ITEM_INVALID", "目录项不存在或已停用"));
             if (!catalog.active()) {
                 throw new BusinessException("CATALOG_ITEM_INVALID", "目录项不存在或已停用");
             }
-            Long orderStoreId = order.getStoreId();
+            Long orderStoreId = order.storeId();
             Long operatorStoreId = currentStoreId();
             Long currentTenantId = TenantContextHolder.tenantIdOrNull();
             if (operatorStoreId != null && !java.util.Objects.equals(operatorStoreId, orderStoreId)) {
@@ -182,7 +183,7 @@ public class OrderItemController {
             name = catalog.name();
             unitPrice = catalog.unitPrice();
             itemType = catalog.itemType();
-            po.setCatalogItemId(catalog.id());
+            catalogItemId = catalog.id();
         } else {
             throw new BusinessException("CATALOG_ITEM_REQUIRED", "加项必须选择有效目录项");
         }
@@ -191,35 +192,43 @@ public class OrderItemController {
             throw new BusinessException("ORDER_ITEM_INVALID", "加项必须关联有效目录项");
         }
 
-        po.setItemType(itemType == null || itemType.isBlank() ? "ADD_ON" : itemType);
-        po.setResourceId(req.resourceId());
-        po.setNameSnapshot(name);
-        po.setUnitPrice(unitPrice);
-        po.setQuantity(req.quantity());
-        po.setDiscountAmount(BigDecimal.ZERO);
-        po.setTaxAmount(BigDecimal.ZERO);
-        po.setTotalAmount(unitPrice.multiply(req.quantity()));
-        // 币种快照（16_CURRENCY_CONVENTIONS §5）：明细继承其所属订单的币种快照，
-        // 保证「订单 ↔ 明细」永不出现两种币种；订单币种为空（历史/异常数据）时回退默认 USD。
-        po.setCurrencyCode(Currency.parse(order.getCurrencyCode()).code());
         // 加项来源：CUSTOMER(消费者)需服务人员确认(PENDING_APPROVAL)，MERCHANT(商户/服务员)直接生效(ACTIVE)。
         String source = req.source() == null || req.source().isBlank() ? "MERCHANT" : req.source();
-        po.setSource(source);
-        po.setStatus("CUSTOMER".equals(source) ? "PENDING_APPROVAL" : "ACTIVE");
-        po.setInventoryStatus("NOT_APPLICABLE");
         // 是否占库存一律以「商品 + 物料」为准（目录项 stock_controlled 只作兜底缓存，杜绝两套口径）。
         Long inventoryMaterialId = resolveInventoryMaterial(catalog, order);
         boolean stockControlled = inventoryMaterialId != null;
-        if (stockControlled) {
-            po.setInventoryMaterialId(inventoryMaterialId);
-        }
-        po.setCreatedAt(LocalDateTime.now());
-        po.setUpdatedAt(LocalDateTime.now());
-        orderItemMapper.insert(po);
-        if (stockControlled && "ACTIVE".equals(po.getStatus())) {
-            consumeInventory(po);
-            po.setUpdatedAt(LocalDateTime.now());
-            orderItemMapper.updateById(po);
+        // 领域模型不可变：直接构造待落库明细（金额/税额 0、库存状态 NOT_APPLICABLE、其余快照列见下）。
+        OrderItem item = new OrderItem(
+                null,
+                tenantId,
+                order.storeId(),
+                order.businessType(),
+                orderId,
+                itemType == null || itemType.isBlank() ? "ADD_ON" : itemType,
+                catalogItemId,
+                req.resourceId(),
+                name,
+                unitPrice,
+                req.quantity(),
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                unitPrice.multiply(req.quantity()),
+                // 币种快照（16_CURRENCY_CONVENTIONS §5）：明细继承其所属订单的币种快照，
+                // 保证「订单 ↔ 明细」永不出现两种币种；订单币种为空（历史/异常数据）时回退默认 USD。
+                Currency.parse(order.currencyCode()).code(),
+                null,
+                "CUSTOMER".equals(source) ? OrderItem.STATUS_PENDING_APPROVAL : OrderItem.STATUS_ACTIVE,
+                source,
+                "NOT_APPLICABLE",
+                stockControlled ? inventoryMaterialId : null,
+                null,
+                null,
+                null,
+                null);
+        OrderItem saved = orderItemRepository.insert(item);
+        if (stockControlled && saved.active()) {
+            saved = consumeInventory(saved);
+            orderItemRepository.update(saved);
         }
         // 明细变了就同步订单金额快照，保证订单列表/收银应付与账单口径一致。
         recalculateOrderAmounts(orderId);
@@ -229,16 +238,16 @@ public class OrderItemController {
         // 加项/加钟/加服务：改金额快照，必须留操作日志（含服务端目录项快照与库存占用结果）。
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
                 .action("order.item.add")
-                .resourceType("ord_order_item").resourceId(String.valueOf(po.getId()))
-                .resourceName(po.getNameSnapshot())
+                .resourceType("ord_order_item").resourceId(String.valueOf(saved.id()))
+                .resourceName(saved.nameSnapshot())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"orderId\":" + orderId + ",\"catalogItemId\":" + po.getCatalogItemId()
-                        + ",\"itemType\":\"" + po.getItemType() + "\",\"quantity\":" + po.getQuantity()
-                        + ",\"unitPrice\":" + po.getUnitPrice() + ",\"totalAmount\":" + po.getTotalAmount()
-                        + ",\"status\":\"" + po.getStatus() + "\",\"inventoryMaterialId\":"
-                        + po.getInventoryMaterialId() + "}")
+                .detailJson("{\"orderId\":" + orderId + ",\"catalogItemId\":" + saved.catalogItemId()
+                        + ",\"itemType\":\"" + saved.itemType() + "\",\"quantity\":" + saved.quantity()
+                        + ",\"unitPrice\":" + saved.unitPrice() + ",\"totalAmount\":" + saved.totalAmount()
+                        + ",\"status\":\"" + saved.status() + "\",\"inventoryMaterialId\":"
+                        + saved.inventoryMaterialId() + "}")
                 .build());
-        return po;
+        return OrderItemView.from(saved);
     }
 
     /**
@@ -256,15 +265,15 @@ public class OrderItemController {
      * 与 {@code GET /me/orders} 同一份会员口径），他人订单一律 403，不放开跨会员读取。
      */
     @GetMapping("/items")
-    public List<OrderItemPo> listItems(@PathVariable Long orderId) {
+    public List<OrderItemView> listItems(@PathVariable Long orderId) {
         if (hasPermission(PERMISSION_VIEW_ORDER)) {
             requireOrder(orderId);
         } else {
             requireOwnOrder(orderId, PERMISSION_VIEW_ORDER);
         }
-        return orderItemMapper.selectList(new LambdaQueryWrapper<OrderItemPo>()
-                .eq(OrderItemPo::getOrderId, orderId)
-                .orderByAsc(OrderItemPo::getId));
+        return orderItemRepository.list(OrderItemQuery.ofOrder(orderId)).stream()
+                .map(row -> OrderItemView.from(row.aggregate()))
+                .toList();
     }
 
     /** 当前签名上下文是否持有权限码（消费端会话的权限同样来自签名 token，客户端无法伪造）。 */
@@ -301,16 +310,16 @@ public class OrderItemController {
      * <p>解析不出会员（既没有商户权限、也不是会员）时保持**既有** 403 PERMISSION_DENIED 文案，
      * 不新增可探测的信息面；解析出会员但订单不是他的，回 403 {@code ORDER_SCOPE_DENIED}。
      */
-    private OrderPo requireOwnOrder(Long orderId, String merchantPermissionCode) {
-        OrderPo order = requireOrder(orderId);
+    private Order requireOwnOrder(Long orderId, String merchantPermissionCode) {
+        Order order = requireOrder(orderId);
         TenantContext context = TenantContextHolder.get();
-        Long memberId = context == null || customerLookupMapper == null
+        Long memberId = context == null || memberLookupProvider == null
                 ? null
-                : customerLookupMapper.findMemberId(context.tenantId(), context.accountId());
+                : memberLookupProvider.findMemberId(context.tenantId(), context.accountId()).orElse(null);
         if (memberId == null) {
             throw new ApiException(403, "PERMISSION_DENIED", "缺少权限: " + merchantPermissionCode);
         }
-        if (order.getCustomerId() == null || !memberId.equals(order.getCustomerId())) {
+        if (order.customerId() == null || !memberId.equals(order.customerId())) {
             throw new ApiException(403, "ORDER_SCOPE_DENIED", "只能查看和操作本人订单");
         }
         return order;
@@ -319,7 +328,7 @@ public class OrderItemController {
     /**
      * 确认加项：服务人员确认 C 端提交的待确认加项，PENDING_APPROVAL → ACTIVE。
      *
-     * <p><b>并发</b>：状态流转走 {@link OrderItemMapper#markApproval} 的**原子条件更新**
+     * <p><b>并发</b>：状态流转走 {@link OrderItemRepository#markApproval} 的**原子条件更新**
      * （{@code WHERE status='PENDING_APPROVAL'}）。两端同时点确认/一端确认一端拒绝时只有一个赢家，
      * 输家拿到 409 {@code ORDER_ITEM_STATUS_INVALID}；重复点确认（已经是 ACTIVE）幂等返回该明细，
      * 不再重复扣库存/重复留痕。此前「先查再 updateById」存在双写与「确认后又被拒绝」的竞态。
@@ -328,31 +337,30 @@ public class OrderItemController {
      */
     @PostMapping("/items/{itemId}/confirm")
     @Transactional
-    public OrderItemPo confirm(@PathVariable Long orderId, @PathVariable Long itemId) {
+    public OrderItemView confirm(@PathVariable Long orderId, @PathVariable Long itemId) {
         PermissionGuard.require("order.add_item");
         try {
-            OrderItemPo existing = requireItem(orderId, itemId);
-            if ("ACTIVE".equals(existing.getStatus())) {
+            OrderItem existing = requireItem(orderId, itemId);
+            if (existing.active()) {
                 // 幂等：上一次确认已生效，重复点击直接回放（不重复扣库存、不重复留痕）。
-                return existing;
+                return OrderItemView.from(existing);
             }
-            if (!"PENDING_APPROVAL".equals(existing.getStatus())) {
+            if (!existing.pendingApproval()) {
                 throw new BusinessException("ORDER_ITEM_STATUS_INVALID", "仅待确认加项可确认");
             }
             Long tenantId = TenantContextHolder.tenantIdOrNull();
-            if (orderItemMapper.markApproval(tenantId, orderId, itemId, "ACTIVE", operatorId()) == 0) {
+            if (!orderItemRepository.markApproval(tenantId, orderId, itemId, OrderItem.STATUS_ACTIVE,
+                    operatorId())) {
                 // 并发输家：另一请求已确认或已拒绝。
                 throw new BusinessException("ORDER_ITEM_STATUS_INVALID", "该加项已被处理，请刷新后查看");
             }
             // 状态已由条件更新落库；这里只在本地对象上跟进库存与金额快照（不再多查一次库）。
-            OrderItemPo po = existing;
-            if ("NOT_APPLICABLE".equals(po.getInventoryStatus()) && po.getInventoryMaterialId() != null) {
-                consumeInventory(po);
+            OrderItem po = existing.approved();
+            if ("NOT_APPLICABLE".equals(po.inventoryStatus()) && po.inventoryMaterialId() != null) {
+                po = consumeInventory(po);
             }
-            po.setStatus("ACTIVE");
-            po.setUpdatedAt(LocalDateTime.now());
             // 落库 inventory_status=CONSUMED（条件更新只改了状态/操作人/时间）。
-            orderItemMapper.updateById(po);
+            orderItemRepository.update(po);
             // 待确认加项转正式生效后金额才计入，需同步订单金额快照。
             recalculateOrderAmounts(orderId);
             // 角标/卡片标记的数据源（待确认加项聚合）写后失效：本实例立即更新，多实例最坏等一个 TTL。
@@ -362,11 +370,11 @@ public class OrderItemController {
                     .action("order.item.confirm")
                     .actionLabel("订单加项确认")
                     .resourceType("ord_order_item").resourceId(String.valueOf(itemId))
-                    .resourceName(po.getNameSnapshot())
+                    .resourceName(po.nameSnapshot())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"orderId\":" + orderId + ",\"status\":\"ACTIVE\"}")
                     .build());
-            return po;
+            return OrderItemView.from(po);
         } catch (RuntimeException failure) {
             recordFailure("order.item.confirm", orderId, itemId, null, failure);
             throw failure;
@@ -399,7 +407,7 @@ public class OrderItemController {
      *
      * @return 需要扣减的物料 id；返回 null 表示该加项不占库存
      */
-    private Long resolveInventoryMaterial(CatalogItem catalog, OrderPo order) {
+    private Long resolveInventoryMaterial(CatalogItem catalog, Order order) {
         Product product = resolveLinkedProduct(catalog, order);
         if (product != null) {
             if (ITEM_TYPE_SERVICE.equalsIgnoreCase(text(product.itemType()))) {
@@ -434,11 +442,11 @@ public class OrderItemController {
     }
 
     /** 按目录项反查关联商品（租户 + 订单门店口径；测试装配未注入商品端口时返回 null 走兜底）。 */
-    private Product resolveLinkedProduct(CatalogItem catalog, OrderPo order) {
+    private Product resolveLinkedProduct(CatalogItem catalog, Order order) {
         if (productRepository == null || catalog == null || catalog.id() == null) {
             return null;
         }
-        Long storeId = order.getStoreId() != null ? order.getStoreId() : currentStoreId();
+        Long storeId = order.storeId() != null ? order.storeId() : currentStoreId();
         return productRepository.find(ProductRepository.ProductQuery.linkedToCatalogItem(
                 catalog.tenantId(), storeId, catalog.id())).stream().findFirst().orElse(null);
     }
@@ -448,10 +456,10 @@ public class OrderItemController {
      * 库存不足直接抛 {@code INVENTORY_INSUFFICIENT}（HTTP 409），本方法所在事务随之回滚，
      * 不会留下「已扣到负数」或「明细已写但库存没扣」的中间态。
      */
-    private void consumeInventory(OrderItemPo item) {
-        inventoryService.changeStock(item.getInventoryMaterialId(), item.getQuantity(), "CONSUME", "ORDER_ITEM",
-                String.valueOf(item.getId()), "订单加项扣减", "order-item:" + item.getId() + ":consume");
-        item.setInventoryStatus("CONSUMED");
+    private OrderItem consumeInventory(OrderItem item) {
+        inventoryService.changeStock(item.inventoryMaterialId(), item.quantity(), "CONSUME", "ORDER_ITEM",
+                String.valueOf(item.id()), "订单加项扣减", "order-item:" + item.id() + ":consume");
+        return item.withInventoryStatus("CONSUMED");
     }
 
     private Long currentStoreId() {
@@ -471,34 +479,33 @@ public class OrderItemController {
      * 已经是 REJECTED 的重复拒绝幂等返回（不重复留痕）。
      */
     @PostMapping("/items/{itemId}/reject")
-    public OrderItemPo reject(@PathVariable Long orderId, @PathVariable Long itemId) {
+    public OrderItemView reject(@PathVariable Long orderId, @PathVariable Long itemId) {
         PermissionGuard.require("order.add_item");
         try {
-            OrderItemPo existing = requireItem(orderId, itemId);
-            if ("REJECTED".equals(existing.getStatus())) {
-                return existing;
+            OrderItem existing = requireItem(orderId, itemId);
+            if (OrderItem.STATUS_REJECTED.equals(existing.status())) {
+                return OrderItemView.from(existing);
             }
-            if (!"PENDING_APPROVAL".equals(existing.getStatus())) {
+            if (!existing.pendingApproval()) {
                 throw new BusinessException("ORDER_ITEM_STATUS_INVALID", "仅待确认加项可拒绝");
             }
             Long tenantId = TenantContextHolder.tenantIdOrNull();
-            if (orderItemMapper.markApproval(tenantId, orderId, itemId, "REJECTED", operatorId()) == 0) {
+            if (!orderItemRepository.markApproval(tenantId, orderId, itemId, OrderItem.STATUS_REJECTED,
+                    operatorId())) {
                 throw new BusinessException("ORDER_ITEM_STATUS_INVALID", "该加项已被处理，请刷新后查看");
             }
-            OrderItemPo po = existing;
-            po.setStatus("REJECTED");
-            po.setUpdatedAt(LocalDateTime.now());
+            OrderItem po = existing.rejected();
             invalidatePendingApproval();
             // 驳回同样要让「谁驳回了客人的加项」可回溯（此前成功/失败都没有留痕）。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .action("order.item.reject")
                     .actionLabel("订单加项驳回")
                     .resourceType("ord_order_item").resourceId(String.valueOf(itemId))
-                    .resourceName(po.getNameSnapshot())
+                    .resourceName(po.nameSnapshot())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"orderId\":" + orderId + ",\"status\":\"REJECTED\"}")
                     .build());
-            return po;
+            return OrderItemView.from(po);
         } catch (RuntimeException failure) {
             recordFailure("order.item.reject", orderId, itemId, null, failure);
             throw failure;
@@ -527,19 +534,19 @@ public class OrderItemController {
                 .build());
     }
 
-    private OrderItemPo requireItem(Long orderId, Long itemId) {
+    private OrderItem requireItem(Long orderId, Long itemId) {
         requireOrder(orderId);
-        OrderItemPo po = orderItemMapper.selectById(itemId);
-        if (po == null || !orderId.equals(po.getOrderId())) {
+        OrderItem item = orderItemRepository.findById(itemId).orElse(null);
+        if (item == null || !orderId.equals(item.orderId())) {
             throw new BusinessException("ORDER_ITEM_NOT_FOUND", "加项不存在");
         }
-        return po;
+        return item;
     }
 
-    private OrderPo requireOrder(Long orderId) {
-        OrderPo order = orderMapper.selectById(orderId);
+    private Order requireOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId).orElse(null);
         if (order == null) {
-            if (orderMapper.selectTenantIdById(orderId) != null) {
+            if (orderRepository.findTenantIdById(orderId).isPresent()) {
                 throw new ApiException(403, "TENANT_SCOPE_DENIED", "无权访问其他租户的订单");
             }
             throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
@@ -549,9 +556,9 @@ public class OrderItemController {
 
     /** 结算：服务端汇总明细固化金额快照。 */
     @PostMapping("/settle")
-    public OrderPo settle(@PathVariable Long orderId, @RequestBody SettleRequest req) {
+    public OrderView settle(@PathVariable Long orderId, @RequestBody SettleRequest req) {
         PermissionGuard.require("order.settle");
-        return settlementService.settle(orderId, req.expectedVersion());
+        return OrderView.from(settlementService.settle(orderId, req.expectedVersion()));
     }
 
     public record AddItemRequest(Long tenantId, String itemType, Long catalogItemId, Long resourceId,

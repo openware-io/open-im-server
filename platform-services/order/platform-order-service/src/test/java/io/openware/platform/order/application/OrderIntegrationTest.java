@@ -21,6 +21,7 @@ import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
+import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
 import io.openware.platform.order.infra.persistence.po.OrderItemPo;
@@ -167,10 +168,10 @@ class OrderIntegrationTest {
     ktvSessionApplicationService.open(session.id(), null);
     assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
 
-    OrderPo cancelled = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
+    Order cancelled = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("VOIDED", cancelled.getStatus());
-    assertNotNull(cancelled.getCancelledAt());
+    assertEquals("VOIDED", cancelled.status());
+    assertNotNull(cancelled.cancelledAt());
     assertEquals("VOIDED", orderMapper.selectById(order.getId()).getStatus());
     KtvSession released = ktvSessionRepository.findById(session.id()).orElseThrow();
     assertEquals("CANCELLED", released.status());
@@ -204,9 +205,9 @@ class OrderIntegrationTest {
     ktvSessionApplicationService.open(session.id(), null);
 
     orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
-    OrderPo second = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
+    Order second = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("VOIDED", second.getStatus());
+    assertEquals("VOIDED", second.status());
     // 第二次不再释放占用：release 只发生一次（第一次取消）。
     verify(resourceStateClient).release(1L);
   }

@@ -13,7 +13,8 @@ import io.openware.infrastructure.security.InternalServiceAuthenticationFilter;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.VoidRuleApplicationService;
-import io.openware.platform.order.infra.persistence.po.OrdVoidRuleConfigPo;
+import io.openware.platform.order.domain.order.model.VoidRuleConfig;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,11 +45,11 @@ class InternalVoidRuleControllerTest {
                 .thenReturn(new VoidRuleApplicationService.RuleView(true, "STORE", 1, 8L));
         assertEquals("STORE", controller.get(7L, "KTV").source());
 
-        OrdVoidRuleConfigPo saved = new OrdVoidRuleConfigPo();
-        saved.setId(8L);
-        when(service.save(eq(100L), any())).thenReturn(saved);
+        VoidRuleConfig saved = new VoidRuleConfig(8L, 100L, "KTV", 7L, Boolean.TRUE, 0, "void-rule-1",
+                VoidRuleConfig.STATUS_ACTIVE);
+        when(service.save(eq(100L), any())).thenReturn(new Persisted<>(saved, null));
         assertEquals(8L, controller.save(new InternalVoidRuleController.SaveRequest(
-                7L, "KTV", true, 1, "void-rule-1")).getId());
+                7L, "KTV", true, 1, "void-rule-1")).id());
 
         ArgumentCaptor<VoidRuleApplicationService.SaveCommand> command =
                 ArgumentCaptor.forClass(VoidRuleApplicationService.SaveCommand.class);

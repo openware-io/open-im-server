@@ -14,8 +14,8 @@ import io.openware.platform.order.domain.ktv.model.KtvServerSession;
 import io.openware.platform.order.domain.ktv.model.KtvServerSessionStatus;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,10 +42,10 @@ import org.junit.jupiter.api.Test;
 class KtvServerSessionOptimisticLockTest {
 
   private final KtvServerSessionRepository sessionRepository = mock(KtvServerSessionRepository.class);
-  private final OrderMapper orderMapper = mock(OrderMapper.class);
+  private final OrderRepository orderMapper = mock(OrderRepository.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
   private final AuditClient auditClient = mock(AuditClient.class);
-  private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+  private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
   private final KtvServerSessionApplicationService service =
       new KtvServerSessionApplicationService(sessionRepository, orderMapper, pricingPlanProvider, auditClient,
           orderItemMapper);

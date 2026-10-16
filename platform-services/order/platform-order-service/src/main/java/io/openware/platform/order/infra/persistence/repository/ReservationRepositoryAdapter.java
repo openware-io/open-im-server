@@ -96,6 +96,14 @@ public class ReservationRepositoryAdapter implements ReservationRepository {
     }
 
     @Override
+    public List<Reservation> findNotArrivedOverdue(LocalDateTime cutoff) {
+        // 跨租户一次扫出（语句本身忽略租户行拦截）：每行自带 tenantId，调用方逐行设上下文再写。
+        return mapper.selectNotArrivedOverdue(cutoff).stream()
+            .map(ReservationRepositoryAdapter::toDomain)
+            .toList();
+    }
+
+    @Override
     public long countSlotHolding(Long tenantId, Long storeId, Long roomTypeId, LocalDateTime startAt,
                                  LocalDateTime endAt) {
         // 状态集合来自领域枚举（occupiesSlot）：CONVERTED 不算名额，否则「同一间房算两次」——

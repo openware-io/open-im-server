@@ -5,25 +5,23 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.metadata.TableInfo;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.core.toolkit.LambdaUtils;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.List;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +41,8 @@ class OrderDetailAuthorizationTest {
     private static final long MEMBER_ID = 77L;
     private static final long ORDER_ID = 61L;
 
-    private final OrderMapper orderMapper = mock(OrderMapper.class);
-    private final CustomerLookupMapper customerLookupMapper = mock(CustomerLookupMapper.class);
+    private final OrderRepository orderMapper = mock(OrderRepository.class);
+    private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
     private final KtvSessionApplicationService ktvSessionService = mock(KtvSessionApplicationService.class);
     private final OrderController controller = new OrderController(
             orderMapper,
@@ -62,41 +60,41 @@ class OrderDetailAuthorizationTest {
     }
 
     @BeforeEach
-    void initTableInfo() {
-        TableInfo tableInfo = TableInfoHelper.initTableInfo(
-                new MapperBuilderAssistant(new MybatisConfiguration(), ""), OrderPo.class);
-        LambdaUtils.installCache(tableInfo);
+    void initContext() {
+        // 订单详情现在走 OrderRepository 端口（条件收在 OrderQuery 里），不再有 Lambda 列引用，
+        // 因此不再需要手工装 TableInfo 缓存（SQL 形状由 OrderRepositoryAdapterTest 钉住）。
+        TenantContextHolder.clear();
     }
 
     /** 商户（持 order.view）：可看本租户订单详情，不按 customer_id 收窄。 */
     @Test
     void merchantCanReadAnyOrderInTenant() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of("order.view")));
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(ORDER_ID, 500L));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(ORDER_ID, 500L)));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(java.util.Map.of());
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(ORDER_ID, detail.getId());
+        assertEquals(ORDER_ID, detail.id());
     }
 
     /** 消费者读自己的单：允许（customer_id 命中）。 */
     @Test
     void consumerCanReadOwnOrder() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of()));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(ORDER_ID, MEMBER_ID));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(ORDER_ID, MEMBER_ID)));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(java.util.Map.of());
 
-        assertEquals(ORDER_ID, controller.detail(ORDER_ID).getId());
+        assertEquals(ORDER_ID, controller.detail(ORDER_ID).id());
     }
 
     /** 消费者读他人的单：403（与「订单不存在」的 404 分开，但文案与列表/账单一致）。 */
     @Test
     void consumerCannotReadOtherMembersOrder() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of()));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(MEMBER_ID);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(ORDER_ID, 999L));
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.of(MEMBER_ID));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(ORDER_ID, 999L)));
 
         ApiException error = assertThrows(ApiException.class, () -> controller.detail(ORDER_ID));
 
@@ -108,7 +106,7 @@ class OrderDetailAuthorizationTest {
     @Test
     void unknownCallerIsRejectedBeforeReadingTheOrder() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of()));
-        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(null);
+        when(customerLookupMapper.findMemberId(TENANT_ID, ACCOUNT_ID)).thenReturn(Optional.empty());
 
         ApiException error = assertThrows(ApiException.class, () -> controller.detail(ORDER_ID));
 
@@ -120,7 +118,7 @@ class OrderDetailAuthorizationTest {
     @Test
     void missingOrderReturns404() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of("order.view")));
-        when(orderMapper.selectById(999L)).thenReturn(null);
+        when(orderMapper.findById(999L)).thenReturn(Optional.empty());
 
         ApiException error = assertThrows(ApiException.class, () -> controller.detail(999L));
 
@@ -132,25 +130,24 @@ class OrderDetailAuthorizationTest {
     @Test
     void detailCarriesSessionProjection() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1, List.of("order.view")));
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order(ORDER_ID, 500L));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order(ORDER_ID, 500L)));
         KtvSession session = KtvSession
                 .reserved(TENANT_ID, 100L, null, ORDER_ID, 1023L, "豪华包 XL02", "XL02")
                 .withId(48L)
                 .withStatus(KtvSession.STATUS_OPEN);
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(java.util.Map.of(ORDER_ID, session));
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(48L, detail.getSessionId());
-        assertEquals("豪华包 XL02", detail.getRoomName());
-        assertEquals("OPEN", detail.getSessionStatus());
+        assertEquals(48L, detail.sessionId());
+        assertEquals("豪华包 XL02", detail.roomName());
+        assertEquals("OPEN", detail.sessionStatus());
     }
 
-    private static OrderPo order(Long id, Long customerId) {
-        OrderPo po = new OrderPo();
-        po.setId(id);
-        po.setCustomerId(customerId);
-        po.setStoreId(100L);
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(Long id, Long customerId) {
+        return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", customerId, "SERVING", "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
     }
 }

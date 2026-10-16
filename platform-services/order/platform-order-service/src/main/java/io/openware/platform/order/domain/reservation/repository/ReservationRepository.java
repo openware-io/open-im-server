@@ -57,6 +57,21 @@ public interface ReservationRepository {
     List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive, LocalDateTime toInclusive);
 
     /**
+     * 「到店时间已过、仍未到店」的预约：超时未到店任务用（{@code KtvReservationTimeoutService}）。
+     *
+     * <p>判定口径：{@code status IN ('PENDING','CONFIRMED')}（到店前的两个状态）且
+     * {@code start_at} 非空并早于 {@code cutoff}（到店时间 + 宽限期）。已到店/已开台/已取消/已未到店
+     * 都不在其中（它们的时段归属已由状态或订单承载）。
+     *
+     * <p>与其余读方法不同，本方法只返回聚合、不带记账快照：调用方只用 {@code id}/{@code tenantId}
+     * 去驱动「标记未到店」，不装配任何响应，因此不需要四个记账列。
+     *
+     * <p><b>跨租户一次扫出</b>（实现必须忽略租户行拦截，与 {@code findOpenSessions} 同范式）：
+     * 每行自带 tenantId，调用方逐行设上下文再写，绝不跨租户写。
+     */
+    List<Reservation> findNotArrivedOverdue(LocalDateTime cutoff);
+
+    /**
      * 超订软保护计数：同租户 + 同门店 + 同房型 + 时段重叠的**仍占名额**预约数
      * （状态口径是 {@link ReservationStatus#occupiesSlot()}，由适配器固化，见其实现说明）。
      *

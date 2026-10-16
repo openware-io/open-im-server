@@ -6,11 +6,11 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.common.exception.ApiException;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,12 +44,12 @@ import java.util.List;
 @RequestMapping("/business/reservations")
 public class ReservationController {
     private final ReservationApplicationService reservationService;
-    private final CustomerLookupMapper customerLookupMapper;
+    private final MemberLookupProvider memberLookupProvider;
 
     public ReservationController(ReservationApplicationService reservationService,
-                                 CustomerLookupMapper customerLookupMapper) {
+                                 MemberLookupProvider memberLookupProvider) {
         this.reservationService = reservationService;
-        this.customerLookupMapper = customerLookupMapper;
+        this.memberLookupProvider = memberLookupProvider;
     }
 
     /**
@@ -200,7 +200,7 @@ public class ReservationController {
 
     /** 到店预约开台：POST /business/reservations/{id}/open-table（ARRIVED/CONFIRMED → 生成订单+会话+计时，回填 order_id）。 */
     @PostMapping("/{id}/open-table")
-    public OrderPo openTable(@PathVariable Long id, @RequestBody(required = false) OpenTableReservationRequest req) {
+    public OrderView openTable(@PathVariable Long id, @RequestBody(required = false) OpenTableReservationRequest req) {
         PermissionGuard.require("ktv.session.operate");
         return reservationService.openTable(id, req == null ? null : req.freeWaitMinutes());
     }
@@ -237,7 +237,7 @@ public class ReservationController {
         if (context == null) {
             throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少已认证账号");
         }
-        Long memberId = customerLookupMapper.findMemberId(context.tenantId(), context.accountId());
+        Long memberId = memberLookupProvider.findMemberId(context.tenantId(), context.accountId()).orElse(null);
         if (memberId == null) {
             throw new ApiException(409, "MEMBER_INITIALIZATION_REQUIRED", "请先初始化会员资料");
         }

@@ -12,11 +12,13 @@ import io.openware.common.exception.ApiException;
 import io.openware.platform.order.application.KtvReservationTimeoutService.SweepResult;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.mapper.ReservationMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
-import io.openware.platform.order.infra.persistence.po.ReservationPo;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.reservation.model.Reservation;
+import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,8 +31,8 @@ import org.junit.jupiter.api.Test;
 class KtvReservationTimeoutServiceTest {
 
     private KtvSessionRepository sessionRepository;
-    private ReservationMapper reservationMapper;
-    private OrderMapper orderMapper;
+    private ReservationRepository reservationMapper;
+    private OrderRepository orderMapper;
     private KtvSessionApplicationService ktvSessionService;
     private OrderCancellationApplicationService orderCancellationService;
     private ReservationApplicationService reservationService;
@@ -39,14 +41,14 @@ class KtvReservationTimeoutServiceTest {
     @BeforeEach
     void setUp() {
         sessionRepository = mock(KtvSessionRepository.class);
-        reservationMapper = mock(ReservationMapper.class);
-        orderMapper = mock(OrderMapper.class);
+        reservationMapper = mock(ReservationRepository.class);
+        orderMapper = mock(OrderRepository.class);
         ktvSessionService = mock(KtvSessionApplicationService.class);
         orderCancellationService = mock(OrderCancellationApplicationService.class);
         reservationService = mock(ReservationApplicationService.class);
         service = new KtvReservationTimeoutService(sessionRepository, reservationMapper, orderMapper,
                 ktvSessionService, orderCancellationService, reservationService);
-        when(reservationMapper.selectNotArrivedOverdue(any())).thenReturn(List.of());
+        when(reservationMapper.findNotArrivedOverdue(any())).thenReturn(List.of());
     }
 
     /** 超时巡检扫出的预留会话（领域模型不可变：工厂建 RESERVED，再回填主键与租户/订单）。 */
@@ -54,17 +56,18 @@ class KtvReservationTimeoutServiceTest {
         return KtvSession.reserved(100L, null, null, orderId, null, null, null).withId(id);
     }
 
-    private OrderPo order(long id, String status) {
-        OrderPo po = new OrderPo();
-        po.setId(id);
-        po.setStatus(status);
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private Order order(long id, String status) {
+        return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+                java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                null, null, null, null, 0);
     }
 
     @Test
     void overdueReservedSession_cancelsLiveOrder_whichCascadesRoomRelease() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.selectById(38L)).thenReturn(order(38L, "SERVING"));
+        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "SERVING")));
 
         SweepResult result = service.sweep(60);
 
@@ -78,7 +81,7 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservedSession_withTerminalOrder_isOrphanRepairOnly() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.selectById(38L)).thenReturn(order(38L, "VOIDED"));
+        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "VOIDED")));
 
         SweepResult result = service.sweep(60);
 
@@ -91,7 +94,7 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservedSession_missingOrder_stillReleasesSession() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.selectById(38L)).thenReturn(null);
+        when(orderMapper.findById(38L)).thenReturn(Optional.empty());
 
         SweepResult result = service.sweep(60);
 
@@ -102,7 +105,7 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservedSession_withPayment_needsManualInsteadOfSilentRelease() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.selectById(38L)).thenReturn(order(38L, "SERVING"));
+        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "SERVING")));
         when(orderCancellationService.cancel(eq(38L), any())).thenThrow(new ApiException(409,
                 OrderCancellationApplicationService.PAYMENT_REFUND_FIRST_CODE, "该订单已有收款，请先退款后再取消"));
 
@@ -117,10 +120,10 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservation_isMarkedNoShow() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of());
-        ReservationPo po = new ReservationPo();
-        po.setId(36L);
-        po.setTenantId(100L);
-        when(reservationMapper.selectNotArrivedOverdue(any())).thenReturn(List.of(po));
+        // 领域模型不可变：超时扫出的预约按规范构造器一次成型（只用到 id/tenantId）。
+        Reservation po = new Reservation(36L, 100L, 100L, "R2026091800000000001", null, null, "KTV",
+                null, null, null, null, null, null, ReservationStatus.PENDING, null, null, 0);
+        when(reservationMapper.findNotArrivedOverdue(any())).thenReturn(List.of(po));
 
         SweepResult result = service.sweep(60);
 
@@ -144,8 +147,8 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void oneRowFailing_doesNotStopTheBatch() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(1L, 11L), reservedSession(2L, 12L)));
-        when(orderMapper.selectById(11L)).thenThrow(new RuntimeException("boom"));
-        when(orderMapper.selectById(12L)).thenReturn(order(12L, "VOIDED"));
+        when(orderMapper.findById(11L)).thenThrow(new RuntimeException("boom"));
+        when(orderMapper.findById(12L)).thenReturn(Optional.of(order(12L, "VOIDED")));
 
         SweepResult result = service.sweep(60);
 

@@ -12,10 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.metadata.TableInfo;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import com.baomidou.mybatisplus.core.toolkit.LambdaUtils;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -25,20 +22,21 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
+import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
-import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * 订单投影的「实时应付合计」（{@code OrderPo#liveTotalAmount}）回归。
+ * 订单投影的「实时应付合计」（{@code Order#liveTotalAmount}）回归。
  *
  * <p>背景（ACK dev 实测，订单 73 开台中）：SaaS 收银台房卡把 {@code totalAmount + roomEstimatedFee}
  * 相加，而 {@code totalAmount} 里**已经含**刷新任务（{@code KtvRoomFeeRefreshJob} →
@@ -64,7 +62,7 @@ class OrderLiveTotalProjectionTest {
     private static final long STALE_ROOM_FEE_ITEM = 4000L;
     private static final long LIVE_ROOM_FEE = 4000L;
 
-    private final OrderMapper orderMapper = mock(OrderMapper.class);
+    private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final KtvSessionApplicationService ktvSessionService = mock(KtvSessionApplicationService.class);
     private final OrderController controller = new OrderController(
             orderMapper,
@@ -74,7 +72,7 @@ class OrderLiveTotalProjectionTest {
             AuditClient.disabled(),
             mock(OrderCancellationApplicationService.class),
             mock(DailySerialNumberGenerator.class),
-            mock(CustomerLookupMapper.class));
+            mock(MemberLookupProvider.class));
 
     @AfterEach
     void tearDown() {
@@ -83,10 +81,9 @@ class OrderLiveTotalProjectionTest {
 
     /** 列表/详情都会用 LambdaQueryWrapper 取单，单元测试没有 MyBatis 启动过程，必须手工装 TableInfo。 */
     @BeforeEach
-    void initTableInfo() {
-        TableInfo tableInfo = TableInfoHelper.initTableInfo(
-                new MapperBuilderAssistant(new MybatisConfiguration(), ""), OrderPo.class);
-        LambdaUtils.installCache(tableInfo);
+    void setUp() {
+        // 端口化后订单查询条件收在 OrderQuery 里，不再有 Lambda 列引用，
+        // 因此不再需要手工装 TableInfo 缓存（SQL 形状由 OrderRepositoryAdapterTest 钉住）。
         TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, ACCOUNT_ID, 1, List.of("order.view")));
     }
 
@@ -97,28 +94,28 @@ class OrderLiveTotalProjectionTest {
      */
     @Test
     void openSessionExposesLiveTotalInsteadOfDoubleCountedRoomFee() {
-        OrderPo order = order(ORDER_ID, STORED_TOTAL);
+        Order order = order(ORDER_ID, STORED_TOTAL);
         KtvSession session = session(ORDER_ID, "OPEN");
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, session));
         when(ktvSessionService.liveEstimate(session, STORE_ID))
                 .thenReturn(new KtvSessionApplicationService.LiveEstimate(3600L, LIVE_ROOM_FEE));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(STORED_TOTAL.longValueExact(), STALE_ROOM_FEE_ITEM)));
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(0, detail.getLiveTotalAmount().compareTo(new BigDecimal("6150")),
+        assertEquals(0, detail.liveTotalAmount().compareTo(new BigDecimal("6150")),
                 "开台中合计必须是差额法结果 6150");
-        assertNotEquals(0, detail.getLiveTotalAmount().compareTo(new BigDecimal("10150")),
+        assertNotEquals(0, detail.liveTotalAmount().compareTo(new BigDecimal("10150")),
                 "绝不能是「库内合计 + 实时房费」的重复计数结果");
         // 库内原值不得被改写（它仍是账单合计基数的输入）。
-        assertEquals(0, detail.getTotalAmount().compareTo(STORED_TOTAL));
+        assertEquals(0, detail.totalAmount().compareTo(STORED_TOTAL));
         // 实时房费必须来自统一计费入口（liveEstimate → liveRoomFee），不是本处另写的公式。
         verify(ktvSessionService).liveEstimate(session, STORE_ID);
         // 读投影必须被下发到订单投影上（原实现是 PO 上两个瞬态字段，值相同）。
-        assertEquals(3600L, detail.getRoomElapsedSeconds());
-        assertEquals(LIVE_ROOM_FEE, detail.getRoomEstimatedFee());
+        assertEquals(3600L, detail.roomElapsedSeconds());
+        assertEquals(LIVE_ROOM_FEE, detail.roomEstimatedFee());
     }
 
     /**
@@ -127,51 +124,51 @@ class OrderLiveTotalProjectionTest {
      */
     @Test
     void liveTotalReplacesStaleRoomFeeSnapshotWithLiveEstimate() {
-        OrderPo order = order(ORDER_ID, STORED_TOTAL);
+        Order order = order(ORDER_ID, STORED_TOTAL);
         KtvSession session = session(ORDER_ID, "PAUSED");
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, session));
         when(ktvSessionService.liveEstimate(session, STORE_ID))
                 .thenReturn(new KtvSessionApplicationService.LiveEstimate(7200L, LIVE_ROOM_FEE));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(STORED_TOTAL.longValueExact(), 2000L)));
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(0, detail.getLiveTotalAmount().compareTo(new BigDecimal("8150")),
+        assertEquals(0, detail.liveTotalAmount().compareTo(new BigDecimal("8150")),
                 "PAUSED（挂单）同样按差额法换成实时房费");
     }
 
     /** (b) 没有开台中的会话：库内合计已是终值，原样返回，不做任何加减。 */
     @Test
     void finishedSessionKeepsStoredTotal() {
-        OrderPo order = order(ORDER_ID, STORED_TOTAL);
+        Order order = order(ORDER_ID, STORED_TOTAL);
         KtvSession closed = session(ORDER_ID, "CLOSED");
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, closed));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(STORED_TOTAL.longValueExact(), STALE_ROOM_FEE_ITEM)));
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(0, detail.getLiveTotalAmount().compareTo(STORED_TOTAL),
+        assertEquals(0, detail.liveTotalAmount().compareTo(STORED_TOTAL),
                 "已结台：明细快照就是最终值，liveTotalAmount == totalAmount");
         // 已结台没有实时估算：两个读投影字段必须为空，不能凭空造值。
-        assertNull(detail.getRoomEstimatedFee());
-        assertNull(detail.getRoomElapsedSeconds());
+        assertNull(detail.roomEstimatedFee());
+        assertNull(detail.roomElapsedSeconds());
     }
 
     /** (b') 连会话都没有（非 KTV 单/未选包厢）：同样等于库内合计，且不因缺会话而漏填。 */
     @Test
     void orderWithoutSessionKeepsStoredTotal() {
-        OrderPo order = order(ORDER_ID, STORED_TOTAL);
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        Order order = order(ORDER_ID, STORED_TOTAL);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of());
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertNotNull(detail.getLiveTotalAmount(), "没有会话的订单也必须给出可直接展示的合计");
-        assertEquals(0, detail.getLiveTotalAmount().compareTo(STORED_TOTAL));
+        assertNotNull(detail.liveTotalAmount(), "没有会话的订单也必须给出可直接展示的合计");
+        assertEquals(0, detail.liveTotalAmount().compareTo(STORED_TOTAL));
     }
 
     /**
@@ -181,16 +178,16 @@ class OrderLiveTotalProjectionTest {
      */
     @Test
     void zeroStoredTotalFallsBackToActiveItemsBasis() {
-        OrderPo order = order(ORDER_ID, BigDecimal.ZERO);
+        Order order = order(ORDER_ID, BigDecimal.ZERO);
         KtvSession closed = session(ORDER_ID, "CLOSED");
-        when(orderMapper.selectById(ORDER_ID)).thenReturn(order);
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
         when(ktvSessionService.listByOrderIds(List.of(ORDER_ID))).thenReturn(Map.of(ORDER_ID, closed));
         when(ktvSessionService.orderAmountSumsByOrderIds(List.of(ORDER_ID)))
                 .thenReturn(Map.of(ORDER_ID, sums(2150L, 0L)));
 
-        OrderPo detail = controller.detail(ORDER_ID);
+        OrderView detail = controller.detail(ORDER_ID);
 
-        assertEquals(0, detail.getLiveTotalAmount().compareTo(new BigDecimal("2150")),
+        assertEquals(0, detail.liveTotalAmount().compareTo(new BigDecimal("2150")),
                 "库内合计为 0 时按明细合计回退，与账单同一口径");
     }
 
@@ -204,9 +201,9 @@ class OrderLiveTotalProjectionTest {
     void listBatchLoadsOrderItemSumsForWholePageOnceAndToleratesMissingRows() {
         long orderA = 73L;
         long orderB = 74L;
-        OrderPo a = order(orderA, STORED_TOTAL);
-        OrderPo b = order(orderB, new BigDecimal("900"));
-        when(orderMapper.selectList(any())).thenReturn(List.of(a, b));
+        Order a = order(orderA, STORED_TOTAL);
+        Order b = order(orderB, new BigDecimal("900"));
+        when(orderMapper.list(any())).thenReturn(List.of(persisted(a), persisted(b)));
         KtvSession openSession = session(orderA, "OPEN");
         when(ktvSessionService.listByOrderIds(anyList())).thenReturn(Map.of(orderA, openSession));
         when(ktvSessionService.liveEstimate(openSession, STORE_ID))
@@ -214,14 +211,14 @@ class OrderLiveTotalProjectionTest {
         when(ktvSessionService.orderAmountSumsByOrderIds(anyList()))
                 .thenReturn(Map.of(orderA, sums(STORED_TOTAL.longValueExact(), STALE_ROOM_FEE_ITEM)));
 
-        List<OrderPo> orders = controller.list(null, null);
+        List<OrderView> orders = controller.list(null, null);
 
         ArgumentCaptor<List<Long>> captor = ArgumentCaptor.forClass(List.class);
         verify(ktvSessionService, times(1)).orderAmountSumsByOrderIds(captor.capture());
         assertEquals(List.of(orderA, orderB), captor.getValue(),
                 "整页订单必须一次批量查完（逐单查就是 N+1）");
-        assertEquals(0, orders.get(0).getLiveTotalAmount().compareTo(new BigDecimal("6150")));
-        assertEquals(0, orders.get(1).getLiveTotalAmount().compareTo(new BigDecimal("900")),
+        assertEquals(0, orders.get(0).liveTotalAmount().compareTo(new BigDecimal("6150")));
+        assertEquals(0, orders.get(1).liveTotalAmount().compareTo(new BigDecimal("900")),
                 "没有会话/明细的订单按库内合计返回，不抛错");
         verify(ktvSessionService, times(1)).listByOrderIds(List.of(orderA, orderB));
     }
@@ -229,7 +226,7 @@ class OrderLiveTotalProjectionTest {
     /** 非 KTV 单页（空列表）不该产生任何会话/明细查询：读路径不白查一次。 */
     @Test
     void emptyPageDoesNotQueryAnything() {
-        when(orderMapper.selectList(any())).thenReturn(List.of());
+        when(orderMapper.list(any())).thenReturn(List.of());
 
         controller.list(null, null);
 
@@ -242,14 +239,16 @@ class OrderLiveTotalProjectionTest {
         return new KtvSessionApplicationService.OrderAmountSums(activeItemsMinor, roomFeeItemsMinor);
     }
 
-    private static OrderPo order(Long id, BigDecimal totalAmount) {
-        OrderPo po = new OrderPo();
-        po.setId(id);
-        po.setTenantId(TENANT_ID);
-        po.setStoreId(STORE_ID);
-        po.setStatus("SERVING");
-        po.setTotalAmount(totalAmount);
-        return po;
+    /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+    private static Order order(Long id, BigDecimal totalAmount) {
+        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+                totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO, BigDecimal.ZERO,
+                null, null, null, null, 0);
+    }
+
+    /** 读路径的落库行 + 记账快照（本用例只看业务字段）。 */
+    private static Persisted<Order> persisted(Order order) {
+        return new Persisted<>(order, null);
     }
 
     /**

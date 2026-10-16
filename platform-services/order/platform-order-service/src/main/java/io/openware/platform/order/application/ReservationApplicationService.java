@@ -9,7 +9,10 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
+import io.openware.platform.order.api.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
@@ -21,8 +24,6 @@ import io.openware.platform.order.infra.client.RoomTypeCatalogClient;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomTypeView;
 import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomView;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -90,7 +91,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class ReservationApplicationService {
 
     private final ReservationRepository reservationRepository;
-    private final OrderMapper orderMapper;
+    private final OrderRepository orderRepository;
     private final KtvSessionApplicationService ktvSessionService;
     private final ResourceStateClient resourceStateClient;
     private final RoomTypeCatalogClient roomTypeCatalogClient;
@@ -100,7 +101,7 @@ public class ReservationApplicationService {
     private ReservationRuleApplicationService reservationRuleService;
 
     public ReservationApplicationService(ReservationRepository reservationRepository,
-                                         OrderMapper orderMapper,
+                                         OrderRepository orderRepository,
                                          KtvSessionApplicationService ktvSessionService,
                                          ResourceStateClient resourceStateClient,
                                          RoomTypeCatalogClient roomTypeCatalogClient,
@@ -108,7 +109,7 @@ public class ReservationApplicationService {
                                          AuditClient auditClient,
                                          DailySerialNumberGenerator dailySerialNumberGenerator) {
         this.reservationRepository = reservationRepository;
-        this.orderMapper = orderMapper;
+        this.orderRepository = orderRepository;
         this.ktvSessionService = ktvSessionService;
         this.resourceStateClient = resourceStateClient;
         this.roomTypeCatalogClient = roomTypeCatalogClient;
@@ -555,7 +556,7 @@ public class ReservationApplicationService {
      * 本类只消费它返回的会话标识，不接触会话持久化对象。
      */
     @Transactional
-    public OrderPo openTable(Long reservationId, Integer freeWaitMinutes) {
+    public OrderView openTable(Long reservationId, Integer freeWaitMinutes) {
         try {
             return doOpenTable(reservationId, freeWaitMinutes);
         } catch (RuntimeException failure) {
@@ -565,17 +566,16 @@ public class ReservationApplicationService {
         }
     }
 
-    private OrderPo doOpenTable(Long reservationId, Integer freeWaitMinutes) {
+    private OrderView doOpenTable(Long reservationId, Integer freeWaitMinutes) {
         Persisted<Reservation> row = require(reservationId);
         Reservation r = row.aggregate();
 
         // 幂等：已开台（order_id 已回填且订单存在）则直接返回已有订单，附上会话 id。
         // 必须放在状态校验之前：开台成功后预约已是 CONVERTED，重复提交应返回既有订单而不是 409。
         if (r.orderId() != null) {
-            OrderPo existing = orderMapper.selectById(r.orderId());
+            Order existing = orderRepository.findById(r.orderId()).orElse(null);
             if (existing != null) {
-                existing.setSessionId(ktvSessionService.findByOrderId(existing.getId()).id());
-                return existing;
+                return OrderView.from(existing).withSessionId(ktvSessionService.findByOrderId(existing.id()).id());
             }
         }
 
@@ -598,41 +598,26 @@ public class ReservationApplicationService {
             organizationId = r.storeId();
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        OrderPo order = new OrderPo();
-        order.setTenantId(r.tenantId());
-        order.setOrganizationId(organizationId);
-        order.setStoreId(r.storeId());
-        order.setOrderNo(dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER,
-                r.tenantId()));
-        order.setBusinessType(r.businessType());
-        order.setCustomerId(r.customerId());
-        order.setStatus("DRAFT");
         // 币种取当前请求租户币种（docs/standards/16_CURRENCY_CONVENTIONS.md §2/§3.3），
         // 不再硬编码 CNY：缺 claim 时 CurrencyResolver 回退 USD，绝不因缺 claim 失败。
-        order.setCurrencyCode(CurrencyResolver.currentCode());
-        order.setSubtotalAmount(BigDecimal.ZERO);
-        order.setDiscountAmount(BigDecimal.ZERO);
-        order.setTaxAmount(BigDecimal.ZERO);
-        order.setTotalAmount(BigDecimal.ZERO);
-        order.setPaidAmount(BigDecimal.ZERO);
-        order.setRefundableAmount(BigDecimal.ZERO);
-        order.setVersion(0);
-        order.setCreatedBy(operatorId());
-        order.setCreatedAt(now);
-        order.setUpdatedBy(operatorId());
-        order.setUpdatedAt(now);
-        orderMapper.insert(order);
+        // 领域模型不可变：直接构造落库实体（金额六个列全 0、状态 DRAFT、版本 0）。
+        Order order = new Order(null, r.tenantId(), organizationId, r.storeId(),
+                dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, r.tenantId()),
+                null, r.businessType(), r.customerId(), "DRAFT", CurrencyResolver.currentCode(),
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
+        // 预约开台改造前就把订单的记账列写成「当前操作人」，端口保留这一语义（null 才落到 DDL 默认 0）。
+        Order inserted = orderRepository.insert(order, operatorId());
 
         // 创建包厢会话并开台计时：RESERVED → OPEN（订单 DRAFT → SERVING，开始计费）。
         // 预约人数随开台写入会话（party_size），订单列表与房态看板据此展示「人数」。
-        Long sessionId = ktvSessionService.create(r.tenantId(), order.getId(), r.resourceId()).id();
+        Long sessionId = ktvSessionService.create(r.tenantId(), inserted.id(), r.resourceId()).id();
         ktvSessionService.open(sessionId, freeWaitMinutes, r.partySize());
 
         // 回填预约 order_id 并完成生命周期转换，避免 ARRIVED 记录长期悬挂。
         // CONFIRMED 直接开台时一并登记到店时间（arrivalImplied）：到店事实不能只靠状态推断。
-        Persisted<Reservation> converted = transition(row, ReservationStatus.CONVERTED, order.getId(),
-                arrivalImplied ? now : null);
+        Persisted<Reservation> converted = transition(row, ReservationStatus.CONVERTED, inserted.id(),
+                arrivalImplied ? LocalDateTime.now() : null);
         Reservation after = converted.aggregate();
 
         // 预约开台此前没有任何留痕：它同时产生订单与计费会话，是最需要可回溯的写操作。
@@ -650,7 +635,7 @@ public class ReservationApplicationService {
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .idempotencyKey("reservation-open-table:" + after.id())
                     .detailJson("{\"reservationNo\":" + jsonText(after.reservationNo())
-                            + ",\"orderId\":" + order.getId()
+                            + ",\"orderId\":" + inserted.id()
                             + ",\"resourceId\":" + after.resourceId()
                             + ",\"status\":" + jsonText(statusName(after))
                             + ",\"arrivalImplied\":" + arrivalImplied + "}")
@@ -658,9 +643,9 @@ public class ReservationApplicationService {
         }
 
         // 重新读取订单：开台后订单状态已由 DRAFT 流转为 SERVING，返回真实状态。
-        order = orderMapper.selectById(order.getId());
-        order.setSessionId(sessionId);
-        return order;
+        Order refreshed = orderRepository.findById(inserted.id())
+                .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单不存在"));
+        return OrderView.from(refreshed).withSessionId(sessionId);
     }
 
     /**

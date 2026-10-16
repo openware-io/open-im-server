@@ -1,13 +1,14 @@
 package io.openware.platform.order.api.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.OrderQuery;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,11 +41,11 @@ import java.util.Set;
 @RestController
 @RequestMapping("/reports")
 public class ReportController {
-    private final OrderMapper orderMapper;
+    private final OrderRepository orderRepository;
     private final KtvSessionRepository ktvSessionRepository;
 
-    public ReportController(OrderMapper orderMapper, KtvSessionRepository ktvSessionRepository) {
-        this.orderMapper = orderMapper;
+    public ReportController(OrderRepository orderRepository, KtvSessionRepository ktvSessionRepository) {
+        this.orderRepository = orderRepository;
         this.ktvSessionRepository = ktvSessionRepository;
     }
 
@@ -52,15 +53,16 @@ public class ReportController {
     @GetMapping("/store-operation")
     public Map<String, Object> storeOperation(@RequestParam LocalDate businessDate) {
         Long tenantId = requireTenant();
-        List<OrderPo> orders = ordersOfBusinessDate(tenantId, businessDate);
+        List<Persisted<Order>> orders = ordersOfBusinessDate(tenantId, businessDate);
         Map<String, AmountRow> byStoreCurrency = new LinkedHashMap<>();
-        for (OrderPo o : orders) {
-            String currency = Currency.parse(o.getCurrencyCode()).code();
-            AmountRow row = byStoreCurrency.computeIfAbsent(o.getStoreId() + "|" + currency,
-                    key -> new AmountRow(o.getStoreId(), currency));
-            row.orderCount++;
-            row.receivable = row.receivable.add(nz(o.getTotalAmount()));
-            row.collected = row.collected.add(nz(o.getPaidAmount()));
+        for (Persisted<Order> row : orders) {
+            Order o = row.aggregate();
+            String currency = Currency.parse(o.currencyCode()).code();
+            AmountRow amountRow = byStoreCurrency.computeIfAbsent(o.storeId() + "|" + currency,
+                    key -> new AmountRow(o.storeId(), currency));
+            amountRow.orderCount++;
+            amountRow.receivable = amountRow.receivable.add(nz(o.totalAmount()));
+            amountRow.collected = amountRow.collected.add(nz(o.paidAmount()));
         }
         List<Map<String, Object>> rows = new ArrayList<>();
         byStoreCurrency.values().forEach(row -> rows.add(Map.of(
@@ -111,16 +113,19 @@ public class ReportController {
     @GetMapping("/employee-performance")
     public Map<String, Object> employeePerformance(@RequestParam LocalDate businessDate) {
         Long tenantId = requireTenant();
-        List<OrderPo> orders = ordersOfBusinessDate(tenantId, businessDate);
+        List<Persisted<Order>> orders = ordersOfBusinessDate(tenantId, businessDate);
         Map<String, AmountRow> byEmpCurrency = new LinkedHashMap<>();
-        for (OrderPo o : orders) {
-            Long emp = o.getCreatedBy() == null ? 0L : o.getCreatedBy();
-            String currency = Currency.parse(o.getCurrencyCode()).code();
-            AmountRow row = byEmpCurrency.computeIfAbsent(emp + "|" + currency,
+        for (Persisted<Order> persisted : orders) {
+            Order o = persisted.aggregate();
+            // 「开单员工」是记账列 created_by：审计列不进领域模型，由适配器随行读回（没有则记 0 = 系统）。
+            Long createdBy = persisted.audit() == null ? null : persisted.audit().createdBy();
+            Long emp = createdBy == null ? 0L : createdBy;
+            String currency = Currency.parse(o.currencyCode()).code();
+            AmountRow amountRow = byEmpCurrency.computeIfAbsent(emp + "|" + currency,
                     key -> new AmountRow(emp, currency));
-            row.orderCount++;
-            row.receivable = row.receivable.add(nz(o.getTotalAmount()));
-            row.collected = row.collected.add(nz(o.getPaidAmount()));
+            amountRow.orderCount++;
+            amountRow.receivable = amountRow.receivable.add(nz(o.totalAmount()));
+            amountRow.collected = amountRow.collected.add(nz(o.paidAmount()));
         }
         List<Map<String, Object>> rows = new ArrayList<>();
         byEmpCurrency.values().forEach(row -> rows.add(Map.of(
@@ -129,11 +134,16 @@ public class ReportController {
         return reportEnvelope(businessDate, rows, currenciesOf(byEmpCurrency.values()));
     }
 
-    private List<OrderPo> ordersOfBusinessDate(Long tenantId, LocalDate businessDate) {
-        return orderMapper.selectList(new LambdaQueryWrapper<OrderPo>()
-                .eq(OrderPo::getTenantId, tenantId)
-                .ge(OrderPo::getCreatedAt, businessDate.atStartOfDay())
-                .lt(OrderPo::getCreatedAt, businessDate.plusDays(1).atStartOfDay()));
+    /**
+     * 某租户某**营业日**的订单：时间条件是半开区间 {@code [当天起点, 次日起点)}，
+     * 直接落在 {@code created_at} 列上（不用函数包裹，索引可用）。
+     *
+     * <p>返回记账快照：员工业绩的「开单员工」就是 {@code created_by}。
+     */
+    private List<Persisted<Order>> ordersOfBusinessDate(Long tenantId, LocalDate businessDate) {
+        return orderRepository.list(OrderQuery.all().withTenant(tenantId)
+                .from(businessDate.atStartOfDay())
+                .before(businessDate.plusDays(1).atStartOfDay()));
     }
 
     /**

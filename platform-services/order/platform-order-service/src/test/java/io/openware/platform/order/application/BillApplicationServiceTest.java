@@ -9,7 +9,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import io.openware.platform.order.application.dto.BillResult;
 import io.openware.platform.order.domain.ktv.model.KtvBillingUnit;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
@@ -19,12 +18,16 @@ import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.port.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.ktv.repository.KtvServerSessionRepository;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.AuditSnapshot;
+import io.openware.platform.order.domain.order.repository.Persisted;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Optional;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +37,8 @@ import org.junit.jupiter.api.Test;
  */
 class BillApplicationServiceTest {
 
-  private final OrderMapper orderMapper = mock(OrderMapper.class);
-  private final OrderItemMapper orderItemMapper = mock(OrderItemMapper.class);
+  private final OrderRepository orderMapper = mock(OrderRepository.class);
+  private final OrderItemRepository orderItemMapper = mock(OrderItemRepository.class);
   private final KtvSessionRepository ktvSessionRepository = mock(KtvSessionRepository.class);
   private final KtvServerSessionRepository serverSessionRepository = mock(KtvServerSessionRepository.class);
   private final KtvPricingPlanProvider pricingPlanProvider = mock(KtvPricingPlanProvider.class);
@@ -45,12 +48,12 @@ class BillApplicationServiceTest {
 
   @Test
   void billIncludesAllConsumptionLinesAndBalancesToTotal() {
-    OrderPo order = order(BigDecimal.valueOf(26500));
-    when(orderMapper.selectById(1L)).thenReturn(order);
+    Order order = order(BigDecimal.valueOf(26500));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     // 服务人员计时费明细与结台写入的一致：SERVICE + resourceId + price_snapshot_json
-    OrderItemPo serverFeeItem = item(3L, "SERVICE", "服务人员#9", 9L, new BigDecimal("5000"), new BigDecimal("2"), new BigDecimal("10000"));
-    serverFeeItem.setPriceSnapshotJson("{\"serverPricePerInc\":5000}");
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    OrderItem serverFeeItem = item(3L, "SERVICE", "服务人员#9", 9L, new BigDecimal("5000"), new BigDecimal("2"), new BigDecimal("10000"));
+    serverFeeItem = withSnapshot(serverFeeItem, "{\"serverPricePerInc\":5000}");
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "PRODUCT", "百威啤酒", null, new BigDecimal("500"), new BigDecimal("1"), new BigDecimal("500")),
         // 服务目录项（服务员点歌）：item_type=SERVICE，但不是服务人员计时费，必须出现在 items 里
         item(2L, "SERVICE", "服务员点歌", null, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000")),
@@ -86,12 +89,12 @@ class BillApplicationServiceTest {
    */
   @Test
   void serviceAddOnWithResourceIdStaysInItems() {
-    OrderPo order = order(BigDecimal.valueOf(11000));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    OrderItemPo serverFeeItem = item(1L, "SERVICE", "服务人员#9", 9L, new BigDecimal("5000"), new BigDecimal("2"), new BigDecimal("10000"));
-    serverFeeItem.setPriceSnapshotJson("{\"serverPricePerInc\":5000}");
-    OrderItemPo addOn = item(2L, "SERVICE", "服务员点歌", 9L, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000"));
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(serverFeeItem, addOn));
+    Order order = order(BigDecimal.valueOf(11000));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    OrderItem serverFeeItem = item(1L, "SERVICE", "服务人员#9", 9L, new BigDecimal("5000"), new BigDecimal("2"), new BigDecimal("10000"));
+    serverFeeItem = withSnapshot(serverFeeItem, "{\"serverPricePerInc\":5000}");
+    OrderItem addOn = item(2L, "SERVICE", "服务员点歌", 9L, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000"));
+    when(orderItemMapper.list(any())).thenReturn(rows(serverFeeItem, addOn));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(serverSession()));
 
@@ -107,9 +110,9 @@ class BillApplicationServiceTest {
   /** 没有已结台会话但有房费明细（异常/历史数据）时，房费仍要出现在账单里，合计不能丢项。 */
   @Test
   void roomFeeItemsAreShownEvenWithoutClosedSession() {
-    OrderPo order = order(BigDecimal.valueOf(15000));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(15000));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("5000"), new BigDecimal("3"), new BigDecimal("15000"))));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
@@ -129,10 +132,9 @@ class BillApplicationServiceTest {
    */
   @Test
   void pausedSessionStopsBillingAtPauseStartedAt() {
-    OrderPo order = order(BigDecimal.ZERO);
-    order.setStatus("SERVING");
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    Order order = order(BigDecimal.ZERO, "SERVING");
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows());
     // 开台 10:00 → 暂停 10:30（停表）→ 现在 12:30：计费时长只能是 30 分钟 = 1 块。
     KtvSession paused = openSession()
         .withStatus(KtvSession.STATUS_PAUSED)
@@ -161,14 +163,13 @@ class BillApplicationServiceTest {
    */
   @Test
   void historicalRoomFeeWithoutClosedAtExplainsItselfByBlocksAndSnapshotTime() {
-    OrderPo order = order(BigDecimal.valueOf(4000));
-    order.setStatus("VOIDED");
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    OrderItemPo roomFee = item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null,
+    Order order = order(BigDecimal.valueOf(4000), "VOIDED");
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    OrderItem roomFee = item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null,
         new BigDecimal("4000"), new BigDecimal("1"), new BigDecimal("4000"));
-    roomFee.setPriceSnapshotJson(plan().toSnapshotJson());
-    roomFee.setUpdatedAt(LocalDateTime.of(2026, 9, 20, 7, 22, 15));
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
+    roomFee = withSnapshot(roomFee, plan().toSnapshotJson());
+    // 房费明细的固化时刻是记账列（updated_at），由读路径的记账快照带回。
+    when(orderItemMapper.list(any())).thenReturn(List.of(row(roomFee, LocalDateTime.of(2026, 9, 20, 7, 22, 15))));
     // 作废单 + CANCELLED 会话、closed_at IS NULL：领域模型不可变，显式构造（closedAt 传 null）。
     KtvSession cancelled = new KtvSession(58L, 100L, null, null, 1L, 3001L, null, null, null, null, null, null,
         null, null, null, null, null, LocalDateTime.of(2026, 9, 20, 6, 58, 48), 0, 0, null, null,
@@ -192,13 +193,12 @@ class BillApplicationServiceTest {
   /** 结台固化（closed_at 已知）：时长可信，块数/单价/超时口径一并下发，前端不做任何算术。 */
   @Test
   void closedSessionExplainsDurationBlocksAndOvertime() {
-    OrderPo order = order(BigDecimal.valueOf(12000));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    OrderItemPo roomFee = item(1L, "ROOM_FEE", "包厢计时费", null,
+    Order order = order(BigDecimal.valueOf(12000));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    OrderItem roomFee = item(1L, "ROOM_FEE", "包厢计时费", null,
         new BigDecimal("1500"), new BigDecimal("6"), new BigDecimal("12000"));
-    roomFee.setPriceSnapshotJson(plan().toSnapshotJson());
-    roomFee.setUpdatedAt(LocalDateTime.of(2026, 9, 20, 10, 0));
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
+    roomFee = withSnapshot(roomFee, plan().toSnapshotJson());
+    when(orderItemMapper.list(any())).thenReturn(List.of(row(roomFee, LocalDateTime.of(2026, 9, 20, 10, 0))));
     // 标准时长 120 分钟；计费 180 分钟 → 超时 60 分钟（超时倍率 1.5：4 块 × 1.5 + ... 由明细固化，不在此复算）
     KtvSession closed = closedSession()
         .withBillingStartAt(LocalDateTime.of(2026, 9, 20, 7, 0))
@@ -230,10 +230,9 @@ class BillApplicationServiceTest {
    */
   @Test
   void packagePlanHasNoRoomFeeLineAndKeepsStoredTotal() {
-    OrderPo order = order(BigDecimal.valueOf(26800));
-    order.setStatus("SERVING");
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(26800), "SERVING");
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "PRODUCT", "果盘", null, new BigDecimal("6800"), new BigDecimal("1"), new BigDecimal("6800")),
         item(2L, "PACKAGE_FEE", "欢唱套餐", null, new BigDecimal("20000"), new BigDecimal("1"), new BigDecimal("20000"))));
     KtvSession open = openSession().withBillingRuleSnapshotJson(packagePlan().toSnapshotJson());
@@ -253,10 +252,9 @@ class BillApplicationServiceTest {
    */
   @Test
   void billPicksTheSameCurrentSessionAsOrderBoard() {
-    OrderPo order = order(BigDecimal.ZERO);
-    order.setStatus("SERVING");
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    Order order = order(BigDecimal.ZERO, "SERVING");
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows());
     KtvSession olderClosed = closedSession().withId(11L);
     KtvSession currentOpen = openSession()
         .withId(12L)
@@ -276,9 +274,9 @@ class BillApplicationServiceTest {
   /** 房费明细多行（历史脏数据）：金额/块数一并求和，与订单合计的重算口径一致（不重不漏）。 */
   @Test
   void duplicatedRoomFeeRowsAreSummedNotDropped() {
-    OrderPo order = order(BigDecimal.valueOf(6000));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(6000));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("4000"), new BigDecimal("1"), new BigDecimal("4000")),
         item(2L, "ROOM_FEE", "包厢计时费", null, new BigDecimal("2000"), new BigDecimal("1"), new BigDecimal("2000"))));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
@@ -294,12 +292,12 @@ class BillApplicationServiceTest {
   /** 读路径不能被一份坏计价快照打成 500：解析失败时只少了解释字段，金额照常给。 */
   @Test
   void brokenPriceSnapshotStillReturnsFrozenAmount() {
-    OrderPo order = order(BigDecimal.valueOf(4000));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    OrderItemPo roomFee = item(1L, "ROOM_FEE", "包厢计时费", null,
+    Order order = order(BigDecimal.valueOf(4000));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    OrderItem roomFee = item(1L, "ROOM_FEE", "包厢计时费", null,
         new BigDecimal("4000"), new BigDecimal("1"), new BigDecimal("4000"));
-    roomFee.setPriceSnapshotJson("{ this is not json");
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(roomFee));
+    roomFee = withSnapshot(roomFee, "{ this is not json");
+    when(orderItemMapper.list(any())).thenReturn(rows(roomFee));
     KtvSession closed = closedSession().withBillingRuleSnapshotJson("{ also broken");
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closed));
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
@@ -328,9 +326,9 @@ class BillApplicationServiceTest {
   /** 演示 F11 报告里的实测场景：旧实现只列 ¥5（服务目录项被 SERVICE 过滤掉），合计 ¥15，明细对不上。 */
   @Test
   void serviceCatalogItemIsNoLongerDroppedFromItems() {
-    OrderPo order = order(BigDecimal.valueOf(1500));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(1500));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "PRODUCT", "矿泉水", null, new BigDecimal("500"), new BigDecimal("1"), new BigDecimal("500")),
         item(2L, "SERVICE", "服务员点歌", null, new BigDecimal("1000"), new BigDecimal("1"), new BigDecimal("1000"))));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
@@ -347,9 +345,9 @@ class BillApplicationServiceTest {
   /** 未结束的服务人员点单不计入账单（ENDED 才计费）。 */
   @Test
   void unfinishedServerSessionIsNotBilled() {
-    OrderPo order = order(BigDecimal.ZERO);
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    Order order = order(BigDecimal.ZERO);
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows());
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of());
     KtvServerSession ordered = serverSession().withStatus("SERVING");
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(ordered));
@@ -367,12 +365,10 @@ class BillApplicationServiceTest {
    */
   @Test
   void billComputesLiveRoomFeeForOpenSession() {
-    OrderPo order = order(BigDecimal.ZERO);
-    order.setStatus("SERVING");
-    order.setPaidAmount(BigDecimal.ZERO);
-    when(orderMapper.selectById(1L)).thenReturn(order);
+    Order order = order(BigDecimal.ZERO, "SERVING");
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     // 存量开台订单：库里还没有房费明细（本轮修复前开的台），合计也是 0。
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of());
+    when(orderItemMapper.list(any())).thenReturn(rows());
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(openSession()));
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
     when(pricingPlanProvider.resolve(any(), any())).thenReturn(
@@ -397,34 +393,42 @@ class BillApplicationServiceTest {
         .withBillingStartAt(LocalDateTime.now().minusMinutes(30));
   }
 
-  private static OrderPo order(BigDecimal totalAmount) {
-    OrderPo po = new OrderPo();
-    po.setId(1L);
-    po.setTenantId(100L);
-    po.setStoreId(100L);
-    po.setStatus("COMPLETED");
-    po.setCurrencyCode("CNY");
-    po.setTotalAmount(totalAmount);
-    po.setPaidAmount(totalAmount);
-    po.setDiscountAmount(BigDecimal.ZERO);
-    po.setTaxAmount(BigDecimal.ZERO);
-    return po;
+  /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
+  private static Order order(BigDecimal totalAmount) {
+    return order(totalAmount, "COMPLETED");
   }
 
-  private static OrderItemPo item(Long id, String itemType, String name, Long resourceId,
-                                  BigDecimal unitPrice, BigDecimal quantity, BigDecimal totalAmount) {
-    OrderItemPo po = new OrderItemPo();
-    po.setId(id);
-    po.setTenantId(100L);
-    po.setOrderId(1L);
-    po.setItemType(itemType);
-    po.setNameSnapshot(name);
-    po.setResourceId(resourceId);
-    po.setUnitPrice(unitPrice);
-    po.setQuantity(quantity);
-    po.setTotalAmount(totalAmount);
-    po.setStatus("ACTIVE");
-    return po;
+  private static Order order(BigDecimal totalAmount, String status) {
+    return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, totalAmount, BigDecimal.ZERO,
+        null, null, null, null, 0);
+  }
+
+  private static OrderItem item(Long id, String itemType, String name, Long resourceId,
+                                BigDecimal unitPrice, BigDecimal quantity, BigDecimal totalAmount) {
+    return new OrderItem(id, 100L, 100L, "KTV", 1L, itemType, null, resourceId, name, unitPrice, quantity,
+        BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, "CNY", null, OrderItem.STATUS_ACTIVE,
+        OrderItem.SOURCE_MERCHANT, null, null, null, null, null, null);
+  }
+
+  /** 在不可变明细上补价格快照列（账单按快照还原计价方案）。 */
+  private static OrderItem withSnapshot(OrderItem item, String priceSnapshotJson) {
+    return item.withPricing(item.nameSnapshot(), item.unitPrice(), item.quantity(), item.totalAmount(),
+        item.currencyCode(), priceSnapshotJson);
+  }
+
+  /** 读路径的落库行 + 记账快照（账单只看业务字段；房费固化的 updated_at 由各用例单独指定）。 */
+  private static List<Persisted<OrderItem>> rows(OrderItem... items) {
+    LocalDateTime now = LocalDateTime.now();
+    List<Persisted<OrderItem>> rows = new ArrayList<>();
+    for (OrderItem item : items) {
+      rows.add(row(item, now));
+    }
+    return rows;
+  }
+
+  private static Persisted<OrderItem> row(OrderItem item, LocalDateTime fixedAt) {
+    return new Persisted<>(item, new AuditSnapshot(null, LocalDateTime.now(), null, fixedAt));
   }
 
   /** 已结台的会话夹具（计费 90 分钟、刚结台）。 */
@@ -454,15 +458,15 @@ class BillApplicationServiceTest {
   @Test
   void freeServerQuotaIsShownAsZeroLineWithAnnotation() {
     // 合计 = 包厢费 22500 + 免费服务人员 0 + 额外服务人员 10000
-    OrderPo order = order(BigDecimal.valueOf(32500));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    OrderItemPo freeItem = item(2L, "SERVICE", "服务人员#9（含 1 名标准服务人员，不另计费）", 9L,
+    Order order = order(BigDecimal.valueOf(32500));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    OrderItem freeItem = item(2L, "SERVICE", "服务人员#9（含 1 名标准服务人员，不另计费）", 9L,
         BigDecimal.ZERO, new BigDecimal("2"), BigDecimal.ZERO);
-    freeItem.setPriceSnapshotJson("{\"serverPricePerInc\":5000,\"freeServerQuota\":true}");
-    OrderItemPo extraItem = item(3L, "SERVICE", "额外服务人员#10", 10L,
+    freeItem = withSnapshot(freeItem, "{\"serverPricePerInc\":5000,\"freeServerQuota\":true}");
+    OrderItem extraItem = item(3L, "SERVICE", "额外服务人员#10", 10L,
         new BigDecimal("5000"), new BigDecimal("2"), new BigDecimal("10000"));
-    extraItem.setPriceSnapshotJson("{\"serverPricePerInc\":5000,\"freeServerQuota\":false}");
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    extraItem = withSnapshot(extraItem, "{\"serverPricePerInc\":5000,\"freeServerQuota\":false}");
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500")),
         freeItem, extraItem));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
@@ -491,9 +495,9 @@ class BillApplicationServiceTest {
   /** 未派服务人员：只有包厢费，servers 分区为空（包厢费仍按含 1 名服务人员的合计基数收）。 */
   @Test
   void noServerSessionKeepsRoomFeeOnly() {
-    OrderPo order = order(BigDecimal.valueOf(22500));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(22500));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500"))));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of());
@@ -508,9 +512,9 @@ class BillApplicationServiceTest {
   /** 第 3 名起仍按「额外服务人员」标注，免费名额只有 1 个。 */
   @Test
   void onlyTheEarliestServerSessionIsFree() {
-    OrderPo order = order(BigDecimal.valueOf(42500));
-    when(orderMapper.selectById(1L)).thenReturn(order);
-    when(orderItemMapper.selectList(any(QueryWrapper.class))).thenReturn(List.of(
+    Order order = order(BigDecimal.valueOf(42500));
+    when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
+    when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "ROOM_FEE", "包厢费（含 1 名服务人员）", null, new BigDecimal("7500"), new BigDecimal("3"), new BigDecimal("22500"))));
     when(ktvSessionRepository.listByOrderId(any())).thenReturn(List.of(closedSession()));
     when(serverSessionRepository.listByOrderId(any())).thenReturn(List.of(

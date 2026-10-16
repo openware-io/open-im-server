@@ -1,18 +1,20 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.dto.PendingApprovalView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.repository.OrderItemQuery;
+import io.openware.platform.order.domain.order.repository.OrderItemRepository;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.infra.cache.PendingApprovalCache;
-import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderItemPo;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -47,22 +49,19 @@ import java.util.Set;
 @Service
 public class PendingApprovalApplicationService {
 
-    /** 明细状态：待服务人员确认（与 OrderItemController 的写入值一致）。 */
-    private static final String STATUS_PENDING_APPROVAL = "PENDING_APPROVAL";
-
     /** 单次聚合最多返回的明细条数（防极端数据把响应撑爆；计数与金额仍按全部命中行统计）。 */
     private static final int MAX_ITEMS = 200;
 
-    private final OrderItemMapper orderItemMapper;
-    private final OrderMapper orderMapper;
+    private final OrderItemRepository orderItemRepository;
+    private final OrderRepository orderRepository;
     private final KtvSessionApplicationService ktvSessionService;
     private final PendingApprovalCache cache;
 
-    public PendingApprovalApplicationService(OrderItemMapper orderItemMapper, OrderMapper orderMapper,
+    public PendingApprovalApplicationService(OrderItemRepository orderItemRepository, OrderRepository orderRepository,
                                             KtvSessionApplicationService ktvSessionService,
                                             PendingApprovalCache cache) {
-        this.orderItemMapper = orderItemMapper;
-        this.orderMapper = orderMapper;
+        this.orderItemRepository = orderItemRepository;
+        this.orderRepository = orderRepository;
         this.ktvSessionService = ktvSessionService;
         this.cache = cache;
     }
@@ -108,71 +107,71 @@ public class PendingApprovalApplicationService {
         if (tenantId == null || storeId == null) {
             return empty(now);
         }
-        List<OrderItemPo> pending = orderItemMapper.selectList(new LambdaQueryWrapper<OrderItemPo>()
-                .eq(OrderItemPo::getTenantId, tenantId)
-                .eq(OrderItemPo::getStatus, STATUS_PENDING_APPROVAL)
-                .orderByAsc(OrderItemPo::getCreatedAt)
-                .orderByAsc(OrderItemPo::getId)
-                .last("LIMIT " + MAX_ITEMS));
+        List<Persisted<OrderItem>> pending = orderItemRepository
+                .list(OrderItemQuery.pendingApprovalOfTenant(tenantId, MAX_ITEMS));
         if (pending == null || pending.isEmpty()) {
             return empty(now);
         }
         Set<Long> orderIds = new LinkedHashSet<>();
-        pending.forEach(item -> {
-            if (item.getOrderId() != null) {
-                orderIds.add(item.getOrderId());
+        pending.forEach(row -> {
+            if (row.aggregate().orderId() != null) {
+                orderIds.add(row.aggregate().orderId());
             }
         });
         if (orderIds.isEmpty()) {
             return empty(now);
         }
-        Map<Long, OrderPo> orders = new LinkedHashMap<>();
-        orderMapper.selectBatchIds(orderIds).stream()
-                .filter(order -> storeId.equals(order.getStoreId()))
-                .forEach(order -> orders.put(order.getId(), order));
+        Map<Long, Order> orders = new LinkedHashMap<>();
+        orderRepository.findByIds(new ArrayList<>(orderIds)).stream()
+                .filter(order -> storeId.equals(order.storeId()))
+                .forEach(order -> orders.put(order.id(), order));
         Map<Long, KtvSession> sessions = ktvSessionService.listByOrderIds(new ArrayList<>(orders.keySet()));
 
-        Map<Long, List<OrderItemPo>> grouped = new LinkedHashMap<>();
+        Map<Long, List<Persisted<OrderItem>>> grouped = new LinkedHashMap<>();
         long pendingCount = 0;
         long pendingAmount = 0;
         long revision = 0;
         Set<String> currencies = new LinkedHashSet<>();
-        for (OrderItemPo item : pending) {
-            OrderPo order = item.getOrderId() == null ? null : orders.get(item.getOrderId());
+        for (Persisted<OrderItem> row : pending) {
+            OrderItem item = row.aggregate();
+            Order order = item.orderId() == null ? null : orders.get(item.orderId());
             if (order == null) {
                 // 不是当前门店（或订单已不可见）：不计入本门店口径。
                 continue;
             }
-            grouped.computeIfAbsent(order.getId(), key -> new ArrayList<>()).add(item);
+            grouped.computeIfAbsent(order.id(), key -> new ArrayList<>()).add(row);
             pendingCount += 1;
-            pendingAmount += minor(item.getTotalAmount());
-            revision = Math.max(revision, item.getId() == null ? 0L : item.getId());
-            if (item.getCurrencyCode() != null && !item.getCurrencyCode().isBlank()) {
-                currencies.add(item.getCurrencyCode());
+            pendingAmount += minor(item.totalAmount());
+            revision = Math.max(revision, item.id() == null ? 0L : item.id());
+            if (item.currencyCode() != null && !item.currencyCode().isBlank()) {
+                currencies.add(item.currencyCode());
             }
         }
         List<PendingApprovalView.PendingOrder> groupViews = new ArrayList<>();
-        grouped.forEach((orderId, items) -> {
-            OrderPo order = orders.get(orderId);
+        grouped.forEach((orderId, rows) -> {
+            Order order = orders.get(orderId);
             KtvSession session = sessions == null ? null : sessions.get(orderId);
             long groupAmount = 0;
-            List<PendingApprovalView.PendingItem> itemViews = new ArrayList<>(items.size());
-            for (OrderItemPo item : items) {
-                long amount = minor(item.getTotalAmount());
+            List<PendingApprovalView.PendingItem> itemViews = new ArrayList<>(rows.size());
+            for (Persisted<OrderItem> row : rows) {
+                OrderItem item = row.aggregate();
+                long amount = minor(item.totalAmount());
                 groupAmount += amount;
+                // created_at 是记账列（不进领域模型），待确认加项要展示「提交时间」，因此由适配器随行读回。
+                LocalDateTime itemCreatedAt = row.audit() == null ? null : row.audit().createdAt();
                 itemViews.add(new PendingApprovalView.PendingItem(
-                        item.getId(),
-                        item.getNameSnapshot(),
-                        item.getQuantity(),
-                        minor(item.getUnitPrice()),
+                        item.id(),
+                        item.nameSnapshot(),
+                        item.quantity(),
+                        minor(item.unitPrice()),
                         amount,
-                        item.getCurrencyCode(),
-                        item.getCreatedAt() == null ? null : item.getCreatedAt().toString()));
+                        item.currencyCode(),
+                        itemCreatedAt == null ? null : itemCreatedAt.toString()));
             }
             groupViews.add(new PendingApprovalView.PendingOrder(
                     orderId,
-                    order.getOrderNo(),
-                    order.getStoreId(),
+                    order.orderNo(),
+                    order.storeId(),
                     roomNameOf(session),
                     session == null ? null : text(session.roomCodeSnapshot()),
                     session == null ? null : session.status(),

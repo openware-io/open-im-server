@@ -5,7 +5,9 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.order.application.OrderVoidApprovalApplicationService;
-import io.openware.platform.order.infra.persistence.po.OrdOrderVoidApprovalPo;
+import io.openware.platform.order.domain.order.model.OrderVoidApproval;
+import io.openware.platform.order.domain.order.repository.AuditSnapshot;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -27,7 +29,8 @@ public class OrderVoidApprovalController {
     @GetMapping
     public List<ApprovalResponse> list(@RequestParam(required = false) String status) {
         PermissionGuard.require("order.void"); TenantContext c = context();
-        return service.list(c.tenantId(), c.storeId(), status).stream().map(OrderVoidApprovalController::response).toList();
+        return service.list(c.tenantId(), c.storeId(), status).stream()
+                .map(OrderVoidApprovalController::response).toList();
     }
 
     @GetMapping("/{id}")
@@ -61,9 +64,20 @@ public class OrderVoidApprovalController {
                                    Long approverId, String reviewComment, String idempotencyKey, Integer version,
                                    java.time.LocalDateTime createdAt, java.time.LocalDateTime updatedAt,
                                    java.time.LocalDateTime reviewedAt) {}
-    private static ApprovalResponse response(OrdOrderVoidApprovalPo p) {
-        return new ApprovalResponse(p.getId(), p.getTenantId(), p.getStoreId(), p.getOrderId(), p.getOrderVersion(),
-                p.getOrderStatusSnapshot(), p.getReason(), p.getStatus(), p.getApplicantId(), p.getApproverId(),
-                p.getReviewComment(), p.getIdempotencyKey(), p.getVersion(), p.getCreatedAt(), p.getUpdatedAt(), p.getReviewedAt());
+
+    /**
+     * 领域聚合 + 记账快照 → 响应。
+     *
+     * <p>{@code createdAt}/{@code updatedAt} 是记账列（不进领域模型），由适配器随行读回；
+     * 没有快照时（理论上不会发生）取 {@code null} 而不是假装有值。
+     */
+    private static ApprovalResponse response(Persisted<OrderVoidApproval> row) {
+        OrderVoidApproval p = row.aggregate();
+        AuditSnapshot audit = row.audit();
+        return new ApprovalResponse(p.id(), p.tenantId(), p.storeId(), p.orderId(), p.orderVersion(),
+                p.orderStatusSnapshot(), p.reason(), p.status(), p.applicantId(), p.approverId(),
+                p.reviewComment(), p.idempotencyKey(), p.version(),
+                audit == null ? null : audit.createdAt(), audit == null ? null : audit.updatedAt(),
+                p.reviewedAt());
     }
 }

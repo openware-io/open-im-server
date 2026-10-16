@@ -17,9 +17,10 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.application.VoidRuleApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.infra.persistence.mapper.CustomerLookupMapper;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
+import io.openware.platform.order.domain.order.port.MemberLookupProvider;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.model.Order;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,10 +30,10 @@ class OrderVoidRuleGuardTest {
     private final OrderCancellationApplicationService cancellation = mock(OrderCancellationApplicationService.class);
     private final VoidRuleApplicationService rules = mock(VoidRuleApplicationService.class);
     private final OrderController controller = new OrderController(
-            mock(OrderMapper.class), mock(KtvSessionApplicationService.class),
+            mock(OrderRepository.class), mock(KtvSessionApplicationService.class),
             mock(KtvServerSessionApplicationService.class), mock(ResourceStateClient.class),
             AuditClient.disabled(), cancellation, mock(DailySerialNumberGenerator.class),
-            mock(CustomerLookupMapper.class), rules);
+            mock(MemberLookupProvider.class), rules);
 
     @BeforeEach
     void setUp() {
@@ -46,11 +47,10 @@ class OrderVoidRuleGuardTest {
 
     @Test
     void directVoidIsRejectedWhenRuleRequiresApproval() {
-        OrderPo order = new OrderPo();
-        order.setId(42L);
-        order.setTenantId(100L);
-        order.setStoreId(7L);
-        order.setBusinessType("KTV");
+        // 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。
+        Order order = new Order(42L, 100L, null, 7L, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, null, null, 0);
         when(cancellation.requireOrder(42L)).thenReturn(order);
         when(rules.isApprovalRequired(100L, "KTV", 7L)).thenReturn(true);
 

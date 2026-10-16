@@ -1,47 +1,49 @@
 package io.openware.platform.order.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.infra.persistence.mapper.OrdVoidRuleConfigMapper;
-import io.openware.platform.order.infra.persistence.po.OrdVoidRuleConfigPo;
+import io.openware.platform.order.domain.order.model.VoidRuleConfig;
+import io.openware.platform.order.domain.order.repository.Persisted;
+import io.openware.platform.order.domain.order.repository.VoidRuleConfigRepository;
+import java.util.Locale;
+import java.util.Optional;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Locale;
-
 /** Order 域作废审批规则，解析顺序为门店覆盖 > 业态默认 > 租户默认。 */
 @Service
 public class VoidRuleApplicationService {
-    private final OrdVoidRuleConfigMapper mapper;
+    private final VoidRuleConfigRepository repository;
     private final AuditClient auditClient;
 
-    public VoidRuleApplicationService(OrdVoidRuleConfigMapper mapper, AuditClient auditClient) {
-        this.mapper = mapper;
+    public VoidRuleApplicationService(VoidRuleConfigRepository repository, AuditClient auditClient) {
+        this.repository = repository;
         this.auditClient = auditClient;
     }
 
     public RuleView resolve(Long tenantId, String businessType, Long storeId) {
         requireTenant(tenantId);
         String business = normalizeBusinessType(businessType);
-        OrdVoidRuleConfigPo row = null;
+        VoidRuleConfig row = null;
         if (storeId != null && storeId > 0 && business != null) row = find(tenantId, business, storeId);
         if (row == null && business != null) row = find(tenantId, business, 0L);
         if (row == null) row = find(tenantId, "", 0L);
         if (row == null) return new RuleView(false, "DEFAULT", 0, null);
-        String source = row.getStoreId() != null && row.getStoreId() > 0 ? "STORE"
-                : (row.getBusinessType() == null || row.getBusinessType().isBlank() ? "TENANT" : "BUSINESS");
-        return new RuleView(Boolean.TRUE.equals(row.getRequireApproval()), source,
-                row.getVersion() == null ? 0 : row.getVersion(), row.getId());
+        // 档位由列值推导（VoidRuleConfig#scope）：STORE / BUSINESS / TENANT。
+        return new RuleView(row.approvalRequired(), row.scope(), row.currentVersion(), row.id());
     }
 
+    /**
+     * 保存规则，返回落库后的聚合与记账快照。
+     *
+     * <p>响应契约（内部端口 {@code PUT /internal/order/void-rules}）带 {@code createdAt}/{@code updatedAt}，
+     * 而审计列不进领域模型，因此经 {@link Persisted} 一并交回控制器装配视图。
+     */
     @Transactional
-    public OrdVoidRuleConfigPo save(Long tenantId, SaveCommand command) {
+    public Persisted<VoidRuleConfig> save(Long tenantId, SaveCommand command) {
         requireTenant(tenantId);
         if (command == null || command.requireApproval() == null) {
             throw new ApiException(400, "VOID_RULE_REQUIRED", "缺少作废审批规则");
@@ -54,77 +56,65 @@ public class VoidRuleApplicationService {
         if (storeId > 0 && business == null) {
             throw new ApiException(400, "BUSINESS_TYPE_REQUIRED", "门店覆盖必须指定 businessType");
         }
-        OrdVoidRuleConfigPo idem = findIdempotency(tenantId, command.idempotencyKey());
-        if (idem != null) return idem;
-        OrdVoidRuleConfigPo row = find(tenantId, business == null ? "" : business, storeId);
-        LocalDateTime now = LocalDateTime.now();
-        if (row == null) {
-            row = new OrdVoidRuleConfigPo();
-            row.setTenantId(tenantId);
-            row.setBusinessType(business == null ? "" : business);
-            row.setStoreId(storeId);
-            row.setRequireApproval(command.requireApproval());
-            row.setVersion(0);
-            row.setIdempotencyKey(blankToNull(command.idempotencyKey()));
-            row.setStatus("ACTIVE");
-            row.setCreatedAt(now);
-            row.setUpdatedAt(now);
+        Optional<Persisted<VoidRuleConfig>> idem = findIdempotency(tenantId, command.idempotencyKey());
+        if (idem.isPresent()) return idem.get();
+        Persisted<VoidRuleConfig> existing = findActive(tenantId, business == null ? "" : business, storeId);
+        Persisted<VoidRuleConfig> saved;
+        if (existing == null) {
+            VoidRuleConfig row = new VoidRuleConfig(null, tenantId, business == null ? "" : business, storeId,
+                    command.requireApproval(), 0, blankToNull(command.idempotencyKey()),
+                    VoidRuleConfig.STATUS_ACTIVE);
             try {
-                mapper.insert(row);
+                saved = repository.insert(row);
             } catch (DuplicateKeyException ex) {
-                OrdVoidRuleConfigPo existing = findIdempotency(tenantId, command.idempotencyKey());
-                if (existing != null) return existing;
+                Optional<Persisted<VoidRuleConfig>> winner = findIdempotency(tenantId, command.idempotencyKey());
+                if (winner.isPresent()) return winner.get();
                 throw ex;
             }
         } else {
-            int current = row.getVersion() == null ? 0 : row.getVersion();
+            VoidRuleConfig row = existing.aggregate();
+            int current = row.currentVersion();
             if (command.expectedVersion() != null && command.expectedVersion() != current) {
                 throw new ApiException(409, "VOID_RULE_VERSION_CONFLICT", "作废审批规则版本冲突，请刷新后重试");
             }
-            int changed = mapper.update(null, new LambdaUpdateWrapper<OrdVoidRuleConfigPo>()
-                    .eq(OrdVoidRuleConfigPo::getId, row.getId())
-                    .eq(OrdVoidRuleConfigPo::getVersion, current)
-                    .set(OrdVoidRuleConfigPo::getRequireApproval, command.requireApproval())
-                    .set(OrdVoidRuleConfigPo::getVersion, current + 1)
-                    .set(OrdVoidRuleConfigPo::getUpdatedAt, now));
-            if (changed == 0) throw new ApiException(409, "VOID_RULE_VERSION_CONFLICT", "作废审批规则已被并发修改，请刷新后重试");
-            row.setRequireApproval(command.requireApproval());
-            row.setVersion(current + 1);
-            row.setUpdatedAt(now);
+            // CAS：只有库中版本仍是读到的那个才写入；受影响 0 行 = 期间已被并发修改。
+            saved = repository
+                    .updateRequireApprovalWithVersion(row.withRequireApproval(command.requireApproval(), current),
+                            current)
+                    .orElseThrow(() -> new ApiException(409, "VOID_RULE_VERSION_CONFLICT",
+                            "作废审批规则已被并发修改，请刷新后重试"));
         }
-        audit(tenantId, row);
-        return row;
+        audit(tenantId, saved.aggregate());
+        return saved;
     }
 
     public boolean isApprovalRequired(Long tenantId, String businessType, Long storeId) {
         return resolve(tenantId, businessType, storeId).requireApproval();
     }
 
-    private OrdVoidRuleConfigPo find(Long tenantId, String businessType, Long storeId) {
-        return mapper.selectOne(new LambdaQueryWrapper<OrdVoidRuleConfigPo>()
-                .eq(OrdVoidRuleConfigPo::getTenantId, tenantId)
-                .eq(OrdVoidRuleConfigPo::getBusinessType, businessType)
-                .eq(OrdVoidRuleConfigPo::getStoreId, storeId)
-                .eq(OrdVoidRuleConfigPo::getStatus, "ACTIVE")
-                .last("LIMIT 1"));
+    /** 某档规则行（生效中）；解析只关心业务字段，记账快照由保存路径消费。 */
+    private VoidRuleConfig find(Long tenantId, String businessType, Long storeId) {
+        Persisted<VoidRuleConfig> row = findActive(tenantId, businessType, storeId);
+        return row == null ? null : row.aggregate();
     }
 
-    private OrdVoidRuleConfigPo findIdempotency(Long tenantId, String key) {
-        if (key == null || key.isBlank()) return null;
-        return mapper.selectOne(new LambdaQueryWrapper<OrdVoidRuleConfigPo>()
-                .eq(OrdVoidRuleConfigPo::getTenantId, tenantId)
-                .eq(OrdVoidRuleConfigPo::getIdempotencyKey, key)
-                .last("LIMIT 1"));
+    private Persisted<VoidRuleConfig> findActive(Long tenantId, String businessType, Long storeId) {
+        return repository.findActive(tenantId, businessType, storeId).orElse(null);
     }
 
-    private void audit(Long tenantId, OrdVoidRuleConfigPo row) {
+    private Optional<Persisted<VoidRuleConfig>> findIdempotency(Long tenantId, String key) {
+        if (key == null || key.isBlank()) return Optional.empty();
+        return repository.findByIdempotencyKey(tenantId, key);
+    }
+
+    private void audit(Long tenantId, VoidRuleConfig row) {
         if (auditClient == null) return;
-        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(row.getStoreId())
+        auditClient.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(row.storeId())
                 .operatorId(TenantContextHolder.get() == null ? null : TenantContextHolder.get().accountId())
                 .action("order.void.rule.save").resourceType("ord_void_rule_config")
-                .resourceId(String.valueOf(row.getId())).result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"businessType\":\"" + row.getBusinessType() + "\",\"storeId\":"
-                        + row.getStoreId() + ",\"requireApproval\":" + row.getRequireApproval() + "}").build());
+                .resourceId(String.valueOf(row.id())).result(AuditClient.AuditRecord.RESULT_SUCCESS)
+                .detailJson("{\"businessType\":\"" + row.businessType() + "\",\"storeId\":"
+                        + row.storeId() + ",\"requireApproval\":" + row.requireApproval() + "}").build());
     }
 
     private static void requireTenant(Long tenantId) {

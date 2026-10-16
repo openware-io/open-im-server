@@ -5,9 +5,9 @@ import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
-import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
-import io.openware.platform.order.infra.persistence.po.OrderPo;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +44,9 @@ import java.util.Set;
  *   <li>作废（{@link CancelKind#VOID}）：审计码 {@code order.void}，原因保持**选填**
  *       （既有后台按钮与调用方兼容），已作废仍按 409 拒绝（保留既有对外行为）。</li>
  * </ul>
+ *
+ * <p><b>并发</b>：作废的判定点在适配器那条带 {@code AND status = ?} 的条件 UPDATE 上；
+ * 受影响 0 行 → 409，绝不允许两个并发取消各自释放一次会话、各写一条审计。
  */
 @Service
 public class OrderCancellationApplicationService {
@@ -106,44 +109,44 @@ public class OrderCancellationApplicationService {
         }
     }
 
-    private final OrderMapper orderMapper;
+    private final OrderRepository orderRepository;
     private final KtvSessionApplicationService ktvSessionService;
     private final AuditClient auditClient;
     private final PaymentCollectedClient paymentCollectedClient;
 
     @Autowired
-    public OrderCancellationApplicationService(OrderMapper orderMapper,
+    public OrderCancellationApplicationService(OrderRepository orderRepository,
                                                KtvSessionApplicationService ktvSessionService,
                                                AuditClient auditClient,
                                                PaymentCollectedClient paymentCollectedClient) {
-        this.orderMapper = orderMapper;
+        this.orderRepository = orderRepository;
         this.ktvSessionService = ktvSessionService;
         this.auditClient = auditClient;
         this.paymentCollectedClient = paymentCollectedClient;
     }
 
     /** 兼容单测/旧装配：没有 payment 域客户端时只用订单已收金额快照判定。 */
-    public OrderCancellationApplicationService(OrderMapper orderMapper,
+    public OrderCancellationApplicationService(OrderRepository orderRepository,
                                                KtvSessionApplicationService ktvSessionService,
                                                AuditClient auditClient) {
-        this(orderMapper, ktvSessionService, auditClient, null);
+        this(orderRepository, ktvSessionService, auditClient, null);
     }
 
     /** 运营取消订单（原因必填；重复取消幂等返回既有结果，不再留痕）。 */
     @Transactional
-    public OrderPo cancel(Long orderId, String reason) {
+    public Order cancel(Long orderId, String reason) {
         return apply(orderId, normalizeReason(reason, CancelKind.CANCEL), CancelKind.CANCEL);
     }
 
     /** 作废订单（既有入口，原因选填；保留既有审计码与已作废 409 行为）。 */
     @Transactional
-    public OrderPo voidOrder(Long orderId, String reason) {
+    public Order voidOrder(Long orderId, String reason) {
         return apply(orderId, normalizeReason(reason, CancelKind.VOID), CancelKind.VOID);
     }
 
     /** 审批通过后的内部执行入口；策略已由 OrderVoidApprovalApplicationService 校验。 */
     @Transactional
-    public OrderPo voidOrderApproved(Long orderId, String reason) {
+    public Order voidOrderApproved(Long orderId, String reason) {
         return apply(orderId, normalizeReason(reason, CancelKind.VOID), CancelKind.VOID);
     }
 
@@ -154,21 +157,27 @@ public class OrderCancellationApplicationService {
                 : CancelReasons.optional(reason);
     }
 
-    /** 订单查询（404 不存在 / 403 跨租户），与控制器 requireOrder 同一口径，集中在本服务避免两处漂移。 */
-    public OrderPo requireOrder(Long id) {
-        OrderPo po = orderMapper.selectById(id);
-        if (po == null) {
-            if (orderMapper.selectTenantIdById(id) != null) {
+    /**
+     * 订单查询（404 不存在 / 403 跨租户），与控制器 requireOrder 同一口径，集中在本服务避免两处漂移。
+     *
+     * <p>403 与 404 的区分靠端口上的 {@code findTenantIdById}：它忽略租户行过滤、只按主键读
+     * {@code tenant_id}，因此「读不到订单但能读到租户」= 跨租户（403），
+     * 「两者都读不到」才是真的不存在（404）。把两者合并会把一次授权失败降级成「订单不存在」。
+     */
+    public Order requireOrder(Long id) {
+        Order order = orderRepository.findById(id).orElse(null);
+        if (order == null) {
+            if (orderRepository.findTenantIdById(id).isPresent()) {
                 throw new ApiException(403, "TENANT_SCOPE_DENIED", "无权访问其他租户的订单");
             }
             throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
         }
-        return po;
+        return order;
     }
 
-    private OrderPo apply(Long orderId, String reason, CancelKind kind) {
-        OrderPo order = requireOrder(orderId);
-        String beforeStatus = order.getStatus();
+    private Order apply(Long orderId, String reason, CancelKind kind) {
+        Order order = requireOrder(orderId);
+        String beforeStatus = order.status();
         try {
             if ("VOIDED".equals(beforeStatus)) {
                 if (kind.idempotentWhenAlreadyCancelled()) {
@@ -186,17 +195,16 @@ public class OrderCancellationApplicationService {
             requireNoCollectedPayment(order);
 
             // 释放包厢占用：同一事务内取消活动会话并释放占用（会话取消/释放语义统一在 KTV 会话服务里）。
-            KtvSession releasedSession = ktvSessionService.cancelByOrder(order.getId());
+            KtvSession releasedSession = ktvSessionService.cancelByOrder(order.id());
 
             LocalDateTime now = LocalDateTime.now();
             // 条件更新：只有库中仍是判定的那个状态才算作废成功。上面按 beforeStatus 的判定不是并发保护——
             // 两个并发取消都会读到同一非终结状态并通过判定，从而各自释放一次会话、各写一条审计。
-            if (orderMapper.voidIfStatus(order.getId(), beforeStatus, now) == 0) {
+            if (!orderRepository.voidIfStatus(order.id(), beforeStatus, now)) {
                 throw new ApiException(409, "ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
             }
-            order.setStatus("VOIDED");
-            order.setCancelledAt(now);
-            order.setUpdatedAt(now);
+            // 领域模型不可变：作废后的新实例（状态 VOIDED、cancelled_at = now）。
+            order = order.voided(now);
             audit(order, beforeStatus, reason, kind, releasedSession);
             return order;
         } catch (RuntimeException failure) {
@@ -212,21 +220,21 @@ public class OrderCancellationApplicationService {
      * <p>不带幂等键（同一动作重复失败必须各自留痕，且不得与成功路径的稳定键互相覆盖）；
      * detail 只放订单号与状态等检索字段，不含金额、联系人等敏感信息。
      */
-    private void recordFailure(OrderPo order, String beforeStatus, CancelKind kind, RuntimeException failure) {
+    private void recordFailure(Order order, String beforeStatus, CancelKind kind, RuntimeException failure) {
         if (auditClient == null) {
             return;
         }
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(order.getTenantId())
-                .storeId(order.getStoreId())
+                .tenantId(order.tenantId())
+                .storeId(order.storeId())
                 .action(kind.action())
                 .actionLabel(kind.actionLabel())
                 .resourceType("ord_order")
-                .resourceId(String.valueOf(order.getId()))
-                .resourceName(order.getOrderNo())
+                .resourceId(String.valueOf(order.id()))
+                .resourceName(order.orderNo())
                 .result(AuditClient.AuditRecord.RESULT_FAILURE)
                 .errorCode(AuditErrorCodes.of(failure))
-                .detailJson("{\"orderNo\":" + jsonText(order.getOrderNo())
+                .detailJson("{\"orderNo\":" + jsonText(order.orderNo())
                         + ",\"beforeStatus\":" + jsonText(beforeStatus) + "}")
                 .build());
     }
@@ -239,15 +247,15 @@ public class OrderCancellationApplicationService {
      * <p>payment 域不可达时按「无收款证据」处理（不阻断取消），与账单读路径同一降级口径：
      * 资金拦截的最终依据仍是订单已收金额快照。
      */
-    private void requireNoCollectedPayment(OrderPo order) {
-        BigDecimal paid = order.getPaidAmount();
-        if (paid != null && paid.compareTo(BigDecimal.ZERO) > 0) {
+    private void requireNoCollectedPayment(Order order) {
+        BigDecimal paid = order.paid();
+        if (paid.compareTo(BigDecimal.ZERO) > 0) {
             throw new ApiException(409, PAYMENT_REFUND_FIRST_CODE, PAYMENT_REFUND_FIRST_MESSAGE);
         }
         if (paymentCollectedClient == null) {
             return;
         }
-        Optional<PaymentCollectedClient.CollectedBreakdown> collected = paymentCollectedClient.collected(order.getId());
+        Optional<PaymentCollectedClient.CollectedBreakdown> collected = paymentCollectedClient.collected(order.id());
         if (collected.isPresent() && totalCollected(collected.get()) > 0) {
             throw new ApiException(409, PAYMENT_REFUND_FIRST_CODE, PAYMENT_REFUND_FIRST_MESSAGE);
         }
@@ -259,7 +267,7 @@ public class OrderCancellationApplicationService {
     }
 
     /** 取消/作废审计：动作码按 kind 分叉，detail 带前后状态、原因与释放的会话/包厢（无会话时为 null）。 */
-    private void audit(OrderPo order, String beforeStatus, String reason, CancelKind kind,
+    private void audit(Order order, String beforeStatus, String reason, CancelKind kind,
                        KtvSession releasedSession) {
         if (auditClient == null) {
             return;
@@ -267,24 +275,24 @@ public class OrderCancellationApplicationService {
         Long releasedSessionId = releasedSession == null ? null : releasedSession.id();
         Long releasedResourceId = releasedSession == null ? null : releasedSession.roomResourceId();
         auditClient.recordAsync(AuditClient.AuditRecord.builder()
-                .tenantId(order.getTenantId())
-                .storeId(order.getStoreId())
+                .tenantId(order.tenantId())
+                .storeId(order.storeId())
                 .action(kind.action())
                 .actionLabel(kind.actionLabel())
                 .resourceType("ord_order")
-                .resourceId(String.valueOf(order.getId()))
-                .resourceName(order.getOrderNo())
+                .resourceId(String.valueOf(order.id()))
+                .resourceName(order.orderNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .idempotencyKey(kind.idempotencyKey(order.getId()))
+                .idempotencyKey(kind.idempotencyKey(order.id()))
                 .detailJson(detail(order, beforeStatus, reason, releasedSessionId, releasedResourceId))
                 .build());
     }
 
-    private static String detail(OrderPo order, String beforeStatus, String reason,
+    private static String detail(Order order, String beforeStatus, String reason,
                                  Long releasedSessionId, Long releasedResourceId) {
-        return "{\"orderNo\":" + jsonText(order.getOrderNo())
+        return "{\"orderNo\":" + jsonText(order.orderNo())
                 + ",\"beforeStatus\":" + jsonText(beforeStatus)
-                + ",\"afterStatus\":" + jsonText(order.getStatus())
+                + ",\"afterStatus\":" + jsonText(order.status())
                 + ",\"reason\":" + jsonText(reason)
                 + ",\"releasedSessionId\":" + releasedSessionId
                 + ",\"releasedResourceId\":" + releasedResourceId + "}";
