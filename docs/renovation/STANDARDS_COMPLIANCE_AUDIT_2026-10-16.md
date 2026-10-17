@@ -334,6 +334,40 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 "排序键留在领域还是改为载体承载"。两种做法都可行，但会影响 `FavoritePage` 的形状与测试替身，
 属于**设计选择**而非机械清理。先记录，避免在半途做出会反复修改的选择。
 
+**（该决定已作出并落地：见 §8.11——用只读投影，不引入 `SortKey`。`MessageFavorite` 已完成。）**
+
+### 8.11 只读投影方案落地 + 剩余 12 个模型的施工图（2026-10-16 第七次更新）
+
+**B 方案（只读投影）已在 `MessageFavorite` 落地并验证**（message 124 测试全绿）：
+
+| 要素 | 做法 |
+|---|---|
+| 投影类型 | `domain.message.readmodel.MessageFavoriteView`（record，含 `favoritedAt`） |
+| 端口方法 | `searchFavorites(...)`（L279 查询语义），返回 `FavoritePage(List<MessageFavoriteView>, total)` |
+| 排序 | 适配器内 `orderByDesc(created_at)`，**不进端口** |
+| 业务判定 | 原在实体上的 `hasSnapshot()` 移到应用服务（L278 投影不得定义行为） |
+| 作废 | 我此前提议的"`SortKey` 枚举放进端口包"——**规范里没有这一层，不引入** |
+
+**剩余 12 个模型的逐模型判定（已全仓 grep 读者，可直接照此施工）**：
+
+| 模型 | 适配器外读者 | 判据结论 | 修法 |
+|---|---|---|---|
+| `UserAccount` | ✅ 3 处（admin 列表 `:152`、profile `:151-152,161`） | 有响应读者 | 载体或投影 |
+| `FriendRelation` | ✅ 4 处（admin `:160`、friend `:209-210`、授权查询 `:47`） | 有响应读者 + **`:47` 参与判定** | 投影 + 注意 time 语义 |
+| `DeviceToken` | ✅ 2 处（admin `:165-166`、`DeviceTokenApplicationService:62-63`） | 有响应读者 | 载体/投影 |
+| `UserSticker` | ✅ 2 处（admin `:172`、sticker `:62`） | 有响应读者 | 载体/投影 |
+| `DeviceSession` | ✅ 1 处（`:76`） | 有响应读者 | 载体/投影 |
+| `DeviceKey` | ✅ 1 处（`:51`） | 有响应读者 | 载体/投影 |
+| `FriendRequest` | ✅ 1 处（`FriendApplicationService:216-217`） | 有响应读者 | 载体/投影 |
+| `UserSecurityQuestion` | ❌ **无** | **纯记账** | **纯下沉（最省）** |
+| `AccountCancellation` | ❌ **无** | **纯记账** | **纯下沉** |
+| `OpenApplication` | ❌ **无** | **纯记账**（`reviewedBy`/`reviewedAt` 是业务字段，保留） | **纯下沉** |
+| `MessageOutbox` | ❌ 仅转换器（`MessagePersistenceConverter:39`） | **纯记账**，但 `pending(..., createdAt)` 由调用方决定入队时刻 | 先确认调用方是否恒传 `now()` |
+| `Message` | ✅ 11 处 | 有响应读者 | 单独一轮（最大聚合、共用转换器） |
+
+**据此顺序**：3 个"纯下沉"先做（`UserSecurityQuestion`/`AccountCancellation`/`OpenApplication`），
+再 7 个"有读者"逐个按投影或载体处理，最后 `Message`。这与"模型数"无关，按**剩余工作量**排序。
+
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
