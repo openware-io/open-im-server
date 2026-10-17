@@ -820,13 +820,18 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - `ConversationGroup` 去掉 `createdAt/updatedAt`；端口改为 `Persisted<ConversationGroup>` +
   `AuditSnapshot`，适配器插入写 `created_at/updated_at`、更新只写 `updated_at`；
   控制器改用 `ConversationGroupView` 保留原 JSON 字段。群组相关 **21 个测试通过**。
+- `ClientRelease` / `ClientReleasePolicy` 去掉 `createdBy/createdAt/updatedBy/updatedAt`：
+  - `save`/`update` 端口改为显式接收 `actorId/occurredAt`，适配器插入写四列、更新只写 `updated_*`；
+  - `ClientReleasePolicy` 的读端返回 `Persisted`，`PolicyResponse.updatedAt` 从 `AuditSnapshot` 取；
+  - `ClientRelease` 的 DTO 不暴露审计列，读端保持聚合返回。
+  admin clientrelease 相关测试通过。
+- `ClientReleaseOperation` / `ReleaseAuditLog` **保留** `createdBy/createdAt`：它们是 append-only
+  操作/审计记录，这两个字段是记录本身的「谁在何时操作」，属于业务载荷而非表记账列；
+  与 `UserSyncIndex.createdAt`（同步时刻）同类，不再按审计列迁移。
 
 **V1 完成**：控制器 `@Transactional` **12/12 清零**；`controller-repository-boundary` **14 → 0**，
 门禁已转为 blocking（不再有 report-only 例外）。
-**剩余**：admin clientrelease 的 4 个模型（`ClientRelease`、`ClientReleasePolicy`、
-`ClientReleaseOperation`、`ReleaseAuditLog`）；其中后两者需先判定 `createdBy/createdAt`
-是「记录本身的操作者/发生时间」还是记账列，再决定迁移方式。
-`UserSyncIndex.createdAt` 是业务同步时刻，判定保留。
+**审计字段**：除上述两个 append-only 载荷与 `UserSyncIndex.createdAt` 外，清单内模型已全部收口。
 
 
 

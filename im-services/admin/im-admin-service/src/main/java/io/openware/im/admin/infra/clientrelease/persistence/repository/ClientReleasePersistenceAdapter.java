@@ -42,26 +42,35 @@ public class ClientReleasePersistenceAdapter implements ClientReleaseRepository,
     Long maxBuildNumber = releaseMapper.selectObjs(Wrappers.<ClientReleasePo>lambdaQuery().select(ClientReleasePo::getBuildNumber).eq(ClientReleasePo::getPlatform, platform).eq(ClientReleasePo::getChannel, channel).orderByDesc(ClientReleasePo::getBuildNumber).last("LIMIT 1")).stream().findFirst().map(value -> ((Number) value).longValue()).orElse(0L);
     return maxBuildNumber;
   }
-  @Override public ClientRelease save(ClientRelease value) {
-    ClientReleasePo po = releasePo(value); releaseMapper.insert(po);
-    value.artifacts().forEach(artifact -> artifactMapper.insert(artifactPo(artifact, po.getId(), value.createdBy(), value.createdAt())));
+  @Override public ClientRelease save(ClientRelease value, long actorId, LocalDateTime occurredAt) {
+    ClientReleasePo po = releasePo(value);
+    po.setCreatedBy(actorId); po.setCreatedAt(occurredAt); po.setUpdatedBy(actorId); po.setUpdatedAt(occurredAt);
+    releaseMapper.insert(po);
+    value.artifacts().forEach(artifact -> artifactMapper.insert(artifactPo(artifact, po.getId(), actorId, occurredAt)));
     return findById(po.getId()).orElseThrow();
   }
-  @Override public boolean update(ClientRelease value, long expectedRowVersion) {
+  @Override public boolean update(ClientRelease value, long expectedRowVersion, long actorId, LocalDateTime occurredAt) {
     ClientReleasePo po = releasePo(value); po.setRowVersion(expectedRowVersion + 1);
+    po.setUpdatedBy(actorId); po.setUpdatedAt(occurredAt);
     return releaseMapper.update(po, Wrappers.<ClientReleasePo>lambdaUpdate().eq(ClientReleasePo::getId, value.id()).eq(ClientReleasePo::getRowVersion, expectedRowVersion)) == 1;
   }
   @Override public void replaceArtifacts(long releaseId, List<ReleaseArtifact> artifacts, long actorId, LocalDateTime timestamp) {
     artifactMapper.delete(Wrappers.<ClientReleaseArtifactPo>lambdaQuery().eq(ClientReleaseArtifactPo::getReleaseId, releaseId));
     artifacts.forEach(artifact -> artifactMapper.insert(artifactPo(artifact, releaseId, actorId, timestamp)));
   }
-  @Override public Optional<ClientReleasePolicy> find(ReleasePlatform platform, ReleaseChannel channel) {
-    return Optional.ofNullable(policyMapper.selectOne(Wrappers.<ClientReleasePolicyPo>lambdaQuery().eq(ClientReleasePolicyPo::getPlatform, platform).eq(ClientReleasePolicyPo::getChannel, channel))).map(this::policy);
+  @Override public Optional<Persisted<ClientReleasePolicy>> find(ReleasePlatform platform, ReleaseChannel channel) {
+    return Optional.ofNullable(policyMapper.selectOne(Wrappers.<ClientReleasePolicyPo>lambdaQuery().eq(ClientReleasePolicyPo::getPlatform, platform).eq(ClientReleasePolicyPo::getChannel, channel))).map(this::policyPersisted);
   }
-  @Override public List<ClientReleasePolicy> findAll() { return policyMapper.selectList(Wrappers.<ClientReleasePolicyPo>lambdaQuery().orderByAsc(ClientReleasePolicyPo::getPlatform).orderByAsc(ClientReleasePolicyPo::getChannel)).stream().map(this::policy).toList(); }
-  @Override public ClientReleasePolicy save(ClientReleasePolicy value) { ClientReleasePolicyPo po = policyPo(value); policyMapper.insert(po); return policy(po); }
-  @Override public boolean update(ClientReleasePolicy value, long expectedRowVersion) {
+  @Override public List<Persisted<ClientReleasePolicy>> findAll() { return policyMapper.selectList(Wrappers.<ClientReleasePolicyPo>lambdaQuery().orderByAsc(ClientReleasePolicyPo::getPlatform).orderByAsc(ClientReleasePolicyPo::getChannel)).stream().map(this::policyPersisted).toList(); }
+  @Override public Persisted<ClientReleasePolicy> save(ClientReleasePolicy value, long actorId, LocalDateTime occurredAt) {
+    ClientReleasePolicyPo po = policyPo(value);
+    po.setCreatedBy(actorId); po.setCreatedAt(occurredAt); po.setUpdatedBy(actorId); po.setUpdatedAt(occurredAt);
+    policyMapper.insert(po);
+    return find(value.platform(), value.channel()).orElseThrow();
+  }
+  @Override public boolean update(ClientReleasePolicy value, long expectedRowVersion, long actorId, LocalDateTime occurredAt) {
     ClientReleasePolicyPo po = policyPo(value); po.setRowVersion(expectedRowVersion + 1);
+    po.setUpdatedBy(actorId); po.setUpdatedAt(occurredAt);
     return policyMapper.update(po, Wrappers.<ClientReleasePolicyPo>lambdaUpdate().eq(ClientReleasePolicyPo::getId, value.id()).eq(ClientReleasePolicyPo::getRowVersion, expectedRowVersion)) == 1;
   }
   @Override public ReleaseAuditLog append(ReleaseAuditLog value) {
@@ -78,17 +87,20 @@ public class ClientReleasePersistenceAdapter implements ClientReleaseRepository,
     ClientReleaseOperationPo po = new ClientReleaseOperationPo(); po.setIdempotencyKey(value.idempotencyKey()); po.setAction(value.action()); po.setRequestDigest(value.requestDigest()); po.setReleaseId(value.releaseId()); po.setPolicyId(value.policyId()); po.setCreatedBy(value.createdBy()); po.setCreatedAt(value.createdAt()); po.setUpdatedBy(value.createdBy()); po.setUpdatedAt(value.createdAt()); operationMapper.insert(po); return operation(po);
   }
   private ClientRelease release(ClientReleasePo po) {
-    return new ClientRelease(po.getId(), po.getPlatform(), po.getChannel(), po.getVersion(), po.getBuildNumber(), po.getStatus(), Boolean.TRUE.equals(po.getMandatory()), po.getRolloutPercent(), po.getRolloutSalt(), po.getScheduledAt(), po.getPublishedAt(), po.getReleaseNotes(), po.getStoreUrl(), compatibility(po.getCompatibilityJson()), po.getRowVersion(), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt(), artifactMapper.selectList(Wrappers.<ClientReleaseArtifactPo>lambdaQuery().eq(ClientReleaseArtifactPo::getReleaseId, po.getId())).stream().map(this::artifact).toList());
+    return new ClientRelease(po.getId(), po.getPlatform(), po.getChannel(), po.getVersion(), po.getBuildNumber(), po.getStatus(), Boolean.TRUE.equals(po.getMandatory()), po.getRolloutPercent(), po.getRolloutSalt(), po.getScheduledAt(), po.getPublishedAt(), po.getReleaseNotes(), po.getStoreUrl(), compatibility(po.getCompatibilityJson()), po.getRowVersion(), artifactMapper.selectList(Wrappers.<ClientReleaseArtifactPo>lambdaQuery().eq(ClientReleaseArtifactPo::getReleaseId, po.getId())).stream().map(this::artifact).toList());
   }
   private ClientReleasePo releasePo(ClientRelease value) {
-    ClientReleasePo po = new ClientReleasePo(); po.setId(value.id()); po.setPlatform(value.platform()); po.setChannel(value.channel()); po.setVersion(value.version()); po.setBuildNumber(value.buildNumber()); po.setStatus(value.status()); po.setMandatory(value.mandatory()); po.setRolloutPercent(value.rolloutPercent()); po.setRolloutSalt(value.rolloutSalt()); po.setScheduledAt(value.scheduledAt()); po.setPublishedAt(value.publishedAt()); po.setReleaseNotes(value.releaseNotes()); po.setStoreUrl(value.storeUrl()); po.setCompatibilityJson(json(value.compatibility())); po.setRowVersion(value.rowVersion()); po.setCreatedBy(value.createdBy()); po.setCreatedAt(value.createdAt()); po.setUpdatedBy(value.updatedBy()); po.setUpdatedAt(value.updatedAt()); return po;
+    ClientReleasePo po = new ClientReleasePo(); po.setId(value.id()); po.setPlatform(value.platform()); po.setChannel(value.channel()); po.setVersion(value.version()); po.setBuildNumber(value.buildNumber()); po.setStatus(value.status()); po.setMandatory(value.mandatory()); po.setRolloutPercent(value.rolloutPercent()); po.setRolloutSalt(value.rolloutSalt()); po.setScheduledAt(value.scheduledAt()); po.setPublishedAt(value.publishedAt()); po.setReleaseNotes(value.releaseNotes()); po.setStoreUrl(value.storeUrl()); po.setCompatibilityJson(json(value.compatibility())); po.setRowVersion(value.rowVersion()); return po;
   }
   private ReleaseArtifact artifact(ClientReleaseArtifactPo po) { return new ReleaseArtifact(po.getId(), po.getReleaseId(), po.getArchitecture(), po.getPackageType(), po.getDownloadUrl(), po.getSha256(), po.getSizeBytes(), po.getSigningMetadataJson()); }
   private ClientReleaseArtifactPo artifactPo(ReleaseArtifact value, Long releaseId, Long actorId, LocalDateTime timestamp) {
     ClientReleaseArtifactPo po = new ClientReleaseArtifactPo(); po.setReleaseId(releaseId); po.setArchitecture(value.architecture()); po.setPackageType(value.packageType()); po.setDownloadUrl(value.downloadUrl()); po.setSha256(value.sha256()); po.setSizeBytes(value.sizeBytes()); po.setSigningMetadataJson(value.signingMetadataJson()); po.setCreatedBy(actorId); po.setCreatedAt(timestamp); po.setUpdatedBy(actorId); po.setUpdatedAt(timestamp); return po;
   }
-  private ClientReleasePolicy policy(ClientReleasePolicyPo po) { return new ClientReleasePolicy(po.getId(), po.getPlatform(), po.getChannel(), po.getMinimumBuildNumber(), po.getRowVersion(), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()); }
-  private ClientReleasePolicyPo policyPo(ClientReleasePolicy value) { ClientReleasePolicyPo po = new ClientReleasePolicyPo(); po.setId(value.id()); po.setPlatform(value.platform()); po.setChannel(value.channel()); po.setMinimumBuildNumber(value.minimumBuildNumber()); po.setRowVersion(value.rowVersion()); po.setCreatedBy(value.createdBy()); po.setCreatedAt(value.createdAt()); po.setUpdatedBy(value.updatedBy()); po.setUpdatedAt(value.updatedAt()); return po; }
+  private Persisted<ClientReleasePolicy> policyPersisted(ClientReleasePolicyPo po) {
+    return new Persisted<>(policy(po), new AuditSnapshot(po.getCreatedAt(), po.getUpdatedAt()));
+  }
+  private ClientReleasePolicy policy(ClientReleasePolicyPo po) { return new ClientReleasePolicy(po.getId(), po.getPlatform(), po.getChannel(), po.getMinimumBuildNumber(), po.getRowVersion()); }
+  private ClientReleasePolicyPo policyPo(ClientReleasePolicy value) { ClientReleasePolicyPo po = new ClientReleasePolicyPo(); po.setId(value.id()); po.setPlatform(value.platform()); po.setChannel(value.channel()); po.setMinimumBuildNumber(value.minimumBuildNumber()); po.setRowVersion(value.rowVersion()); return po; }
   private ReleaseAuditLog audit(ClientReleaseAuditLogPo po) { return new ReleaseAuditLog(po.getId(), po.getReleaseId(), po.getPolicyId(), po.getAction(), po.getBeforeStatus(), po.getAfterStatus(), po.getRequestId(), po.getIdempotencyKey(), po.getReason(), po.getPayloadDigest(), po.getCreatedBy(), po.getCreatedAt()); }
   private ClientReleaseOperation operation(ClientReleaseOperationPo po) { return new ClientReleaseOperation(po.getId(), po.getIdempotencyKey(), po.getAction(), po.getRequestDigest(), po.getReleaseId(), po.getPolicyId(), po.getCreatedBy(), po.getCreatedAt()); }
   private String json(CompatibilitySnapshot value) { try { return objectMapper.writeValueAsString(value); } catch (JsonProcessingException exception) { throw new IllegalArgumentException("Invalid compatibility snapshot", exception); } }

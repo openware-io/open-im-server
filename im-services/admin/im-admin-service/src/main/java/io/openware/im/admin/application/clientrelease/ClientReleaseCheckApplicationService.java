@@ -23,7 +23,7 @@ public class ClientReleaseCheckApplicationService {
     List<ClientRelease> candidates = releaseRepository.findEligible(platform, channel, architecture);
     ClientRelease baseline = candidates.stream().filter(item -> item.status() == ReleaseStatus.RELEASED).findFirst().orElse(null);
     if (baseline == null) return result("no_release", null, null);
-    ClientReleasePolicy policy = policyRepository.find(platform, channel).orElse(null);
+    ClientReleasePolicy policy = policyRepository.find(platform, channel).map(item -> item.aggregate()).orElse(null);
     if (policy != null && buildNumber < policy.minimumBuildNumber()) return result("unsupported_client", "minimum_build_not_supported", baseline);
     if (!properties.getSupportedProtocolVersions().contains(protocolVersion) || baseline.compatibility().minimumServerCapabilityVersion() > properties.getMinimumServerCapabilityVersion()) return result("unsupported_client", "protocol_not_supported", baseline);
     ClientRelease target = candidates.stream().filter(item -> item.status() == ReleaseStatus.ROLLING_OUT).filter(item -> assigned(item.rolloutSalt(), installationId) < item.rolloutPercent()).findFirst().orElse(baseline);
