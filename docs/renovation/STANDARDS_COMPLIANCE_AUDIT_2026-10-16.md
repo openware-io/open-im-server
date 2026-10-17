@@ -518,6 +518,41 @@ private long version(FriendRelation relation) {
 **为什么分两轮**：第一轮只动「读取形态」，编译错误集中在适配器与应用层；
 第二轮只动「方法签名」，编译错误集中在调用点。混在一轮会同时暴露两类错误，难以定位。
 
+### 8.17 `UserAccount.updatedBy` 同样需要在端口上表达操作人（2026-10-16 第十三次更新）
+
+试做第一轮时发现 §8.16 的表还不完整。**`updatedBy` 不是恒为常量**：
+
+| 路径 | `updatedBy` 取值 |
+|---|---|
+| `register(...)` | **常量 `0L`**（系统） |
+| 其它迁移方法 | 不改 `updatedBy`（沿用原值） |
+| `changeStatus(targetStatus, operatorId, occurredAt)` | **`operatorId`**（管理端操作人） |
+
+所以 `updatedBy` 一旦移出领域模型，适配器**无法知道**这次写库要不要记录"谁改的"。
+
+**这与 `FriendRequest` 的 `createdAt` 是同一类问题**：审计列被某条业务路径赋予了真实含义，
+必须用**端口方法**表达，而不是让领域模型携带字段。
+
+**解法**：状态变更走独立端口方法，并带上操作人：
+
+```java
+// 现状：只有 account 与版本号
+boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersion);
+
+// 改为：把操作人作为端口参数（它本来就是这次「管理端变更」的业务输入）
+boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersion, Long operatorId);
+```
+
+适配器据此写 `updated_by = operatorId`；其余路径写 `0L`（沿用 `register` 的既有口径）。
+
+**推论**：§8.16 的"分两轮"要改成**三轮**——
+①读取形态、②5 个迁移方法删参、③`changeStatus` 的端口加 `operatorId`。
+第三轮必须独立，因为它改的是**端口语义**而不是签名。
+
+**我在此回退了第一轮的尝试**：中途引入了不存在的 PO 访问器、且尚未处理 `updatedBy` 的这条冲突，
+继续下去会同时改坏读取形态与写入语义。已 `git checkout` 恢复，构建确认 `BUILD SUCCESS`。
+
+
 
 
 
