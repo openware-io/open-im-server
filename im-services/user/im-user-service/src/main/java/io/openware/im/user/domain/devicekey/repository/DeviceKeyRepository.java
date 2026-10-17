@@ -5,9 +5,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface DeviceKeyRepository {
-  Optional<DeviceKey> findByUserIdAndDeviceId(long userId, String deviceId);
+  Optional<Persisted<DeviceKey>> findByUserIdAndDeviceId(long userId, String deviceId);
 
-  List<DeviceKey> findEnabledByUserId(long userId);
+  List<Persisted<DeviceKey>> findEnabledByUserId(long userId);
 
-  DeviceKey save(DeviceKey deviceKey);
+  Persisted<DeviceKey> save(DeviceKey deviceKey);
 }

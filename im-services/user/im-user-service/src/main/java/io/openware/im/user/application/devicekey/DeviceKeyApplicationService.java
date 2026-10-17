@@ -5,7 +5,7 @@ import io.openware.im.user.application.devicekey.command.RegisterDeviceKeyComman
 import io.openware.im.user.application.devicekey.result.DeviceKeyResult;
 import io.openware.im.user.domain.devicekey.model.DeviceKey;
 import io.openware.im.user.domain.devicekey.repository.DeviceKeyRepository;
-import java.time.LocalDateTime;
+import io.openware.im.user.domain.devicekey.repository.Persisted;
 import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -19,11 +19,11 @@ public class DeviceKeyApplicationService {
 
   @Transactional
   public DeviceKeyResult register(Long userId, RegisterDeviceKeyCommand command) {
-    LocalDateTime occurredAt = LocalDateTime.now();
     DeviceKey deviceKey = deviceKeyRepository
         .findByUserIdAndDeviceId(userId, command.deviceId())
-        .map(existing -> existing.renew(command.publicKey(), userId, occurredAt))
-        .orElseGet(() -> DeviceKey.register(userId, command.deviceId(), command.publicKey(), userId, occurredAt));
+        .map(Persisted::aggregate)
+        .map(existing -> existing.renew(command.publicKey()))
+        .orElseGet(() -> DeviceKey.register(userId, command.deviceId(), command.publicKey()));
     return toResult(deviceKeyRepository.save(deviceKey));
   }
 
@@ -41,13 +41,15 @@ public class DeviceKeyApplicationService {
     return userIds.stream().distinct()
         .map(deviceKeyRepository::findEnabledByUserId)
         .filter(keys -> !keys.isEmpty())
-        .map(keys -> keys.stream().max(Comparator.comparing(DeviceKey::getId)).orElseThrow())
-        .map(key -> new UserDeviceKeySummary(key.getUserId(), key.getPublicKey()))
+        .map(keys -> keys.stream().max(Comparator.comparing(row -> row.aggregate().getId())).orElseThrow())
+        .map(row -> new UserDeviceKeySummary(row.aggregate().getUserId(), row.aggregate().getPublicKey()))
         .toList();
   }
 
-  private DeviceKeyResult toResult(DeviceKey key) {
+  private DeviceKeyResult toResult(Persisted<DeviceKey> row) {
+    DeviceKey key = row.aggregate();
     return new DeviceKeyResult(key.getId(), key.getUserId(), key.getDeviceId(), key.getPublicKey(),
-        key.getStatus(), key.getCreatedBy(), key.getCreatedAt(), key.getUpdatedBy(), key.getUpdatedAt());
+        key.getStatus(), row.audit().createdBy(), row.audit().createdAt(), row.audit().updatedBy(),
+        row.audit().updatedAt());
   }
 }
