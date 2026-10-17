@@ -190,7 +190,7 @@ public class MessageApplicationService {
         edited.getContent(), recipientUserIds, now.toInstant(ZoneOffset.UTC));
     messageOutboxRepository.save(MessageOutbox.pending(eventId, "message", edited.getMsgId(),
         MessageEditedEvent.TOPIC, edited.getConversationId(),
-        messagePayloadCodecPort.writeMessageEditedEvent(event), now));
+        messagePayloadCodecPort.writeMessageEditedEvent(event)));
     log.info("消息已编辑, msgId={}, conversationId={}, seq={}, editorId={}",
         edited.getMsgId(), edited.getConversationId(), edited.getSeq(), command.userId());
     return new EditMessageResult(edited.getMsgId(), edited.getConversationId(), edited.getChatType().getValue(),
@@ -418,7 +418,7 @@ public class MessageApplicationService {
         chatType.getValue(), conversationId, targetId, clearedByUserId, recipientUserIds, "cleared");
     messageOutboxRepository.save(MessageOutbox.pending(eventId, "message", conversationId,
         ImMqTopics.MESSAGE_CHAT_CLEARED_EVENT, conversationId,
-        messagePayloadCodecPort.writeChatClearedEvent(event), occurredAt));
+        messagePayloadCodecPort.writeChatClearedEvent(event)));
   }
 
   @Transactional
@@ -477,7 +477,7 @@ public class MessageApplicationService {
         operatorId, recipientUserIds, reason);
     messageOutboxRepository.save(MessageOutbox.pending(eventId, "message", message.getMsgId(),
         ImMqTopics.MESSAGE_RECALLED_EVENT, message.getConversationId(),
-        messagePayloadCodecPort.writeMessageRecalledEvent(event), occurredAt));
+        messagePayloadCodecPort.writeMessageRecalledEvent(event)));
     // 硬删除后所有接收方未读计数需重算（缓存失效触发重算）。
     for (Long recipientUserId : recipientUserIds) {
       unreadCountProjectionPort.invalidate(recipientUserId);
@@ -539,7 +539,7 @@ public class MessageApplicationService {
         mediaReferences.accessUrl(command.senderId(), objectId, message.getMsgId()))).toList();
     messageOutboxRepository.save(MessageOutbox.pending(message.getMsgId(), "message", message.getMsgId(),
         ImMqTopics.MESSAGE_STORED_EVENT, message.getConversationId(),
-        messagePayloadCodecPort.writeStoredMessageEvent(message, recipientUserIds, recipientSyncSeqs, media), utcNow()));
+        messagePayloadCodecPort.writeStoredMessageEvent(message, recipientUserIds, recipientSyncSeqs, media)));
     log.info("权威消息与 Outbox 事件已同事务落库, msgId={}, conversationId={}, seq={}",
         message.getMsgId(), message.getConversationId(), message.getSeq());
     return message;

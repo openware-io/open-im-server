@@ -116,7 +116,7 @@ public class SecretMessageApplicationService {
           .build();
       messageOutboxRepository.save(MessageOutbox.pending(eventId, "secret-message", command.msgId(),
           ImMqTopics.SECRET_MESSAGE_STORED_EVENT, "conv:secret:" + command.secretChatId(),
-          objectMapper.writeValueAsString(event), now));
+          objectMapper.writeValueAsString(event)));
       log.info("Secret message stored event queued, msgId={}, secretChatId={}, seq={}, recipientUserId={}",
           command.msgId(), command.secretChatId(), seq, recipientUserId);
     } catch (Exception ex) {
@@ -407,7 +407,7 @@ public class SecretMessageApplicationService {
           .build();
       messageOutboxRepository.save(MessageOutbox.pending(eventId, "secret-message", "destroyed-" + secretChatId,
           ImMqTopics.SECRET_MESSAGE_DESTROYED_EVENT, "conv:secret:" + secretChatId,
-          objectMapper.writeValueAsString(event), now));
+          objectMapper.writeValueAsString(event)));
       log.info("Secret message destroyed event queued, secretChatId={}, msgCount={}",
           secretChatId, messages.size());
     } catch (Exception ex) {

@@ -36,14 +36,14 @@ public final class MessagePersistenceConverter {
     MessageOutboxPo po = new MessageOutboxPo();
     po.setId(outbox.getId()); po.setEventId(outbox.getEventId()); po.setAggregateType(outbox.getAggregateType());
     po.setAggregateId(outbox.getAggregateId()); po.setTopic(outbox.getTopic()); po.setShardingKey(outbox.getShardingKey());
-    po.setPayloadJson(outbox.getPayloadJson()); po.setPublished(outbox.isPublished()); po.setCreatedAt(outbox.getCreatedAt());
+    po.setPayloadJson(outbox.getPayloadJson()); po.setPublished(outbox.isPublished());
     po.setPublishedAt(outbox.getPublishedAt());
     return po;
   }
 
   public static MessageOutbox toDomain(MessageOutboxPo po) {
     return MessageOutbox.restore(po.getId(), po.getEventId(), po.getAggregateType(), po.getAggregateId(), po.getTopic(),
-        po.getShardingKey(), po.getPayloadJson(), Boolean.TRUE.equals(po.getPublished()), po.getCreatedAt(), po.getPublishedAt());
+        po.getShardingKey(), po.getPayloadJson(), Boolean.TRUE.equals(po.getPublished()), po.getPublishedAt());
   }
 
   public static MessageFavoritePo toPo(MessageFavorite favorite) {

@@ -361,7 +361,7 @@ public class SecretGroupMessageApplicationService {
           .build();
       messageOutboxRepository.save(MessageOutbox.pending(eventId, "secret-group-message", msgId,
           ImMqTopics.SECRET_GROUP_MESSAGE_STORED_EVENT, "conv:secret-group:" + secretGroupId,
-          objectMapper.writeValueAsString(event), now));
+          objectMapper.writeValueAsString(event)));
     } catch (JsonProcessingException ex) {
       throw new IllegalStateException("Unable to serialize secret group message stored event", ex);
     }

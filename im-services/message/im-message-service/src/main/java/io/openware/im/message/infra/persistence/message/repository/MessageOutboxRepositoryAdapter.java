@@ -19,6 +19,8 @@ public class MessageOutboxRepositoryAdapter implements MessageOutboxRepository {
   public MessageOutbox save(MessageOutbox outbox) {
     MessageOutboxPo po = MessagePersistenceConverter.toPo(outbox);
     if (po.getId() == null) {
+      // 入队时刻由适配器确定（standards/10 L299）：领域模型不再携带。
+      po.setCreatedAt(java.time.LocalDateTime.now());
       mapper.insert(po);
       outbox.assignId(po.getId());
     } else {
