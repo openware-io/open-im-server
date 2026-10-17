@@ -2,7 +2,17 @@ package io.openware.im.message.domain.secretgroupmessage.model;
 
 import java.time.LocalDateTime;
 
-/** 私密群聊消息聚合根：逐成员一份密文，服务端不解密；定时销毁由 destroyAt 驱动。 */
+/**
+ * 私密群聊消息聚合根：逐成员一份密文，服务端不解密；定时销毁由 destroyAt 驱动。
+ *
+ * <p><b>为什么不带 {@code createdAt}</b>（standards/10 §聚合装配与持久化契约）：投递时刻是记账信息，
+ * 由适配器在写库时确定；响应需要的值经 {@code SecretGroupMessageRepository.Persisted} 的
+ * {@code AuditSnapshot} 单独带出。
+ *
+ * <p>与本类不同，{@code SecretMessage} 的 {@code createdAt} 留在模型里，因为那条不变式
+ * （销毁时刻 = 投递时刻 + TTL）需要读它。本类的 {@code scheduleDestroy} 由调用方显式给出销毁时刻，
+ * 没有这条依赖，所以它可以完整下沉到适配器。
+ */
 public class SecretGroupMessage {
   private final Long id;
   private final Long secretGroupId;
@@ -13,10 +23,9 @@ public class SecretGroupMessage {
   private final Long seq;
   private final String status;
   private final LocalDateTime destroyAt;
-  private final LocalDateTime createdAt;
 
   private SecretGroupMessage(Long id, Long secretGroupId, String msgId, Long fromUserId, Long recipientUserId,
-      String ciphertext, Long seq, String status, LocalDateTime destroyAt, LocalDateTime createdAt) {
+      String ciphertext, Long seq, String status, LocalDateTime destroyAt) {
     this.id = id;
     this.secretGroupId = secretGroupId;
     this.msgId = msgId;
@@ -26,13 +35,12 @@ public class SecretGroupMessage {
     this.seq = seq;
     this.status = status;
     this.destroyAt = destroyAt;
-    this.createdAt = createdAt;
   }
 
   public static SecretGroupMessage post(long secretGroupId, String msgId, long fromUserId, long recipientUserId,
-      String ciphertext, long seq, LocalDateTime occurredAt) {
-    return new SecretGroupMessage(null, secretGroupId, msgId, fromUserId, recipientUserId, ciphertext, seq, "active",
-        null, occurredAt);
+      String ciphertext, long seq) {
+    return new SecretGroupMessage(null, secretGroupId, msgId, fromUserId, recipientUserId, ciphertext, seq,
+        "active", null);
   }
 
   public SecretGroupMessage scheduleDestroy(LocalDateTime destroyAt) {
@@ -40,17 +48,18 @@ public class SecretGroupMessage {
         ? destroyAt
         : this.destroyAt;
     return new SecretGroupMessage(id, secretGroupId, msgId, fromUserId, recipientUserId, ciphertext, seq, status,
-        effective, createdAt);
+        effective);
   }
 
   public boolean isActive() {
     return "active".equals(status);
   }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public static SecretGroupMessage restore(Long id, Long secretGroupId, String msgId, Long fromUserId,
-      Long recipientUserId, String ciphertext, Long seq, String status, LocalDateTime destroyAt, LocalDateTime createdAt) {
+      Long recipientUserId, String ciphertext, Long seq, String status, LocalDateTime destroyAt) {
     return new SecretGroupMessage(id, secretGroupId, msgId, fromUserId, recipientUserId, ciphertext, seq, status,
-        destroyAt, createdAt);
+        destroyAt);
   }
 
   public Long getId() { return id; }
@@ -62,5 +71,4 @@ public class SecretGroupMessage {
   public Long getSeq() { return seq; }
   public String getStatus() { return status; }
   public LocalDateTime getDestroyAt() { return destroyAt; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
 }

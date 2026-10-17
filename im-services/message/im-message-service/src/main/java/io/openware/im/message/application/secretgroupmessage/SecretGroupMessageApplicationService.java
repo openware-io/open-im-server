@@ -14,6 +14,7 @@ import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessage;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessageDestroyed;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageDestroyedRepository;
+import io.openware.im.message.domain.secretgroupmessage.repository.Persisted;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupChatPort;
 import io.openware.im.message.media.MediaReferenceClient;
@@ -77,8 +78,8 @@ public class SecretGroupMessageApplicationService {
       if (recipient.ciphertext() == null || recipient.ciphertext().isBlank()) {
         throw new ApiException(HttpStatusCodes.BAD_REQUEST, "ciphertext is required");
       }
-      SecretGroupMessage saved = messageRepository.save(SecretGroupMessage.post(
-          command.secretGroupId(), command.msgId(), senderId, recipient.userId(), recipient.ciphertext(), seq, now));
+      Persisted<SecretGroupMessage> saved = messageRepository.save(SecretGroupMessage.post(
+          command.secretGroupId(), command.msgId(), senderId, recipient.userId(), recipient.ciphertext(), seq));
       secretUnreadProjectionPort.record("secret_group", command.secretGroupId(), recipient.userId(), command.msgId(),
           seq, now);
       results.add(toResult(saved));
@@ -98,12 +99,12 @@ public class SecretGroupMessageApplicationService {
   @Transactional(readOnly = true)
   public List<SecretGroupMessageResult> list(long viewerId, long secretGroupId, long afterSeq, int limit) {
     assertMember(viewerId, secretGroupId);
-    List<SecretGroupMessage> messages = messageRepository.listAfterSeq(secretGroupId, viewerId, afterSeq, limit);
+    List<Persisted<SecretGroupMessage>> messages = messageRepository.listAfterSeq(secretGroupId, viewerId, afterSeq, limit);
     // 「删除仅我」：该成员删过的密群消息对其本人不可见（与普通消息共用同一张墓碑表），
     // 因此卸载重装后重新拉取也不会把消息“复活”。
     java.util.Set<String> hidden = java.util.Set.copyOf(userDeletedMessageRepository.findDeletedMsgIds(viewerId,
-        messages.stream().map(SecretGroupMessage::getMsgId).toList()));
-    return messages.stream().filter(message -> !hidden.contains(message.getMsgId()))
+        messages.stream().map(row -> row.aggregate().getMsgId()).toList()));
+    return messages.stream().filter(row -> !hidden.contains(row.aggregate().getMsgId()))
         .map(this::toResult).toList();
   }
 
@@ -143,12 +144,12 @@ public class SecretGroupMessageApplicationService {
     }
     assertMember(senderId, command.secretGroupId());
     requireCanPost(senderId, command.secretGroupId());
-    SecretGroupMessage existing = messageRepository.findByMsgId(command.secretGroupId(), command.msgId())
+    Persisted<SecretGroupMessage> existing = messageRepository.findByMsgId(command.secretGroupId(), command.msgId())
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Secret group message not found"));
-    if (existing.getFromUserId() == null || existing.getFromUserId() != senderId) {
+    if (existing.aggregate().getFromUserId() == null || existing.aggregate().getFromUserId() != senderId) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only sender can edit");
     }
-    long seq = existing.getSeq();
+    long seq = existing.aggregate().getSeq();
     // 编辑会重建逐接收方密文；先清除旧投影，避免已移除接收者继续显示未读。
     secretUnreadProjectionPort.deleteByMessage("secret_group", command.secretGroupId(), command.msgId());
     messageRepository.deleteByMsgId(command.secretGroupId(), command.msgId());
@@ -165,8 +166,8 @@ public class SecretGroupMessageApplicationService {
       if (recipient.ciphertext() == null || recipient.ciphertext().isBlank()) {
         throw new ApiException(HttpStatusCodes.BAD_REQUEST, "ciphertext is required");
       }
-      SecretGroupMessage saved = messageRepository.save(SecretGroupMessage.post(
-          command.secretGroupId(), command.msgId(), senderId, recipient.userId(), recipient.ciphertext(), seq, now));
+      Persisted<SecretGroupMessage> saved = messageRepository.save(SecretGroupMessage.post(
+          command.secretGroupId(), command.msgId(), senderId, recipient.userId(), recipient.ciphertext(), seq));
       secretUnreadProjectionPort.record("secret_group", command.secretGroupId(), recipient.userId(), command.msgId(),
           seq, now);
       results.add(toResult(saved));
@@ -196,10 +197,10 @@ public class SecretGroupMessageApplicationService {
       return new MarkReadResult(0, null);
     }
     LocalDateTime destroyAt = now.plus(ttl);
-    List<SecretGroupMessage> uncounted = messageRepository.findUncountedReadBy(secretGroupId, viewerId, afterSeq, viewerId);
+    List<Persisted<SecretGroupMessage>> uncounted = messageRepository.findUncountedReadBy(secretGroupId, viewerId, afterSeq, viewerId);
     int counted = 0;
-    for (SecretGroupMessage message : uncounted) {
-      messageRepository.save(message.scheduleDestroy(destroyAt));
+    for (Persisted<SecretGroupMessage> row : uncounted) {
+      messageRepository.save(row.aggregate().scheduleDestroy(destroyAt));
       counted++;
     }
     if (counted > 0) {
@@ -215,12 +216,13 @@ public class SecretGroupMessageApplicationService {
    */
   @Transactional
   public int destroyExpired(LocalDateTime now, int limit) {
-    List<SecretGroupMessage> expired = messageRepository.findExpired(now, limit);
+    List<Persisted<SecretGroupMessage>> expired = messageRepository.findExpired(now, limit);
     if (expired.isEmpty()) {
       return 0;
     }
     int destroyed = 0;
-    for (SecretGroupMessage message : expired) {
+    for (Persisted<SecretGroupMessage> row : expired) {
+      SecretGroupMessage message = row.aggregate();
       int deleted = messageRepository.deleteByMsgIdAndRecipient(
           message.getSecretGroupId(), message.getMsgId(), message.getRecipientUserId());
       if (deleted > 0) {
@@ -270,11 +272,12 @@ public class SecretGroupMessageApplicationService {
   }
   public void recall(long userId, long secretGroupId, String msgId) {
     assertChatDeleteEnabled();
-    Optional<SecretGroupMessage> found = messageRepository.findByMsgId(secretGroupId, msgId);
+    Optional<Persisted<SecretGroupMessage>> found = messageRepository.findByMsgId(secretGroupId, msgId);
     if (found.isEmpty()) {
       return; // 已销毁/已撤回：幂等
     }
-    if (found.get().getFromUserId() == null || found.get().getFromUserId() != userId) {
+    SecretGroupMessage foundMsg = found.get().aggregate();
+    if (foundMsg.getFromUserId() == null || foundMsg.getFromUserId() != userId) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only sender can recall");
     }
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
@@ -295,11 +298,12 @@ public class SecretGroupMessageApplicationService {
   @Transactional
   public void deleteForEveryone(long userId, long secretGroupId, String msgId) {
     assertChatDeleteEnabled();
-    Optional<SecretGroupMessage> found = messageRepository.findByMsgId(secretGroupId, msgId);
+    Optional<Persisted<SecretGroupMessage>> found = messageRepository.findByMsgId(secretGroupId, msgId);
     if (found.isEmpty()) {
       return; // 已销毁/已删除：幂等
     }
-    if ((found.get().getFromUserId() == null || found.get().getFromUserId() != userId)
+    SecretGroupMessage foundMsg2 = found.get().aggregate();
+    if ((foundMsg2.getFromUserId() == null || foundMsg2.getFromUserId() != userId)
         && secretGroupChatPort.ownerOf(secretGroupId) != userId) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only sender or group owner can delete");
     }
@@ -382,10 +386,11 @@ public class SecretGroupMessageApplicationService {
     };
   }
 
-  private SecretGroupMessageResult toResult(SecretGroupMessage message) {
+  private SecretGroupMessageResult toResult(Persisted<SecretGroupMessage> row) {
+    SecretGroupMessage message = row.aggregate();
     return new SecretGroupMessageResult(message.getId(), message.getSecretGroupId(), message.getMsgId(),
         message.getFromUserId(), message.getRecipientUserId(), message.getCiphertext(), message.getSeq(),
-        message.getStatus(), message.getDestroyAt(), message.getCreatedAt());
+        message.getStatus(), message.getDestroyAt(), row.audit().createdAt());
   }
 
   /** 已销毁消息标识：msgId + 销毁时刻 + 原因（recalled/deleted）。 */

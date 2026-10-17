@@ -19,6 +19,8 @@ import io.openware.im.message.application.secretgroupmessage.result.SecretGroupM
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.domain.message.repository.MessageOutboxRepository;
 import io.openware.im.message.domain.secretgroupmessage.model.SecretGroupMessage;
+import io.openware.im.message.domain.secretgroupmessage.repository.AuditSnapshot;
+import io.openware.im.message.domain.secretgroupmessage.repository.Persisted;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageDestroyedRepository;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
 import io.openware.im.message.domain.message.repository.FeatureTogglePort;
@@ -82,7 +84,7 @@ class SecretGroupMessageApplicationServiceTest {
   @Test
   void postStoresPerRecipientCiphertextsAndPublishesEvent() {
     when(messageRepository.nextSeq(1L)).thenReturn(1L);
-    when(messageRepository.save(any(SecretGroupMessage.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(messageRepository.save(any(SecretGroupMessage.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
     when(outboxRepository.save(any(MessageOutbox.class))).thenReturn(null);
 
     List<RecipientCiphertext> recipients = List.of(
@@ -115,7 +117,7 @@ class SecretGroupMessageApplicationServiceTest {
   @Test
   void postSkipsSenderOwnCopy() {
     when(messageRepository.nextSeq(1L)).thenReturn(1L);
-    when(messageRepository.save(any(SecretGroupMessage.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(messageRepository.save(any(SecretGroupMessage.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
     when(outboxRepository.save(any(MessageOutbox.class))).thenReturn(null);
 
     List<RecipientCiphertext> recipients = List.of(
@@ -138,8 +140,8 @@ class SecretGroupMessageApplicationServiceTest {
 
   @Test
   void ownerCanDeleteOthersMessage() {
-    SecretGroupMessage message = SecretGroupMessage.post(1L, "sg-1", 7L, 9L, "cipher-9", 1L, LocalDateTime.now());
-    when(messageRepository.findByMsgId(1L, "sg-1")).thenReturn(Optional.of(message));
+    SecretGroupMessage message = SecretGroupMessage.post(1L, "sg-1", 7L, 9L, "cipher-9", 1L);
+    when(messageRepository.findByMsgId(1L, "sg-1")).thenReturn(Optional.of(persisted(message)));
     when(secretGroupChatPort.ownerOf(1L)).thenReturn(10L);
     when(messageRepository.deleteByMsgId(1L, "sg-1")).thenReturn(1);
 
@@ -151,8 +153,8 @@ class SecretGroupMessageApplicationServiceTest {
 
   @Test
   void regularMemberCannotDeleteOthersMessage() {
-    SecretGroupMessage message = SecretGroupMessage.post(1L, "sg-1", 7L, 9L, "cipher-9", 1L, LocalDateTime.now());
-    when(messageRepository.findByMsgId(1L, "sg-1")).thenReturn(Optional.of(message));
+    SecretGroupMessage message = SecretGroupMessage.post(1L, "sg-1", 7L, 9L, "cipher-9", 1L);
+    when(messageRepository.findByMsgId(1L, "sg-1")).thenReturn(Optional.of(persisted(message)));
     when(secretGroupChatPort.ownerOf(1L)).thenReturn(10L);
 
     // 普通成员（user=9，非发送方、非群主）无权删除他人消息。
@@ -160,5 +162,11 @@ class SecretGroupMessageApplicationServiceTest {
 
     assertEquals(HttpStatusCodes.FORBIDDEN, ex.getStatus());
     verify(messageRepository, never()).deleteByMsgId(1L, "sg-1");
+  }
+
+  /** 领域模型不带投递时刻：读回的「聚合 + 记账快照」由测试在这里补齐。 */
+  private Persisted<SecretGroupMessage> persisted(SecretGroupMessage message) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(message, new AuditSnapshot(null, now, null, now));
   }
 }
