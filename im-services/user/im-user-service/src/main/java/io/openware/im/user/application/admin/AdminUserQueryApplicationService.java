@@ -146,7 +146,7 @@ public class AdminUserQueryApplicationService {
   @Transactional
   public void deleteSticker(Long id) {
     UserSticker sticker = userStickerRepository.findById(id)
-        .map(io.openware.im.user.domain.sticker.repository.Persisted::aggregate)
+        .map(row -> row.aggregate())
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Sticker not found"));
     userStickerRepository.deleteById(id);
     userStickerRepository.releaseSlots(sticker.getUserId(), 1);
