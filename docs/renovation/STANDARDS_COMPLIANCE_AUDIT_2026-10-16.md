@@ -306,6 +306,35 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 3. `UserNotificationSetting`、`UserPrivacySetting`（只剩两个字段）
 4. 12 个"四个齐全"的模型逐个处理；`Message` 与 `SecretMessage` 各单独一轮
 
+### 8.10 `MessageFavorite` 与 `MessageOutbox`：`createdAt` 的第三种角色——**排序键**（2026-10-16 第六次更新）
+
+`SecretGroupMessage` 已完成（`createdAt` 只被响应读，干净下沉）。接着核 `MessageFavorite` 时发现它的
+`createdAt` **不只是显示用**：
+
+| 证据 | 含义 |
+|---|---|
+| `MessageFavoriteRepositoryAdapter:52`：`orderByDesc(MessageFavoritePo::getCreatedAt)` | **收藏列表按它倒序分页** |
+| `FavoriteApplicationServiceTest:519-524`：测试替身自己按 `createdAt` 排序后 `subList` 分页 | **测试替身依赖它排序** |
+
+**这意味着**：把 `createdAt` 从 `MessageFavorite` 移除，不只是"给响应加个载体"——
+`findByUserId` 返回的 `FavoritePage(items, total)` 里，`items` 必须变成 `Persisted<MessageFavorite>`，
+**而且**：领域对象一旦不带时刻，**内存测试替身就无法复现"按收藏时刻倒序"这一契约**，
+只能改成让替身维持 `Persisted` 并自己记时间。这不是机械改动。
+
+**所以 `createdAt` 有四种角色，必须分开处理**：
+
+| 角色 | 例子 | 处理 |
+|---|---|---|
+| 纯记账（无人读） | `ChannelSubscription` | 下沉适配器，无载体 |
+| 响应回显 | `Channel`、`SecretGroupMessage` | 下沉适配器 + `Persisted` 载体 |
+| **领域规则的输入** | `SecretMessage`（销毁 = 创建 + TTL） | **留在模型**，并把规则收进领域 |
+| **排序键** | `MessageFavorite`、疑同 `MessageOutbox` | **待定**：需同时处理载体与测试替身的分页语义 |
+
+**这就是我在这里停下的原因**：`MessageFavorite` 与 `MessageOutbox` 需要一个**共同决定**——
+"排序键留在领域还是改为载体承载"。两种做法都可行，但会影响 `FavoritePage` 的形状与测试替身，
+属于**设计选择**而非机械清理。先记录，避免在半途做出会反复修改的选择。
+
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
