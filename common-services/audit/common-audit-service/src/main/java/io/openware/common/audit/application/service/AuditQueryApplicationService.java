@@ -110,7 +110,7 @@ public class AuditQueryApplicationService {
         long total = skipped ? AuditPageView.TOTAL_SKIPPED : Math.min(repository.count(query), countCap);
         boolean totalCapped = !skipped && total >= countCap;
         List<AuditLog> logs = repository.findPage(query);
-        enrichOperatorDisplays(logs);
+        logs = withOperatorDisplays(logs);
         Map<Long, String> tenantNames = repository.tenantNames(
                 logs.stream().map(AuditLog::getTenantId).toList());
         List<AuditLogView> items = new ArrayList<>(logs.size());
@@ -136,27 +136,32 @@ public class AuditQueryApplicationService {
      * </ul>
      * 一次请求最多补一页（100 条）去重后的账号，账号表查询失败时仓储层已降级为空 Map，列表照常返回。
      */
-    private void enrichOperatorDisplays(List<AuditLog> logs) {
+    private List<AuditLog> withOperatorDisplays(List<AuditLog> logs) {
         if (logs == null || logs.isEmpty()) {
-            return;
+            return logs == null ? List.of() : logs;
         }
         Map<Long, OperatorDisplay> displays = repository.operatorDisplays(
                 logs.stream().map(AuditLog::getOperatorId).toList());
         if (displays.isEmpty()) {
-            return;
+            return logs;
         }
+        // 领域对象不可变，补全返回新实例：只影响本次返回，绝不写回审计表。
+        List<AuditLog> enriched = new ArrayList<>(logs.size());
         for (AuditLog log : logs) {
             OperatorDisplay display = displays.get(log.getOperatorId());
             if (display == null) {
+                enriched.add(log);
                 continue;
             }
-            if (!StringUtils.hasText(log.getOperatorName()) && StringUtils.hasText(display.name())) {
-                log.setOperatorName(display.name());
-            }
-            if (!StringUtils.hasText(log.getOperatorAccount()) && StringUtils.hasText(display.account())) {
-                log.setOperatorAccount(display.account());
-            }
+            String name = !StringUtils.hasText(log.getOperatorName()) && StringUtils.hasText(display.name())
+                    ? display.name() : log.getOperatorName();
+            String account = !StringUtils.hasText(log.getOperatorAccount())
+                    && StringUtils.hasText(display.account())
+                    ? display.account() : log.getOperatorAccount();
+            enriched.add(name == log.getOperatorName() && account == log.getOperatorAccount()
+                    ? log : log.withOperatorDisplay(name, account));
         }
+        return enriched;
     }
 
     /** 可查下限：由归档清单推导（没有被归档的月份时不设下限）。 */
@@ -181,7 +186,7 @@ public class AuditQueryApplicationService {
         if (!resolution.isPlatform() && !resolution.tenantId().equals(log.getTenantId())) {
             throw new ApiException(404, "AUDIT_NOT_FOUND", "审计记录不存在");
         }
-        enrichOperatorDisplays(List.of(log));
+        log = withOperatorDisplays(List.of(log)).get(0);
         String tenantName = repository.tenantNames(List.of(log.getTenantId())).get(log.getTenantId());
         return AuditLogView.of(log, tenantName, detail(log));
     }

@@ -130,16 +130,10 @@ public class AuditLogApplicationService {
      * 按发生时间的筛选/排序/时间范围过滤会整段漏行。
      */
     private AuditLog toLog(AuditRecordCommand command, String sourceService) {
-        AuditLog log = command.toDomain();
-        log.setId(idGenerator.nextId());
-        log.setSourceService(log.getSourceService() == null ? sourceService : log.getSourceService());
-        log.setIdempotencyKey(idempotencyKey(command));
-        LocalDateTime createdAt = LocalDateTime.now();
-        log.setCreatedAt(createdAt);
-        if (log.getOccurredAt() == null) {
-            log.setOccurredAt(createdAt);
-        }
-        return log;
+        // 身份确定收在领域模型上（recorded）：主键、幂等键、来源服务与两个时间列的补齐规则
+        // （含 occurredAt 缺省回落 createdAt，绝不写 NULL）都在那一处，应用层只负责取值。
+        return command.toDomain().recorded(idGenerator.nextId(), idempotencyKey(command),
+                LocalDateTime.now(), sourceService);
     }
 
     /** 幂等键：显式键 > 请求级派生键 > 随机键（见类注释）。 */

@@ -177,19 +177,18 @@ class AuditIdempotencyLedgerH2Test {
 
   /** 主键由应用侧生成（多行批插要插入前就知道 ID），测试里用递增序列模拟。 */
   private static AuditLog record(long tenantId, String idempotencyKey, String action, long id) {
-    AuditLog log = new AuditLog();
-    LocalDateTime now = SNAPSHOT_TIME;
-    log.setId(id);
-    log.setTenantId(tenantId);
-    log.setAction(action);
-    log.setActionLabel("结台结算");
-    log.setResourceType("ord_order");
-    log.setResult(AuditLog.RESULT_SUCCESS);
-    log.setIdempotencyKey(idempotencyKey);
-    log.setOperatorId(77L);
-    log.setCreatedAt(now);
-    log.setOccurredAt(now);
-    return log;
+    return AuditLog.builder()
+        .id(id)
+        .tenantId(tenantId)
+        .action(action)
+        .actionLabel("结台结算")
+        .resourceType("ord_order")
+        .result(AuditLog.RESULT_SUCCESS)
+        .idempotencyKey(idempotencyKey)
+        .operatorId(77L)
+        .createdAt(SNAPSHOT_TIME)
+        .occurredAt(SNAPSHOT_TIME)
+        .build();
   }
 
   /** 批量写入：台账逐条抢占、主表一次多行插入，返回顺序与入参一致。 */

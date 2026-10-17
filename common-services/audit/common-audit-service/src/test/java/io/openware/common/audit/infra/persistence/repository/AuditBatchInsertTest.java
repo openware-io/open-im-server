@@ -101,8 +101,8 @@ class AuditBatchInsertTest {
     /** 主键缺失属于编程错误：必须立刻失败，而不是让库里的自增值与台账记录不一致。 */
     @Test
     void entryWithoutApplicationGeneratedIdFailsFast() {
-        List<AuditLog> entries = entries(1);
-        entries.get(0).setId(null);
+        // 领域对象不可变：清掉主键要重建实例，这也正是不再存在 setId 的意义。
+        List<AuditLog> entries = List.of(entries(1).get(0).withId(null));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> repository.saveAllIfAbsent(entries));
@@ -142,16 +142,16 @@ class AuditBatchInsertTest {
     private static List<AuditLog> entries(int count) {
         List<AuditLog> entries = new ArrayList<>(count);
         for (int index = 0; index < count; index++) {
-            AuditLog log = new AuditLog();
             LocalDateTime now = LocalDateTime.of(2026, 9, 19, 12, 0);
-            log.setId(900_000L + index);
-            log.setTenantId(TENANT_ID);
-            log.setAction("order.settle");
-            log.setIdempotencyKey("batch-" + index);
-            log.setResult(AuditLog.RESULT_SUCCESS);
-            log.setCreatedAt(now);
-            log.setOccurredAt(now);
-            entries.add(log);
+            entries.add(AuditLog.builder()
+                    .id(900_000L + index)
+                    .tenantId(TENANT_ID)
+                    .action("order.settle")
+                    .idempotencyKey("batch-" + index)
+                    .result(AuditLog.RESULT_SUCCESS)
+                    .createdAt(now)
+                    .occurredAt(now)
+                    .build());
         }
         return entries;
     }

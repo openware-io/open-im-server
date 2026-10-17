@@ -303,8 +303,7 @@ class AuditQueryApplicationServiceTest {
   void operatorDisplayIsFilledFromAccountTableOnlyWhenMissing() {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
     // 第 1 条模拟历史记录：上报方没带姓名/账号；第 2 条保留已存值。
-    repository.records.get(0).setOperatorName(null);
-    repository.records.get(0).setOperatorAccount(null);
+    repository.clearOperatorDisplay(0);
     repository.operatorDisplays.put(77L, new OperatorDisplay("李四", "lisi"));
 
     AuditPageView page = service.list(request(null, null));
@@ -319,8 +318,7 @@ class AuditQueryApplicationServiceTest {
   @Test
   void operatorDisplayIsFilledOnDetailToo() {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
-    repository.records.get(0).setOperatorName(null);
-    repository.records.get(0).setOperatorAccount(null);
+    repository.clearOperatorDisplay(0);
     repository.operatorDisplays.put(77L, new OperatorDisplay("李四", "lisi"));
 
     AuditLogView detail = service.detail(1L);
@@ -333,7 +331,7 @@ class AuditQueryApplicationServiceTest {
   @Test
   void listStillWorksWhenOperatorDisplayResolutionIsUnavailable() {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
-    repository.records.get(0).setOperatorName(null);
+    repository.clearOperatorDisplay(0);
 
     AuditPageView page = service.list(request(null, null));
 
@@ -353,7 +351,7 @@ class AuditQueryApplicationServiceTest {
   @Test
   void detailJsonIsRawBusinessJsonText() throws Exception {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
-    repository.records.get(0).setDetailJson("{\"orderId\":76,\"status\":\"ACTIVE\"}");
+    repository.setDetailJson(0, "{\"orderId\":76,\"status\":\"ACTIVE\"}");
 
     AuditLogView view = service.detail(1L);
 
@@ -366,8 +364,8 @@ class AuditQueryApplicationServiceTest {
   @Test
   void missingDetailProjectsAsNull() {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
-    repository.records.get(0).setDetailJson(null);
-    repository.records.get(1).setDetailJson("   ");
+    repository.setDetailJson(0, null);
+    repository.setDetailJson(1, "   ");
 
     assertNull(service.detail(1L).detailJson());
     assertNull(service.detail(2L).detailJson());
@@ -380,7 +378,7 @@ class AuditQueryApplicationServiceTest {
   @Test
   void nonJsonDetailFallsBackToQuotedJsonString() throws Exception {
     signIn(9L, TENANT_A, List.of("audit.view"), "PLATFORM");
-    repository.records.get(0).setDetailJson("legacy-text-not-json");
+    repository.setDetailJson(0, "legacy-text-not-json");
 
     assertEquals("\"legacy-text-not-json\"", service.detail(1L).detailJson());
     assertEquals("legacy-text-not-json", new ObjectMapper().readTree(service.detail(1L).detailJson()).asText(),
@@ -405,25 +403,51 @@ class AuditQueryApplicationServiceTest {
     }
 
     private static AuditLog record(long id, long tenantId, String action, String label) {
-      AuditLog log = new AuditLog();
-      log.setId(id);
-      log.setTenantId(tenantId);
-      log.setOperatorId(77L);
-      log.setOperatorName("张三");
-      log.setOperatorAccount("zhangsan");
-      log.setOperatorType("TENANT");
-      log.setAction(action);
-      log.setActionLabel(label);
-      log.setResourceType("ord_order");
-      log.setResourceId(String.valueOf(id));
-      log.setResult("SUCCESS");
-      log.setCreatedAt(LocalDateTime.now());
-      return log;
+      return AuditLog.builder()
+          .id(id)
+          .tenantId(tenantId)
+          .operatorId(77L)
+          .operatorName("张三")
+          .operatorAccount("zhangsan")
+          .operatorType("TENANT")
+          .action(action)
+          .actionLabel(label)
+          .resourceType("ord_order")
+          .resourceId(String.valueOf(id))
+          .result("SUCCESS")
+          .createdAt(LocalDateTime.now())
+          .build();
     }
 
     @Override
     public SaveResult saveIfAbsent(AuditLog log) {
       throw new UnsupportedOperationException("查询测试不写入");
+    }
+
+    /** 把第 {@code index} 条记录的明细文本替换掉（历史数据兼容用例：非 JSON 文本 / 空值）。 */
+    void setDetailJson(int index, String detailJson) {
+      records.set(index, records.get(index).withDetailJson(detailJson));
+    }
+
+    /**
+     * 把第 {@code index} 条记录清成「上报方没带姓名/账号」的历史数据。
+     *
+     * <p>领域对象不可变，所以这里替换整条记录；测试要表达的是数据状态而非写入动作，
+     * 因此用这个方法名而不是在断言前直接改对象。
+     */
+    void clearOperatorDisplay(int index) {
+      records.set(index, AuditLog.builder()
+          .id(records.get(index).getId())
+          .tenantId(records.get(index).getTenantId())
+          .operatorId(records.get(index).getOperatorId())
+          .operatorType(records.get(index).getOperatorType())
+          .action(records.get(index).getAction())
+          .actionLabel(records.get(index).getActionLabel())
+          .resourceType(records.get(index).getResourceType())
+          .resourceId(records.get(index).getResourceId())
+          .result(records.get(index).getResult())
+          .createdAt(records.get(index).getCreatedAt())
+          .build());
     }
 
     @Override

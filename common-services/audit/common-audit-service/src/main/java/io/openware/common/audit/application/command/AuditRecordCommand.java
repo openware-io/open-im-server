@@ -90,31 +90,31 @@ public record AuditRecordCommand(
                 occurredAt(body.get("occurredAt")));
     }
 
-    /** 命令 → 领域对象（不含幂等键与创建时间，由应用服务补齐）。 */
+    /** 命令 → 领域对象（不含主键、幂等键与创建时间，由应用服务在 {@code recorded} 中补齐）。 */
     public AuditLog toDomain() {
-        AuditLog log = new AuditLog();
-        log.setTenantId(tenantId);
-        log.setOrganizationId(organizationId);
-        log.setStoreId(storeId);
-        log.setOperatorId(operatorId == null ? 0L : operatorId);
-        log.setOperatorName(operatorName);
-        log.setOperatorAccount(operatorAccount);
-        log.setOperatorType(operatorType);
-        log.setAction(action);
-        log.setActionLabel(actionLabel);
-        log.setResourceType(resourceType);
-        log.setResourceId(resourceId);
-        log.setResourceName(resourceName);
-        log.setResult(result);
-        log.setErrorCode(errorCode);
-        log.setIp(ip);
-        log.setUserAgent(userAgent);
-        log.setRequestId(requestId);
-        log.setTraceId(traceId);
-        log.setSourceService(sourceService);
-        log.setDetailJson(detailJson);
-        log.setOccurredAt(occurredAt);
-        return log;
+        return AuditLog.builder()
+                .tenantId(tenantId)
+                .organizationId(organizationId)
+                .storeId(storeId)
+                .operatorId(operatorId == null ? 0L : operatorId)
+                .operatorName(operatorName)
+                .operatorAccount(operatorAccount)
+                .operatorType(operatorType)
+                .action(action)
+                .actionLabel(actionLabel)
+                .resourceType(resourceType)
+                .resourceId(resourceId)
+                .resourceName(resourceName)
+                .result(result)
+                .errorCode(errorCode)
+                .ip(ip)
+                .userAgent(userAgent)
+                .requestId(requestId)
+                .traceId(traceId)
+                .sourceService(sourceService)
+                .detailJson(detailJson)
+                .occurredAt(occurredAt)
+                .build();
     }
 
     private static String requireAction(Object raw) {

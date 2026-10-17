@@ -374,31 +374,31 @@ public class AuditLogRepositoryImpl implements AuditLogRepository {
     }
 
     private AuditLog toDomain(AuditLogPo po) {
-        AuditLog log = new AuditLog();
-        log.setId(po.getId());
-        log.setTenantId(po.getTenantId());
-        log.setOrganizationId(po.getOrganizationId());
-        log.setStoreId(po.getStoreId());
-        log.setOperatorId(po.getOperatorId());
-        log.setOperatorName(po.getOperatorName());
-        log.setOperatorAccount(po.getOperatorAccount());
-        log.setOperatorType(po.getOperatorType());
-        log.setAction(po.getAction());
-        log.setActionLabel(po.getActionLabel());
-        log.setResourceType(po.getResourceType());
-        log.setResourceId(po.getResourceId());
-        log.setResourceName(po.getResourceName());
-        log.setResult(po.getResult());
-        log.setErrorCode(po.getErrorCode());
-        log.setIp(po.getIp());
-        log.setUserAgent(po.getUserAgent());
-        log.setRequestId(po.getRequestId());
-        log.setTraceId(po.getTraceId());
-        log.setSourceService(po.getSourceService());
-        log.setIdempotencyKey(po.getIdempotencyKey());
-        log.setDetailJson(po.getDetailJson());
-        log.setOccurredAt(po.getOccurredAt());
-        log.setCreatedAt(po.getCreatedAt());
-        return log;
+        return AuditLog.builder()
+                .id(po.getId())
+                .tenantId(po.getTenantId())
+                .organizationId(po.getOrganizationId())
+                .storeId(po.getStoreId())
+                .operatorId(po.getOperatorId())
+                .operatorName(po.getOperatorName())
+                .operatorAccount(po.getOperatorAccount())
+                .operatorType(po.getOperatorType())
+                .action(po.getAction())
+                .actionLabel(po.getActionLabel())
+                .resourceType(po.getResourceType())
+                .resourceId(po.getResourceId())
+                .resourceName(po.getResourceName())
+                .result(po.getResult())
+                .errorCode(po.getErrorCode())
+                .ip(po.getIp())
+                .userAgent(po.getUserAgent())
+                .requestId(po.getRequestId())
+                .traceId(po.getTraceId())
+                .sourceService(po.getSourceService())
+                .idempotencyKey(po.getIdempotencyKey())
+                .detailJson(po.getDetailJson())
+                .occurredAt(po.getOccurredAt())
+                .createdAt(po.getCreatedAt())
+                .build();
     }
 }

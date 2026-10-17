@@ -192,9 +192,10 @@ class AuditLogApplicationServiceTest {
       if (existing.isPresent()) {
         return new SaveResult(existing.get().getId(), true);
       }
-      log.setId(++sequence);
-      records.add(log);
-      return new SaveResult(log.getId(), false);
+      // 领域对象不可变：回填主键返回新实例，与真实适配器的做法一致。
+      AuditLog saved = log.withId(++sequence);
+      records.add(saved);
+      return new SaveResult(saved.getId(), false);
     }
 
     @Override
