@@ -10,7 +10,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.payment.domain.channel.model.ChannelConfig;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
 import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
+import io.openware.common.payment.domain.channel.repository.Persisted;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -58,14 +61,17 @@ class ChannelApplicationServiceTest {
   void batchWritesEveryStoreAndSuffixesTheIdempotencyKey() {
     when(repository.findByScope(any(), any(), any(), any())).thenReturn(Optional.empty());
     when(repository.findByIdempotencyKey(any(), any(), any())).thenReturn(Optional.empty());
-    when(repository.insert(any(ChannelConfig.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(repository.insert(any(ChannelConfig.class), any())).thenAnswer(invocation -> {
+      ChannelConfig draft = invocation.getArgument(0);
+      return new Persisted<>(draft, new AuditSnapshot(LocalDateTime.now(), LocalDateTime.now()));
+    });
 
     List<ChannelConfigDto> result = service.setEnabledBatch(1L, "KTV", "merchant-1", List.of(1L, 2L),
         toggles("ALIPAY"), "idem");
 
     assertEquals(2, result.size());
     ArgumentCaptor<ChannelConfig> captor = ArgumentCaptor.forClass(ChannelConfig.class);
-    verify(repository, times(2)).insert(captor.capture());
+    verify(repository, times(2)).insert(captor.capture(), any());
     assertEquals(List.of("idem-1-ALIPAY", "idem-2-ALIPAY"),
         captor.getAllValues().stream().map(ChannelConfig::idempotencyKey).toList());
     assertTrue(captor.getAllValues().stream().allMatch(row -> "KTV".equals(row.businessType())));

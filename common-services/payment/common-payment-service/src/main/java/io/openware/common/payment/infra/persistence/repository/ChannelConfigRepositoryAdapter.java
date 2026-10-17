@@ -2,7 +2,9 @@ package io.openware.common.payment.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.common.payment.domain.channel.model.ChannelConfig;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
 import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.infra.persistence.mapper.ChannelConfigMapper;
 import io.openware.common.payment.infra.persistence.po.ChannelConfigPo;
 import java.time.LocalDateTime;
@@ -30,16 +32,16 @@ public class ChannelConfigRepositoryAdapter implements ChannelConfigRepository {
   }
 
   @Override
-  public List<ChannelConfig> listActiveByTenant(Long tenantId) {
+  public List<Persisted<ChannelConfig>> listActiveByTenant(Long tenantId) {
     return mapper.selectList(Wrappers.<ChannelConfigPo>lambdaQuery()
             .eq(ChannelConfigPo::getTenantId, tenantId)
             .eq(ChannelConfigPo::getStatus, ChannelConfig.STATUS_ACTIVE))
-        .stream().map(ChannelConfigRepositoryAdapter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public Optional<ChannelConfig> findByScope(Long tenantId, Long storeId, String businessType,
-                                             String channel) {
+  public Optional<Persisted<ChannelConfig>> findByScope(Long tenantId, Long storeId, String businessType,
+                                                        String channel) {
     return mapper.selectList(Wrappers.<ChannelConfigPo>lambdaQuery()
             .eq(ChannelConfigPo::getTenantId, tenantId)
             .eq(ChannelConfigPo::getChannel, channel)
@@ -47,11 +49,12 @@ public class ChannelConfigRepositoryAdapter implements ChannelConfigRepository {
                 : businessType)
             .isNull(storeId == null, ChannelConfigPo::getStoreId)
             .eq(storeId != null, ChannelConfigPo::getStoreId, storeId))
-        .stream().findFirst().map(ChannelConfigRepositoryAdapter::toDomain);
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
-  public Optional<ChannelConfig> findByIdempotencyKey(Long tenantId, String channel, String idempotencyKey) {
+  public Optional<Persisted<ChannelConfig>> findByIdempotencyKey(Long tenantId, String channel,
+                                                                String idempotencyKey) {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
       return Optional.empty();
     }
@@ -59,33 +62,35 @@ public class ChannelConfigRepositoryAdapter implements ChannelConfigRepository {
             .eq(ChannelConfigPo::getTenantId, tenantId)
             .eq(ChannelConfigPo::getChannel, channel)
             .eq(ChannelConfigPo::getIdempotencyKey, idempotencyKey))
-        .stream().findFirst().map(ChannelConfigRepositoryAdapter::toDomain);
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
-  public ChannelConfig insert(ChannelConfig config) {
-    LocalDateTime now = LocalDateTime.now();
+  public Persisted<ChannelConfig> insert(ChannelConfig config, LocalDateTime occurredAt) {
     ChannelConfigPo po = toPo(config);
     po.setVersion(0);
     po.setStatus(ChannelConfig.STATUS_ACTIVE);
-    po.setCreatedAt(now);
-    po.setUpdatedAt(now);
+    po.setCreatedAt(occurredAt);
+    po.setUpdatedAt(occurredAt);
     mapper.insert(po);
-    return toDomain(po);
+    return toPersisted(po);
   }
 
   @Override
-  public boolean updateWithVersion(ChannelConfig config, int expectedVersion) {
+  public Optional<Persisted<ChannelConfig>> updateWithVersion(ChannelConfig config, int expectedVersion,
+                                                              LocalDateTime occurredAt) {
     // CAS：判定与写入在同一条语句里，由数据库保证原子性；版本自增也写在 SQL 里，
     // 避免用读出来的值加一而覆盖并发写入期间已经涨上去的版本号。
-    return mapper.update(null, Wrappers.<ChannelConfigPo>lambdaUpdate()
+    int updated = mapper.update(null, Wrappers.<ChannelConfigPo>lambdaUpdate()
         .eq(ChannelConfigPo::getId, config.id())
         .eq(ChannelConfigPo::getVersion, expectedVersion)
         .set(ChannelConfigPo::getEnabled, Boolean.TRUE.equals(config.enabled()) ? 1 : 0)
         .set(ChannelConfigPo::getMerchantId, config.merchantId())
         .set(ChannelConfigPo::getIdempotencyKey, config.idempotencyKey())
-        .set(ChannelConfigPo::getUpdatedAt, LocalDateTime.now())
-        .setSql("version = version + 1")) > 0;
+        .set(ChannelConfigPo::getUpdatedAt, occurredAt)
+        .setSql("version = version + 1"));
+    return updated > 0 ? Optional.ofNullable(mapper.selectById(config.id())).map(this::toPersisted)
+        : Optional.empty();
   }
 
   @Override
@@ -117,6 +122,10 @@ public class ChannelConfigRepositoryAdapter implements ChannelConfigRepository {
   private static ChannelConfig toDomain(ChannelConfigPo po) {
     return new ChannelConfig(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessType(),
         po.getChannel(), po.getEnabled() != null && po.getEnabled() == 1, po.getMerchantId(),
-        po.getStatus(), po.getVersion(), po.getIdempotencyKey(), po.getCreatedAt(), po.getUpdatedAt());
+        po.getStatus(), po.getVersion(), po.getIdempotencyKey());
+  }
+
+  private Persisted<ChannelConfig> toPersisted(ChannelConfigPo po) {
+    return new Persisted<>(toDomain(po), new AuditSnapshot(po.getCreatedAt(), po.getUpdatedAt()));
   }
 }

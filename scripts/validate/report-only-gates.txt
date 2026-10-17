@@ -9,6 +9,8 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
+audit-fields | audit-field batch 2 (payment/customer/inventory/tenant models) | .outputs/quality/audit-fields-worklist.txt | 13 domain models still carry createdBy/createdAt/updatedBy/updatedAt. The gate scans domain/**/model/** and allowlists only append-only payloads (ClientReleaseOperation, ReleaseAuditLog) and UserSyncIndex. The fix is a per-model Persisted/AuditSnapshot migration, not a mechanical delete.
+
 # Historical entries, deleted when their worklists reached zero:
 #
 #   controller-repository-boundary  14 -> 0  (controllers holding a *Repository/*Mapper field)

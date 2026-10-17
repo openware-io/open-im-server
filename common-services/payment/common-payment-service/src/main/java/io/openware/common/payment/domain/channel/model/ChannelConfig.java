@@ -1,11 +1,10 @@
 package io.openware.common.payment.domain.channel.model;
 
-import java.time.LocalDateTime;
-
 /**
  * 线上支付渠道配置（领域模型）。
  *
- * <p>审计字段（createdBy、updatedBy）不在此承载：由持久化适配器填充。
+ * <p>审计字段（createdBy、updatedBy、createdAt、updatedAt）不在此承载：由持久化适配器填充，
+ * 响应需要的值经 `Persisted.audit()` 读取。
  * {@code version} 保留：乐观锁并发语义。
  *
  * <p><b>作用域由 (storeId, businessType) 共同表达</b>：{@code storeId == null} 表示租户级，
@@ -36,9 +35,7 @@ public record ChannelConfig(
     String merchantId,
     String status,
     Integer version,
-    String idempotencyKey,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt) {
+    String idempotencyKey) {
 
   /** 配置生效中。 */
   public static final String STATUS_ACTIVE = "ACTIVE";

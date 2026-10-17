@@ -833,6 +833,28 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 门禁已转为 blocking（不再有 report-only 例外）。
 **审计字段**：除上述两个 append-only 载荷与 `UserSyncIndex.createdAt` 外，清单内模型已全部收口。
 
+### 8.24 审计字段门禁 + ChannelConfig（2026-10-16 第二十次更新）
+
+新增阻塞候选门禁 `audit-fields`（`scripts/validate/validate-audit-fields.ps1`）：
+扫描 `domain/**/model/**` 的 `createdBy/createdAt/updatedBy/updatedAt`，只 allowlist
+`ClientReleaseOperation`、`ReleaseAuditLog`、`UserSyncIndex` 三个「字段是业务载荷」的模型。
+门禁首次运行就发现 §8.23 的清单仍不完整：
+
+- `ChannelConfig`（payment）也是纯记账列，且 `ChannelConfigDto` 暴露 `createdAt/updatedAt`。
+  已迁移：模型去四列，端口读返回 `Persisted`、写接收 `occurredAt`，适配器插入写
+  `created_at/updated_at`、更新只写 `updated_at`；DTO 从 `AuditSnapshot` 取时间。
+  `common-payment-service` **148 个测试全绿**。
+- 仍有 **13 个**模型带记账列，已生成有限工作清单
+  `.outputs/quality/audit-fields-worklist.txt`，门禁暂为 report-only（batch 2）：
+  - payment 7：`DailyClosing`、`PayCollect`、`PaymentEventOutboxEntry`、`PaymentIntent`、
+    `TenantPaymentMethod`、`Refund`、`Shift`；
+  - customer 2：`MemberNameToken`、`PointLedgerEntry`；
+  - order inventory 2：`InventoryMaterial`、`InventoryTransaction`；
+  - tenant 2：`PricingPlan`、`Tenant`。
+
+**结论**：§8.23 的「审计字段已收口」只对当时的清单成立；`audit-fields` 门禁才是范围的
+唯一事实来源。13 个模型逐个迁移后，删除 report-only 条目，门禁转为 blocking。
+
 
 
 

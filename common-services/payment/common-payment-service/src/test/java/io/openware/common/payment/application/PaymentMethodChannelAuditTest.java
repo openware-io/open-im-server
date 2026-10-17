@@ -11,7 +11,9 @@ import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.payment.domain.channel.model.ChannelConfig;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
 import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.method.model.TenantPaymentMethod;
 import io.openware.common.payment.domain.method.repository.TenantPaymentMethodRepository;
 import io.openware.infrastructure.audit.AuditClient;
@@ -113,8 +115,12 @@ class PaymentMethodChannelAuditTest {
   @Test
   void setEnabled_writesSucceededAudit() {
     // 端口新增返回落库后的聚合（真实适配器回填主键，测试替身等价模拟）。
-    when(channelConfigRepository.insert(any(ChannelConfig.class)))
-        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(channelConfigRepository.insert(any(ChannelConfig.class), any()))
+        .thenAnswer(invocation -> {
+          ChannelConfig draft = invocation.getArgument(0);
+          return new Persisted<>(draft, new AuditSnapshot(
+              java.time.LocalDateTime.now(), java.time.LocalDateTime.now()));
+        });
     channelService.setEnabled(TENANT_ID, STORE_ID, "ALIPAY", true, "merchant-001");
 
     AuditClient.AuditRecord record = capturedAudit();

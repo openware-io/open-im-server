@@ -2,6 +2,7 @@ package io.openware.common.payment.application;
 
 import io.openware.common.payment.domain.channel.model.ChannelConfig;
 import io.openware.common.payment.domain.channel.repository.ChannelConfigRepository;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.channel.service.ChannelConfigResolver;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
@@ -9,11 +10,14 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -48,22 +52,24 @@ public class ChannelApplicationService {
     /** 门店读取按门店覆盖 > 业态默认 > 租户默认解析。 */
     public List<ChannelConfigDto> list(Long tenantId, Long storeId, String requestedBusinessType) {
         String businessType = normalize(requestedBusinessType);
-        List<ChannelConfig> rows = channelConfigRepository.listActiveByTenant(tenantId);
+        List<Persisted<ChannelConfig>> rows = channelConfigRepository.listActiveByTenant(tenantId);
         if (storeId == null) {
-            List<ChannelConfig> scoped = businessType == null
+            List<Persisted<ChannelConfig>> scoped = businessType == null
                     ? rows
-                    : rows.stream().filter(row -> row.hasBusinessType(businessType)).toList();
+                    : rows.stream().filter(row -> row.aggregate().hasBusinessType(businessType)).toList();
             return scoped.stream().map(ChannelConfigDto::from).toList();
         }
         final String scopedBusinessType = businessType;
         final Long scopedStoreId = storeId;
-        final List<ChannelConfig> candidates = rows;
+        final List<ChannelConfig> candidates = rows.stream().map(Persisted::aggregate).toList();
+        final Map<Long, Persisted<ChannelConfig>> byId = rows.stream()
+                .collect(Collectors.toMap(row -> row.aggregate().id(), row -> row));
         // 指定门店时逐个线上渠道解析出唯一生效配置；未配置的渠道不出现在列表里（与既有行为一致）。
         return ONLINE_CHANNELS.stream()
                 .map(channel -> ChannelConfigResolver.resolve(candidates, channel, scopedStoreId,
                         scopedBusinessType))
                 .flatMap(java.util.Optional::stream)
-                .map(ChannelConfigDto::from).toList();
+                .map(config -> ChannelConfigDto.from(byId.get(config.id()))).toList();
     }
 
     /** 开通/关闭线上渠道（按租户或门店粒度覆盖）。 */
@@ -122,25 +128,25 @@ public class ChannelApplicationService {
                 scopeType = context == null ? null : normalize(context.businessType());
             }
             String storedType = scopeType == null ? ChannelConfig.ANY_BUSINESS_TYPE : scopeType;
-            ChannelConfig existing = channelConfigRepository
+            Persisted<ChannelConfig> existingRow = channelConfigRepository
                     .findByScope(tenantId, storeId, storedType, channel).orElse(null);
+            ChannelConfig existing = existingRow == null ? null : existingRow.aggregate();
             if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-                ChannelConfig idem = channelConfigRepository
+                Persisted<ChannelConfig> idem = channelConfigRepository
                         .findByIdempotencyKey(tenantId, channel, idempotencyKey).orElse(null);
                 if (idem != null) return ChannelConfigDto.from(idem);
             }
             if (existing != null && expectedVersion != null && !expectedVersion.equals(existing.version())) {
                 throw new IllegalStateException("VERSION_CONFLICT");
             }
+            LocalDateTime now = LocalDateTime.now();
             ChannelConfig draft = new ChannelConfig(existing == null ? null : existing.id(), tenantId, storeId,
                     storedType, channel, enabled, merchantId,
                     existing == null ? ChannelConfig.STATUS_ACTIVE : existing.status(),
-                    existing == null ? 0 : existing.version(), idempotencyKey,
-                    existing == null ? null : existing.createdAt(),
-                    existing == null ? null : existing.updatedAt());
-            ChannelConfig saved = existing == null
-                    ? channelConfigRepository.insert(draft)
-                    : updateOrConflict(draft, existing.version());
+                    existing == null ? 0 : existing.version(), idempotencyKey);
+            Persisted<ChannelConfig> saved = existing == null
+                    ? channelConfigRepository.insert(draft, now)
+                    : updateOrConflict(draft, existing.version(), now);
             // 渠道开通/关闭决定该租户能否走线上收款：此前成功/失败都没有留痕。
             // detail 只放租户/门店/渠道与开关值，**不含** merchantId 等商户参数。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -149,7 +155,7 @@ public class ChannelApplicationService {
                     .action("payment-channel.toggle")
                     .actionLabel("支付渠道开通/关闭")
                     .resourceType("pay_channel_config")
-                    .resourceId(saved.id() == null ? null : String.valueOf(saved.id()))
+                    .resourceId(saved.aggregate().id() == null ? null : String.valueOf(saved.aggregate().id()))
                     .resourceName(channel)
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"channel\":" + jsonText(channel) + ",\"storeId\":" + storeId
@@ -178,11 +184,10 @@ public class ChannelApplicationService {
      * <p>上一步的版本比对只是快速失败（给出可读的 409），**真正的并发判定在这条带版本条件的 UPDATE 里**：
      * 先读出来比对再无条件写回，会让两个并发请求双双通过比对。
      */
-    private ChannelConfig updateOrConflict(ChannelConfig draft, int expectedVersion) {
-        if (!channelConfigRepository.updateWithVersion(draft, expectedVersion)) {
-            throw new IllegalStateException("VERSION_CONFLICT");
-        }
-        return draft;
+    private Persisted<ChannelConfig> updateOrConflict(ChannelConfig draft, int expectedVersion,
+                                                      LocalDateTime occurredAt) {
+        return channelConfigRepository.updateWithVersion(draft, expectedVersion, occurredAt)
+                .orElseThrow(() -> new IllegalStateException("VERSION_CONFLICT"));
     }
 
     /** 最小 JSON 字符串转义（渠道代码未转义会拼出非法 JSON 丢审计）。 */
