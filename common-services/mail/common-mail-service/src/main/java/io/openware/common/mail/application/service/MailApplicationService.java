@@ -6,7 +6,6 @@ import io.openware.common.mail.domain.repository.MailSendLogRepository;
 import io.openware.common.mail.infra.provider.MailProvider;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 /** 邮件应用服务：发邮件（幂等 + 收件人摘要/脱敏）+ 发送日志落库。 */
@@ -28,28 +27,19 @@ public class MailApplicationService {
         String from = (String) body.getOrDefault("from", "");
         String idempotencyKey = (String) body.getOrDefault("idempotencyKey", "");
 
-        MailSendLog log = new MailSendLog();
-        log.setTenantId(((Number) body.getOrDefault("tenantId", 0)).longValue());
-        log.setRecipientDigest(RecipientPrivacy.digest(to));
-        log.setRecipientMasked(RecipientPrivacy.mask(to));
-        log.setTemplateCode(templateCode);
-        log.setSubject(subject);
-        log.setStatus("PENDING");
-        log.setRetryCount(0);
-        log.setIdempotencyKey(idempotencyKey);
-        log.setCreatedAt(LocalDateTime.now());
-        log.setUpdatedAt(LocalDateTime.now());
+        MailSendLog log = MailSendLog.pending(((Number) body.getOrDefault("tenantId", 0)).longValue(),
+                RecipientPrivacy.digest(to), RecipientPrivacy.mask(to), templateCode, subject, idempotencyKey);
         log = repository.save(log);
 
         try {
             mailProvider.send(from, to, subject, content);
-            log.setStatus("SENT");
+            // 状态迁移收在领域模型上（markSent/markFailed），应用层只决定走哪条分支。
+            log = log.markSent(null, null);
         } catch (RuntimeException ex) {
-            log.setStatus("FAILED");
+            log = log.markFailed(null);
         }
-        log.setUpdatedAt(LocalDateTime.now());
         repository.update(log);
 
-        return Map.of("id", log.getId(), "status", log.getStatus());
+        return Map.of("id", log.id(), "status", log.status());
     }
 }
