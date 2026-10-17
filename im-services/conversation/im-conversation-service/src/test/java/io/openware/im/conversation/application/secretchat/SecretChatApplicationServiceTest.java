@@ -13,6 +13,8 @@ import io.openware.im.conversation.api.secretchat.CreateSecretChatRequest;
 import io.openware.im.conversation.api.secretchat.SecretChatResult;
 import io.openware.im.conversation.domain.group.repository.ConversationOutboxRepository;
 import io.openware.im.conversation.domain.secretchat.model.SecretChat;
+import io.openware.im.conversation.domain.secretchat.repository.AuditSnapshot;
+import io.openware.im.conversation.domain.secretchat.repository.Persisted;
 import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
 import io.openware.im.conversation.domain.secretchat.repository.SecretChatRepository;
 import java.time.LocalDateTime;
@@ -43,8 +45,8 @@ class SecretChatApplicationServiceTest {
     when(repository.findBetween(7L, 9L)).thenReturn(Optional.empty());
     when(repository.save(any(SecretChat.class))).thenAnswer(inv -> {
       SecretChat ch = inv.getArgument(0);
-      return SecretChat.restore(1L, ch.getUserA(), ch.getUserB(), ch.getStatus(), null, "off",
-          null, null, "pending", ch.getCreatedBy(), ch.getCreatedAt(), ch.getUpdatedBy(), ch.getUpdatedAt());
+      return persisted(SecretChat.restore(1L, ch.getUserA(), ch.getUserB(), ch.getStatus(), null, "off",
+          null, null, "pending"));
     });
     CreateSecretChatRequest req = new CreateSecretChatRequest();
     req.setUserB(9L);
@@ -61,8 +63,8 @@ class SecretChatApplicationServiceTest {
   void createSecretChatReusesExistingChat() {
     // 已存在的 pending 会话（对方尚未握手）：再次发起应复用，而不是重复插入触发唯一键冲突。
     SecretChat existing = secretChat(1L, 7L, 9L);
-    when(repository.findBetween(7L, 9L)).thenReturn(Optional.of(existing));
-    when(repository.save(any(SecretChat.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(repository.findBetween(7L, 9L)).thenReturn(Optional.of(persisted(existing)));
+    when(repository.save(any(SecretChat.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
 
     CreateSecretChatRequest req = new CreateSecretChatRequest();
     req.setUserB(9L);
@@ -79,10 +81,11 @@ class SecretChatApplicationServiceTest {
   void submitHandshakeCompletesWhenBothKeysPresent() {
     java.util.concurrent.atomic.AtomicReference<SecretChat> store =
         new java.util.concurrent.atomic.AtomicReference<>(secretChat(1L, 7L, 9L));
-    when(repository.findById(1L)).thenAnswer(inv -> Optional.of(store.get()));
+    when(repository.findById(1L)).thenAnswer(inv -> Optional.of(persisted(store.get())));
     when(repository.save(any(SecretChat.class))).thenAnswer(inv -> {
-      store.set(inv.getArgument(0));
-      return store.get();
+      SecretChat next = inv.getArgument(0);
+      store.set(next);
+      return persisted(next);
     });
 
     SecretChatResult afterA = service.submitHandshake(7L, 1L, "PUB_KEY_A");
@@ -96,19 +99,27 @@ class SecretChatApplicationServiceTest {
 
   @Test
   void setDestroyPolicyRejectsUnknownPolicy() {
-    when(repository.findById(1L)).thenReturn(Optional.of(secretChat(1L, 7L, 9L)));
+    when(repository.findById(1L)).thenReturn(Optional.of(persisted(secretChat(1L, 7L, 9L))));
     assertThrows(ApiException.class, () -> service.setDestroyPolicy(7L, 1L, "invalid"));
   }
 
   @Test
   void nonParticipantIsRejected() {
-    when(repository.findById(1L)).thenReturn(Optional.of(secretChat(1L, 7L, 9L)));
+    when(repository.findById(1L)).thenReturn(Optional.of(persisted(secretChat(1L, 7L, 9L))));
     assertThrows(ApiException.class, () -> service.getSecretChat(999L, 1L));
   }
 
   private SecretChat secretChat(long id, long userA, long userB) {
+    return SecretChat.restore(id, userA, userB, "handshake", null, "off", null, null, "pending");
+  }
+
+  /**
+   * 领域模型不带审计列：读回的「聚合 + 记账快照」由测试在这里补齐。
+   *
+   * <p>审计值取 userA 与当前时间，只为让响应有值可断言；具体取值不是本测试的断言对象。
+   */
+  private Persisted<SecretChat> persisted(SecretChat chat) {
     LocalDateTime now = LocalDateTime.now();
-    return SecretChat.restore(id, userA, userB, "handshake", null, "off", null, null, "pending",
-        userA, now, userA, now);
+    return new Persisted<>(chat, new AuditSnapshot(chat.getUserA(), now, chat.getUserA(), now));
   }
 }

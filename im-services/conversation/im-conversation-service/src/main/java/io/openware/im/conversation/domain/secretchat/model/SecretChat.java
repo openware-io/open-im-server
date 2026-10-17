@@ -3,9 +3,16 @@ package io.openware.im.conversation.domain.secretchat.model;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.LocalDateTime;
 
-/** 私密聊天聚合根：一对一的 E2EE 会话，承载握手状态机与销毁策略。 */
+/**
+ * 私密聊天聚合根：一对一的 E2EE 会话，承载握手状态机与销毁策略。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 §聚合装配与持久化契约）：{@code createdBy}/{@code createdAt}/
+ * {@code updatedBy}/{@code updatedAt} 是记账信息，由适配器在写库时确定；响应需要的值经
+ * {@code SecretChatRepository.Persisted} 的 {@code AuditSnapshot} 单独带出。
+ * 因此本类的方法也**不再接收 {@code operatorId}/{@code occurredAt}**——审计值在持久化那一刻确定，
+ * 领域方法不需要认识"操作人"这个概念（这正是改造前的错位：审计参数一路穿过业务签名）。
+ */
 public class SecretChat {
   private final Long id;
   private final Long userA;
@@ -16,14 +23,9 @@ public class SecretChat {
   private final String userAPublicKey;
   private final String userBPublicKey;
   private final String handshakeState;
-  private final Long createdBy;
-  private final LocalDateTime createdAt;
-  private final Long updatedBy;
-  private final LocalDateTime updatedAt;
 
   private SecretChat(Long id, Long userA, Long userB, String status, String safeCode, String destroyPolicy,
-      String userAPublicKey, String userBPublicKey, String handshakeState, Long createdBy,
-      LocalDateTime createdAt, Long updatedBy, LocalDateTime updatedAt) {
+      String userAPublicKey, String userBPublicKey, String handshakeState) {
     this.id = id;
     this.userA = userA;
     this.userB = userB;
@@ -33,31 +35,25 @@ public class SecretChat {
     this.userAPublicKey = userAPublicKey;
     this.userBPublicKey = userBPublicKey;
     this.handshakeState = handshakeState;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
-  public static SecretChat create(long userA, long userB, long operatorId, LocalDateTime occurredAt) {
-    return new SecretChat(null, userA, userB, "handshake", null, "off", null, null, "pending",
-        operatorId, occurredAt, operatorId, occurredAt);
+  public static SecretChat create(long userA, long userB) {
+    return new SecretChat(null, userA, userB, "handshake", null, "off", null, null, "pending");
   }
 
   /** 创建时预填双方公钥（发起方本端公钥 + 对端服务端已注册设备公钥），双方齐备即 ready。 */
-  public static SecretChat createWithKeys(long userA, long userB, String userAPublicKey, String userBPublicKey,
-      long operatorId, LocalDateTime occurredAt) {
+  public static SecretChat createWithKeys(long userA, long userB, String userAPublicKey, String userBPublicKey) {
     boolean aKey = userAPublicKey != null && !userAPublicKey.isBlank();
     boolean bKey = userBPublicKey != null && !userBPublicKey.isBlank();
     boolean ready = aKey && bKey;
     return new SecretChat(null, userA, userB, ready ? "ready" : "handshake",
         ready ? computeSafeCode(userAPublicKey, userBPublicKey) : null, "off",
         aKey ? userAPublicKey : null, bKey ? userBPublicKey : null,
-        ready ? "ready" : "pending", operatorId, occurredAt, operatorId, occurredAt);
+        ready ? "ready" : "pending");
   }
 
   /** 提交本端公钥参与握手；双方公钥齐备后进入 ready 并计算安全码指纹。 */
-  public SecretChat submitHandshake(long userId, String publicKey, long operatorId, LocalDateTime occurredAt) {
+  public SecretChat submitHandshake(long userId, String publicKey) {
     String aKey = userAPublicKey;
     String bKey = userBPublicKey;
     if (userA != null && userA == userId) {
@@ -68,8 +64,7 @@ public class SecretChat {
     boolean ready = aKey != null && bKey != null;
     return new SecretChat(id, userA, userB, ready ? "ready" : status,
         ready ? computeSafeCode(aKey, bKey) : safeCode,
-        destroyPolicy, aKey, bKey, ready ? "ready" : handshakeState,
-        createdBy, createdAt, operatorId, occurredAt);
+        destroyPolicy, aKey, bKey, ready ? "ready" : handshakeState);
   }
 
   public boolean isParticipant(long userId) {
@@ -77,16 +72,16 @@ public class SecretChat {
   }
 
   /** 更新销毁策略（应用层已校验取值白名单）。 */
-  public SecretChat withDestroyPolicy(String policy, long operatorId, LocalDateTime occurredAt) {
+  public SecretChat withDestroyPolicy(String policy) {
     return new SecretChat(id, userA, userB, status, safeCode, policy,
-        userAPublicKey, userBPublicKey, handshakeState, createdBy, createdAt, operatorId, occurredAt);
+        userAPublicKey, userBPublicKey, handshakeState);
   }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public static SecretChat restore(Long id, Long userA, Long userB, String status, String safeCode,
-      String destroyPolicy, String userAPublicKey, String userBPublicKey, String handshakeState,
-      Long createdBy, LocalDateTime createdAt, Long updatedBy, LocalDateTime updatedAt) {
+      String destroyPolicy, String userAPublicKey, String userBPublicKey, String handshakeState) {
     return new SecretChat(id, userA, userB, status, safeCode, destroyPolicy, userAPublicKey, userBPublicKey,
-        handshakeState, createdBy, createdAt, updatedBy, updatedAt);
+        handshakeState);
   }
 
   private static String computeSafeCode(String publicKeyA, String publicKeyB) {
@@ -115,8 +110,4 @@ public class SecretChat {
   public String getUserAPublicKey() { return userAPublicKey; }
   public String getUserBPublicKey() { return userBPublicKey; }
   public String getHandshakeState() { return handshakeState; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
