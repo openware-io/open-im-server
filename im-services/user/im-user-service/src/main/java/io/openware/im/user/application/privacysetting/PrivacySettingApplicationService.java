@@ -2,7 +2,6 @@ package io.openware.im.user.application.privacysetting;
 
 import io.openware.im.user.domain.privacysetting.model.UserPrivacySetting;
 import io.openware.im.user.domain.privacysetting.repository.UserPrivacySettingRepository;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +14,7 @@ public class PrivacySettingApplicationService {
   @Transactional(readOnly = true)
   public UserPrivacySetting get(long userId) {
     return repository.findByUserId(userId)
-        .orElseGet(() -> UserPrivacySetting.defaults(userId, LocalDateTime.now()));
+        .orElseGet(() -> UserPrivacySetting.defaults(userId));
   }
 
   @Transactional
@@ -23,7 +22,7 @@ public class PrivacySettingApplicationService {
     UserPrivacySetting current = get(userId);
     // 兼容旧客户端：未携带 hideGroupMemberInfo 时保持现有值（无记录则默认开启保护）。
     boolean hide = hideGroupMemberInfo != null ? hideGroupMemberInfo : current.isHideGroupMemberInfo();
-    current.update(allowGroupFriendRequest, hide, LocalDateTime.now());
+    current.update(allowGroupFriendRequest, hide);
     return repository.save(current);
   }
 }

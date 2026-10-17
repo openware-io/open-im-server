@@ -2,7 +2,6 @@ package io.openware.im.user.application.notificationsetting;
 
 import io.openware.im.user.domain.notificationsetting.model.UserNotificationSetting;
 import io.openware.im.user.domain.notificationsetting.repository.UserNotificationSettingRepository;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,14 +14,14 @@ public class NotificationSettingApplicationService {
   @Transactional(readOnly = true)
   public UserNotificationSetting get(long userId) {
     return repository.findByUserId(userId)
-        .orElseGet(() -> UserNotificationSetting.defaults(userId, LocalDateTime.now()));
+        .orElseGet(() -> UserNotificationSetting.defaults(userId));
   }
 
   @Transactional
   public UserNotificationSetting update(long userId, boolean notifyPrivate, boolean notifyGroup,
       boolean notifyChannel) {
     UserNotificationSetting current = get(userId);
-    current.update(notifyPrivate, notifyGroup, notifyChannel, LocalDateTime.now());
+    current.update(notifyPrivate, notifyGroup, notifyChannel);
     return repository.save(current);
   }
 }

@@ -5,6 +5,7 @@ import io.openware.im.user.domain.privacysetting.model.UserPrivacySetting;
 import io.openware.im.user.domain.privacysetting.repository.UserPrivacySettingRepository;
 import io.openware.im.user.infra.persistence.privacysetting.mapper.UserPrivacySettingMapper;
 import io.openware.im.user.infra.persistence.privacysetting.po.UserPrivacySettingPo;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -26,12 +27,17 @@ public class MybatisUserPrivacySettingRepository implements UserPrivacySettingRe
     if (existing == null) {
       po.setCreatedBy(setting.getUserId());
       po.setUpdatedBy(setting.getUserId());
+      // 审计列由适配器确定（standards/10 L299）：领域模型不再携带。
+      LocalDateTime now = LocalDateTime.now();
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       mapper.insert(po);
     } else {
       // 主键是自增 id：改自业务键 user_id 后必须用查到的 id 走 updateById。
       po.setId(existing.getId());
       po.setCreatedBy(setting.getUserId());
       po.setUpdatedBy(setting.getUserId());
+      po.setUpdatedAt(LocalDateTime.now());
       mapper.updateById(po);
     }
     return toDomain(po);
@@ -45,7 +51,7 @@ public class MybatisUserPrivacySettingRepository implements UserPrivacySettingRe
 
   private UserPrivacySetting toDomain(UserPrivacySettingPo po) {
     UserPrivacySetting setting = new UserPrivacySetting();
-    setting.restore(po.getUserId(), bool(po.getAllowGroupFriendRequest()), bool(po.getHideGroupMemberInfo()), po.getCreatedAt(), po.getUpdatedAt());
+    setting.restore(po.getUserId(), bool(po.getAllowGroupFriendRequest()), bool(po.getHideGroupMemberInfo()));
     return setting;
   }
 
@@ -54,8 +60,6 @@ public class MybatisUserPrivacySettingRepository implements UserPrivacySettingRe
     po.setUserId(setting.getUserId());
     po.setAllowGroupFriendRequest(setting.isAllowGroupFriendRequest());
     po.setHideGroupMemberInfo(setting.isHideGroupMemberInfo());
-    po.setCreatedAt(setting.getCreatedAt());
-    po.setUpdatedAt(setting.getUpdatedAt());
     return po;
   }
 
