@@ -18,6 +18,8 @@ import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.device.model.DeviceToken;
+import io.openware.im.user.domain.device.repository.Persisted;
+import io.openware.im.user.domain.device.readmodel.DeviceTokenView;
 import io.openware.im.user.domain.device.repository.DeviceTokenRepository;
 import io.openware.im.user.domain.social.model.FriendRelation;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
@@ -94,29 +96,41 @@ public class AdminUserQueryApplicationService {
 
   @Transactional(readOnly = true)
   public List<AdminDeviceTokenResponse> deviceTokens(Long userId) {
-    return deviceTokenRepository.findEnabledByUserId(userId).stream().map(this::toDeviceTokenResponse).toList();
+    return deviceTokenRepository.findEnabledByUserId(userId).stream()
+        .map(AdminUserQueryApplicationService::viewOf)
+        .map(this::toDeviceTokenResponse).toList();
   }
 
   /** 供 access-ws 离线推送使用，按原样返回明文 token。 */
   @Transactional(readOnly = true)
   public List<Map<String, String>> pushDeviceTokens(Long userId) {
     return deviceTokenRepository.findEnabledByUserId(userId).stream()
-        .map(token -> Map.of("token", token.getToken(), "platform", token.getPlatform().getValue(),
-            "pushProvider", token.getPushProvider().getValue()))
+        .map(row -> Map.of("token", row.aggregate().getToken(),
+            "platform", row.aggregate().getPlatform().getValue(),
+            "pushProvider", row.aggregate().getPushProvider().getValue()))
         .toList();
+  }
+
+  /** 载体 → 只读投影：供只需要展示字段的列表复用同一响应装配。 */
+  private static DeviceTokenView viewOf(Persisted<DeviceToken> row) {
+    DeviceToken token = row.aggregate();
+    return new DeviceTokenView(token.getId(), token.getUserId(), token.getToken(), token.getPushProvider(),
+        token.getPlatform(), token.getDeviceId(), token.getEnabled(), row.audit().createdAt(),
+        row.audit().updatedAt());
   }
 
   @Transactional(readOnly = true)
   public PageResult<AdminDeviceTokenResponse> allDeviceTokens(int page, int pageSize, Long userId) {
-    PageResult<DeviceToken> result = deviceTokenRepository.findEnabledForAdmin(userId, page, pageSize);
+    PageResult<DeviceTokenView> result = deviceTokenRepository.findEnabledForAdmin(userId, page, pageSize);
     return mapPage(result, this::toDeviceTokenResponse);
   }
 
   @Transactional
   public void disableDeviceToken(Long id) {
     DeviceToken token = deviceTokenRepository.findById(id)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Device token not found"));
-    token.disable(LocalDateTime.now());
+    token.disable();
     deviceTokenRepository.save(token);
   }
 
@@ -160,10 +174,10 @@ public class AdminUserQueryApplicationService {
         relation.getGroupName(), FriendStatus.valueOf(relation.getStatus().name()), relation.getCreatedAt());
   }
 
-  private AdminDeviceTokenResponse toDeviceTokenResponse(DeviceToken token) {
-    return new AdminDeviceTokenResponse(token.getId(), token.getUserId(), tokenFingerprint(token.getToken()),
-        token.getPushProvider(), token.getPlatform(), token.getDeviceId(), token.getEnabled(), token.getCreatedAt(),
-        token.getUpdatedAt());
+  private AdminDeviceTokenResponse toDeviceTokenResponse(DeviceTokenView row) {
+    return new AdminDeviceTokenResponse(row.id(), row.userId(), tokenFingerprint(row.token()),
+        row.provider(), row.platform(), row.deviceId(), row.enabled(), row.createdAt(),
+        row.updatedAt());
   }
 
   private AdminUserStickerResponse toStickerResponse(UserSticker sticker, UserAccount user) {

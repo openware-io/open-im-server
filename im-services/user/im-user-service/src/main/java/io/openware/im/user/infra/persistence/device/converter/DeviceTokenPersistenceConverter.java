@@ -10,7 +10,7 @@ public final class DeviceTokenPersistenceConverter {
   public static DeviceToken toDomain(DeviceTokenPo po) {
     DeviceToken deviceToken = new DeviceToken();
     deviceToken.restore(po.getId(), po.getUserId(), po.getToken(), po.getPushProvider(), po.getPlatform(),
-        po.getDeviceId(), po.getEnabled(), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+        po.getDeviceId(), po.getEnabled());
     return deviceToken;
   }
 
@@ -23,10 +23,6 @@ public final class DeviceTokenPersistenceConverter {
     po.setPlatform(deviceToken.getPlatform());
     po.setDeviceId(deviceToken.getDeviceId());
     po.setEnabled(deviceToken.getEnabled());
-    po.setCreatedBy(deviceToken.getCreatedBy());
-    po.setCreatedAt(deviceToken.getCreatedAt());
-    po.setUpdatedBy(deviceToken.getUpdatedBy());
-    po.setUpdatedAt(deviceToken.getUpdatedAt());
     return po;
   }
 }
