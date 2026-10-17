@@ -120,7 +120,12 @@ class AdminBatchZeroArchitectureGateTest {
 
     assertFalse(deviceResponse.contains("private final String token;"));
     assertTrue(deviceResponse.contains("tokenFingerprint"));
-    assertTrue(adminQueryService.contains("tokenFingerprint(token.getToken())"));
+    // 断言「意图」而非具体访问器写法：管理端响应装配必须经由 tokenFingerprint 处理 token，
+    // 不得直接透出原文。此前断言绑定 token.getToken()，读模型换成投影后参数形态变化即误报（行为未变）。
+    assertTrue(adminQueryService.contains("tokenFingerprint("),
+        "管理端 token 响应必须做指纹化，不得返回原文");
+    assertFalse(adminQueryService.contains("new AdminDeviceTokenResponse(deviceToken.getToken()"),
+        "管理端响应不得直接把原始 token 作为响应字段");
   }
 
   @Test
