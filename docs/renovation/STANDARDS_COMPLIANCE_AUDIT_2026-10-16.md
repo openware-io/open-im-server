@@ -403,6 +403,40 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 已知需特别小心的：`FriendAuthorizationQueryService:47` 用 `updatedAt`/`createdAt` **二选一参与判定**，
 投影必须同时保留两者且语义原样。
 
+### 8.13 `FriendRequest`：`createdAt` 被**写路径重置**，需要端口拆分（2026-10-16 第九次更新）
+
+`FriendRequest` 看起来和 `DeviceKey` 同型（1 处响应读者、4 个端口方法），但有一个**结构性问题**：
+
+```java
+/** 重新申请时覆盖已有 pending：刷新附言与时间，保持单行幂等并重新触发通知。 */
+public void overwrite(String message, LocalDateTime occurredAt) {
+  this.message = message == null ? "" : message;
+  this.createdAt = occurredAt;   // ← 审计列被写路径重置
+  this.updatedAt = occurredAt;
+}
+```
+
+**「重新申请」会把 `created_at` 重置为当前时刻**，因为好友申请列表按 `created_at` 倒序——
+重新申请必须排到最前。这是**业务需求**，不是记账。
+
+**审计列不进领域模型后，这条规则无处落地**：领域模型只说"附言变了"，适配器无从知道
+"这一行需要把 `created_at` 前移"。
+
+**我试过一个临时解法（在领域模型上挂一个 `reapplyAt` 字段）并立刻回退**——那等于把审计列
+换个名字放回领域模型，既违规又难懂。
+
+**正确解法是端口拆分**（也是领域设计的常规手法：把"重新申请"表达为一个独立的业务动作）：
+
+```java
+// 写路径语义不同 → 端口方法不同，模型不需要携带时刻
+FriendRequest save(FriendRequest request);          // 首次申请：created_at 由适配器打
+FriendRequest reapply(FriendRequest request);       // 重新申请：适配器把 created_at 与 updated_at 都刷新为 now
+```
+适配器：`reapply` 走 `UPDATE ... SET message = ?, created_at = now, updated_at = now WHERE id = ?`。
+
+**含义**：这类"审计列被业务写路径重置"的模型**不能按载体套路处理**，要先确认端口语义是否够表达。
+`FriendRequest` 因此**比我预判的多一步**，与 `FriendRelation` 同属"需先设计再动手"。
+
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
