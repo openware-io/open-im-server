@@ -9,8 +9,7 @@ public final class UserStickerPersistenceConverter {
 
   public static UserSticker toDomain(UserStickerPo po) {
     UserSticker sticker = new UserSticker();
-    sticker.restore(po.getId(), po.getUserId(), po.getUrl(), po.getThumbnail(), po.getSortOrder(), po.getCreatedBy(),
-        po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+    sticker.restore(po.getId(), po.getUserId(), po.getUrl(), po.getThumbnail(), po.getSortOrder());
     return sticker;
   }
 
@@ -21,10 +20,6 @@ public final class UserStickerPersistenceConverter {
     po.setUrl(sticker.getUrl());
     po.setThumbnail(sticker.getThumbnail());
     po.setSortOrder(sticker.getSortOrder());
-    po.setCreatedBy(sticker.getCreatedBy());
-    po.setCreatedAt(sticker.getCreatedAt());
-    po.setUpdatedBy(sticker.getUpdatedBy());
-    po.setUpdatedAt(sticker.getUpdatedAt());
     return po;
   }
 }

@@ -7,6 +7,8 @@ import io.openware.common.dto.PageResult;
 import io.openware.common.exception.ApiException;
 import io.openware.im.user.application.sticker.command.AddUserStickerCommand;
 import io.openware.im.user.domain.sticker.model.UserSticker;
+import io.openware.im.user.domain.sticker.readmodel.UserStickerView;
+import io.openware.im.user.domain.sticker.repository.Persisted;
 import io.openware.im.user.domain.sticker.repository.UserStickerRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -67,8 +69,9 @@ class StickerApplicationServiceTest {
     private int stickerCount;
 
     @Override
-    public synchronized List<UserSticker> findByUserId(Long userId) {
-      return stickers.stream().filter(sticker -> userId.equals(sticker.getUserId())).toList();
+    public synchronized List<Persisted<UserSticker>> findByUserId(Long userId) {
+      return stickers.stream().filter(sticker -> userId.equals(sticker.getUserId()))
+          .map(InMemoryUserStickerRepository::persisted).toList();
     }
 
     @Override
@@ -86,22 +89,30 @@ class StickerApplicationServiceTest {
     }
 
     @Override
-    public synchronized List<UserSticker> saveAll(List<UserSticker> newStickers) {
+    public synchronized List<Persisted<UserSticker>> saveAll(List<UserSticker> newStickers) {
       newStickers.forEach(sticker -> {
         sticker.assignId(ids.incrementAndGet());
         stickers.add(sticker);
       });
-      return newStickers;
+      return newStickers.stream().map(InMemoryUserStickerRepository::persisted).toList();
     }
 
     @Override
-    public Optional<UserSticker> findById(Long id) {
-      return stickers.stream().filter(sticker -> id.equals(sticker.getId())).findFirst();
+    public Optional<Persisted<UserSticker>> findById(Long id) {
+      return stickers.stream().filter(sticker -> id.equals(sticker.getId())).findFirst()
+          .map(InMemoryUserStickerRepository::persisted);
     }
 
     @Override
-    public PageResult<UserSticker> findForAdmin(Long userId, int page, int pageSize) {
-      return PageResult.<UserSticker>builder().items(List.of()).total(0).page(page).pageSize(pageSize).build();
+    public PageResult<UserStickerView> findForAdmin(Long userId, int page, int pageSize) {
+      return PageResult.<UserStickerView>builder().items(List.of()).total(0).page(page).pageSize(pageSize).build();
+    }
+
+    /** 领域模型不带审计列：时刻由假仓储补齐，与真实适配器的 AuditSnapshot 同职责。 */
+    private static Persisted<UserSticker> persisted(UserSticker sticker) {
+      java.time.LocalDateTime now = java.time.LocalDateTime.now();
+      return new Persisted<>(sticker,
+          new io.openware.im.user.domain.sticker.repository.AuditSnapshot(0L, now, 0L, now));
     }
 
     @Override

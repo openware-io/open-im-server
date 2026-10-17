@@ -5,8 +5,8 @@ import io.openware.common.http.HttpStatusCodes;
 import io.openware.im.user.application.sticker.command.AddUserStickerCommand;
 import io.openware.im.user.application.sticker.result.UserStickerResult;
 import io.openware.im.user.domain.sticker.model.UserSticker;
+import io.openware.im.user.domain.sticker.repository.Persisted;
 import io.openware.im.user.domain.sticker.repository.UserStickerRepository;
-import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -49,16 +49,16 @@ public class StickerApplicationService {
     if (!userStickerRepository.reserveSlots(userId, commands.size(), MAX_STICKERS)) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Sticker limit reached");
     }
-    LocalDateTime occurredAt = LocalDateTime.now();
     List<UserSticker> stickers = commands.stream()
-        .map(command -> UserSticker.create(userId, command.url(), command.thumbnail(), occurredAt))
+        .map(command -> UserSticker.create(userId, command.url(), command.thumbnail()))
         .toList();
     return userStickerRepository.saveAll(stickers).stream().map(this::toResult).toList();
   }
 
-  private UserStickerResult toResult(UserSticker sticker) {
+  private UserStickerResult toResult(Persisted<UserSticker> row) {
+    UserSticker sticker = row.aggregate();
     return new UserStickerResult(
         sticker.getId(), sticker.getUserId(), sticker.getUrl(), sticker.getThumbnail(), sticker.getSortOrder(),
-        sticker.getCreatedBy(), sticker.getCreatedAt(), sticker.getUpdatedBy(), sticker.getUpdatedAt());
+        row.audit().createdBy(), row.audit().createdAt(), row.audit().updatedBy(), row.audit().updatedAt());
   }
 }

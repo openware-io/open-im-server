@@ -2,22 +2,23 @@ package io.openware.im.user.domain.sticker.repository;
 
 import io.openware.common.dto.PageResult;
 import io.openware.im.user.domain.sticker.model.UserSticker;
+import io.openware.im.user.domain.sticker.readmodel.UserStickerView;
 import java.util.List;
 import java.util.Optional;
 
 public interface UserStickerRepository {
-  List<UserSticker> findByUserId(Long userId);
+  List<Persisted<UserSticker>> findByUserId(Long userId);
 
-  Optional<UserSticker> findById(Long id);
+  Optional<Persisted<UserSticker>> findById(Long id);
 
   /** 管理端贴纸分页查询：可选按用户过滤，按创建时间倒序。 */
-  PageResult<UserSticker> findForAdmin(Long userId, int page, int pageSize);
+  PageResult<UserStickerView> findForAdmin(Long userId, int page, int pageSize);
 
   boolean reserveSlots(Long userId, int slotCount, int maximum);
 
   void releaseSlots(Long userId, int slotCount);
 
-  List<UserSticker> saveAll(List<UserSticker> stickers);
+  List<Persisted<UserSticker>> saveAll(List<UserSticker> stickers);
 
   boolean deleteByIdAndUserId(Long id, Long userId);
 

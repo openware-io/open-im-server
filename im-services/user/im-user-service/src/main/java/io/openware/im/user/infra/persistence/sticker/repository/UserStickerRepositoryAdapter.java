@@ -4,11 +4,15 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.dto.PageResult;
 import io.openware.im.user.domain.sticker.model.UserSticker;
+import io.openware.im.user.domain.sticker.readmodel.UserStickerView;
+import io.openware.im.user.domain.sticker.repository.AuditSnapshot;
+import io.openware.im.user.domain.sticker.repository.Persisted;
 import io.openware.im.user.domain.sticker.repository.UserStickerRepository;
 import io.openware.im.user.infra.persistence.sticker.converter.UserStickerPersistenceConverter;
 import io.openware.im.user.infra.persistence.sticker.mapper.UserStickerMapper;
 import io.openware.im.user.infra.persistence.sticker.mapper.UserStickerQuotaMapper;
 import io.openware.im.user.infra.persistence.sticker.po.UserStickerPo;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -22,24 +26,24 @@ public class UserStickerRepositoryAdapter implements UserStickerRepository {
   private final UserStickerQuotaMapper quotaMapper;
 
   @Override
-  public List<UserSticker> findByUserId(Long userId) {
+  public List<Persisted<UserSticker>> findByUserId(Long userId) {
     return mapper.selectList(Wrappers.<UserStickerPo>lambdaQuery()
             .eq(UserStickerPo::getUserId, userId)
             .orderByAsc(UserStickerPo::getSortOrder, UserStickerPo::getCreatedAt))
-        .stream().map(UserStickerPersistenceConverter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public Optional<UserSticker> findById(Long id) {
-    return Optional.ofNullable(mapper.selectById(id)).map(UserStickerPersistenceConverter::toDomain);
+  public Optional<Persisted<UserSticker>> findById(Long id) {
+    return Optional.ofNullable(mapper.selectById(id)).map(this::toPersisted);
   }
 
   @Override
-  public PageResult<UserSticker> findForAdmin(Long userId, int page, int pageSize) {
+  public PageResult<UserStickerView> findForAdmin(Long userId, int page, int pageSize) {
     Page<UserStickerPo> result = mapper.selectPage(new Page<>(page, pageSize),
         Wrappers.<UserStickerPo>lambdaQuery().eq(userId != null, UserStickerPo::getUserId, userId)
             .orderByDesc(UserStickerPo::getCreatedAt));
-    return toPage(result, UserStickerPersistenceConverter::toDomain);
+    return toPage(result, this::toView);
   }
 
   @Override
@@ -54,13 +58,21 @@ public class UserStickerRepositoryAdapter implements UserStickerRepository {
   }
 
   @Override
-  public List<UserSticker> saveAll(List<UserSticker> stickers) {
+  public List<Persisted<UserSticker>> saveAll(List<UserSticker> stickers) {
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    List<Persisted<UserSticker>> result = new ArrayList<>(stickers.size());
     for (UserSticker sticker : stickers) {
       UserStickerPo po = UserStickerPersistenceConverter.toPo(sticker);
+      // 审计列由适配器确定（standards/10 L299）：操作人恒为系统（0L）。
+      po.setCreatedBy(0L);
+      po.setUpdatedBy(0L);
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       mapper.insert(po);
       sticker.assignId(po.getId());
+      result.add(toPersisted(po));
     }
-    return stickers;
+    return result;
   }
 
   @Override
@@ -79,5 +91,20 @@ public class UserStickerRepositoryAdapter implements UserStickerRepository {
       Function<UserStickerPo, T> converter) {
     return PageResult.<T>builder().items(source.getRecords().stream().map(converter).toList()).total(source.getTotal())
         .page((int) source.getCurrent()).pageSize((int) source.getSize()).build();
+  }
+
+  /** 业务聚合 + 记账快照：用户端列表要回显创建时刻，而它不进领域模型。 */
+  private Persisted<UserSticker> toPersisted(UserStickerPo po) {
+    if (po == null) {
+      return null;
+    }
+    return new Persisted<>(UserStickerPersistenceConverter.toDomain(po),
+        new AuditSnapshot(po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()));
+  }
+
+  /** 管理端列表投影：只读聚合查询，不参与状态变更（standards/10 L266-279）。 */
+  private UserStickerView toView(UserStickerPo po) {
+    return new UserStickerView(po.getId(), po.getUserId(), po.getUrl(), po.getThumbnail(), po.getSortOrder(),
+        po.getCreatedAt());
   }
 }

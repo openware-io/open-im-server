@@ -24,6 +24,7 @@ import io.openware.im.user.domain.device.repository.DeviceTokenRepository;
 import io.openware.im.user.domain.social.model.FriendRelation;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
 import io.openware.im.user.domain.sticker.model.UserSticker;
+import io.openware.im.user.domain.sticker.readmodel.UserStickerView;
 import io.openware.im.user.domain.sticker.repository.UserStickerRepository;
 import io.openware.im.user.media.MediaReferenceClient;
 import java.nio.charset.StandardCharsets;
@@ -136,15 +137,16 @@ public class AdminUserQueryApplicationService {
 
   @Transactional(readOnly = true)
   public PageResult<AdminUserStickerResponse> stickers(int page, int pageSize, Long userId) {
-    PageResult<UserSticker> result = userStickerRepository.findForAdmin(userId, page, pageSize);
-    Map<Long, UserAccount> users = accountsOf(result.getItems().stream().map(UserSticker::getUserId)
+    PageResult<UserStickerView> result = userStickerRepository.findForAdmin(userId, page, pageSize);
+    Map<Long, UserAccount> users = accountsOf(result.getItems().stream().map(UserStickerView::userId)
         .filter(java.util.Objects::nonNull).distinct().toList());
-    return mapPage(result, sticker -> toStickerResponse(sticker, users.get(sticker.getUserId())));
+    return mapPage(result, sticker -> toStickerResponse(sticker, users.get(sticker.userId())));
   }
 
   @Transactional
   public void deleteSticker(Long id) {
     UserSticker sticker = userStickerRepository.findById(id)
+        .map(io.openware.im.user.domain.sticker.repository.Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Sticker not found"));
     userStickerRepository.deleteById(id);
     userStickerRepository.releaseSlots(sticker.getUserId(), 1);
@@ -180,10 +182,10 @@ public class AdminUserQueryApplicationService {
         row.updatedAt());
   }
 
-  private AdminUserStickerResponse toStickerResponse(UserSticker sticker, UserAccount user) {
-    return new AdminUserStickerResponse(sticker.getId(), sticker.getUserId(),
+  private AdminUserStickerResponse toStickerResponse(UserStickerView sticker, UserAccount user) {
+    return new AdminUserStickerResponse(sticker.id(), sticker.userId(),
         user == null ? null : user.getUsername(), user == null ? null : user.getNickname(),
-        sticker.getUrl(), sticker.getThumbnail(), sticker.getSortOrder(), sticker.getCreatedAt());
+        sticker.url(), sticker.thumbnail(), sticker.sortOrder(), sticker.createdAt());
   }
 
   private Map<Long, UserAccount> accountsOf(List<Long> userIds) {
