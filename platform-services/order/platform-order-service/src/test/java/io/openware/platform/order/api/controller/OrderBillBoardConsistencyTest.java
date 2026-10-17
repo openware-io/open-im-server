@@ -12,7 +12,7 @@ import static org.mockito.Mockito.when;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.application.BillApplicationService;
 import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
@@ -84,7 +84,7 @@ class OrderBillBoardConsistencyTest {
             orderAmounts);
     private final BillApplicationService billService = new BillApplicationService(
             orderMapper, orderItemMapper, ktvSessionRepository, serverSessionRepository, pricingPlanProvider, null);
-    private final OrderController controller = new OrderController(
+    private final OrderController controller = OrderControllerTestFactory.create(
             orderMapper,
             sessionService,
             mock(KtvServerSessionApplicationService.class),

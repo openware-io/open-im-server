@@ -75,7 +75,7 @@ class TimeRangeListFilterTest {
     void setUp() {
         productController = new ProductController(productService);
         reservationController = new ReservationController(reservationService, mock(MemberLookupProvider.class));
-        orderController = new OrderController(orderMapper, mock(KtvSessionApplicationService.class),
+        orderController = OrderControllerTestFactory.create(orderMapper, mock(KtvSessionApplicationService.class),
                 mock(KtvServerSessionApplicationService.class), mock(ResourceStateClient.class),
                 AuditClient.disabled(), mock(OrderCancellationApplicationService.class),
                 mock(DailySerialNumberGenerator.class));

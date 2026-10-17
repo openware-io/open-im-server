@@ -1,6 +1,6 @@
 package io.openware.platform.order.api.controller;
 
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.application.OrderQueryApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService;

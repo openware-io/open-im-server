@@ -11,7 +11,7 @@ import java.util.Set;
  * {@code @TableField(exist = false)} 字段（sessionId / roomResourceId / roomName / roomCode / sessionStatus /
  * partySize / serverId / serverName / roomElapsedSeconds / roomEstimatedFee / liveTotalAmount /
  * sessionOpenedAt / sessionClosedAt）——它们是**从 {@code ord_ktv_session} 联表读出的投影**，
- * 不是订单自身的业务事实。它们住在 {@code api.dto.OrderView} 里，<b>不进领域模型</b>：
+ * 不是订单自身的业务事实。它们住在 {@code application.dto.OrderView} 里，<b>不进领域模型</b>：
  * 领域模型一旦携带它们，任何整聚合写入都会试图为不存在的列生成引用，运行时抛
  * {@code can not find lambda cache for this property}，而编译期完全看不出来。
  *

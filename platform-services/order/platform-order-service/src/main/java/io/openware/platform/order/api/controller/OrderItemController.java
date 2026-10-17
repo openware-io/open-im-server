@@ -2,7 +2,7 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.order.api.dto.OrderItemView;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.OrderItemApplicationService.AddItemCommand;
 import io.openware.platform.order.application.SettlementApplicationService;

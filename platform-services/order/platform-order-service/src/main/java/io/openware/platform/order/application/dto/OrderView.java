@@ -1,4 +1,4 @@
-package io.openware.platform.order.api.dto;
+package io.openware.platform.order.application.dto;
 
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;

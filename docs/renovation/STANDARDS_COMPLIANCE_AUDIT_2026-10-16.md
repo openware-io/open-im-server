@@ -809,10 +809,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   待确认缓存失效与审计）整体移入新的 `OrderItemApplicationService`；`settle` 保留端点权限守卫。
   清单由 3 降为 **2**，控制器上的 `@Transactional` 由 2 降为 **0**（V1 的 12 个事务方法全部迁移完成）；
   订单加项相关 **33 个测试通过**。
+- `OrderController` 的列表/详情/创建/确认/挂单/解挂（含授权、会话投影、实时合计、创建幂等与审计）
+  整体移入新的 `OrderApplicationService`；`OrderView` 从 `api.dto` 移到 `application.dto`；
+  KTV 会话、取消/作废端点继续委托既有应用服务。清单由 2 降为 **1**（仅剩 admin `ReportController`）；
+  订单控制器相关 **55 个测试通过**。
 
 **V1 剩余**：控制器上的 `@Transactional` 已 **清零**（12/12 完成）；
-`controller-repository-boundary` 还剩 **2 个**控制器（`OrderController`、admin `ReportController`）。
-下一批按 §8.2 的"业务逻辑随方法体一起搬"处理，不能只删注解。
+`controller-repository-boundary` 还剩 **1 个**控制器（admin `ReportController`）。
+下一批处理 admin `ReportController`，随后收口审计字段并把该门禁从 report-only 改为 blocking。
 
 
 

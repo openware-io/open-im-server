@@ -9,7 +9,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.repository.OrderRepository;

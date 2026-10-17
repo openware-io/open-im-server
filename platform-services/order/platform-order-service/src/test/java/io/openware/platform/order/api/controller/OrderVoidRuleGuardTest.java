@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
 class OrderVoidRuleGuardTest {
     private final OrderCancellationApplicationService cancellation = mock(OrderCancellationApplicationService.class);
     private final VoidRuleApplicationService rules = mock(VoidRuleApplicationService.class);
-    private final OrderController controller = new OrderController(
+    private final OrderController controller = OrderControllerTestFactory.create(
             mock(OrderRepository.class), mock(KtvSessionApplicationService.class),
             mock(KtvServerSessionApplicationService.class), mock(ResourceStateClient.class),
             AuditClient.disabled(), cancellation, mock(DailySerialNumberGenerator.class),

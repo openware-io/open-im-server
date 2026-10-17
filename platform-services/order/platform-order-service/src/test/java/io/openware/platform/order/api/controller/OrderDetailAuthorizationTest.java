@@ -9,7 +9,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.application.DailySerialNumberGenerator;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
@@ -44,7 +44,7 @@ class OrderDetailAuthorizationTest {
     private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
     private final KtvSessionApplicationService ktvSessionService = mock(KtvSessionApplicationService.class);
-    private final OrderController controller = new OrderController(
+    private final OrderController controller = OrderControllerTestFactory.create(
             orderMapper,
             ktvSessionService,
             mock(KtvServerSessionApplicationService.class),

@@ -18,7 +18,7 @@ import java.util.Optional;
  * refundable_amount / completed_at / cancelled_at / hold_reason / hold_at / version
  * + created_by / created_at / updated_by / updated_at。原持久化对象上那 13 个
  * {@code @TableField(exist = false)} 的会话投影字段**不在** {@link Order} 上，也不在本端口的任何签名里：
- * 它们是从 {@code ord_ktv_session} 联表读出的展示数据（见 {@code api.dto.OrderView}）。
+ * 它们是从 {@code ord_ktv_session} 联表读出的展示数据（见 {@code application.dto.OrderView}）。
  *
  * <p><b>并发契约（本端口最重要的部分）</b>：{@code ord_order} 有 {@code version} 列，
  * 但持久化对象上**没有** {@code @Version} 注解、工程里也**没有** {@code OptimisticLockerInnerInterceptor}，

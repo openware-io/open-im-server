@@ -6,7 +6,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.common.exception.ApiException;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.application.ReservationApplicationService;

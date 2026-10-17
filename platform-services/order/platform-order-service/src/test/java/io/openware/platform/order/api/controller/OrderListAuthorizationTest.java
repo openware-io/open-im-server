@@ -51,7 +51,7 @@ class OrderListAuthorizationTest {
 
     private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
-    private final OrderController controller = new OrderController(
+    private final OrderController controller = OrderControllerTestFactory.create(
             orderMapper,
             mock(KtvSessionApplicationService.class),
             mock(KtvServerSessionApplicationService.class),

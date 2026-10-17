@@ -18,6 +18,7 @@ import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderItemQuery;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
@@ -92,7 +93,7 @@ public class OrderItemApplicationService {
       requireOwnOrder(orderId, PERMISSION_VIEW_ORDER);
     }
     return orderItemRepository.list(OrderItemQuery.ofOrder(orderId)).stream()
-        .map(io.openware.platform.order.domain.order.repository.Persisted::aggregate)
+        .map(Persisted::aggregate)
         .toList();
   }
 

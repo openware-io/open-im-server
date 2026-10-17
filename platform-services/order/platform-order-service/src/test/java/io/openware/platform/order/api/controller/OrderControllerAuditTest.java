@@ -19,7 +19,7 @@ import io.openware.platform.order.application.KtvServerSessionApplicationService
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
@@ -52,7 +52,7 @@ class OrderControllerAuditTest {
         orderCancellationService = mock(OrderCancellationApplicationService.class);
         auditClient = mock(AuditClient.class);
         dailySerialNumberGenerator = mock(DailySerialNumberGenerator.class);
-        controller = new OrderController(orderMapper, mock(KtvSessionApplicationService.class),
+        controller = OrderControllerTestFactory.create(orderMapper, mock(KtvSessionApplicationService.class),
                 mock(KtvServerSessionApplicationService.class), mock(ResourceStateClient.class), auditClient,
                 orderCancellationService, dailySerialNumberGenerator);
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,

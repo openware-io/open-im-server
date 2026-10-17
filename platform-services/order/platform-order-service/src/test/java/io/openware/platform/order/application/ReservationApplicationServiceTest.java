@@ -6,7 +6,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.reservation.model.Reservation;

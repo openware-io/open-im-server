@@ -19,7 +19,7 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.infra.client.ResourceStateClient;
-import io.openware.platform.order.api.dto.OrderView;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
@@ -46,7 +46,7 @@ class OrderCreateIdempotencyTest {
     private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final KtvSessionApplicationService ktvSessionService = mock(KtvSessionApplicationService.class);
     private final DailySerialNumberGenerator serialGenerator = mock(DailySerialNumberGenerator.class);
-    private final OrderController controller = new OrderController(
+    private final OrderController controller = OrderControllerTestFactory.create(
             orderMapper,
             ktvSessionService,
             mock(KtvServerSessionApplicationService.class),
