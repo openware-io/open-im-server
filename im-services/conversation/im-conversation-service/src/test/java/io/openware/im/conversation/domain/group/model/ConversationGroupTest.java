@@ -32,12 +32,12 @@ class ConversationGroupTest {
 
   @Test
   void updateCanToggleViewAccountSetting() {
-    ConversationGroup updated = group(true).update(null, null, null, null, null, false, now);
+    ConversationGroup updated = group(true).update(null, null, null, null, null, false);
     assertFalse(updated.allowMemberViewAccount());
   }
 
   private ConversationGroup group(boolean allowMemberViewAccount) {
     return new ConversationGroup(100L, "group", null, 1L, "", 500, true, true, allowMemberViewAccount,
-        GroupStatus.ACTIVE, 1, now, now);
+        GroupStatus.ACTIVE, 1);
   }
 }

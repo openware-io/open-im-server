@@ -3,12 +3,12 @@ package io.openware.im.conversation.controller;
 import java.util.List;
 import io.openware.im.conversation.api.group.AddGroupMembersRequest;
 import io.openware.im.conversation.api.group.CreateGroupRequest;
+import io.openware.im.conversation.api.group.ConversationGroupView;
 import io.openware.im.conversation.api.group.MuteGroupMemberRequest;
 import io.openware.im.conversation.api.group.SetGroupMemberRoleRequest;
 import io.openware.im.conversation.api.group.UpdateGroupRequest;
 import io.openware.im.conversation.api.group.GroupMemberResponse;
 import io.openware.im.conversation.application.group.GroupApplicationService;
-import io.openware.im.conversation.domain.group.model.ConversationGroup;
 import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.infrastructure.security.SecurityUser;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -42,8 +42,8 @@ private final GroupApplicationService groupService;
    * @param dto 创建群组请求
    */
   @PostMapping
-  public ConversationGroup createGroup(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody CreateGroupRequest dto) {
-    return groupService.createGroup(user.getId(), dto);
+  public ConversationGroupView createGroup(@AuthenticationPrincipal SecurityUser user, @Valid @RequestBody CreateGroupRequest dto) {
+    return ConversationGroupView.from(groupService.createGroup(user.getId(), dto));
   }
 
   /**
@@ -52,16 +52,16 @@ private final GroupApplicationService groupService;
    * @param user 当前登录用户
    */
   @GetMapping("/mine")
-  public List<ConversationGroup> getMyGroups(@AuthenticationPrincipal SecurityUser user) {
-    return groupService.getUserGroups(user.getId());
+  public List<ConversationGroupView> getMyGroups(@AuthenticationPrincipal SecurityUser user) {
+    return groupService.getUserGroups(user.getId()).stream().map(ConversationGroupView::from).toList();
   }
 
   /**
    * 查询群组详情。
    */
   @GetMapping("/{id}")
-  public ConversationGroup getGroupInfo(@AuthenticationPrincipal SecurityUser user, @PathVariable Long id) {
-    return groupService.getGroupInfo(id, user.getId());
+  public ConversationGroupView getGroupInfo(@AuthenticationPrincipal SecurityUser user, @PathVariable Long id) {
+    return ConversationGroupView.from(groupService.getGroupInfo(id, user.getId()));
   }
 
   /**
@@ -78,8 +78,8 @@ private final GroupApplicationService groupService;
    * @param dto 待更新字段
    */
   @PutMapping("/{id}")
-  public ConversationGroup updateGroup(@AuthenticationPrincipal SecurityUser user, @PathVariable Long id, @Valid @RequestBody UpdateGroupRequest dto) {
-    return groupService.updateGroup(id, user.getId(), dto);
+  public ConversationGroupView updateGroup(@AuthenticationPrincipal SecurityUser user, @PathVariable Long id, @Valid @RequestBody UpdateGroupRequest dto) {
+    return ConversationGroupView.from(groupService.updateGroup(id, user.getId(), dto));
   }
 
   /**

@@ -13,6 +13,8 @@ import io.openware.im.conversation.api.group.UpdateGroupRequest;
 import io.openware.im.conversation.domain.group.model.ConversationGroup;
 import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.im.conversation.domain.group.repository.ConversationGroupRepository;
+import io.openware.im.conversation.domain.group.repository.AuditSnapshot;
+import io.openware.im.conversation.domain.group.repository.Persisted;
 import io.openware.im.conversation.domain.group.repository.ConversationMemberRepository;
 import io.openware.im.conversation.domain.group.repository.ConversationOutboxRepository;
 import io.openware.im.conversation.domain.group.repository.ActiveUserPort;
@@ -194,18 +196,23 @@ class GroupApplicationServiceTest {
     }
 
     private InMemoryGroupRepository(boolean allowMemberInvite, boolean allowMemberViewAccount) {
-      LocalDateTime now = LocalDateTime.of(2026, 1, 1, 0, 0);
       group = new ConversationGroup(100L, "group", null, 1L, "", 500, allowMemberInvite, true,
-          allowMemberViewAccount, GroupStatus.ACTIVE, 1, now, now);
+          allowMemberViewAccount, GroupStatus.ACTIVE, 1);
     }
 
-    @Override public ConversationGroup save(ConversationGroup item) { return group = item; }
-    @Override public Optional<ConversationGroup> findById(long groupId) { return Optional.of(group); }
-    @Override public List<ConversationGroup> findActiveByUserId(long userId) { return List.of(); }
+    @Override public Persisted<ConversationGroup> save(ConversationGroup item, LocalDateTime occurredAt) {
+      group = item;
+      return new Persisted<>(group, new AuditSnapshot(occurredAt, occurredAt));
+    }
+    @Override public Optional<Persisted<ConversationGroup>> findById(long groupId) {
+      return Optional.of(new Persisted<>(group, new AuditSnapshot(LocalDateTime.of(2026, 1, 1, 0, 0),
+          LocalDateTime.of(2026, 1, 1, 0, 0))));
+    }
+    @Override public List<Persisted<ConversationGroup>> findActiveByUserId(long userId) { return List.of(); }
     @Override public long count() { return 1; }
     @Override public long countCreatedSince(LocalDateTime since) { return 0; }
     @Override public List<java.util.Map<String, Object>> dailyCounts(LocalDateTime since) { return List.of(); }
-    @Override public List<ConversationGroup> search(String keyword, long offset, long limit) { return List.of(); }
+    @Override public List<Persisted<ConversationGroup>> search(String keyword, long offset, long limit) { return List.of(); }
     @Override public long countByKeyword(String keyword) { return 0; }
   }
 

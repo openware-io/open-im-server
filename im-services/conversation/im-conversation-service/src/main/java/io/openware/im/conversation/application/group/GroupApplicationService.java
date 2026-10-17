@@ -14,6 +14,7 @@ import io.openware.im.conversation.api.group.GroupMemberResponse;
 import io.openware.im.conversation.domain.group.model.ConversationGroup;
 import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.im.conversation.domain.group.repository.ConversationGroupRepository;
+import io.openware.im.conversation.domain.group.repository.Persisted;
 import io.openware.im.conversation.domain.group.repository.ConversationMemberRepository;
 import io.openware.im.conversation.domain.group.repository.ConversationOutboxRepository;
 import io.openware.im.conversation.domain.group.repository.ActiveUserPort;
@@ -47,14 +48,15 @@ public class GroupApplicationService {
   private final ObjectMapper objectMapper;
 
   @Transactional
-  public ConversationGroup createGroup(long ownerId, CreateGroupRequest command) {
+  public Persisted<ConversationGroup> createGroup(long ownerId, CreateGroupRequest command) {
     if (!featureTogglePort.isGroupChatEnabled()) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Group chat is disabled");
     }
     assertAllUsersActive(createMemberIds(ownerId, command.memberIds()));
     LocalDateTime now = LocalDateTime.now();
-    ConversationGroup group = groupRepository.save(new ConversationGroup(null, command.name(), command.avatar(), ownerId,
-        "", 500, true, true, true, GroupStatus.ACTIVE, 1, now, now));
+    Persisted<ConversationGroup> saved = groupRepository.save(new ConversationGroup(null, command.name(),
+        command.avatar(), ownerId, "", 500, true, true, true, GroupStatus.ACTIVE, 1), now);
+    ConversationGroup group = saved.aggregate();
     memberRepository.save(new ConversationMember(null, group.id(), ownerId, GroupRole.OWNER, "", false, null, 1, now));
     publish(group, new ConversationMember(null, group.id(), ownerId, GroupRole.OWNER, "", false, null, 1, now), "CREATED");
     if (command.memberIds() != null) command.memberIds().stream().filter(java.util.Objects::nonNull).filter(id -> id > 0)
@@ -62,14 +64,16 @@ public class GroupApplicationService {
       ConversationMember member = memberRepository.save(new ConversationMember(null, group.id(), id, GroupRole.MEMBER, "", false, null, 1, now));
       publish(group, member, "MEMBER_ADDED");
     });
-    return group;
+    return saved;
   }
 
   @Transactional(readOnly = true)
-  public List<ConversationGroup> getUserGroups(long userId) { return groupRepository.findActiveByUserId(userId); }
+  public List<Persisted<ConversationGroup>> getUserGroups(long userId) {
+    return groupRepository.findActiveByUserId(userId);
+  }
 
   @Transactional(readOnly = true)
-  public ConversationGroup getGroupInfo(long groupId, long userId) {
+  public Persisted<ConversationGroup> getGroupInfo(long groupId, long userId) {
     member(groupId, userId);
     // 群解散后仍要能查看群信息与聊天记录（参考微信：**保留记录、只读、不可再发消息**）。
     // 此前这里复用了带 ACTIVE 过滤的 group(id)，解散后直接 404，历史记录也一并看不到。
@@ -81,7 +85,7 @@ public class GroupApplicationService {
   @Transactional(readOnly = true)
   public List<GroupMemberResponse> getGroupMembers(long groupId, long userId) {
     member(groupId, userId);
-    ConversationGroup group = groupRepository.findById(groupId).orElse(null);
+    ConversationGroup group = groupRepository.findById(groupId).map(Persisted::aggregate).orElse(null);
     List<ConversationMember> members = memberRepository.findByGroupId(groupId);
     Map<Long, UserProfilePort.UserProfile> profiles = userProfilePort.findByUserIds(
         members.stream().map(ConversationMember::userId).toList());
@@ -106,20 +110,21 @@ public class GroupApplicationService {
   }
 
   @Transactional
-  public ConversationGroup updateGroup(long groupId, long userId, UpdateGroupRequest command) {
+  public Persisted<ConversationGroup> updateGroup(long groupId, long userId, UpdateGroupRequest command) {
     if (member(groupId, userId).role() == GroupRole.MEMBER) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only admin can update group");
     }
-    ConversationGroup updated = groupRepository.save(group(groupId).update(command.name(), command.avatar(), command.announcement(),
-        command.allowMemberInvite(), command.allowMemberFriendRequest(), command.allowMemberViewAccount(), LocalDateTime.now()));
-    publish(updated, member(groupId, userId), "GROUP_UPDATED");
+    Persisted<ConversationGroup> updated = groupRepository.save(group(groupId).update(command.name(), command.avatar(), command.announcement(),
+        command.allowMemberInvite(), command.allowMemberFriendRequest(), command.allowMemberViewAccount()), LocalDateTime.now());
+    publish(updated.aggregate(), member(groupId, userId), "GROUP_UPDATED");
     return updated;
   }
 
   @Transactional
   public Map<String, Integer> addMembers(long groupId, long userId, AddGroupMembersRequest command) {
     ConversationMember operator = member(groupId, userId);
-    ConversationGroup group = groupRepository.findByIdForUpdate(groupId).filter(value -> value.status() == GroupStatus.ACTIVE)
+    ConversationGroup group = groupRepository.findByIdForUpdate(groupId).map(Persisted::aggregate)
+        .filter(value -> value.status() == GroupStatus.ACTIVE)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Group not found"));
     if (operator.role() == GroupRole.MEMBER && !group.allowMemberInvite()) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Member invitations are disabled");
@@ -163,17 +168,18 @@ public class GroupApplicationService {
             .thenComparing(ConversationMember::joinedAt))
         .findFirst().orElse(null);
     if (successor == null) {
-      ConversationGroup dissolved = groupRepository.save(group.dissolve(LocalDateTime.now()));
+      Persisted<ConversationGroup> dissolved = groupRepository.save(group.dissolve(), LocalDateTime.now());
       memberRepository.delete(groupId, userId);
-      publish(dissolved, leavingMember, "GROUP_DISSOLVED");
+      publish(dissolved.aggregate(), leavingMember, "GROUP_DISSOLVED");
       return;
     }
 
     ConversationMember newOwner = memberRepository.save(successor.withRole(GroupRole.OWNER));
-    ConversationGroup transferred = groupRepository.save(group.transferOwnership(newOwner.userId(), LocalDateTime.now()));
+    Persisted<ConversationGroup> transferred = groupRepository.save(group.transferOwnership(newOwner.userId()),
+        LocalDateTime.now());
     memberRepository.delete(groupId, userId);
-    publish(transferred, newOwner, "OWNER_TRANSFERRED");
-    publish(transferred, leavingMember, "MEMBER_LEFT");
+    publish(transferred.aggregate(), newOwner, "OWNER_TRANSFERRED");
+    publish(transferred.aggregate(), leavingMember, "MEMBER_LEFT");
   }
 
   /** 成员设置自己在群内的昵称（空串表示清空，回退全局昵称）。 */
@@ -219,15 +225,15 @@ public class GroupApplicationService {
   public void dissolveGroup(long groupId, long userId) {
     ConversationGroup group = group(groupId);
     if (group.ownerId() != userId) throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only owner can dissolve");
-    ConversationGroup dissolved = groupRepository.save(group.dissolve(LocalDateTime.now()));
-    memberRepository.findByGroupId(groupId).forEach(member -> publish(dissolved, member, "GROUP_DISSOLVED"));
+    Persisted<ConversationGroup> dissolved = groupRepository.save(group.dissolve(), LocalDateTime.now());
+    memberRepository.findByGroupId(groupId).forEach(member -> publish(dissolved.aggregate(), member, "GROUP_DISSOLVED"));
   }
 
   @Transactional
   public void adminDissolveGroup(long groupId) {
     ConversationGroup group = group(groupId);
-    ConversationGroup dissolved = groupRepository.save(group.dissolve(LocalDateTime.now()));
-    memberRepository.findByGroupId(groupId).forEach(member -> publish(dissolved, member, "GROUP_DISSOLVED"));
+    Persisted<ConversationGroup> dissolved = groupRepository.save(group.dissolve(), LocalDateTime.now());
+    memberRepository.findByGroupId(groupId).forEach(member -> publish(dissolved.aggregate(), member, "GROUP_DISSOLVED"));
   }
 
   /** 管理端分页检索群组（只读查询，供 /internal/admin/groups 使用）。 */
@@ -249,13 +255,17 @@ public class GroupApplicationService {
   /** 群级隐私：是否允许群成员互加好友（供用户服务好友申请校验，群不存在时按允许处理）。 */
   @Transactional(readOnly = true)
   public boolean isMemberFriendRequestAllowed(long groupId) {
-    return groupRepository.findById(groupId).map(ConversationGroup::allowMemberFriendRequest).orElse(true);
+    return groupRepository.findById(groupId).map(Persisted::aggregate)
+        .map(ConversationGroup::allowMemberFriendRequest).orElse(true);
   }
 
-  private static Map<String, Object> groupAdminView(ConversationGroup group) {
+  private static Map<String, Object> groupAdminView(Persisted<ConversationGroup> persisted) {
+    ConversationGroup group = persisted.aggregate();
     Map<String, Object> result = new java.util.LinkedHashMap<>();
     result.put("id", group.id()); result.put("name", group.name()); result.put("ownerId", group.ownerId());
-    result.put("status", group.status().name()); result.put("createdAt", group.createdAt()); result.put("updatedAt", group.updatedAt());
+    result.put("status", group.status().name());
+    result.put("createdAt", persisted.audit() == null ? null : persisted.audit().createdAt());
+    result.put("updatedAt", persisted.audit() == null ? null : persisted.audit().updatedAt());
     return result;
   }
 
@@ -268,7 +278,8 @@ public class GroupApplicationService {
   }
 
   private ConversationGroup group(long id) {
-    return groupRepository.findById(id).filter(value -> value.status() == GroupStatus.ACTIVE)
+    return groupRepository.findById(id).map(Persisted::aggregate)
+        .filter(value -> value.status() == GroupStatus.ACTIVE)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Group not found"));
   }
 

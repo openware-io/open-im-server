@@ -11,6 +11,8 @@ import io.openware.im.conversation.api.authorization.GroupMessageAuthorizationSn
 import io.openware.im.conversation.domain.group.model.ConversationGroup;
 import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.im.conversation.domain.group.repository.ConversationGroupRepository;
+import io.openware.im.conversation.domain.group.repository.AuditSnapshot;
+import io.openware.im.conversation.domain.group.repository.Persisted;
 import io.openware.im.conversation.domain.group.repository.ConversationMemberRepository;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -31,7 +33,7 @@ class GroupAuthorizationQueryServiceTest {
   @Test
   void shouldDenyWhenGroupIsUnavailable() {
     ConversationGroup group = new ConversationGroup(100L, "group", null, 1L, null, 500,
-        true, true, true, GroupStatus.DISSOLVED, 3L, LocalDateTime.now(), LocalDateTime.now());
+        true, true, true, GroupStatus.DISSOLVED, 3L);
 
     GroupMessageAuthorizationSnapshot snapshot = authorize(group, activeMember());
 
@@ -67,8 +69,7 @@ class GroupAuthorizationQueryServiceTest {
   }
 
   private ConversationGroup activeGroup() {
-    return new ConversationGroup(100L, "group", null, 1L, null, 500, true, true, true, GroupStatus.ACTIVE, 3L,
-        LocalDateTime.now(), LocalDateTime.now());
+    return new ConversationGroup(100L, "group", null, 1L, null, 500, true, true, true, GroupStatus.ACTIVE, 3L);
   }
 
   private ConversationMember activeMember() {
@@ -77,13 +78,18 @@ class GroupAuthorizationQueryServiceTest {
   }
 
   private record StubGroupRepository(ConversationGroup group) implements ConversationGroupRepository {
-    @Override public ConversationGroup save(ConversationGroup item) { return item; }
-    @Override public Optional<ConversationGroup> findById(long groupId) { return Optional.ofNullable(group); }
-    @Override public List<ConversationGroup> findActiveByUserId(long userId) { return List.of(); }
+    @Override public Persisted<ConversationGroup> save(ConversationGroup item, LocalDateTime occurredAt) {
+      return new Persisted<>(item, new AuditSnapshot(occurredAt, occurredAt));
+    }
+    @Override public Optional<Persisted<ConversationGroup>> findById(long groupId) {
+      return group == null ? Optional.empty()
+          : Optional.of(new Persisted<>(group, new AuditSnapshot(LocalDateTime.now(), LocalDateTime.now())));
+    }
+    @Override public List<Persisted<ConversationGroup>> findActiveByUserId(long userId) { return List.of(); }
     @Override public long count() { return 0; }
     @Override public long countCreatedSince(LocalDateTime since) { return 0; }
     @Override public List<java.util.Map<String, Object>> dailyCounts(LocalDateTime since) { return List.of(); }
-    @Override public List<ConversationGroup> search(String keyword, long offset, long limit) { return List.of(); }
+    @Override public List<Persisted<ConversationGroup>> search(String keyword, long offset, long limit) { return List.of(); }
     @Override public long countByKeyword(String keyword) { return 0; }
   }
 

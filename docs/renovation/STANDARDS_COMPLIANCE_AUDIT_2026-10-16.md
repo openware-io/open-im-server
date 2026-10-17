@@ -817,10 +817,15 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   整体移入新的 `AdminReportApplicationService`；控制器只保留端点映射。`controller-repository-boundary`
   清单由 1 降为 **0**，该门禁从 `report-only-gates.txt` 删除并转为**阻塞门禁**；
   admin 报表相关 **62 个测试通过**。
+- `ConversationGroup` 去掉 `createdAt/updatedAt`；端口改为 `Persisted<ConversationGroup>` +
+  `AuditSnapshot`，适配器插入写 `created_at/updated_at`、更新只写 `updated_at`；
+  控制器改用 `ConversationGroupView` 保留原 JSON 字段。群组相关 **21 个测试通过**。
 
 **V1 完成**：控制器 `@Transactional` **12/12 清零**；`controller-repository-boundary` **14 → 0**，
 门禁已转为 blocking（不再有 report-only 例外）。
-**剩余**：审计字段还有 5 个模型（`ConversationGroup`、admin clientrelease 4 个）；
+**剩余**：admin clientrelease 的 4 个模型（`ClientRelease`、`ClientReleasePolicy`、
+`ClientReleaseOperation`、`ReleaseAuditLog`）；其中后两者需先判定 `createdBy/createdAt`
+是「记录本身的操作者/发生时间」还是记账列，再决定迁移方式。
 `UserSyncIndex.createdAt` 是业务同步时刻，判定保留。
 
 

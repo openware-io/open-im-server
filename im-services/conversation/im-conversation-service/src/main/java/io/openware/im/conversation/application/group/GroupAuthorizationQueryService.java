@@ -9,6 +9,7 @@ import io.openware.im.conversation.domain.group.model.ConversationGroup;
 import io.openware.im.conversation.domain.group.model.ConversationMember;
 import io.openware.im.conversation.domain.group.repository.ConversationGroupRepository;
 import io.openware.im.conversation.domain.group.repository.ConversationMemberRepository;
+import io.openware.im.conversation.domain.group.repository.Persisted;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,8 @@ public class GroupAuthorizationQueryService {
 
   @Transactional(readOnly = true)
   public GroupMessageAuthorizationSnapshot authorize(GroupMessageAuthorizationQuery query) {
-    ConversationGroup group = groupRepository.findById(query.conversationId()).orElse(null);
+    ConversationGroup group = groupRepository.findById(query.conversationId())
+        .map(Persisted::aggregate).orElse(null);
     if (group == null) return denied(query, "GROUP_NOT_FOUND", null, null);
     ConversationMember member = memberRepository.findByGroupIdAndUserId(query.conversationId(), query.userId()).orElse(null);
     if (group.status() != GroupStatus.ACTIVE) return denied(query, "GROUP_UNAVAILABLE", group, member);

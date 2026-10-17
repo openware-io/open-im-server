@@ -1,31 +1,29 @@
 package io.openware.im.conversation.domain.group.model;
 
 import io.openware.common.enums.GroupStatus;
-import java.time.LocalDateTime;
 
 public record ConversationGroup(Long id, String name, String avatar, long ownerId, String announcement, int maxMembers,
                                 boolean allowMemberInvite, boolean allowMemberFriendRequest, boolean allowMemberViewAccount,
-                                GroupStatus status, long authorizationVersion, LocalDateTime createdAt,
-                                LocalDateTime updatedAt) {
+                                GroupStatus status, long authorizationVersion) {
 
-  public ConversationGroup dissolve(LocalDateTime now) {
+  public ConversationGroup dissolve() {
     return new ConversationGroup(id, name, avatar, ownerId, announcement, maxMembers, allowMemberInvite,
-        allowMemberFriendRequest, allowMemberViewAccount, GroupStatus.DISSOLVED, authorizationVersion + 1, createdAt, now);
+        allowMemberFriendRequest, allowMemberViewAccount, GroupStatus.DISSOLVED, authorizationVersion + 1);
   }
 
   public ConversationGroup update(String newName, String newAvatar, String newAnnouncement, Boolean newAllowMemberInvite,
-      Boolean newAllowMemberFriendRequest, Boolean newAllowMemberViewAccount, LocalDateTime now) {
+      Boolean newAllowMemberFriendRequest, Boolean newAllowMemberViewAccount) {
     return new ConversationGroup(id, newName == null ? name : newName, newAvatar == null ? avatar : newAvatar,
         ownerId, newAnnouncement == null ? announcement : newAnnouncement, maxMembers,
         newAllowMemberInvite == null ? allowMemberInvite : newAllowMemberInvite,
         newAllowMemberFriendRequest == null ? allowMemberFriendRequest : newAllowMemberFriendRequest,
         newAllowMemberViewAccount == null ? allowMemberViewAccount : newAllowMemberViewAccount,
-        status, authorizationVersion, createdAt, now);
+        status, authorizationVersion);
   }
 
-  public ConversationGroup transferOwnership(long newOwnerId, LocalDateTime now) {
+  public ConversationGroup transferOwnership(long newOwnerId) {
     return new ConversationGroup(id, name, avatar, newOwnerId, announcement, maxMembers, allowMemberInvite,
-        allowMemberFriendRequest, allowMemberViewAccount, status, authorizationVersion + 1, createdAt, now);
+        allowMemberFriendRequest, allowMemberViewAccount, status, authorizationVersion + 1);
   }
 
   /**
