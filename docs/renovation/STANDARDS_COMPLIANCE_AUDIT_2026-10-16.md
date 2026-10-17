@@ -228,6 +228,40 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 **建议按服务拆分为 3 个独立任务**（conversation 4 → message 5 → user 12），每个服务完成即跑完整测试并提交；
 不要试图一次改完，否则中间态无法验证。
 
+### 8.7 V2 执行进度与 im-message 的逐模型判定（2026-10-16 第三次更新）
+
+**已完成**：
+
+| 服务 | 模型 | 结果 |
+|---|---|---|
+| conversation | `SecretChat` | 需载体（`SecretChatResult` 发布审计值） |
+| conversation | `SecretGroupChat` | 需载体 |
+| conversation | `Channel` | 需载体（`ChannelResult` 发布 `createdAt`/`updatedAt`） |
+| conversation | `ChannelSubscription` | **无需载体**（审计值只被适配器读，用于映射 `joined_at`） |
+| common | `SmsSendLog` / `MailSendLog` | 无需载体（写路径返回领域对象，应用层只用 id/status） |
+| common | `AuditLog` | **有读者但有意偏离**：`createdAt` 留在模型（`AuditLogView` 发布），已在类注释说明 |
+
+**判据已精化为模型级**：同一聚合边界内 `Channel` 需要载体、`ChannelSubscription` 不需要——
+差别只在"**适配器之外有没有人读这四个字段**"。这决定工作量差一倍。
+
+**im-message 剩余 5 个模型的判定**（已逐个查读者，尚未动工）：
+
+| 模型 | 外读者 | 修法 | 备注 |
+|---|---|---|---|
+| `Message` | **有**（`MessageResponse` 发布全部四个） | 需载体 | **本仓最大的聚合**，应用服务 `MessageApplicationService` 有 11 处审计读取；风险最高 |
+| `MessageFavorite` | **有**（`FavoriteResponse` 发布 `createdAt`） | 需载体 | 走 `MessagePersistenceConverter` 转换，与 `Message` 共用 |
+| `SecretGroupMessage` | **有**（`SecretGroupMessageApplicationService:388` 读 `getCreatedAt()`） | 需载体 | 独立仓储 |
+| `SecretMessage` | 待最终确认 | 待定 | 独立仓储 |
+| `MessageOutbox` | **看起来无外读者**，但存在**语义归属问题**（见下） | 待定 | 可变类 |
+
+**`MessageOutbox` 是一个需要**先做判断**的案例，不能机械套用**：它的 `createdAt` 由调用方经
+`pending(..., createdAt)` 传入，而 `markPublished(occurredAt)`/`assignId(id)` 会**修改实例**（可变类）。
+outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，而非"谁在什么时候改的"记账信息；
+把它移进适配器会改变"何时决定入队时刻"的语义。**这一条应先明确归属，再决定是否纳入 V2**。
+
+**据此的工作切分建议**：`SecretMessage` / `SecretGroupMessage` / `MessageFavorite` 三个先做（独立仓储、读者明确），
+`Message` 单独一轮（聚合最大、共用转换器），`MessageOutbox` 先定语义再动。
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
