@@ -813,10 +813,15 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   整体移入新的 `OrderApplicationService`；`OrderView` 从 `api.dto` 移到 `application.dto`；
   KTV 会话、取消/作废端点继续委托既有应用服务。清单由 2 降为 **1**（仅剩 admin `ReportController`）；
   订单控制器相关 **55 个测试通过**。
+- admin `ReportController` 的 7 个报表端点、时间/营业日/分桶/币种聚合与嵌套报表 DTO
+  整体移入新的 `AdminReportApplicationService`；控制器只保留端点映射。`controller-repository-boundary`
+  清单由 1 降为 **0**，该门禁从 `report-only-gates.txt` 删除并转为**阻塞门禁**；
+  admin 报表相关 **62 个测试通过**。
 
-**V1 剩余**：控制器上的 `@Transactional` 已 **清零**（12/12 完成）；
-`controller-repository-boundary` 还剩 **1 个**控制器（admin `ReportController`）。
-下一批处理 admin `ReportController`，随后收口审计字段并把该门禁从 report-only 改为 blocking。
+**V1 完成**：控制器 `@Transactional` **12/12 清零**；`controller-repository-boundary` **14 → 0**，
+门禁已转为 blocking（不再有 report-only 例外）。
+**剩余**：审计字段还有 5 个模型（`ConversationGroup`、admin clientrelease 4 个）；
+`UserSyncIndex.createdAt` 是业务同步时刻，判定保留。
 
 
 

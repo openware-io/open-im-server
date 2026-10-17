@@ -1,5 +1,7 @@
 package io.openware.platform.admin.infra.persistence.mapper;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -46,7 +48,7 @@ class ReportRefundReportContractTest {
     private static final long STORE_ID = 2501L;
 
     private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
-    private final ReportController controller = new ReportController(reportRepository);
+    private final ReportController controller = new ReportController(new AdminReportApplicationService(reportRepository));
 
     @AfterEach
     void clearTenant() {
@@ -79,11 +81,11 @@ class ReportRefundReportContractTest {
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(refund("2026-01-15", "CNY", 2, "1500")));
 
-        ReportController.OperationsReport report = controller.operations(
+        AdminReportApplicationService.OperationsReport report = controller.operations(
                 STORE_ID, "2026-01-01", "2026-01-31", null);
 
         assertEquals(1, report.rows().size(), "有退款就必须出一行（退款行不能被订单行为空吞掉）");
-        ReportController.OperationsReport.Row row = report.rows().get(0);
+        AdminReportApplicationService.OperationsReport.Row row = report.rows().get(0);
         assertEquals("CNY", row.currencyCode(), "币种取原订单快照");
         assertEquals(0, row.orderCount());
         assertEquals(0, row.refundAmount().compareTo(new BigDecimal("1500")));
@@ -97,11 +99,11 @@ class ReportRefundReportContractTest {
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(refund("2026-01-15", "USD", 1, "700")));
 
-        ReportController.PaymentsReport report = controller.payments(
+        AdminReportApplicationService.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-01-01", "2026-01-31", null);
 
         assertEquals(1, report.rows().size());
-        ReportController.PaymentsReport.Row row = report.rows().get(0);
+        AdminReportApplicationService.PaymentsReport.Row row = report.rows().get(0);
         assertEquals("USD", row.currencyCode());
         assertEquals(1, row.refundCount());
         assertEquals(0, row.refundAmount().compareTo(new BigDecimal("700")));

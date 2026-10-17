@@ -1,5 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -52,7 +54,7 @@ class ReportPaymentsReportContractTest {
     private static final long STORE_ID = 2501L;
 
     private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
-    private final ReportController controller = new ReportController(reportRepository);
+    private final ReportController controller = new ReportController(new AdminReportApplicationService(reportRepository));
 
     @AfterEach
     void clearTenant() {
@@ -69,7 +71,7 @@ class ReportPaymentsReportContractTest {
                 collection("2026-09-19", "CNY", 1, "8800")));
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
+        AdminReportApplicationService.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", null),
                 "混币种（按币种分行）是这段代码要支持的主场景，不得因为排序抛 NPE");
 
@@ -89,7 +91,7 @@ class ReportPaymentsReportContractTest {
                 collection("2026-09-19", "USD", 2, "20000")));
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport.Row row = controller.payments(
+        AdminReportApplicationService.PaymentsReport.Row row = controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", null).rows().get(0);
 
         assertEquals("USD", row.currencyCode(), "行内币种快照丢失会让前端拿当前币种去渲染历史金额");
@@ -108,11 +110,11 @@ class ReportPaymentsReportContractTest {
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of(
                 refund("2026-09-19", "CNY", 1, "3000")));
 
-        ReportController.PaymentsReport report = controller.payments(
+        AdminReportApplicationService.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", null);
 
         assertEquals(1, report.rows().size(), "同 (门店, 桶, 币种) 的收款与退款并成一行");
-        ReportController.PaymentsReport.Row row = report.rows().get(0);
+        AdminReportApplicationService.PaymentsReport.Row row = report.rows().get(0);
         assertEquals("CNY", row.currencyCode());
         assertEquals(2, row.collectionCount());
         assertEquals(1, row.refundCount());
@@ -129,7 +131,7 @@ class ReportPaymentsReportContractTest {
                 collection(2502L, "2026-09-19", null, 1, "200")));
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
+        AdminReportApplicationService.PaymentsReport report = assertDoesNotThrow(() -> controller.payments(
                 null, "2026-09-01", "2026-09-30", null));
 
         assertEquals(2, report.rows().size());
@@ -147,7 +149,7 @@ class ReportPaymentsReportContractTest {
                 collection("2026-09-21", "USD", 4, "400")));
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport report = controller.payments(
+        AdminReportApplicationService.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-09-01", "2026-09-30", "WEEK");
 
         assertEquals("WEEK", report.granularity());
@@ -167,7 +169,7 @@ class ReportPaymentsReportContractTest {
                 collection("2026-09-01", "USD", 1, "100")));
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport report = controller.payments(
+        AdminReportApplicationService.PaymentsReport report = controller.payments(
                 STORE_ID, "2026-08-01", "2026-09-30", "MONTH");
 
         assertEquals(2, report.rows().size());
@@ -224,7 +226,7 @@ class ReportPaymentsReportContractTest {
         when(reportRepository.selectCollections(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
         when(reportRepository.selectRefunds(any(), any(), any(), any(), anyInt())).thenReturn(List.of());
 
-        ReportController.PaymentsReport report = controller.payments(null, null, null, null);
+        AdminReportApplicationService.PaymentsReport report = controller.payments(null, null, null, null);
 
         assertTrue(report.rows().isEmpty());
         assertTrue(report.from().plusDays(30).equals(report.to()) || report.from().isBefore(report.to()));

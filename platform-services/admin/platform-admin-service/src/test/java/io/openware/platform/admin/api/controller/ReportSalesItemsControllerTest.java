@@ -1,5 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -40,7 +42,7 @@ class ReportSalesItemsControllerTest {
     @BeforeEach
     void setUp() {
         reportRepository = mock(ReportQueryRepository.class);
-        controller = new ReportController(reportRepository);
+        controller = new ReportController(new AdminReportApplicationService(reportRepository));
         TenantContextHolder.set(new TenantContext(100L, null, null, 0L, 0));
     }
 
@@ -72,11 +74,11 @@ class ReportSalesItemsControllerTest {
                         row("PRODUCT", "青岛啤酒", "CNY", "12", "360.00", "40.00", 2, 5),
                         row("ROOM_FEE", "包厢费（含 1 名服务人员）", "CNY", "3", "240.00", "0.00", 1, 3)));
 
-        ReportController.SalesItemsReport report = controller.salesItems(null, "2026-09-01", "2026-09-20",
+        AdminReportApplicationService.SalesItemsReport report = controller.salesItems(null, "2026-09-01", "2026-09-20",
                 null, null);
 
         assertEquals(2, report.rows().size());
-        ReportController.SalesItemsReport.Row beer = report.rows().get(0);
+        AdminReportApplicationService.SalesItemsReport.Row beer = report.rows().get(0);
         assertEquals("PRODUCT", beer.itemType());
         assertEquals("青岛啤酒", beer.itemName());
         assertEquals("CNY", beer.currencyCode());
@@ -100,7 +102,7 @@ class ReportSalesItemsControllerTest {
                         row("SERVICE", "点歌服务", "USD", "3", "300.00", "0.00", 1, 2),
                         row("PRODUCT", "啤酒", "CNY", "6", "180.00", "0.00", 1, 3)));
 
-        ReportController.SalesItemsReport report = controller.salesItems(null, null, null, null, null);
+        AdminReportApplicationService.SalesItemsReport report = controller.salesItems(null, null, null, null, null);
 
         assertEquals(0, new BigDecimal("0.2500").compareTo(report.rows().get(0).share()));  // 100 / 400 (USD)
         assertEquals(0, new BigDecimal("1.0000").compareTo(report.rows().get(2).share()));  // 180 / 180 (CNY)
@@ -145,7 +147,7 @@ class ReportSalesItemsControllerTest {
         when(reportRepository.selectSalesItems(anyLong(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(new ArrayList<>());
 
-        ReportController.SalesItemsReport report = controller.salesItems(null, "2026-09-01", "2026-09-02", null, null);
+        AdminReportApplicationService.SalesItemsReport report = controller.salesItems(null, "2026-09-01", "2026-09-02", null, null);
 
         assertTrue(report.rows().isEmpty());
         assertTrue(report.totals().isEmpty());

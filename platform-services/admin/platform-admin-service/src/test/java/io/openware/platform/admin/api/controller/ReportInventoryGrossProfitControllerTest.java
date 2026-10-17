@@ -1,5 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -34,7 +36,7 @@ class ReportInventoryGrossProfitControllerTest {
     private static final long STORE_ID = 2501L;
 
     private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
-    private final ReportController controller = new ReportController(reportRepository);
+    private final ReportController controller = new ReportController(new AdminReportApplicationService(reportRepository));
 
     @AfterEach
     void clearTenant() {
@@ -50,7 +52,7 @@ class ReportInventoryGrossProfitControllerTest {
         when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "400", "2")));
 
-        ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
                 null, "2026-01-01", "2026-01-31", null);
 
         assertEquals("CNY", report.currencyCode());
@@ -58,7 +60,7 @@ class ReportInventoryGrossProfitControllerTest {
         assertEquals("PERIOD_END_MOVING_AVERAGE", report.costBasis());
         assertEquals("DAY", report.granularity(), "不传粒度即按天，老调用方行为不变");
         assertEquals(1, report.rows().size());
-        ReportController.InventoryGrossProfitReport.Row row = report.rows().get(0);
+        AdminReportApplicationService.InventoryGrossProfitReport.Row row = report.rows().get(0);
         assertEquals(0, row.revenueAmount().compareTo(new BigDecimal("10000")), "期间收入取订单明细金额");
         assertEquals(0, row.costAmount().compareTo(new BigDecimal("800")), "成本 = 数量 × 移动加权平均成本");
         assertEquals(0, row.grossProfitAmount().compareTo(new BigDecimal("9200")), "毛利 = 收入 − 成本");
@@ -78,16 +80,16 @@ class ReportInventoryGrossProfitControllerTest {
                 cost("2026-01-15", "CNY", "400", "2"),
                 cost("2026-01-15", "USD", "1000", "1")));
 
-        ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
                 null, "2026-01-01", "2026-01-31", null);
 
         assertNull(report.currencyCode(), "混币种时信封不给单币种，避免被当成一个合计");
         assertTrue(report.mixedCurrency());
         assertEquals(2, report.rows().size(), "同一门店同一天的不同币种必须分行");
-        ReportController.InventoryGrossProfitReport.Row cny = rowOf(report, "CNY");
+        AdminReportApplicationService.InventoryGrossProfitReport.Row cny = rowOf(report, "CNY");
         assertEquals(0, cny.revenueAmount().compareTo(new BigDecimal("10000")));
         assertEquals(0, cny.grossProfitAmount().compareTo(new BigDecimal("9200")));
-        ReportController.InventoryGrossProfitReport.Row usd = rowOf(report, "USD");
+        AdminReportApplicationService.InventoryGrossProfitReport.Row usd = rowOf(report, "USD");
         assertEquals(0, usd.revenueAmount().compareTo(new BigDecimal("5000")));
         assertEquals(0, usd.grossProfitAmount().compareTo(new BigDecimal("4000")));
         assertTrue(report.rows().stream()
@@ -103,7 +105,7 @@ class ReportInventoryGrossProfitControllerTest {
         when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "400", "2")));
 
-        ReportController.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
                 STORE_ID, "2026-01-01", "2026-01-31", null).rows().get(0);
 
         assertEquals(0, row.revenueAmount().signum());
@@ -121,7 +123,7 @@ class ReportInventoryGrossProfitControllerTest {
         when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of(cost("2026-01-15", "USD", "0", "3")));
 
-        ReportController.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
                 null, "2026-01-01", "2026-01-31", null).rows().get(0);
 
         assertEquals(0, row.costAmount().signum());
@@ -139,7 +141,7 @@ class ReportInventoryGrossProfitControllerTest {
                 .thenReturn(List.of(cost("2026-01-15", "CNY", "500", "4"),
                         cost("2026-01-15", "CNY", "500", "-1")));
 
-        ReportController.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport.Row row = controller.inventoryGrossProfit(
                 null, "2026-01-01", "2026-01-31", null).rows().get(0);
 
         assertEquals(0, row.soldQuantity().compareTo(new BigDecimal("3")), "4 件消耗 − 1 件回补 = 净 3 件");
@@ -156,7 +158,7 @@ class ReportInventoryGrossProfitControllerTest {
         when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of());
 
-        ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
                 null, "2026-01-01", "2026-01-31", null);
 
         assertEquals("USD", report.currencyCode());
@@ -175,7 +177,7 @@ class ReportInventoryGrossProfitControllerTest {
         when(reportRepository.selectInventoryConsumptionCost(any(), any(), any(), any(), anyInt()))
                 .thenReturn(List.of());
 
-        ReportController.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
+        AdminReportApplicationService.InventoryGrossProfitReport report = controller.inventoryGrossProfit(
                 null, "2026-09-01", "2026-09-30", "WEEK");
 
         assertEquals("WEEK", report.granularity());
@@ -202,8 +204,8 @@ class ReportInventoryGrossProfitControllerTest {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
     }
 
-    private static ReportController.InventoryGrossProfitReport.Row rowOf(
-            ReportController.InventoryGrossProfitReport report, String currency) {
+    private static AdminReportApplicationService.InventoryGrossProfitReport.Row rowOf(
+            AdminReportApplicationService.InventoryGrossProfitReport report, String currency) {
         return report.rows().stream().filter(row -> currency.equals(row.currencyCode())).findFirst().orElseThrow();
     }
 

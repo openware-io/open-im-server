@@ -9,14 +9,13 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
-controller-repository-boundary | batch 4 (layering refactor: controllers to application services) | .outputs/quality/controller-repository-boundary-worklist.txt | 1 controller holds a *Repository/*Mapper field (the worklist is the source of truth); platform-admin-service's ReportController is 1088 lines with 18 calls. standards/10 puts this orchestration in the application layer. The fix is a refactor per controller, not a mechanical edit, so the gate reports until the worklist is empty.
-
 # Historical entries, deleted when their worklists reached zero:
 #
+#   controller-repository-boundary  14 -> 0  (controllers holding a *Repository/*Mapper field)
 #   po-containment         183 -> 0  (imports of infra.persistence.po from api/application/domain)
 #   service-api-boundaries  99 -> 0  (controllers and application classes depending on persistence
 #                                     implementations under infra.persistence)
 #
 # The counts above are the opening figures the deleted entries named; they are recorded so the size of
 # what was cleared is not lost, not as a live measurement. The worklists are the only source of truth,
-# and for those two the files are gone - which is what "zero" looks like.
+# and for those entries the files are gone - which is what "zero" looks like.

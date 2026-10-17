@@ -1,5 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -49,7 +51,7 @@ class ReportSalesControllerTest {
     private static final long STORE_ID = 2501L;
 
     private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
-    private final ReportController controller = new ReportController(reportRepository);
+    private final ReportController controller = new ReportController(new AdminReportApplicationService(reportRepository));
 
     @AfterEach
     void clearTenant() {
@@ -72,7 +74,7 @@ class ReportSalesControllerTest {
                 payment("2026-09-19", "USD", "NEW_CHANNEL", 1, "100")));
         stubDetails(3, List.of());
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
                 1, 20);
 
         assertEquals("DAY", report.granularity());
@@ -81,7 +83,7 @@ class ReportSalesControllerTest {
         assertFalse(report.mixedCurrency());
         assertEquals(2, report.buckets().size());
 
-        ReportController.SalesReport.BucketRow first = report.buckets().get(0);
+        AdminReportApplicationService.SalesReport.BucketRow first = report.buckets().get(0);
         assertEquals("2026-09-19", first.bucket().label());
         assertEquals(2, first.orderCount());
         assertEquals(0, first.salesAmount().compareTo(new BigDecimal("30000")), "销售额取有效单据 total_amount");
@@ -114,11 +116,11 @@ class ReportSalesControllerTest {
                 sales("2026-09-20", "USD", 3, "40000", "0", "0", 0, "0")), List.of(), List.of());
         stubDetails(5, List.of(detail(11L, "2026-09-20T17:00:00", "2026-09-21", "USD", "COMPLETED")));
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
                 1, 20);
 
         long bucketOrderCount = report.buckets().stream().mapToLong(
-                ReportController.SalesReport.BucketRow::orderCount).sum();
+                AdminReportApplicationService.SalesReport.BucketRow::orderCount).sum();
         assertEquals(5, report.details().total());
         assertEquals(bucketOrderCount, report.details().total(), "统计与明细必须能对上账");
         assertEquals(1, report.details().current());
@@ -137,7 +139,7 @@ class ReportSalesControllerTest {
                 composition(77L, "POINT", "3000"),
                 composition(77L, "WALLET", "2000")));
 
-        ReportController.SalesReport.DetailRow row = controller.sales(
+        AdminReportApplicationService.SalesReport.DetailRow row = controller.sales(
                 STORE_ID, "2026-09-01", "2026-09-30", null, null, 1, 20).details().records().get(0);
 
         assertEquals(77L, row.orderId());
@@ -180,7 +182,7 @@ class ReportSalesControllerTest {
         stubBuckets(List.of(), List.of(), List.of());
         stubDetails(0, List.of());
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
                 1, 20);
 
         assertTrue(report.details().records().isEmpty());
@@ -200,7 +202,7 @@ class ReportSalesControllerTest {
         when(reportRepository.selectSalesDetails(any(), any(), any(), any(), eq("VOIDED"), anyInt(), anyLong(), anyInt()))
                 .thenReturn(List.of(detail(9L, "2026-09-19T10:00:00", "2026-09-19", "USD", "VOIDED")));
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null,
                 "voided", 1, 20);
 
         assertEquals("VOIDED", report.status(), "status 大小写归一后回显");
@@ -231,7 +233,7 @@ class ReportSalesControllerTest {
                 sales("2026-09-19", "CNY", 1, "5000", "0", "0", 0, "0")), List.of(), List.of());
         stubDetails(0, List.of());
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2026-09-01", "2026-09-30", null, null,
                 1, 20);
 
         assertNull(report.currencyCode(), "混币种时信封不给单币种，避免被当成一个合计");
@@ -253,16 +255,16 @@ class ReportSalesControllerTest {
                 sales("2026-01-04", "USD", 1, "400", "0", "0", 0, "0")), List.of(), List.of());
         stubDetails(0, List.of());
 
-        ReportController.SalesReport report = controller.sales(STORE_ID, "2025-12-01", "2026-09-30", "WEEK", null,
+        AdminReportApplicationService.SalesReport report = controller.sales(STORE_ID, "2025-12-01", "2026-09-30", "WEEK", null,
                 1, 20);
 
         assertEquals(2, report.buckets().size(), "跨月周与跨年周各并成一行");
-        ReportController.SalesReport.BucketRow crossYear = report.buckets().get(0);
+        AdminReportApplicationService.SalesReport.BucketRow crossYear = report.buckets().get(0);
         assertEquals("2026年第1周", crossYear.bucket().label(), "2025-12-29 属 2026 年第 1 周");
         assertEquals("2025-12-29", crossYear.bucket().start().toString());
         assertEquals("2026-01-04", crossYear.bucket().end().toString());
         assertEquals(2, crossYear.orderCount());
-        ReportController.SalesReport.BucketRow crossMonth = report.buckets().get(1);
+        AdminReportApplicationService.SalesReport.BucketRow crossMonth = report.buckets().get(1);
         assertEquals("2026年第36周", crossMonth.bucket().label());
         assertEquals("2026-08-31", crossMonth.bucket().start().toString());
         assertEquals(2, crossMonth.orderCount());
@@ -279,7 +281,7 @@ class ReportSalesControllerTest {
                 sales("2027-01-01", "USD", 1, "300", "0", "0", 0, "0")), List.of(), List.of());
         stubDetails(0, List.of());
 
-        ReportController.SalesReport byYear = controller.sales(STORE_ID, "2026-01-01", "2027-01-01", "YEAR", null,
+        AdminReportApplicationService.SalesReport byYear = controller.sales(STORE_ID, "2026-01-01", "2027-01-01", "YEAR", null,
                 1, 20);
         assertEquals(2, byYear.buckets().size());
         assertEquals("2026年", byYear.buckets().get(0).bucket().label());
@@ -288,7 +290,7 @@ class ReportSalesControllerTest {
         assertEquals(2, byYear.buckets().get(0).orderCount(), "年末最后一天的场次仍在 2026 年内");
         assertEquals("2027年", byYear.buckets().get(1).bucket().label());
 
-        ReportController.SalesReport byMonth = controller.sales(STORE_ID, "2026-01-01", "2027-01-01", "MONTH", null,
+        AdminReportApplicationService.SalesReport byMonth = controller.sales(STORE_ID, "2026-01-01", "2027-01-01", "MONTH", null,
                 1, 20);
         assertEquals(3, byMonth.buckets().size(), "2026-01 / 2026-12 / 2027-01");
         assertEquals("2026-12", byMonth.buckets().get(1).bucket().label());

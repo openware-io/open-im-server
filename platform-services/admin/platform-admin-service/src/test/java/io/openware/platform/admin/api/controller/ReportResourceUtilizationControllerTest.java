@@ -1,5 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
+
+import io.openware.platform.admin.application.AdminReportApplicationService;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -58,7 +60,7 @@ class ReportResourceUtilizationControllerTest {
     private static final long DAY_SECONDS = 24L * 60 * 60;
 
     private final ReportQueryRepository reportRepository = mock(ReportQueryRepository.class);
-    private final ReportController controller = new ReportController(reportRepository);
+    private final ReportController controller = new ReportController(new AdminReportApplicationService(reportRepository));
 
     @AfterEach
     void clearTenant() {
@@ -77,12 +79,12 @@ class ReportResourceUtilizationControllerTest {
                 session(9002L, ROOM_1017, "2026-09-19", "2026-09-19T16:00:00", "2026-09-19T16:04:00",
                         "CLOSED", 4 * 60L, 1L)));
 
-        ReportController.ResourceUtilizationReport report = controller.resources(
+        AdminReportApplicationService.ResourceUtilizationReport report = controller.resources(
                 STORE_ID, "2026-09-01", "2026-09-30", null);
 
         assertEquals(2, report.rows().size(), "同一包厢同一天开台两次必须是两行，不能并成一行");
-        ReportController.ResourceUtilizationReport.Row first = report.rows().get(0);
-        ReportController.ResourceUtilizationReport.Row second = report.rows().get(1);
+        AdminReportApplicationService.ResourceUtilizationReport.Row first = report.rows().get(0);
+        AdminReportApplicationService.ResourceUtilizationReport.Row second = report.rows().get(1);
         assertEquals(9001L, first.sessionId());
         assertEquals(336 * 60L, first.durationSeconds(), "时长取该次会话自己的 opened_at → closed_at");
         assertEquals(4 * 60L, second.durationSeconds(), "第二次开台只算它自己的 4 分钟");
@@ -102,7 +104,7 @@ class ReportResourceUtilizationControllerTest {
         stubSessions(List.of(
                 session(8001L, ROOM_1017, "2026-09-19", "2026-09-19T20:00:00", null, "OPEN", 0L, 0L)));
 
-        ReportController.ResourceUtilizationReport.Row row = controller.resources(
+        AdminReportApplicationService.ResourceUtilizationReport.Row row = controller.resources(
                 STORE_ID, "2026-09-01", "2026-09-30", null).rows().get(0);
 
         assertNull(row.closedAt(), "未结台没有结台时间");
@@ -123,15 +125,15 @@ class ReportResourceUtilizationControllerTest {
                 session(3L, ROOM_1015, "2026-09-19", "2026-09-19T14:00:00", null, "PAUSED", 0L, 0L),
                 session(4L, ROOM_1015, "2026-09-19", "2026-09-19T15:00:00", "2026-09-19T16:30:00", "CLOSED", 5400L, 1L)));
 
-        List<ReportController.ResourceUtilizationReport.Row> rows = controller.resources(
+        List<AdminReportApplicationService.ResourceUtilizationReport.Row> rows = controller.resources(
                 STORE_ID, "2026-09-01", "2026-09-30", null).rows();
 
         assertEquals(4, rows.size(), "同包厢同日 4 次开台 = 4 行（不再是 1 行聚合）");
         assertEquals(3L, rows.stream().mapToLong(
-                ReportController.ResourceUtilizationReport.Row::turnoverCount).sum(),
+                AdminReportApplicationService.ResourceUtilizationReport.Row::turnoverCount).sum(),
                 "当日翻台次数 = 完成场次数（3 次结台），不是 RELEASED 占用行数");
         assertEquals(List.of(1L, 1L, 0L, 1L), rows.stream()
-                .map(ReportController.ResourceUtilizationReport.Row::turnoverCount).toList());
+                .map(AdminReportApplicationService.ResourceUtilizationReport.Row::turnoverCount).toList());
     }
 
     /** 利用率 = 该包厢该营业日会话时长合计 ÷ 24h：同一包厢同营业日每行同值，跨营业日互不影响。 */
@@ -145,10 +147,10 @@ class ReportResourceUtilizationControllerTest {
                 session(12L, ROOM_1017, "2026-09-19", "2026-09-19T12:00:00", "2026-09-19T13:00:00", "CLOSED", 3600L, 1L),
                 session(13L, ROOM_1017, "2026-09-20", "2026-09-20T10:00:00", "2026-09-20T14:48:00", "CLOSED", 17280L, 1L)));
 
-        ReportController.ResourceUtilizationReport report = controller.resources(
+        AdminReportApplicationService.ResourceUtilizationReport report = controller.resources(
                 STORE_ID, "2026-09-01", "2026-09-30", "WEEK");
 
-        List<ReportController.ResourceUtilizationReport.Row> rows = report.rows();
+        List<AdminReportApplicationService.ResourceUtilizationReport.Row> rows = report.rows();
         assertEquals(3, rows.size());
         assertEquals(rows.get(0).bucket().start(), rows.get(2).bucket().start(),
                 "两天在同一周桶里（粒度不影响行数）");
@@ -160,7 +162,7 @@ class ReportResourceUtilizationControllerTest {
                 "09-20 单独按自己的营业日算（分母恒为一天 24h，不随粒度变大）");
         assertEquals("ROOM_DAY_SESSION_SUM_OVER_24H", report.utilizationBasis(), "口径标识必须回给使用方");
         assertEquals(5040L + 3600L + 17280L, rows.stream().mapToLong(
-                ReportController.ResourceUtilizationReport.Row::durationSeconds).sum(),
+                AdminReportApplicationService.ResourceUtilizationReport.Row::durationSeconds).sum(),
                 "逐行时长相加 = 三次开台各自的时长（不是 24h × 次数）");
     }
 
@@ -189,12 +191,12 @@ class ReportResourceUtilizationControllerTest {
                 session(20L, ROOM_1017, "2026-09-19", "2026-09-19T20:00:00", "2026-09-19T21:00:00", "CLOSED", 3600L, 1L),
                 session(25L, ROOM_1017, "2026-09-19", "2026-09-19T10:00:00", "2026-09-19T11:00:00", "CLOSED", 3600L, 1L)));
 
-        List<ReportController.ResourceUtilizationReport.Row> rows = controller.resources(
+        List<AdminReportApplicationService.ResourceUtilizationReport.Row> rows = controller.resources(
                 STORE_ID, "2026-09-01", "2026-09-30", null).rows();
 
         // 包厢 1015 < 1017，先出 1015；同包厢内按会话 ID 升序（与前端「一次开台一行」的阅读顺序一致）
         assertEquals(List.of(30L, 20L, 25L), rows.stream()
-                .map(ReportController.ResourceUtilizationReport.Row::sessionId).toList());
+                .map(AdminReportApplicationService.ResourceUtilizationReport.Row::sessionId).toList());
     }
 
     /** 旧字段必须消失：占用窗口求和出来的 occupiedSeconds 不得再出现在响应上。 */
@@ -202,7 +204,7 @@ class ReportResourceUtilizationControllerTest {
     @DisplayName("响应不再有 occupiedSeconds（占用窗口口径已废除）")
     void occupiedSecondsIsGone() {
         List<String> components = Arrays.stream(
-                        ReportController.ResourceUtilizationReport.Row.class.getRecordComponents())
+                        AdminReportApplicationService.ResourceUtilizationReport.Row.class.getRecordComponents())
                 .map(RecordComponent::getName)
                 .toList();
         assertTrue(components.containsAll(List.of("resourceId", "resourceName", "businessDate",
