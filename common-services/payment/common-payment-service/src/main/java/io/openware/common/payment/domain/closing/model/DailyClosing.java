@@ -1,12 +1,11 @@
 package io.openware.common.payment.domain.closing.model;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 
 /**
  * 日结记录（领域模型）。
  *
- * <p>审计字段（createdBy、updatedBy）不在此承载：由持久化适配器填充。
+ * <p>审计字段（createdBy、updatedBy、createdAt、updatedAt）不在此承载：由持久化适配器填充。
  *
  * <p>{@code businessDate} 是**营业日**（受门店营业日切点影响），不是自然日：
  * 凌晨 2 点的交班属于"前一天"的账，按自然日归集会把同一营业日的流水切成两天。
@@ -23,8 +22,6 @@ import java.time.LocalDateTime;
  * @param currencyCode 币种快照
  * @param summaryJson  汇总明细（JSON 原文）
  * @param status       状态
- * @param createdAt    创建时刻
- * @param updatedAt    更新时刻
  */
 public record DailyClosing(
     Long id,
@@ -35,7 +32,5 @@ public record DailyClosing(
     Long reviewedBy,
     String currencyCode,
     String summaryJson,
-    String status,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt) {
+    String status) {
 }

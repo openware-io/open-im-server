@@ -2,6 +2,7 @@ package io.openware.common.payment.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.payment.domain.closing.model.DailyClosing;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
 import io.openware.common.payment.domain.cashier.model.ConfirmedCollectLine;
 import io.openware.common.payment.domain.cashier.model.RefundCurrencyAggregate;
@@ -249,8 +250,9 @@ public class CashierApplicationService {
             // 混币种由 summary.mixedCurrency 显式标注，调用方不得把它当成单币种金额使用。
             String currencyCode = summary.currencyCode() == null
                     ? CurrencyResolver.currentCode() : summary.currencyCode();
-            DailyClosing po = dailyClosingRepository.insert(new DailyClosing(null, tenantId, storeId,
-                    businessDate, submittedBy, null, currencyCode, summary.toJson(), "SUBMITTED", null, null));
+            Persisted<DailyClosing> po = dailyClosingRepository.insert(new DailyClosing(null, tenantId, storeId,
+                    businessDate, submittedBy, null, currencyCode, summary.toJson(), "SUBMITTED"),
+                    LocalDateTime.now());
             // 日结此前完全没有留痕：营业日结是财务对账与营业数据出具的唯一入口，必须可回溯。
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
@@ -259,7 +261,7 @@ public class CashierApplicationService {
                     .action("cashier.daily_closing.close")
                     .actionLabel("营业日结")
                     .resourceType("pay_daily_closing")
-                    .resourceId(po.id() == null ? null : String.valueOf(po.id()))
+                    .resourceId(po.aggregate().id() == null ? null : String.valueOf(po.aggregate().id()))
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"businessDate\":\"" + businessDate + "\",\"storeId\":" + storeId
                             + ",\"mixedCurrency\":" + summary.mixedCurrency() + "}")

@@ -1,6 +1,8 @@
 package io.openware.common.payment.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.closing.model.DailyClosing;
 import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
 import io.openware.common.payment.infra.persistence.mapper.DailyClosingMapper;
@@ -22,28 +24,27 @@ public class DailyClosingRepositoryAdapter implements DailyClosingRepository {
   }
 
   @Override
-  public List<DailyClosing> listByBusinessDateBetween(LocalDate fromInclusive, LocalDate toInclusive) {
+  public List<Persisted<DailyClosing>> listByBusinessDateBetween(LocalDate fromInclusive, LocalDate toInclusive) {
     // business_date 是 DATE 列：用日期直接比较，不包函数（保持索引可用），也不引入时分秒带来的边界运气。
     return mapper.selectList(Wrappers.<DailyClosingPo>lambdaQuery()
             .ge(fromInclusive != null, DailyClosingPo::getBusinessDate, fromInclusive)
             .le(toInclusive != null, DailyClosingPo::getBusinessDate, toInclusive)
             .orderByDesc(DailyClosingPo::getCreatedAt))
-        .stream().map(DailyClosingRepositoryAdapter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public Optional<DailyClosing> findByStoreAndBusinessDate(Long tenantId, Long storeId,
-                                                           LocalDate businessDate) {
+  public Optional<Persisted<DailyClosing>> findByStoreAndBusinessDate(Long tenantId, Long storeId,
+                                                                      LocalDate businessDate) {
     return mapper.selectList(Wrappers.<DailyClosingPo>lambdaQuery()
             .eq(DailyClosingPo::getTenantId, tenantId)
             .eq(DailyClosingPo::getStoreId, storeId)
             .eq(DailyClosingPo::getBusinessDate, businessDate))
-        .stream().findFirst().map(DailyClosingRepositoryAdapter::toDomain);
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
-  public DailyClosing insert(DailyClosing closing) {
-    LocalDateTime now = LocalDateTime.now();
+  public Persisted<DailyClosing> insert(DailyClosing closing, LocalDateTime occurredAt) {
     DailyClosingPo po = new DailyClosingPo();
     po.setTenantId(closing.tenantId());
     po.setStoreId(closing.storeId());
@@ -52,15 +53,19 @@ public class DailyClosingRepositoryAdapter implements DailyClosingRepository {
     po.setCurrencyCode(closing.currencyCode());
     po.setSummaryJson(closing.summaryJson());
     po.setStatus(closing.status());
-    po.setCreatedAt(now);
-    po.setUpdatedAt(now);
+    po.setCreatedAt(occurredAt);
+    po.setUpdatedAt(occurredAt);
     mapper.insert(po);
-    return toDomain(po);
+    return toPersisted(po);
+  }
+
+  private Persisted<DailyClosing> toPersisted(DailyClosingPo po) {
+    return new Persisted<>(toDomain(po), new AuditSnapshot(po.getCreatedAt(), po.getUpdatedAt()));
   }
 
   private static DailyClosing toDomain(DailyClosingPo po) {
     return new DailyClosing(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessDate(),
         po.getSubmittedBy(), po.getReviewedBy(), po.getCurrencyCode(), po.getSummaryJson(),
-        po.getStatus(), po.getCreatedAt(), po.getUpdatedAt());
+        po.getStatus());
   }
 }

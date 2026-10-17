@@ -17,6 +17,8 @@ import io.openware.common.exception.ApiException;
 import io.openware.common.payment.domain.cashier.model.ConfirmedCollectLine;
 import io.openware.common.payment.domain.cashier.model.RefundCurrencyAggregate;
 import io.openware.common.payment.domain.cashier.repository.CashierReportRepository;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.closing.model.DailyClosing;
 import io.openware.common.payment.domain.closing.repository.DailyClosingRepository;
 import io.openware.common.payment.domain.intent.model.PaymentIntent;
@@ -55,8 +57,8 @@ class CashierApplicationServiceTest {
   @org.junit.jupiter.api.BeforeEach
   void setUpInsertReturnsSavedAggregate() {
     when(shiftRepository.insert(any(Shift.class))).thenAnswer(invocation -> invocation.getArgument(0));
-    when(dailyClosingRepository.insert(any(DailyClosing.class)))
-        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(dailyClosingRepository.insert(any(DailyClosing.class), any()))
+        .thenAnswer(invocation -> new Persisted<>(invocation.getArgument(0), new AuditSnapshot(null, null)));
   }
 
   @Test
@@ -216,7 +218,7 @@ class CashierApplicationServiceTest {
     // 日结按币种出具：未配置租户币种时缺省 USD（16_CURRENCY_CONVENTIONS §1/§5）。
     assertEquals("USD", result.currencyCode());
     ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(captor.capture());
+    verify(dailyClosingRepository).insert(captor.capture(), any());
     assertEquals(1L, captor.getValue().tenantId());
   }
 
@@ -261,7 +263,7 @@ class CashierApplicationServiceTest {
 
     // 落库形态：结构固定、字段名与既有接口风格一致（*Amount 为最小货币单位整数）
     ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(captor.capture());
+    verify(dailyClosingRepository).insert(captor.capture(), any());
     assertEquals("CNY", captor.getValue().currencyCode());
     assertEquals("{\"businessDate\":\"2025-01-01\",\"storeId\":2,\"currencyCode\":\"CNY\",\"mixedCurrency\":false,"
         + "\"currencies\":[{\"currencyCode\":\"CNY\",\"collectionCount\":2,\"collectedAmount\":8000,\"cashCount\":1,"
@@ -306,7 +308,7 @@ class CashierApplicationServiceTest {
     assertEquals(0L, usd.refundAmount());
 
     ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(captor.capture());
+    verify(dailyClosingRepository).insert(captor.capture(), any());
     // 混币种时列上保留当时租户币种（缺省 USD），混币种事实由 summary.mixedCurrency 表达
     assertEquals("USD", captor.getValue().currencyCode());
   }
@@ -335,7 +337,7 @@ class CashierApplicationServiceTest {
     assertTrue(line.providers().isEmpty());
 
     ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(captor.capture());
+    verify(dailyClosingRepository).insert(captor.capture(), any());
     // 空营业日也必须落完整结构：不写 null、不抛错
     assertNotNull(captor.getValue().summaryJson());
     assertFalse(captor.getValue().summaryJson().contains("null"),
@@ -378,7 +380,7 @@ class CashierApplicationServiceTest {
 
     DailyClosingDto first = service.submitDailyClosing(1L, 2L, date, 7L);
     ArgumentCaptor<DailyClosing> firstInsert = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(firstInsert.capture());
+    verify(dailyClosingRepository).insert(firstInsert.capture(), any());
 
     // 第二次提交：沿用既有实现——仍按当时数据重算汇总后 insert，由唯一键
     // uk_pay_daily_tenant_store_date 拒绝（本方法不吞异常、不改成覆盖更新）。
@@ -386,7 +388,7 @@ class CashierApplicationServiceTest {
     doAnswer(invocation -> {
       rejected.add(invocation.getArgument(0));
       throw new DuplicateKeyException("uk_pay_daily_tenant_store_date");
-    }).when(dailyClosingRepository).insert(any(DailyClosing.class));
+    }).when(dailyClosingRepository).insert(any(DailyClosing.class), any());
 
     assertThrows(DuplicateKeyException.class, () -> service.submitDailyClosing(1L, 2L, date, 7L));
 
@@ -420,9 +422,9 @@ class CashierApplicationServiceTest {
   void dailyClosingDto_toleratesLegacySummaryJson() {
     // 本改动之前提交的历史日结 summary_json 从不写入（或已被手工改坏）：列表接口降级为 null 汇总，不抛错。
     DailyClosing closing = new DailyClosing(9L, 1L, 2L, LocalDate.of(2025, 1, 7), 7L, null, "USD",
-        "{\"businessDate\":", "SUBMITTED", null, null);
+        "{\"businessDate\":", "SUBMITTED");
 
-    DailyClosingDto dto = DailyClosingDto.from(closing);
+    DailyClosingDto dto = DailyClosingDto.from(new Persisted<>(closing, new AuditSnapshot(null, null)));
 
     assertNull(dto.summary());
     assertEquals("USD", dto.currencyCode());
@@ -503,7 +505,7 @@ class CashierApplicationServiceTest {
     service.submitDailyClosing(1L, 2L, date, 7L);
 
     ArgumentCaptor<DailyClosing> captor = ArgumentCaptor.forClass(DailyClosing.class);
-    verify(dailyClosingRepository).insert(captor.capture());
+    verify(dailyClosingRepository).insert(captor.capture(), any());
     String json = captor.getValue().summaryJson();
     // 没有代币/积分数量字段（命名不得为 *Amount/数量，也不得带币种）
     assertFalse(json.contains("Tokens"), json);
@@ -664,7 +666,7 @@ class CashierApplicationServiceTest {
   @Test
   void submitDailyClosing_writesFailureAuditOnDuplicateSubmission() {
     LocalDate date = LocalDate.of(2025, 2, 6);
-    when(dailyClosingRepository.insert(any(DailyClosing.class)))
+    when(dailyClosingRepository.insert(any(DailyClosing.class), any()))
         .thenThrow(new DuplicateKeyException("uk_pay_daily_tenant_store_date"));
 
     assertThrows(DuplicateKeyException.class, () -> service.submitDailyClosing(1L, 2L, date, 7L));
