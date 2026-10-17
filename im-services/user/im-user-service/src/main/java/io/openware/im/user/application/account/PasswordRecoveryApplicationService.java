@@ -114,10 +114,10 @@ public class PasswordRecoveryApplicationService {
     LocalDateTime now = LocalDateTime.now();
     UserSecurityQuestion entity = securityQuestionRepository.findByUserId(userId)
         .map(existing -> {
-          existing.update(question.trim(), answerHash, now);
+          existing.update(question.trim(), answerHash);
           return existing;
         })
-        .orElseGet(() -> UserSecurityQuestion.set(userId, question.trim(), answerHash, now));
+        .orElseGet(() -> UserSecurityQuestion.set(userId, question.trim(), answerHash));
     securityQuestionRepository.save(entity);
   }
 

@@ -25,10 +25,17 @@ public class UserSecurityQuestionRepositoryAdapter implements UserSecurityQuesti
   @Override
   public UserSecurityQuestion save(UserSecurityQuestion entity) {
     UserSecurityQuestionPo po = UserSecurityQuestionPersistenceConverter.toPo(entity);
+    // 审计列由适配器确定（standards/10 L299）：操作人恒为实体所属用户。
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    po.setCreatedBy(po.getUserId());
+    po.setUpdatedBy(po.getUserId());
     if (po.getId() == null) {
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       mapper.insert(po);
       entity.assignId(po.getId());
     } else {
+      po.setUpdatedAt(now);
       mapper.updateById(po);
     }
     return entity;

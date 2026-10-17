@@ -114,7 +114,7 @@ class PasswordRecoveryApplicationServiceTest {
 
   @Test
   void setSecurityQuestionShouldHashAnswerAndSave() {
-    UserSecurityQuestion existing = UserSecurityQuestion.set(7L, "旧问题", "old-hash", LocalDateTime.now());
+    UserSecurityQuestion existing = UserSecurityQuestion.set(7L, "旧问题", "old-hash");
     when(securityQuestionRepository.findByUserId(7L)).thenReturn(Optional.of(existing));
     when(passwordHasher.hash("答案")).thenReturn("answer-hash");
 
@@ -126,7 +126,7 @@ class PasswordRecoveryApplicationServiceTest {
   @Test
   void resetPasswordBySecurityQuestionShouldResetWhenAnswerMatches() {
     UserAccount account = account(7L);
-    UserSecurityQuestion stored = UserSecurityQuestion.set(7L, "小学班主任", "answer-hash", LocalDateTime.now());
+    UserSecurityQuestion stored = UserSecurityQuestion.set(7L, "小学班主任", "answer-hash");
     when(accountRepository.findByUsername("user7")).thenReturn(Optional.of(account));
     when(securityQuestionRepository.findByUserId(7L)).thenReturn(Optional.of(stored));
     when(passwordHasher.matches("王老师", "answer-hash")).thenReturn(true);
@@ -141,7 +141,7 @@ class PasswordRecoveryApplicationServiceTest {
   @Test
   void resetPasswordBySecurityQuestionShouldRejectWhenAnswerMismatch() {
     UserAccount account = account(7L);
-    UserSecurityQuestion stored = UserSecurityQuestion.set(7L, "小学班主任", "answer-hash", LocalDateTime.now());
+    UserSecurityQuestion stored = UserSecurityQuestion.set(7L, "小学班主任", "answer-hash");
     when(accountRepository.findByUsername("user7")).thenReturn(Optional.of(account));
     when(securityQuestionRepository.findByUserId(7L)).thenReturn(Optional.of(stored));
     when(passwordHasher.matches("错误答案", "answer-hash")).thenReturn(false);
