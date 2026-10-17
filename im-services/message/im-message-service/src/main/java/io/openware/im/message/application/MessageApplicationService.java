@@ -168,7 +168,7 @@ public class MessageApplicationService {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only sender can edit");
     }
     LocalDateTime now = utcNow();
-    if (!message.editableAt(now)) {
+    if (!Message.editableAt(message.getCreatedAt(), now)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Edit window expired");
     }
     String content = command.newContent();

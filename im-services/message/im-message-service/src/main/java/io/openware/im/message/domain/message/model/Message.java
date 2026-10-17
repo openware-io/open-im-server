@@ -102,7 +102,7 @@ public class Message {
 
   /**
    * 发送后 2 分钟窗口内编辑正文，返回带 edited 标记的新消息（不可变实体，原对象不变）。
-   * 权限校验（仅发送者本人）与窗口校验由应用层/本聚合的 {@link #editableAt} 完成；
+   * 权限校验（仅发送者本人）与窗口校验由应用层/本聚合的 {@link #editableAt(LocalDateTime, LocalDateTime)} 完成；
    * 本方法只做状态迁移，不负责业务拒绝。
    */
   public Message edited(String newContent, long operatorId, LocalDateTime editedAt) {
@@ -111,9 +111,20 @@ public class Message {
         editedAt);
   }
 
-  /** 编辑窗口是否仍有效：发送后 2 分钟内（含已被读消息）可编辑。 */
-  public boolean editableAt(LocalDateTime now) {
-    return createdAt != null && now != null && createdAt.plus(EDIT_WINDOW).isAfter(now);
+  /**
+   * 编辑窗口是否仍有效：**发送后 2 分钟内**（含已被读消息）可编辑。
+   *
+   * <p><b>为什么是静态纯函数</b>（standards/10 L299）：这条不变量需要读「发送时刻」，而
+   * {@code createdAt} 是记账列、不属于领域模型。把发送时刻作为**参数**传入，两件事同时成立：
+   * 规则留在领域层，字段不在领域模型。调用方从 {@code MessageRepository.Persisted.audit().createdAt()}
+   * 取得发送时刻。
+   *
+   * <p><b>边界语义</b>：{@code sentAt + 2min} 用 {@link LocalDateTime#isAfter} 比较，
+   * 因此**恰好等于截止时刻不可编辑**。该边界由 {@code MessageTest} 钉住——把它换成
+   * {@code !isBefore} 会让这一刻变成可编辑，而两侧的常规断言仍会通过。
+   */
+  public static boolean editableAt(LocalDateTime sentAt, LocalDateTime now) {
+    return sentAt != null && now != null && sentAt.plus(EDIT_WINDOW).isAfter(now);
   }
 
   public void assignId(Long id) { this.id = id; }

@@ -36,8 +36,8 @@ class MessageTest {
     Message message = Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
         MsgType.TEXT, "hello", null, null, List.of(), createdAt);
 
-    assertTrue(message.editableAt(createdAt.plusSeconds(119)));
-    assertFalse(message.editableAt(createdAt.plusSeconds(121)));
+    assertTrue(Message.editableAt(createdAt, createdAt.plusSeconds(119)));
+    assertFalse(Message.editableAt(createdAt, createdAt.plusSeconds(121)));
   }
 
   /**
@@ -56,9 +56,9 @@ class MessageTest {
     Message message = Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
         MsgType.TEXT, "hello", null, null, List.of(), createdAt);
 
-    assertTrue(message.editableAt(createdAt.plusSeconds(120).minusNanos(1)),
+    assertTrue(Message.editableAt(createdAt, createdAt.plusSeconds(120).minusNanos(1)),
         "截止前一纳秒仍可编辑");
-    assertFalse(message.editableAt(createdAt.plusSeconds(120)),
+    assertFalse(Message.editableAt(createdAt, createdAt.plusSeconds(120)),
         "恰好等于截止时刻不可编辑（实现用 isAfter，不是 !isBefore）");
   }
 
@@ -69,6 +69,6 @@ class MessageTest {
     Message message = Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
         MsgType.TEXT, "hello", null, null, List.of(), createdAt);
 
-    assertFalse(message.editableAt(null), "当前时刻缺失时不可编辑");
+    assertFalse(Message.editableAt(createdAt, null), "当前时刻缺失时不可编辑");
   }
 }
