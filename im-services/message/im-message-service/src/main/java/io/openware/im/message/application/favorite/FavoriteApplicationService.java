@@ -20,11 +20,11 @@ import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
 import io.openware.im.message.domain.message.repository.MessageFavoriteRepository;
 import io.openware.im.message.domain.message.repository.MessageRepository;
+import io.openware.im.message.domain.message.repository.Persisted;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupChatPort;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
 import io.openware.im.message.domain.secretmessage.repository.SecretChatParticipantPort;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageRepository;
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -110,23 +110,24 @@ public class FavoriteApplicationService {
    * @return true 表示本次新建收藏；false 表示幂等命中已存在的收藏。
    */
   private boolean favoriteOne(AddFavoriteCommand command) {
-    Message message = authorize(command);
-    LocalDateTime now = utcNow();
+    Persisted<Message> row = authorize(command);
+    Message message = row == null ? null : row.aggregate();
+    LocalDateTime sentAt = row == null || row.audit() == null ? null : row.audit().createdAt();
     MessageFavorite favorite = message == null
         // 密聊等不走 msg_message 权威通道的会话：不落快照（服务端只存密文且设计为定时销毁）。
         ? MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType())
         : MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType(),
             message.getMsgType(), message.getContent(), message.getFromUserId(), message.getSenderUsername(),
-            message.getCreatedAt());
+            sentAt);
     return favoriteRepository.saveIfAbsent(favorite);
   }
 
   /**
    * 收藏授权：校验消息存在且当前用户有权访问。
    *
-   * @return 授权通过的权威消息；密聊等非 {@code msg_message} 通道返回 null（无正文快照可写）。
+   * @return 授权通过的权威消息与记账快照；密聊等非 {@code msg_message} 通道返回 null（无正文快照可写）。
    */
-  private Message authorize(AddFavoriteCommand command) {
+  private Persisted<Message> authorize(AddFavoriteCommand command) {
     if (command.chatType() == ChatType.SECRET) {
       authorizeSecretChat(command);
       return null;
@@ -135,14 +136,14 @@ public class FavoriteApplicationService {
       authorizeSecretGroup(command);
       return null;
     }
-    Message message = messageRepository.findByMsgId(command.msgId()).orElse(null);
-    if (message == null) {
+    Persisted<Message> row = messageRepository.findByMsgId(command.msgId()).orElse(null);
+    if (row == null) {
       throw new ApiException(HttpStatusCodes.NOT_FOUND, "Message not found");
     }
-    if (!canAccess(command.userId(), message)) {
+    if (!canAccess(command.userId(), row.aggregate())) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Not allowed to favorite this message");
     }
-    return message;
+    return row;
   }
 
   private void authorizeSecretChat(AddFavoriteCommand command) {
@@ -177,8 +178,8 @@ public class FavoriteApplicationService {
     int pageSize = pageSize(query.pageSize());
     MessageFavoriteRepository.FavoritePage favorites = favoriteRepository.searchFavorites(query.userId(), page, pageSize);
     List<String> msgIds = favorites.items().stream().map(MessageFavoriteView::msgId).distinct().toList();
-    Map<String, Message> byMsgId = messageRepository.findByMsgIds(msgIds).stream()
-        .collect(Collectors.toMap(Message::getMsgId, Function.identity()));
+    Map<String, Persisted<Message>> byMsgId = messageRepository.findByMsgIds(msgIds).stream()
+        .collect(Collectors.toMap(row -> row.aggregate().getMsgId(), Function.identity()));
     List<FavoriteResult> items = favorites.items().stream()
         .map(view -> toResult(query.userId(), view, byMsgId.get(view.msgId())))
         .toList();
@@ -192,12 +193,14 @@ public class FavoriteApplicationService {
         || view.sentAtSnapshot() != null;
   }
 
-  private FavoriteResult toResult(long userId, MessageFavoriteView favorite, Message message) {
+  private FavoriteResult toResult(long userId, MessageFavoriteView favorite, Persisted<Message> row) {
+    Message message = row == null ? null : row.aggregate();
+    LocalDateTime sentAt = row == null || row.audit() == null ? null : row.audit().createdAt();
     if (message != null && canAccess(userId, message)) {
       // 实时消息优先：编辑后的内容、撤回/删除前的权威状态以消息表为准。
       return new FavoriteResult(favorite.msgId(), favorite.peerId(), favorite.chatType(),
           message.getMsgType(), message.getContent(), message.getFromUserId(), message.getSenderUsername(),
-          message.getCreatedAt(), favorite.favoritedAt());
+          sentAt, favorite.favoritedAt());
     }
     if (hasSnapshot(favorite)) {
       // 权威消息已撤回/删除，或当前用户已无权访问：回落收藏时快照（收藏内容永远可读）。
@@ -219,7 +222,8 @@ public class FavoriteApplicationService {
    */
   public FavoriteSourceResult locateSource(long userId, String msgId) {
     try {
-      Message message = messageRepository.findByMsgId(msgId).orElse(null);
+      Persisted<Message> row = messageRepository.findByMsgId(msgId).orElse(null);
+      Message message = Persisted.aggregateOf(row);
       if (message == null) {
         // 权威消息已硬删除（撤回/删除）：无源可回。
         return FavoriteSourceResult.of(FavoriteSourceState.MESSAGE_DELETED);
@@ -306,10 +310,6 @@ public class FavoriteApplicationService {
     } catch (NumberFormatException ex) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Invalid identifier");
     }
-  }
-
-  private LocalDateTime utcNow() {
-    return LocalDateTime.now(Clock.systemUTC());
   }
 
   private int page(Integer page) {

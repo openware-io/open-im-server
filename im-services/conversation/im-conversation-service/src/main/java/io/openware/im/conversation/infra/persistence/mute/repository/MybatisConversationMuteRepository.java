@@ -5,6 +5,7 @@ import io.openware.im.conversation.domain.mute.model.ConversationMute;
 import io.openware.im.conversation.domain.mute.repository.ConversationMuteRepository;
 import io.openware.im.conversation.infra.persistence.mute.mapper.ConversationMuteMapper;
 import io.openware.im.conversation.infra.persistence.mute.po.ConversationMutePo;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
@@ -32,9 +33,10 @@ public class MybatisConversationMuteRepository implements ConversationMuteReposi
     ConversationMutePo po = new ConversationMutePo();
     po.setUserId(mute.userId());
     po.setConversationId(mute.conversationId());
-    po.setCreatedAt(mute.createdAt());
+    // 记账列由适配器填写：本模型不携带 created_at，也没有读者依赖它。
+    po.setCreatedAt(LocalDateTime.now());
     mapper.insert(po);
-    return new ConversationMute(po.getId(), po.getUserId(), po.getConversationId(), po.getCreatedAt());
+    return new ConversationMute(po.getId(), po.getUserId(), po.getConversationId());
   }
 
   @Override
@@ -45,6 +47,6 @@ public class MybatisConversationMuteRepository implements ConversationMuteReposi
   }
 
   private ConversationMute fromPo(ConversationMutePo po) {
-    return new ConversationMute(po.getId(), po.getUserId(), po.getConversationId(), po.getCreatedAt());
+    return new ConversationMute(po.getId(), po.getUserId(), po.getConversationId());
   }
 }

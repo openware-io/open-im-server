@@ -423,6 +423,7 @@ public class OpenPlatformApplicationService {
       throw new ApiException(HttpStatusCodes.UNAUTHORIZED, "Invalid access_token");
     }
     UserAccount account = userAccountRepository.findById(token.userId())
+        .map(row -> row.aggregate())
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
     String nickname = account.getNickname() == null || account.getNickname().isBlank()
         ? account.getUsername() : account.getNickname();

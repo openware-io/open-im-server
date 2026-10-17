@@ -11,7 +11,7 @@ class UserAccountAuthenticationVersionTest {
     UserAccount account = UserAccount.register(
         "member", "old-hash", "member", "", "", LocalDateTime.now());
 
-    account.changePassword("new-hash", LocalDateTime.now());
+    account.changePassword("new-hash");
 
     assertThat(account.getStatusVersion()).isEqualTo(2L);
   }

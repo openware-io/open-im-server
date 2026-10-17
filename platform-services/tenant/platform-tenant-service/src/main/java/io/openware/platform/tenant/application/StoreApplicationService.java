@@ -1,12 +1,19 @@
 package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.StoreTimeService;
 import io.openware.platform.tenant.domain.store.model.Store;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Locale;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,10 +53,121 @@ public class StoreApplicationService {
     /** 错误码：业态为空、格式非法或不在 ACTIVE 业态字典中。 */
     public static final String CODE_BUSINESS_TYPE_INVALID = "BUSINESS_TYPE_INVALID";
 
-    private final StoreRepository storeRepository;
+    /** 写权限码：日界决定日结/报表归日，属经营配置级（见原控制器常量注释）。 */
+    private static final String PERMISSION_TENANT_MANAGE = "tenant.tenant.manage";
+    /** 审计动作码（sdk/infrastructure AuditActions.java 已登记）。 */
+    private static final String ACTION_STORE_UPDATE = "tenant.store.update";
+    /** 审计资源类型。 */
+    private static final String RESOURCE_TYPE_STORE = "tnt_store";
 
+    private final StoreRepository storeRepository;
+    private final AuditClient auditClient;
+    private final PermissionSnapshotProvider permissionSnapshotProvider;
+
+    /** 兼容既有单测/装配：不传审计与快照依赖时按关闭态处理。 */
     public StoreApplicationService(StoreRepository storeRepository) {
+        this(storeRepository, AuditClient.disabled(), null);
+    }
+
+    @Autowired
+    public StoreApplicationService(StoreRepository storeRepository, AuditClient auditClient,
+                                   PermissionSnapshotProvider permissionSnapshotProvider) {
         this.storeRepository = storeRepository;
+        this.auditClient = auditClient;
+        this.permissionSnapshotProvider = permissionSnapshotProvider;
+    }
+
+    /** 当前租户门店列表（可选状态过滤）。 */
+    @Transactional(readOnly = true)
+    public List<Store> list(String status) {
+        Long tenantId = TenantContextHolder.tenantIdOrNull();
+        return storeRepository.listByTenant(tenantId, null, null, status);
+    }
+
+    /**
+     * 门店配置修改入口：签名上下文、权限、校验、落库、审计与快照失效都在应用服务完成。
+     *
+     * <p>时区/切点决定「哪天算一天」，属于对账口径变更：成功与失败都必须留痕。
+     */
+    @Transactional
+    public StoreUpdateResult updateWithAudit(Long storeId, String timezone, String businessDayCutoff,
+                                             String businessType) {
+        try {
+            // 先判「有没有身份」（401），再判「有没有权限」（403），避免无身份被误报成越权。
+            TenantContext context = requireContext();
+            PermissionGuard.require(PERMISSION_TENANT_MANAGE);
+            StoreUpdateResult result = update(context.tenantId(), context.storeId(), storeId,
+                    context.accountId(), timezone, businessDayCutoff, businessType);
+
+            // 时区/切点决定「哪天算一天」，属于对账口径变更：必须留痕变更前/后值。
+            auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                    .tenantId(context.tenantId())
+                    .storeId(storeId)
+                    .operatorId(context.accountId())
+                    .action(ACTION_STORE_UPDATE)
+                    .resourceType(RESOURCE_TYPE_STORE)
+                    .resourceId(String.valueOf(storeId))
+                    .resourceName(result.store().name())
+                    .detailJson(detailJson(result))
+                    .build());
+            if (permissionSnapshotProvider != null && businessType != null) {
+                permissionSnapshotProvider.evictAll();
+            }
+            return result;
+        } catch (RuntimeException failure) {
+            // 失败出口留痕（缺权限/越权门店/跨租户/时区非法/切点非法/落库失败）：审计只 WARN，异常原样抛出。
+            recordFailure(storeId, timezone, businessDayCutoff, businessType, failure);
+            throw failure;
+        }
+    }
+
+    /** 审计详情：只记受控值（IANA id 与 HH:mm:ss），不含门店自由文本。 */
+    private static String detailJson(StoreUpdateResult result) {
+        return "{\"timezone\":{\"before\":" + jsonText(result.timezoneBefore())
+                + ",\"after\":" + jsonText(result.timezoneAfter()) + "}"
+                + ",\"businessDayCutoff\":{\"before\":" + jsonText(result.cutoffBefore())
+                + ",\"after\":" + jsonText(result.cutoffAfter()) + "}"
+                + ",\"businessType\":{\"before\":" + jsonText(result.businessTypeBefore())
+                + ",\"after\":" + jsonText(result.businessTypeAfter()) + "}}";
+    }
+
+    /**
+     * 领域内失败留痕：改门店时区/切点失败必须可回溯。请求值来自 HTTP，含引号/反斜杠时会破坏 JSON，
+     * 所以在这里转义；空值写成 JSON null。
+     */
+    private void recordFailure(Long storeId, String timezone, String businessDayCutoff, String businessType,
+                               RuntimeException failure) {
+        TenantContext context = TenantContextHolder.get();
+        Long tenantId = context == null ? null : context.tenantId();
+        auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                .tenantId(tenantId)
+                .storeId(storeId)
+                .operatorId(context == null ? null : context.accountId())
+                .action(ACTION_STORE_UPDATE)
+                .resourceType(RESOURCE_TYPE_STORE)
+                .resourceId(storeId == null ? null : String.valueOf(storeId))
+                .result(AuditClient.AuditRecord.RESULT_FAILURE)
+                .errorCode(AuditErrorCodes.of(failure))
+                .detailJson("{\"requestedTimezone\":" + jsonText(timezone)
+                        + ",\"requestedBusinessDayCutoff\":" + jsonText(businessDayCutoff)
+                        + ",\"requestedBusinessType\":" + jsonText(businessType) + "}")
+                .build());
+    }
+
+    private static String jsonText(String value) {
+        if (value == null) {
+            return "null";
+        }
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    /** 租户上下文：写接口一律取签名上下文，绝不从请求参数选租户。 */
+    private static TenantContext requireContext() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        return context;
     }
 
     /**

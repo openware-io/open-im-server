@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import io.openware.im.conversation.domain.mute.model.ConversationMute;
 import io.openware.im.conversation.domain.mute.repository.ConversationMuteRepository;
-import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -42,8 +41,8 @@ class ConversationMuteApplicationServiceTest {
   @Test
   void getMutedConversationIdsMapsConversationId() {
     when(repository.findByUserId(1L)).thenReturn(List.of(
-        ConversationMute.create(1L, "conv:group:7", LocalDateTime.now()),
-        ConversationMute.create(1L, "secret:3", LocalDateTime.now())));
+        ConversationMute.create(1L, "conv:group:7"),
+        ConversationMute.create(1L, "secret:3")));
 
     assertThat(service.getMutedConversationIds(1L)).containsExactly("conv:group:7", "secret:3");
   }

@@ -12,6 +12,8 @@ import io.openware.im.user.application.openplatform.result.ConsentView;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.openplatform.model.OauthAccessToken;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.openplatform.model.OpenApplication;
 import io.openware.im.user.domain.openplatform.model.OpenApplicationStatus;
 import io.openware.im.user.domain.openplatform.repository.AppSecretHasher;
@@ -106,7 +108,7 @@ class OpenPlatformApplicationServiceTest {
     UserAccount account = UserAccount.register("user", "hash", "昵称", "", "13800138000", LocalDateTime.now());
     when(oauthTokenStore.findAccessToken("token")).thenReturn(Optional.of(
         new OauthAccessToken("im_1", "app-1", 1L, "profile.basic", System.currentTimeMillis() + 60_000, null)));
-    when(userAccountRepository.findById(1L)).thenReturn(Optional.of(account));
+    when(userAccountRepository.findById(1L)).thenReturn(Optional.of(row(account)));
 
     var result = service.getUserInfo("token");
 
@@ -116,5 +118,10 @@ class OpenPlatformApplicationServiceTest {
 
   private static ConsentQuery query(String appId, String scope) {
     return new ConsentQuery(appId, "openchat://oauth/callback", scope, "st", "challenge", "S256", 1L);
+  }
+
+  private static Persisted<UserAccount> row(UserAccount account) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
   }
 }

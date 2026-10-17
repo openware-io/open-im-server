@@ -21,6 +21,8 @@ import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.infra.persistence.admin.AdminUserCascadeMapper;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -38,7 +40,7 @@ class AdminUserDeletionApplicationServiceTest {
   @Test
   void shouldCascadeDeleteAndHardDeleteAccount() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
-    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
+    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(row(account)));
     when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
 
@@ -64,7 +66,7 @@ class AdminUserDeletionApplicationServiceTest {
   @Test
   void shouldReportUnifiedAccountRetainedForEmployeeAccount() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
-    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
+    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(row(account)));
     when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
     AdminUserDeleteResponse response = service.deleteUser(71L, "im_71", 1L);
@@ -74,7 +76,7 @@ class AdminUserDeletionApplicationServiceTest {
   @Test
   void shouldDeleteWithoutCrossBusinessPurge() {
     UserAccount account = account(71L, "im_71", UserAccountRole.USER);
-    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account));
+    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(row(account)));
     when(userAccountRepository.hardDelete(71L)).thenReturn(1);
     stubCascadeCounts();
     AdminUserDeleteResponse response = service.deleteUser(71L, "im_71", 1L);
@@ -95,7 +97,7 @@ class AdminUserDeletionApplicationServiceTest {
 
   @Test
   void shouldRejectAdminAccountWith409() {
-    when(userAccountRepository.findById(1L)).thenReturn(Optional.of(account(1L, "admin", UserAccountRole.ADMIN)));
+    when(userAccountRepository.findById(1L)).thenReturn(Optional.of(row(account(1L, "admin", UserAccountRole.ADMIN))));
 
     ApiException exception = assertThrows(ApiException.class, () -> service.deleteUser(1L, "admin", 1L));
 
@@ -107,7 +109,7 @@ class AdminUserDeletionApplicationServiceTest {
 
   @Test
   void shouldRejectUsernameMismatchWith400() {
-    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account(71L, "im_71", UserAccountRole.USER)));
+    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(row(account(71L, "im_71", UserAccountRole.USER))));
 
     ApiException exception = assertThrows(ApiException.class, () -> service.deleteUser(71L, "im_72", 1L));
 
@@ -119,7 +121,7 @@ class AdminUserDeletionApplicationServiceTest {
 
   @Test
   void shouldRejectBlankConfirmUsernameWith400() {
-    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(account(71L, "im_71", UserAccountRole.USER)));
+    when(userAccountRepository.findById(71L)).thenReturn(Optional.of(row(account(71L, "im_71", UserAccountRole.USER))));
 
     ApiException exception = assertThrows(ApiException.class, () -> service.deleteUser(71L, null, 1L));
 
@@ -151,8 +153,12 @@ class AdminUserDeletionApplicationServiceTest {
   private static UserAccount account(Long id, String username, UserAccountRole role) {
     UserAccount account = new UserAccount();
     account.restore(id, username, "昵称", "avatar", "hash", "a@b.com", "13800000000", "sig",
-        UserAccountStatus.ACTIVE, 1L, SelfDestructPolicy.OFF, null, LocalDateTime.now(), role, 0L,
-        LocalDateTime.now(), 0L, LocalDateTime.now());
+        UserAccountStatus.ACTIVE, 1L, SelfDestructPolicy.OFF, null, LocalDateTime.now(), role);
     return account;
+  }
+
+  private static Persisted<UserAccount> row(UserAccount account) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
   }
 }

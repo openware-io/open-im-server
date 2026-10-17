@@ -6,7 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.enums.ChatType;
 import io.openware.common.enums.MsgType;
 import io.openware.im.message.domain.message.model.Message;
+import io.openware.im.message.domain.message.readmodel.MessageView;
+import io.openware.im.message.domain.message.repository.AuditSnapshot;
 import io.openware.im.message.domain.message.repository.MessageRepository;
+import io.openware.im.message.domain.message.repository.Persisted;
 import io.openware.im.message.infra.persistence.message.MessagePersistenceConverter;
 import io.openware.im.message.infra.persistence.message.mapper.MessageMapper;
 import io.openware.im.message.infra.persistence.message.po.MessagePo;
@@ -29,47 +32,52 @@ public class MessageRepositoryAdapter implements MessageRepository {
   private final MessageMapper mapper;
 
   @Override
-  public Optional<Message> findByMsgId(String msgId) {
+  public Optional<Persisted<Message>> findByMsgId(String msgId) {
     return Optional.ofNullable(mapper.selectOne(Wrappers.<MessagePo>lambdaQuery()
-        .eq(MessagePo::getMsgId, msgId).last("LIMIT 1"))).map(MessagePersistenceConverter::toDomain);
+        .eq(MessagePo::getMsgId, msgId).last("LIMIT 1"))).map(this::toPersisted);
   }
 
   @Override
-  public Optional<Message> findBySenderIdAndClientMsgId(long senderId, String clientMsgId) {
+  public Optional<Persisted<Message>> findBySenderIdAndClientMsgId(long senderId, String clientMsgId) {
     return Optional.ofNullable(mapper.selectOne(Wrappers.<MessagePo>lambdaQuery()
         .eq(MessagePo::getFromUserId, senderId)
         .eq(MessagePo::getClientMsgId, clientMsgId)
-        .last("LIMIT 1"))).map(MessagePersistenceConverter::toDomain);
+        .last("LIMIT 1"))).map(this::toPersisted);
   }
 
   @Override
-  public List<Message> findByMsgIds(List<String> msgIds) {
+  public List<Persisted<Message>> findByMsgIds(List<String> msgIds) {
     if (msgIds == null || msgIds.isEmpty()) return List.of();
     return mapper.selectList(Wrappers.<MessagePo>lambdaQuery().in(MessagePo::getMsgId, msgIds))
-        .stream().map(MessagePersistenceConverter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public Message save(Message message) {
+  public Persisted<Message> save(Message message, LocalDateTime occurredAt, long operatorId) {
     MessagePo po = MessagePersistenceConverter.toPo(message);
-    mapper.insert(po);
-    message.assignId(po.getId());
-    return message;
+    if (po.getId() == null) {
+      po.setCreatedBy(operatorId);
+      po.setCreatedAt(occurredAt);
+      po.setUpdatedBy(operatorId);
+      po.setUpdatedAt(occurredAt);
+      mapper.insert(po);
+      message.assignId(po.getId());
+      return toPersisted(po);
+    }
+    // 更新只改 updated_*：created_* 保持原值，编辑窗口与事件仍以首次发送时刻为准。
+    po.setUpdatedBy(operatorId);
+    po.setUpdatedAt(occurredAt);
+    mapper.updateById(po);
+    return toPersisted(mapper.selectById(po.getId()));
   }
 
   @Override
-  public Message update(Message message) {
-    mapper.updateById(MessagePersistenceConverter.toPo(message));
-    return message;
-  }
-
-  @Override
-  public List<Message> findHistory(long userId, String peerId, ChatType chatType, int page, int pageSize) {
+  public List<MessageView> findHistory(long userId, String peerId, ChatType chatType, int page, int pageSize) {
     return mapper.selectPage(new Page<MessagePo>(page, pageSize), Wrappers.<MessagePo>lambdaQuery()
             .eq(MessagePo::getChatType, chatType)
             .and(wrapper -> visibleToUser(wrapper, userId, peerId, chatType))
             .orderByDesc(MessagePo::getCreatedAt))
-        .getRecords().stream().map(MessagePersistenceConverter::toDomain).toList();
+        .getRecords().stream().map(MessagePersistenceConverter::toView).toList();
   }
 
   @Override
@@ -89,7 +97,7 @@ public class MessageRepositoryAdapter implements MessageRepository {
   }
 
   @Override
-  public List<Message> findHistoryByDate(long userId, String peerId, ChatType chatType, LocalDate date, int page,
+  public List<MessageView> findHistoryByDate(long userId, String peerId, ChatType chatType, LocalDate date, int page,
       int pageSize) {
     return mapper.selectPage(new Page<MessagePo>(page, pageSize), Wrappers.<MessagePo>lambdaQuery()
             .eq(MessagePo::getChatType, chatType)
@@ -97,11 +105,11 @@ public class MessageRepositoryAdapter implements MessageRepository {
             .ge(MessagePo::getCreatedAt, date.atStartOfDay())
             .lt(MessagePo::getCreatedAt, date.plusDays(1).atStartOfDay())
             .orderByDesc(MessagePo::getCreatedAt))
-        .getRecords().stream().map(MessagePersistenceConverter::toDomain).toList();
+        .getRecords().stream().map(MessagePersistenceConverter::toView).toList();
   }
 
   @Override
-  public List<Message> findCentered(long userId, String peerId, ChatType chatType, String centerMsgId,
+  public List<MessageView> findCentered(long userId, String peerId, ChatType chatType, String centerMsgId,
       int beforeCount, int afterCount) {
     MessagePo center = mapper.selectOne(Wrappers.<MessagePo>lambdaQuery()
         .eq(MessagePo::getMsgId, centerMsgId)
@@ -128,17 +136,17 @@ public class MessageRepositoryAdapter implements MessageRepository {
     merged.addAll(before);
     merged.add(center);
     merged.addAll(after);
-    return merged.stream().map(MessagePersistenceConverter::toDomain).toList();
+    return merged.stream().map(MessagePersistenceConverter::toView).toList();
   }
 
   @Override
-  public List<Message> findChannelMessages(String conversationId, long afterSeq, int limit) {
+  public List<MessageView> findChannelMessages(String conversationId, long afterSeq, int limit) {
     return mapper.selectList(Wrappers.<MessagePo>lambdaQuery()
             .eq(MessagePo::getConversationId, conversationId)
             .gt(MessagePo::getSeq, afterSeq)
             .orderByAsc(MessagePo::getSeq)
             .last("LIMIT " + Math.min(limit <= 0 ? 50 : limit, 100)))
-        .stream().map(MessagePersistenceConverter::toDomain).toList();
+        .stream().map(MessagePersistenceConverter::toView).toList();
   }
 
   @Override
@@ -150,17 +158,18 @@ public class MessageRepositoryAdapter implements MessageRepository {
         .eq(msgType != null, MessagePo::getMsgType, msgType)
         .and(peerId != null && chatType != null, wrapper -> visibleToUser(wrapper, userId, peerId, chatType))
         .orderByDesc(MessagePo::getCreatedAt));
-    return new MessagePage(result.getRecords().stream().map(MessagePersistenceConverter::toDomain).toList(), result.getTotal());
+    return new MessagePage(result.getRecords().stream().map(MessagePersistenceConverter::toView).toList(),
+        result.getTotal());
   }
 
   @Override
-  public List<Message> findAdminPage(int page, int pageSize) {
+  public List<MessageView> findAdminPage(int page, int pageSize) {
     // 管理端列表只按创建时间倒序，配合 idx_msg_message_created 索引走索引排序，
     // 追加 id DESC 作为确定性 tie-break（created_at 为毫秒精度，可能重复）。
     // searchCount=false 跳过 COUNT(*)（总数由上层缓存），仅查本页数据。
     Page<MessagePo> result = mapper.selectPage(new Page<>(page, pageSize, false), Wrappers.<MessagePo>lambdaQuery()
         .orderByDesc(MessagePo::getCreatedAt).orderByDesc(MessagePo::getId));
-    return result.getRecords().stream().map(MessagePersistenceConverter::toDomain).toList();
+    return result.getRecords().stream().map(MessagePersistenceConverter::toView).toList();
   }
 
   @Override
@@ -238,6 +247,15 @@ public class MessageRepositoryAdapter implements MessageRepository {
   @Override
   public void deleteByMsgId(String msgId) {
     mapper.delete(Wrappers.<MessagePo>lambdaQuery().eq(MessagePo::getMsgId, msgId));
+  }
+
+  /** 业务聚合 + 记账快照：响应与编辑窗口规则要读审计列，而它们不进领域模型。 */
+  private Persisted<Message> toPersisted(MessagePo po) {
+    if (po == null) {
+      return null;
+    }
+    return new Persisted<>(MessagePersistenceConverter.toDomain(po),
+        new AuditSnapshot(po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()));
   }
 
   private void visibleToUser(LambdaQueryWrapper<MessagePo> wrapper,

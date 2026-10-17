@@ -12,6 +12,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.time.TimeRangeParams;
+import io.openware.platform.tenant.application.TenantApplicationService;
 import io.openware.platform.tenant.domain.tenant.model.Tenant;
 import io.openware.platform.tenant.domain.tenant.repository.TenantRepository;
 import java.time.LocalDateTime;
@@ -48,7 +49,7 @@ class TenantControllerTest {
     tenantRepository = mock(TenantRepository.class);
     auditClient = mock(AuditClient.class);
     when(tenantRepository.listCreatedBetween(any(), any())).thenReturn(List.of());
-    controller = new TenantController(tenantRepository, auditClient);
+    controller = new TenantController(new TenantApplicationService(tenantRepository, auditClient));
     // 网关注入的平台作用域上下文：tenantId=0（无租户约束）+ PLATFORM，subject=平台账号。
     TenantContextHolder.set(new TenantContext(0L, null, null, PLATFORM_ACCOUNT_ID, 0, List.of(),
         TenantContext.SCOPE_PLATFORM));

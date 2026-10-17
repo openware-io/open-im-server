@@ -8,6 +8,7 @@ import io.openware.im.message.domain.message.repository.MessagePayloadCodecPort;
 import io.openware.protocol.mq.event.ChatClearedEvent;
 import io.openware.protocol.mq.event.MessageStoredEvent;
 import io.openware.protocol.mq.event.MessageRecalledEvent;
+import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -35,8 +36,8 @@ public class JacksonMessagePayloadCodec implements MessagePayloadCodecPort {
   }
 
   @Override
-  public String writeStoredMessageEvent(Message message, List<Long> recipientUserIds, Map<Long, Long> recipientSyncSeqs,
-      List<MessageMedia> media) {
+  public String writeStoredMessageEvent(Message message, LocalDateTime sentAt, List<Long> recipientUserIds,
+      Map<Long, Long> recipientSyncSeqs, List<MessageMedia> media) {
     try {
       MessageStoredEvent event = MessageStoredEvent.builder().eventId(message.getMsgId())
           .conversationId(message.getConversationId()).seq(message.getSeq()).msgId(message.getMsgId())
@@ -47,7 +48,7 @@ public class JacksonMessagePayloadCodec implements MessagePayloadCodecPort {
           .media(media)
           .recipientUserIds(recipientUserIds)
           .recipientSyncSeqs(recipientSyncSeqs)
-          .createdAt(message.getCreatedAt().toInstant(ZoneOffset.UTC)).build();
+          .createdAt(sentAt.toInstant(ZoneOffset.UTC)).build();
       return objectMapper.writeValueAsString(event);
     } catch (Exception ex) {
       throw new IllegalStateException("无法序列化已存储消息事件", ex);

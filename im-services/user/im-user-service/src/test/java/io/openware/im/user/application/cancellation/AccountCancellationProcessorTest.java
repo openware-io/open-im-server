@@ -2,6 +2,7 @@ package io.openware.im.user.application.cancellation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,8 @@ import io.openware.im.user.domain.account.repository.UserAccountDataPurger;
 import io.openware.im.user.domain.account.repository.PasswordHasher;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.cancellation.model.AccountCancellation;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationStatus;
 import io.openware.im.user.domain.cancellation.repository.AccountCancellationLogRepository;
@@ -42,13 +45,13 @@ class AccountCancellationProcessorTest {
         "token-hash", "web", "1.2.3.4", LocalDateTime.now());
     when(cancellationRepository.findById(99L)).thenReturn(Optional.of(application));
     UserAccount account = account(10L);
-    when(userAccountRepository.findById(10L)).thenReturn(Optional.of(account));
+    when(userAccountRepository.findById(10L)).thenReturn(Optional.of(row(account)));
 
     processor.processOne(99L);
 
     verify(userAccountDataPurger).purge(10L);
     when(passwordHasher.hash(any())).thenReturn("random-hash");
-    verify(userAccountRepository).save(account);
+    verify(userAccountRepository).save(eq(account), any(LocalDateTime.class));
     verify(outbox).append(any(UserChatRecordsPurged.class));
     verify(outbox).append(any(UserAuthenticationInvalidated.class));
     verify(outbox).append(any(UserDataWipeRequested.class));
@@ -66,15 +69,19 @@ class AccountCancellationProcessorTest {
 
     verify(userAccountDataPurger).purge(10L);
     verify(userAccountRepository, never()).hardDelete(10L);
-    verify(userAccountRepository, never()).save(any(UserAccount.class));
+    verify(userAccountRepository, never()).save(any(UserAccount.class), any(LocalDateTime.class));
     assertEquals(AccountCancellationStatus.COMPLETED, application.getStatus());
   }
 
   private static UserAccount account(Long id) {
     UserAccount account = new UserAccount();
     account.restore(id, "user10", "昵称", "avatar", "hash", "a@b.com", "13800000000", "sig", UserAccountStatus.ACTIVE, 1L,
-        SelfDestructPolicy.OFF, null, LocalDateTime.now(), UserAccountRole.USER, 0L, LocalDateTime.now(), 0L,
-        LocalDateTime.now());
+        SelfDestructPolicy.OFF, null, LocalDateTime.now(), UserAccountRole.USER);
     return account;
+  }
+
+  private static Persisted<UserAccount> row(UserAccount account) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
   }
 }

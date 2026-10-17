@@ -9,6 +9,8 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -68,6 +70,44 @@ public class ChannelApplicationService {
     @Transactional
     public ChannelConfigDto setEnabled(Long tenantId, Long storeId, String channel, boolean enabled, String merchantId) {
         return setEnabled(tenantId, storeId, null, channel, enabled, merchantId, null, null);
+    }
+
+    /**
+     * 批量开通/关闭：先整批校验门店范围与渠道，再逐店写入；整批共用同一个事务。
+     *
+     * <p>校验与编排必须在应用服务内完成（standards/10 §应用服务规则）：
+     * 控制器只做协议转换，不持有 `@Transactional`。任何一条非法都会在写入前抛出，
+     * 不会留下“前半批落库、后半批失败”的半截配置。
+     */
+    @Transactional
+    public List<ChannelConfigDto> setEnabledBatch(Long tenantId, String businessType, String merchantId,
+                                                  List<Long> storeIds, List<ChannelToggleCommand> config,
+                                                  String idempotencyKey) {
+        if (config == null || config.isEmpty() || storeIds == null || storeIds.isEmpty()
+                || idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("PAYMENT_CHANNEL_BATCH_INVALID");
+        }
+        // 先整批校验门店与渠道，再逐店写入：校验失败时一行都不写。
+        Set<Long> uniqueStores = new HashSet<>();
+        for (Long storeId : storeIds) {
+            if (storeId == null || storeId <= 0 || !uniqueStores.add(storeId)) {
+                throw new IllegalArgumentException("STORE_SCOPE_FORBIDDEN");
+            }
+        }
+        for (ChannelToggleCommand toggle : config) {
+            if (toggle == null || toggle.channel() == null || !ONLINE_CHANNELS.contains(toggle.channel())) {
+                throw new IllegalArgumentException("CHANNEL_NOT_ONLINE");
+            }
+        }
+        List<ChannelConfigDto> result = new ArrayList<>();
+        for (Long storeId : storeIds) {
+            for (ChannelToggleCommand toggle : config) {
+                result.add(setEnabled(tenantId, storeId, businessType, toggle.channel(), toggle.enabled(),
+                        merchantId, toggle.version(),
+                        idempotencyKey + "-" + storeId + "-" + toggle.channel()));
+            }
+        }
+        return result;
     }
 
     @Transactional
@@ -162,4 +202,7 @@ public class ChannelApplicationService {
     private static String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim().toUpperCase(Locale.ROOT);
     }
+
+    /** 批量写入的单渠道开关命令（应用层类型，避免控制器 DTO 渗透到服务）。 */
+    public record ChannelToggleCommand(String channel, boolean enabled, Integer version) {}
 }

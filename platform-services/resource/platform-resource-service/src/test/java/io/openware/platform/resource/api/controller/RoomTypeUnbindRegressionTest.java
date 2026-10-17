@@ -14,6 +14,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.resource.application.ResourceCommandApplicationService;
 import io.openware.platform.resource.application.ResourceQueryApplicationService;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.domain.resource.model.Resource;
@@ -60,7 +61,8 @@ class RoomTypeUnbindRegressionTest {
     resourceQuery = mock(ResourceQueryApplicationService.class);
     roomTypeRepository = mock(RoomTypeRepository.class);
     roomTypeService = new RoomTypeApplicationService(roomTypeRepository, resourceRepository);
-    controller = new ResourceController(resourceRepository, resourceQuery, roomTypeService);
+    controller = new ResourceController(new ResourceCommandApplicationService(resourceRepository,
+        resourceQuery, roomTypeService), resourceQuery);
     when(resourceQuery.enrichWithRoomTypes(any())).thenAnswer(i -> i.getArgument(0));
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, STORE_ID, 1L, 1, List.of("resource.manage")));
   }

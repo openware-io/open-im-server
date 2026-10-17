@@ -1,6 +1,8 @@
 package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
+import io.openware.platform.tenant.domain.iam.model.MaskingRole;
 import io.openware.platform.tenant.domain.iam.model.Permission;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
@@ -9,6 +11,7 @@ import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,17 +37,71 @@ public class IamAuthorizationApplicationService {
   private final RoleGrantRepository roleGrantRepository;
   private final UserRoleRepository userRoleRepository;
   private final PermissionSnapshotProvider permissionSnapshotProvider;
+  private final AuditClient auditClient;
 
+  /** 兼容既有单测/装配：不传审计客户端时使用关闭态客户端。 */
   public IamAuthorizationApplicationService(RoleRepository roleRepository,
                                             PermissionRepository permissionRepository,
                                             RoleGrantRepository roleGrantRepository,
                                             UserRoleRepository userRoleRepository,
                                             PermissionSnapshotProvider permissionSnapshotProvider) {
+    this(roleRepository, permissionRepository, roleGrantRepository, userRoleRepository,
+        permissionSnapshotProvider, AuditClient.disabled());
+  }
+
+  @Autowired
+  public IamAuthorizationApplicationService(RoleRepository roleRepository,
+                                            PermissionRepository permissionRepository,
+                                            RoleGrantRepository roleGrantRepository,
+                                            UserRoleRepository userRoleRepository,
+                                            PermissionSnapshotProvider permissionSnapshotProvider,
+                                            AuditClient auditClient) {
     this.roleRepository = roleRepository;
     this.permissionRepository = permissionRepository;
     this.roleGrantRepository = roleGrantRepository;
     this.userRoleRepository = userRoleRepository;
     this.permissionSnapshotProvider = permissionSnapshotProvider;
+    this.auditClient = auditClient;
+  }
+
+  /** 权限目录（平台级）。 */
+  @Transactional(readOnly = true)
+  public List<Permission> listPermissions() {
+    return permissionRepository.listActive();
+  }
+
+  /** 脱敏角色投影（角色 + 可见 PII 权限）。 */
+  @Transactional(readOnly = true)
+  public List<MaskingRole> listMaskingRoles() {
+    return roleRepository.listMaskingRoles();
+  }
+
+  /** 某租户的可用角色。 */
+  @Transactional(readOnly = true)
+  public List<Role> listRoles(Long tenantId) {
+    return roleRepository.listActiveByTenant(tenantId);
+  }
+
+  /** 账号的 iam_user_role 绑定 id 列表。 */
+  @Transactional(readOnly = true)
+  public List<Long> listUserRoleIds(Long accountId) {
+    return userRoleRepository.findIdsByAccount(accountId);
+  }
+
+  /** 新建角色并留痕。 */
+  @Transactional
+  public Role createRole(Long tenantId, String code, String name, String roleType) {
+    Role role = roleRepository.insert(Role.create(tenantId, code, name, roleType));
+    auditClient.recordAsync(AuditClient.AuditRecord.builder()
+        .tenantId(tenantId)
+        .action("iam.role.create")
+        .resourceType("role")
+        .resourceId(String.valueOf(role.id()))
+        .resourceName(role.name())
+        .idempotencyKey("role:" + role.id())
+        .detailJson("{\"tenantId\":" + tenantId + ",\"roleType\":\"" + role.roleType() + "\"}")
+        .build());
+    return role;
   }
 
   /**
@@ -67,6 +124,9 @@ public class IamAuthorizationApplicationService {
     roleGrantRepository.replaceRolePermissions(roleId, ids);
     // 角色-权限变更影响权限快照：逐出缓存
     permissionSnapshotProvider.evictAll();
+    auditClient.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.role.permissions.assign", "role",
+        String.valueOf(roleId), null, "role-perm:" + roleId,
+        "{\"permissionIds\":\"" + ids + "\"}"));
     return role;
   }
 
@@ -89,6 +149,9 @@ public class IamAuthorizationApplicationService {
       roleGrantRepository.revoke(roleId, permission.id());
     }
     permissionSnapshotProvider.evictAll();
+    auditClient.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.role.permission.toggle", "role",
+        String.valueOf(roleId), null, "role-perm-toggle:" + roleId + ":" + permissionCode,
+        "permissionCode=" + permissionCode + ",granted=" + granted));
     return role;
   }
 
@@ -122,6 +185,9 @@ public class IamAuthorizationApplicationService {
         UserRoleBinding.create(accountId, tenantId, organizationId, storeId, roleId, effectiveScope));
     // iam_user_role 写操作：逐出该账号权限快照缓存
     permissionSnapshotProvider.evict(accountId);
+    auditClient.recordAsync(AuditClient.AuditRecord.of(tenantId, null, "iam.user_role.assign", "user_role",
+        String.valueOf(binding.id()), null, "user-role:" + binding.id(),
+        "{\"accountId\":" + accountId + ",\"roleId\":" + roleId + "}"));
     return binding;
   }
 
@@ -141,6 +207,9 @@ public class IamAuthorizationApplicationService {
     }
     userRoleRepository.revoke(userRoleId);
     permissionSnapshotProvider.evict(accountId);
+    auditClient.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.user_role.revoke", "user_role",
+        String.valueOf(userRoleId), null, "user-role:" + userRoleId,
+        "{\"accountId\":" + accountId + "}"));
     return accountId;
   }
 

@@ -29,7 +29,9 @@ import io.openware.im.message.domain.message.model.Mention;
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.domain.message.model.MessageReadStatus;
 import io.openware.im.message.domain.message.model.UserSyncIndex;
+import io.openware.im.message.domain.message.readmodel.MessageView;
 import io.openware.im.message.domain.message.event.MessageEditedEvent;
+import io.openware.im.message.domain.message.repository.AuditSnapshot;
 import io.openware.im.message.domain.message.repository.ConversationSequencePort;
 import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
@@ -37,6 +39,7 @@ import io.openware.im.message.domain.message.repository.MentionResolverPort;
 import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import io.openware.im.message.domain.message.repository.FeatureTogglePort;
 import io.openware.im.message.domain.message.repository.MessagePayloadCodecPort;
+import io.openware.im.message.domain.message.repository.Persisted;
 import io.openware.im.message.domain.message.repository.SecretUnreadProjectionPort;
 import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import io.openware.im.message.domain.message.repository.UserMuteStatusPort;
@@ -61,6 +64,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import io.openware.im.message.domain.message.repository.UserDeletedMessageRepository;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -101,11 +105,11 @@ public class MessageApplicationService {
 
   @Transactional
   public Message store(StoreMessageCommand command) {
-    var existing = messageRepository.findByMsgId(command.commandId());
+    Optional<Persisted<Message>> existing = messageRepository.findByMsgId(command.commandId());
     if (existing.isEmpty() && command.clientMsgId() != null && !command.clientMsgId().isBlank()) {
       existing = messageRepository.findBySenderIdAndClientMsgId(command.senderId(), command.clientMsgId());
     }
-    return existing.orElseGet(() -> storeNew(command));
+    return existing.map(Persisted::aggregate).orElseGet(() -> storeNew(command));
   }
 
   @Transactional
@@ -162,13 +166,15 @@ public class MessageApplicationService {
     if (command.newContent() == null || command.newContent().isBlank()) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Edited content is required");
     }
-    Message message = messageRepository.findByMsgId(command.msgId())
+    Persisted<Message> row = messageRepository.findByMsgId(command.msgId())
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Message not found"));
+    Message message = row.aggregate();
     if (message.getFromUserId() != command.userId()) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only sender can edit");
     }
     LocalDateTime now = utcNow();
-    if (!Message.editableAt(message.getCreatedAt(), now)) {
+    // 发送时刻是记账列、不在领域模型上：规则仍是领域的，输入由端口随聚合一起交回（standards/10 L299）。
+    if (!Message.editableAt(row.audit().createdAt(), now)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Edit window expired");
     }
     String content = command.newContent();
@@ -177,8 +183,8 @@ public class MessageApplicationService {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Edited content contains sensitive words");
     }
     content = moderation.content();
-    Message edited = message.edited(content, command.userId(), now);
-    messageRepository.update(edited);
+    Message edited = message.edited(content, now);
+    messageRepository.save(edited, now, command.userId());
     List<Long> recipientUserIds = new java.util.ArrayList<>(
         userSyncIndexRepository.findRecipientUserIdsByMsgId(message.getMsgId()));
     if (!recipientUserIds.contains(message.getFromUserId())) {
@@ -205,17 +211,17 @@ public class MessageApplicationService {
       return messageRepository.findCentered(query.userId(), query.peerId(), query.chatType(), query.centerMsgId(),
           query.beforeCount() == null ? 30 : query.beforeCount(),
           query.afterCount() == null ? 30 : query.afterCount()).stream()
-          .map(message -> toResult(message, query.userId())).toList();
+          .map(view -> toResult(view, query.userId())).toList();
     }
     if (query.date() != null && !query.date().isBlank()) {
       // 按日期（yyyy-MM-dd，UTC）过滤某一天的消息。
       LocalDate date = parseDate(query.date());
       return messageRepository.findHistoryByDate(query.userId(), query.peerId(), query.chatType(), date,
           page(query.page()), pageSize(query.pageSize())).stream()
-          .map(message -> toResult(message, query.userId())).toList();
+          .map(view -> toResult(view, query.userId())).toList();
     }
     return messageRepository.findHistory(query.userId(), query.peerId(), query.chatType(), page(query.page()),
-        pageSize(query.pageSize())).stream().map(message -> toResult(message, query.userId())).toList();
+        pageSize(query.pageSize())).stream().map(view -> toResult(view, query.userId())).toList();
   }
 
   /** 会话内「有消息」的日期（yyyy-MM-dd，UTC，倒序），用于聊天记录日历标记。 */
@@ -235,7 +241,7 @@ public class MessageApplicationService {
     int pageSize = pageSize(query.pageSize());
     MessageRepository.MessagePage result = messageRepository.search(query.userId(), query.keyword(), query.peerId(),
         query.chatType(), query.msgType(), page, pageSize);
-    return new SearchMessagesResult(result.items().stream().map(message -> toResult(message, query.userId())).toList(),
+    return new SearchMessagesResult(result.items().stream().map(view -> toResult(view, query.userId())).toList(),
         result.total(), page, pageSize);
   }
 
@@ -244,8 +250,9 @@ public class MessageApplicationService {
     int resolvedPage = page(page);
     int resolvedPageSize = pageSize(pageSize);
     long total = cachedTotalMessageCount();
-    List<Message> items = messageRepository.findAdminPage(resolvedPage, resolvedPageSize);
-    return new AdminMessagePageResult(items.stream().map(message -> toResult(message, message.getFromUserId())).toList(), total,
+    List<MessageView> items = messageRepository.findAdminPage(resolvedPage, resolvedPageSize);
+    return new AdminMessagePageResult(
+        items.stream().map(view -> toResult(view, view.fromUserId())).toList(), total,
         resolvedPage, resolvedPageSize);
   }
 
@@ -275,9 +282,9 @@ public class MessageApplicationService {
     List<UserSyncIndex> indexes = userSyncIndexRepository.findAfter(query.userId(), query.afterSyncSeq(), limit + 1);
     boolean hasMore = indexes.size() > limit;
     List<UserSyncIndex> page = hasMore ? indexes.subList(0, limit) : indexes;
-    Map<String, Message> messages = new HashMap<>();
-    for (Message message : messageRepository.findByMsgIds(page.stream().map(UserSyncIndex::msgId).toList())) {
-      messages.put(message.getMsgId(), message);
+    Map<String, Persisted<Message>> messages = new HashMap<>();
+    for (Persisted<Message> row : messageRepository.findByMsgIds(page.stream().map(UserSyncIndex::msgId).toList())) {
+      messages.put(row.aggregate().getMsgId(), row);
     }
     // 「删除仅我」的消息不再下发给该用户：否则卸载重装/换端后会重新出现。
     Set<String> userDeleted = Set.copyOf(
@@ -286,7 +293,7 @@ public class MessageApplicationService {
         messages.keySet());
     List<SyncedMessageResult> items = page.stream().filter(index -> messages.containsKey(index.msgId()))
         .filter(index -> !userDeleted.contains(index.msgId()))
-        .filter(index -> canSynchronize(query.userId(), messages.get(index.msgId())))
+        .filter(index -> canSynchronize(query.userId(), messages.get(index.msgId()).aggregate()))
         .map(index -> new SyncedMessageResult(index.syncSeq(), toResult(messages.get(index.msgId()), query.userId()),
             readAts.get(index.msgId())))
         .toList();
@@ -312,7 +319,8 @@ public class MessageApplicationService {
       return 0;
     }
     Map<String, Message> owned = new HashMap<>();
-    for (Message message : messageRepository.findByMsgIds(normalized)) {
+    for (Persisted<Message> row : messageRepository.findByMsgIds(normalized)) {
+      Message message = row.aggregate();
       owned.put(message.getMsgId(), message);
     }
     if (owned.isEmpty()) {
@@ -424,7 +432,7 @@ public class MessageApplicationService {
   @Transactional
   public DeleteMessageResult deleteForEveryone(DeleteMessageCommand command) {
     assertChatDeleteEnabled();
-    Message message = messageRepository.findByMsgId(command.msgId()).orElse(null);
+    Message message = messageRepository.findByMsgId(command.msgId()).map(Persisted::aggregate).orElse(null);
     // 幂等：消息已被硬删除（MQ 至少一次投递 / 重复点击 / 并发撤回删除）直接视为成功。
     if (message == null) {
       return new DeleteMessageResult(true, command.msgId(), ChatType.PRIVATE, "", 0L);
@@ -436,7 +444,7 @@ public class MessageApplicationService {
   /** 管理端删除任意消息（举报处理联动「删消息」）：跳过发送方校验，硬删并广播 deleted 事件。 */
   @Transactional
   public DeleteMessageResult adminDeleteMessage(String msgId) {
-    Message message = messageRepository.findByMsgId(msgId).orElse(null);
+    Message message = messageRepository.findByMsgId(msgId).map(Persisted::aggregate).orElse(null);
     if (message == null) {
       return new DeleteMessageResult(true, msgId, ChatType.PRIVATE, "", 0L);
     }
@@ -524,13 +532,15 @@ public class MessageApplicationService {
     }
     List<Long> recipientUserIds = recipientUserIds(command, chatType);
     long seq = conversationSequencePort.next(command.conversationId());
-    LocalDateTime createdAt = LocalDateTime.ofInstant(command.acceptedAt(), ZoneOffset.UTC);
+    LocalDateTime occurredAt = LocalDateTime.ofInstant(command.acceptedAt(), ZoneOffset.UTC);
     Message message = Message.create(command.commandId(), command.conversationId(), seq, command.senderId(),
         command.senderUsername(), command.toId(), chatType,
         MsgType.fromValue(command.msgType()), content, command.clientMsgId(), command.replyMsgId(),
-        resolveMentions(chatType, command.toId(), command.atUsersJson()), mediaObjectIds, createdAt);
-    messageRepository.save(message);
-    Map<Long, Long> recipientSyncSeqs = synchronizeUsers(message, recipientUserIds);
+        resolveMentions(chatType, command.toId(), command.atUsersJson()), mediaObjectIds);
+    Persisted<Message> saved = messageRepository.save(message, occurredAt, 0L);
+    // 以落库返回的记账快照为准：事件与 per-user 同步索引必须与 msg_message.created_at 用同一发送时刻。
+    LocalDateTime sentAt = saved.audit() == null ? occurredAt : saved.audit().createdAt();
+    Map<Long, Long> recipientSyncSeqs = synchronizeUsers(message, recipientUserIds, sentAt);
     String mediaKind = mediaKind(message.getMsgType());
     for (String objectId : mediaObjectIds) {
       mediaReferences.authorizeAndBind(command.senderId(), objectId, message.getMsgId(), mediaKind);
@@ -539,7 +549,7 @@ public class MessageApplicationService {
         mediaReferences.accessUrl(command.senderId(), objectId, message.getMsgId()))).toList();
     messageOutboxRepository.save(MessageOutbox.pending(message.getMsgId(), "message", message.getMsgId(),
         ImMqTopics.MESSAGE_STORED_EVENT, message.getConversationId(),
-        messagePayloadCodecPort.writeStoredMessageEvent(message, recipientUserIds, recipientSyncSeqs, media)));
+        messagePayloadCodecPort.writeStoredMessageEvent(message, sentAt, recipientUserIds, recipientSyncSeqs, media)));
     log.info("权威消息与 Outbox 事件已同事务落库, msgId={}, conversationId={}, seq={}",
         message.getMsgId(), message.getConversationId(), message.getSeq());
     return message;
@@ -554,7 +564,7 @@ public class MessageApplicationService {
     }
     String conversationId = ConversationIds.channelConversation(channelId);
     return messageRepository.findChannelMessages(conversationId, afterSeq, limit).stream()
-        .map(message -> toResult(message, userId)).toList();
+        .map(view -> toResult(view, userId)).toList();
   }
 
   private LocalDateTime utcNow() {
@@ -632,7 +642,7 @@ public class MessageApplicationService {
     return MsgType.SYSTEM == MsgType.fromValue(command.msgType());
   }
 
-  private Map<Long, Long> synchronizeUsers(Message message, List<Long> recipientUserIds) {
+  private Map<Long, Long> synchronizeUsers(Message message, List<Long> recipientUserIds, LocalDateTime sentAt) {
     List<Long> userIds = new java.util.ArrayList<>(recipientUserIds);
     userIds.add(message.getFromUserId());
     // 系统消息发送方为 user 0（非真实用户），不为其写 per-user 同步索引。
@@ -645,7 +655,7 @@ public class MessageApplicationService {
       sequences.put(userId, userSyncIndexRepository.nextSequence(userId));
     }
     userSyncIndexRepository.saveAll(userIds.stream().map(userId -> new UserSyncIndex(userId, sequences.get(userId),
-        message.getMsgId(), message.getConversationId(), message.getCreatedAt())).toList());
+        message.getMsgId(), message.getConversationId(), sentAt)).toList());
     return Map.copyOf(sequences);
   }
 
@@ -723,14 +733,31 @@ public class MessageApplicationService {
     throw new ApiException(HttpStatusCodes.FORBIDDEN, "Cannot delete others' message");
   }
 
-  private MessageResult toResult(Message message, long requesterId) {
+  /** 单条/批量读取的响应装配：业务事实取自聚合，审计列取自端口带回的记账快照。 */
+  private MessageResult toResult(Persisted<Message> row, long requesterId) {
+    Message message = row.aggregate();
+    AuditSnapshot audit = row.audit();
     return new MessageResult(message.getId(), message.getMsgId(), message.getConversationId(), message.getSeq(),
         message.getFromUserId(), message.getSenderUsername(), message.getToId(), message.getChatType(),
         message.getMsgType(), message.getContent(), message.getClientMsgId(), message.getReplyMsgId(),
-        message.getAtUsers(), message.getStatus(), message.isEdited(), message.getEditedAt(), message.getCreatedBy(),
-        message.getCreatedAt(), message.getUpdatedBy(), message.getUpdatedAt(),
-        message.getMediaObjectIds().stream().map(objectId -> new MessageMedia(objectId,
-            mediaReferences.accessUrl(requesterId, objectId, message.getMsgId()))).toList());
+        message.getAtUsers(), message.getStatus(), message.isEdited(), message.getEditedAt(),
+        audit == null ? null : audit.createdBy(), audit == null ? null : audit.createdAt(),
+        audit == null ? null : audit.updatedBy(), audit == null ? null : audit.updatedAt(),
+        mediaOf(message.getMsgId(), message.getMediaObjectIds(), requesterId));
+  }
+
+  /** 列表/分页读取的响应装配：投影已携带审计列，无需再回读聚合。 */
+  private MessageResult toResult(MessageView view, long requesterId) {
+    return new MessageResult(view.id(), view.msgId(), view.conversationId(), view.seq(), view.fromUserId(),
+        view.senderUsername(), view.toId(), view.chatType(), view.msgType(), view.content(), view.clientMsgId(),
+        view.replyMsgId(), view.atUsers(), view.status(), view.edited(), view.editedAt(), view.createdBy(),
+        view.createdAt(), view.updatedBy(), view.updatedAt(),
+        mediaOf(view.msgId(), view.mediaObjectIds(), requesterId));
+  }
+
+  private List<MessageMedia> mediaOf(String msgId, List<String> objectIds, long requesterId) {
+    return objectIds.stream().map(objectId -> new MessageMedia(objectId,
+        mediaReferences.accessUrl(requesterId, objectId, msgId))).toList();
   }
 
   private List<String> normalizeMediaObjectIds(List<String> values, MsgType msgType) {

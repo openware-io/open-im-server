@@ -13,6 +13,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.platform.order.application.InventoryApplicationService;
+import io.openware.platform.order.application.InventoryRecoveryApplicationService;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.OrderItem;
@@ -44,7 +45,8 @@ class InventoryRecoveryAdminControllerAuditTest {
         orderItemMapper = mock(OrderItemRepository.class);
         inventoryService = mock(InventoryApplicationService.class);
         auditClient = mock(AuditClient.class);
-        controller = new InventoryRecoveryAdminController(orderMapper, orderItemMapper, inventoryService, auditClient);
+        controller = new InventoryRecoveryAdminController(new InventoryRecoveryApplicationService(
+                orderMapper, orderItemMapper, inventoryService, auditClient));
         TenantContextHolder.set(new TenantContext(1001L, 1L, 2001L, 42L, 1,
                 List.of("inventory.recovery.confirm")));
     }

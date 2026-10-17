@@ -40,8 +40,8 @@ class TenantConfigControllerTest {
     tenantConfigRepository = mock(TenantConfigRepository.class);
     tenantConfigReader = mock(TenantConfigReader.class);
     auditClient = mock(AuditClient.class);
-    controller = new TenantConfigController(tenantConfigRepository, auditClient,
-        new WalletTokenConfigApplicationService(tenantConfigReader));
+    controller = new TenantConfigController(new WalletTokenConfigApplicationService(
+        tenantConfigReader, tenantConfigRepository, auditClient));
   }
 
   @AfterEach

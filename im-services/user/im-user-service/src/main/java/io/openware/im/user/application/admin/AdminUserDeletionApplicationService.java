@@ -10,6 +10,7 @@ import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.infra.persistence.admin.AdminUserCascadeMapper;
 import java.time.Instant;
 import java.util.UUID;
@@ -49,7 +50,7 @@ public class AdminUserDeletionApplicationService {
 
   @Transactional
   public AdminUserDeleteResponse deleteUser(Long userId, String confirmUsername, Long operatorId) {
-    UserAccount account = userAccountRepository.findById(userId)
+    UserAccount account = userAccountRepository.findById(userId).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(404, "USER_NOT_FOUND", "账号不存在或已被删除"));
 
     if (account.getRole() == UserAccountRole.ADMIN) {

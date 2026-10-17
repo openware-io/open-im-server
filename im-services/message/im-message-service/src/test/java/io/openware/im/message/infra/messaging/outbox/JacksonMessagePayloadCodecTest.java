@@ -17,10 +17,11 @@ class JacksonMessagePayloadCodecTest {
   void shouldPreserveStoredMessageEventJsonContract() throws Exception {
     ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     JacksonMessagePayloadCodec codec = new JacksonMessagePayloadCodec(objectMapper);
+    LocalDateTime sentAt = LocalDateTime.of(2026, 7, 22, 8, 30);
     Message message = Message.create("m-1", "private:7:9", 3L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", "client-1", "reply-1", List.of("9"), LocalDateTime.of(2026, 7, 22, 8, 30));
+        MsgType.TEXT, "hello", "client-1", "reply-1", List.of("9"));
 
-    String payloadJson = codec.writeStoredMessageEvent(message, List.of(9L), Map.of(9L, 1L), List.of());
+    String payloadJson = codec.writeStoredMessageEvent(message, sentAt, List.of(9L), Map.of(9L, 1L), List.of());
     MessageStoredEvent event = objectMapper.readValue(payloadJson, MessageStoredEvent.class);
 
     assertEquals("m-1", event.getEventId());

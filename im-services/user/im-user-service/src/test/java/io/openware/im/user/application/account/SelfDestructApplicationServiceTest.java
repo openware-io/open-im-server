@@ -3,6 +3,7 @@ package io.openware.im.user.application.account;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -18,6 +19,8 @@ import io.openware.im.user.domain.account.model.UserAccountRole;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -33,22 +36,24 @@ class SelfDestructApplicationServiceTest {
   void setPolicyShouldComputeDeadlineFromLastLoginAndPersist() {
     LocalDateTime lastLogin = LocalDateTime.of(2025, 1, 10, 8, 0);
     UserAccount account = account(7L, SelfDestructPolicy.OFF, null, lastLogin);
-    when(accountRepository.findById(7L)).thenReturn(Optional.of(account));
-    when(accountRepository.save(any(UserAccount.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(accountRepository.findById(7L)).thenReturn(Optional.of(row(account)));
+    when(accountRepository.save(any(UserAccount.class), any(LocalDateTime.class)))
+        .thenAnswer(inv -> row(inv.getArgument(0)));
 
     SelfDestructPolicyResult result = service.setPolicy(7L, "1mo");
 
     assertThat(result.policy()).isEqualTo("1mo");
     assertThat(result.selfDestructAt()).isEqualTo(lastLogin.plusMonths(1));
-    verify(accountRepository).save(account);
+    verify(accountRepository).save(eq(account), any(LocalDateTime.class));
   }
 
   @Test
   void setPolicyOffShouldClearDeadline() {
     LocalDateTime lastLogin = LocalDateTime.of(2025, 1, 10, 8, 0);
     UserAccount account = account(7L, SelfDestructPolicy.ONE_MONTH, lastLogin.plusMonths(1), lastLogin);
-    when(accountRepository.findById(7L)).thenReturn(Optional.of(account));
-    when(accountRepository.save(any(UserAccount.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(accountRepository.findById(7L)).thenReturn(Optional.of(row(account)));
+    when(accountRepository.save(any(UserAccount.class), any(LocalDateTime.class)))
+        .thenAnswer(inv -> row(inv.getArgument(0)));
 
     SelfDestructPolicyResult result = service.setPolicy(7L, "off");
 
@@ -59,11 +64,11 @@ class SelfDestructApplicationServiceTest {
   @Test
   void setPolicyWithUnknownValueShouldReject() {
     UserAccount account = account(7L, SelfDestructPolicy.OFF, null, LocalDateTime.now());
-    when(accountRepository.findById(7L)).thenReturn(Optional.of(account));
+    when(accountRepository.findById(7L)).thenReturn(Optional.of(row(account)));
 
     assertThatThrownBy(() -> service.setPolicy(7L, "bogus"))
         .isInstanceOf(ApiException.class);
-    verify(accountRepository, never()).save(any(UserAccount.class));
+    verify(accountRepository, never()).save(any(UserAccount.class), any(LocalDateTime.class));
   }
 
   @Test
@@ -71,13 +76,13 @@ class SelfDestructApplicationServiceTest {
     UserAccount first = account(1L, SelfDestructPolicy.ONE_MONTH, LocalDateTime.now().minusDays(1), LocalDateTime.now());
     UserAccount second = account(2L, SelfDestructPolicy.SIX_MONTHS, LocalDateTime.now().minusDays(2), LocalDateTime.now());
     when(accountRepository.findSelfDestructDue(any(LocalDateTime.class), any(Integer.class)))
-        .thenReturn(List.of(first, second));
+        .thenReturn(List.of(row(first), row(second)));
 
     int purged = service.sweepExpired(LocalDateTime.now(), 200);
 
     assertThat(purged).isEqualTo(2);
     verify(accountRepository, never()).hardDelete(any(Long.class));
-    verify(accountRepository, times(2)).save(any(UserAccount.class));
+    verify(accountRepository, times(2)).save(any(UserAccount.class), any(LocalDateTime.class));
     assertThat(first.getSelfDestructPolicy()).isEqualTo(SelfDestructPolicy.OFF);
     assertThat(first.getSelfDestructAt()).isNull();
     verify(eventOutbox, times(2)).append(any(UserChatRecordsPurged.class));
@@ -87,7 +92,13 @@ class SelfDestructApplicationServiceTest {
       LocalDateTime lastLoginAt) {
     UserAccount account = new UserAccount();
     account.restore(id, "user" + id, "user" + id, "", "hash", null, null, "", UserAccountStatus.ACTIVE, 1L,
-        policy, selfDestructAt, lastLoginAt, UserAccountRole.USER, 0L, LocalDateTime.now(), 0L, LocalDateTime.now());
+        policy, selfDestructAt, lastLoginAt, UserAccountRole.USER);
     return account;
+  }
+
+  /** 端口读回形状：聚合 + 记账快照（审计列已移出模型）。 */
+  private static Persisted<UserAccount> row(UserAccount account) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
   }
 }

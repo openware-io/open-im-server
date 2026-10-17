@@ -14,6 +14,8 @@ import io.openware.im.user.domain.account.repository.PasswordHasher;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserProfileEventOutbox;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.account.event.UserAuthenticationInvalidated;
 import io.openware.im.user.domain.account.event.UserChatRecordsPurged;
 import io.openware.im.user.domain.account.event.UserProfileChanged;
@@ -51,8 +53,8 @@ public class ProfileApplicationService {
   /** 他人视角资料：仅本人可见 email/phone，他人查看时脱敏（S3 敏感数据默认脱敏展示）。 */
   @Transactional(readOnly = true)
   public UserProfileResult getProfileForViewer(Long viewerId, Long targetUserId) {
-    UserAccount account = requireAccount(targetUserId);
-    return java.util.Objects.equals(viewerId, targetUserId) ? toResult(account) : toMaskedResult(account);
+    Persisted<UserAccount> row = requireAccount(targetUserId);
+    return java.util.Objects.equals(viewerId, targetUserId) ? toResult(row) : toMaskedResult(row);
   }
 
   @Transactional(readOnly = true)
@@ -69,6 +71,7 @@ public class ProfileApplicationService {
     List<Long> userIds = query.userIds() == null ? List.of() : query.userIds().stream()
         .filter(java.util.Objects::nonNull).filter(userId -> userId > 0).distinct().toList();
     return userAccountRepository.findByIds(userIds).stream()
+        .map(Persisted::aggregate)
         .map(account -> new UserProfileSummary(account.getId(), account.getUsername(), account.getNickname(),
             mediaReferences.accessUrl(account.getId(), account.getAvatar(), account.getId())))
         .toList();
@@ -81,22 +84,21 @@ public class ProfileApplicationService {
         .filter(java.util.Objects::nonNull).distinct().toList();
     return userAccountRepository.findByIds(ids).stream()
         .collect(Collectors.toMap(
-            account -> account.getId(),
-            account -> account.getStatus() == UserAccountStatus.MUTED,
+            row -> row.aggregate().getId(),
+            row -> row.aggregate().getStatus() == UserAccountStatus.MUTED,
             (left, right) -> left));
   }
 
   @Transactional
   public UserProfileResult updateProfile(Long userId, UpdateProfileCommand command) {
-    UserAccount account = requireAccount(userId);
+    UserAccount account = requireAccount(userId).aggregate();
     String previousAvatar = account.getAvatar();
     if (command.avatar() != null && !command.avatar().isBlank()) {
       mediaReferences.authorizeAndBind(userId, command.avatar());
     }
     account.updateProfile(
-        command.nickname(), command.avatar(), command.email(), command.phone(), command.signature(),
-        LocalDateTime.now());
-    UserProfileResult result = toResult(userAccountRepository.save(account));
+        command.nickname(), command.avatar(), command.email(), command.phone(), command.signature());
+    UserProfileResult result = toResult(userAccountRepository.save(account, LocalDateTime.now()));
     if (command.avatar() != null && !java.util.Objects.equals(previousAvatar, command.avatar())) {
       mediaReferences.unbind(previousAvatar, userId);
     }
@@ -107,7 +109,7 @@ public class ProfileApplicationService {
 
   @Transactional
   public void changePassword(Long userId, ChangePasswordCommand command) {
-    UserAccount account = requireAccount(userId);
+    UserAccount account = requireAccount(userId).aggregate();
     if (!passwordHasher.matches(command.currentPassword(), account.getPasswordHash())) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Password incorrect");
     }
@@ -116,13 +118,13 @@ public class ProfileApplicationService {
     if (passwordHasher.matches(command.newPassword(), account.getPasswordHash())) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "New password must differ from the current password");
     }
-    account.changePassword(passwordHasher.hash(command.newPassword()), LocalDateTime.now());
-    invalidateAuthentication(account);
+    account.changePassword(passwordHasher.hash(command.newPassword()));
+    invalidateAuthentication(account, LocalDateTime.now());
   }
 
   @Transactional
   public void deleteAccount(Long userId, DeleteAccountCommand command) {
-    UserAccount account = requireAccount(userId);
+    UserAccount account = requireAccount(userId).aggregate();
     if (account.getStatus() == UserAccountStatus.DISABLED) {
       throw new ApiException(HttpStatusCodes.GONE, "Account already cancelled");
     }
@@ -131,34 +133,40 @@ public class ProfileApplicationService {
     }
     byte[] randomBytes = new byte[32];
     new SecureRandom().nextBytes(randomBytes);
-    account.markCancelled(passwordHasher.hash(HexFormat.of().formatHex(randomBytes)), LocalDateTime.now());
-    invalidateAuthentication(account);
+    account.markCancelled(passwordHasher.hash(HexFormat.of().formatHex(randomBytes)));
+    invalidateAuthentication(account, LocalDateTime.now());
     // 账号注销（软删除）：广播聊天记录清理事件，让会话/消息服务级联清除该用户的群成员、密聊、频道订阅等关联数据，
     // 避免群成员列表残留「用户xxx」这类已注销账号的悬空引用。
     userStatusEventOutbox.append(new UserChatRecordsPurged(UUID.randomUUID().toString(), userId, Instant.now()));
   }
 
-  private UserAccount requireAccount(Long userId) {
+  private Persisted<UserAccount> requireAccount(Long userId) {
     return userAccountRepository.findById(userId)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
   }
 
-  private UserProfileResult toResult(UserAccount account) {
+  private UserProfileResult toResult(Persisted<UserAccount> row) {
+    UserAccount account = row.aggregate();
+    AuditSnapshot audit = row.audit();
     return new UserProfileResult(
         account.getId(), account.getUsername(), account.getNickname(),
         mediaReferences.accessUrl(account.getId(), account.getAvatar(), account.getId()), account.getEmail(),
         account.getPhone(), account.getSignature(), account.getStatus().name().toLowerCase(),
-        account.getRole().name().toLowerCase(), account.getCreatedBy(), account.getCreatedAt(),
-        account.getUpdatedBy(), account.getUpdatedAt());
+        account.getRole().name().toLowerCase(), audit == null ? null : audit.createdBy(),
+        audit == null ? null : audit.createdAt(), audit == null ? null : audit.updatedBy(),
+        audit == null ? null : audit.updatedAt());
   }
 
-  private UserProfileResult toMaskedResult(UserAccount account) {
+  private UserProfileResult toMaskedResult(Persisted<UserAccount> row) {
+    UserAccount account = row.aggregate();
+    AuditSnapshot audit = row.audit();
     return new UserProfileResult(
         account.getId(), account.getUsername(), account.getNickname(),
         mediaReferences.accessUrl(account.getId(), account.getAvatar(), account.getId()),
         maskEmail(account.getEmail()), maskPhone(account.getPhone()), account.getSignature(),
         account.getStatus().name().toLowerCase(), account.getRole().name().toLowerCase(),
-        account.getCreatedBy(), account.getCreatedAt(), account.getUpdatedBy(), account.getUpdatedAt());
+        audit == null ? null : audit.createdBy(), audit == null ? null : audit.createdAt(),
+        audit == null ? null : audit.updatedBy(), audit == null ? null : audit.updatedAt());
   }
 
   private String maskEmail(String email) {
@@ -175,8 +183,8 @@ public class ProfileApplicationService {
     return digits.substring(0, 3) + "****" + digits.substring(digits.length() - 4);
   }
 
-  private void invalidateAuthentication(UserAccount account) {
-    userAccountRepository.save(account);
+  private void invalidateAuthentication(UserAccount account, LocalDateTime occurredAt) {
+    userAccountRepository.save(account, occurredAt);
     authenticationUserProjection.save(new UserAuthenticationSnapshot(
         account.getId(),
         account.getUsername(),

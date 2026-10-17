@@ -8,6 +8,7 @@ import io.openware.im.user.domain.account.repository.PasswordHasher;
 import io.openware.im.user.domain.account.repository.UserAccountDataPurger;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.cancellation.model.AccountCancellation;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationAction;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationLog;
@@ -63,15 +64,15 @@ public class AccountCancellationProcessor {
     logRepository.save(AccountCancellationLog.create(application.getId(), userId,
         AccountCancellationAction.PROCESSING, "Start processing cancellation", "SYSTEM", null, null, now));
 
-    UserAccount account = userAccountRepository.findById(userId).orElse(null);
+    UserAccount account = userAccountRepository.findById(userId).map(Persisted::aggregate).orElse(null);
 
     // 1. 硬删用户服务内私有关联数据（设备令牌/设备会话/好友/贴纸/设备密钥/设置/密保问题/旧 Outbox）。
     userAccountDataPurger.purge(userId);
 
     // 2. 保留账号主记录为注销状态；注销申请和注销日志作为审计证据保留。
     if (account != null) {
-      account.markCancelled(passwordHasher.hash(UUID.randomUUID().toString()), now);
-      userAccountRepository.save(account);
+      account.markCancelled(passwordHasher.hash(UUID.randomUUID().toString()));
+      userAccountRepository.save(account, now);
     }
     long nextStatusVersion = account == null ? 1L : account.getStatusVersion();
 

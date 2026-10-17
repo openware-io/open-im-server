@@ -3,10 +3,12 @@ package io.openware.im.message.infra.persistence.message;
 import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.MessageFavorite;
 import io.openware.im.message.domain.message.readmodel.MessageFavoriteView;
+import io.openware.im.message.domain.message.readmodel.MessageView;
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.infra.persistence.message.po.MessageFavoritePo;
 import io.openware.im.message.infra.persistence.message.po.MessageOutboxPo;
 import io.openware.im.message.infra.persistence.message.po.MessagePo;
+import java.util.List;
 
 public final class MessagePersistenceConverter {
   private MessagePersistenceConverter() { }
@@ -17,10 +19,10 @@ public final class MessagePersistenceConverter {
     po.setSeq(message.getSeq()); po.setFromUserId(message.getFromUserId()); po.setSenderUsername(message.getSenderUsername());
     po.setToId(message.getToId()); po.setChatType(message.getChatType()); po.setMsgType(message.getMsgType());
     po.setContent(message.getContent()); po.setClientMsgId(message.getClientMsgId()); po.setReplyMsgId(message.getReplyMsgId());
-    po.setAtUsers(message.getAtUsers()); po.setStatus(message.getStatus()); po.setCreatedBy(message.getCreatedBy());
+    po.setAtUsers(message.getAtUsers()); po.setStatus(message.getStatus());
     po.setMediaObjectIds(message.getMediaObjectIds());
     po.setEdited(message.isEdited()); po.setEditedAt(message.getEditedAt());
-    po.setCreatedAt(message.getCreatedAt()); po.setUpdatedBy(message.getUpdatedBy()); po.setUpdatedAt(message.getUpdatedAt());
+    // 记账列不来自领域模型：新增由适配器按调用方给的时刻填写，更新只改 updated_*。
     return po;
   }
 
@@ -28,8 +30,20 @@ public final class MessagePersistenceConverter {
     return Message.restore(po.getId(), po.getMsgId(), po.getConversationId(), po.getSeq(), po.getFromUserId(),
         po.getSenderUsername(), po.getToId(), po.getChatType(), po.getMsgType(), po.getContent(),
         po.getClientMsgId(), po.getReplyMsgId(), po.getAtUsers(), po.getMediaObjectIds(), po.getStatus(),
-        Boolean.TRUE.equals(po.getEdited()), po.getEditedAt(), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(),
-        po.getUpdatedAt());
+        Boolean.TRUE.equals(po.getEdited()), po.getEditedAt());
+  }
+
+  /**
+   * 消息列表/分页的只读投影（standards/10 L266-279）：列表不参与状态变更，用投影建模，
+   * 响应需要的审计列随之由投影携带，而不是塞回领域模型。
+   */
+  public static MessageView toView(MessagePo po) {
+    return new MessageView(po.getId(), po.getMsgId(), po.getConversationId(), po.getSeq(), po.getFromUserId(),
+        po.getSenderUsername(), po.getToId(), po.getChatType(), po.getMsgType(), po.getContent(), po.getClientMsgId(),
+        po.getReplyMsgId(), List.copyOf(po.getAtUsers()),
+        po.getMediaObjectIds() == null ? List.of() : List.copyOf(po.getMediaObjectIds()), po.getStatus(),
+        Boolean.TRUE.equals(po.getEdited()), po.getEditedAt(), po.getCreatedBy(), po.getCreatedAt(),
+        po.getUpdatedBy(), po.getUpdatedAt());
   }
 
   public static MessageOutboxPo toPo(MessageOutbox outbox) {

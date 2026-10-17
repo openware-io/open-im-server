@@ -38,9 +38,8 @@ class IamControllerScopeTest {
     private final PermissionSnapshotProvider snapshots = mock(PermissionSnapshotProvider.class);
     private final AuditClient audit = mock(AuditClient.class);
     private final IamAuthorizationApplicationService authorization =
-            new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots);
-    private final IamController controller =
-            new IamController(roles, permissions, userRoles, authorization, audit);
+            new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots, audit);
+    private final IamController controller = new IamController(authorization);
 
     @Test
     void storeRoleCannotReceiveTenantOnlyPermission() {

@@ -23,6 +23,8 @@ import io.openware.im.user.domain.account.repository.UserAuthenticationProjectio
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.account.repository.UserStatusOperationRepository;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.infra.security.IdaasSsoClient;
 import io.openware.im.user.media.MediaReferenceClient;
 import java.time.LocalDateTime;
@@ -43,8 +45,9 @@ class AccountApplicationServiceTest {
   void disableShouldPersistVersionedStatusAuditAndAuthenticationInvalidation() {
     UserAccount account = account(8L, UserAccountStatus.ACTIVE, 3L);
     when(operationRepository.findByIdempotencyKey("status-8-3")).thenReturn(Optional.empty());
-    when(accountRepository.findById(8L)).thenReturn(Optional.of(account));
-    when(accountRepository.saveStatusIfVersionMatches(account, 3L)).thenReturn(true);
+    when(accountRepository.findById(8L)).thenReturn(Optional.of(row(account)));
+    when(accountRepository.saveStatusIfVersionMatches(eq(account), eq(3L), eq(99L), any(LocalDateTime.class)))
+        .thenReturn(true);
 
     ChangeUserStatusResult result = service.changeStatus(command(8L, UserAccountStatus.DISABLED, 3L));
 
@@ -78,7 +81,12 @@ class AccountApplicationServiceTest {
   private static UserAccount account(Long id, UserAccountStatus status, long statusVersion) {
     UserAccount account = new UserAccount();
     account.restore(id, "member", "member", "", "hash", "", "", "", status, statusVersion,
-        SelfDestructPolicy.OFF, null, null, UserAccountRole.USER, 1L, LocalDateTime.now(), 1L, LocalDateTime.now());
+        SelfDestructPolicy.OFF, null, null, UserAccountRole.USER);
     return account;
+  }
+
+  private static Persisted<UserAccount> row(UserAccount account) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
   }
 }

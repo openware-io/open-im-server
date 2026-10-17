@@ -2,7 +2,6 @@ package io.openware.im.conversation.application.mute;
 
 import io.openware.im.conversation.domain.mute.model.ConversationMute;
 import io.openware.im.conversation.domain.mute.repository.ConversationMuteRepository;
-import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,7 @@ public class ConversationMuteApplicationService {
   public boolean setMuted(long userId, String conversationId, boolean muted) {
     if (muted) {
       if (!conversationMuteRepository.existsByUserIdAndConversationId(userId, conversationId)) {
-        conversationMuteRepository.save(ConversationMute.create(userId, conversationId, LocalDateTime.now()));
+        conversationMuteRepository.save(ConversationMute.create(userId, conversationId));
       }
       return true;
     }

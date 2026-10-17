@@ -12,6 +12,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.BillApplicationService;
+import io.openware.platform.order.application.OrderBillAccessService;
 import io.openware.platform.order.application.dto.BillResult;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
@@ -38,7 +39,7 @@ class OrderBillAuthorizationTest {
     private final OrderRepository orderMapper = mock(OrderRepository.class);
     private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
     private final OrderBillController controller =
-            new OrderBillController(billService, orderMapper, customerLookupMapper);
+            new OrderBillController(new OrderBillAccessService(billService, orderMapper, customerLookupMapper));
 
     @AfterEach
     void tearDown() {

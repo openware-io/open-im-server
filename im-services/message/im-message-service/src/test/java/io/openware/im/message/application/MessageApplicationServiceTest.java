@@ -24,12 +24,15 @@ import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.Mention;
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.domain.message.model.MessageReadStatus;
+import io.openware.im.message.domain.message.readmodel.MessageView;
+import io.openware.im.message.domain.message.repository.AuditSnapshot;
 import io.openware.im.message.domain.message.repository.ConversationSequencePort;
 import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
 import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import io.openware.im.message.domain.message.repository.MessagePayloadCodecPort;
 import io.openware.im.message.domain.message.repository.MentionResolverPort;
+import io.openware.im.message.domain.message.repository.Persisted;
 import io.openware.im.message.domain.message.repository.FeatureTogglePort;
 import io.openware.im.message.domain.message.repository.UnreadCountProjectionPort;
 import io.openware.im.message.domain.message.repository.MessageFavoriteRepository;
@@ -213,7 +216,7 @@ class MessageApplicationServiceTest {
     // 同会话 seq 1..5。
     for (long i = 1; i <= 5; i++) {
       messages.save(Message.create("m-" + i, "conv:private:7:9", i, 7L, "sender", "9", ChatType.PRIVATE,
-          MsgType.TEXT, "hello " + i, "c-" + i, null, List.of(), java.time.LocalDateTime.now()));
+          MsgType.TEXT, "hello " + i, "c-" + i, null, List.of()), java.time.LocalDateTime.now(), 0L);
     }
 
     // 以 m-3 为中心：before=1、after=1 → [m-2, m-3, m-4]。
@@ -230,7 +233,7 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository(), (userId, peerUserId) -> true, groupMembershipPort(true));
     messages.save(Message.create("m-1", "conv:private:7:9", 1, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", "c-1", null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", "c-1", null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     var result = service.getHistory(new io.openware.im.message.application.query.MessageHistoryQuery(
         7L, "9", ChatType.PRIVATE, null, null, "not-exist", 5, 5, null));
@@ -353,7 +356,7 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     // Telegram 语义：单聊对端（user=9）可删除发送方（user=7）的消息。
     assertEquals("m-1", service.deleteForEveryone(new DeleteMessageCommand(9L, "m-1")).msgId());
@@ -366,7 +369,7 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     // 撤回（墓碑）仅发送方，对端撤回应被拒绝。
     ApiException ex = assertThrows(ApiException.class,
@@ -383,7 +386,7 @@ class MessageApplicationServiceTest {
         new InMemoryUserSyncIndexRepository(), new InMemoryMessageOutboxRepository(), new TestMessagePayloadCodec(),
         (userId, peerUserId) -> true, groupMembershipPort(true), new InMemoryUnreadCountProjection());
     messages.save(Message.create("m-1", "group:100", 1L, 7L, "sender", "100", ChatType.GROUP,
-        MsgType.TEXT, "hello", null, null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     // 群主/管理员（isOwnerOrAdmin=true）可删除任意成员消息。
     assertEquals("m-1", service.deleteForEveryone(new DeleteMessageCommand(11L, "m-1")).msgId());
@@ -397,7 +400,7 @@ class MessageApplicationServiceTest {
         new InMemoryUserSyncIndexRepository(), new InMemoryMessageOutboxRepository(), new TestMessagePayloadCodec(),
         (userId, peerUserId) -> true, groupMembershipPort(false), new InMemoryUnreadCountProjection());
     messages.save(Message.create("m-1", "group:100", 1L, 7L, "sender", "100", ChatType.GROUP,
-        MsgType.TEXT, "hello", null, null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     // 普通成员（isOwnerOrAdmin=false）无权删除他人消息。
     ApiException ex = assertThrows(ApiException.class,
@@ -413,7 +416,7 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), java.time.LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), java.time.LocalDateTime.now(), 0L);
 
     var result = service.search(new SearchMessagesQuery(7L, "hello", "9", ChatType.PRIVATE, null, 1, 20));
 
@@ -431,14 +434,15 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryUserSyncIndexRepository(), outboxes, codec, (userId, peerUserId) -> true,
         groupMembershipPort(true), new InMemoryUnreadCountProjection());
+    LocalDateTime sentAt = LocalDateTime.now(Clock.systemUTC());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), LocalDateTime.now(Clock.systemUTC())));
+        MsgType.TEXT, "hello", null, null, List.of()), sentAt, 0L);
 
     var result = service.editMessage(new EditMessageCommand(7L, "m-1", "hello edited"));
 
     assertEquals("m-1", result.msgId());
     assertTrue(result.edited());
-    Message stored = messages.items.get("m-1");
+    Message stored = messages.items.get("m-1").aggregate();
     assertEquals("hello edited", stored.getContent());
     assertTrue(stored.isEdited());
     assertNotNull(stored.getEditedAt());
@@ -451,12 +455,39 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), LocalDateTime.now(Clock.systemUTC()).minusMinutes(5)));
+        MsgType.TEXT, "hello", null, null, List.of()),
+        LocalDateTime.now(Clock.systemUTC()).minusMinutes(5), 0L);
 
     ApiException ex = assertThrows(ApiException.class,
         () -> service.editMessage(new EditMessageCommand(7L, "m-1", "too late")));
 
     assertEquals(HttpStatusCodes.FORBIDDEN, ex.getStatus());
+  }
+
+  /**
+   * 编辑窗口必须按端口交回的发送时刻判定（standards/10 L299）：该时刻已不在领域模型上，
+   * 只能来自 {@code Persisted.audit().createdAt()}。快照为现在 → 可编辑；快照已过期 → 拒绝。
+   */
+  @Test
+  void shouldReadTheEditWindowFromThePortAuditSnapshot() {
+    InMemoryMessageRepository messages = new InMemoryMessageRepository();
+    MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
+        new InMemoryUserSyncIndexRepository(), new InMemoryMessageOutboxRepository(), new TestMessagePayloadCodec(),
+        (userId, peerUserId) -> true, groupMembershipPort(true), new InMemoryUnreadCountProjection());
+    LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
+    Message freshAggregate = Message.create("m-audit-fresh", "private:7:9", 1L, 7L, "sender", "9",
+        ChatType.PRIVATE, MsgType.TEXT, "hello", null, null, List.of());
+    messages.items.put("m-audit-fresh", new Persisted<>(freshAggregate, new AuditSnapshot(0L, now, 0L, now)));
+    Message staleAggregate = Message.create("m-audit-stale", "private:7:9", 2L, 7L, "sender", "9",
+        ChatType.PRIVATE, MsgType.TEXT, "hello", null, null, List.of());
+    messages.items.put("m-audit-stale", new Persisted<>(staleAggregate,
+        new AuditSnapshot(0L, now.minusMinutes(10), 0L, now.minusMinutes(10))));
+
+    assertTrue(service.editMessage(new EditMessageCommand(7L, "m-audit-fresh", "edited")).edited(),
+        "快照发送时刻在窗口内应允许编辑");
+    ApiException ex = assertThrows(ApiException.class,
+        () -> service.editMessage(new EditMessageCommand(7L, "m-audit-stale", "too late")));
+    assertEquals(HttpStatusCodes.FORBIDDEN, ex.getStatus(), "快照发送时刻已过期应拒绝编辑");
   }
 
   @Test
@@ -465,7 +496,7 @@ class MessageApplicationServiceTest {
     MessageApplicationService service = service(messages, new InMemoryReadStatusRepository(),
         new InMemoryMessageOutboxRepository());
     messages.save(Message.create("m-1", "private:7:9", 1L, 7L, "sender", "9", ChatType.PRIVATE,
-        MsgType.TEXT, "hello", null, null, List.of(), LocalDateTime.now()));
+        MsgType.TEXT, "hello", null, null, List.of()), LocalDateTime.now(), 0L);
 
     ApiException ex = assertThrows(ApiException.class,
         () -> service.editMessage(new EditMessageCommand(9L, "m-1", "hack")));
@@ -540,7 +571,8 @@ class MessageApplicationServiceTest {
   private MessagePayloadCodecPort atUsersCodec(List<String> atUsers) {
     return new MessagePayloadCodecPort() {
       @Override public List<String> readAtUsers(String json) { return atUsers; }
-      @Override public String writeStoredMessageEvent(Message message, List<Long> recipientUserIds,
+      @Override public String writeStoredMessageEvent(Message message, LocalDateTime sentAt,
+          List<Long> recipientUserIds,
           Map<Long, Long> recipientSyncSeqs, List<io.openware.protocol.mq.event.MessageMedia> media) { return "{}"; }
       @Override public String writeMessageRecalledEvent(io.openware.protocol.mq.event.MessageRecalledEvent event) { return "{}"; }
       @Override public String writeMessageEditedEvent(MessageEditedEvent event) { return "{}"; }
@@ -711,7 +743,7 @@ class MessageApplicationServiceTest {
   }
 
   private static final class InMemoryMessageRepository implements MessageRepository {
-    private final Map<String, Message> items = new HashMap<>();
+    private final Map<String, Persisted<Message>> items = new HashMap<>();
     private int privateChatDeletes;
     private long unreadCount;
     private int unreadCountQueries;
@@ -719,58 +751,95 @@ class MessageApplicationServiceTest {
     private Boolean lastGroupEnabled;
     private Boolean lastChannelEnabled;
     private List<MessageRepository.ConversationUnread> conversationUnreads = List.of();
-    @Override public Optional<Message> findByMsgId(String msgId) { return Optional.ofNullable(items.get(msgId)); }
-    @Override public Optional<Message> findBySenderIdAndClientMsgId(long senderId, String clientMsgId) {
+    @Override public Optional<Persisted<Message>> findByMsgId(String msgId) {
+      return Optional.ofNullable(items.get(msgId));
+    }
+    @Override public Optional<Persisted<Message>> findBySenderIdAndClientMsgId(long senderId, String clientMsgId) {
       return items.values().stream()
-          .filter(item -> item.getFromUserId() == senderId && clientMsgId.equals(item.getClientMsgId()))
+          .filter(row -> row.aggregate().getFromUserId() == senderId
+              && clientMsgId.equals(row.aggregate().getClientMsgId()))
           .findFirst();
     }
-    @Override public List<Message> findByMsgIds(List<String> msgIds) {
+    @Override public List<Persisted<Message>> findByMsgIds(List<String> msgIds) {
       return msgIds.stream().map(items::get).filter(java.util.Objects::nonNull).toList();
     }
-    @Override public Message save(Message message) { items.put(message.getMsgId(), message); return message; }
-    @Override public Message update(Message message) { items.put(message.getMsgId(), message); return message; }
-    @Override public List<Message> findHistory(long userId, String peerId, ChatType chatType, int page, int pageSize) { return List.copyOf(items.values()); }
+    @Override public Persisted<Message> save(Message message, LocalDateTime occurredAt, long operatorId) {
+      Persisted<Message> previous = items.get(message.getMsgId());
+      AuditSnapshot audit;
+      if (previous == null) {
+        audit = new AuditSnapshot(operatorId, occurredAt, operatorId, occurredAt);
+      } else {
+        // 更新只改 updated_*，created_* 沿用首次落库值（与真实适配器同一语义）。
+        audit = new AuditSnapshot(previous.audit().createdBy(), previous.audit().createdAt(), operatorId, occurredAt);
+        if (message.getId() == null) {
+          message.assignId(previous.aggregate().getId());
+        }
+      }
+      Persisted<Message> row = new Persisted<>(message, audit);
+      items.put(message.getMsgId(), row);
+      return row;
+    }
+    @Override public List<MessageView> findHistory(long userId, String peerId, ChatType chatType, int page, int pageSize) {
+      return items.values().stream().map(this::view).toList();
+    }
     @Override public List<String> findHistoryDates(long userId, String peerId, ChatType chatType) {
       return items.values().stream()
-          .map(Message::getCreatedAt)
+          .map(row -> row.audit().createdAt())
           .filter(java.util.Objects::nonNull)
           .map(t -> t.toLocalDate().toString())
           .distinct()
           .sorted(java.util.Comparator.reverseOrder())
           .toList();
     }
-    @Override public List<Message> findHistoryByDate(long userId, String peerId, ChatType chatType,
+    @Override public List<MessageView> findHistoryByDate(long userId, String peerId, ChatType chatType,
         java.time.LocalDate date, int page, int pageSize) {
+      java.util.Comparator<Persisted<Message>> bySentAt =
+          java.util.Comparator.comparing(row -> row.audit().createdAt());
       return items.values().stream()
-          .filter(m -> m.getCreatedAt() != null && m.getCreatedAt().toLocalDate().equals(date))
-          .sorted(java.util.Comparator.comparing(Message::getCreatedAt).reversed())
+          .filter(row -> row.audit().createdAt() != null
+              && row.audit().createdAt().toLocalDate().equals(date))
+          .sorted(bySentAt.reversed())
+          .map(this::view)
           .toList();
     }
-    @Override public List<Message> findCentered(long userId, String peerId, ChatType chatType, String centerMsgId,
+    @Override public List<MessageView> findCentered(long userId, String peerId, ChatType chatType, String centerMsgId,
         int beforeCount, int afterCount) {
-      Message center = items.get(centerMsgId);
-      if (center == null) {
+      Persisted<Message> centerRow = items.get(centerMsgId);
+      if (centerRow == null) {
         return List.of();
       }
+      Message center = centerRow.aggregate();
+      java.util.Comparator<Persisted<Message>> bySeq =
+          java.util.Comparator.comparing(row -> row.aggregate().getSeq());
       return items.values().stream()
-          .filter(m -> center.getConversationId().equals(m.getConversationId()))
-          .filter(m -> m.getSeq() >= center.getSeq() - beforeCount && m.getSeq() <= center.getSeq() + afterCount)
-          .sorted(java.util.Comparator.comparing(Message::getSeq))
+          .filter(row -> center.getConversationId().equals(row.aggregate().getConversationId()))
+          .filter(row -> row.aggregate().getSeq() >= center.getSeq() - beforeCount
+              && row.aggregate().getSeq() <= center.getSeq() + afterCount)
+          .sorted(bySeq)
+          .map(this::view)
           .toList();
     }
-    @Override public List<Message> findChannelMessages(String conversationId, long afterSeq, int limit) {
+    @Override public List<MessageView> findChannelMessages(String conversationId, long afterSeq, int limit) {
+      java.util.Comparator<Persisted<Message>> bySeq =
+          java.util.Comparator.comparing(row -> row.aggregate().getSeq());
       return items.values().stream()
-          .filter(m -> conversationId.equals(m.getConversationId()) && m.getSeq() > afterSeq)
-          .sorted(java.util.Comparator.comparing(Message::getSeq))
+          .filter(row -> conversationId.equals(row.aggregate().getConversationId())
+              && row.aggregate().getSeq() > afterSeq)
+          .sorted(bySeq)
           .limit(limit)
+          .map(this::view)
           .toList();
     }
     @Override public MessagePage search(long userId, String keyword, String peerId, ChatType chatType, MsgType msgType, int page, int pageSize) {
-      List<Message> found = items.values().stream().filter(item -> item.getContent().contains(keyword)).toList();
+      List<MessageView> found = items.values().stream()
+          .filter(row -> row.aggregate().getContent().contains(keyword))
+          .map(this::view)
+          .toList();
       return new MessagePage(found, found.size());
     }
-    @Override public List<Message> findAdminPage(int page, int pageSize) { return List.copyOf(items.values()); }
+    @Override public List<MessageView> findAdminPage(int page, int pageSize) {
+      return items.values().stream().map(this::view).toList();
+    }
     @Override public long count() { return items.size(); }
     @Override public long countCreatedSince(LocalDateTime createdAt) { return items.size(); }
     @Override public List<Map<String, Object>> dailyCounts(LocalDateTime since) { return List.of(); }
@@ -793,6 +862,17 @@ class MessageApplicationServiceTest {
     @Override public void deletePrivateChat(long userId, long peerUserId) { privateChatDeletes++; }
     @Override public void deleteGroupChat(long groupId) { }
     @Override public void deleteByMsgId(String msgId) { items.remove(msgId); }
+
+    /** 列表查询返回投影；审计列由投影携带，与真实适配器的 toView 同一形状。 */
+    private MessageView view(Persisted<Message> row) {
+      Message message = row.aggregate();
+      AuditSnapshot audit = row.audit();
+      return new MessageView(message.getId(), message.getMsgId(), message.getConversationId(), message.getSeq(),
+          message.getFromUserId(), message.getSenderUsername(), message.getToId(), message.getChatType(),
+          message.getMsgType(), message.getContent(), message.getClientMsgId(), message.getReplyMsgId(),
+          message.getAtUsers(), message.getMediaObjectIds(), message.getStatus(), message.isEdited(),
+          message.getEditedAt(), audit.createdBy(), audit.createdAt(), audit.updatedBy(), audit.updatedAt());
+    }
   }
 
   private static final class InMemoryUnreadCountProjection implements UnreadCountProjectionPort {
@@ -823,7 +903,8 @@ class MessageApplicationServiceTest {
   private static final class TestMessagePayloadCodec implements MessagePayloadCodecPort {
     private io.openware.protocol.mq.event.MessageRecalledEvent recalledEvent;
     @Override public List<String> readAtUsers(String atUsersJson) { return List.of("9"); }
-    @Override public String writeStoredMessageEvent(Message message, List<Long> recipientUserIds,
+    @Override public String writeStoredMessageEvent(Message message, LocalDateTime sentAt,
+        List<Long> recipientUserIds,
         Map<Long, Long> recipientSyncSeqs,
         List<io.openware.protocol.mq.event.MessageMedia> media) {
       return "{\"msgId\":\"" + message.getMsgId() + "\"}";
@@ -843,7 +924,8 @@ class MessageApplicationServiceTest {
   private static final class CapturingMessagePayloadCodec implements MessagePayloadCodecPort {
     private List<Long> recipientUserIds;
     @Override public List<String> readAtUsers(String atUsersJson) { return List.of(); }
-    @Override public String writeStoredMessageEvent(Message message, List<Long> recipientUserIds,
+    @Override public String writeStoredMessageEvent(Message message, LocalDateTime sentAt,
+        List<Long> recipientUserIds,
         Map<Long, Long> recipientSyncSeqs,
         List<io.openware.protocol.mq.event.MessageMedia> media) {
       this.recipientUserIds = recipientUserIds;

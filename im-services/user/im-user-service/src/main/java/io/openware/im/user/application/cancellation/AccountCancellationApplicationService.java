@@ -10,6 +10,7 @@ import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
 import io.openware.im.user.domain.account.repository.PasswordHasher;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.cancellation.model.AccountCancellation;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationAction;
 import io.openware.im.user.domain.cancellation.model.AccountCancellationLog;
@@ -40,7 +41,7 @@ public class AccountCancellationApplicationService {
   /** 仅认证用户可申请注销；申请前再次校验密码，并返回用于轮询状态的一次性令牌。 */
   @Transactional
   public AccountCancellationSubmitResult submit(SubmitAccountCancellationCommand command) {
-    UserAccount account = userAccountRepository.findById(command.userId())
+    UserAccount account = userAccountRepository.findById(command.userId()).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
     if (account.getStatus() == UserAccountStatus.DISABLED) {
       throw new ApiException(HttpStatusCodes.GONE, "Account already cancelled");

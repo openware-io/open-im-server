@@ -44,8 +44,7 @@ class FriendAcceptedMessageApplicationServiceTest {
     FriendAcceptedEvent event = event();
     Message requesterMessage = Message.create("friend-accepted:requester:42", "private:11:22", 1, 22,
         "qian001", "11", ChatType.PRIVATE, MsgType.TEXT,
-        FriendAcceptedMessageApplicationService.REQUESTER_CONTENT, null, null, java.util.List.of(),
-        LocalDateTime.now());
+        FriendAcceptedMessageApplicationService.REQUESTER_CONTENT, null, null, java.util.List.of());
     when(dedup.findByRequestId(42L)).thenReturn(Optional.empty());
     when(dedup.createPending(any(Long.class), any(String.class), any(LocalDateTime.class))).thenReturn(true);
     when(profiles.find(22L)).thenReturn(new FriendAcceptanceProfilePort.SenderProfile(22L, "qian001"));
@@ -133,7 +132,7 @@ class FriendAcceptedMessageApplicationServiceTest {
   private Message message(String commandId) {
     return Message.create(commandId, "conv:private:11:22", 1, 22, "qian001", "11", ChatType.PRIVATE,
         MsgType.TEXT, FriendAcceptedMessageApplicationService.REQUESTER_CONTENT, null, null,
-        java.util.List.of(), LocalDateTime.now());
+        java.util.List.of());
   }
 
   /** 默认使用「刚刚发生」的事件：过期事件会被 STALE_EVENT_TOLERANCE 守卫跳过。 */

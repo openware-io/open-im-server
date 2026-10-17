@@ -111,10 +111,32 @@ public class PricingPlanApplicationService {
     return draft;
   }
 
+  /**
+   * 批量创建/更新：先整批校验门店范围（归属/存在/业态一致），再逐店写入，整批共用同一个事务。
+   *
+   * <p>校验与编排留在应用服务（standards/10 §应用服务规则）：控制器只做协议转换，不持有
+   * {@code @Transactional}。校验失败时不会留下“前半批落库、后半批失败”的半截配置。
+   */
+  @Transactional
+  public List<PricingPlan> createBatch(long contextTenantId, PricingPlanBatchCommand command) {
+    if (command == null || command.plan() == null || command.storeIds() == null || command.storeIds().isEmpty()) {
+      throw new ApiException(400, "PRICING_BATCH_INVALID", "storeIds 和 plan 不能为空");
+    }
+    PricingPlanCommand plan = command.plan();
+    StoreScopeValidation scope = validateStoreScope(contextTenantId, plan.businessType(), command.storeIds());
+    List<PricingPlan> saved = new ArrayList<>();
+    for (StoreScopeItem item : scope.stores()) {
+      saved.add(save(contextTenantId, contextTenantId, item.storeId(), item.businessType(),
+          plan.resourceType(), plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(),
+          plan.pricePerUnit(), plan.defaultSessionMinutes(), plan.overtimeRate(), plan.version(),
+          command.idempotencyKey()));
+    }
+    return saved;
+  }
+
   /** 列出某租户生效中的方案；给定门店时按作用域解析出每种资源类型的最终方案。 */
   @Transactional(readOnly = true)
-  public List<PricingPlan> list(Long tenantId, Long storeId, String businessType) {
-    if (storeId == null) {
+  public List<PricingPlan> list(Long tenantId, Long storeId, String businessType) {    if (storeId == null) {
       return pricingPlanRepository.listActiveByTenant(tenantId, normalize(businessType));
     }
     Store store = requireOwnedStore(tenantId, storeId);
@@ -197,5 +219,15 @@ public class PricingPlanApplicationService {
 
   /** 单个门店的范围校验结果。 */
   public record StoreScopeItem(Long storeId, String businessType) {
+  }
+
+  /** 批量写入的单方案命令（应用层类型，避免控制器 DTO 渗透到服务）。 */
+  public record PricingPlanCommand(String businessType, String resourceType, String billingUnit,
+                                   Integer incrementMinutes, String roundingDirection, Long pricePerUnit,
+                                   Integer defaultSessionMinutes, BigDecimal overtimeRate, Integer version) {
+  }
+
+  /** 批量写入命令：方案 + 目标门店 + 幂等键。 */
+  public record PricingPlanBatchCommand(PricingPlanCommand plan, List<Long> storeIds, String idempotencyKey) {
   }
 }

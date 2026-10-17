@@ -6,6 +6,9 @@ import io.openware.platform.tenant.domain.configuration.repository.TenantConfigR
 import io.openware.platform.tenant.domain.store.model.Store;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.infrastructure.tenant.PermissionGuard;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -52,12 +56,20 @@ public class KtvBusinessHoursApplicationService {
 
     private final TenantConfigRepository tenantConfigRepository;
     private final StoreRepository storeRepository;
+    private final AuditClient auditClient;
+
+    /** 兼容既有装配/单测：不传审计客户端时使用关闭态客户端（生产装配始终注入真实客户端）。 */
+    public KtvBusinessHoursApplicationService(TenantConfigRepository tenantConfigRepository,
+                                              StoreRepository storeRepository) {
+        this(tenantConfigRepository, storeRepository, AuditClient.disabled());
+    }
 
     @Autowired
     public KtvBusinessHoursApplicationService(TenantConfigRepository tenantConfigRepository,
-                                              StoreRepository storeRepository) {
+                                              StoreRepository storeRepository, AuditClient auditClient) {
         this.tenantConfigRepository = tenantConfigRepository;
         this.storeRepository = storeRepository;
+        this.auditClient = auditClient;
     }
 
     /**
@@ -150,6 +162,76 @@ public class KtvBusinessHoursApplicationService {
         }
         for (Long storeId : storeIds) {
             upsert(tenantId, storeId, expectedBusinessType, format(open, close));
+        }
+    }
+
+    /**
+     * 保存营业时间（控制器入口）：协议字段解析、目标门店合并、权限与审计都在应用服务完成。
+     *
+     * <p>写入仍复用 {@link #update(Long, List, String, LocalTime, LocalTime)}：先整批校验门店，
+     * 再进入同一事务写入；成功后返回生效视图，失败也留痕但不改变业务结果。
+     */
+    @Transactional
+    public BusinessHoursView updateWithAudit(Long tenantId, Long storeId, List<Long> storeIds,
+                                             String businessType, String openTime, String closeTime) {
+        try {
+            PermissionGuard.require("tenant.tenant.manage");
+            if (openTime == null || closeTime == null) {
+                throw new ApiException(400, "BUSINESS_HOURS_REQUIRED", "缺少营业时间（openTime/closeTime）");
+            }
+            LocalTime open = parseTime(openTime, "openTime");
+            LocalTime close = parseTime(closeTime, "closeTime");
+            List<Long> targets = new ArrayList<>(new LinkedHashSet<>());
+            if (storeIds != null) {
+                targets.addAll(storeIds);
+            }
+            if (storeId != null) {
+                targets.add(storeId);
+            }
+            if (targets.isEmpty()) {
+                targets.add(0L);
+            }
+            if (targets.contains(0L) && targets.size() > 1) {
+                throw new ApiException(400, "STORE_TARGET_MIXED", "租户默认与门店覆盖不能在同一批次写入");
+            }
+            String requestedBusinessType = businessType;
+            if (targets.size() == 1 && targets.get(0) == 0L && requestedBusinessType == null) {
+                requestedBusinessType = null;
+            }
+            String value = format(open, close);
+            update(tenantId, targets.stream().filter(id -> id > 0).toList(), requestedBusinessType, open, close);
+            auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                    .tenantId(tenantId)
+                    .action("tenant.business_hours.update")
+                    .resourceType("tnt_tenant_config")
+                    .resourceId(String.valueOf(tenantId))
+                    .resourceName(targets.size() == 1 && targets.get(0) == 0L ? "租户/业态默认营业时间" : "批量门店营业时间")
+                    .detailJson("{\"storeIds\":" + targets + ",\"businessType\":\""
+                            + (requestedBusinessType == null ? "" : requestedBusinessType)
+                            + "\",\"businessHours\":\"" + value + "\"}")
+                    .build());
+            Long viewStoreId = targets.size() == 1 ? targets.get(0) : 0L;
+            return BusinessHoursView.of(viewStoreId, resolve(tenantId, viewStoreId, requestedBusinessType));
+        } catch (RuntimeException failure) {
+            auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                    .tenantId(tenantId)
+                    .action("tenant.business_hours.update")
+                    .resourceType("tnt_tenant_config")
+                    .resourceId(String.valueOf(tenantId))
+                    .result(AuditClient.AuditRecord.RESULT_FAILURE)
+                    .errorCode(AuditErrorCodes.of(failure))
+                    .build());
+            throw failure;
+        }
+    }
+
+    /** 解析 {@code HH:mm} / {@code HH:mm:ss}；格式非法一律 400（写路径不静默改写用户的输入）。 */
+    private static LocalTime parseTime(String raw, String field) {
+        try {
+            return LocalTime.parse(raw.trim());
+        } catch (DateTimeParseException invalid) {
+            throw new ApiException(400, "TIME_FORMAT_INVALID",
+                    field + " 时间格式应为 HH:mm（例如 18:00）");
         }
     }
 

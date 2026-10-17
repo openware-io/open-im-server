@@ -4,6 +4,7 @@ import io.openware.im.user.api.authorization.ActiveUsersQuery;
 import io.openware.im.user.api.authorization.ActiveUsersSnapshot;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class ActiveUserQueryService {
     List<Long> ids = query.userIds() == null ? List.of() : query.userIds().stream()
         .filter(java.util.Objects::nonNull).filter(id -> id > 0).distinct().toList();
     return new ActiveUsersSnapshot(userAccountRepository.findByIds(ids).stream()
+        .map(Persisted::aggregate)
         .filter(account -> account.getStatus() != UserAccountStatus.DISABLED).map(account -> account.getId()).toList());
   }
 }

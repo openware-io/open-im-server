@@ -12,6 +12,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.resource.application.ResourceCommandApplicationService;
 import io.openware.platform.resource.application.RoomTypeApplicationService;
 import io.openware.platform.resource.domain.roomtype.model.RoomType;
 import io.openware.platform.resource.application.ResourceQueryApplicationService;
@@ -43,7 +44,8 @@ class ResourceAuditTest {
     resourceQuery = mock(ResourceQueryApplicationService.class);
     roomTypeService = mock(RoomTypeApplicationService.class);
     auditClient = mock(AuditClient.class);
-    controller = new ResourceController(resourceRepository, resourceQuery, roomTypeService, auditClient);
+    controller = new ResourceController(new ResourceCommandApplicationService(resourceRepository,
+        resourceQuery, roomTypeService, auditClient), resourceQuery);
     when(resourceQuery.enrichWithRoomTypes(any())).thenAnswer(i -> i.getArgument(0));
     TenantContextHolder.set(new TenantContext(1L, null, 100L, 1L, 1, List.of("resource.manage")));
   }

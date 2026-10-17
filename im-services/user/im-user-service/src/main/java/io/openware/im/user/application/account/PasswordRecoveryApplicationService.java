@@ -15,6 +15,7 @@ import io.openware.im.user.domain.account.repository.UserAuthenticationProjectio
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.account.repository.UserSecurityQuestionRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -59,7 +60,7 @@ public class PasswordRecoveryApplicationService {
     if (normalized.isEmpty()) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Email is required");
     }
-    userAccountRepository.findByEmail(normalized).ifPresent(account -> {
+    userAccountRepository.findByEmail(normalized).map(Persisted::aggregate).ifPresent(account -> {
       String token = UUID.randomUUID().toString();
       tokenStore.put(token, account.getId(), TOKEN_TTL);
       String resetLink = resetLinkBase + "/reset-password?token=" + token;
@@ -74,7 +75,7 @@ public class PasswordRecoveryApplicationService {
     if (normalized.isEmpty()) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Phone is required");
     }
-    userAccountRepository.findByPhone(normalized).ifPresent(account -> {
+    userAccountRepository.findByPhone(normalized).map(Persisted::aggregate).ifPresent(account -> {
       String code = generateSmsCode();
       tokenStore.put(code, account.getId(), SMS_CODE_TTL);
       smsSender.sendVerificationCode(normalized, code);
@@ -127,28 +128,28 @@ public class PasswordRecoveryApplicationService {
     if (username == null || username.isBlank()) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Username is required");
     }
-    UserAccount account = userAccountRepository.findByUsername(username)
+    UserAccount account = userAccountRepository.findByUsername(username).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.FORBIDDEN, "Security question verification failed"));
     UserSecurityQuestion stored = securityQuestionRepository.findByUserId(account.getId()).orElse(null);
     if (stored == null || !stored.matchesQuestion(question) || !passwordHasher.matches(answer == null ? "" : answer,
         stored.getAnswerHash())) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Security question verification failed");
     }
-    account.changePassword(passwordHasher.hash(newPassword), LocalDateTime.now());
-    invalidateAuthentication(account);
+    account.changePassword(passwordHasher.hash(newPassword));
+    invalidateAuthentication(account, LocalDateTime.now());
     log.info("[password-reset] password reset by security question for userId={}", account.getId());
   }
 
   private void resetPasswordForUser(Long userId, String newPassword) {
-    UserAccount account = userAccountRepository.findById(userId)
+    UserAccount account = userAccountRepository.findById(userId).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
-    account.changePassword(passwordHasher.hash(newPassword), LocalDateTime.now());
-    invalidateAuthentication(account);
+    account.changePassword(passwordHasher.hash(newPassword));
+    invalidateAuthentication(account, LocalDateTime.now());
     log.info("[password-reset] password reset for userId={}", userId);
   }
 
-  private void invalidateAuthentication(UserAccount account) {
-    userAccountRepository.save(account);
+  private void invalidateAuthentication(UserAccount account, LocalDateTime occurredAt) {
+    userAccountRepository.save(account, occurredAt);
     authenticationUserProjection.save(new UserAuthenticationSnapshot(
         account.getId(), account.getUsername(), account.getRole(),
         account.getStatus() != UserAccountStatus.DISABLED, account.getStatusVersion()));

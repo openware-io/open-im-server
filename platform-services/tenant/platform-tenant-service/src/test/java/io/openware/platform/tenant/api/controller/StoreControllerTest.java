@@ -51,7 +51,7 @@ class StoreControllerTest {
         storeRepository = mock(StoreRepository.class);
         auditClient = mock(AuditClient.class);
         when(auditClient.recordAsync(any())).thenReturn(CompletableFuture.completedFuture(1L));
-        controller = new StoreController(storeRepository, new StoreApplicationService(storeRepository), auditClient);
+        controller = new StoreController(new StoreApplicationService(storeRepository, auditClient, null));
     }
 
     @AfterEach
@@ -166,8 +166,7 @@ class StoreControllerTest {
     @Test
     void updateBusinessTypeEvictsPermissionSnapshots() {
         PermissionSnapshotProvider snapshots = mock(PermissionSnapshotProvider.class);
-        controller = new StoreController(storeRepository, new StoreApplicationService(storeRepository), auditClient,
-                snapshots);
+        controller = new StoreController(new StoreApplicationService(storeRepository, auditClient, snapshots));
         when(storeRepository.findActiveBusinessTypeCode("SPA")).thenReturn("SPA");
         when(storeRepository.findOwnerTenantId(STORE_ID)).thenReturn(Optional.of(TENANT_ID));
         when(storeRepository.findById(STORE_ID)).thenReturn(Optional.of(store()));

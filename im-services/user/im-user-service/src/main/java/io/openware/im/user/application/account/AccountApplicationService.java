@@ -21,6 +21,7 @@ import io.openware.im.user.domain.account.repository.UserAuthenticationProjectio
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.account.repository.UserStatusOperationRepository;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.device.model.LoginMethod;
 import io.openware.im.user.infra.security.IdaasSsoClient;
 import io.openware.im.user.media.MediaReferenceClient;
@@ -60,17 +61,18 @@ public class AccountApplicationService {
       throw new ApiException(HttpStatusCodes.CONFLICT, "Email already exists");
     }
 
+    LocalDateTime now = LocalDateTime.now();
     UserAccount account = UserAccount.register(
         command.username(), passwordHasher.hash(command.password()), command.nickname(), normalizedEmail,
-        command.phone(), LocalDateTime.now());
-    UserAccount savedAccount = userAccountRepository.save(account);
+        command.phone(), now);
+    UserAccount savedAccount = userAccountRepository.save(account, now).aggregate();
     updateAuthenticationProjection(savedAccount);
     return toAuthenticatedResult(savedAccount);
   }
 
   @Transactional
   public AuthenticatedAccountResult login(LoginCommand command) {
-    UserAccount account = userAccountRepository.findByUsername(command.username())
+    UserAccount account = userAccountRepository.findByUsername(command.username()).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.UNAUTHORIZED, "Invalid credentials"));
     if (!passwordHasher.matches(command.password(), account.getPasswordHash())) {
       throw new ApiException(HttpStatusCodes.UNAUTHORIZED, "Invalid credentials");
@@ -79,8 +81,9 @@ public class AccountApplicationService {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Account disabled");
     }
     // 登录即刷新最近活跃时间，并按当前自毁策略重算到期截止（活跃即续期）。
-    account.recordLogin(LocalDateTime.now());
-    userAccountRepository.save(account);
+    LocalDateTime now = LocalDateTime.now();
+    account.recordLogin(now);
+    userAccountRepository.save(account, now);
     updateAuthenticationProjection(account);
     recordDeviceSession(account.getId(), command.deviceId(), command.deviceType(), command.deviceName(),
         LoginMethod.PASSWORD, command.ip());
@@ -89,13 +92,14 @@ public class AccountApplicationService {
 
   @Transactional
   public AuthenticatedAccountResult loginByQr(long userId, String ip) {
-    UserAccount account = userAccountRepository.findById(userId)
+    UserAccount account = userAccountRepository.findById(userId).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
     if (account.getStatus() == UserAccountStatus.DISABLED) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Account disabled");
     }
-    account.recordLogin(LocalDateTime.now());
-    userAccountRepository.save(account);
+    LocalDateTime now = LocalDateTime.now();
+    account.recordLogin(now);
+    userAccountRepository.save(account, now);
     updateAuthenticationProjection(account);
     // 扫码端未显式上报 deviceId 时，以「qr:userId」占位，保证同用户扫码登录复用同一条会话。
     recordDeviceSession(account.getId(), "qr-" + account.getId(), "web", null, LoginMethod.QR_CODE, ip);
@@ -110,15 +114,16 @@ public class AccountApplicationService {
   public AuthenticatedAccountResult ssoLogin(String ticket, String ip) {
     IdaasSsoClient.SsoUser ssoUser = idaasSsoClient.verifyTicket(ticket);
     String username = ssoUser.username();
-    UserAccount account = userAccountRepository.findByUsername(username)
+    UserAccount account = userAccountRepository.findByUsername(username).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "SSO_ADMIN_ACCOUNT_NOT_FOUND",
             "no IM admin account mapped for IDaaS username: " + username));
     if (account.getStatus() == UserAccountStatus.DISABLED) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "SSO_ADMIN_ACCOUNT_DISABLED",
           "IM admin account disabled: " + username);
     }
-    account.recordLogin(LocalDateTime.now());
-    userAccountRepository.save(account);
+    LocalDateTime now = LocalDateTime.now();
+    account.recordLogin(now);
+    userAccountRepository.save(account, now);
     updateAuthenticationProjection(account);
     recordDeviceSession(account.getId(), "sso-" + account.getId(), "web", null, LoginMethod.SSO, ip);
     Duration ttl = ssoUser.expiresAt() > 0
@@ -136,15 +141,16 @@ public class AccountApplicationService {
   }
 
   private ChangeUserStatusResult changeStatusOnce(ChangeUserStatusCommand command) {
-    UserAccount account = userAccountRepository.findById(command.userId())
+    UserAccount account = userAccountRepository.findById(command.userId()).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
     if (account.getStatusVersion() != command.expectedStatusVersion()) {
       throw new ApiException(HttpStatusCodes.CONFLICT, "User status version conflict");
     }
     UserAccountStatus previousStatus = account.getStatus();
     LocalDateTime occurredAt = LocalDateTime.now();
-    boolean changed = account.changeStatus(command.status(), command.operatorId(), occurredAt);
-    if (changed && !userAccountRepository.saveStatusIfVersionMatches(account, command.expectedStatusVersion())) {
+    boolean changed = account.changeStatus(command.status());
+    if (changed && !userAccountRepository.saveStatusIfVersionMatches(account, command.expectedStatusVersion(),
+        command.operatorId(), occurredAt)) {
       throw new ApiException(HttpStatusCodes.CONFLICT, "User status version conflict");
     }
     ChangeUserStatusResult result = new ChangeUserStatusResult(command.requestVersion(), account.getId(), previousStatus,

@@ -1,7 +1,17 @@
 package io.openware.platform.tenant.application;
 
+import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.audit.AuditErrorCodes;
+import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
 import io.openware.platform.tenant.domain.configuration.repository.TenantConfigReader;
+import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -33,9 +43,87 @@ public class WalletTokenConfigApplicationService {
     public static final long DEFAULT_RATIO = 100L;
 
     private final TenantConfigReader tenantConfigReader;
+    private final TenantConfigRepository tenantConfigRepository;
+    private final AuditClient auditClient;
 
+    /** 兼容只读路径的既有装配/单测：写端口与审计客户端按关闭态处理。 */
     public WalletTokenConfigApplicationService(TenantConfigReader tenantConfigReader) {
+        this(tenantConfigReader, null, AuditClient.disabled());
+    }
+
+    @Autowired
+    public WalletTokenConfigApplicationService(TenantConfigReader tenantConfigReader,
+                                               TenantConfigRepository tenantConfigRepository,
+                                               AuditClient auditClient) {
         this.tenantConfigReader = tenantConfigReader;
+        this.tenantConfigRepository = tenantConfigRepository;
+        this.auditClient = auditClient;
+    }
+
+    /**
+     * 修改租户代币展示配置：权限、租户边界、两个键的写入与审计都在应用服务完成。
+     *
+     * <p>控制器只做协议转换；租户一律取自签名上下文，请求里的 tenantId 只能与上下文一致。
+     */
+    @Transactional
+    public TenantWalletTokenConfig update(Long requestedTenantId, String brandName, long ratio) {
+        try {
+            PermissionGuard.require("tenant.tenant.manage");
+            Long tenantId = requireScopedTenant(requestedTenantId);
+            if (tenantConfigRepository == null) {
+                throw new IllegalStateException("tenant config write port is not configured");
+            }
+            tenantConfigRepository.upsert(TenantConfig.tenantLevel(CONFIG_KEY_BRAND_NAME, tenantId, brandName));
+            tenantConfigRepository.upsert(TenantConfig.tenantLevel(CONFIG_KEY_RATIO, tenantId, String.valueOf(ratio)));
+            // 租户级配置改动影响全租户账单/充值展示：留痕并记录变更前后值摘要。
+            auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                    .tenantId(tenantId)
+                    .action("tenant.config.update")
+                    .resourceType("tnt_tenant_config").resourceId(String.valueOf(tenantId))
+                    .resourceName(brandName)
+                    .detailJson("{\"brandName\":\"" + brandName + "\",\"ratio\":" + ratio + "}")
+                    .build());
+            return new TenantWalletTokenConfig(brandName, ratio);
+        } catch (RuntimeException failure) {
+            // 失败出口留痕（缺权限/越权租户/参数非法/落库失败）：审计只 WARN，业务异常原样抛出。
+            recordFailure(failure, requestedTenantId);
+            throw failure;
+        }
+    }
+
+    /** 租户边界：请求里的 tenantId 只能与上下文一致（缺省时直接用上下文租户）。 */
+    private Long requireScopedTenant(Long requestedTenantId) {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        if (requestedTenantId != null && !requestedTenantId.equals(context.tenantId())) {
+            throw new ApiException(403, "TENANT_SCOPE_DENIED", "只能访问当前上下文的租户配置");
+        }
+        return context.tenantId();
+    }
+
+    /**
+     * 失败留痕：租户级配置写操作的失败出口此前完全没有留痕。
+     * detail 只放可检索的租户 ID，配置内容（品牌名）不重复进失败详情。
+     */
+    private void recordFailure(RuntimeException failure, Long requestedTenantId) {
+        TenantContext context = TenantContextHolder.get();
+        Long tenantId = requestedTenantId != null ? requestedTenantId
+                : (context == null ? null : context.tenantId());
+        auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                .tenantId(tenantId)
+                .action("tenant.config.update")
+                .resourceType("tnt_tenant_config")
+                .resourceId(tenantId == null ? null : String.valueOf(tenantId))
+                .result(AuditClient.AuditRecord.RESULT_FAILURE)
+                .errorCode(AuditErrorCodes.of(failure))
+                .build());
+    }
+
+    /** 管理端读取：按签名上下文做租户边界校验后再解析。 */
+    public TenantWalletTokenConfig resolveScoped(Long requestedTenantId) {
+        return resolve(requireScopedTenant(requestedTenantId));
     }
 
     /**

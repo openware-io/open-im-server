@@ -587,6 +587,225 @@ public static boolean editableAt(LocalDateTime sentAt, LocalDateTime now) {
 **施工顺序建议**：先把 `editableAt` 改成静态纯函数并补回归测试（编辑窗口边界：恰好 2 分钟内可编辑、
 超过则不可），再动字段——与 `FriendRelation` 的"测试先行"同一套路。
 
+### 8.19 `Message` 第一轮：10 个端口方法与两种读取形态（2026-10-16 第十五次更新）
+
+第一轮只动**读取形态**，不动 `Message` 上的字段——与 `UserAccount` 的分轮理由相同：
+把编译错误限制在适配器与应用层，第二轮再改方法签名。
+
+**端口现在是 10 个迁移方法**，按返回形态分三类：
+
+| 形态 | 方法 | 返回 |
+|---|---|---|
+| 单条 / 批量 / 写 | `findByMsgId`、`findBySenderIdAndClientMsgId`、`findByMsgIds`、`save` | `Persisted<Message>` |
+| 列表 ×4 | `findHistory`、`findHistoryByDate`、`findCentered`、`findChannelMessages` | `List<MessageView>` |
+| 分页 ×2 | `search`、`findAdminPage` | `MessageView`（`MessagePage` / 列表） |
+
+`save` 合并了原来的 `save`/`update`：standards/10 L300 要求 `id == null` 新增、否则更新。
+方法数因此正好是 10，也避免调用方按"技术动作"而不是业务意图选方法。`findHistoryDates` 返回
+`List<String>`（只读日期，不承载消息行），不在此轮。
+
+**两个新类型的职责**：`MessageRepository.Persisted<Message>` + `AuditSnapshot` 承载响应回显与编辑窗口判定所需的
+四个审计列；`MessageView` 承载列表/分页的整行展示字段（含审计列）。第一轮时审计列还暂时留在 `Message` 上，
+只保证读路径**不再依赖**模型上的审计字段；字段本身已在 §8.20 删除。
+
+**`editableAt` 的调用点已切换**：`MessageApplicationService.editMessage` 用
+`Message.editableAt(row.audit().createdAt(), now)`。新增的回归测试钉住「窗口只取快照发送时刻」，
+覆盖快照在窗口内与已过期两态；第二轮删字段后它仍然成立。
+
+**第二轮待办**（尚未执行）：
+
+1. 从 `Message` 删除四个审计字段与 getter，`restore` 去末 4 参。
+2. **`createdAt` 不是纯记账**：它还进入 `StoredMessageEvent`（`StoredMessageEventFactory`、`JacksonMessagePayloadCodec`）
+   与 `UserSyncIndex.createdAt`（`synchronizeUsers`）。删字段时不能简单让适配器打 `now()`，
+   否则事件时间与同步索引时间会从 `command.acceptedAt()` 漂移；这两处需要在应用层显式持有发送时刻。
+   编辑窗口只是它"参与判定"的那一面，不是全部用途。
+3. `edited(newContent, operatorId, editedAt)`：`editedAt` 保留（写业务字段 `edited_at`），`operatorId` 只写
+   `updatedBy`，需要决定端口是否表达操作人——与 `UserAccount.changeStatus` 同型。
+4. `recalled(recalledAt)` 在主代码中没有任何调用方（撤回是硬删除 + Outbox 事件），可随字段一并删除。
+5. 适配器在 `save` 里自打审计列；`MessagePersistenceConverter.toPo` 不再从模型取审计值。
+6. `FavoriteApplicationService:121` 与 `:202` 仍读 `message.getCreatedAt()`，第二轮改走 `Persisted.audit()` 或快照。
+
+**（以上 6 项已在 §8.20 执行完毕。）**
+
+### 8.20 `Message` 第二轮：发送时刻离开模型，写入时刻由端口参数表达（2026-10-16 第十六次更新）
+
+`Message` 的四个审计字段已删除，`create(...)`/`restore(...)` 去掉 `createdAt` 与末 4 参，
+`edited(newContent, editedAt)` 只保留业务字段 `edited_at`，无调用方的 `recalled(...)` 一并删除。
+
+**关键设计：`save` 显式接收写入时刻与操作人**（`MessageRepository`）：
+
+```java
+Persisted<Message> save(Message message, LocalDateTime occurredAt, long operatorId);
+```
+
+- 新增（`id == null`）：`created_at = updated_at = occurredAt`，`created_by = updated_by = operatorId`；
+  新建消息由 `storeNew` 传 `command.acceptedAt()` 与系统操作人 `0L`。
+- 更新：只写 `updated_at = occurredAt`、`updated_by = operatorId`，`created_*` 保持原值；
+  编辑由 `editMessage` 传 `now` 与 `command.userId()`。
+
+这是 §8.17 `UserAccount.changeStatus` 的同型解法：**操作人不是常量时，必须由端口参数表达**，
+而不是让适配器猜。`MessagePersistenceConverter.toPo` 不再从模型取任何审计值。
+
+**发送时刻的三条下游没有被漏掉**（§8.19 第 2 项）：
+
+| 下游 | 处理 |
+|---|---|
+| `persisted.audit().createdAt()` | `storeNew` 以落库返回值为准，供下面两处使用 |
+| `UserSyncIndex.createdAt` | `synchronizeUsers(..., sentAt)` 显式传入 |
+| `MessageStoredEvent.createdAt` | `MessagePayloadCodecPort.writeStoredMessageEvent(..., sentAt, ...)` 显式传入；`StoredMessageEventFactory.from(message, sentAt)` 同步调整 |
+
+因此 `msg_message.created_at`、per-user 同步索引与 MQ 事件使用**同一个** `acceptedAt`，
+没有退回"适配器打 now()"的漂移写法。
+
+**收藏的读取也改走快照**：`FavoriteApplicationService.authorize` 返回 `Persisted<Message>`，
+收藏快照的 `sentAt` 与列表实时消息的 `sentAt` 都取 `row.audit().createdAt()`，
+不再从领域模型读 `createdAt`。
+
+**验证**：`im-message-service` 128 个测试全绿；`invoke-engineering-validation.ps1 -Scope Changed`
+全部门禁通过。`Message` 至此不再携带审计列，端口/模型/适配器/投影四处职责一致。
+
+### 8.21 `UserAccount` 第一轮：17 个端口方法的读取形态（2026-10-16 第十七次更新）
+
+按 §8.17 的"三轮"计划，第一轮只动**读取形态**，`UserAccount` 上的审计字段仍在；
+`register/recordLogin/setSelfDestructPolicy` 的 `occurredAt` 与 `changeStatus` 的 `operatorId` 也保持原样。
+
+**新增类型**：`domain.account.repository.Persisted<UserAccount>` + `AuditSnapshot`，
+以及 `domain.account.readmodel.UserAccountView`。投影**刻意不含密码哈希**：管理端列表不需要它。
+
+**端口映射**（当前接口实为 **17 个方法**；§8.16 记为 18，逐一核对后以此表为准）：**9 个**方法改变返回形态：
+
+| 形态 | 方法 | 返回 |
+|---|---|---|
+| 单条 ×4 | `findById`、`findByUsername`、`findByEmail`、`findByPhone` | `Optional<Persisted<UserAccount>>` |
+| 批量 ×2 | `findByIds`（default）、`search` | `List<Persisted<UserAccount>>` |
+| 写 ×2 | `save`、`findSelfDestructDue` | `Persisted<UserAccount>` / `List<Persisted<UserAccount>>` |
+| 分页 ×1 | `searchForAdmin` | `PageResult<UserAccountView>` |
+| 不变 ×8 | `existsByUsername`、`existsByEmail`、`findIdsMatchingKeyword`、`countAll`、`countCreatedSince`、`dailyCounts`、`saveStatusIfVersionMatches`、`hardDelete` | 原样 |
+
+**应用层读者**：
+
+- `AdminUserQueryApplicationService.listUsers` 走 `UserAccountView`；`detailUser` 从载体组装同形投影
+  （该类已导入 device 的 `Persisted`，为避免同名类型冲突，detail 处用 `var` + 内联投影）。
+- `ProfileApplicationService.getProfile/getProfileForViewer` 走载体；搜索、摘要、禁言状态等只读业务字段的路径
+  统一 `.map(Persisted::aggregate)`。
+- 其余应用服务（登录/找回/注销/删除/OpenPlatform/好友等）只需业务事实，全部解包聚合；写路径忽略返回的载体。
+
+**测试**：各测试类加了一个本地 `row(account)` 辅助把聚合包成载体（第二轮删字段时再改为显式快照）；
+`OidcTokenFlowTest` 的内存仓库同步了方法签名；新增 `UserAccountPersistenceConverterTest` 钉住
+"投影携带展示/审计列、密码哈希不进入投影"。`im-user-service` **113 个测试全绿**，
+`invoke-engineering-validation.ps1 -Scope Changed` 全部门禁通过。
+
+**第二轮/第三轮仍按 §8.16、§8.17 执行**：
+
+1. 删除四个审计字段与 getter，`restore` 去末 4 参；5 个迁移方法按表删 `occurredAt`（`changeStatus` 两个参数都删）。
+2. `save` 增加写入时刻/操作人参数（与 `Message.save(..., occurredAt, operatorId)` 同型），
+   适配器据此写审计列。
+3. `saveStatusIfVersionMatches(account, expectedVersion, operatorId)` 作为独立的端口语义变更，
+   让 `updated_by = operatorId`；其余路径写 `0L`（沿用 `register` 口径）。
+
+### 8.22 `UserAccount` 第二轮+第三轮合并：审计列移出，写入时刻/操作人进入端口（2026-10-16 第十八次更新）
+
+按 §8.16 的逐方法表执行：`UserAccount` 的四个审计字段与 getter 已删除，`restore` 去末 4 参；
+`updateProfile`、`changePassword`、`invalidateAuthentication`、`markCancelled` 删 `occurredAt`，
+`changeStatus` 删 `operatorId` 与 `occurredAt`；`register`/`recordLogin`/`setSelfDestructPolicy` 保留
+`occurredAt`（它们还写 `lastLoginAt`/`selfDestructAt` 这些**业务**字段）。
+
+**端口**：
+
+```java
+Persisted<UserAccount> save(UserAccount account, LocalDateTime occurredAt);
+boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersion, Long operatorId,
+    LocalDateTime occurredAt);
+```
+
+`save`：新增时 `created_at = updated_at = occurredAt`、`created_by = updated_by = 0L`；
+更新时**只写 `updated_at`**，`created_*` 与 `updated_by` 保持库中原值——这正对应 §8.17 表中
+"其它迁移方法不改 `updatedBy`"。
+
+**计划修正：第三轮不能独立存在**。§8.17 原本只给 `saveStatusIfVersionMatches` 加 `operatorId`，
+但 `updatedAt` 一旦离开模型，状态变更的 `updated_at` 也需要一个显式时刻；若让适配器打 `now()`，
+库里的时间会与 `ChangeUserStatusResult`/事件使用的 `occurredAt` 不一致。因此本轮合并第三轮，
+CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，而是删字段后的必要条件。
+
+**应用层**：`register/login/loginByQr/ssoLogin` 捕获同一个 `now` 传给 `register(...)`/`recordLogin(...)` 与
+`save(account, now)`；`changeStatusOnce` 把 `operatorId`/`occurredAt` 交给 CAS 端口；
+`updateProfile`、密码找回、注销、自毁清扫等路径同样把捕获的时刻显式传给 `save`。
+
+**测试**：各测试的 `restore(...)` 去掉末 4 参，`save` 验证改为两参、状态 CAS 改为四参，
+`row(account)` 改为显式快照；新增 `UserAccountRepositoryAdapterTest` 钉住三条写入契约
+（新增写全四列、普通更新只写 `updated_at`、状态 CAS 写 `updated_by/updated_at`）。
+`im-user-service` **116 个测试全绿**，`invoke-engineering-validation.ps1 -Scope Changed` 全部门禁通过。
+
+**12 个模型的收口**：按 §8.11 的清单，`UserAccount` 是最后一个有读者的模型。
+但"清单内收口"不等于"全仓收口"——后续复核发现清单外仍有领域模型携带审计字段，
+见 §8.23；本节的完成范围仅是 §8.11 的 12 个模型。
+
+### 8.23 清单外审计模型复核 + V1 首个切片（2026-10-16 第十九次更新）
+
+**（1）清单外的审计字段**。按 `/domain/**/model/` 做全仓复核后，发现 §8.11 的 21 个模型清单
+并不覆盖全部领域模型：
+
+| 模型 | 字段 | 判定 | 处理 |
+|---|---|---|---|
+| `ConversationMute` | `createdAt` | **纯记账**，无任何读者 | ✅ 已删除字段与 `create(..., occurredAt)` 参数，适配器写 `created_at` |
+| `ConversationGroup` | `createdAt`、`updatedAt` | 纯记账（版本语义由独立 `authorizationVersion` 承担） | ⏳ 但控制器直接返回领域对象，需先引入响应投影/载体 |
+| admin `ClientRelease` | 四列 | 待逐读者核实（可能进响应） | ⏳ 下一批 |
+| admin `ClientReleasePolicy` | 四列 | 同上 | ⏳ |
+| admin `ClientReleaseOperation` | `createdBy`、`createdAt` | 操作日志，需确认是否为业务事实 | ⏳ |
+| admin `ReleaseAuditLog` | `createdBy`、`createdAt` | 审计日志，`createdAt` 很可能是业务事实（事件时刻） | ⏳ 需判定 |
+| `UserSyncIndex` | `createdAt` | **业务字段**：per-user 同步索引的消息时刻，供同步消费 | 保留（不是审计列） |
+
+**教训**：§8.11 的"12 个模型"是按**有响应读者的聚合**筛出来的，不是 `domain/**/model/` 的全集；
+`ConversationMute`/`ConversationGroup`/admin clientrelease 都在筛选条件之外。后续要么把范围写清楚，
+要么用门禁扫描整个 `model` 目录，不能再用"清单完成"代替"规则完成"。
+
+**（2）V1 前四个切片：批量/后台编排下沉**。
+
+- `ChannelConfigController.setEnabledBatch` 的校验 + 循环 + `@Transactional` 移入
+  `ChannelApplicationService.setEnabledBatch(...)`；控制器只做协议转换。同时把"先整批校验门店与渠道、
+  再逐店写入"落到代码（原实现是边校验边写）。新增 `ChannelApplicationServiceTest` 覆盖非法门店、
+  重复门店、非线上渠道与成功批量四条路径。`common-payment-service` **148 个测试全绿**。
+- `InternalPricingPlanController.createBatch` 的整批校验 + 循环移入
+  `PricingPlanApplicationService.createBatch(...)`，控制器只做 DTO → 应用层命令的转换。
+  既有 `InternalPricingPlanBatchTest`（跨租户、混合业态、先校验后写）原样通过。
+- `InventoryRecoveryAdminController` 的权限、订单/明细读取、库存回补、落库与审计整体移入新的
+  `InventoryRecoveryApplicationService`；控制器不再注入 `OrderRepository`/`OrderItemRepository`，
+  也不再持有 `@Transactional`。`controller-repository-boundary` 清单由 14 降为 **13**；
+  订单服务受影响测试 10 个通过（成功/失败留痕 3 个 + 库存回补集成 7 个）。
+- `KtvBusinessHoursController.update` 的时间解析、目标门店合并、权限与审计移入
+  `KtvBusinessHoursApplicationService.updateWithAudit(...)`；控制器只做协议转换。
+  新增 4 条应用服务测试（租户默认写入、混合目标拒绝、缺失/非法时间）。
+- `TenantConfigController.update` 的权限、租户边界、两个配置键的 upsert 与审计移入
+  `WalletTokenConfigApplicationService.update(...)`；读路径也改走 `resolveScoped(...)`，
+  控制器不再注入 `TenantConfigRepository`/`AuditClient`，也不再持有 `@Transactional`。
+  `controller-repository-boundary` 清单由 13 降为 **12**；租户服务 **125 个测试全绿**。
+- `IamController` 的 5 个写方法（建角色、整体授权、单权限开关、分配/撤销用户角色）连同审计移入
+  `IamAuthorizationApplicationService`，4 个仓储读方法也改为服务查询；控制器只注入应用服务。
+  清单由 12 降为 **11**，控制器 `@Transactional` 只剩 `OrderItemController`×2。
+- `MyOrderController` 的会员归属解析与订单查询移入新的 `OrderQueryApplicationService`，
+  控制器只保留订单/预约的响应映射；清单由 11 降为 **10**。
+  订单服务上下文与账单授权测试 15 个通过。
+- `OrderBillController` 的账单访问控制（商户权限码 / 消费者本人订单）移入新的
+  `OrderBillAccessService`，控制器只保留端点映射；清单由 10 降为 **9**。
+  账单授权测试 5 个通过。
+- `TenantController` 的租户列表筛选、创建幂等与平台审计移入新的 `TenantApplicationService`，
+  控制器只做协议转换；清单由 9 降为 **8**；租户服务 **125 个测试全绿**。
+- `StoreController` 的门店列表与写路径编排（权限/租户边界/审计/权限快照失效）移入已有的
+  `StoreApplicationService`，控制器只做协议转换；清单由 8 降为 **7**。
+- `ReservationCompatController` 的租户上下文、预约查询与旧契约字段映射移入新的
+  `ReservationCompatQueryService`，控制器只负责 Map 形状的协议转换；清单由 7 降为 **6**；
+  订单服务上下文与兼容读测试 6 个通过。
+- `ReportController`（order 服务）的三个只读报表聚合、币种分组与时间口径移入新的
+  `OrderReportApplicationService`，控制器只做端点映射；清单由 6 降为 **5**；
+  订单 Spring 上下文测试通过。
+- `ResourceController` 的创建/编辑编排（权限、上下文、编号唯一、房型/图片/描述归一、落库与审计）
+  整体移入新的 `ResourceCommandApplicationService`，控制器只保留列表与协议转换；
+  清单由 5 降为 **4**；资源服务 **123 个测试全绿**。
+
+**V1 剩余**：控制器上的 `@Transactional` 还有 **2 处**（`OrderItemController`×2）；
+`controller-repository-boundary` 的 4 个控制器依赖清单不变。
+下一批按 §8.2 的"业务逻辑随方法体一起搬"处理，不能只删注解。
+
 
 
 

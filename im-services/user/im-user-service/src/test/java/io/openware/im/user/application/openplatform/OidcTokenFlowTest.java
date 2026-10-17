@@ -23,6 +23,9 @@ import io.openware.im.user.application.openplatform.result.OauthTokenResult;
 import io.openware.im.user.application.openplatform.result.UserInfoResult;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
+import io.openware.im.user.domain.account.readmodel.UserAccountView;
+import io.openware.im.user.domain.account.repository.AuditSnapshot;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.openplatform.PkceUtil;
 import io.openware.im.user.domain.openplatform.model.AuthorizationCode;
@@ -787,32 +790,33 @@ class OidcTokenFlowTest {
     }
 
     @Override
-    public Optional<UserAccount> findById(Long id) {
-      return Optional.ofNullable(users.get(id));
+    public Optional<Persisted<UserAccount>> findById(Long id) {
+      UserAccount account = users.get(id);
+      return account == null ? Optional.empty() : Optional.of(row(account));
     }
 
     @Override
-    public Optional<UserAccount> findByUsername(String username) {
+    public Optional<Persisted<UserAccount>> findByUsername(String username) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public Optional<UserAccount> findByEmail(String email) {
+    public Optional<Persisted<UserAccount>> findByEmail(String email) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public Optional<UserAccount> findByPhone(String phone) {
+    public Optional<Persisted<UserAccount>> findByPhone(String phone) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public List<UserAccount> search(String keyword, int limit) {
+    public List<Persisted<UserAccount>> search(String keyword, int limit) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public PageResult<UserAccount> searchForAdmin(String username, UserAccountStatus status, String keyword,
+    public PageResult<UserAccountView> searchForAdmin(String username, UserAccountStatus status, String keyword,
         Long numericUserId, int page, int pageSize) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
@@ -838,23 +842,29 @@ class OidcTokenFlowTest {
     }
 
     @Override
-    public UserAccount save(UserAccount account) {
+    public Persisted<UserAccount> save(UserAccount account, LocalDateTime occurredAt) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersion) {
+    public boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersion, Long operatorId,
+        LocalDateTime occurredAt) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
-    public List<UserAccount> findSelfDestructDue(LocalDateTime now, int limit) {
+    public List<Persisted<UserAccount>> findSelfDestructDue(LocalDateTime now, int limit) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
     }
 
     @Override
     public int hardDelete(Long id) {
       throw new UnsupportedOperationException("not used in OIDC contract tests");
+    }
+
+    private static Persisted<UserAccount> row(UserAccount account) {
+      LocalDateTime now = LocalDateTime.now();
+      return new Persisted<>(account, new AuditSnapshot(0L, now, 0L, now));
     }
   }
 }

@@ -22,11 +22,13 @@ import io.openware.im.message.application.favorite.result.FavoriteSourceState;
 import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.MessageFavorite;
 import io.openware.im.message.domain.message.readmodel.MessageFavoriteView;
+import io.openware.im.message.domain.message.repository.AuditSnapshot;
 import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
 import io.openware.im.message.domain.message.repository.MessageFavoriteRepository;
 import io.openware.im.message.domain.message.repository.MessageRepository;
+import io.openware.im.message.domain.message.repository.Persisted;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupChatPort;
 import io.openware.im.message.domain.secretgroupmessage.repository.SecretGroupMessageRepository;
 import io.openware.im.message.domain.secretmessage.model.SecretMessage;
@@ -46,7 +48,7 @@ class FavoriteApplicationServiceTest {
   void favoriteIsIdempotentForSameUserAndMessage() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(privateMessage("m-1", 7L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(privateMessage("m-1", 7L, 9L))));
     FavoriteApplicationService service = service(favorites, messages);
 
     service.favorite(new AddFavoriteCommand(7L, "m-1", "9", ChatType.PRIVATE));
@@ -59,7 +61,7 @@ class FavoriteApplicationServiceTest {
   void unfavoriteIsIdempotentEvenWhenFavoriteMissing() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(privateMessage("m-1", 7L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(privateMessage("m-1", 7L, 9L))));
     FavoriteApplicationService service = service(favorites, messages);
 
     service.favorite(new AddFavoriteCommand(7L, "m-1", "9", ChatType.PRIVATE));
@@ -89,7 +91,7 @@ class FavoriteApplicationServiceTest {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
     // 群消息，但当前用户已不是群成员 → 无权收藏（IDOR 写时校验）。
-    when(messages.findByMsgId("m-group")).thenReturn(Optional.of(groupMessage("m-group", 100L, 9L)));
+    when(messages.findByMsgId("m-group")).thenReturn(Optional.of(row(groupMessage("m-group", 100L, 9L))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPort(false), channelMembershipPort(false));
 
@@ -104,8 +106,9 @@ class FavoriteApplicationServiceTest {
   void favoriteWritesSnapshotOfAuthoritativeMessage() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
+    LocalDateTime sentAt = LocalDateTime.now();
     Message message = privateMessage("m-1", 7L, 9L);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(message));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(message, sentAt)));
     FavoriteApplicationService service = service(favorites, messages);
 
     service.favorite(new AddFavoriteCommand(7L, "m-1", "9", ChatType.PRIVATE));
@@ -116,7 +119,7 @@ class FavoriteApplicationServiceTest {
     assertEquals("hello", saved.getContentSnapshot());
     assertEquals(7L, saved.getFromUserIdSnapshot());
     assertEquals("sender", saved.getSenderUsernameSnapshot());
-    assertEquals(message.getCreatedAt(), saved.getSentAtSnapshot());
+    assertEquals(sentAt, saved.getSentAtSnapshot());
   }
 
   @Test
@@ -142,8 +145,8 @@ class FavoriteApplicationServiceTest {
   void favoriteBatchIsIdempotentOnRepeat() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(groupMessage("m-1", 100L, 9L)));
-    when(messages.findByMsgId("m-2")).thenReturn(Optional.of(groupMessage("m-2", 100L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(groupMessage("m-1", 100L, 9L))));
+    when(messages.findByMsgId("m-2")).thenReturn(Optional.of(row(groupMessage("m-2", 100L, 9L))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPortOf(Set.of(100L)), channelMembershipPort(false));
 
@@ -165,9 +168,9 @@ class FavoriteApplicationServiceTest {
   void favoriteBatchKeepsGoingWhenOneMessageIsUnauthorizedOrMissing() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-ok")).thenReturn(Optional.of(groupMessage("m-ok", 100L, 9L)));
+    when(messages.findByMsgId("m-ok")).thenReturn(Optional.of(row(groupMessage("m-ok", 100L, 9L))));
     // 该消息真实归属群 200，而当前用户不是群 200 成员 → 单条无权访问。
-    when(messages.findByMsgId("m-denied")).thenReturn(Optional.of(groupMessage("m-denied", 200L, 9L)));
+    when(messages.findByMsgId("m-denied")).thenReturn(Optional.of(row(groupMessage("m-denied", 200L, 9L))));
     when(messages.findByMsgId("m-ghost")).thenReturn(Optional.empty());
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPortOf(Set.of(100L)), channelMembershipPort(false));
@@ -190,7 +193,7 @@ class FavoriteApplicationServiceTest {
   void favoriteBatchItemsMirrorRequestOrderAndCount() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(privateMessage("m-1", 7L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(privateMessage("m-1", 7L, 9L))));
     FavoriteApplicationService service = service(favorites, messages);
 
     // 同一 msgId 重复出现：第一条新建，第二条命中幂等；items 与请求一一对应。
@@ -216,8 +219,8 @@ class FavoriteApplicationServiceTest {
     MessageRepository messages = mock(MessageRepository.class);
     // 仅 m-2 仍可回查（m-1 已撤回/删除）。
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
-        Message.create("m-2", "conv:7:9", 2L, 7L, "sender", "9", ChatType.PRIVATE, MsgType.TEXT, "hello",
-            null, null, List.of(), now)));
+        row(Message.create("m-2", "conv:7:9", 2L, 7L, "sender", "9", ChatType.PRIVATE, MsgType.TEXT, "hello",
+            null, null, List.of()))));
     FavoriteApplicationService service = service(favorites, messages);
 
     // 分页：第 1 页 1 条，总数 2（仅用户 7 自己的收藏，不含用户 8 的 m-3）。
@@ -244,7 +247,7 @@ class FavoriteApplicationServiceTest {
 
     MessageRepository messages = mock(MessageRepository.class);
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
-        groupMessage("m-secret", 100L, 9L)));
+        row(groupMessage("m-secret", 100L, 9L))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPort(false), channelMembershipPort(false));
 
@@ -268,7 +271,7 @@ class FavoriteApplicationServiceTest {
 
     MessageRepository messages = mock(MessageRepository.class);
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
-        groupMessage("m-ok", 100L, 9L)));
+        row(groupMessage("m-ok", 100L, 9L))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPort(true), channelMembershipPort(false));
 
@@ -289,8 +292,8 @@ class FavoriteApplicationServiceTest {
 
     MessageRepository messages = mock(MessageRepository.class);
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
-        Message.create("m-edited", "conv:group:100", 2L, 9L, "sender", "100", ChatType.GROUP, MsgType.TEXT,
-            "编辑后的最新内容", null, null, List.of(), now)));
+        row(Message.create("m-edited", "conv:group:100", 2L, 9L, "sender", "100", ChatType.GROUP, MsgType.TEXT,
+            "编辑后的最新内容", null, null, List.of()))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPort(true), channelMembershipPort(false));
 
@@ -328,7 +331,7 @@ class FavoriteApplicationServiceTest {
         MsgType.TEXT, "收藏时的内容", 9L, "sender", now.minusMinutes(1)));
 
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgIds(anyList())).thenReturn(List.of(groupMessage("m-left", 100L, 9L)));
+    when(messages.findByMsgIds(anyList())).thenReturn(List.of(row(groupMessage("m-left", 100L, 9L))));
     FavoriteApplicationService service = service(favorites, messages, (userId, peerUserId) -> true,
         groupMembershipPort(false), channelMembershipPort(false));
 
@@ -341,7 +344,7 @@ class FavoriteApplicationServiceTest {
   @Test
   void sourceReturnsAvailableWhenMessageStillAccessible() {
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(privateMessage("m-1", 7L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(privateMessage("m-1", 7L, 9L))));
     FavoriteApplicationService service = service(new InMemoryMessageFavoriteRepository(), messages);
 
     FavoriteSourceResult result = service.locateSource(7L, "m-1");
@@ -367,7 +370,7 @@ class FavoriteApplicationServiceTest {
   @Test
   void sourceReturnsConversationUnavailableWhenPrivateFriendshipLost() {
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(privateMessage("m-1", 7L, 9L)));
+    when(messages.findByMsgId("m-1")).thenReturn(Optional.of(row(privateMessage("m-1", 7L, 9L))));
     // 消息存在、双方曾是会话参与方，但好友关系已解除。
     FavoriteApplicationService service = service(new InMemoryMessageFavoriteRepository(), messages,
         (userId, peerUserId) -> false, groupMembershipPort(true), channelMembershipPort(false));
@@ -382,7 +385,7 @@ class FavoriteApplicationServiceTest {
   @Test
   void sourceReturnsConversationUnavailableWhenRemovedFromGroup() {
     MessageRepository messages = mock(MessageRepository.class);
-    when(messages.findByMsgId("m-group")).thenReturn(Optional.of(groupMessage("m-group", 100L, 9L)));
+    when(messages.findByMsgId("m-group")).thenReturn(Optional.of(row(groupMessage("m-group", 100L, 9L))));
     FavoriteApplicationService service = service(new InMemoryMessageFavoriteRepository(), messages,
         (userId, peerUserId) -> true, groupMembershipPort(false), channelMembershipPort(false));
 
@@ -395,7 +398,7 @@ class FavoriteApplicationServiceTest {
   void sourceReturnsNoPermissionForPrivateMessageUserIsNotPartOf() {
     MessageRepository messages = mock(MessageRepository.class);
     // 私聊消息属于用户 8 与 9，与当前用户 7 无关：明确拒绝，不归因为「会话不可用」。
-    when(messages.findByMsgId("m-other")).thenReturn(Optional.of(privateMessage("m-other", 8L, 9L)));
+    when(messages.findByMsgId("m-other")).thenReturn(Optional.of(row(privateMessage("m-other", 8L, 9L))));
     FavoriteApplicationService service = service(new InMemoryMessageFavoriteRepository(), messages,
         (userId, peerUserId) -> true, groupMembershipPort(true), channelMembershipPort(false));
 
@@ -408,8 +411,8 @@ class FavoriteApplicationServiceTest {
   void sourceReturnsNoPermissionForSecretChatMessage() {
     MessageRepository messages = mock(MessageRepository.class);
     Message secret = Message.create("m-secret-chat", "conv:secret:7", 1L, 1L, "sender", "7", ChatType.SECRET,
-        MsgType.TEXT, "cipher", null, null, List.of(), LocalDateTime.now());
-    when(messages.findByMsgId("m-secret-chat")).thenReturn(Optional.of(secret));
+        MsgType.TEXT, "cipher", null, null, List.of());
+    when(messages.findByMsgId("m-secret-chat")).thenReturn(Optional.of(row(secret)));
     FavoriteApplicationService service = service(new InMemoryMessageFavoriteRepository(), messages);
 
     FavoriteSourceResult result = service.locateSource(7L, "m-secret-chat");
@@ -445,6 +448,15 @@ class FavoriteApplicationServiceTest {
     service.favorite(new AddFavoriteCommand(2L, "m-secret", "7", ChatType.SECRET));
 
     assertEquals(1, favorites.items.size(), "密聊参与方应能收藏密聊消息");
+  }
+
+  /** 端口读回形状：聚合 + 记账快照（审计列不进领域模型）。 */
+  private static Persisted<Message> row(Message message) {
+    return row(message, LocalDateTime.now());
+  }
+
+  private static Persisted<Message> row(Message message, LocalDateTime sentAt) {
+    return new Persisted<>(message, new AuditSnapshot(0L, sentAt, 0L, sentAt));
   }
 
   private FavoriteApplicationService service(MessageFavoriteRepository favorites, MessageRepository messages) {
@@ -483,13 +495,12 @@ class FavoriteApplicationServiceTest {
 
   private Message privateMessage(String msgId, long fromUserId, long toUserId) {
     return Message.create(msgId, "conv:" + fromUserId + ":" + toUserId, 1L, fromUserId, "sender",
-        String.valueOf(toUserId), ChatType.PRIVATE, MsgType.TEXT, "hello", null, null, List.of(),
-        LocalDateTime.now());
+        String.valueOf(toUserId), ChatType.PRIVATE, MsgType.TEXT, "hello", null, null, List.of());
   }
 
   private Message groupMessage(String msgId, long groupId, long fromUserId) {
     return Message.create(msgId, "conv:group:" + groupId, 1L, fromUserId, "sender", String.valueOf(groupId),
-        ChatType.GROUP, MsgType.TEXT, "group secret", null, null, List.of(), LocalDateTime.now());
+        ChatType.GROUP, MsgType.TEXT, "group secret", null, null, List.of());
   }
 
   /**

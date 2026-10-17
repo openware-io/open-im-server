@@ -16,6 +16,7 @@ import io.openware.im.user.application.admin.query.AdminFriendListQuery;
 import io.openware.im.user.application.admin.query.AdminUserListQuery;
 import io.openware.im.user.domain.account.model.UserAccount;
 import io.openware.im.user.domain.account.model.UserAccountStatus;
+import io.openware.im.user.domain.account.readmodel.UserAccountView;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import io.openware.im.user.domain.device.model.DeviceToken;
 import io.openware.im.user.domain.device.repository.Persisted;
@@ -56,27 +57,30 @@ public class AdminUserQueryApplicationService {
     int page = page(query.page());
     int pageSize = pageSize(query.pageSize());
     String keyword = normalizeKeyword(query.keyword());
-    PageResult<UserAccount> result = userAccountRepository.searchForAdmin(query.username(),
+    PageResult<UserAccountView> result = userAccountRepository.searchForAdmin(query.username(),
         toUserAccountStatus(query.status()), keyword, numericUserId(keyword), page, pageSize);
     Map<String, String> avatarUrls = avatarUrls(result.getItems());
-    return mapPage(result, account -> toUserResponse(account, avatarUrls.get(account.getAvatar())));
+    return mapPage(result, view -> toUserResponse(view, avatarUrls.get(view.avatar())));
   }
 
   @Transactional(readOnly = true)
   public AdminUserResponse detailUser(Long id) {
-    UserAccount account = userAccountRepository.findById(id)
+    var row = userAccountRepository.findById(id)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
+    UserAccount account = row.aggregate();
     String avatarUrl = account.getAvatar() == null || account.getAvatar().isBlank()
         ? "" : mediaReferences.accessUrl(account.getId(), account.getAvatar(), account.getId());
-    return toUserResponse(account, avatarUrl);
+    return toUserResponse(new UserAccountView(account.getId(), account.getUsername(), account.getNickname(),
+        account.getAvatar(), account.getEmail(), account.getPhone(), account.getSignature(), account.getStatus(),
+        account.getStatusVersion(), account.getRole(), row.audit().createdAt(), row.audit().updatedAt()), avatarUrl);
   }
 
   /** 批量解析当前页用户头像访问 URL，单次调用 support-service，避免逐条 N+1。 */
-  private Map<String, String> avatarUrls(List<UserAccount> accounts) {
+  private Map<String, String> avatarUrls(List<UserAccountView> accounts) {
     List<BusinessMediaAccessRequest> requests = accounts.stream()
-        .filter(account -> account.getAvatar() != null && !account.getAvatar().isBlank())
+        .filter(account -> account.avatar() != null && !account.avatar().isBlank())
         .map(account -> new BusinessMediaAccessRequest(
-            account.getAvatar(), "user_profile", String.valueOf(account.getId())))
+            account.avatar(), "user_profile", String.valueOf(account.id())))
         .toList();
     return mediaReferences.accessUrls(requests);
   }
@@ -161,11 +165,11 @@ public class AdminUserQueryApplicationService {
         userAccountRepository.dailyCounts(since), friendRelationRepository.dailyCounts(since));
   }
 
-  private AdminUserResponse toUserResponse(UserAccount account, String avatarUrl) {
-    return new AdminUserResponse(account.getId(), account.getUsername(), account.getNickname(),
-        avatarUrl, account.getEmail(), account.getPhone(), account.getSignature(),
-        UserStatus.valueOf(account.getStatus().name()), account.getStatusVersion(),
-        UserRole.valueOf(account.getRole().name()), account.getCreatedAt(), account.getUpdatedAt());
+  private AdminUserResponse toUserResponse(UserAccountView account, String avatarUrl) {
+    return new AdminUserResponse(account.id(), account.username(), account.nickname(),
+        avatarUrl, account.email(), account.phone(), account.signature(),
+        UserStatus.valueOf(account.status().name()), account.statusVersion(),
+        UserRole.valueOf(account.role().name()), account.createdAt(), account.updatedAt());
   }
 
   private AdminFriendResponse toFriendResponse(FriendRelationView relation, Map<Long, UserAccount> accounts) {
@@ -193,6 +197,7 @@ public class AdminUserQueryApplicationService {
       return Map.of();
     }
     return userAccountRepository.findByIds(userIds).stream()
+        .map(row -> row.aggregate())
         .collect(Collectors.toMap(UserAccount::getId, Function.identity(), (a, b) -> a));
   }
 

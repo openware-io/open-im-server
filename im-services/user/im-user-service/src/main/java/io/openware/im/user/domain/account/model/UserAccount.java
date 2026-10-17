@@ -2,6 +2,14 @@ package io.openware.im.user.domain.account.model;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户账号聚合根。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 L299）：{@code createdBy}/{@code createdAt}/
+ * {@code updatedBy}/{@code updatedAt} 是记账信息而非业务事实，由写路径在落库时确定
+ * （适配器按端口参数写入）。响应需要的审计列经 {@code UserAccountRepository.Persisted} 的
+ * {@code AuditSnapshot} 交给上层，而不是留在领域模型上。
+ */
 public class UserAccount {
   private Long id;
   private String username;
@@ -17,10 +25,6 @@ public class UserAccount {
   private LocalDateTime selfDestructAt;
   private LocalDateTime lastLoginAt;
   private UserAccountRole role;
-  private Long createdBy;
-  private LocalDateTime createdAt;
-  private Long updatedBy;
-  private LocalDateTime updatedAt;
 
   public static UserAccount register(
       String username,
@@ -41,12 +45,9 @@ public class UserAccount {
     account.statusVersion = 1L;
     account.selfDestructPolicy = SelfDestructPolicy.OFF;
     account.selfDestructAt = null;
+    // 首次登录时刻是业务字段；记账列由端口 save(..., occurredAt) 写入。
     account.lastLoginAt = occurredAt;
     account.role = UserAccountRole.USER;
-    account.createdBy = 0L;
-    account.createdAt = occurredAt;
-    account.updatedBy = 0L;
-    account.updatedAt = occurredAt;
     return account;
   }
 
@@ -55,8 +56,7 @@ public class UserAccount {
       String avatar,
       String email,
       String phone,
-      String signature,
-      LocalDateTime occurredAt) {
+      String signature) {
     if (nickname != null) {
       this.nickname = nickname;
     }
@@ -72,25 +72,21 @@ public class UserAccount {
     if (signature != null) {
       this.signature = signature;
     }
-    this.updatedAt = occurredAt;
   }
 
-  public void changePassword(String passwordHash, LocalDateTime occurredAt) {
+  public void changePassword(String passwordHash) {
     this.passwordHash = passwordHash;
     this.statusVersion++;
-    this.updatedAt = occurredAt;
   }
 
-  public void invalidateAuthentication(LocalDateTime occurredAt) {
+  public void invalidateAuthentication() {
     this.statusVersion++;
-    this.updatedAt = occurredAt;
   }
 
   /** 记录一次登录（或注册）：刷新最近登录时间，并按当前策略重算自毁截止时间。 */
   public void recordLogin(LocalDateTime occurredAt) {
     this.lastLoginAt = occurredAt;
     this.selfDestructAt = selfDestructPolicy.deadlineAfter(occurredAt);
-    this.updatedAt = occurredAt;
   }
 
   /** 更新自毁策略：关闭则清空截止时间；开启则按最近活跃时间重算截止时间。 */
@@ -98,11 +94,10 @@ public class UserAccount {
     this.selfDestructPolicy = policy == null ? SelfDestructPolicy.OFF : policy;
     LocalDateTime activeAt = lastLoginAt != null ? lastLoginAt : occurredAt;
     this.selfDestructAt = this.selfDestructPolicy.deadlineAfter(activeAt);
-    this.updatedAt = occurredAt;
   }
 
   /** 用户主动注销：保留账号行和注销状态，不修改用户名。 */
-  public void markCancelled(String replacementPasswordHash, LocalDateTime occurredAt) {
+  public void markCancelled(String replacementPasswordHash) {
     this.status = UserAccountStatus.DISABLED;
     this.statusVersion++;
     this.passwordHash = replacementPasswordHash;
@@ -113,17 +108,14 @@ public class UserAccount {
     this.signature = "";
     this.selfDestructPolicy = SelfDestructPolicy.OFF;
     this.selfDestructAt = null;
-    this.updatedAt = occurredAt;
   }
 
-  public boolean changeStatus(UserAccountStatus targetStatus, Long operatorId, LocalDateTime occurredAt) {
+  public boolean changeStatus(UserAccountStatus targetStatus) {
     if (this.status == targetStatus) {
       return false;
     }
     this.status = targetStatus;
     this.statusVersion++;
-    this.updatedBy = operatorId;
-    this.updatedAt = occurredAt;
     return true;
   }
 
@@ -141,11 +133,8 @@ public class UserAccount {
   public LocalDateTime getSelfDestructAt() { return selfDestructAt; }
   public LocalDateTime getLastLoginAt() { return lastLoginAt; }
   public UserAccountRole getRole() { return role; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public void restore(
       Long id,
       String username,
@@ -160,11 +149,7 @@ public class UserAccount {
       SelfDestructPolicy selfDestructPolicy,
       LocalDateTime selfDestructAt,
       LocalDateTime lastLoginAt,
-      UserAccountRole role,
-      Long createdBy,
-      LocalDateTime createdAt,
-      Long updatedBy,
-      LocalDateTime updatedAt) {
+      UserAccountRole role) {
     this.id = id;
     this.username = username;
     this.nickname = nickname;
@@ -179,10 +164,6 @@ public class UserAccount {
     this.selfDestructAt = selfDestructAt;
     this.lastLoginAt = lastLoginAt;
     this.role = role;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
   public void assignId(Long id) { this.id = id; }

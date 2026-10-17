@@ -3,6 +3,7 @@ package io.openware.platform.order.api.controller;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.application.ReservationCompatQueryService;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
@@ -42,7 +43,7 @@ class ReservationCompatControllerTest {
     @BeforeEach
     void setUp() {
         reservationRepository = mock(ReservationRepository.class);
-        controller = new ReservationCompatController(reservationRepository);
+        controller = new ReservationCompatController(new ReservationCompatQueryService(reservationRepository));
         TenantContextHolder.set(new TenantContext(TENANT_ID, 8L, 1001L, 42L, 1, List.of()));
     }
 

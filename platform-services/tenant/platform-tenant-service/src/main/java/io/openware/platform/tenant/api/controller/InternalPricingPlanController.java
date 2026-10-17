@@ -6,12 +6,11 @@ import io.openware.platform.tenant.api.converter.PricingPlanConverter;
 import io.openware.platform.tenant.domain.pricing.model.PricingPlan;
 import io.openware.platform.tenant.api.dto.PricingPlanView;
 import io.openware.platform.tenant.application.PricingPlanApplicationService;
-import io.openware.platform.tenant.application.PricingPlanApplicationService.StoreScopeItem;
+import io.openware.platform.tenant.application.PricingPlanApplicationService.PricingPlanBatchCommand;
+import io.openware.platform.tenant.application.PricingPlanApplicationService.PricingPlanCommand;
 import io.openware.platform.tenant.application.PricingPlanApplicationService.StoreScopeValidation;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,26 +47,10 @@ public class InternalPricingPlanController {
     }
 
     @PostMapping("/batch")
-    @Transactional
     public BatchPricingView createBatch(@RequestBody BatchPricingRequest req) {
-        if (req == null || req.plan() == null || req.storeIds() == null || req.storeIds().isEmpty()) {
-            throw new ApiException(400, "PRICING_BATCH_INVALID", "storeIds 和 plan 不能为空");
-        }
         long tenantId = requireTenant();
-        CreatePricingRequest plan = req.plan();
-        // 先整批校验门店范围（归属/存在/业态一致），再逐店写入：边校验边写会让前半批落库、
-        // 后半批失败，留下半截配置。
-        StoreScopeValidation scope = pricingPlanService.validateStoreScope(tenantId, plan.businessType(),
-                req.storeIds());
-        List<PricingPlanView> saved = new ArrayList<>();
-        for (StoreScopeItem item : scope.stores()) {
-            saved.add(PricingPlanConverter.toView(save(tenantId, new CreatePricingRequest(tenantId,
-                    item.storeId(), item.businessType(), plan.resourceType(), plan.billingUnit(),
-                    plan.incrementMinutes(), plan.roundingDirection(), plan.pricePerUnit(),
-                    plan.defaultSessionMinutes(), plan.overtimeRate(), plan.version(),
-                    req.idempotencyKey()))));
-        }
-        return new BatchPricingView(saved);
+        List<PricingPlan> saved = pricingPlanService.createBatch(tenantId, toBatchCommand(req));
+        return new BatchPricingView(saved.stream().map(PricingPlanConverter::toView).toList());
     }
 
     /** Admin/其他领域批量写入前的门店范围校验；只返回契约数据，不暴露门店 PO。 */
@@ -78,6 +61,18 @@ public class InternalPricingPlanController {
             throw new ApiException(400, "STORE_SCOPE_INVALID", "storeIds 不能为空");
         }
         return pricingPlanService.validateStoreScope(tenantId, req.businessType(), req.storeIds());
+    }
+
+    /** 协议 DTO → 应用层命令：批量写入的校验/循环由应用服务承担。 */
+    private static PricingPlanBatchCommand toBatchCommand(BatchPricingRequest req) {
+        if (req == null) {
+            return null;
+        }
+        CreatePricingRequest plan = req.plan();
+        PricingPlanCommand command = plan == null ? null : new PricingPlanCommand(plan.businessType(),
+                plan.resourceType(), plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(),
+                plan.pricePerUnit(), plan.defaultSessionMinutes(), plan.overtimeRate(), plan.version());
+        return new PricingPlanBatchCommand(command, req.storeIds(), req.idempotencyKey());
     }
 
     private PricingPlan save(long tenantId,

@@ -6,6 +6,7 @@ import io.openware.im.user.application.account.result.SelfDestructPolicyResult;
 import io.openware.im.user.domain.account.event.UserChatRecordsPurged;
 import io.openware.im.user.domain.account.model.SelfDestructPolicy;
 import io.openware.im.user.domain.account.model.UserAccount;
+import io.openware.im.user.domain.account.repository.Persisted;
 import io.openware.im.user.domain.account.repository.UserStatusEventOutbox;
 import io.openware.im.user.domain.account.repository.UserAccountRepository;
 import java.time.Instant;
@@ -47,18 +48,20 @@ public class SelfDestructApplicationService {
           "Invalid self destruct policy, expected one of " + ALLOWED_POLICIES);
     }
     UserAccount account = requireAccount(userId);
-    account.setSelfDestructPolicy(SelfDestructPolicy.fromValue(policy), LocalDateTime.now());
-    return toResult(userAccountRepository.save(account));
+    LocalDateTime now = LocalDateTime.now();
+    account.setSelfDestructPolicy(SelfDestructPolicy.fromValue(policy), now);
+    return toResult(userAccountRepository.save(account, now).aggregate());
   }
 
   /** 清扫到期账号：清理其聊天记录（保留账号），重置策略，广播清理事件；返回本次清理数量。 */
   @Transactional
   public int sweepExpired(LocalDateTime now, int limit) {
-    List<UserAccount> due = userAccountRepository.findSelfDestructDue(now, limit);
-    for (UserAccount account : due) {
+    List<Persisted<UserAccount>> due = userAccountRepository.findSelfDestructDue(now, limit);
+    for (Persisted<UserAccount> row : due) {
+      UserAccount account = row.aggregate();
       Long userId = account.getId();
-      account.setSelfDestructPolicy(SelfDestructPolicy.OFF, LocalDateTime.now());
-      userAccountRepository.save(account);
+      account.setSelfDestructPolicy(SelfDestructPolicy.OFF, now);
+      userAccountRepository.save(account, now);
       userStatusEventOutbox.append(new UserChatRecordsPurged(UUID.randomUUID().toString(), userId, Instant.now()));
       log.info("Purged chat records for self destruct policy, account kept, userId={}, policy={}",
           userId, account.getSelfDestructPolicy().value());
@@ -67,7 +70,7 @@ public class SelfDestructApplicationService {
   }
 
   private UserAccount requireAccount(Long userId) {
-    return userAccountRepository.findById(userId)
+    return userAccountRepository.findById(userId).map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "User not found"));
   }
 

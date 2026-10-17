@@ -2,15 +2,21 @@ package io.openware.platform.tenant.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService.BusinessHoursView;
 import io.openware.platform.tenant.application.KtvBusinessHoursApplicationService.KtvBusinessHours;
+import io.openware.platform.tenant.domain.configuration.model.TenantConfig;
 import io.openware.platform.tenant.domain.configuration.model.TenantConfigValue;
 import io.openware.platform.tenant.domain.configuration.repository.TenantConfigRepository;
 import io.openware.platform.tenant.domain.store.model.Store;
@@ -18,7 +24,9 @@ import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /**
  * KTV 营业时间配置：门店行 → 业态默认行 → 租户默认行 → 缺省 18:00–05:00；跨自然日的时段判定。
@@ -40,6 +48,16 @@ class KtvBusinessHoursApplicationServiceTest {
     private final StoreRepository stores = mock(StoreRepository.class);
     private final KtvBusinessHoursApplicationService service =
             new KtvBusinessHoursApplicationService(configs, stores);
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
+    }
+
+    private static void permissionContext() {
+        TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, 1L, 1,
+                List.of("tenant.tenant.manage")));
+    }
 
     /** 门店事实：归属本租户 + 指定业态（null 表示不关心业态）。 */
     private void store(long storeId, String businessType) {
@@ -153,6 +171,42 @@ class KtvBusinessHoursApplicationServiceTest {
         assertEquals("05:00", view.closeTime());
         assertTrue(view.crossesMidnight());
         assertEquals("18:00 – 次日 05:00", view.displayText());
+    }
+
+    @Test
+    void updateWritesTenantDefaultThroughTheApplicationService() {
+        permissionContext();
+        when(configs.upsert(any(TenantConfig.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BusinessHoursView view = service.updateWithAudit(TENANT_ID, null, null, null, "09:00", "22:00");
+
+        ArgumentCaptor<TenantConfig> captor = ArgumentCaptor.forClass(TenantConfig.class);
+        verify(configs).upsert(captor.capture());
+        assertEquals("09:00-22:00", captor.getValue().configValue());
+        assertEquals(0L, view.storeId());
+    }
+
+    @Test
+    void updateRejectsMixedTenantAndStoreTargets() {
+        permissionContext();
+
+        ApiException failure = assertThrows(ApiException.class,
+                () -> service.updateWithAudit(TENANT_ID, 0L, List.of(1L), null, "09:00", "22:00"));
+
+        assertEquals("STORE_TARGET_MIXED", failure.getCode());
+    }
+
+    @Test
+    void updateRejectsMissingOrInvalidTimes() {
+        permissionContext();
+
+        ApiException missing = assertThrows(ApiException.class,
+                () -> service.updateWithAudit(TENANT_ID, null, null, null, null, "22:00"));
+        assertEquals("BUSINESS_HOURS_REQUIRED", missing.getCode());
+
+        ApiException invalid = assertThrows(ApiException.class,
+                () -> service.updateWithAudit(TENANT_ID, null, null, null, "9点", "22:00"));
+        assertEquals("TIME_FORMAT_INVALID", invalid.getCode());
     }
 
     /** 业态从门店事实取得（不是调用方传入），据此命中的是 BUSINESS 层而不是 STORE 层。 */

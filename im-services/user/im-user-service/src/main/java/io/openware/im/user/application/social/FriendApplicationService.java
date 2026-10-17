@@ -198,6 +198,7 @@ public class FriendApplicationService {
   private List<FriendResult> toResults(List<Persisted<FriendRelation>> relations) {
     Map<Long, UserAccount> friendsById = userAccountRepository
         .findByIds(relations.stream().map(row -> row.aggregate().getFriendId()).distinct().toList()).stream()
+        .map(row -> row.aggregate())
         .collect(Collectors.toMap(UserAccount::getId, Function.identity()));
     return relations.stream()
         .map(row -> toResult(row, friendsById.get(row.aggregate().getFriendId())))
@@ -205,7 +206,8 @@ public class FriendApplicationService {
   }
 
   private FriendResult toResult(Persisted<FriendRelation> row) {
-    return toResult(row, userAccountRepository.findById(row.aggregate().getFriendId()).orElse(null));
+    return toResult(row, userAccountRepository.findById(row.aggregate().getFriendId())
+        .map(accountRow -> accountRow.aggregate()).orElse(null));
   }
 
   private FriendResult toResult(Persisted<FriendRelation> row, UserAccount friend) {
