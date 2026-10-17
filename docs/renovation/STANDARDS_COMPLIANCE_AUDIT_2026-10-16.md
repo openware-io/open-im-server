@@ -487,6 +487,38 @@ private long version(FriendRelation relation) {
 **结论**：这是剩余 5 个里**语义风险最高**的一个——改动会跨服务影响私信授权。必须：
 先补一条**回归测试锁住 `version()` 的取值**（关系未变更时版本稳定、变更后版本递增），再动模型。
 
+### 8.16 `UserAccount` 的逐方法判定（2026-10-16 第十二次更新）
+
+`UserAccount` 有 **8 个写审计列的方法**，逐一判定 `occurredAt` / `operatorId` 的用途后结论如下。
+**这张表是施工依据，不需要重新推导**：
+
+| 方法 | 参数用途 | 结论 |
+|---|---|---|
+| `register(... occurredAt)` | 还写 `lastLoginAt`（**业务**：首次登录时刻） | **保留 `occurredAt`** |
+| `updateProfile(... occurredAt)` | **只**写 `updatedAt` | **删 `occurredAt`** |
+| `changePassword(hash, occurredAt)` | **只**写 `updatedAt` | **删 `occurredAt`** |
+| `invalidateAuthentication(occurredAt)` | **只**写 `updatedAt` | **删 `occurredAt`** |
+| `recordLogin(occurredAt)` | 写 `lastLoginAt` + `selfDestructAt`（**业务**）+ `updatedAt` | **保留** |
+| `setSelfDestructPolicy(policy, occurredAt)` | 用 `lastLoginAt != null ? lastLoginAt : occurredAt` 推策略（**业务**）+ `updatedAt` | **保留** |
+| `markCancelled(hash, occurredAt)` | **只**写 `updatedAt` | **删 `occurredAt`** |
+| `changeStatus(target, operatorId, occurredAt)` | `operatorId` **只**写 `updatedBy`；`occurredAt` **只**写 `updatedAt` | **两个参数都删** |
+
+**统计**：5 个方法删参（其中 1 个删两个参数），3 个方法保留（`register`/`recordLogin`/`setSelfDestructPolicy`）。
+
+**其余施工面**：
+
+- 端口 **18 个方法**；`findById`/`findByUsername`/`findByEmail`/`findByPhone`/`search`/`findByIds` → 需载体；
+  `searchForAdmin` → `PageResult<UserAccountView>` 投影；`countAll`/`countCreatedSince`/`dailyCounts`/
+  `findIdsMatchingKeyword`/`saveStatusIfVersionMatches`/`findSelfDestructDue`/`hardDelete` 视返回值而定
+  （`findSelfDestructDue` 返回实体列表 → 需载体；`saveStatusIfVersionMatches` 返回 boolean → 不变）
+- 应用层读者 **2 处**：`AdminUserQueryApplicationService:152`（admin 列表，走投影）与
+  `ProfileApplicationService:151-152,161`（个人资料响应，走载体）
+- 建议**分两轮**：先端口 + 载体 + 投影 + 适配器（编译通过、测试绿），再逐个改那 5 个迁移方法的签名
+
+**为什么分两轮**：第一轮只动「读取形态」，编译错误集中在适配器与应用层；
+第二轮只动「方法签名」，编译错误集中在调用点。混在一轮会同时暴露两类错误，难以定位。
+
+
 
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
