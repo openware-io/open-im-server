@@ -44,7 +44,7 @@ class OpenPlatformApplicationServiceTest {
   void setUp() {
     OpenApplication app = new OpenApplication();
     app.restore(10L, "app-1", "测试应用", "测试主体", "THIRD_PARTY", "openchat://oauth/callback", "hash",
-        OpenApplicationStatus.APPROVED, List.of("profile.basic", "profile.phone"), null, 0L, null, 0L, null, 0L, null);
+        OpenApplicationStatus.APPROVED, List.of("profile.basic", "profile.phone"), null, 0L, null);
     when(openApplicationRepository.findByAppId("app-1")).thenReturn(Optional.of(app));
     when(openUserAuthorizationRepository.findByApplicationAndUser(10L, 1L)).thenReturn(Optional.empty());
   }

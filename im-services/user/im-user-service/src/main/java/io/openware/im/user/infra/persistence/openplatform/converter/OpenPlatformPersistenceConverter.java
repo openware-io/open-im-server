@@ -17,8 +17,7 @@ public final class OpenPlatformPersistenceConverter {
     OpenApplication app = new OpenApplication();
     app.restore(po.getId(), po.getAppId(), po.getAppName(), po.getSubjectName(), po.getAppType(), po.getCallbackUrl(),
         po.getAppSecretHash(), OpenApplicationStatus.valueOf(po.getStatus().toUpperCase()), scopes,
-        po.getRejectReason(), po.getReviewedBy(), po.getReviewedAt(),
-        po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+        po.getRejectReason(), po.getReviewedBy(), po.getReviewedAt());
     return app;
   }
 
@@ -35,10 +34,6 @@ public final class OpenPlatformPersistenceConverter {
     po.setRejectReason(app.getRejectReason());
     po.setReviewedBy(app.getReviewedBy());
     po.setReviewedAt(app.getReviewedAt());
-    po.setCreatedBy(app.getCreatedBy());
-    po.setCreatedAt(app.getCreatedAt());
-    po.setUpdatedBy(app.getUpdatedBy());
-    po.setUpdatedAt(app.getUpdatedAt());
     return po;
   }
 

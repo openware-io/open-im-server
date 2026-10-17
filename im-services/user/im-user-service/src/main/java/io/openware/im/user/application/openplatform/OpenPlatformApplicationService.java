@@ -100,7 +100,7 @@ public class OpenPlatformApplicationService {
     String appType = command.appType() == null || command.appType().isBlank() ? "THIRD_PARTY" : command.appType();
     String subjectName = command.subjectName() == null || command.subjectName().isBlank() ? command.appName() : command.subjectName();
     OpenApplication application = OpenApplication.register(appId, command.appName(), subjectName, appType,
-        command.callbackUrl(), null, normalizeScopes(command.scopes()), LocalDateTime.now());
+        command.callbackUrl(), null, normalizeScopes(command.scopes()));
     openApplicationRepository.save(application);
     log.info("开放平台应用申请登记, appId={}, appName={}, subjectName={}, appType={}, status=PENDING", appId, command.appName(), subjectName, appType);
     return new RegisteredApplicationResult(appId, null, command.appName(), OpenApplicationStatus.PENDING.name());
@@ -130,7 +130,7 @@ public class OpenPlatformApplicationService {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "invalid_scope", "Requested scope is not supported");
     }
     boolean scopesChanged = !app.getScopes().equals(scopes);
-    app.updateInfo(callbackUrl, scopes, LocalDateTime.now());
+    app.updateInfo(callbackUrl, scopes);
     openApplicationRepository.save(app);
     if (scopesChanged) {
       // scope 变更后使既有用户级授权失效，要求受影响用户重新授权。
@@ -440,7 +440,7 @@ public class OpenPlatformApplicationService {
   public void revokeApplication(String appId) {
     OpenApplication app = openApplicationRepository.findByAppId(appId)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Application not found"));
-    app.revoke(LocalDateTime.now());
+    app.revoke();
     openApplicationRepository.save(app);
     LocalDateTime now = LocalDateTime.now();
     for (OpenUserAuthorization auth : openUserAuthorizationRepository.findByApplicationId(app.getId())) {
@@ -489,7 +489,7 @@ public class OpenPlatformApplicationService {
       throw new ApiException(HttpStatusCodes.CONFLICT, "Only approved application can reset secret");
     }
     String appSecret = randomHex(32);
-    app.resetSecret(appSecretHasher.hash(appSecret), LocalDateTime.now());
+    app.resetSecret(appSecretHasher.hash(appSecret));
     openApplicationRepository.save(app);
     log.info("开放平台应用密钥重置, appId={}", appId);
     return new RegisteredApplicationResult(app.getAppId(), appSecret, app.getAppName(), app.getStatus().name());

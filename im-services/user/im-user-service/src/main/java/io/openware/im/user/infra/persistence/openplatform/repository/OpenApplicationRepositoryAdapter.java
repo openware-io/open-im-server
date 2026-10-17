@@ -45,13 +45,20 @@ public class OpenApplicationRepositoryAdapter implements OpenApplicationReposito
   @Override
   public OpenApplication save(OpenApplication application) {
     OpenApplicationPo po = OpenPlatformPersistenceConverter.toPo(application);
+    // 审计列由适配器确定（standards/10 L299）：登记方是系统本身，沿用原常量 0L。
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    po.setCreatedBy(0L);
+    po.setUpdatedBy(0L);
     if (po.getId() == null) {
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       applicationMapper.insert(po);
       application.assignId(po.getId());
       for (String scope : application.getScopes()) {
         scopeMapper.insert(OpenPlatformPersistenceConverter.toScopePo(po.getId(), scope));
       }
     } else {
+      po.setUpdatedAt(now);
       applicationMapper.updateById(po);
       syncScopes(po.getId(), application.getScopes());
     }

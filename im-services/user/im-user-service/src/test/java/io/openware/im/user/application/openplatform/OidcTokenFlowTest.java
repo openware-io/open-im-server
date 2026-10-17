@@ -546,8 +546,7 @@ class OidcTokenFlowTest {
       String secretHash, List<String> scopes) {
     OpenApplication application = new OpenApplication();
     application.restore(id, appId, appId, "测试主体", appType, callbackUrl, secretHash,
-        OpenApplicationStatus.APPROVED, scopes, null, 0L, LocalDateTime.now(), 0L, LocalDateTime.now(), 0L,
-        LocalDateTime.now());
+        OpenApplicationStatus.APPROVED, scopes, null, 0L, LocalDateTime.now());
     return application;
   }
 
