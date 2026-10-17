@@ -6,14 +6,14 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SecretMessageRepository {
-  SecretMessage save(SecretMessage message);
+  Persisted<SecretMessage> save(SecretMessage message);
 
   long nextSeq(long secretChatId);
 
-  List<SecretMessage> listAfterSeq(long secretChatId, long afterSeq, int limit);
+  List<Persisted<SecretMessage>> listAfterSeq(long secretChatId, long afterSeq, int limit);
 
   /** 按会话 + msgId 查消息（撤回/删除协调用）。 */
-  Optional<SecretMessage> findByMsgId(long secretChatId, String msgId);
+  Optional<Persisted<SecretMessage>> findByMsgId(long secretChatId, String msgId);
 
   /**
    * 硬删除密文消息（按会话 + msgId）；返回删除行数（0 = 已不存在，用于并发/幂等协调）。
@@ -28,10 +28,10 @@ public interface SecretMessageRepository {
    * 已读计时候选：secretChatId 内 {@code seq <= afterSeq}、由 {@code viewerId} 之外
    * 的用户发送、状态 active 且尚未设置 destroyAt 的消息（按 seq 升序）。
    */
-  List<SecretMessage> findUncountedReadBy(long secretChatId, long afterSeq, long viewerId);
+  List<Persisted<SecretMessage>> findUncountedReadBy(long secretChatId, long afterSeq, long viewerId);
 
   /** 会话内 active 且尚未设置 destroyAt 的消息（策略变更回补计时用，不区分已读/未读，按 seq 升序）。 */
-  List<SecretMessage> findActiveWithoutDestroyAt(long secretChatId);
+  List<Persisted<SecretMessage>> findActiveWithoutDestroyAt(long secretChatId);
 
   /** 会话内 active 消息中最早的 destroyAt（无计时消息返回 null）。 */
   LocalDateTime findEarliestDestroyAt(long secretChatId);
@@ -40,8 +40,8 @@ public interface SecretMessageRepository {
    * 延迟销毁到期的候选：secretChatId 内 msgId 属于 [msgIds]、状态 active、
    * destroyAt 非空且不晚于 [now] 的消息。
    */
-  List<SecretMessage> findActiveByMsgIds(long secretChatId, List<String> msgIds, LocalDateTime now);
+  List<Persisted<SecretMessage>> findActiveByMsgIds(long secretChatId, List<String> msgIds, LocalDateTime now);
 
   /** 定时销毁扫描：返回已到销毁时间且仍为 active 的消息（按销毁时间升序）。 */
-  List<SecretMessage> findExpired(LocalDateTime now, int limit);
+  List<Persisted<SecretMessage>> findExpired(LocalDateTime now, int limit);
 }

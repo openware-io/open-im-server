@@ -18,6 +18,8 @@ import io.openware.im.message.domain.secretmessage.model.SecretMessageDestroyed;
 import io.openware.im.message.domain.message.repository.FeatureTogglePort;
 import io.openware.im.message.domain.secretmessage.repository.SecretChatParticipantPort;
 import io.openware.im.message.domain.secretmessage.repository.SecretChatPolicyPort;
+import io.openware.im.message.domain.secretmessage.repository.AuditSnapshot;
+import io.openware.im.message.domain.secretmessage.repository.Persisted;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageDestroyedRepository;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageRepository;
 import io.openware.protocol.mq.topic.ImMqTopics;
@@ -84,7 +86,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void listNeverStartsDestroyCountdownUntilExplicitRead() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.items.add(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.put(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     // 接收方拉取（未显式已读上报）不得计时——杜绝「未查阅就销毁」。
@@ -97,7 +99,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void listBySenderDoesNotStartDestroyCountdown() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.items.add(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.put(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     List<SecretMessageResult> results = service.list(1L, 10L, 0L, 50);
@@ -109,7 +111,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void listWithOffPolicyNeverStartsDestroyCountdown() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.items.add(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.put(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("off"));
 
     List<SecretMessageResult> results = service.list(2L, 10L, 0L, 50);
@@ -120,7 +122,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void listByNonParticipantIsForbidden() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.items.add(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.put(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     ApiException ex = assertThrows(ApiException.class, () -> service.list(3L, 10L, 0L, 50));
@@ -140,7 +142,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void markReadByNonParticipantIsForbidden() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     ApiException ex = assertThrows(ApiException.class, () -> service.markRead(3L, 10L, 1L));
@@ -150,14 +152,14 @@ class SecretMessageApplicationServiceTest {
   @Test
   void markReadByReceiverStartsDestroyCountdownForActiveUncountedMessages() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     // 接收方已读上报后才开始 30s 计时。
     var result = service.markRead(2L, 10L, 1L);
 
     assertEquals(1, result.counted());
-    assertNotNull(repository.findByMsgId(10L, "msg-1").get().getDestroyAt());
+    assertNotNull(repository.findByMsgId(10L, "msg-1").get().aggregate().getDestroyAt());
     assertNotNull(result.destroyAt(), "已读上报应返回计时截止时刻供客户端本地销毁");
   }
 
@@ -169,11 +171,11 @@ class SecretMessageApplicationServiceTest {
     LocalDateTime now = LocalDateTime.now(java.time.Clock.systemUTC());
     // 一条到期 active（destroyAt 已到）+ 一条未到期 + 一条已 destroyed。
     repository.save(SecretMessage.restore(1L, 10L, "due-1", 1L, "cipher-1", 1L, "active",
-        now.minusSeconds(1), 1L, now, 1L, now));
+        now.minusSeconds(1)));
     repository.save(SecretMessage.restore(2L, 10L, "future-1", 1L, "cipher-2", 2L, "active",
-        now.plusSeconds(30), 1L, now, 1L, now));
+        now.plusSeconds(30)));
     repository.save(SecretMessage.restore(3L, 10L, "dead-1", 1L, "cipher-3", 3L, "destroyed",
-        now.minusSeconds(5), 1L, now, 1L, now));
+        now.minusSeconds(5)));
     SecretMessageApplicationService service = service(repository, destroyedRepo, policy("30s"), outbox);
 
     // 延迟命令到期：只销毁 due-1（active 且 destroyAt 已到），并发布销毁事件。
@@ -181,7 +183,7 @@ class SecretMessageApplicationServiceTest {
 
     assertEquals(1, destroyed);
     assertTrue(repository.findByMsgId(10L, "due-1").isEmpty(), "到期密文应被硬删除");
-    assertEquals("active", repository.findByMsgId(10L, "future-1").get().getStatus(),
+    assertEquals("active", repository.findByMsgId(10L, "future-1").get().aggregate().getStatus(),
         "未到销毁时刻的消息不得提前销毁");
     assertEquals(1, destroyedRepo.items.size());
     assertEquals("due-1", destroyedRepo.items.getFirst().msgId());
@@ -193,27 +195,27 @@ class SecretMessageApplicationServiceTest {
   @Test
   void markReadDoesNotCountdownSendersOwnMessages() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     // 发送方自己上报已读：不触发对己方消息的计时。
     var result = service.markRead(1L, 10L, 1L);
 
     assertEquals(0, result.counted());
-    assertNull(repository.findByMsgId(10L, "msg-1").get().getDestroyAt());
+    assertNull(repository.findByMsgId(10L, "msg-1").get().aggregate().getDestroyAt());
   }
 
   @Test
   void markReadWithOffPolicyNeverStartsCountdown() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L, LocalDateTime.now()));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("off"));
 
     var result = service.markRead(2L, 10L, 1L);
 
     assertEquals(0, result.counted());
     assertNull(result.destroyAt(), "off 策略不返回计时截止时刻");
-    assertNull(repository.findByMsgId(10L, "msg-1").get().getDestroyAt());
+    assertNull(repository.findByMsgId(10L, "msg-1").get().aggregate().getDestroyAt());
   }
 
   @Test
@@ -221,18 +223,18 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     LocalDateTime now = LocalDateTime.now(java.time.Clock.systemUTC());
     repository.save(SecretMessage.restore(1L, 10L, "msg-1", 1L, "cipher-1", 1L, "active",
-        now.plusSeconds(60), 1L, now, 1L, now));
+        now.plusSeconds(60)));
     repository.save(SecretMessage.restore(2L, 10L, "msg-2", 1L, "cipher-2", 2L, "active",
-        now.plusSeconds(30), 1L, now, 1L, now));
+        now.plusSeconds(30)));
     repository.save(SecretMessage.restore(3L, 10L, "msg-3", 1L, "cipher-3", 3L, "destroyed",
-        now.minusSeconds(5), 1L, now, 1L, now));
+        now.minusSeconds(5)));
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     assertEquals(now.plusSeconds(30), service.earliestDestroyAt(1L, 10L));
 
     // 无计时消息的会话返回 null。
     InMemorySecretMessageRepository empty = new InMemorySecretMessageRepository();
-    empty.save(SecretMessage.post(10L, "msg-x", 1L, "cipher-x", 1L, 1L, now));
+    empty.save(SecretMessage.post(10L, "msg-x", 1L, "cipher-x", 1L));
     SecretMessageApplicationService emptyService = service(empty, policy("off"));
     assertNull(emptyService.earliestDestroyAt(1L, 10L));
   }
@@ -264,18 +266,18 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     LocalDateTime now = LocalDateTime.now();
     SecretMessage due = SecretMessage.restore(1L, 10L, "msg-1", 1L, "cipher-1", 1L, "active",
-        now.minusSeconds(5), 1L, now, 1L, now);
+        now.minusSeconds(5));
     SecretMessage notDue = SecretMessage.restore(2L, 10L, "msg-2", 1L, "cipher-2", 2L, "active",
-        now.plusSeconds(30), 1L, now, 1L, now);
-    repository.items.add(due);
-    repository.items.add(notDue);
+        now.plusSeconds(30));
+    repository.put(due);
+    repository.put(notDue);
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     int destroyed = service.destroyExpired(now, 100);
 
     assertEquals(1, destroyed);
     assertTrue(repository.findByMsgId(10L, "msg-1").isEmpty(), "到期密文应被硬删除");
-    assertEquals("active", repository.findByMsgId(10L, "msg-2").get().getStatus());
+    assertEquals("active", repository.findByMsgId(10L, "msg-2").get().aggregate().getStatus());
   }
 
   @Test
@@ -284,9 +286,9 @@ class SecretMessageApplicationServiceTest {
     InMemoryOutboxRepository outbox = new InMemoryOutboxRepository();
     LocalDateTime now = LocalDateTime.now(java.time.Clock.systemUTC());
     repository.save(SecretMessage.restore(1L, 10L, "msg-1", 1L, "cipher-1", 1L, "active",
-        now.minusSeconds(5), 1L, now, 1L, now));
+        now.minusSeconds(5)));
     repository.save(SecretMessage.restore(2L, 10L, "msg-2", 1L, "cipher-2", 2L, "active",
-        now.minusSeconds(3), 1L, now, 1L, now));
+        now.minusSeconds(3)));
     SecretMessageApplicationService service = service(repository,
         new InMemorySecretMessageDestroyedRepository(), policy("30s"), outbox);
 
@@ -306,14 +308,14 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     LocalDateTime now = LocalDateTime.now();
     SecretMessage message = SecretMessage.restore(1L, 10L, "msg-1", 1L, "cipher-1", 1L, "active",
-        now.plusSeconds(30), 1L, now, 1L, now);
-    repository.items.add(message);
+        now.plusSeconds(30));
+    repository.put(message);
     SecretMessageApplicationService service = service(repository, policy("30s"));
 
     var result = service.markRead(2L, 10L, 1L);
 
     assertEquals(0, result.counted(), "已计时的消息重复已读不再重置");
-    assertEquals(now.plusSeconds(30), repository.findByMsgId(10L, "msg-1").get().getDestroyAt());
+    assertEquals(now.plusSeconds(30), repository.findByMsgId(10L, "msg-1").get().aggregate().getDestroyAt());
   }
 
   /**
@@ -341,7 +343,7 @@ class SecretMessageApplicationServiceTest {
     // 4. 接收方 B 显式已读上报（真正看到消息内容）：开始 30s 计时。
     var readResult = service.markRead(2L, 10L, 1L);
     assertEquals(1, readResult.counted());
-    LocalDateTime destroyAt = repository.findByMsgId(10L, "msg-1").get().getDestroyAt();
+    LocalDateTime destroyAt = repository.findByMsgId(10L, "msg-1").get().aggregate().getDestroyAt();
     assertNotNull(destroyAt, "接收方已读后应开始计时");
     assertEquals(readResult.destroyAt(), destroyAt, "已读上报返回的截止时刻应与存储一致");
     assertTrue(destroyAt.isAfter(now) && destroyAt.isBefore(now.plusSeconds(31)),
@@ -358,8 +360,7 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     InMemorySecretMessageDestroyedRepository destroyed = new InMemorySecretMessageDestroyedRepository();
     InMemoryOutboxRepository outbox = new InMemoryOutboxRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L,
-        LocalDateTime.now(java.time.Clock.systemUTC())));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, destroyed, policy("off"), outbox);
 
     service.recall(1L, 10L, "msg-1");
@@ -374,8 +375,7 @@ class SecretMessageApplicationServiceTest {
   @Test
   void recallByPeerIsForbidden() {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L,
-        LocalDateTime.now(java.time.Clock.systemUTC())));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, policy("off"));
 
     ApiException ex = assertThrows(ApiException.class, () -> service.recall(2L, 10L, "msg-1"));
@@ -388,8 +388,7 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     InMemorySecretMessageDestroyedRepository destroyed = new InMemorySecretMessageDestroyedRepository();
     InMemoryOutboxRepository outbox = new InMemoryOutboxRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L,
-        LocalDateTime.now(java.time.Clock.systemUTC())));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, destroyed, policy("off"), outbox);
 
     // 仅发送者（user=1）可删除自己的消息。
@@ -406,8 +405,7 @@ class SecretMessageApplicationServiceTest {
     InMemorySecretMessageRepository repository = new InMemorySecretMessageRepository();
     InMemorySecretMessageDestroyedRepository destroyed = new InMemorySecretMessageDestroyedRepository();
     InMemoryOutboxRepository outbox = new InMemoryOutboxRepository();
-    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L, 1L,
-        LocalDateTime.now(java.time.Clock.systemUTC())));
+    repository.save(SecretMessage.post(10L, "msg-1", 1L, "cipher-1", 1L));
     SecretMessageApplicationService service = service(repository, destroyed, policy("off"), outbox);
 
     // Telegram 语义：私密聊天双方均可删除任意消息（对端 user=2 可删发送方 user=1 的消息）。
@@ -525,117 +523,142 @@ class SecretMessageApplicationServiceTest {
 
   /** 内存仓库：仅测试用，不泄漏 PO 到应用层。 */
   static class InMemorySecretMessageRepository implements SecretMessageRepository {
-    final List<SecretMessage> items = new ArrayList<>();
+    /** 存「聚合 + 记账快照」：领域对象不带投递时刻，读回时由快照提供（与真实适配器一致）。 */
+    final List<Persisted<SecretMessage>> items = new ArrayList<>();
+
+    /** 供测试预置数据：与适配器一样打上投递时刻。 */
+    Persisted<SecretMessage> put(SecretMessage message) {
+      Persisted<SecretMessage> row = persisted(message);
+      items.add(row);
+      return row;
+    }
 
     @Override
-    public SecretMessage save(SecretMessage message) {
+    public Persisted<SecretMessage> save(SecretMessage message) {
+      LocalDateTime now = LocalDateTime.now();
       if (message.getId() == null) {
         long id = items.size() + 1L;
         SecretMessage restored = SecretMessage.restore(id, message.getSecretChatId(), message.getMsgId(),
             message.getFromUserId(), message.getCiphertext(), message.getSeq(), message.getStatus(),
-            message.getDestroyAt(), message.getCreatedBy(), message.getCreatedAt(),
-            message.getUpdatedBy(), message.getUpdatedAt());
-        items.add(restored);
-        return restored;
+            message.getDestroyAt());
+        Persisted<SecretMessage> row = new Persisted<>(restored, new AuditSnapshot(null, now, null, now));
+        items.add(row);
+        return row;
       }
       for (int i = 0; i < items.size(); i++) {
-        if (items.get(i).getId().equals(message.getId())) {
-          items.set(i, message);
-          return message;
+        if (items.get(i).aggregate().getId().equals(message.getId())) {
+          // 投递时刻不可改写：沿用原快照的 createdAt，只推进 updatedAt。
+          AuditSnapshot old = items.get(i).audit();
+          Persisted<SecretMessage> row = new Persisted<>(message,
+              new AuditSnapshot(old.createdBy(), old.createdAt(), null, now));
+          items.set(i, row);
+          return row;
         }
       }
-      items.add(message);
-      return message;
+      Persisted<SecretMessage> row = persisted(message);
+      items.add(row);
+      return row;
     }
 
     @Override
     public long nextSeq(long secretChatId) {
-      return items.stream().filter(m -> m.getSecretChatId().equals(secretChatId))
+      return items.stream().map(Persisted::aggregate)
+          .filter(m -> m.getSecretChatId().equals(secretChatId))
           .map(SecretMessage::getSeq).max(Comparator.naturalOrder()).orElse(0L) + 1L;
     }
 
     @Override
-    public List<SecretMessage> listAfterSeq(long secretChatId, long afterSeq, int limit) {
+    public List<Persisted<SecretMessage>> listAfterSeq(long secretChatId, long afterSeq, int limit) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId) && m.getSeq() > afterSeq)
-          .sorted(Comparator.comparing(SecretMessage::getSeq))
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId)
+              && row.aggregate().getSeq() > afterSeq)
+          .sorted(Comparator.comparing(row -> row.aggregate().getSeq()))
           .toList();
     }
 
     @Override
-    public List<SecretMessage> findUncountedReadBy(long secretChatId, long afterSeq, long viewerId) {
+    public List<Persisted<SecretMessage>> findUncountedReadBy(long secretChatId, long afterSeq, long viewerId) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId))
-          .filter(m -> m.getSeq() <= afterSeq)
-          .filter(m -> !m.getFromUserId().equals(viewerId))
-          .filter(m -> "active".equals(m.getStatus()))
-          .filter(m -> m.getDestroyAt() == null)
-          .sorted(Comparator.comparing(SecretMessage::getSeq))
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId))
+          .filter(row -> row.aggregate().getSeq() <= afterSeq)
+          .filter(row -> !row.aggregate().getFromUserId().equals(viewerId))
+          .filter(row -> "active".equals(row.aggregate().getStatus()))
+          .filter(row -> row.aggregate().getDestroyAt() == null)
+          .sorted(Comparator.comparing(row -> row.aggregate().getSeq()))
           .toList();
     }
 
     @Override
-    public List<SecretMessage> findActiveWithoutDestroyAt(long secretChatId) {
+    public List<Persisted<SecretMessage>> findActiveWithoutDestroyAt(long secretChatId) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId))
-          .filter(m -> "active".equals(m.getStatus()))
-          .filter(m -> m.getDestroyAt() == null)
-          .sorted(Comparator.comparing(SecretMessage::getSeq))
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId))
+          .filter(row -> "active".equals(row.aggregate().getStatus()))
+          .filter(row -> row.aggregate().getDestroyAt() == null)
+          .sorted(Comparator.comparing(row -> row.aggregate().getSeq()))
           .toList();
     }
 
     @Override
     public LocalDateTime findEarliestDestroyAt(long secretChatId) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId))
-          .filter(m -> "active".equals(m.getStatus()))
-          .filter(m -> m.getDestroyAt() != null)
-          .map(SecretMessage::getDestroyAt)
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId))
+          .filter(row -> "active".equals(row.aggregate().getStatus()))
+          .filter(row -> row.aggregate().getDestroyAt() != null)
+          .map(row -> row.aggregate().getDestroyAt())
           .min(Comparator.naturalOrder())
           .orElse(null);
     }
 
     @Override
-    public Optional<SecretMessage> findByMsgId(long secretChatId, String msgId) {
+    public Optional<Persisted<SecretMessage>> findByMsgId(long secretChatId, String msgId) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId) && m.getMsgId().equals(msgId))
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId)
+              && row.aggregate().getMsgId().equals(msgId))
           .findFirst();
     }
 
     @Override
     public int deleteByMsgId(long secretChatId, String msgId) {
       int before = items.size();
-      items.removeIf(m -> m.getSecretChatId().equals(secretChatId) && m.getMsgId().equals(msgId));
+      items.removeIf(row -> row.aggregate().getSecretChatId().equals(secretChatId)
+          && row.aggregate().getMsgId().equals(msgId));
       return before - items.size();
     }
 
     @Override
     public int deleteBySecretChatId(long secretChatId) {
       int before = items.size();
-      items.removeIf(m -> m.getSecretChatId().equals(secretChatId));
+      items.removeIf(row -> row.aggregate().getSecretChatId().equals(secretChatId));
       return before - items.size();
     }
 
     @Override
-    public List<SecretMessage> findActiveByMsgIds(long secretChatId, List<String> msgIds, LocalDateTime now) {
+    public List<Persisted<SecretMessage>> findActiveByMsgIds(long secretChatId, List<String> msgIds,
+        LocalDateTime now) {
       return items.stream()
-          .filter(m -> m.getSecretChatId().equals(secretChatId))
-          .filter(m -> msgIds.contains(m.getMsgId()))
-          .filter(m -> "active".equals(m.getStatus()))
-          .filter(m -> m.getDestroyAt() != null && !m.getDestroyAt().isAfter(now))
-          .sorted(Comparator.comparing(SecretMessage::getSeq))
+          .filter(row -> row.aggregate().getSecretChatId().equals(secretChatId))
+          .filter(row -> msgIds.contains(row.aggregate().getMsgId()))
+          .filter(row -> "active".equals(row.aggregate().getStatus()))
+          .filter(row -> row.aggregate().getDestroyAt() != null
+              && !row.aggregate().getDestroyAt().isAfter(now))
+          .sorted(Comparator.comparing(row -> row.aggregate().getSeq()))
           .toList();
     }
 
     @Override
-    public List<SecretMessage> findExpired(LocalDateTime now, int limit) {
+    public List<Persisted<SecretMessage>> findExpired(LocalDateTime now, int limit) {
       return items.stream()
-          .filter(m -> "active".equals(m.getStatus()))
-          .filter(m -> m.getDestroyAt() != null && !m.getDestroyAt().isAfter(now))
-          .sorted(Comparator.comparing(SecretMessage::getDestroyAt))
+          .filter(row -> "active".equals(row.aggregate().getStatus()))
+          .filter(row -> row.aggregate().getDestroyAt() != null
+              && !row.aggregate().getDestroyAt().isAfter(now))
+          .sorted(Comparator.comparing(row -> row.aggregate().getDestroyAt()))
           .toList();
     }
 
+    private Persisted<SecretMessage> persisted(SecretMessage message) {
+      LocalDateTime now = LocalDateTime.now();
+      return new Persisted<>(message, new AuditSnapshot(null, now, null, now));
+    }
   }
 
   /** 内存销毁痕迹仓库：仅测试用，记录 msgId + destroyAt + reason（无密文）。 */

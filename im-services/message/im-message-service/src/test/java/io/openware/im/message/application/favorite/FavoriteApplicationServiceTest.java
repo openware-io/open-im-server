@@ -123,7 +123,7 @@ class FavoriteApplicationServiceTest {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     SecretMessageRepository secretMessages = mock(SecretMessageRepository.class);
     when(secretMessages.findByMsgId(7L, "m-secret"))
-        .thenReturn(Optional.of(SecretMessage.post(7L, "m-secret", 1L, "cipher", 1L, 1L, LocalDateTime.now())));
+        .thenReturn(Optional.of(new io.openware.im.message.domain.secretmessage.repository.Persisted<>(SecretMessage.post(7L, "m-secret", 1L, "cipher", 1L), new io.openware.im.message.domain.secretmessage.repository.AuditSnapshot(1L, LocalDateTime.now(), 1L, LocalDateTime.now()))));
     SecretChatParticipantPort participants = mock(SecretChatParticipantPort.class);
     when(participants.findParticipants(7L)).thenReturn(List.of(1L, 2L));
     FavoriteApplicationService service = new FavoriteApplicationService(favorites, mock(MessageRepository.class),
@@ -434,7 +434,7 @@ class FavoriteApplicationServiceTest {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     SecretMessageRepository secretMessages = mock(SecretMessageRepository.class);
     when(secretMessages.findByMsgId(7L, "m-secret"))
-        .thenReturn(Optional.of(SecretMessage.post(7L, "m-secret", 1L, "cipher", 1L, 1L, LocalDateTime.now())));
+        .thenReturn(Optional.of(new io.openware.im.message.domain.secretmessage.repository.Persisted<>(SecretMessage.post(7L, "m-secret", 1L, "cipher", 1L), new io.openware.im.message.domain.secretmessage.repository.AuditSnapshot(1L, LocalDateTime.now(), 1L, LocalDateTime.now()))));
     SecretChatParticipantPort participants = mock(SecretChatParticipantPort.class);
     when(participants.findParticipants(7L)).thenReturn(List.of(1L, 2L));
     FavoriteApplicationService service = new FavoriteApplicationService(favorites, mock(MessageRepository.class),

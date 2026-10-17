@@ -15,6 +15,7 @@ import io.openware.im.message.domain.secretmessage.repository.SecretChatParticip
 import io.openware.im.message.domain.secretmessage.repository.SecretChatPolicyPort;
 import io.openware.im.message.domain.secretmessage.repository.SecretDestroyDelayedPublisher;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageDestroyedRepository;
+import io.openware.im.message.domain.secretmessage.repository.Persisted;
 import io.openware.im.message.domain.secretmessage.repository.SecretMessageRepository;
 import io.openware.im.message.media.MediaReferenceClient;
 import io.openware.protocol.mq.event.SecretMessageDestroyedEvent;
@@ -56,12 +57,12 @@ public class SecretMessageApplicationService {
     requireSecretChatEnabled();
     assertParticipant(command.secretChatId(), userId);
     long seq = secretMessageRepository.nextSeq(command.secretChatId());
-    SecretMessage saved = secretMessageRepository.save(SecretMessage.post(command.secretChatId(),
-        command.msgId(), userId, command.ciphertext(), seq, userId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretMessage> saved = secretMessageRepository.save(SecretMessage.post(command.secretChatId(),
+        command.msgId(), userId, command.ciphertext(), seq));
     long recipientUserId = secretChatParticipantPort.findPeerUserId(command.secretChatId(), userId);
     if (recipientUserId > 0) {
       secretUnreadProjectionPort.record("secret", command.secretChatId(), recipientUserId, command.msgId(), seq,
-          saved.getCreatedAt());
+          saved.audit().createdAt());
     }
     bindMediaReferences(userId, command);
     log.info("Secret message stored, msgId={}, secretChatId={}, seq={}", command.msgId(),
@@ -131,12 +132,12 @@ public class SecretMessageApplicationService {
   @Transactional
   public List<SecretMessageResult> list(long viewerId, long secretChatId, long afterSeq, int limit) {
     assertParticipant(secretChatId, viewerId);
-    List<SecretMessage> messages = secretMessageRepository.listAfterSeq(secretChatId, afterSeq, limit);
+    List<Persisted<SecretMessage>> messages = secretMessageRepository.listAfterSeq(secretChatId, afterSeq, limit);
     // 「删除仅我」：该用户删过的密聊消息对其本人不可见（与普通消息共用同一张墓碑表），
     // 因此卸载重装后重新拉取列表也不会把消息“复活”。
     java.util.Set<String> hidden = java.util.Set.copyOf(userDeletedMessageRepository.findDeletedMsgIds(viewerId,
-        messages.stream().map(SecretMessage::getMsgId).toList()));
-    return messages.stream().filter(message -> !hidden.contains(message.getMsgId()))
+        messages.stream().map(row -> row.aggregate().getMsgId()).toList()));
+    return messages.stream().filter(row -> !hidden.contains(row.aggregate().getMsgId()))
         .map(this::toResult).toList();
   }
 
@@ -177,10 +178,11 @@ public class SecretMessageApplicationService {
       return new MarkReadResult(0, null);
     }
     LocalDateTime destroyAt = now.plus(ttl);
-    List<SecretMessage> uncounted = secretMessageRepository.findUncountedReadBy(secretChatId, afterSeq, viewerId);
+    List<Persisted<SecretMessage>> uncounted = secretMessageRepository.findUncountedReadBy(secretChatId, afterSeq, viewerId);
     int counted = 0;
-    for (SecretMessage message : uncounted) {
-      secretMessageRepository.save(message.scheduleDestroy(destroyAt, viewerId, now));
+    for (Persisted<SecretMessage> row : uncounted) {
+      SecretMessage message = row.aggregate();
+      secretMessageRepository.save(message.scheduleDestroy(destroyAt));
       counted++;
     }
     if (counted > 0) {
@@ -189,7 +191,7 @@ public class SecretMessageApplicationService {
       // 推 MQ 延迟消息：ttl 到期由延迟消费者精确销毁这批消息（在线推 WS、离线重入删除）。
       // 超长策略（如 1d）超出 MQ 延迟上限时返回 false，由周期扫描兜底。
       secretDestroyDelayedPublisher.publish(secretChatId,
-          uncounted.stream().map(SecretMessage::getMsgId).toList(), (int) ttl.toSeconds());
+          uncounted.stream().map(row -> row.aggregate().getMsgId()).toList(), (int) ttl.toSeconds());
     }
     return new MarkReadResult(counted, destroyAt);
   }
@@ -203,12 +205,13 @@ public class SecretMessageApplicationService {
     if (msgIds == null || msgIds.isEmpty()) {
       return 0;
     }
-    List<SecretMessage> due = secretMessageRepository.findActiveByMsgIds(secretChatId, msgIds, now);
+    List<Persisted<SecretMessage>> due = secretMessageRepository.findActiveByMsgIds(secretChatId, msgIds, now);
     if (due.isEmpty()) {
       return 0;
     }
     List<SecretMessage> destroyed = new java.util.ArrayList<>();
-    for (SecretMessage message : due) {
+    for (Persisted<SecretMessage> row : due) {
+      SecretMessage message = row.aggregate();
       if (hardDeleteAndRecord(message, now, "destroyed")) {
         destroyed.add(message);
       }
@@ -251,12 +254,13 @@ public class SecretMessageApplicationService {
   /** 定时销毁执行：硬删除已到销毁时间的 active 密文 + 登记痕迹；返回销毁条数。 */
   @Transactional
   public int destroyExpired(LocalDateTime now, int limit) {
-    List<SecretMessage> expired = secretMessageRepository.findExpired(now, limit);
+    List<Persisted<SecretMessage>> expired = secretMessageRepository.findExpired(now, limit);
     if (expired.isEmpty()) {
       return 0;
     }
     List<SecretMessage> destroyed = new java.util.ArrayList<>();
-    for (SecretMessage message : expired) {
+    for (Persisted<SecretMessage> row : expired) {
+      SecretMessage message = row.aggregate();
       if (hardDeleteAndRecord(message, now, "destroyed")) {
         destroyed.add(message);
       }
@@ -279,15 +283,16 @@ public class SecretMessageApplicationService {
       return 0;
     }
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
-    List<SecretMessage> candidates = secretMessageRepository.findActiveWithoutDestroyAt(secretChatId);
+    List<Persisted<SecretMessage>> candidates = secretMessageRepository.findActiveWithoutDestroyAt(secretChatId);
     List<SecretMessage> expired = new java.util.ArrayList<>();
     int scheduled = 0;
-    for (SecretMessage message : candidates) {
-      LocalDateTime candidate = message.destroyAtAfter(ttl);
+    for (Persisted<SecretMessage> row : candidates) {
+      SecretMessage message = row.aggregate();
+      LocalDateTime candidate = SecretMessage.destroyAtFrom(row.audit().createdAt(), ttl);
       if (!candidate.isAfter(now)) {
         expired.add(message);
       } else {
-        secretMessageRepository.save(message.scheduleDestroy(candidate, 0L, now));
+        secretMessageRepository.save(message.scheduleDestroy(candidate));
         scheduled++;
       }
     }
@@ -334,6 +339,7 @@ public class SecretMessageApplicationService {
   public void recall(long userId, long secretChatId, String msgId) {
     assertChatDeleteEnabled();
     SecretMessage message = secretMessageRepository.findByMsgId(secretChatId, msgId)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Secret message not found"));
     if (!message.isActive()) {
       return; // 已销毁/已撤回：幂等
@@ -353,6 +359,7 @@ public class SecretMessageApplicationService {
   public void deleteForEveryone(long userId, long secretChatId, String msgId) {
     assertChatDeleteEnabled();
     SecretMessage message = secretMessageRepository.findByMsgId(secretChatId, msgId)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Secret message not found"));
     if (!message.isActive()) {
       return; // 幂等
@@ -441,9 +448,10 @@ public class SecretMessageApplicationService {
     };
   }
 
-  private SecretMessageResult toResult(SecretMessage message) {
+  private SecretMessageResult toResult(Persisted<SecretMessage> row) {
+    SecretMessage message = row.aggregate();
     return new SecretMessageResult(message.getId(), message.getSecretChatId(), message.getMsgId(),
         message.getFromUserId(), message.getCiphertext(), message.getSeq(), message.getStatus(),
-        message.getDestroyAt(), message.getCreatedAt());
+        message.getDestroyAt(), row.audit().createdAt());
   }
 }

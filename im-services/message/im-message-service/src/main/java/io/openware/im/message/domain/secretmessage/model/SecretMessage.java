@@ -1,8 +1,16 @@
 package io.openware.im.message.domain.secretmessage.model;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 
-/** 私密消息聚合根：仅存储客户端密文，服务端不解密；定时销毁由 destroyAt 驱动。 */
+/**
+ * 私密消息聚合根：仅存储客户端密文，服务端不解密；定时销毁由 destroyAt 驱动。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 §聚合装配与持久化契约）：
+ * {@code createdBy}/{@code createdAt}/{@code updatedBy}/{@code updatedAt} 是记账信息而非业务事实，
+ * 由适配器填充；响应与领域规则需要的值经 {@code SecretMessageRepository.Persisted} 的
+ * {@code AuditSnapshot} 单独进入上层。领域模型因此不需要理解持久化语义。
+ */
 public class SecretMessage {
   private final Long id;
   private final Long secretChatId;
@@ -12,14 +20,9 @@ public class SecretMessage {
   private final Long seq;
   private final String status;
   private final LocalDateTime destroyAt;
-  private final Long createdBy;
-  private final LocalDateTime createdAt;
-  private final Long updatedBy;
-  private final LocalDateTime updatedAt;
 
   private SecretMessage(Long id, Long secretChatId, String msgId, Long fromUserId, String ciphertext, Long seq,
-      String status, LocalDateTime destroyAt, Long createdBy, LocalDateTime createdAt,
-      Long updatedBy, LocalDateTime updatedAt) {
+      String status, LocalDateTime destroyAt) {
     this.id = id;
     this.secretChatId = secretChatId;
     this.msgId = msgId;
@@ -28,32 +31,24 @@ public class SecretMessage {
     this.seq = seq;
     this.status = status;
     this.destroyAt = destroyAt;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
-  public static SecretMessage post(Long secretChatId, String msgId, long fromUserId, String ciphertext, long seq,
-      long operatorId, LocalDateTime occurredAt) {
-    return new SecretMessage(null, secretChatId, msgId, fromUserId, ciphertext, seq, "active", null,
-        operatorId, occurredAt, operatorId, occurredAt);
+  public static SecretMessage post(Long secretChatId, String msgId, long fromUserId, String ciphertext, long seq) {
+    return new SecretMessage(null, secretChatId, msgId, fromUserId, ciphertext, seq, "active", null);
   }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public static SecretMessage restore(Long id, Long secretChatId, String msgId, Long fromUserId, String ciphertext,
-      Long seq, String status, LocalDateTime destroyAt, Long createdBy, LocalDateTime createdAt,
-      Long updatedBy, LocalDateTime updatedAt) {
-    return new SecretMessage(id, secretChatId, msgId, fromUserId, ciphertext, seq, status, destroyAt,
-        createdBy, createdAt, updatedBy, updatedAt);
+      Long seq, String status, LocalDateTime destroyAt) {
+    return new SecretMessage(id, secretChatId, msgId, fromUserId, ciphertext, seq, status, destroyAt);
   }
 
   /** 接收方已读后计时：设置定时销毁时间；destroyAt 已存在则保持最早值（不可推迟）。 */
-  public SecretMessage scheduleDestroy(LocalDateTime destroyAt, long operatorId, LocalDateTime occurredAt) {
+  public SecretMessage scheduleDestroy(LocalDateTime destroyAt) {
     LocalDateTime effective = this.destroyAt == null || destroyAt.isBefore(this.destroyAt)
         ? destroyAt
         : this.destroyAt;
-    return new SecretMessage(id, secretChatId, msgId, fromUserId, ciphertext, seq, status, effective,
-        createdBy, createdAt, operatorId, occurredAt);
+    return new SecretMessage(id, secretChatId, msgId, fromUserId, ciphertext, seq, status, effective);
   }
 
   public boolean isActive() {
@@ -61,20 +56,19 @@ public class SecretMessage {
   }
 
   /**
-   * 按 TTL 推导销毁时刻：{@code createdAt + ttl}。
+   * 按 TTL 推导销毁时刻：{@code deliveredAt + ttl}。
    *
-   * <p><b>为什么这条规则在领域模型上</b>（standards/10 应用服务规则：核心业务判断与不变量必须下沉到聚合根）：
-   * "销毁时刻 = 投递时刻 + TTL"是私密消息的核心不变量。改造前它写在应用服务里
-   * （{@code message.getCreatedAt().plus(ttl)}），于是应用层必须先从领域对象读"创建时刻"才能算——
-   * 把领域规则摊到了应用层。收到这里之后，应用层只说"按 TTL 安排销毁"，不再知道公式。
+   * <p><b>为什么是静态纯函数而不是实例方法</b>（standards/10 L299：审计字段不属于领域模型）：
+   * "销毁时刻 = 投递时刻 + TTL"是私密消息的核心不变量，必须留在领域层（应用服务规则要求核心判断下沉聚合根）；
+   * 但它需要读投递时刻，而投递时刻是记账信息、不能存在领域模型上。
+   * 把投递时刻作为**参数**传入，两件事同时成立：规则在领域层，字段不在领域模型。
    *
-   * <p><b>为什么 {@code createdAt} 仍留在本模型</b>：它在本类里不是记账信息，而是上面那条不变量的输入
-   * （同时也是响应要回显的投递时刻）。standards/10 "审计列不进领域模型"的立意是防止领域层理解**持久化**语义；
-   * 一个被领域规则读取的时刻属于**领域事实**，留在模型里才是它的正确位置。
-   * 这与 {@code createdBy}/{@code updatedBy}/{@code updatedAt} 不同——那三者只有记账用途，应下沉适配器。
+   * <p>调用方从 {@code SecretMessageRepository.Persisted.audit().createdAt()} 取得投递时刻。
+   * 这条改造前是 {@code message.getCreatedAt().plus(ttl)} 写在应用服务里——规则错层且字段违规，
+   * 现在两处都归位。
    */
-  public LocalDateTime destroyAtAfter(java.time.Duration ttl) {
-    return createdAt == null ? null : createdAt.plus(ttl);
+  public static LocalDateTime destroyAtFrom(LocalDateTime deliveredAt, Duration ttl) {
+    return deliveredAt == null ? null : deliveredAt.plus(ttl);
   }
 
   public Long getId() { return id; }
@@ -85,8 +79,4 @@ public class SecretMessage {
   public Long getSeq() { return seq; }
   public String getStatus() { return status; }
   public LocalDateTime getDestroyAt() { return destroyAt; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
