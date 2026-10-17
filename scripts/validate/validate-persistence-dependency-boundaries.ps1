@@ -21,6 +21,10 @@ foreach ($relativePath in $javaFiles) {
 $servicePoms = git -C $root ls-files 'im-services/*/*-service/pom.xml' 'platform-services/*/*-service/pom.xml' 'common-services/*/*-service/pom.xml' 'group-services/*/*-service/pom.xml'
 $gatewayPoms = git -C $root ls-files 'gateways/*/pom.xml'
 $forbiddenBottom = @('mybatis-plus-core', 'mybatis-plus-extension', 'mybatis-plus-annotation', 'mybatis-spring', 'flyway-core')
+# mybatis-plus-jsqlparser-* is deliberately NOT here: the mybatis-plus aggregate marks it optional, so it does
+# not arrive transitively, and the pagination interceptor needs it at runtime. standards/21 requires paginated
+# modules to declare it explicitly. Its version is still owned by the root dependencyManagement, so a module
+# writes coordinates only - which is what the "no scattered versions" rule protects.
 
 foreach ($relativePath in ($servicePoms + $gatewayPoms)) {
   $absolutePath = Join-Path $root $relativePath

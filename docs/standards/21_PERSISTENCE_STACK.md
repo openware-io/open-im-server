@@ -39,7 +39,14 @@
 
 - Spring Boot Parent 管理 Spring Boot、MySQL 与 Flyway 的版本。
 - 父 POM 仅管理 MyBatis-Plus 等 Spring Boot BOM 外依赖的版本；MyBatis-Plus 版本为 `3.5.17`。
-- 业务模块禁止直接声明 MyBatis-Plus 底层组件，包括 `mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation`、`mybatis-plus-jsqlparser-4.9` 与 `mybatis-spring`。
+- 业务模块禁止直接声明 MyBatis-Plus 底层组件，包括 `mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation` 与 `mybatis-spring`。
+- `mybatis-plus-jsqlparser-*` **不在此禁令内，且分页模块必须显式声明它**：MyBatis-Plus 3.5.17 的
+  `mybatis-plus` 聚合 POM 把它标为 `<optional>true</optional>`，因此**不会传递**；而分页插件
+  （`PaginationInnerInterceptor`/`selectPage`）在运行时会委托它解析 SQL，只做类型收敛不做分页的服务可省略。
+  它与上一条列举的组件性质不同——那些是持久层实现本身，这是分页扩展所需的 SQL 解析器，
+  声明它不构成"绕过 Starter 直连底层实现"。**版本仍由根 POM 的 `dependencyManagement` 统一管理**，
+  业务模块只声明坐标、不写版本，这正是"禁止散落版本"这一条要守的东西。
+  （2026-10-16 修订：此前该组件被列入禁令，与框架要求冲突，详见 `docs/renovation/STANDARDS_COMPLIANCE_AUDIT_2026-10-16.md` §8.3。）
 - 业务模块禁止直接声明 `flyway-core`；迁移能力必须通过 Flyway Starter 与 MySQL 适配器声明。
 - 持久层依赖边界由 `scripts/validate/validate-persistence-dependency-boundaries.ps1` 校验，并接入统一验证入口。
 
@@ -89,7 +96,9 @@
 </dependency>
 ```
 
-**不要声明**：`mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation`、`mybatis-plus-jsqlparser-*`、`mybatis-spring`、`flyway-core`（底层组件由 Starter 传递引入）。
+**不要声明**：`mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation`、`mybatis-spring`、`flyway-core`（底层组件由 Starter 传递引入）。
+
+**需要声明**：`mybatis-plus-jsqlparser-*`（分页模块）——它被 Starter 标为 optional，不声明则分页插件运行时缺解析器；版本仍由根 POM 管理，模块只写坐标。
 
 ## 门禁与人工检查项
 
