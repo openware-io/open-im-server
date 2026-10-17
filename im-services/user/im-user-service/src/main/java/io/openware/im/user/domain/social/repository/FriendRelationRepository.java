@@ -2,6 +2,7 @@ package io.openware.im.user.domain.social.repository;
 
 import io.openware.common.dto.PageResult;
 import io.openware.im.user.domain.social.model.FriendRelation;
+import io.openware.im.user.domain.social.readmodel.FriendRelationView;
 import io.openware.im.user.domain.social.model.FriendStatus;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -9,15 +10,15 @@ import java.util.Map;
 import java.util.Optional;
 
 public interface FriendRelationRepository {
-  Optional<FriendRelation> findByUserIdAndFriendId(Long userId, Long friendId);
-  List<FriendRelation> findByUserIdAndStatusOrderByGroupNameAndRemark(Long userId, FriendStatus status);
-  List<FriendRelation> findByFriendIdAndStatus(Long friendId, FriendStatus status);
+  Optional<Persisted<FriendRelation>> findByUserIdAndFriendId(Long userId, Long friendId);
+  List<Persisted<FriendRelation>> findByUserIdAndStatusOrderByGroupNameAndRemark(Long userId, FriendStatus status);
+  List<Persisted<FriendRelation>> findByFriendIdAndStatus(Long friendId, FriendStatus status);
   List<String> findGroupNamesByUserId(Long userId);
-  FriendRelation save(FriendRelation relation);
+  Persisted<FriendRelation> save(FriendRelation relation);
   void deleteByUserIdAndFriendId(Long userId, Long friendId);
 
   /** 管理端好友分页查询：状态、分组、关键字（备注模糊、用户名/昵称匹配到的用户、数字 ID）过滤，按 id 倒序。 */
-  PageResult<FriendRelation> searchForAdmin(FriendStatus status, String groupName, String keyword,
+  PageResult<FriendRelationView> searchForAdmin(FriendStatus status, String groupName, String keyword,
       List<Long> matchedUserIds, Long numericUserId, int page, int pageSize);
 
   long countAll();

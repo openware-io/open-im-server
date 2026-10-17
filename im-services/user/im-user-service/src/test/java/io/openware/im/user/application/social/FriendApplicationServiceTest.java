@@ -47,14 +47,14 @@ class FriendApplicationServiceTest {
     long me = 1L;
     long blocker = 2L;
     long other = 3L;
-    FriendRelation toBlocker = FriendRelation.create(me, blocker, LocalDateTime.now());
-    FriendRelation toOther = FriendRelation.create(me, other, LocalDateTime.now());
-    FriendRelation blockerToMe = FriendRelation.create(blocker, me, LocalDateTime.now());
+    FriendRelation toBlocker = FriendRelation.create(me, blocker);
+    FriendRelation toOther = FriendRelation.create(me, other);
+    FriendRelation blockerToMe = FriendRelation.create(blocker, me);
     blockerToMe.block();
     when(friendRelationRepository.findByUserIdAndStatusOrderByGroupNameAndRemark(me, FriendStatus.NORMAL))
-        .thenReturn(List.of(toBlocker, toOther));
+        .thenReturn(List.of(persisted(toBlocker), persisted(toOther)));
     when(friendRelationRepository.findByFriendIdAndStatus(me, FriendStatus.BLOCKED))
-        .thenReturn(List.of(blockerToMe));
+        .thenReturn(List.of(persisted(blockerToMe)));
     when(userAccountRepository.findByIds(anyList())).thenReturn(List.of());
 
     List<FriendResult> result = service.getFriendList(me);
@@ -66,9 +66,9 @@ class FriendApplicationServiceTest {
   void deleteFriendKeepsReverseBlockRelation() {
     long me = 1L;
     long friend = 2L;
-    FriendRelation reverse = FriendRelation.create(friend, me, LocalDateTime.now());
+    FriendRelation reverse = FriendRelation.create(friend, me);
     reverse.block();
-    when(friendRelationRepository.findByUserIdAndFriendId(friend, me)).thenReturn(Optional.of(reverse));
+    when(friendRelationRepository.findByUserIdAndFriendId(friend, me)).thenReturn(Optional.of(persisted(reverse)));
 
     service.deleteFriend(me, friend);
 
@@ -80,8 +80,8 @@ class FriendApplicationServiceTest {
   void deleteFriendRemovesReverseNormalRelation() {
     long me = 1L;
     long friend = 2L;
-    FriendRelation reverse = FriendRelation.create(friend, me, LocalDateTime.now());
-    when(friendRelationRepository.findByUserIdAndFriendId(friend, me)).thenReturn(Optional.of(reverse));
+    FriendRelation reverse = FriendRelation.create(friend, me);
+    when(friendRelationRepository.findByUserIdAndFriendId(friend, me)).thenReturn(Optional.of(persisted(reverse)));
 
     service.deleteFriend(me, friend);
 
@@ -112,9 +112,9 @@ class FriendApplicationServiceTest {
     FriendRequest request = FriendRequest.create(from, to, "hi", LocalDateTime.now());
     request.assignId(10L);
     when(friendRequestRepository.findById(10L)).thenReturn(Optional.of(request));
-    FriendRelation residual = FriendRelation.create(to, from, LocalDateTime.now());
+    FriendRelation residual = FriendRelation.create(to, from);
     residual.block();
-    when(friendRelationRepository.findByUserIdAndFriendId(to, from)).thenReturn(Optional.of(residual));
+    when(friendRelationRepository.findByUserIdAndFriendId(to, from)).thenReturn(Optional.of(persisted(residual)));
     when(friendRelationRepository.findByUserIdAndFriendId(from, to)).thenReturn(Optional.empty());
 
     service.handleRequest(to, 10L, new HandleFriendRequestCommand("accepted"));
@@ -122,5 +122,13 @@ class FriendApplicationServiceTest {
     assertThat(residual.getStatus()).isEqualTo(FriendStatus.NORMAL);
     verify(friendEventOutbox).append(any(FriendAccepted.class));
     verify(friendRequestRepository).delete(10L);
+  }
+
+  /** 领域模型不带审计列：读回的「聚合 + 记账快照」由测试在这里补齐。 */
+  private static io.openware.im.user.domain.social.repository.Persisted<FriendRelation> persisted(
+      FriendRelation relation) {
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    return new io.openware.im.user.domain.social.repository.Persisted<>(relation,
+        new io.openware.im.user.domain.social.repository.AuditSnapshot(null, now, null, now));
   }
 }

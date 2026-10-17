@@ -14,8 +14,7 @@ public final class FriendPersistenceConverter {
   public static FriendRelation toDomain(FriendRelationPo po) {
     FriendRelation relation = new FriendRelation();
     relation.restore(po.getId(), po.getUserId(), po.getFriendId(), po.getRemark(), po.getGroupName(),
-        FriendStatus.valueOf(po.getStatus().toUpperCase()), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(),
-        po.getUpdatedAt());
+        FriendStatus.valueOf(po.getStatus().toUpperCase()));
     return relation;
   }
 
@@ -27,10 +26,6 @@ public final class FriendPersistenceConverter {
     po.setRemark(relation.getRemark());
     po.setGroupName(relation.getGroupName());
     po.setStatus(relation.getStatus().name().toLowerCase());
-    po.setCreatedBy(relation.getCreatedBy());
-    po.setCreatedAt(relation.getCreatedAt());
-    po.setUpdatedBy(relation.getUpdatedBy());
-    po.setUpdatedAt(relation.getUpdatedAt());
     return po;
   }
 

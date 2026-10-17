@@ -10,7 +10,9 @@ import io.openware.im.user.api.authorization.PrivateMessageAuthorizationQuery;
 import io.openware.im.user.api.authorization.PrivateMessageAuthorizationSnapshot;
 import io.openware.im.user.domain.social.model.FriendRelation;
 import io.openware.im.user.domain.social.model.FriendStatus;
+import io.openware.im.user.domain.social.repository.AuditSnapshot;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
+import io.openware.im.user.domain.social.repository.Persisted;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
@@ -65,8 +67,8 @@ class FriendAuthorizationQueryServiceTest {
   void versionIsStableWhenRelationsDoNotChange() {
     LocalDateTime createdAt = LocalDateTime.of(2026, 3, 1, 8, 30);
     LocalDateTime updatedAt = LocalDateTime.of(2026, 3, 2, 9, 0);
-    FriendRelation mine = relation(USER_ID, PEER_ID, FriendStatus.NORMAL, createdAt, updatedAt);
-    FriendRelation peers = relation(PEER_ID, USER_ID, FriendStatus.NORMAL, createdAt, updatedAt);
+    Persisted<FriendRelation> mine = relation(USER_ID, PEER_ID, FriendStatus.NORMAL, createdAt, updatedAt);
+    Persisted<FriendRelation> peers = relation(PEER_ID, USER_ID, FriendStatus.NORMAL, createdAt, updatedAt);
     stub(mine, peers);
 
     long first = service.authorize(query()).authorizationVersion();
@@ -129,16 +131,17 @@ class FriendAuthorizationQueryServiceTest {
     return new PrivateMessageAuthorizationQuery(USER_ID, PEER_ID, "PRIVATE", null);
   }
 
-  private void stub(FriendRelation mine, FriendRelation peers) {
+  private void stub(Persisted<FriendRelation> mine, Persisted<FriendRelation> peers) {
     when(repository.findByUserIdAndFriendId(USER_ID, PEER_ID)).thenReturn(Optional.of(mine));
     when(repository.findByUserIdAndFriendId(PEER_ID, USER_ID)).thenReturn(Optional.of(peers));
   }
 
-  private static FriendRelation relation(long userId, long friendId, FriendStatus status, LocalDateTime createdAt,
-      LocalDateTime updatedAt) {
-    FriendRelation relation = FriendRelation.create(userId, friendId, createdAt);
-    relation.restore(1L, userId, friendId, null, null, status, null, createdAt, null, updatedAt);
-    return relation;
+  /** 领域模型不带审计列：测试直接组装「聚合 + 记账快照」，与适配器同职责。 */
+  private static Persisted<FriendRelation> relation(long userId, long friendId, FriendStatus status,
+      LocalDateTime createdAt, LocalDateTime updatedAt) {
+    FriendRelation relation = FriendRelation.create(userId, friendId);
+    relation.restore(1L, userId, friendId, "", "", status);
+    return new Persisted<>(relation, new AuditSnapshot(null, createdAt, null, updatedAt));
   }
 
   private static long epochMillis(LocalDateTime moment) {

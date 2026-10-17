@@ -1,7 +1,18 @@
 package io.openware.im.user.domain.social.model;
 
-import java.time.LocalDateTime;
-
+/**
+ * 好友关系：单向记录（A→B），双方互为好友需要两条记录。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 L299）：{@code createdBy}/{@code createdAt}/
+ * {@code updatedBy}/{@code updatedAt} 是记账信息，由适配器在写库时确定。
+ * 应用层需要它们（响应回显 + 授权版本号），经 {@code FriendRelationRepository.Persisted} 的
+ * {@code AuditSnapshot} 带入；管理端列表是只读聚合查询，按 L266-279 走 {@code FriendRelationView} 投影。
+ *
+ * <p><b>注意 {@code createdAt}/{@code updatedAt} 还有一层语义</b>：{@code FriendAuthorizationQueryService}
+ * 用 {@code updatedAt != null ? updatedAt : createdAt} 的 epoch 毫秒作为**私信授权版本号**
+ * （跨服务供 im-message-service 判定）。因此载体必须同时提供两个时刻，且回退顺序不得改变——
+ * 该行为已由 {@code FriendAuthorizationQueryServiceTest} 锁定。
+ */
 public class FriendRelation {
   private Long id;
   private Long userId;
@@ -9,19 +20,14 @@ public class FriendRelation {
   private String remark;
   private String groupName;
   private FriendStatus status;
-  private Long createdBy;
-  private LocalDateTime createdAt;
-  private Long updatedBy;
-  private LocalDateTime updatedAt;
 
-  public static FriendRelation create(Long userId, Long friendId, LocalDateTime occurredAt) {
+  public static FriendRelation create(Long userId, Long friendId) {
     FriendRelation relation = new FriendRelation();
     relation.userId = userId;
     relation.friendId = friendId;
     relation.remark = "";
     relation.groupName = "";
     relation.status = FriendStatus.NORMAL;
-    relation.createdAt = occurredAt;
     return relation;
   }
 
@@ -38,24 +44,19 @@ public class FriendRelation {
 
   public void unblock() { this.status = FriendStatus.NORMAL; }
 
-  /** 恢复/重新激活好友关系为 normal 并刷新时间，用于删除后重建或拉黑后再接受时的 upsert。 */
-  public void reactivate(LocalDateTime occurredAt) {
+  /** 恢复/重新激活好友关系为 normal，用于删除后重建或拉黑后再接受时的 upsert。 */
+  public void reactivate() {
     this.status = FriendStatus.NORMAL;
-    this.updatedAt = occurredAt;
   }
 
-  public void restore(Long id, Long userId, Long friendId, String remark, String groupName, FriendStatus status,
-      Long createdBy, LocalDateTime createdAt, Long updatedBy, LocalDateTime updatedAt) {
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
+  public void restore(Long id, Long userId, Long friendId, String remark, String groupName, FriendStatus status) {
     this.id = id;
     this.userId = userId;
     this.friendId = friendId;
     this.remark = remark;
     this.groupName = groupName;
     this.status = status;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
   public Long getId() { return id; }
@@ -64,9 +65,5 @@ public class FriendRelation {
   public String getRemark() { return remark; }
   public String getGroupName() { return groupName; }
   public FriendStatus getStatus() { return status; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
   public void assignId(Long id) { this.id = id; }
 }

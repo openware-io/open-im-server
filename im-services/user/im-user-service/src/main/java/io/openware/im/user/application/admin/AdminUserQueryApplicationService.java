@@ -21,7 +21,7 @@ import io.openware.im.user.domain.device.model.DeviceToken;
 import io.openware.im.user.domain.device.repository.Persisted;
 import io.openware.im.user.domain.device.readmodel.DeviceTokenView;
 import io.openware.im.user.domain.device.repository.DeviceTokenRepository;
-import io.openware.im.user.domain.social.model.FriendRelation;
+import io.openware.im.user.domain.social.readmodel.FriendRelationView;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
 import io.openware.im.user.domain.sticker.model.UserSticker;
 import io.openware.im.user.domain.sticker.readmodel.UserStickerView;
@@ -87,10 +87,10 @@ public class AdminUserQueryApplicationService {
     int pageSize = pageSize(query.pageSize());
     String keyword = normalizeKeyword(query.keyword());
     List<Long> matchedUserIds = keyword == null ? List.of() : userAccountRepository.findIdsMatchingKeyword(keyword);
-    PageResult<FriendRelation> result = friendRelationRepository.searchForAdmin(toFriendStatus(query.status()),
+    PageResult<FriendRelationView> result = friendRelationRepository.searchForAdmin(toFriendStatus(query.status()),
         query.groupName(), keyword, matchedUserIds, numericUserId(keyword), page, pageSize);
     Map<Long, UserAccount> accounts = accountsOf(result.getItems().stream()
-        .flatMap(relation -> Stream.of(relation.getUserId(), relation.getFriendId()))
+        .flatMap(relation -> Stream.of(relation.userId(), relation.friendId()))
         .filter(java.util.Objects::nonNull).distinct().toList());
     return mapPage(result, relation -> toFriendResponse(relation, accounts));
   }
@@ -168,12 +168,12 @@ public class AdminUserQueryApplicationService {
         UserRole.valueOf(account.getRole().name()), account.getCreatedAt(), account.getUpdatedAt());
   }
 
-  private AdminFriendResponse toFriendResponse(FriendRelation relation, Map<Long, UserAccount> accounts) {
-    UserAccount user = accounts.get(relation.getUserId());
-    UserAccount friend = accounts.get(relation.getFriendId());
-    return new AdminFriendResponse(relation.getId(), relation.getUserId(), user == null ? null : user.getNickname(),
-        relation.getFriendId(), friend == null ? null : friend.getNickname(), relation.getRemark(),
-        relation.getGroupName(), FriendStatus.valueOf(relation.getStatus().name()), relation.getCreatedAt());
+  private AdminFriendResponse toFriendResponse(FriendRelationView relation, Map<Long, UserAccount> accounts) {
+    UserAccount user = accounts.get(relation.userId());
+    UserAccount friend = accounts.get(relation.friendId());
+    return new AdminFriendResponse(relation.id(), relation.userId(), user == null ? null : user.getNickname(),
+        relation.friendId(), friend == null ? null : friend.getNickname(), relation.remark(),
+        relation.groupName(), FriendStatus.valueOf(relation.status().name()), relation.createdAt());
   }
 
   private AdminDeviceTokenResponse toDeviceTokenResponse(DeviceTokenView row) {

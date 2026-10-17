@@ -20,6 +20,7 @@ import io.openware.im.user.domain.social.model.FriendRequestStatus;
 import io.openware.im.user.domain.social.model.FriendStatus;
 import io.openware.im.user.domain.social.repository.FriendEventOutbox;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
+import io.openware.im.user.domain.social.repository.Persisted;
 import io.openware.im.user.domain.social.repository.FriendRequestRepository;
 import io.openware.im.user.media.MediaReferenceClient;
 import java.time.LocalDateTime;
@@ -105,13 +106,13 @@ public class FriendApplicationService {
 
   @Transactional(readOnly = true)
   public List<FriendResult> getFriendList(Long userId) {
-    List<FriendRelation> relations = friendRelationRepository
+    List<Persisted<FriendRelation>> relations = friendRelationRepository
         .findByUserIdAndStatusOrderByGroupNameAndRemark(userId, FriendStatus.NORMAL);
     // 双向不可见：拉黑我的用户不应出现在我的好友列表里。
     Set<Long> blockers = friendRelationRepository.findByFriendIdAndStatus(userId, FriendStatus.BLOCKED).stream()
-        .map(FriendRelation::getUserId).collect(Collectors.toSet());
+        .map(row -> row.aggregate().getUserId()).collect(Collectors.toSet());
     return toResults(relations.stream()
-        .filter(relation -> !blockers.contains(relation.getFriendId()))
+        .filter(row -> !blockers.contains(row.aggregate().getFriendId()))
         .toList());
   }
 
@@ -143,7 +144,8 @@ public class FriendApplicationService {
   @Transactional
   public FriendResult unblockFriend(Long userId, Long friendId) {
     FriendRelation relation = friendRelationRepository.findByUserIdAndFriendId(userId, friendId)
-        .filter(item -> item.getStatus() == FriendStatus.BLOCKED)
+        .filter(row -> row.aggregate().getStatus() == FriendStatus.BLOCKED)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Blocked friend not found"));
     relation.unblock();
     return toResult(friendRelationRepository.save(relation));
@@ -154,13 +156,13 @@ public class FriendApplicationService {
     friendRelationRepository.deleteByUserIdAndFriendId(userId, friendId);
     // 反向关系仅在对方是普通好友时一并删除；对方若拉黑了我，保留其拉黑记录（不因我删除而失效）。
     friendRelationRepository.findByUserIdAndFriendId(friendId, userId)
-        .filter(relation -> relation.getStatus() == FriendStatus.NORMAL)
+        .filter(row -> row.aggregate().getStatus() == FriendStatus.NORMAL)
         .ifPresent(relation -> friendRelationRepository.deleteByUserIdAndFriendId(friendId, userId));
   }
 
   private boolean areFriends(Long userId, Long friendId) {
     return friendRelationRepository.findByUserIdAndFriendId(userId, friendId)
-        .map(item -> item.getStatus() == FriendStatus.NORMAL)
+        .map(row -> row.aggregate().getStatus() == FriendStatus.NORMAL)
         .orElse(false);
   }
 
@@ -176,38 +178,41 @@ public class FriendApplicationService {
 
   private void establish(Long userId, Long friendId, LocalDateTime now) {
     friendRelationRepository.findByUserIdAndFriendId(userId, friendId)
-        .ifPresentOrElse(relation -> {
-          relation.reactivate(now);
+        .ifPresentOrElse(row -> {
+          FriendRelation relation = row.aggregate();
+          relation.reactivate();
           friendRelationRepository.save(relation);
-        }, () -> friendRelationRepository.save(FriendRelation.create(userId, friendId, now)));
+        }, () -> friendRelationRepository.save(FriendRelation.create(userId, friendId)));
   }
 
   private FriendRelation requireRelation(Long userId, Long friendId) {
     return friendRelationRepository.findByUserIdAndFriendId(userId, friendId)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Friend not found"));
   }
 
-  private List<FriendResult> toResults(List<FriendRelation> relations) {
+  private List<FriendResult> toResults(List<Persisted<FriendRelation>> relations) {
     Map<Long, UserAccount> friendsById = userAccountRepository
-        .findByIds(relations.stream().map(FriendRelation::getFriendId).distinct().toList()).stream()
+        .findByIds(relations.stream().map(row -> row.aggregate().getFriendId()).distinct().toList()).stream()
         .collect(Collectors.toMap(UserAccount::getId, Function.identity()));
     return relations.stream()
-        .map(relation -> toResult(relation, friendsById.get(relation.getFriendId())))
+        .map(row -> toResult(row, friendsById.get(row.aggregate().getFriendId())))
         .toList();
   }
 
-  private FriendResult toResult(FriendRelation relation) {
-    return toResult(relation, userAccountRepository.findById(relation.getFriendId()).orElse(null));
+  private FriendResult toResult(Persisted<FriendRelation> row) {
+    return toResult(row, userAccountRepository.findById(row.aggregate().getFriendId()).orElse(null));
   }
 
-  private FriendResult toResult(FriendRelation relation, UserAccount friend) {
+  private FriendResult toResult(Persisted<FriendRelation> row, UserAccount friend) {
+    FriendRelation relation = row.aggregate();
     return new FriendResult(
         relation.getId(), relation.getUserId(), relation.getFriendId(),
         friend == null ? null : friend.getUsername(), friend == null ? null : friend.getNickname(),
         friend == null ? null : mediaReferences.accessUrl(relation.getUserId(), friend.getAvatar(), friend.getId()),
         relation.getRemark(), relation.getGroupName(),
-        relation.getStatus().name().toLowerCase(), relation.getCreatedBy(), relation.getCreatedAt(),
-        relation.getUpdatedBy(), relation.getUpdatedAt());
+        relation.getStatus().name().toLowerCase(), row.audit().createdBy(), row.audit().createdAt(),
+        row.audit().updatedBy(), row.audit().updatedAt());
   }
 
   private FriendRequestResult toResult(FriendRequest request) {

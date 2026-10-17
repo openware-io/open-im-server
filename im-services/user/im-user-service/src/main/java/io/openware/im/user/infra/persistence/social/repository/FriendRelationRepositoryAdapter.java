@@ -7,7 +7,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.openware.common.dto.PageResult;
 import io.openware.im.user.domain.social.model.FriendRelation;
 import io.openware.im.user.domain.social.model.FriendStatus;
+import io.openware.im.user.domain.social.readmodel.FriendRelationView;
+import io.openware.im.user.domain.social.repository.AuditSnapshot;
 import io.openware.im.user.domain.social.repository.FriendRelationRepository;
+import io.openware.im.user.domain.social.repository.Persisted;
 import io.openware.im.user.infra.persistence.social.converter.FriendPersistenceConverter;
 import io.openware.im.user.infra.persistence.social.mapper.FriendRelationMapper;
 import io.openware.im.user.infra.persistence.social.po.FriendRelationPo;
@@ -25,27 +28,27 @@ public class FriendRelationRepositoryAdapter implements FriendRelationRepository
   private final FriendRelationMapper mapper;
 
   @Override
-  public Optional<FriendRelation> findByUserIdAndFriendId(Long userId, Long friendId) {
+  public Optional<Persisted<FriendRelation>> findByUserIdAndFriendId(Long userId, Long friendId) {
     return Optional.ofNullable(mapper.selectOne(Wrappers.<FriendRelationPo>lambdaQuery()
         .eq(FriendRelationPo::getUserId, userId)
-        .eq(FriendRelationPo::getFriendId, friendId))).map(FriendPersistenceConverter::toDomain);
+        .eq(FriendRelationPo::getFriendId, friendId))).map(this::toPersisted);
   }
 
   @Override
-  public List<FriendRelation> findByUserIdAndStatusOrderByGroupNameAndRemark(Long userId, FriendStatus status) {
+  public List<Persisted<FriendRelation>> findByUserIdAndStatusOrderByGroupNameAndRemark(Long userId, FriendStatus status) {
     return mapper.selectList(Wrappers.<FriendRelationPo>lambdaQuery()
             .eq(FriendRelationPo::getUserId, userId)
             .eq(FriendRelationPo::getStatus, status.name().toLowerCase())
             .orderByAsc(FriendRelationPo::getGroupName, FriendRelationPo::getRemark))
-        .stream().map(FriendPersistenceConverter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public List<FriendRelation> findByFriendIdAndStatus(Long friendId, FriendStatus status) {
+  public List<Persisted<FriendRelation>> findByFriendIdAndStatus(Long friendId, FriendStatus status) {
     return mapper.selectList(Wrappers.<FriendRelationPo>lambdaQuery()
             .eq(FriendRelationPo::getFriendId, friendId)
             .eq(FriendRelationPo::getStatus, status.name().toLowerCase()))
-        .stream().map(FriendPersistenceConverter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
@@ -55,15 +58,37 @@ public class FriendRelationRepositoryAdapter implements FriendRelationRepository
   }
 
   @Override
-  public FriendRelation save(FriendRelation relation) {
+  public Persisted<FriendRelation> save(FriendRelation relation) {
     FriendRelationPo po = FriendPersistenceConverter.toPo(relation);
+    // 审计列由适配器确定（standards/10 L299）：关系操作人恒为关系归属用户。
+    LocalDateTime now = LocalDateTime.now();
+    po.setCreatedBy(po.getUserId());
+    po.setUpdatedBy(po.getUserId());
     if (po.getId() == null) {
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       mapper.insert(po);
       relation.assignId(po.getId());
-    } else {
-      mapper.updateById(po);
+      return toPersisted(po);
     }
-    return relation;
+    po.setUpdatedAt(now);
+    mapper.updateById(po);
+    return toPersisted(mapper.selectById(po.getId()));
+  }
+
+  /** 业务聚合 + 记账快照：响应回显与授权版本号都要读建/改时刻，而它们不进领域模型。 */
+  private Persisted<FriendRelation> toPersisted(FriendRelationPo po) {
+    if (po == null) {
+      return null;
+    }
+    return new Persisted<>(FriendPersistenceConverter.toDomain(po),
+        new AuditSnapshot(po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()));
+  }
+
+  /** 管理端列表投影：只读聚合查询，不参与状态变更（standards/10 L266-279）。 */
+  private FriendRelationView toView(FriendRelationPo po) {
+    return new FriendRelationView(po.getId(), po.getUserId(), po.getFriendId(), po.getRemark(), po.getGroupName(),
+        FriendStatus.valueOf(po.getStatus().toUpperCase()), po.getCreatedAt());
   }
 
   @Override
@@ -73,7 +98,7 @@ public class FriendRelationRepositoryAdapter implements FriendRelationRepository
   }
 
   @Override
-  public PageResult<FriendRelation> searchForAdmin(FriendStatus status, String groupName, String keyword,
+  public PageResult<FriendRelationView> searchForAdmin(FriendStatus status, String groupName, String keyword,
       List<Long> matchedUserIds, Long numericUserId, int page, int pageSize) {
     LambdaQueryWrapper<FriendRelationPo> query = Wrappers.<FriendRelationPo>lambdaQuery()
         .eq(status != null, FriendRelationPo::getStatus, status == null ? null : status.name().toLowerCase())
@@ -93,7 +118,7 @@ public class FriendRelationRepositoryAdapter implements FriendRelationRepository
     }
     Page<FriendRelationPo> result = mapper.selectPage(new Page<>(page, pageSize),
         query.orderByDesc(FriendRelationPo::getId));
-    return toPage(result, FriendPersistenceConverter::toDomain);
+    return toPage(result, this::toView);
   }
 
   @Override
