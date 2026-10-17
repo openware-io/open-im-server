@@ -437,6 +437,26 @@ FriendRequest reapply(FriendRequest request);       // 重新申请：适配器�
 **含义**：这类"审计列被业务写路径重置"的模型**不能按载体套路处理**，要先确认端口语义是否够表达。
 `FriendRequest` 因此**比我预判的多一步**，与 `FriendRelation` 同属"需先设计再动手"。
 
+### 8.14 剩余 5 个模型的**真实规模**——修正一处预判错误（2026-10-16 第十次更新）
+
+`DeviceToken` 与 `UserSticker` 完成后，剩余 5 个模型的实测规模如下。
+
+**我把 `UserAccount` 预判为"同 `UserSticker` 的双形态"是错的**，它明显更大：
+
+| 模型 | 端口方法 | 模型内 `updatedAt` 写入点 | 实际难度 |
+|---|---|---|---|
+| **`UserAccount`** | **18**（含 `searchForAdmin`、`findSelfDestructDue`、`saveStatusIfVersionMatches`、`default findByIds`、`dailyCounts`） | **7 处 + 1 处 `updatedBy = operatorId`** | **最大**，每个迁移方法的 `occurredAt` 都要单独判定是否还喂业务字段 |
+| `FriendRelation` | 待查 | 待查 | 需投影（`:47` 两时刻二选一参与判定） |
+| `FriendRequest` | 5 | 2 | 需端口拆 `save`/`reapply` |
+| `MessageOutbox` | 待查 | — | `pending(..., createdAt)` 语义待确认 |
+| `Message` | 待查 | 多数迁移方法 | 11 处审计读取，最大聚合 |
+
+**教训**：仅凭"有读者 / 无读者"两问**不足以估工作量**——还要看**端口方法数**与**迁移方法中 `occurredAt` 的用途分歧数**。
+`DeviceKey`/`DeviceSession` 只有 3–4 个端口方法、2 个迁移方法，所以一轮就过；
+`UserAccount` 有 18 个端口方法和 7 个写点，需要拆成多轮（先端口与载体、再逐个迁移方法）。
+
+**建议的下一步顺序**（按实测规模而非模型数）：`FriendRelation` → `FriendRequest` → `MessageOutbox` → `UserAccount` → `Message`。
+
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
