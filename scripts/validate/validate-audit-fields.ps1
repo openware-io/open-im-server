@@ -8,6 +8,10 @@
 #   - ClientReleaseOperation / ReleaseAuditLog: append-only operation/audit payloads;
 #     createdBy/createdAt are "who acted and when", i.e. the record's own data.
 #   - UserSyncIndex: createdAt is the sync instant used by the sync protocol.
+#   - PayCollect: createdAt is when the collect was opened; updatedAt is the state-transition time.
+#   - PaymentIntent: createdAt/updatedAt are payment lifetime facts (expiry/timeout decisions).
+#   - Shift: createdAt is the shift's business time (record ordering), not bookkeeping.
+#   - PaymentEventOutboxEntry: createdAt is the event's creation time used by the outbox relay.
 #
 # IMPORTANT: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI).
 #
@@ -25,7 +29,11 @@ $worklistPath = Join-Path $root '.outputs\quality\audit-fields-worklist.txt'
 $allowlist = @(
   'im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/domain/clientrelease/model/ClientReleaseOperation.java',
   'im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/domain/clientrelease/model/ReleaseAuditLog.java',
-  'im-services/message/im-message-service/src/main/java/io/openware/im/message/domain/message/model/UserSyncIndex.java'
+  'im-services/message/im-message-service/src/main/java/io/openware/im/message/domain/message/model/UserSyncIndex.java',
+  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/collect/model/PayCollect.java',
+  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/intent/model/PaymentIntent.java',
+  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/shift/model/Shift.java',
+  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/event/model/PaymentEventOutboxEntry.java'
 )
 
 $violations = [System.Collections.Generic.List[string]]::new()

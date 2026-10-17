@@ -44,11 +44,13 @@ class PaymentMethodChannelAuditTest {
     channelConfigRepository = mock(ChannelConfigRepository.class);
     auditClient = mock(AuditClient.class);
     channelService = new ChannelApplicationService(channelConfigRepository, auditClient);
-        when(paymentMethodRepository.findByMethod(any(), any()))
-        .thenAnswer(inv -> java.util.Optional.of(method(inv.getArgument(1))));
-    when(paymentMethodRepository.insert(any(TenantPaymentMethod.class)))
-        .thenAnswer(inv -> inv.getArgument(0));
-    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class))).thenReturn(true);
+    when(paymentMethodRepository.findByMethod(any(), any()))
+        .thenAnswer(inv -> java.util.Optional.of(
+            new Persisted<>(method(inv.getArgument(1)), new AuditSnapshot(null, null))));
+    when(paymentMethodRepository.insert(any(TenantPaymentMethod.class), any()))
+        .thenAnswer(inv -> new Persisted<>(inv.getArgument(0), new AuditSnapshot(null, null)));
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class), any()))
+        .thenAnswer(inv -> new Persisted<>(inv.getArgument(0), new AuditSnapshot(null, null)));
     methodService = new PaymentMethodApplicationService(paymentMethodRepository, channelService, auditClient);
   }
 
@@ -66,7 +68,7 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setGrant_writesFailureAuditWithExceptionClassName() {
-    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class)))
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class), any()))
         .thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class, () -> methodService.setGrant(TENANT_ID, "WALLET", true));
@@ -92,7 +94,7 @@ class PaymentMethodChannelAuditTest {
 
   @Test
   void setUserEnabled_writesFailureAudit() {
-    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class)))
+    when(paymentMethodRepository.updateSwitches(any(TenantPaymentMethod.class), any()))
         .thenThrow(new IllegalStateException("db down"));
 
     assertThrows(IllegalStateException.class, () -> methodService.setUserEnabled(TENANT_ID, "POINT", false));
@@ -158,8 +160,7 @@ class PaymentMethodChannelAuditTest {
   }
 
   private static TenantPaymentMethod method(String method) {
-    return new TenantPaymentMethod(9L, TENANT_ID, method, false, true, TenantPaymentMethod.STATUS_ACTIVE,
-        null, null);
+    return new TenantPaymentMethod(9L, TENANT_ID, method, false, true, TenantPaymentMethod.STATUS_ACTIVE);
   }
 
   private AuditClient.AuditRecord capturedAudit() {

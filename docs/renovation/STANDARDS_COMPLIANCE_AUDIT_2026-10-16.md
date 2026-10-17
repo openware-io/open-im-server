@@ -844,10 +844,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   已迁移：模型去四列，端口读返回 `Persisted`、写接收 `occurredAt`，适配器插入写
   `created_at/updated_at`、更新只写 `updated_at`；DTO 从 `AuditSnapshot` 取时间。
   `common-payment-service` **148 个测试全绿**。
-- 仍有 **13 个**模型带记账列，已生成有限工作清单
-  `.outputs/quality/audit-fields-worklist.txt`，门禁暂为 report-only（batch 2）：
-  - payment 7：`DailyClosing`、`PayCollect`、`PaymentEventOutboxEntry`、`PaymentIntent`、
-    `TenantPaymentMethod`、`Refund`、`Shift`；
+- `TenantPaymentMethod`（payment）同样迁移：模型去两列，端口读返回 `Persisted`、
+  `insert/updateSwitches` 接收 `occurredAt`，DTO 从 `AuditSnapshot` 取时间。
+- `PayCollect`、`PaymentIntent`、`Shift`、`PaymentEventOutboxEntry` 的时间字段是**业务时间**
+  （收款单建立/状态迁移、支付有效期、交班时序、事件发生时刻），加入 allowlist 并写明理由，
+  不按记账列删除。
+- 仍有 **8 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
+  门禁暂为 report-only（batch 2）：
+  - payment 2：`DailyClosing`、`Refund`；
   - customer 2：`MemberNameToken`、`PointLedgerEntry`；
   - order inventory 2：`InventoryMaterial`、`InventoryTransaction`；
   - tenant 2：`PricingPlan`、`Tenant`。

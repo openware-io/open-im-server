@@ -1,6 +1,7 @@
 package io.openware.common.payment.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.method.model.TenantPaymentMethod;
 import io.openware.common.payment.domain.method.repository.TenantPaymentMethodRepository;
 import io.openware.infrastructure.audit.AuditClient;
@@ -11,6 +12,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,7 +65,7 @@ public class PaymentMethodApplicationService {
         TenantContext ctx = requireContext();
         boolean userView = "user".equalsIgnoreCase(view);
         String currencyCode = CurrencyResolver.currentCode();
-        Map<String, TenantPaymentMethod> rows = rows(ctx.tenantId());
+        Map<String, Persisted<TenantPaymentMethod>> rows = rows(ctx.tenantId());
         return CATALOG.stream()
                 .map(m -> {
                     boolean allowed = tenantAllowed(ctx, m, rows);
@@ -88,9 +90,9 @@ public class PaymentMethodApplicationService {
         // 支付方式合法性是无状态前置校验：不为它写失败痕迹，只覆盖写操作的执行结果。
         validateMethod(method);
         try {
-            TenantPaymentMethod current = upsert(tenantId, method);
+            Persisted<TenantPaymentMethod> current = upsert(tenantId, method);
             // 只改授权开关：用户偏好保持原值（见 withSwitches 的说明）。
-            TenantPaymentMethod saved = persist(current.withSwitches(granted, null));
+            Persisted<TenantPaymentMethod> saved = persist(current.aggregate().withSwitches(granted, null));
             // 授权结果决定该租户能否收款，属资金相关配置：此前成功/失败都没有留痕。
             recordMethodAudit("payment-method.grant", "支付方式授权", tenantId, method,
                     "\"granted\":" + granted);
@@ -106,9 +108,10 @@ public class PaymentMethodApplicationService {
     public TenantPaymentMethodDto setUserEnabled(Long tenantId, String method, boolean enabled) {
         validateMethod(method);
         try {
-            TenantPaymentMethod current = upsert(tenantId, method);
+            Persisted<TenantPaymentMethod> current = upsert(tenantId, method);
             // 只改用户开关：授权值保持原值。
-            TenantPaymentMethod saved = persist(current.withSwitches(current.authorized(), enabled));
+            Persisted<TenantPaymentMethod> saved = persist(current.aggregate().withSwitches(
+                    current.aggregate().authorized(), enabled));
             // 关闭某方式会让它在 C 端支付列表消失，直接影响成单：必须可回溯。
             recordMethodAudit("payment-method.user_enabled", "支付方式用户开关", tenantId, method,
                     "\"userEnabled\":" + enabled);
@@ -168,12 +171,13 @@ public class PaymentMethodApplicationService {
         return isTenantAllowed(tenantId, storeId, method, rows(tenantId));
     }
 
-    private boolean tenantAllowed(TenantContext ctx, String method, Map<String, TenantPaymentMethod> rows) {
+    private boolean tenantAllowed(TenantContext ctx, String method,
+                                  Map<String, Persisted<TenantPaymentMethod>> rows) {
         return isTenantAllowed(ctx.tenantId(), ctx.storeId(), method, rows);
     }
 
     private boolean isTenantAllowed(long tenantId, Long storeId, String method,
-                                    Map<String, TenantPaymentMethod> rows) {
+                                    Map<String, Persisted<TenantPaymentMethod>> rows) {
         if ("CASH".equals(method)) return true;
         // 储值与积分属于租户基础经营能力。没有历史授权行时按默认开放处理，只有明确写入 granted=0 才关闭。
         if ("WALLET".equals(method) || "POINT".equals(method)) return grantedByDefault(rows, method);
@@ -183,25 +187,27 @@ public class PaymentMethodApplicationService {
         return granted(rows, method);
     }
 
-    private boolean grantedByDefault(Map<String, TenantPaymentMethod> rows, String method) {
-        TenantPaymentMethod config = rows.get(method);
+    private boolean grantedByDefault(Map<String, Persisted<TenantPaymentMethod>> rows, String method) {
+        Persisted<TenantPaymentMethod> row = rows.get(method);
+        TenantPaymentMethod config = row == null ? null : row.aggregate();
         return config == null || config.granted() == null || Boolean.TRUE.equals(config.granted());
     }
 
-    private boolean granted(Map<String, TenantPaymentMethod> rows, String method) {
-        TenantPaymentMethod config = rows.get(method);
-        return config != null && Boolean.TRUE.equals(config.granted());
+    private boolean granted(Map<String, Persisted<TenantPaymentMethod>> rows, String method) {
+        Persisted<TenantPaymentMethod> row = rows.get(method);
+        return row != null && Boolean.TRUE.equals(row.aggregate().granted());
     }
 
-    private boolean userEnabled(String method, Map<String, TenantPaymentMethod> rows) {
-        TenantPaymentMethod config = rows.get(method);
+    private boolean userEnabled(String method, Map<String, Persisted<TenantPaymentMethod>> rows) {
+        Persisted<TenantPaymentMethod> row = rows.get(method);
+        TenantPaymentMethod config = row == null ? null : row.aggregate();
         return config == null || config.userEnabled() == null || Boolean.TRUE.equals(config.userEnabled());
     }
 
-    private Map<String, TenantPaymentMethod> rows(long tenantId) {
+    private Map<String, Persisted<TenantPaymentMethod>> rows(long tenantId) {
         // 同一方式理论上只有一行（租户 + 方式为身份）；撞车时取第一条而不是让装配抛异常。
         return paymentMethodRepository.listByTenant(tenantId).stream()
-                .collect(Collectors.toMap(TenantPaymentMethod::method, Function.identity(), (a, b) -> a));
+                .collect(Collectors.toMap(row -> row.aggregate().method(), Function.identity(), (a, b) -> a));
     }
 
     /**
@@ -209,16 +215,15 @@ public class PaymentMethodApplicationService {
      *
      * <p>新建后立即落库再返回：`insert` 是"新增配置"本身，而调用方随后会写开关列。
      */
-    private TenantPaymentMethod upsert(Long tenantId, String method) {
+    private Persisted<TenantPaymentMethod> upsert(Long tenantId, String method) {
         return paymentMethodRepository.findByMethod(tenantId, method)
                 .orElseGet(() -> paymentMethodRepository.insert(
-                        TenantPaymentMethod.create(tenantId, method, false, true)));
+                        TenantPaymentMethod.create(tenantId, method, false, true), LocalDateTime.now()));
     }
 
     /** 写入开关列并返回落库后的聚合。 */
-    private TenantPaymentMethod persist(TenantPaymentMethod config) {
-        paymentMethodRepository.updateSwitches(config);
-        return config;
+    private Persisted<TenantPaymentMethod> persist(TenantPaymentMethod config) {
+        return paymentMethodRepository.updateSwitches(config, LocalDateTime.now());
     }
 
     private void validateMethod(String method) {

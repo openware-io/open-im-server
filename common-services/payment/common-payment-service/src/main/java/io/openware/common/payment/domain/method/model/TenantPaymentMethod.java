@@ -1,7 +1,5 @@
 package io.openware.common.payment.domain.method.model;
 
-import java.time.LocalDateTime;
-
 /**
  * 租户支付方式授权（领域模型）。
  *
@@ -10,10 +8,7 @@ import java.time.LocalDateTime;
  *   <li>{@code granted}——**总部授权**：该支付方式对这个租户是否被允许；</li>
  *   <li>{@code userEnabled}——**用户偏好**：在该租户被授权的前提下，用户自己是否启用。</li>
  * </ul>
- * 门店可能按授权决定"能不能用这个方式收款"，而用户偏好只影响默认选中项；
- * 合成一个布尔值会让其中一边的语义被另一边覆盖。
- *
- * <p>审计字段（createdBy、updatedBy）不在此承载：由持久化适配器填充。
+ * 审计字段（createdBy、updatedBy、createdAt、updatedAt）不在此承载：由持久化适配器填充。
  *
  * @param id          配置标识
  * @param tenantId    租户
@@ -21,8 +16,6 @@ import java.time.LocalDateTime;
  * @param granted     总部是否授权
  * @param userEnabled 用户是否启用
  * @param status      状态
- * @param createdAt   创建时刻
- * @param updatedAt   更新时刻
  */
 public record TenantPaymentMethod(
     Long id,
@@ -30,9 +23,7 @@ public record TenantPaymentMethod(
     String method,
     Boolean granted,
     Boolean userEnabled,
-    String status,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt) {
+    String status) {
 
   /** 配置生效中。 */
   public static final String STATUS_ACTIVE = "ACTIVE";
@@ -52,20 +43,19 @@ public record TenantPaymentMethod(
    * 变更开关。
    *
    * <p><b>用户开关只在显式给出时改变</b>：总部调整授权时不应顺带改写用户偏好——
-   * 那会让"重新授权"变成"替用户启用"。
+   * 那会让「重新授权」变成「替用户启用」。
    *
-   * @param newGranted      新的总部授权值
-   * @param newUserEnabled  新的用户开关；{@code null} 表示本次不改动
+   * @param newGranted     新的总部授权值
+   * @param newUserEnabled 新的用户开关；{@code null} 表示本次不改动
    */
   public TenantPaymentMethod withSwitches(boolean newGranted, Boolean newUserEnabled) {
     return new TenantPaymentMethod(id, tenantId, method, newGranted,
-        newUserEnabled == null ? userEnabled : newUserEnabled, status, createdAt, updatedAt);
+        newUserEnabled == null ? userEnabled : newUserEnabled, status);
   }
 
   /** 新增配置（供调用方构造草稿，状态固定为 ACTIVE）。 */
   public static TenantPaymentMethod create(Long tenantId, String method, boolean granted,
                                            Boolean userEnabled) {
-    return new TenantPaymentMethod(null, tenantId, method, granted, userEnabled, STATUS_ACTIVE,
-        null, null);
+    return new TenantPaymentMethod(null, tenantId, method, granted, userEnabled, STATUS_ACTIVE);
   }
 }
