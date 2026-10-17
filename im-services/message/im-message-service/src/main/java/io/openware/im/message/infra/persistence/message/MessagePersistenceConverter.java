@@ -2,6 +2,7 @@ package io.openware.im.message.infra.persistence.message;
 
 import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.MessageFavorite;
+import io.openware.im.message.domain.message.readmodel.MessageFavoriteView;
 import io.openware.im.message.domain.message.model.MessageOutbox;
 import io.openware.im.message.infra.persistence.message.po.MessageFavoritePo;
 import io.openware.im.message.infra.persistence.message.po.MessageOutboxPo;
@@ -48,7 +49,7 @@ public final class MessagePersistenceConverter {
   public static MessageFavoritePo toPo(MessageFavorite favorite) {
     MessageFavoritePo po = new MessageFavoritePo();
     po.setId(favorite.getId()); po.setUserId(favorite.getUserId()); po.setMsgId(favorite.getMsgId());
-    po.setPeerId(favorite.getPeerId()); po.setChatType(favorite.getChatType()); po.setCreatedAt(favorite.getCreatedAt());
+    po.setPeerId(favorite.getPeerId()); po.setChatType(favorite.getChatType());
     po.setMsgTypeSnapshot(favorite.getMsgTypeSnapshot()); po.setContentSnapshot(favorite.getContentSnapshot());
     po.setFromUserIdSnapshot(favorite.getFromUserIdSnapshot());
     po.setSenderUsernameSnapshot(favorite.getSenderUsernameSnapshot());
@@ -58,7 +59,17 @@ public final class MessagePersistenceConverter {
 
   public static MessageFavorite toDomain(MessageFavoritePo po) {
     return MessageFavorite.restore(po.getId(), po.getUserId(), po.getMsgId(), po.getPeerId(), po.getChatType(),
-        po.getCreatedAt(), po.getMsgTypeSnapshot(), po.getContentSnapshot(), po.getFromUserIdSnapshot(),
+        po.getMsgTypeSnapshot(), po.getContentSnapshot(), po.getFromUserIdSnapshot(),
+        po.getSenderUsernameSnapshot(), po.getSentAtSnapshot());
+  }
+
+/**
+   * 收藏列表的只读投影（standards/10 L266-279）：列表不参与状态变更，用投影建模，
+   * 收藏时刻随之由投影携带，而不是塞回领域模型。
+   */
+  public static MessageFavoriteView toView(MessageFavoritePo po) {
+    return new MessageFavoriteView(po.getMsgId(), po.getPeerId(), po.getChatType(), po.getCreatedAt(),
+        po.getMsgTypeSnapshot(), po.getContentSnapshot(), po.getFromUserIdSnapshot(),
         po.getSenderUsernameSnapshot(), po.getSentAtSnapshot());
   }
 }

@@ -21,6 +21,7 @@ import io.openware.im.message.application.favorite.result.FavoriteSourceResult;
 import io.openware.im.message.application.favorite.result.FavoriteSourceState;
 import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.MessageFavorite;
+import io.openware.im.message.domain.message.readmodel.MessageFavoriteView;
 import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
@@ -109,7 +110,7 @@ class FavoriteApplicationServiceTest {
 
     service.favorite(new AddFavoriteCommand(7L, "m-1", "9", ChatType.PRIVATE));
 
-    MessageFavorite saved = favorites.items.get(0);
+    MessageFavorite saved = favorites.items.get(0).favorite();
     assertTrue(saved.hasSnapshot(), "收藏成功时必须写入内容快照");
     assertEquals(MsgType.TEXT, saved.getMsgTypeSnapshot());
     assertEquals("hello", saved.getContentSnapshot());
@@ -133,7 +134,7 @@ class FavoriteApplicationServiceTest {
     service.favorite(new AddFavoriteCommand(2L, "m-secret", "7", ChatType.SECRET));
 
     assertEquals(1, favorites.items.size(), "密聊参与方应能收藏密聊消息");
-    assertFalse(favorites.items.get(0).hasSnapshot(),
+    assertFalse(favorites.items.get(0).favorite().hasSnapshot(),
         "密聊服务端只存密文且设计为定时销毁，收藏刻意不落正文快照");
   }
 
@@ -182,7 +183,7 @@ class FavoriteApplicationServiceTest {
     assertFalse(result.items().get(1).created(), "无权访问的单条不应中止整批");
     assertFalse(result.items().get(2).created());
     assertEquals(1, favorites.items.size(), "单条失败不应回滚已成功的收藏");
-    assertEquals("m-ok", favorites.items.get(0).getMsgId());
+    assertEquals("m-ok", favorites.items.get(0).favorite().getMsgId());
   }
 
   @Test
@@ -208,9 +209,9 @@ class FavoriteApplicationServiceTest {
   void listFiltersByOwnerPaginatesAndFallsBackToPlaceholder() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-1", "9", ChatType.PRIVATE, now.minusSeconds(2)));
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-2", "9", ChatType.PRIVATE, now.minusSeconds(1)));
-    favorites.saveIfAbsent(MessageFavorite.create(8L, "m-3", "9", ChatType.PRIVATE, now));
+    favorites.saveIfAbsentAt(MessageFavorite.create(7L, "m-1", "9", ChatType.PRIVATE), now.minusSeconds(2));
+    favorites.saveIfAbsentAt(MessageFavorite.create(7L, "m-2", "9", ChatType.PRIVATE), now.minusSeconds(1));
+    favorites.saveIfAbsent(MessageFavorite.create(8L, "m-3", "9", ChatType.PRIVATE));
 
     MessageRepository messages = mock(MessageRepository.class);
     // 仅 m-2 仍可回查（m-1 已撤回/删除）。
@@ -239,7 +240,7 @@ class FavoriteApplicationServiceTest {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
     // 历史行（V13 之前落库）：快照为空。用户 7 曾收藏一条群消息，随后被移出群。
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-secret", "100", ChatType.GROUP, now));
+    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-secret", "100", ChatType.GROUP));
 
     MessageRepository messages = mock(MessageRepository.class);
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
@@ -263,7 +264,7 @@ class FavoriteApplicationServiceTest {
   void listStillShowsContentWhenUserCanAccess() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-ok", "100", ChatType.GROUP, now));
+    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-ok", "100", ChatType.GROUP));
 
     MessageRepository messages = mock(MessageRepository.class);
     when(messages.findByMsgIds(anyList())).thenReturn(List.of(
@@ -283,7 +284,7 @@ class FavoriteApplicationServiceTest {
   void listPrefersLiveMessageOverSnapshot() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-edited", "100", ChatType.GROUP, now,
+    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-edited", "100", ChatType.GROUP,
         MsgType.TEXT, "收藏时的旧内容", 9L, "sender", now.minusMinutes(5)));
 
     MessageRepository messages = mock(MessageRepository.class);
@@ -302,7 +303,7 @@ class FavoriteApplicationServiceTest {
   void listFallsBackToSnapshotAfterMessageGone() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-gone", "9", ChatType.PRIVATE, now,
+    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-gone", "9", ChatType.PRIVATE,
         MsgType.TEXT, "收藏时的内容", 9L, "sender", now.minusMinutes(3)));
 
     MessageRepository messages = mock(MessageRepository.class);
@@ -323,7 +324,7 @@ class FavoriteApplicationServiceTest {
   void listFallsBackToSnapshotAfterAccessLost() {
     InMemoryMessageFavoriteRepository favorites = new InMemoryMessageFavoriteRepository();
     LocalDateTime now = LocalDateTime.now();
-    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-left", "100", ChatType.GROUP, now,
+    favorites.saveIfAbsent(MessageFavorite.create(7L, "m-left", "100", ChatType.GROUP,
         MsgType.TEXT, "收藏时的内容", 9L, "sender", now.minusMinutes(1)));
 
     MessageRepository messages = mock(MessageRepository.class);
@@ -491,34 +492,54 @@ class FavoriteApplicationServiceTest {
         ChatType.GROUP, MsgType.TEXT, "group secret", null, null, List.of(), LocalDateTime.now());
   }
 
+  /**
+   * 内存仓库：领域模型不带收藏时刻，时刻由本仓库持有——与真实适配器里 `created_at` 落在 PO 上、
+   * 读出时再装进 MessageFavoriteView 投影，是同一职责分工。
+   */
   private static final class InMemoryMessageFavoriteRepository implements MessageFavoriteRepository {
-    private final List<MessageFavorite> items = new ArrayList<>();
+    private record Stored(MessageFavorite favorite, LocalDateTime favoritedAt) { }
 
-    @Override
-    public boolean saveIfAbsent(MessageFavorite favorite) {
-      boolean exists = items.stream().anyMatch(item -> item.getUserId() == favorite.getUserId()
-          && item.getMsgId().equals(favorite.getMsgId()));
+    private final List<Stored> items = new ArrayList<>();
+
+    /** 指定收藏时刻的预置（列表按它倒序，用于断言顺序）。 */
+    boolean saveIfAbsentAt(MessageFavorite favorite, LocalDateTime favoritedAt) {
+      boolean exists = items.stream().anyMatch(item -> item.favorite().getUserId() == favorite.getUserId()
+          && item.favorite().getMsgId().equals(favorite.getMsgId()));
       if (exists) {
         return false;
       }
-      items.add(favorite);
+      items.add(new Stored(favorite, favoritedAt));
       return true;
     }
 
     @Override
+    public boolean saveIfAbsent(MessageFavorite favorite) {
+      return saveIfAbsentAt(favorite, LocalDateTime.now());
+    }
+
+    @Override
     public void deleteByUserIdAndMsgId(long userId, String msgId) {
-      items.removeIf(item -> item.getUserId() == userId && item.getMsgId().equals(msgId));
+      items.removeIf(item -> item.favorite().getUserId() == userId
+          && item.favorite().getMsgId().equals(msgId));
     }
 
     @Override
     public void deleteByMsgId(String msgId) {
-      items.removeIf(item -> item.getMsgId().equals(msgId));
+      items.removeIf(item -> item.favorite().getMsgId().equals(msgId));
     }
 
     @Override
-    public FavoritePage findByUserId(long userId, int page, int pageSize) {
-      List<MessageFavorite> own = items.stream().filter(item -> item.getUserId() == userId)
-          .sorted(Comparator.comparing(MessageFavorite::getCreatedAt).reversed()).toList();
+    public FavoritePage searchFavorites(long userId, int page, int pageSize) {
+      List<MessageFavoriteView> own = items.stream()
+          .filter(item -> item.favorite().getUserId() == userId)
+          .sorted(Comparator.comparing(Stored::favoritedAt).reversed())
+          .map(item -> {
+            MessageFavorite f = item.favorite();
+            return new MessageFavoriteView(f.getMsgId(), f.getPeerId(), f.getChatType(), item.favoritedAt(),
+                f.getMsgTypeSnapshot(), f.getContentSnapshot(), f.getFromUserIdSnapshot(),
+                f.getSenderUsernameSnapshot(), f.getSentAtSnapshot());
+          })
+          .toList();
       int from = Math.min((page - 1) * pageSize, own.size());
       int to = Math.min(from + pageSize, own.size());
       return new FavoritePage(own.subList(from, to), own.size());

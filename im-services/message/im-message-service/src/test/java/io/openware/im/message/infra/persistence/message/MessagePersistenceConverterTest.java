@@ -19,10 +19,12 @@ class MessagePersistenceConverterTest {
   void shouldRoundTripFavoriteSnapshotColumns() {
     LocalDateTime favoritedAt = LocalDateTime.now();
     LocalDateTime sentAt = favoritedAt.minusMinutes(5);
-    MessageFavorite favorite = MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE, favoritedAt,
+    MessageFavorite favorite = MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE,
         MsgType.IMAGE, "img-content", 9L, "sender", sentAt);
 
     MessageFavoritePo po = MessagePersistenceConverter.toPo(favorite);
+    // 收藏时刻由适配器在写库时打戳（领域模型不再携带），这里显式模拟。
+    po.setCreatedAt(favoritedAt);
     assertEquals(MsgType.IMAGE, po.getMsgTypeSnapshot());
     assertEquals("img-content", po.getContentSnapshot());
     assertEquals(9L, po.getFromUserIdSnapshot());
@@ -36,15 +38,17 @@ class MessagePersistenceConverterTest {
     assertEquals(9L, restored.getFromUserIdSnapshot());
     assertEquals("sender", restored.getSenderUsernameSnapshot());
     assertEquals(sentAt, restored.getSentAtSnapshot());
-    assertEquals(favoritedAt, restored.getCreatedAt());
+    // 收藏时刻不在领域模型上：由只读投影 MessageFavoriteView 承载（standards/10 L266-279）。
+    assertEquals(favoritedAt, MessagePersistenceConverter.toView(po).favoritedAt());
   }
 
   @Test
   void shouldKeepLegacyFavoriteWithoutSnapshot() {
     LocalDateTime favoritedAt = LocalDateTime.now();
-    MessageFavorite legacy = MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE, favoritedAt);
+    MessageFavorite legacy = MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE);
 
     MessageFavoritePo po = MessagePersistenceConverter.toPo(legacy);
+    po.setCreatedAt(favoritedAt);
     assertNull(po.getMsgTypeSnapshot());
     assertNull(po.getContentSnapshot());
     assertNull(po.getFromUserIdSnapshot());
@@ -53,6 +57,7 @@ class MessagePersistenceConverterTest {
 
     MessageFavorite restored = MessagePersistenceConverter.toDomain(po);
     assertFalse(restored.hasSnapshot(), "历史行（V13 之前）不得被判定为带快照");
-    assertEquals(favoritedAt, restored.getCreatedAt());
+    // 收藏时刻不在领域模型上：由只读投影 MessageFavoriteView 承载（standards/10 L266-279）。
+    assertEquals(favoritedAt, MessagePersistenceConverter.toView(po).favoritedAt());
   }
 }

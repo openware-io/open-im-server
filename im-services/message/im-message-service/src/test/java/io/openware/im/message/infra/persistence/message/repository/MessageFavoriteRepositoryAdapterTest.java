@@ -26,7 +26,7 @@ class MessageFavoriteRepositoryAdapterTest {
     when(mapper.insert(any(MessageFavoritePo.class))).thenReturn(1);
     LocalDateTime favoritedAt = LocalDateTime.now();
     LocalDateTime sentAt = favoritedAt.minusMinutes(2);
-    MessageFavorite favorite = MessageFavorite.create(7L, "m1", "9", ChatType.GROUP, favoritedAt,
+    MessageFavorite favorite = MessageFavorite.create(7L, "m1", "9", ChatType.GROUP,
         MsgType.TEXT, "收藏正文", 9L, "sender", sentAt);
 
     assertTrue(new MessageFavoriteRepositoryAdapter(mapper).saveIfAbsent(favorite));
@@ -49,7 +49,7 @@ class MessageFavoriteRepositoryAdapterTest {
     when(mapper.insert(any(MessageFavoritePo.class))).thenThrow(new DuplicateKeyException("uk_user_msg"));
 
     assertFalse(new MessageFavoriteRepositoryAdapter(mapper).saveIfAbsent(
-        MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE, LocalDateTime.now())),
+        MessageFavorite.create(7L, "m1", "9", ChatType.PRIVATE)),
         "命中 (user_id, msg_id) 唯一约束时应幂等返回 false");
   }
 }

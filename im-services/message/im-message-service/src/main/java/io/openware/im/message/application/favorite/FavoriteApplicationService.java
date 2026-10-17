@@ -14,6 +14,7 @@ import io.openware.im.message.application.favorite.result.FavoriteSourceResult;
 import io.openware.im.message.application.favorite.result.FavoriteSourceState;
 import io.openware.im.message.domain.message.model.Message;
 import io.openware.im.message.domain.message.model.MessageFavorite;
+import io.openware.im.message.domain.message.readmodel.MessageFavoriteView;
 import io.openware.im.message.domain.message.repository.ChannelMembershipPort;
 import io.openware.im.message.domain.message.repository.FriendRelationPort;
 import io.openware.im.message.domain.message.repository.GroupMembershipPort;
@@ -113,8 +114,8 @@ public class FavoriteApplicationService {
     LocalDateTime now = utcNow();
     MessageFavorite favorite = message == null
         // 密聊等不走 msg_message 权威通道的会话：不落快照（服务端只存密文且设计为定时销毁）。
-        ? MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType(), now)
-        : MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType(), now,
+        ? MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType())
+        : MessageFavorite.create(command.userId(), command.msgId(), command.peerId(), command.chatType(),
             message.getMsgType(), message.getContent(), message.getFromUserId(), message.getSenderUsername(),
             message.getCreatedAt());
     return favoriteRepository.saveIfAbsent(favorite);
@@ -174,32 +175,39 @@ public class FavoriteApplicationService {
   public FavoritePageResult listFavorites(FavoriteListQuery query) {
     int page = page(query.page());
     int pageSize = pageSize(query.pageSize());
-    MessageFavoriteRepository.FavoritePage favorites = favoriteRepository.findByUserId(query.userId(), page, pageSize);
-    List<String> msgIds = favorites.items().stream().map(MessageFavorite::getMsgId).distinct().toList();
+    MessageFavoriteRepository.FavoritePage favorites = favoriteRepository.searchFavorites(query.userId(), page, pageSize);
+    List<String> msgIds = favorites.items().stream().map(MessageFavoriteView::msgId).distinct().toList();
     Map<String, Message> byMsgId = messageRepository.findByMsgIds(msgIds).stream()
         .collect(Collectors.toMap(Message::getMsgId, Function.identity()));
     List<FavoriteResult> items = favorites.items().stream()
-        .map(favorite -> toResult(query.userId(), favorite, byMsgId.get(favorite.getMsgId())))
+        .map(view -> toResult(query.userId(), view, byMsgId.get(view.msgId())))
         .toList();
     return new FavoritePageResult(items, favorites.total(), page, pageSize);
   }
 
-  private FavoriteResult toResult(long userId, MessageFavorite favorite, Message message) {
+  /** 快照是否齐备（standards/10 L278：投影不定义业务行为，判定留在应用层）。 */
+  private static boolean hasSnapshot(MessageFavoriteView view) {
+    return view.msgTypeSnapshot() != null || view.contentSnapshot() != null
+        || view.fromUserIdSnapshot() != null || view.senderUsernameSnapshot() != null
+        || view.sentAtSnapshot() != null;
+  }
+
+  private FavoriteResult toResult(long userId, MessageFavoriteView favorite, Message message) {
     if (message != null && canAccess(userId, message)) {
       // 实时消息优先：编辑后的内容、撤回/删除前的权威状态以消息表为准。
-      return new FavoriteResult(favorite.getMsgId(), favorite.getPeerId(), favorite.getChatType(),
+      return new FavoriteResult(favorite.msgId(), favorite.peerId(), favorite.chatType(),
           message.getMsgType(), message.getContent(), message.getFromUserId(), message.getSenderUsername(),
-          message.getCreatedAt(), favorite.getCreatedAt());
+          message.getCreatedAt(), favorite.favoritedAt());
     }
-    if (favorite.hasSnapshot()) {
+    if (hasSnapshot(favorite)) {
       // 权威消息已撤回/删除，或当前用户已无权访问：回落收藏时快照（收藏内容永远可读）。
-      return new FavoriteResult(favorite.getMsgId(), favorite.getPeerId(), favorite.getChatType(),
-          favorite.getMsgTypeSnapshot(), favorite.getContentSnapshot(), favorite.getFromUserIdSnapshot(),
-          favorite.getSenderUsernameSnapshot(), favorite.getSentAtSnapshot(), favorite.getCreatedAt());
+      return new FavoriteResult(favorite.msgId(), favorite.peerId(), favorite.chatType(),
+          favorite.msgTypeSnapshot(), favorite.contentSnapshot(), favorite.fromUserIdSnapshot(),
+          favorite.senderUsernameSnapshot(), favorite.sentAtSnapshot(), favorite.favoritedAt());
     }
     // 快照列（V13）之前的历史行：行为与改动前完全一致——仅保留收藏定位信息，展示层渲染占位。
-    return FavoriteResult.placeholder(favorite.getMsgId(), favorite.getPeerId(), favorite.getChatType(),
-        favorite.getCreatedAt());
+    return FavoriteResult.placeholder(favorite.msgId(), favorite.peerId(), favorite.chatType(),
+        favorite.favoritedAt());
   }
 
   /**

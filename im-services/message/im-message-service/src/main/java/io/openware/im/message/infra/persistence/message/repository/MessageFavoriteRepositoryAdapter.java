@@ -44,14 +44,14 @@ public class MessageFavoriteRepositoryAdapter implements MessageFavoriteReposito
   }
 
   @Override
-  public FavoritePage findByUserId(long userId, int page, int pageSize) {
+  public FavoritePage searchFavorites(long userId, int page, int pageSize) {
     // 按收藏时间倒序；追加 id DESC 作为确定性 tie-break（created_at 为毫秒精度，可能重复）。
     Page<MessageFavoritePo> result = mapper.selectPage(new Page<>(page, pageSize),
         Wrappers.<MessageFavoritePo>lambdaQuery()
             .eq(MessageFavoritePo::getUserId, userId)
             .orderByDesc(MessageFavoritePo::getCreatedAt)
             .orderByDesc(MessageFavoritePo::getId));
-    return new FavoritePage(result.getRecords().stream().map(MessagePersistenceConverter::toDomain).toList(),
+    return new FavoritePage(result.getRecords().stream().map(MessagePersistenceConverter::toView).toList(),
         result.getTotal());
   }
 }
