@@ -60,6 +60,23 @@ public class SecretMessage {
     return "active".equals(status);
   }
 
+  /**
+   * 按 TTL 推导销毁时刻：{@code createdAt + ttl}。
+   *
+   * <p><b>为什么这条规则在领域模型上</b>（standards/10 应用服务规则：核心业务判断与不变量必须下沉到聚合根）：
+   * "销毁时刻 = 投递时刻 + TTL"是私密消息的核心不变量。改造前它写在应用服务里
+   * （{@code message.getCreatedAt().plus(ttl)}），于是应用层必须先从领域对象读"创建时刻"才能算——
+   * 把领域规则摊到了应用层。收到这里之后，应用层只说"按 TTL 安排销毁"，不再知道公式。
+   *
+   * <p><b>为什么 {@code createdAt} 仍留在本模型</b>：它在本类里不是记账信息，而是上面那条不变量的输入
+   * （同时也是响应要回显的投递时刻）。standards/10 "审计列不进领域模型"的立意是防止领域层理解**持久化**语义；
+   * 一个被领域规则读取的时刻属于**领域事实**，留在模型里才是它的正确位置。
+   * 这与 {@code createdBy}/{@code updatedBy}/{@code updatedAt} 不同——那三者只有记账用途，应下沉适配器。
+   */
+  public LocalDateTime destroyAtAfter(java.time.Duration ttl) {
+    return createdAt == null ? null : createdAt.plus(ttl);
+  }
+
   public Long getId() { return id; }
   public Long getSecretChatId() { return secretChatId; }
   public String getMsgId() { return msgId; }

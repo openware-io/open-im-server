@@ -283,7 +283,7 @@ public class SecretMessageApplicationService {
     List<SecretMessage> expired = new java.util.ArrayList<>();
     int scheduled = 0;
     for (SecretMessage message : candidates) {
-      LocalDateTime candidate = message.getCreatedAt().plus(ttl);
+      LocalDateTime candidate = message.destroyAtAfter(ttl);
       if (!candidate.isAfter(now)) {
         expired.add(message);
       } else {
