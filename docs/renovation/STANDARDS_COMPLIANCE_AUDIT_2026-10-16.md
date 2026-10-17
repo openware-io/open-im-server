@@ -203,6 +203,31 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 由此差点得出"无读者"的结论——**222 是全局计数，对单个模型毫无区分度**。
 必须逐模型查具体调用点。**按计数判断会出错**，本会话这是第三次。
 
+### 8.6 V2 的**具体修法**（2026-10-16 核实 conversation 后确定）
+
+以 conversation 的 4 个模型为样本逐行核对后，修法已经明确，**两端分别处理**：
+
+**写路径（比现在更简单）**：这些模型的工厂与迁移方法都带 `operatorId`/`occurredAt` 参数，
+用来填 `createdBy/createdAt/updatedBy/updatedAt`。例如
+`SecretChat.create(long userA, long userB, long operatorId, LocalDateTime occurredAt)`、
+`submitHandshake(userId, publicKey, operatorId, occurredAt)`、`withDestroyPolicy(policy, operatorId, occurredAt)`。
+审计值本就该在**持久化那一刻**确定，所以这些参数**整体删除**：适配器写库时自行给 PO 打时间戳，
+领域方法不再认识"操作人"这个概念。这是**净简化**，不是复杂化。
+
+**读路径（需要载体）**：端口目前返回裸领域对象
+（`Optional<SecretChat> findById`、`List<SecretChat> findByParticipant` 等 6 个方法），
+而应用层用 `chat.getCreatedBy()` 等组装响应。去掉领域字段后，这些值必须由适配器**另行带出**——
+按本仓既有做法引入 `Persisted<T>(T aggregate, AuditSnapshot audit)`（order/payment/customer 三个域已在用），
+响应装配点改从 audit 取。
+
+**已确认可直接复用的既有实现**：`MybatisSecretGroupChatRepository:83` 写路径**已经在用**
+`po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()`，即适配器从 PO 取审计值；
+4 个模型又都已是**不可变类（private 构造器）**，所以是"删参数 + 加载体"，**不需要重写可变性**。
+
+**结论**：V2 = 21 个模型 × {删 4 个构造/方法参数、适配器补审计列、端口加载体、响应装配点改取值、测试适配}。
+**建议按服务拆分为 3 个独立任务**（conversation 4 → message 5 → user 12），每个服务完成即跑完整测试并提交；
+不要试图一次改完，否则中间态无法验证。
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
