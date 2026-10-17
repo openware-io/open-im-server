@@ -181,6 +181,28 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 
 **写路径口径不可顺带改变**：两条路径列行为逐字保留——`save` 写两列、`update` 只刷 `updated_at`（创建时刻不可变）。
 
+### 8.5 V2 主体的**真实规模**（2026-10-16 逐模型核实后）
+
+对 21 个 im-services 模型逐个查"有无读者"，结论是**全部有读者**，而且比 `AuditLog` 更复杂：
+
+| 服务 | 模型数 | 审计值的去向 | 现状 |
+|---|---|---|---|
+| conversation | 4 | **进响应**（`ChannelResponse`/`SecretChatResponse`/`SecretGroupChatResponse`），且仓储**已从 PO 就地取审计值** | 领域模型是 record，但把审计值当构造参数；需去掉参数、保留响应传参 |
+| message | 5 | **进响应**（`MessageResponse`/`FavoriteResponse`） | 同上 |
+| user | 12 | **进响应**（`UserProfileResponse`/`FriendResponse`/`DeviceTokenResponse`/`DeviceSessionResponse`/`FriendRequestResponse`/`UserStickerResponse`） | 同上 |
+
+**为什么这不能像 sms/mail 那样一次做完**：每个模型要同时改
+**领域模型（去掉 4 个构造参数）→ 每个仓储的 `toPo`/`toDomain` → 每个响应 DTO 的装配点 → 每个测试**，
+共 21 × 4 类改动点。**这是多轮工作量，不是一次编辑**；我按服务逐个推进并逐个验证。
+
+**conversation 的既有答案（可作模板）**：`MybatisSecretGroupChatRepository:83` 已经在写
+`po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt()`——即**适配器直接从 PO 取审计值**，
+不必穿过领域模型。修法就是把这条既有做法推广到其余 20 个模型，并把这些值改为经端口显式传给响应装配点。
+
+**另一个被这次核实纠正的判断**：我先前按 `git grep -c` 统计"全局审计 getter 调用 = 222"，
+由此差点得出"无读者"的结论——**222 是全局计数，对单个模型毫无区分度**。
+必须逐模型查具体调用点。**按计数判断会出错**，本会话这是第三次。
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
