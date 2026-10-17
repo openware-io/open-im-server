@@ -5,6 +5,7 @@ import io.openware.im.conversation.domain.channel.model.ChannelSubscription;
 import io.openware.im.conversation.domain.channel.repository.ChannelSubscriptionRepository;
 import io.openware.im.conversation.infra.persistence.channel.mapper.ChannelSubscriptionMapper;
 import io.openware.im.conversation.infra.persistence.channel.po.ChannelSubscriptionPo;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
@@ -74,16 +75,15 @@ public class MybatisChannelSubscriptionRepository implements ChannelSubscription
     po.setChannelId(subscription.getChannelId());
     po.setUserId(subscription.getUserId());
     po.setNotifySetting(subscription.getNotifySetting());
-    po.setJoinedAt(subscription.getCreatedAt());
-    po.setCreatedBy(subscription.getCreatedBy());
-    po.setCreatedAt(subscription.getCreatedAt());
-    po.setUpdatedBy(subscription.getUpdatedBy());
-    po.setUpdatedAt(subscription.getUpdatedAt());
+    // 审计列在适配器确定（standards/10）：joined_at 与 created_at 同源——订阅时刻即加入时刻。
+    LocalDateTime now = LocalDateTime.now();
+    po.setJoinedAt(now);
+    po.setCreatedAt(now);
+    po.setUpdatedAt(now);
     return po;
   }
 
   private ChannelSubscription toDomain(ChannelSubscriptionPo po) {
-    return ChannelSubscription.restore(po.getId(), po.getChannelId(), po.getUserId(), po.getNotifySetting(),
-        po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+    return ChannelSubscription.restore(po.getId(), po.getChannelId(), po.getUserId(), po.getNotifySetting());
   }
 }

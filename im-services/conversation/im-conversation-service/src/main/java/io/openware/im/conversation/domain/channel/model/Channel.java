@@ -1,9 +1,15 @@
 package io.openware.im.conversation.domain.channel.model;
 
-import java.time.LocalDateTime;
 import java.security.SecureRandom;
 
-/** 频道聚合根：单向发布/订阅空间。业务规则（owner 发布权）由领域模型承载。 */
+/**
+ * 频道聚合根：单向发布/订阅空间。业务规则（owner 发布权）由领域模型承载。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 §聚合装配与持久化契约）：{@code createdBy}/{@code createdAt}/
+ * {@code updatedBy}/{@code updatedAt} 是记账信息，由适配器在写库时确定；响应需要的值经
+ * {@code ChannelRepository.Persisted} 的 {@code AuditSnapshot} 单独带出。
+ * 因此 {@code register}/{@code update} 也**不再接收 {@code operatorId}/{@code occurredAt}**。
+ */
 public class Channel {
   private final Long id;
   private final String code;
@@ -13,14 +19,9 @@ public class Channel {
   private final String announcement;
   private final Long discussionGroupId;
   private final String status;
-  private final Long createdBy;
-  private final LocalDateTime createdAt;
-  private final Long updatedBy;
-  private final LocalDateTime updatedAt;
 
   private Channel(Long id, String code, Long ownerId, String name, String avatar, String announcement,
-      Long discussionGroupId, String status, Long createdBy, LocalDateTime createdAt,
-      Long updatedBy, LocalDateTime updatedAt) {
+      Long discussionGroupId, String status) {
     this.id = id;
     this.code = code;
     this.ownerId = ownerId;
@@ -29,23 +30,16 @@ public class Channel {
     this.announcement = announcement;
     this.discussionGroupId = discussionGroupId;
     this.status = status;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
-  public static Channel register(long ownerId, String name, String avatar, String announcement,
-      long operatorId, LocalDateTime occurredAt) {
-    return new Channel(null, generateCode(), ownerId, name, avatar, announcement, null, "active",
-        operatorId, occurredAt, operatorId, occurredAt);
+  public static Channel register(long ownerId, String name, String avatar, String announcement) {
+    return new Channel(null, generateCode(), ownerId, name, avatar, announcement, null, "active");
   }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public static Channel restore(Long id, String code, Long ownerId, String name, String avatar, String announcement,
-      Long discussionGroupId, String status, Long createdBy, LocalDateTime createdAt,
-      Long updatedBy, LocalDateTime updatedAt) {
-    return new Channel(id, code, ownerId, name, avatar, announcement, discussionGroupId, status,
-        createdBy, createdAt, updatedBy, updatedAt);
+      Long discussionGroupId, String status) {
+    return new Channel(id, code, ownerId, name, avatar, announcement, discussionGroupId, status);
   }
 
   /** 生成 8 位频道号（大小写无关的 0-9A-Z 去易混淆字符，前缀恒为小写字母，避免纯数字与 id 混淆）。 */
@@ -65,10 +59,8 @@ public class Channel {
   }
 
   /** 更新频道信息（名称/头像/公告），仅 owner 可调用。 */
-  public Channel update(String name, String avatar, String announcement,
-      long operatorId, LocalDateTime occurredAt) {
-    return new Channel(id, code, ownerId, name, avatar, announcement, discussionGroupId, status,
-        createdBy, createdAt, operatorId, occurredAt);
+  public Channel update(String name, String avatar, String announcement) {
+    return new Channel(id, code, ownerId, name, avatar, announcement, discussionGroupId, status);
   }
 
   public Long getId() { return id; }
@@ -79,8 +71,4 @@ public class Channel {
   public String getAnnouncement() { return announcement; }
   public Long getDiscussionGroupId() { return discussionGroupId; }
   public String getStatus() { return status; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

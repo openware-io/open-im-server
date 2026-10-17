@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import io.openware.im.conversation.api.channel.ChannelResult;
 import io.openware.im.conversation.api.channel.CreateChannelRequest;
 import io.openware.im.conversation.domain.channel.model.Channel;
+import io.openware.im.conversation.domain.channel.repository.AuditSnapshot;
+import io.openware.im.conversation.domain.channel.repository.Persisted;
 import io.openware.im.conversation.domain.channel.model.ChannelSubscription;
 import io.openware.im.conversation.domain.channel.repository.ChannelRepository;
 import io.openware.im.conversation.domain.channel.repository.ChannelSubscriptionRepository;
@@ -38,8 +40,8 @@ class ChannelApplicationServiceTest {
   void createChannelReturnsOwnerRole() {
     when(channelRepository.save(any(Channel.class))).thenAnswer(inv -> {
       Channel ch = inv.getArgument(0);
-      return Channel.restore(1L, "cTEST123", ch.getOwnerId(), ch.getName(), ch.getAvatar(), ch.getAnnouncement(),
-          null, "active", ch.getCreatedBy(), ch.getCreatedAt(), ch.getUpdatedBy(), ch.getUpdatedAt());
+      return persisted(Channel.restore(1L, "cTEST123", ch.getOwnerId(), ch.getName(), ch.getAvatar(),
+          ch.getAnnouncement(), null, "active"));
     });
     CreateChannelRequest req = new CreateChannelRequest();
     req.setName("产品公告");
@@ -52,9 +54,9 @@ class ChannelApplicationServiceTest {
 
   @Test
   void subscribeIsIdempotentWhenAlreadySubscribed() {
-    when(channelRepository.findById(1L)).thenReturn(Optional.of(channel(1L, 7L)));
+    when(channelRepository.findById(1L)).thenReturn(Optional.of(persisted(channel(1L, 7L))));
     when(subscriptionRepository.findByChannelIdAndUserId(1L, 8L))
-        .thenReturn(Optional.of(ChannelSubscription.subscribe(1L, 8L, 8L, LocalDateTime.now())));
+        .thenReturn(Optional.of(ChannelSubscription.subscribe(1L, 8L)));
     when(subscriptionRepository.countByChannelId(1L)).thenReturn(1L);
 
     service.subscribe(8L, 1L);
@@ -64,7 +66,7 @@ class ChannelApplicationServiceTest {
 
   @Test
   void subscribeSavesWhenNotSubscribed() {
-    when(channelRepository.findById(1L)).thenReturn(Optional.of(channel(1L, 7L)));
+    when(channelRepository.findById(1L)).thenReturn(Optional.of(persisted(channel(1L, 7L))));
     when(subscriptionRepository.findByChannelIdAndUserId(1L, 8L)).thenReturn(Optional.empty());
     when(subscriptionRepository.save(any(ChannelSubscription.class)))
         .thenAnswer(inv -> inv.getArgument(0));
@@ -77,10 +79,10 @@ class ChannelApplicationServiceTest {
 
   @Test
   void getChannelComputesRoles() {
-    when(channelRepository.findById(1L)).thenReturn(Optional.of(channel(1L, 7L)));
+    when(channelRepository.findById(1L)).thenReturn(Optional.of(persisted(channel(1L, 7L))));
     when(subscriptionRepository.findByChannelIdAndUserId(1L, 7L)).thenReturn(Optional.empty());
     when(subscriptionRepository.findByChannelIdAndUserId(1L, 8L))
-        .thenReturn(Optional.of(ChannelSubscription.subscribe(1L, 8L, 8L, LocalDateTime.now())));
+        .thenReturn(Optional.of(ChannelSubscription.subscribe(1L, 8L)));
     when(subscriptionRepository.countByChannelId(1L)).thenReturn(2L);
 
     ChannelResult owner = service.getChannel(7L, 1L);
@@ -98,8 +100,8 @@ class ChannelApplicationServiceTest {
   @Test
   void listMyChannelsReturnsOnlySubscribed() {
     when(subscriptionRepository.findByUserId(8L)).thenReturn(List.of(
-        ChannelSubscription.subscribe(1L, 8L, 8L, LocalDateTime.now())));
-    when(channelRepository.findByIds(List.of(1L))).thenReturn(List.of(channel(1L, 7L)));
+        ChannelSubscription.subscribe(1L, 8L)));
+    when(channelRepository.findByIds(List.of(1L))).thenReturn(List.of(persisted(channel(1L, 7L))));
     when(subscriptionRepository.countByChannelId(1L)).thenReturn(1L);
 
     List<ChannelResult> result = service.listMyChannels(8L);
@@ -109,8 +111,12 @@ class ChannelApplicationServiceTest {
   }
 
   private Channel channel(long id, long ownerId) {
+    return Channel.restore(id, "c" + id + "TEST", ownerId, "频道", null, null, null, "active");
+  }
+
+  /** 领域模型不带审计列：读回的「聚合 + 记账快照」由测试在这里补齐。 */
+  private Persisted<Channel> persisted(Channel channel) {
     LocalDateTime now = LocalDateTime.now();
-    return Channel.restore(id, "c" + id + "TEST", ownerId, "频道", null, null, null, "active",
-        ownerId, now, ownerId, now);
+    return new Persisted<>(channel, new AuditSnapshot(channel.getOwnerId(), now, channel.getOwnerId(), now));
   }
 }

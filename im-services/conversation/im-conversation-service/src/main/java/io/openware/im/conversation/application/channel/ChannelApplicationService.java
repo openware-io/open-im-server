@@ -8,8 +8,7 @@ import io.openware.im.conversation.domain.channel.model.Channel;
 import io.openware.im.conversation.domain.channel.model.ChannelSubscription;
 import io.openware.im.conversation.domain.channel.repository.ChannelRepository;
 import io.openware.im.conversation.domain.channel.repository.ChannelSubscriptionRepository;
-import java.time.Clock;
-import java.time.LocalDateTime;
+import io.openware.im.conversation.domain.channel.repository.Persisted;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
  * 频道应用服务：承载创建/订阅/查询用例，业务规则（owner 发布权）下沉领域模型。
  *
  * <p>订阅为幂等语义：同一用户重复订阅直接返回（唯一约束兜底并发）。</p>
+ *
+ * <p><b>审计值从哪来</b>（standards/10 §聚合装配与持久化契约）：{@code Channel} 不带
+ * {@code createdBy/createdAt/updatedBy/updatedAt}，端口以 {@link Persisted} 把「聚合 + 记账快照」一起返回，
+ * {@link ChannelResult} 需要的四个值从 {@code audit()} 取。
  */
 @Service
 @RequiredArgsConstructor
@@ -30,10 +33,10 @@ public class ChannelApplicationService {
 
   @Transactional
   public ChannelResult createChannel(long userId, CreateChannelRequest request) {
-    Channel channel = Channel.register(userId, request.getName(), request.getAvatar(), request.getAnnouncement(),
-        userId, LocalDateTime.now(Clock.systemUTC()));
-    Channel saved = channelRepository.save(channel);
-    log.info("Channel created, channelId={}, ownerId={}, name={}", saved.getId(), userId, saved.getName());
+    Persisted<Channel> saved = channelRepository.save(
+        Channel.register(userId, request.getName(), request.getAvatar(), request.getAnnouncement()));
+    log.info("Channel created, channelId={}, ownerId={}, name={}", saved.aggregate().getId(), userId,
+        saved.aggregate().getName());
     return toResult(saved, "owner", false, 0);
   }
 
@@ -43,8 +46,7 @@ public class ChannelApplicationService {
       throw new ApiException(HttpStatusCodes.NOT_FOUND, "Channel not found");
     }
     if (subscriptionRepository.findByChannelIdAndUserId(channelId, userId).isEmpty()) {
-      subscriptionRepository.save(ChannelSubscription.subscribe(channelId, userId, userId,
-          LocalDateTime.now(Clock.systemUTC())));
+      subscriptionRepository.save(ChannelSubscription.subscribe(channelId, userId));
       log.info("Channel subscribed, channelId={}, userId={}", channelId, userId);
     }
     return getChannel(userId, channelId);
@@ -58,14 +60,14 @@ public class ChannelApplicationService {
       return List.of();
     }
     return channelRepository.findByIds(ids).stream()
-        .map(channel -> toResult(channel, channel.isOwnedBy(userId) ? "owner" : "subscriber", true,
-            (int) subscriptionRepository.countByChannelId(channel.getId())))
+        .map(row -> toResult(row, row.aggregate().isOwnedBy(userId) ? "owner" : "subscriber", true,
+            (int) subscriptionRepository.countByChannelId(row.aggregate().getId())))
         .toList();
   }
 
   @Transactional(readOnly = true)
   public ChannelResult getChannel(long userId, long channelId) {
-    Channel channel = channelRepository.findById(channelId)
+    Persisted<Channel> channel = channelRepository.findById(channelId)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Channel not found"));
     return toResultFor(userId, channel);
   }
@@ -73,7 +75,7 @@ public class ChannelApplicationService {
   /** 通过频道号（分享码）查频道；用于「输入频道号订阅」。 */
   @Transactional(readOnly = true)
   public ChannelResult getChannelByCode(long userId, String code) {
-    Channel channel = channelRepository.findByCode(code)
+    Persisted<Channel> channel = channelRepository.findByCode(code)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Channel not found"));
     return toResultFor(userId, channel);
   }
@@ -82,19 +84,21 @@ public class ChannelApplicationService {
   @Transactional(readOnly = true)
   public List<ChannelResult> searchChannels(long userId, String keyword, int limit) {
     return channelRepository.searchByName(keyword, limit).stream()
-        .map(channel -> toResultFor(userId, channel))
+        .map(row -> toResultFor(userId, row))
         .toList();
   }
 
-  private ChannelResult toResultFor(long userId, Channel channel) {
-    boolean subscribed = subscriptionRepository.findByChannelIdAndUserId(channel.getId(), userId).isPresent();
-    String myRole = channel.isOwnedBy(userId) ? "owner" : (subscribed ? "subscriber" : "none");
-    return toResult(channel, myRole, subscribed, (int) subscriptionRepository.countByChannelId(channel.getId()));
+  private ChannelResult toResultFor(long userId, Persisted<Channel> row) {
+    long channelId = row.aggregate().getId();
+    boolean subscribed = subscriptionRepository.findByChannelIdAndUserId(channelId, userId).isPresent();
+    String myRole = row.aggregate().isOwnedBy(userId) ? "owner" : (subscribed ? "subscriber" : "none");
+    return toResult(row, myRole, subscribed, (int) subscriptionRepository.countByChannelId(channelId));
   }
 
   @Transactional(readOnly = true)
   public boolean isOwner(long userId, long channelId) {
-    return channelRepository.findById(channelId).map(channel -> channel.isOwnedBy(userId)).orElse(false);
+    return channelRepository.findById(channelId)
+        .map(row -> row.aggregate().isOwnedBy(userId)).orElse(false);
   }
 
   @Transactional(readOnly = true)
@@ -120,11 +124,10 @@ public class ChannelApplicationService {
   public ChannelResult updateChannel(long userId, long channelId, String name, String avatar,
       String announcement) {
     Channel channel = requireOwned(userId, channelId);
-    Channel updated = channelRepository.save(channel.update(
+    Persisted<Channel> updated = channelRepository.save(channel.update(
         name == null || name.isBlank() ? channel.getName() : name.trim(),
         avatar,
-        announcement,
-        userId, LocalDateTime.now(Clock.systemUTC())));
+        announcement));
     return toResultFor(userId, updated);
   }
 
@@ -139,6 +142,7 @@ public class ChannelApplicationService {
 
   private Channel requireOwned(long userId, long channelId) {
     Channel channel = channelRepository.findById(channelId)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Channel not found"));
     if (!channel.isOwnedBy(userId)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only channel owner can manage channel");
@@ -146,9 +150,10 @@ public class ChannelApplicationService {
     return channel;
   }
 
-  private ChannelResult toResult(Channel channel, String myRole, boolean subscribed, int memberCount) {
+  private ChannelResult toResult(Persisted<Channel> row, String myRole, boolean subscribed, int memberCount) {
+    Channel channel = row.aggregate();
     return new ChannelResult(channel.getId(), channel.getCode(), channel.getOwnerId(), channel.getName(),
         channel.getAvatar(), channel.getAnnouncement(), channel.getDiscussionGroupId(), channel.getStatus(),
-        myRole, subscribed, memberCount, channel.getCreatedAt(), channel.getUpdatedAt());
+        myRole, subscribed, memberCount, row.audit().createdAt(), row.audit().updatedAt());
   }
 }
