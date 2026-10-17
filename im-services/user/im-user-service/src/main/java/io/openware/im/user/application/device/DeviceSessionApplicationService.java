@@ -7,6 +7,7 @@ import io.openware.im.user.application.device.result.DeviceSessionResult;
 import io.openware.im.user.domain.device.model.DeviceSession;
 import io.openware.im.user.domain.device.model.LoginMethod;
 import io.openware.im.user.domain.device.repository.DeviceSessionRepository;
+import io.openware.im.user.domain.device.repository.Persisted;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class DeviceSessionApplicationService {
     String deviceId = normalizeDeviceId(command.deviceId(), command.loginMethod());
     LocalDateTime now = LocalDateTime.now();
     DeviceSession session = deviceSessionRepository.findByUserIdAndDeviceId(command.userId(), deviceId)
+        .map(Persisted::aggregate)
         .map(existing -> {
           existing.refreshActivity(command.deviceType(), command.deviceName(), command.loginMethod(), command.ip(), now);
           return existing;
@@ -51,7 +53,7 @@ public class DeviceSessionApplicationService {
   @Transactional
   public void kick(Long userId, String deviceId) {
     DeviceSession session = requireOwnedSession(userId, deviceId);
-    session.kick(LocalDateTime.now());
+    session.kick();
     deviceSessionRepository.save(session);
     log.info("[device-session] kicked device, userId={}, deviceId={}", userId, deviceId);
   }
@@ -60,20 +62,22 @@ public class DeviceSessionApplicationService {
   @Transactional
   public void logout(Long userId, String deviceId) {
     DeviceSession session = requireOwnedSession(userId, deviceId);
-    session.logout(LocalDateTime.now());
+    session.logout();
     deviceSessionRepository.save(session);
     log.info("[device-session] logout device, userId={}, deviceId={}", userId, deviceId);
   }
 
   private DeviceSession requireOwnedSession(Long userId, String deviceId) {
     return deviceSessionRepository.findByUserIdAndDeviceId(userId, deviceId)
+        .map(Persisted::aggregate)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Device session not found"));
   }
 
-  private DeviceSessionResult toResult(DeviceSession session) {
+  private DeviceSessionResult toResult(Persisted<DeviceSession> row) {
+    DeviceSession session = row.aggregate();
     return new DeviceSessionResult(session.getId(), session.getUserId(), session.getDeviceId(), session.getDeviceType(),
         session.getDeviceName(), session.getLoginIp(), session.getLoginMethod(), session.getLastActiveAt(),
-        session.getLastActiveIp(), session.getStatus(), session.getCreatedAt(), session.getUpdatedAt());
+        session.getLastActiveIp(), session.getStatus(), row.audit().createdAt(), row.audit().updatedAt());
   }
 
   /** 设备标识兜底：未提供时按登录方式生成稳定的占位标识，保证 (user_id, device_id) 唯一约束可复用。 */

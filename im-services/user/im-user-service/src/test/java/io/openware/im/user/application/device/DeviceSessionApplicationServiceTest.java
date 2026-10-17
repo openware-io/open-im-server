@@ -10,6 +10,7 @@ import io.openware.im.user.domain.device.model.DeviceSession;
 import io.openware.im.user.domain.device.model.DeviceSessionStatus;
 import io.openware.im.user.domain.device.model.LoginMethod;
 import io.openware.im.user.domain.device.repository.DeviceSessionRepository;
+import io.openware.im.user.domain.device.repository.Persisted;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -69,29 +70,38 @@ class DeviceSessionApplicationServiceTest {
     private long nextId = 1;
 
     @Override
-    public Optional<DeviceSession> findByUserIdAndDeviceId(Long userId, String deviceId) {
+    public Optional<Persisted<DeviceSession>> findByUserIdAndDeviceId(Long userId, String deviceId) {
       return sessions.stream().filter(item -> item.getUserId().equals(userId) && item.getDeviceId().equals(deviceId))
-          .findFirst();
+          .findFirst().map(InMemoryDeviceSessionRepository::persisted);
     }
 
     @Override
-    public Optional<DeviceSession> findById(Long id) {
-      return sessions.stream().filter(item -> id.equals(item.getId())).findFirst();
+    public Optional<Persisted<DeviceSession>> findById(Long id) {
+      return sessions.stream().filter(item -> id.equals(item.getId())).findFirst()
+          .map(InMemoryDeviceSessionRepository::persisted);
     }
 
     @Override
-    public List<DeviceSession> findByUserId(Long userId) {
+    public List<Persisted<DeviceSession>> findByUserId(Long userId) {
       return sessions.stream().filter(item -> item.getUserId().equals(userId))
-          .sorted(Comparator.comparing(DeviceSession::getLastActiveAt).reversed()).toList();
+          .sorted(Comparator.comparing(DeviceSession::getLastActiveAt).reversed())
+          .map(InMemoryDeviceSessionRepository::persisted).toList();
     }
 
     @Override
-    public DeviceSession save(DeviceSession session) {
+    public Persisted<DeviceSession> save(DeviceSession session) {
       if (session.getId() == null) {
         session.assignId(nextId++);
         sessions.add(session);
       }
-      return session;
+      return persisted(session);
+    }
+
+    /** 领域模型不带审计列：时刻由假仓储补齐，与真实适配器的 AuditSnapshot 同职责。 */
+    private static Persisted<DeviceSession> persisted(DeviceSession session) {
+      java.time.LocalDateTime now = java.time.LocalDateTime.now();
+      return new Persisted<>(session,
+          new io.openware.im.user.domain.device.repository.AuditSnapshot(null, now, null, now));
     }
   }
 }

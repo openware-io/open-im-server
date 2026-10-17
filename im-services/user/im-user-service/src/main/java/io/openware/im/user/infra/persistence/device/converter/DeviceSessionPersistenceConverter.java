@@ -13,8 +13,7 @@ public final class DeviceSessionPersistenceConverter {
     DeviceSession session = new DeviceSession();
     session.restore(po.getId(), po.getUserId(), po.getDeviceId(), po.getDeviceType(), po.getDeviceName(),
         po.getLoginIp(), LoginMethod.fromValue(po.getLoginMethod()), po.getLastActiveAt(), po.getLastActiveIp(),
-        DeviceSessionStatus.fromValue(po.getStatus()), po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(),
-        po.getUpdatedAt());
+        DeviceSessionStatus.fromValue(po.getStatus()));
     return session;
   }
 
@@ -30,10 +29,6 @@ public final class DeviceSessionPersistenceConverter {
     po.setLastActiveAt(session.getLastActiveAt());
     po.setLastActiveIp(session.getLastActiveIp());
     po.setStatus(session.getStatus().value());
-    po.setCreatedBy(session.getCreatedBy());
-    po.setCreatedAt(session.getCreatedAt());
-    po.setUpdatedBy(session.getUpdatedBy());
-    po.setUpdatedAt(session.getUpdatedAt());
     return po;
   }
 }

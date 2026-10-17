@@ -6,12 +6,12 @@ import java.util.Optional;
 
 /** 设备登录会话仓储契约。 */
 public interface DeviceSessionRepository {
-  Optional<DeviceSession> findByUserIdAndDeviceId(Long userId, String deviceId);
+  Optional<Persisted<DeviceSession>> findByUserIdAndDeviceId(Long userId, String deviceId);
 
-  Optional<DeviceSession> findById(Long id);
+  Optional<Persisted<DeviceSession>> findById(Long id);
 
   /** 查询指定用户的全部设备会话，按最后活跃时间倒序。 */
-  List<DeviceSession> findByUserId(Long userId);
+  List<Persisted<DeviceSession>> findByUserId(Long userId);
 
-  DeviceSession save(DeviceSession session);
+  Persisted<DeviceSession> save(DeviceSession session);
 }

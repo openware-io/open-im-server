@@ -30,12 +30,12 @@ class DeviceSessionTest {
     DeviceSession session = DeviceSession.start(7L, "device-1", "mobile", "iPhone", LoginMethod.PASSWORD, "1.1.1.1",
         LocalDateTime.now());
 
-    session.kick(LocalDateTime.now());
+    session.kick();
 
     assertEquals(DeviceSessionStatus.KICKED, session.getStatus());
     assertFalse(session.isActive());
 
-    session.logout(LocalDateTime.now());
+    session.logout();
 
     assertEquals(DeviceSessionStatus.LOGOUT, session.getStatus());
   }
