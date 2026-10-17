@@ -283,6 +283,29 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 **这也是我在这一轮停下来记录、而不是继续改的原因**：`SecretMessage` 有 **11 个端口方法**返回裸领域对象，
 而 `createdAt` 又参与 TTL 推导；直接套用前面的模板会改掉销毁时刻的语义。这类判断必须先做，改起来才安全。
 
+### 8.9 剩余 17 个模型的**实际字段分布**（2026-10-16 第五次更新）
+
+逐个统计字段数后，剩余工作**不是同质的**——有一部分模型已被前人**部分处理过**：
+
+| 字段数 | 模型数 | 模型 |
+|---|---|---|
+| **四个齐全** | **12** | `Message`、`SecretMessage`、`UserAccount`、`UserSecurityQuestion`、`AccountCancellation`、`DeviceSession`、`DeviceToken`、`DeviceKey`、`OpenApplication`、`FriendRelation`、`FriendRequest`、`UserSticker` |
+| **仅 `createdAt`** | **3** | `MessageFavorite`、`MessageOutbox`、`SecretGroupMessage` |
+| **`createdAt` + `updatedAt`** | **2** | `UserNotificationSetting`、`UserPrivacySetting` |
+
+**含义**：那 5 个"部分处理过"的模型，`createdBy`/`updatedBy`（以及部分 `updatedAt`）**早已不在领域模型里**——
+它们不是"从零改"，而是"收尾"。`SecretGroupMessage` 尤其明显：它只剩 `createdAt`，且该字段**不参与 TTL 推导**
+（`scheduleDestroy(destroyAt)` 显式传参），唯一外读者是响应装配。
+
+**已完成的 7 个模型**：conversation 4 个（`SecretChat`/`SecretGroupChat`/`Channel`/`ChannelSubscription`）
++ common 3 个（`SmsSendLog`/`MailSendLog`/`AuditLog`）。conversation 与 common 两个服务**已完全收口**。
+
+**下一步的合理顺序**（按"剩余工作量"而非"模型数"）：
+1. `SecretGroupMessage`（只剩 `createdAt`，无领域规则牵涉）——最小
+2. `MessageFavorite`、`MessageOutbox`（同样只剩 `createdAt`，但 `MessageOutbox` 的语义待定，见 §8.8）
+3. `UserNotificationSetting`、`UserPrivacySetting`（只剩两个字段）
+4. 12 个"四个齐全"的模型逐个处理；`Message` 与 `SecretMessage` 各单独一轮
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
