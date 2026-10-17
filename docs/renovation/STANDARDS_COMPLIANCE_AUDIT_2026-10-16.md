@@ -457,6 +457,37 @@ FriendRequest reapply(FriendRequest request);       // 重新申请：适配器�
 
 **建议的下一步顺序**（按实测规模而非模型数）：`FriendRelation` → `FriendRequest` → `MessageOutbox` → `UserAccount` → `Message`。
 
+### 8.15 `FriendRelation`：`createdAt`/`updatedAt` 是**授权版本号**（2026-10-16 第十一次更新）
+
+核实 `FriendAuthorizationQueryService:46-49` 后，这已经**不是"响应回显"级别的问题**：
+
+```java
+private long version(FriendRelation relation) {
+  LocalDateTime timestamp = relation.getUpdatedAt() != null ? relation.getUpdatedAt() : relation.getCreatedAt();
+  return timestamp == null ? 0L : timestamp.toInstant(ZoneOffset.UTC).toEpochMilli();
+}
+```
+
+`version(...)` 的结果进入 `PrivateMessageAuthorizationSnapshot`（`api/authorization`），
+经 `PrivateMessageAuthorizationController` 暴露给 **im-message-service** 用于私信授权判定
+（`UserServiceFriendRelationAdapter` 跨服务调用）。
+
+**即：`updatedAt`/`createdAt` 共同编码了"这段好友关系何时被改过"，是授权缓存的版本语义。**
+
+**施工约束（比"用投影"更严）**：
+
+1. 投影/载体必须**同时携带** `createdAt` 与 `updatedAt`，且
+2. **回退顺序 `updatedAt ?? createdAt` 必须原样保留**——它决定了版本号取哪一个时刻，改了就可能在
+   关系未变更时错误地判定"版本变了"（缓存击穿）或"版本没变"（授权过期不失效）。
+3. `FriendApplicationService:209-210` 还要四个值做响应，所以这一处必须走**载体或投影**，不能只给两个时间戳。
+
+**`FriendRelation` 的规模**：端口 **10 个方法**（含 `searchForAdmin` 分页 → 投影）、模型 2 处写审计列
+（`create`、`reactivate`）、**2 处应用层读者**（响应 + 授权版本）。
+
+**结论**：这是剩余 5 个里**语义风险最高**的一个——改动会跨服务影响私信授权。必须：
+先补一条**回归测试锁住 `version()` 的取值**（关系未变更时版本稳定、变更后版本递增），再动模型。
+
+
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
