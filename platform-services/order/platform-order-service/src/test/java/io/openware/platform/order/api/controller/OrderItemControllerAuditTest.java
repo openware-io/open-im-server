@@ -17,6 +17,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
+import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
@@ -59,10 +60,10 @@ class OrderItemControllerAuditTest {
         orderMapper = mock(OrderRepository.class);
         productRepository = mock(ProductRepository.class);
         auditClient = mock(AuditClient.class);
-        controller = new OrderItemController(orderItemMapper, catalogItemRepository,
-                mock(SettlementApplicationService.class), orderMapper,
-                mock(InventoryApplicationService.class), productRepository,
-                mock(OrderAmountApplicationService.class), auditClient);
+        controller = new OrderItemController(new OrderItemApplicationService(orderItemMapper,
+                catalogItemRepository, orderMapper, mock(InventoryApplicationService.class), productRepository,
+                mock(OrderAmountApplicationService.class), auditClient, null, null),
+                mock(SettlementApplicationService.class));
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,
                 List.of("order.add_item")));
         // 端口约定 insert 返回「带主键的聚合」：mock 必须回填主键，控制器要用返回值继续（库存/审计/响应）。

@@ -805,9 +805,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   整体移入新的 `CatalogApplicationService`；`CatalogItemView` 从 `api.dto` 移到
   `application.dto`（应用层读模型，避免应用服务反向依赖 API 层）；控制器只做协议转换。
   清单由 4 降为 **3**；目录相关 **31 个测试通过**（含上架可见性/商品类型/分类集成测试）。
+- `OrderItemController` 的加项、列表、确认、拒绝（含授权、目录项快照、库存占用、金额同步、
+  待确认缓存失效与审计）整体移入新的 `OrderItemApplicationService`；`settle` 保留端点权限守卫。
+  清单由 3 降为 **2**，控制器上的 `@Transactional` 由 2 降为 **0**（V1 的 12 个事务方法全部迁移完成）；
+  订单加项相关 **33 个测试通过**。
 
-**V1 剩余**：控制器上的 `@Transactional` 还有 **2 处**（`OrderItemController`×2）；
-`controller-repository-boundary` 的 3 个控制器依赖清单不变。
+**V1 剩余**：控制器上的 `@Transactional` 已 **清零**（12/12 完成）；
+`controller-repository-boundary` 还剩 **2 个**控制器（`OrderController`、admin `ReportController`）。
 下一批按 §8.2 的"业务逻辑随方法体一起搬"处理，不能只删注解。
 
 

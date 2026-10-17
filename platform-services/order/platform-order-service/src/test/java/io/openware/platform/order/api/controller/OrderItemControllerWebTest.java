@@ -6,6 +6,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
+import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
@@ -58,16 +59,21 @@ class OrderItemControllerWebTest {
         }
     };
 
+    private final OrderItemApplicationService plainItemService = new OrderItemApplicationService(
+            orderItemMapper, catalogItemRepository, orderMapper, null, null, null,
+            AuditClient.disabled(), null, null);
+    private final OrderItemApplicationService stockItemService = new OrderItemApplicationService(
+            orderItemMapper, catalogItemRepository, orderMapper, inventoryService, productRepository, null,
+            AuditClient.disabled(), null, null);
+
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemRepository, settlementService,
-                    orderMapper))
+            .standaloneSetup(new OrderItemController(plainItemService, settlementService))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 
     /** 带库存能力的装配（商品端口 + inventoryService），用于验证库存口径。 */
     private final MockMvc stockMvc = MockMvcBuilders
-            .standaloneSetup(new OrderItemController(orderItemMapper, catalogItemRepository, settlementService,
-                    orderMapper, inventoryService, productRepository, null))
+            .standaloneSetup(new OrderItemController(stockItemService, settlementService))
             .setControllerAdvice(new GlobalExceptionHandler())
             .build();
 

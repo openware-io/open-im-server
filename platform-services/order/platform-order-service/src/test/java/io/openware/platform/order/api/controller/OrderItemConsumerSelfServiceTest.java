@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
@@ -69,9 +70,11 @@ class OrderItemConsumerSelfServiceTest {
     private final ProductRepository productRepository = mock(ProductRepository.class);
     private final MemberLookupProvider customerLookupMapper = mock(MemberLookupProvider.class);
 
-    private final OrderItemController controller = new OrderItemController(orderItemMapper, catalogItemRepository,
-            mock(SettlementApplicationService.class), orderMapper, null, productRepository, null,
+    private final OrderItemApplicationService orderItemService = new OrderItemApplicationService(
+            orderItemMapper, catalogItemRepository, orderMapper, null, productRepository, null,
             AuditClient.disabled(), customerLookupMapper, null);
+    private final OrderItemController controller = new OrderItemController(orderItemService,
+            mock(SettlementApplicationService.class));
 
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(controller)
             .setControllerAdvice(new GlobalExceptionHandler())

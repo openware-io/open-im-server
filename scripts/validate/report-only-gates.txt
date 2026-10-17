@@ -9,7 +9,7 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
-controller-repository-boundary | batch 4 (layering refactor: controllers to application services) | .outputs/quality/controller-repository-boundary-worklist.txt | 3 controllers hold a *Repository/*Mapper field (the worklist is the source of truth); platform-order-service's ReportController alone is 1088 lines with 18 calls. standards/10 puts this orchestration in the application layer. The fix is a refactor per controller, not a mechanical edit, so the gate reports until the worklist is empty.
+controller-repository-boundary | batch 4 (layering refactor: controllers to application services) | .outputs/quality/controller-repository-boundary-worklist.txt | 2 controllers hold a *Repository/*Mapper field (the worklist is the source of truth); platform-order-service's ReportController alone is 1088 lines with 18 calls. standards/10 puts this orchestration in the application layer. The fix is a refactor per controller, not a mechanical edit, so the gate reports until the worklist is empty.
 
 # Historical entries, deleted when their worklists reached zero:
 #

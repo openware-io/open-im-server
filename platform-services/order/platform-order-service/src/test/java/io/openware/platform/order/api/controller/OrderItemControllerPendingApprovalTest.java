@@ -18,6 +18,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderAmountApplicationService;
+import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.PendingApprovalApplicationService;
 import io.openware.platform.order.application.SettlementApplicationService;
 import io.openware.platform.order.handler.GlobalExceptionHandler;
@@ -88,11 +89,10 @@ class OrderItemControllerPendingApprovalTest {
         // TTL 与生产默认一致（3s）：缓存不会在测试期间自然过期，因此失效断言只可能来自写路径。
         cache = new PendingApprovalCache(3000);        pendingApprovalService = new PendingApprovalApplicationService(
                 orderItemMapper, orderMapper, ktvSessionService, cache);
-        controller = new OrderItemController(orderItemMapper, catalogItemRepository,
-                mock(SettlementApplicationService.class), orderMapper,
-                mock(InventoryApplicationService.class), productRepository,
-                mock(OrderAmountApplicationService.class), mock(AuditClient.class),
-                null, pendingApprovalService);
+        controller = new OrderItemController(new OrderItemApplicationService(orderItemMapper,
+                catalogItemRepository, orderMapper, mock(InventoryApplicationService.class), productRepository,
+                mock(OrderAmountApplicationService.class), mock(AuditClient.class), null,
+                pendingApprovalService), mock(SettlementApplicationService.class));
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
