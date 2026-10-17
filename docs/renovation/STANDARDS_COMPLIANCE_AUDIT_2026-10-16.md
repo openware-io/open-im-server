@@ -552,6 +552,42 @@ boolean saveStatusIfVersionMatches(UserAccount account, long expectedStatusVersi
 **我在此回退了第一轮的尝试**：中途引入了不存在的 PO 访问器、且尚未处理 `updatedBy` 的这条冲突，
 继续下去会同时改坏读取形态与写入语义。已 `git checkout` 恢复，构建确认 `BUILD SUCCESS`。
 
+### 8.18 `Message.createdAt` 是**编辑窗口规则的输入**（2026-10-16 第十四次更新）
+
+动 `Message` 前的核实结果：它**不是**"四字段、纯回显"的载体案例。
+
+```java
+/** 编辑窗口是否仍有效：发送后 2 分钟内（含已被读消息）可编辑。 */
+public boolean editableAt(LocalDateTime now) {
+  return createdAt != null && now != null && createdAt.plus(EDIT_WINDOW).isAfter(now);
+}
+```
+
+**`createdAt` 参与领域判定**——与 `SecretMessage`（销毁 = 创建 + TTL）**完全同型**。
+
+**所以 `Message` 直接复用 §8.8 已验证的解法**，不重新发明：
+
+```java
+// 规则仍是领域的，但把发送时刻作为参数传入；createdAt 移出模型
+public static boolean editableAt(LocalDateTime sentAt, LocalDateTime now) {
+  return sentAt != null && now != null && sentAt.plus(EDIT_WINDOW).isAfter(now);
+}
+```
+应用层调用 `Message.editableAt(row.audit().createdAt(), now)`。
+**规则在领域层、字段在适配器，零违规**——`SecretMessage.destroyAtFrom(...)` 走的就是这条路。
+
+**其余写点**（供后续判定，尚未逐一执行）：
+
+| 方法 | 写入 | 备注 |
+|---|---|---|
+| `create(...)` ×2 | `createdBy`/`createdAt`/`updatedBy`/`updatedAt` | 参数用途需确认是否还喂业务字段 |
+| `recalled(recalledAt)` | `updatedBy`（沿用）、`updatedAt = recalledAt` | `recalledAt` 是否只喂审计列待确认 |
+| `edited(newContent, operatorId, editedAt)` | `editedAt` 同时写 **`editedAt`（业务字段）** 与 `updatedAt`；`operatorId` 只写 `updatedBy` | **`editedAt` 参数保留**（业务），`operatorId` 待判定 |
+
+**施工顺序建议**：先把 `editableAt` 改成静态纯函数并补回归测试（编辑窗口边界：恰好 2 分钟内可编辑、
+超过则不可），再动字段——与 `FriendRelation` 的"测试先行"同一套路。
+
+
 
 
 
