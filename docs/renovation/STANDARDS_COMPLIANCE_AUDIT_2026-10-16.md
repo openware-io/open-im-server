@@ -262,6 +262,27 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 **据此的工作切分建议**：`SecretMessage` / `SecretGroupMessage` / `MessageFavorite` 三个先做（独立仓储、读者明确），
 `Message` 单独一轮（聚合最大、共用转换器），`MessageOutbox` 先定语义再动。
 
+### 8.8 进一步核实：**两个模型的 `createdAt` 参与领域逻辑**（2026-10-16 第四次更新）
+
+我把"审计字段"当成同类，逐个核实后发现**不是**。有两个模型的 `createdAt` 是**业务输入**：
+
+| 模型 | 证据 | 含义 |
+|---|---|---|
+| `SecretMessage` | `SecretMessageApplicationService:286`：`LocalDateTime candidate = message.getCreatedAt().plus(ttl)` | **销毁时刻 = 创建时刻 + TTL**。`createdAt` 是推导 `destroyAt` 的输入，移除它会把这条领域规则从领域里剥离 |
+| `MessageOutbox` | `pending(..., createdAt)` 由调用方传入；`markPublished(occurredAt)` 修改实例 | `created_at` 是"事件入队时刻"这一领域事实 |
+
+**结论：不能把 21 个模型的审计字段当成同一类改动。** 动手前必须逐模型回答**两个**问题：
+
+1. **适配器之外有没有人读这四个字段？**（决定是否需要载体）
+2. **`createdAt` 是否参与领域判定？**（决定它是否根本不是"审计字段"）
+
+只有两个都答"否/无"时，才是 standards/10 意义上的"审计字段"，可以安全下沉到适配器。
+`sms`/`mail`/`ChannelSubscription` 属这一类；`AuditLog`、`SecretMessage`、`MessageOutbox` **不属于**——
+它们要么有读者需要载体，要么 `createdAt` 承担业务语义，需要**先明确归属再动手**。
+
+**这也是我在这一轮停下来记录、而不是继续改的原因**：`SecretMessage` 有 **11 个端口方法**返回裸领域对象，
+而 `createdAt` 又参与 TTL 推导；直接套用前面的模板会改掉销毁时刻的语义。这类判断必须先做，改起来才安全。
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
