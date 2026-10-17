@@ -368,6 +368,41 @@ outbox 的 `created_at` 更接近"**事件入队时刻**"这一领域事实，�
 **据此顺序**：3 个"纯下沉"先做（`UserSecurityQuestion`/`AccountCancellation`/`OpenApplication`），
 再 7 个"有读者"逐个按投影或载体处理，最后 `Message`。这与"模型数"无关，按**剩余工作量**排序。
 
+**（3 个"纯下沉"已完成：`50f968f` / `1baf1cb` / `31cf744`。）**
+
+### 8.12 `DeviceSession` 施工单——同一模型内 `occurredAt` 的两种命运（2026-10-16 第八次更新）
+
+7 个"有读者"模型里最小的是 `DeviceSession`（端口仅 4 个方法、唯一读者 1 处），适合做模板。
+核实其四个迁移方法后，发现**同一个模型内 `occurredAt` 有两种处置**：
+
+| 方法 | `occurredAt` 的用途 | 结论 |
+|---|---|---|
+| `start(...)` | 写 `lastActiveAt`（**业务**）+ `updatedAt` | **保留** |
+| `refreshActivity(...)` | 写 `lastActiveAt`（**业务**）+ `updatedAt` | **保留** |
+| `kick(occurredAt)` | 只写 `updatedAt` | **删参** |
+| `logout(occurredAt)` | 只写 `updatedAt` | **删参** |
+
+**这条再次证明判据必须逐方法问，不能按方法名或按模型推断。** `lastActiveAt` 是设备在线状态的事实
+（与 `AccountCancellation` 的 `requestedAt` 同类），而 `updatedAt` 是记账。
+
+**施工步骤**（已完全确定，无需再推导）：
+
+1. **模型**：删 4 个审计字段与 getter；`start`/`refreshActivity` **保留** `occurredAt`；
+   `kick()`/`logout()` 去参；`restore` 去末 4 参
+2. **载体**：`domain/device/repository/` 下加 `Persisted<DeviceSession>` + `AuditSnapshot`
+   （从 `SecretChat` 的同名类型复制并改包名，两者同形）
+3. **端口**（4 个方法）：`findByUserIdAndDeviceId`/`findById`/`findByUserId` → `Persisted<DeviceSession>`；
+   `save` → `Persisted<DeviceSession>`
+4. **适配器**：insert 写 `created_at`+`updated_at`，update 只写 `updated_at`；
+   `created_by`/`updated_by` 取 `getUserId()`（会话操作人恒为用户本人）
+5. **应用服务**：`DeviceSessionApplicationService:76` 的响应装配改从 `row.audit()` 取值
+6. **测试**：内存假仓储改存 `Persisted`（形态同 `SecretMessage` 的假仓储：`(聚合, 时刻)` 对）
+
+**其余 6 个"有读者"模型**按同一套路，但**必须先跑两问**再动手：
+①适配器外有谁读？②该字段是否喂业务字段/参与判定？
+已知需特别小心的：`FriendAuthorizationQueryService:47` 用 `updatedAt`/`createdAt` **二选一参与判定**，
+投影必须同时保留两者且语义原样。
+
 
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
