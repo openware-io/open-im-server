@@ -8,6 +8,7 @@ import io.openware.im.conversation.api.secretgroupchat.SecretGroupChatResult.Mem
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupChat;
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupMember;
 import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
+import io.openware.im.conversation.domain.secretgroupchat.repository.Persisted;
 import io.openware.im.conversation.domain.secretgroupchat.repository.SecretGroupChatRepository;
 import io.openware.im.conversation.domain.secretgroupchat.repository.SecretGroupMemberRepository;
 import java.time.Clock;
@@ -50,12 +51,12 @@ public class SecretGroupChatApplicationService {
     if (memberIds.size() < 2) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Secret group chat requires at least 2 members");
     }
-    SecretGroupChat saved = groupRepository.save(SecretGroupChat.create(ownerId, ownerId, now));
+    Persisted<SecretGroupChat> saved = groupRepository.save(SecretGroupChat.create(ownerId));
     // 预填成员设备公钥：全员已在服务端注册设备公钥时，群建立即 ready（Signal 式模型，
     // 无需等待成员逐个提交公钥即可加密发送），并对齐 1 对 1 私密聊天的「创建即发」体验。
     Map<Long, String> keys = deviceKeyPort.findLatestByUserIds(new ArrayList<>(memberIds));
     for (Long memberId : memberIds) {
-      SecretGroupMember member = SecretGroupMember.join(saved.getId(), memberId, now);
+      SecretGroupMember member = SecretGroupMember.join(saved.aggregate().getId(), memberId, now);
       String key = keys.get(memberId);
       if (key != null && !key.isBlank()) {
         member = member.submitPublicKey(key);
@@ -63,20 +64,20 @@ public class SecretGroupChatApplicationService {
       memberRepository.save(member);
     }
     // 全员公钥齐备则计算群安全码，使群一建立即 ready。
-    List<SecretGroupMember> members = memberRepository.findByGroupId(saved.getId());
+    List<SecretGroupMember> members = memberRepository.findByGroupId(saved.aggregate().getId());
     if (members.stream().allMatch(SecretGroupMember::hasPublicKey)) {
       String safeCode = SecretGroupChat.computeSafeCode(
           members.stream().map(SecretGroupMember::getDevicePublicKey).toList());
-      saved = groupRepository.save(saved.withSafeCode(safeCode, ownerId, now));
+      saved = groupRepository.save(saved.aggregate().withSafeCode(safeCode));
     }
-    log.info("Secret group chat created, groupId={}, ownerId={}, memberCount={}", saved.getId(), ownerId, memberIds.size());
+    log.info("Secret group chat created, groupId={}, ownerId={}, memberCount={}", saved.aggregate().getId(), ownerId, memberIds.size());
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult addMember(long operatorId, long groupId, long userId) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
-    if (!group.isActive()) {
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
+    if (!group.aggregate().isActive()) {
       throw new ApiException(HttpStatusCodes.GONE, "Secret group chat is closed");
     }
     if (userId <= 0) {
@@ -91,7 +92,7 @@ public class SecretGroupChatApplicationService {
 
   @Transactional
   public SecretGroupChatResult submitPublicKey(long userId, long groupId, String publicKey) {
-    SecretGroupChat group = requireMember(userId, groupId);
+    Persisted<SecretGroupChat> group = requireMember(userId, groupId);
     SecretGroupMember member = memberRepository.findByGroupIdAndUserId(groupId, userId)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Member not found"));
     memberRepository.save(member.submitPublicKey(publicKey));
@@ -100,7 +101,7 @@ public class SecretGroupChatApplicationService {
     if (members.stream().allMatch(SecretGroupMember::hasPublicKey)) {
       String safeCode = SecretGroupChat.computeSafeCode(
           members.stream().map(SecretGroupMember::getDevicePublicKey).toList());
-      group = groupRepository.save(group.withSafeCode(safeCode, userId, LocalDateTime.now(Clock.systemUTC())));
+      group = groupRepository.save(group.aggregate().withSafeCode(safeCode));
     }
     log.info("Secret group chat handshake, groupId={}, userId={}", groupId, userId);
     return toResult(group);
@@ -123,52 +124,53 @@ public class SecretGroupChatApplicationService {
 
   @Transactional
   public SecretGroupChatResult setDestroyPolicy(long operatorId, long groupId, String policy) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     if (policy == null || !DESTROY_POLICIES.contains(policy)) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Invalid destroy policy");
     }
-    SecretGroupChat saved = groupRepository.save(group.withDestroyPolicy(policy, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withDestroyPolicy(policy));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult setAnonymousEnabled(long operatorId, long groupId, boolean enabled) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
-    SecretGroupChat saved = groupRepository.save(group.withAnonymousEnabled(enabled, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withAnonymousEnabled(enabled));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult pinMessage(long operatorId, long groupId, String msgId) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     if (msgId == null || msgId.isBlank()) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "msgId is required");
     }
     LocalDateTime now = LocalDateTime.now(Clock.systemUTC());
-    SecretGroupChat saved = groupRepository.save(group.withPinned(msgId, now, operatorId, now));
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withPinned(msgId, now));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult unpinMessage(long operatorId, long groupId) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
-    SecretGroupChat saved = groupRepository.save(group.withPinned(null, null, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withPinned(null, null));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult generateInvite(long operatorId, long groupId) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     String token = java.util.UUID.randomUUID().toString().replace("-", "");
     LocalDateTime expiresAt = LocalDateTime.now(Clock.systemUTC()).plusDays(7);
-    SecretGroupChat saved = groupRepository.save(group.withInvite(token, expiresAt, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withInvite(token, expiresAt));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult joinByInvite(long userId, String token) {
-    SecretGroupChat group = groupRepository.findByInviteToken(token)
+    Persisted<SecretGroupChat> row = groupRepository.findByInviteToken(token)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Invite link invalid or expired"));
+    SecretGroupChat group = row.aggregate();
     if (!group.isActive()) {
       throw new ApiException(HttpStatusCodes.GONE, "Secret group chat is closed");
     }
@@ -176,38 +178,38 @@ public class SecretGroupChatApplicationService {
       throw new ApiException(HttpStatusCodes.GONE, "Invite link expired");
     }
     if (memberRepository.findByGroupIdAndUserId(group.getId(), userId).isPresent()) {
-      return toResult(group); // 已是成员，幂等
+      return toResult(row); // 已是成员，幂等
     }
     memberRepository.save(SecretGroupMember.join(group.getId(), userId, LocalDateTime.now(Clock.systemUTC())));
-    return toResult(group);
+    return toResult(row);
   }
 
   @Transactional
   public SecretGroupChatResult setOwnerOnlyPost(long operatorId, long groupId, boolean enabled) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
-    SecretGroupChat saved = groupRepository.save(group.withOwnerOnlyPost(enabled, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withOwnerOnlyPost(enabled));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult renameGroup(long operatorId, long groupId, String name) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     String trimmed = name == null ? "" : name.trim();
     if (trimmed.length() > 128) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Group name too long");
     }
-    SecretGroupChat saved = groupRepository.save(group.withName(trimmed.isEmpty() ? null : trimmed, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withName(trimmed.isEmpty() ? null : trimmed));
     return toResult(saved);
   }
 
   @Transactional
   public SecretGroupChatResult setAnnouncement(long operatorId, long groupId, String announcement) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     String trimmed = announcement == null ? "" : announcement.trim();
     if (trimmed.length() > 2000) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Announcement too long");
     }
-    SecretGroupChat saved = groupRepository.save(group.withAnnouncement(trimmed.isEmpty() ? null : trimmed, operatorId, LocalDateTime.now(Clock.systemUTC())));
+    Persisted<SecretGroupChat> saved = groupRepository.save(group.aggregate().withAnnouncement(trimmed.isEmpty() ? null : trimmed));
     return toResult(saved);
   }
 
@@ -228,13 +230,13 @@ public class SecretGroupChatApplicationService {
   /** 内部接口：返回会话是否「仅群主可发言」；不存在按 false。 */
   @Transactional(readOnly = true)
   public boolean ownerOnlyPostOf(long groupId) {
-    return groupRepository.findById(groupId).map(SecretGroupChat::isOwnerOnlyPost).orElse(false);
+    return groupRepository.findById(groupId).map(row -> row.aggregate().isOwnerOnlyPost()).orElse(false);
   }
 
   /** 内部接口：返回群主用户标识；不存在返回 0。 */
   @Transactional(readOnly = true)
   public long ownerOf(long groupId) {
-    return groupRepository.findById(groupId).map(SecretGroupChat::getOwnerUserId).orElse(0L);
+    return groupRepository.findById(groupId).map(row -> row.aggregate().getOwnerUserId()).orElse(0L);
   }
 
   @Transactional
@@ -246,16 +248,16 @@ public class SecretGroupChatApplicationService {
 
   @Transactional
   public void deleteGroup(long operatorId, long groupId) {
-    SecretGroupChat group = requireOwner(operatorId, groupId);
+    Persisted<SecretGroupChat> group = requireOwner(operatorId, groupId);
     memberRepository.deleteByGroupId(groupId);
-    groupRepository.deleteById(group.getId());
+    groupRepository.deleteById(group.aggregate().getId());
     log.info("Secret group chat deleted, groupId={}, userId={}", groupId, operatorId);
   }
 
   /** 内部接口：返回会话当前销毁策略；不存在时按 off 处理。 */
   @Transactional(readOnly = true)
   public String destroyPolicyOf(long groupId) {
-    return groupRepository.findById(groupId).map(SecretGroupChat::getDestroyPolicy).orElse("off");
+    return groupRepository.findById(groupId).map(row -> row.aggregate().getDestroyPolicy()).orElse("off");
   }
 
   /** 内部接口：返回会话全部成员用户标识（供消息服务计算按成员密文与推送接收方）。 */
@@ -265,35 +267,36 @@ public class SecretGroupChatApplicationService {
     return memberRepository.findByGroupId(groupId).stream().map(SecretGroupMember::getUserId).toList();
   }
 
-  private SecretGroupChat requireGroup(long groupId) {
+  private Persisted<SecretGroupChat> requireGroup(long groupId) {
     return groupRepository.findById(groupId)
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Secret group chat not found"));
   }
 
-  private SecretGroupChat requireMember(long userId, long groupId) {
-    SecretGroupChat group = requireGroup(groupId);
+  private Persisted<SecretGroupChat> requireMember(long userId, long groupId) {
+    Persisted<SecretGroupChat> row = requireGroup(groupId);
     if (memberRepository.findByGroupIdAndUserId(groupId, userId).isEmpty()) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Not a member");
     }
-    return group;
+    return row;
   }
 
-  private SecretGroupChat requireOwner(long userId, long groupId) {
-    SecretGroupChat group = requireGroup(groupId);
-    if (!group.isOwner(userId)) {
+  private Persisted<SecretGroupChat> requireOwner(long userId, long groupId) {
+    Persisted<SecretGroupChat> row = requireGroup(groupId);
+    if (!row.aggregate().isOwner(userId)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "Only owner can perform this action");
     }
-    return group;
+    return row;
   }
 
-  private SecretGroupChatResult toResult(SecretGroupChat group) {
+  private SecretGroupChatResult toResult(Persisted<SecretGroupChat> row) {
+    SecretGroupChat group = row.aggregate();
     List<MemberResult> members = memberRepository.findByGroupId(group.getId()).stream()
         .map(member -> new MemberResult(member.getUserId(), member.getDevicePublicKey(), member.getJoinedAt()))
         .toList();
     return new SecretGroupChatResult(group.getId(), group.getOwnerUserId(), group.getStatus(), group.getName(),
         group.getAnnouncement(), group.getSafeCode(), group.getDestroyPolicy(), group.isAnonymousEnabled(),
         group.getPinnedMsgId(), group.getPinnedAt(), group.getInviteToken(), group.getInviteExpiresAt(),
-        group.isOwnerOnlyPost(), members, group.getCreatedBy(), group.getCreatedAt(), group.getUpdatedBy(),
-        group.getUpdatedAt());
+        group.isOwnerOnlyPost(), members, row.audit().createdBy(), row.audit().createdAt(),
+        row.audit().updatedBy(), row.audit().updatedAt());
   }
 }

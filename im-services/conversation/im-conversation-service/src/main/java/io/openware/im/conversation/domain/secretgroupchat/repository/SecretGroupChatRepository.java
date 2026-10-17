@@ -5,13 +5,13 @@ import java.util.List;
 import java.util.Optional;
 
 public interface SecretGroupChatRepository {
-  SecretGroupChat save(SecretGroupChat group);
+  Persisted<SecretGroupChat> save(SecretGroupChat group);
 
-  Optional<SecretGroupChat> findById(long id);
+  Optional<Persisted<SecretGroupChat>> findById(long id);
 
-  Optional<SecretGroupChat> findByInviteToken(String token);
+  Optional<Persisted<SecretGroupChat>> findByInviteToken(String token);
 
-  List<SecretGroupChat> findByIds(List<Long> ids);
+  List<Persisted<SecretGroupChat>> findByIds(List<Long> ids);
 
   void deleteById(long id);
 }

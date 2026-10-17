@@ -14,6 +14,8 @@ import io.openware.im.conversation.api.secretgroupchat.CreateSecretGroupChatRequ
 import io.openware.im.conversation.api.secretgroupchat.SecretGroupChatResult;
 import io.openware.im.conversation.domain.secretchat.repository.DeviceKeyPort;
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupChat;
+import io.openware.im.conversation.domain.secretgroupchat.repository.AuditSnapshot;
+import io.openware.im.conversation.domain.secretgroupchat.repository.Persisted;
 import io.openware.im.conversation.domain.secretgroupchat.model.SecretGroupMember;
 import io.openware.im.conversation.domain.secretgroupchat.repository.SecretGroupChatRepository;
 import io.openware.im.conversation.domain.secretgroupchat.repository.SecretGroupMemberRepository;
@@ -41,8 +43,8 @@ class SecretGroupChatApplicationServiceTest {
   void createGroupAddsOwnerAndMembers() {
     when(groupRepository.save(any(SecretGroupChat.class))).thenAnswer(inv -> {
       SecretGroupChat g = inv.getArgument(0);
-      return SecretGroupChat.restore(1L, g.getOwnerUserId(), g.getStatus(), null, null, g.getSafeCode(), g.getDestroyPolicy(), false,
-          null, null, null, null, false, g.getCreatedBy(), g.getCreatedAt(), g.getUpdatedBy(), g.getUpdatedAt());
+      return persisted(SecretGroupChat.restore(1L, g.getOwnerUserId(), g.getStatus(), null, null,
+          g.getSafeCode(), g.getDestroyPolicy(), false, null, null, null, null, false));
     });
     CreateSecretGroupChatRequest req = new CreateSecretGroupChatRequest();
     req.setMemberUserIds(List.of(9L, 10L));
@@ -64,15 +66,14 @@ class SecretGroupChatApplicationServiceTest {
 
   @Test
   void submitPublicKeyComputesSafeCodeWhenAllMembersHaveKeys() {
-    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false, 7L,
-        LocalDateTime.now(), 7L, LocalDateTime.now());
-    when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false);
+    when(groupRepository.findById(1L)).thenReturn(Optional.of(persisted(group)));
     when(memberRepository.findByGroupIdAndUserId(1L, 9L)).thenReturn(
         Optional.of(SecretGroupMember.restore(2L, 1L, 9L, null, LocalDateTime.now())));
     when(memberRepository.findByGroupId(1L)).thenReturn(List.of(
         SecretGroupMember.restore(1L, 1L, 7L, "PK7", LocalDateTime.now()),
         SecretGroupMember.restore(2L, 1L, 9L, "PK9", LocalDateTime.now())));
-    when(groupRepository.save(any(SecretGroupChat.class))).thenAnswer(inv -> inv.getArgument(0));
+    when(groupRepository.save(any(SecretGroupChat.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
 
     SecretGroupChatResult result = service.submitPublicKey(9L, 1L, "PK9");
 
@@ -81,9 +82,8 @@ class SecretGroupChatApplicationServiceTest {
 
   @Test
   void deleteGroupRejectsNonOwner() {
-    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false, 7L,
-        LocalDateTime.now(), 7L, LocalDateTime.now());
-    when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false);
+    when(groupRepository.findById(1L)).thenReturn(Optional.of(persisted(group)));
     when(memberRepository.findByGroupIdAndUserId(1L, 9L)).thenReturn(
         Optional.of(SecretGroupMember.restore(2L, 1L, 9L, null, LocalDateTime.now())));
     assertThrows(ApiException.class, () -> service.deleteGroup(9L, 1L));
@@ -91,12 +91,17 @@ class SecretGroupChatApplicationServiceTest {
 
   @Test
   void participantsOfReturnsMemberIds() {
-    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false, 7L,
-        LocalDateTime.now(), 7L, LocalDateTime.now());
-    when(groupRepository.findById(1L)).thenReturn(Optional.of(group));
+    SecretGroupChat group = SecretGroupChat.restore(1L, 7L, "active", null, null, null, "off", false, null, null, null, null, false);
+    when(groupRepository.findById(1L)).thenReturn(Optional.of(persisted(group)));
     when(memberRepository.findByGroupId(1L)).thenReturn(List.of(
         SecretGroupMember.restore(1L, 1L, 7L, null, LocalDateTime.now()),
         SecretGroupMember.restore(2L, 1L, 9L, null, LocalDateTime.now())));
     assertEquals(List.of(7L, 9L), service.participantsOf(1L));
+  }
+
+  /** 领域模型不带审计列：读回的「聚合 + 记账快照」由测试在这里补齐。 */
+  private Persisted<SecretGroupChat> persisted(SecretGroupChat group) {
+    LocalDateTime now = LocalDateTime.now();
+    return new Persisted<>(group, new AuditSnapshot(group.getOwnerUserId(), now, group.getOwnerUserId(), now));
   }
 }

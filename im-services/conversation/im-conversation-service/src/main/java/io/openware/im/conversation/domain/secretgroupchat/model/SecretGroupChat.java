@@ -6,7 +6,15 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** 私密群聊聚合根：N 人 E2EE 会话，承载成员管理、握手、销毁策略、匿名发言、置顶消息、邀请链接与发言权限。 */
+/**
+ * 私密群聊聚合根：承载成员安全码、销毁策略与邀请令牌。
+ *
+ * <p><b>为什么不带审计列</b>（standards/10 §聚合装配与持久化契约）：{@code createdBy}/{@code createdAt}/
+ * {@code updatedBy}/{@code updatedAt} 是记账信息，由适配器在写库时确定；响应需要的值经
+ * {@code SecretGroupChatRepository.Persisted} 的 {@code AuditSnapshot} 单独带出。
+ * 因此 8 个 {@code with*} 迁移方法与 {@code create} 也**不再接收 {@code operatorId}/{@code occurredAt}**——
+ * 审计值在持久化那一刻确定，领域方法不需要认识"操作人"这个概念。
+ */
 public class SecretGroupChat {
   private final Long id;
   private final Long ownerUserId;
@@ -21,15 +29,10 @@ public class SecretGroupChat {
   private final String inviteToken;
   private final LocalDateTime inviteExpiresAt;
   private final boolean ownerOnlyPost;
-  private final Long createdBy;
-  private final LocalDateTime createdAt;
-  private final Long updatedBy;
-  private final LocalDateTime updatedAt;
 
   private SecretGroupChat(Long id, Long ownerUserId, String status, String name, String announcement, String safeCode,
       String destroyPolicy, boolean anonymousEnabled, String pinnedMsgId, LocalDateTime pinnedAt, String inviteToken,
-      LocalDateTime inviteExpiresAt, boolean ownerOnlyPost, Long createdBy, LocalDateTime createdAt, Long updatedBy,
-      LocalDateTime updatedAt) {
+      LocalDateTime inviteExpiresAt, boolean ownerOnlyPost) {
     this.id = id;
     this.ownerUserId = ownerUserId;
     this.status = status;
@@ -43,15 +46,11 @@ public class SecretGroupChat {
     this.inviteToken = inviteToken;
     this.inviteExpiresAt = inviteExpiresAt;
     this.ownerOnlyPost = ownerOnlyPost;
-    this.createdBy = createdBy;
-    this.createdAt = createdAt;
-    this.updatedBy = updatedBy;
-    this.updatedAt = updatedAt;
   }
 
-  public static SecretGroupChat create(long ownerUserId, long operatorId, LocalDateTime occurredAt) {
+  public static SecretGroupChat create(long ownerUserId) {
     return new SecretGroupChat(null, ownerUserId, "active", null, null, null, "off", false, null, null, null, null,
-        false, operatorId, occurredAt, operatorId, occurredAt);
+        false);
   }
 
   /** 群安全码指纹：所有成员公钥排序后拼接，取 SHA-256 前 8 字节十六进制（成员数不足 2 时为 null）。 */
@@ -80,44 +79,44 @@ public class SecretGroupChat {
     }
   }
 
-  public SecretGroupChat withName(String name, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withName(String name) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withAnnouncement(String announcement, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withAnnouncement(String announcement) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withSafeCode(String safeCode, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withSafeCode(String safeCode) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withDestroyPolicy(String policy, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withDestroyPolicy(String policy) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, policy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withAnonymousEnabled(boolean enabled, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withAnonymousEnabled(boolean enabled) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, enabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withPinned(String msgId, LocalDateTime pinnedAt, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withPinned(String msgId, LocalDateTime pinnedAt) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        msgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        msgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withInvite(String token, LocalDateTime expiresAt, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withInvite(String token, LocalDateTime expiresAt) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, token, expiresAt, ownerOnlyPost, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, token, expiresAt, ownerOnlyPost);
   }
 
-  public SecretGroupChat withOwnerOnlyPost(boolean enabled, long operatorId, LocalDateTime occurredAt) {
+  public SecretGroupChat withOwnerOnlyPost(boolean enabled) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, enabled, createdBy, createdAt, operatorId, occurredAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, enabled);
   }
 
   public boolean isActive() {
@@ -128,12 +127,12 @@ public class SecretGroupChat {
     return ownerUserId != null && ownerUserId == userId;
   }
 
+  /** 由持久化对象重建领域对象（仅适配器使用）。 */
   public static SecretGroupChat restore(Long id, Long ownerUserId, String status, String name, String announcement,
       String safeCode, String destroyPolicy, boolean anonymousEnabled, String pinnedMsgId, LocalDateTime pinnedAt,
-      String inviteToken, LocalDateTime inviteExpiresAt, boolean ownerOnlyPost, Long createdBy, LocalDateTime createdAt,
-      Long updatedBy, LocalDateTime updatedAt) {
+      String inviteToken, LocalDateTime inviteExpiresAt, boolean ownerOnlyPost) {
     return new SecretGroupChat(id, ownerUserId, status, name, announcement, safeCode, destroyPolicy, anonymousEnabled,
-        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost, createdBy, createdAt, updatedBy, updatedAt);
+        pinnedMsgId, pinnedAt, inviteToken, inviteExpiresAt, ownerOnlyPost);
   }
 
   public Long getId() { return id; }
@@ -149,8 +148,4 @@ public class SecretGroupChat {
   public String getInviteToken() { return inviteToken; }
   public LocalDateTime getInviteExpiresAt() { return inviteExpiresAt; }
   public boolean isOwnerOnlyPost() { return ownerOnlyPost; }
-  public Long getCreatedBy() { return createdBy; }
-  public LocalDateTime getCreatedAt() { return createdAt; }
-  public Long getUpdatedBy() { return updatedBy; }
-  public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
