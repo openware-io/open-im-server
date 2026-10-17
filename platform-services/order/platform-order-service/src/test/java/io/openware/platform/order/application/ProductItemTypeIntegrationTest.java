@@ -14,7 +14,7 @@ import io.openware.infrastructure.mq.MqProducer;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.controller.CatalogController;
-import io.openware.platform.order.api.dto.CatalogItemView;
+import io.openware.platform.order.application.dto.CatalogItemView;
 import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.model.Product;

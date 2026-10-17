@@ -2,7 +2,8 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.api.dto.CatalogItemView;
+import io.openware.platform.order.application.dto.CatalogItemView;
+import io.openware.platform.order.application.CatalogApplicationService;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.model.Product;
@@ -55,8 +56,9 @@ class CatalogControllerTest {
     private final ProductRepository productRepository = mock(ProductRepository.class);
     private final InventoryMaterialRepository materialRepository = mock(InventoryMaterialRepository.class);
     private final InventoryApplicationService inventoryService = mock(InventoryApplicationService.class);
-    private final CatalogController controller =
-            new CatalogController(catalogItemRepository, productRepository, materialRepository, inventoryService);
+    private final CatalogApplicationService catalogService = new CatalogApplicationService(
+            catalogItemRepository, productRepository, materialRepository, inventoryService);
+    private final CatalogController controller = new CatalogController(catalogService);
 
     @AfterEach
     void clear() {

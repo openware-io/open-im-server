@@ -801,9 +801,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - `ResourceController` 的创建/编辑编排（权限、上下文、编号唯一、房型/图片/描述归一、落库与审计）
   整体移入新的 `ResourceCommandApplicationService`，控制器只保留列表与协议转换；
   清单由 5 降为 **4**；资源服务 **123 个测试全绿**。
+- `CatalogController` 的列表可点性/图片兜底/库存可用量与目录项创建、改价、软删、审计
+  整体移入新的 `CatalogApplicationService`；`CatalogItemView` 从 `api.dto` 移到
+  `application.dto`（应用层读模型，避免应用服务反向依赖 API 层）；控制器只做协议转换。
+  清单由 4 降为 **3**；目录相关 **31 个测试通过**（含上架可见性/商品类型/分类集成测试）。
 
 **V1 剩余**：控制器上的 `@Transactional` 还有 **2 处**（`OrderItemController`×2）；
-`controller-repository-boundary` 的 4 个控制器依赖清单不变。
+`controller-repository-boundary` 的 3 个控制器依赖清单不变。
 下一批按 §8.2 的"业务逻辑随方法体一起搬"处理，不能只删注解。
 
 

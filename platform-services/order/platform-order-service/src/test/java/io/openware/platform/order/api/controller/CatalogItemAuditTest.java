@@ -15,7 +15,8 @@ import io.openware.infrastructure.audit.AuditActions;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.order.api.dto.CatalogItemView;
+import io.openware.platform.order.application.dto.CatalogItemView;
+import io.openware.platform.order.application.CatalogApplicationService;
 import io.openware.platform.order.application.InventoryApplicationService;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
@@ -64,8 +65,8 @@ class CatalogItemAuditTest {
         materialRepository = mock(InventoryMaterialRepository.class);
         inventoryService = mock(InventoryApplicationService.class);
         auditClient = mock(AuditClient.class);
-        controller = new CatalogController(catalogItemRepository, productRepository, materialRepository,
-                inventoryService, auditClient);
+        controller = new CatalogController(new CatalogApplicationService(catalogItemRepository,
+                productRepository, materialRepository, inventoryService, auditClient));
         // 写端点先过权限门禁：上下文必须带 tenant.store.manage，否则只会留一条 PERMISSION_DENIED。
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1,
                 List.of("tenant.store.manage"), null));
