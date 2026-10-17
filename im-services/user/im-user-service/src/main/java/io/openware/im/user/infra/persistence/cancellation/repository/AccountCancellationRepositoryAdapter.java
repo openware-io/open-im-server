@@ -39,15 +39,21 @@ public class AccountCancellationRepositoryAdapter implements AccountCancellation
   @Override
   public AccountCancellation save(AccountCancellation application) {
     AccountCancellationPo po = AccountCancellationPersistenceConverter.toPo(application);
+    // 审计列由适配器确定（standards/10 L299）：操作人恒为申请人本人。
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    po.setCreatedBy(po.getUserId());
+    po.setUpdatedBy(po.getUserId());
     if (po.getId() == null) {
+      po.setCreatedAt(now);
+      po.setUpdatedAt(now);
       mapper.insert(po);
       application.restore(po.getId(), application.getUserId(), application.getUsername(), application.getNickname(),
           application.getPhone(), application.getEmail(), application.getStatus(), application.getStatusTokenHash(),
           application.getSource(), application.getCompletedSteps(), application.getRequestedIp(),
           application.getRequestedAt(), application.getProcessingAt(), application.getCompletedAt(),
-          application.getFailureReason(), application.getRowVersion(), application.getCreatedBy(),
-          application.getCreatedAt(), application.getUpdatedBy(), application.getUpdatedAt());
+          application.getFailureReason(), application.getRowVersion());
     } else {
+      po.setUpdatedAt(now);
       mapper.updateById(po);
     }
     return application;

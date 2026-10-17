@@ -21,8 +21,7 @@ public final class AccountCancellationPersistenceConverter {
         po.getId(), po.getUserId(), po.getUsername(), po.getNickname(), po.getPhone(), po.getEmail(),
         AccountCancellationStatus.fromValue(po.getStatus()), po.getStatusTokenHash(), po.getSource(),
         parseSteps(po.getCompletedSteps()), po.getRequestedIp(), po.getRequestedAt(), po.getProcessingAt(),
-        po.getCompletedAt(), po.getFailedReason(), po.getRowVersion() == null ? 1L : po.getRowVersion(),
-        po.getCreatedBy(), po.getCreatedAt(), po.getUpdatedBy(), po.getUpdatedAt());
+        po.getCompletedAt(), po.getFailedReason(), po.getRowVersion() == null ? 1L : po.getRowVersion());
     return application;
   }
 
@@ -44,10 +43,6 @@ public final class AccountCancellationPersistenceConverter {
     po.setCompletedAt(application.getCompletedAt());
     po.setFailedReason(application.getFailureReason());
     po.setRowVersion(application.getRowVersion());
-    po.setCreatedBy(application.getCreatedBy());
-    po.setCreatedAt(application.getCreatedAt());
-    po.setUpdatedBy(application.getUpdatedBy());
-    po.setUpdatedAt(application.getUpdatedAt());
     return po;
   }
 
