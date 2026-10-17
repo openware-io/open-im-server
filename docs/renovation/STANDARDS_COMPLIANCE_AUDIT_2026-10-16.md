@@ -164,6 +164,23 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 **证据**：`IamController` 的类注释自称"**控制器只做协议转换与审计**"，
 而它注入了 **3 个 Repository** 并有 **5 个写方法**——**注释描述的是目标态，代码是违规态**。
 
+### 8.4 执行进度（2026-10-16 第二次更新）
+
+| 项 | 状态 | 备注 |
+|---|---|---|
+| `SmsSendLog` | ✅ 完成（`36ea0cd`） | 改不可变 record：去 `@Setter`、去审计字段、补 `markSent`/`markFailed` |
+| `MailSendLog` | ✅ 完成（`36ea0cd`） | 同上 |
+| `AuditLog` | ⏳ **需要传输类型** | 与前两者**不同**：{@code createdAt} 真的进响应（`AuditLogView:54`），所以适配器重建时仍须带回，必须引入 `Persisted<T>` 之类的载体，不能只挪适配器 |
+| V2 主体（21 个 im-services 模型） | ⏳ | message 5 / user 12 / conversation 4；同样有"审计值是否进响应"的差异要逐模型判断 |
+| V1（14 控制器 / 72 调用点） | ⏳ | 门禁 `controller-repository-boundary` 已在**报告模式**追踪，清单见 `.outputs/quality/controller-repository-boundary-worklist.txt` |
+
+**已确证的可复用判据**（sms/mail 试点得出）：先问"**审计字段有没有读者**"。
+`SmsSendLog`/`MailSendLog` 的 `save` 返回领域对象、`update` 返回 void，应用层只用 `id`/`status`，
+所以审计值**无读者**，可纯下沉到适配器、**无需新类型**；`AuditLog` 有读者，则必须带载体。
+这个判断决定了改动大小，应在动手前先做。
+
+**写路径口径不可顺带改变**：两条路径列行为逐字保留——`save` 写两列、`update` 只刷 `updated_at`（创建时刻不可变）。
+
 ### 8.3 待决事项（需要决定，不能由我单方面选择）
 
 **`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
