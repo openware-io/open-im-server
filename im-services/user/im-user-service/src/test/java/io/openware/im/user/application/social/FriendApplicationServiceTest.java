@@ -93,15 +93,17 @@ class FriendApplicationServiceTest {
   void sendRequestOverwritesExistingPendingAndReEmitsEvent() {
     long from = 1L;
     long to = 2L;
-    FriendRequest existing = FriendRequest.create(from, to, "old", LocalDateTime.now());
+    FriendRequest existing = FriendRequest.create(from, to, "old");
     when(friendRelationRepository.findByUserIdAndFriendId(from, to)).thenReturn(Optional.empty());
-    when(friendRequestRepository.findPendingByFromUserIdAndToUserId(from, to)).thenReturn(Optional.of(existing));
-    when(friendRequestRepository.save(existing)).thenReturn(existing);
+    when(friendRequestRepository.findPendingByFromUserIdAndToUserId(from, to))
+        .thenReturn(Optional.of(persistedRequest(existing)));
+    when(friendRequestRepository.reapply(existing)).thenReturn(persistedRequest(existing));
 
     service.sendRequest(from, new SendFriendRequestCommand(to, "new", null, null));
 
     assertThat(existing.getMessage()).isEqualTo("new");
-    verify(friendRequestRepository).save(existing);
+    // 重新申请走 reapply（刷新 created_at），不是 save。
+    verify(friendRequestRepository).reapply(existing);
     verify(friendEventOutbox).append(any(FriendRequested.class));
   }
 
@@ -109,9 +111,9 @@ class FriendApplicationServiceTest {
   void acceptReactivatesResidualBlockedRelationAndDeletesRequest() {
     long from = 1L;
     long to = 2L;
-    FriendRequest request = FriendRequest.create(from, to, "hi", LocalDateTime.now());
+    FriendRequest request = FriendRequest.create(from, to, "hi");
     request.assignId(10L);
-    when(friendRequestRepository.findById(10L)).thenReturn(Optional.of(request));
+    when(friendRequestRepository.findById(10L)).thenReturn(Optional.of(persistedRequest(request)));
     FriendRelation residual = FriendRelation.create(to, from);
     residual.block();
     when(friendRelationRepository.findByUserIdAndFriendId(to, from)).thenReturn(Optional.of(persisted(residual)));
@@ -129,6 +131,14 @@ class FriendApplicationServiceTest {
       FriendRelation relation) {
     java.time.LocalDateTime now = java.time.LocalDateTime.now();
     return new io.openware.im.user.domain.social.repository.Persisted<>(relation,
+        new io.openware.im.user.domain.social.repository.AuditSnapshot(null, now, null, now));
+  }
+
+  /** 领域模型不带审计列：申请读回同样包载体。 */
+  private static io.openware.im.user.domain.social.repository.Persisted<FriendRequest> persistedRequest(
+      FriendRequest request) {
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    return new io.openware.im.user.domain.social.repository.Persisted<>(request,
         new io.openware.im.user.domain.social.repository.AuditSnapshot(null, now, null, now));
   }
 }

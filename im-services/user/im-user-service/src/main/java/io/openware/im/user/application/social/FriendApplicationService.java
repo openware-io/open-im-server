@@ -64,30 +64,34 @@ public class FriendApplicationService {
         throw new ApiException(HttpStatusCodes.FORBIDDEN, "已禁用添加群成员为好友");
       }
     }
-    // 幂等：同方向已存在 pending 申请时覆盖附言并刷新时间，避免重复 pending 行；
-    // 每次申请都会重新发出 FriendRequested 事件，保证「每次新申请都触发提醒/红点」。
-    FriendRequest request = friendRequestRepository.findPendingByFromUserIdAndToUserId(fromUserId, toUserId)
+    // 幂等：同方向已存在 pending 申请时覆盖附言并**重置申请时刻**（走 reapply，列表按申请时刻倒序），
+    // 避免重复 pending 行；每次申请都会重新发出 FriendRequested 事件，保证「每次新申请都触发提醒/红点」。
+    Persisted<FriendRequest> persisted = friendRequestRepository
+        .findPendingByFromUserIdAndToUserId(fromUserId, toUserId)
         .map(existing -> {
-          existing.overwrite(command.message(), LocalDateTime.now());
-          return friendRequestRepository.save(existing);
+          FriendRequest request = existing.aggregate();
+          request.overwrite(command.message());
+          return friendRequestRepository.reapply(request);
         })
         .orElseGet(() -> friendRequestRepository.save(
-            FriendRequest.create(fromUserId, toUserId, command.message(), LocalDateTime.now())));
+            FriendRequest.create(fromUserId, toUserId, command.message())));
+    FriendRequest request = persisted.aggregate();
     friendEventOutbox.append(new FriendRequested(
         request.getId(), request.getFromUserId(), request.getToUserId(), request.getMessage()));
-    return toResult(request);
+    return toRequestResult(persisted);
   }
 
   @Transactional
   public FriendRequestResult handleRequest(Long userId, Long requestId, HandleFriendRequestCommand command) {
-    FriendRequest request = friendRequestRepository.findById(requestId)
-        .filter(item -> item.getToUserId().equals(userId))
+    Persisted<FriendRequest> row = friendRequestRepository.findById(requestId)
+        .filter(item -> item.aggregate().getToUserId().equals(userId))
         .orElseThrow(() -> new ApiException(HttpStatusCodes.NOT_FOUND, "Request not found"));
+    FriendRequest request = row.aggregate();
     if (request.getStatus() != FriendRequestStatus.PENDING) {
       throw new ApiException(HttpStatusCodes.BAD_REQUEST, "Request already handled");
     }
     FriendRequestStatus status = FriendRequestStatus.fromAction(command.action());
-    request.handle(status, LocalDateTime.now());
+    request.handle(status);
     friendRequestRepository.save(request);
     if (status == FriendRequestStatus.ACCEPTED) {
       createFriendship(request.getFromUserId(), request.getToUserId());
@@ -96,12 +100,12 @@ public class FriendApplicationService {
     // 申请一旦处理（接受/拒绝）即失效：好友申请记录列表不再保留历史，仅 pending 用于「新的朋友」；
     // 添加成功后聊天中的系统消息作为唯一留痕（系统消息由消息域消费 FriendAccepted 事件生成）。
     friendRequestRepository.delete(request.getId());
-    return toResult(request);
+    return toRequestResult(row);
   }
 
   @Transactional(readOnly = true)
   public List<FriendRequestResult> getPendingRequests(Long userId) {
-    return friendRequestRepository.findPendingByToUserIdOrderByCreatedAtDesc(userId).stream().map(this::toResult).toList();
+    return friendRequestRepository.findPendingByToUserIdOrderByCreatedAtDesc(userId).stream().map(this::toRequestResult).toList();
   }
 
   @Transactional(readOnly = true)
@@ -215,10 +219,11 @@ public class FriendApplicationService {
         row.audit().updatedBy(), row.audit().updatedAt());
   }
 
-  private FriendRequestResult toResult(FriendRequest request) {
+  private FriendRequestResult toRequestResult(Persisted<FriendRequest> row) {
+    FriendRequest request = row.aggregate();
     return new FriendRequestResult(
         request.getId(), request.getFromUserId(), request.getToUserId(), request.getMessage(),
-        request.getStatus().name().toLowerCase(), request.getCreatedBy(), request.getCreatedAt(),
-        request.getUpdatedBy(), request.getUpdatedAt());
+        request.getStatus().name().toLowerCase(), row.audit().createdBy(), row.audit().createdAt(),
+        row.audit().updatedBy(), row.audit().updatedAt());
   }
 }

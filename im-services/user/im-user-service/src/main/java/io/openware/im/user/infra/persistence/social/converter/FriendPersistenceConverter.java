@@ -32,8 +32,7 @@ public final class FriendPersistenceConverter {
   public static FriendRequest toDomain(FriendRequestPo po) {
     FriendRequest request = new FriendRequest();
     request.restore(po.getId(), po.getFromUserId(), po.getToUserId(), po.getMessage(),
-        FriendRequestStatus.valueOf(po.getStatus().toUpperCase()), po.getCreatedBy(), po.getCreatedAt(),
-        po.getUpdatedBy(), po.getUpdatedAt());
+        FriendRequestStatus.valueOf(po.getStatus().toUpperCase()));
     return request;
   }
 
@@ -44,10 +43,6 @@ public final class FriendPersistenceConverter {
     po.setToUserId(request.getToUserId());
     po.setMessage(request.getMessage());
     po.setStatus(request.getStatus().name().toLowerCase());
-    po.setCreatedBy(request.getCreatedBy());
-    po.setCreatedAt(request.getCreatedAt());
-    po.setUpdatedBy(request.getUpdatedBy());
-    po.setUpdatedAt(request.getUpdatedAt());
     return po;
   }
 }
