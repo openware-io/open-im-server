@@ -948,7 +948,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 预签名直传会话（`/upload-sessions`）不是代理上传，门禁只拦路径以 `/upload` 结尾的路由。
 - `URL 规范唯一` 也已实现：`scripts/validate/validate-media-url.ps1`（G40）校验网关仅一条
   `/api/v1/media-public/**`、`StripPrefix=3`、无旧路径或 rewrite；13 章 5 项中 4 项已自动化。
-- `日志脱敏` 仍需配置/运行期检查，保留为人工项。
+- `日志脱敏` 的静态部分也已并入 G36：媒体日志禁止打印签名 URL、密钥或二进制；运行期采样仍人工。
+- 13 章 5 项均可由 G36/G40 静态校验或运行期抽查覆盖。
 
 ### 8.30 可观测性日志脱敏门禁（40 章，2026-10-18）
 

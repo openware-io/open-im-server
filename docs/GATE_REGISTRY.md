@@ -47,7 +47,7 @@
 | G33 | gate-registry | validate-gate-registry.ps1 | blocking | 本注册表与脚本/invoke/report-only 一致性 |
 | G34 | currency-symbols | validate-currency-symbols.ps1 | blocking | 符号/中文名/币种映射只能来自 Currency 枚举 |
 | G35 | currency-defaults | validate-currency-defaults.ps1 | blocking | 缺省 USD、门店写穿、历史单据币种快照由测试锁定 |
-| G36 | media-boundaries | validate-media-boundaries.ps1 | blocking | 无代理上传、提供方 SDK 不越界、内部端点不外泄 |
+| G36 | media-boundaries | validate-media-boundaries.ps1 | blocking | 无代理上传、SDK 不越界、内部端点不外泄、媒体日志脱敏 |
 | G37 | observability-redaction | validate-observability-redaction.ps1 | blocking | 日志不得直接打印 token/password/secret/signature |
 | G38 | observability-correlation | validate-observability-correlation.ps1 | blocking | 网关生成/传播 X-Request-Id（HTTP 入口） |
 | G39 | verify-inventory | validate-verify-inventory.ps1 | blocking | scripts/verify 与 43 章 §3 清单一致 |

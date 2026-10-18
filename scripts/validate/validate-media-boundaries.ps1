@@ -54,6 +54,12 @@ try {
     if ($relativePath -match '/(api|dto)/' -and $code -match 'MEDIA_INTERNAL_ENDPOINT|media\.internal-endpoint|internalEndpoint') {
       $violations.Add("Media internal endpoint leaked into API/DTO: $relativePath")
     }
+
+    # 4. Media logs must not print signed URLs, credentials or binary payloads.
+    if ($relativePath -match '^common-services/media/' -and
+        $code -match '(?is)log\.(trace|debug|info|warn|error)\s*\([^;]*\b(presign\w*|signed\w*|accessKey|secretKey|bytes|body|payload)\b') {
+      $violations.Add("Media log prints signed URL, credential or binary payload: $relativePath")
+    }
   }
 } finally {
   Pop-Location
