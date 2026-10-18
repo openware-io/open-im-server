@@ -50,6 +50,18 @@
 - 业务模块禁止直接声明 `flyway-core`；迁移能力必须通过 Flyway Starter 与 MySQL 适配器声明。
 - 持久层依赖边界由 `scripts/validate/validate-persistence-dependency-boundaries.ps1` 校验，并接入统一验证入口。
 
+## jsqlparser 使用边界
+
+`mybatis-plus-jsqlparser-*` 是分页与租户行拦截所需的 SQL 解析器，不是持久层实现本身，但也不能被业务代码当作通用 SQL 工具使用。边界如下：
+
+- **坐标唯一**：只允许 `com.baomidou:mybatis-plus-jsqlparser-4.9`；版本只由根 POM 的 `dependencyManagement` 管理，模块 POM 不写 `<version>`。
+- **必须声明的场景**：模块配置 `PaginationInnerInterceptor`、调用 `selectPage`，或实现 `TenantLineHandler` 时，必须显式声明该坐标。
+- **scope 必须是 compile（默认）**：`TenantLineHandler#getTenantId()` 的返回类型就是 `net.sf.jsqlparser.expression.Expression`，写成 `runtime` 会导致实现类编译失败。
+- **import 边界**：`net.sf.jsqlparser.*` 只允许出现在 `**/config/**` 或 `**/infra/**/config/**` 的 MyBatis-Plus 扩展点；禁止出现在 `domain`、`application`、`api` 与普通业务 service 中，禁止用 JSqlParser 拼 SQL、改 SQL。
+- **禁止其他变体**：禁止 `com.github.jsqlparser:jsqlparser`、`mybatis-plus-jsqlparser-common` 及其他 `mybatis-plus-jsqlparser-*` 主版本；升级主版本必须走全仓 ADR/评审。
+- **禁止排除**：分页或租户拦截模块不得对 Starter 或该解析器做 exclusion。
+- 依赖边界由 `scripts/validate/validate-persistence-dependency-boundaries.ps1` 校验：使用未声明、声明未使用、版本/scope 漂移、越界 import、变体坐标都会失败。
+
 ## SQL 使用约束
 
 - 优先使用 MyBatis-Plus 提供的安全表达能力实现关系型读写。
@@ -98,7 +110,7 @@
 
 **不要声明**：`mybatis-plus-core`、`mybatis-plus-extension`、`mybatis-plus-annotation`、`mybatis-spring`、`flyway-core`（底层组件由 Starter 传递引入）。
 
-**需要声明**：`mybatis-plus-jsqlparser-*`（分页模块）——它被 Starter 标为 optional，不声明则分页插件运行时缺解析器；版本仍由根 POM 管理，模块只写坐标。
+**需要声明**：`mybatis-plus-jsqlparser-4.9`（分页或租户行拦截模块）——它被 Starter 标为 optional，不声明则分页插件运行时缺解析器；版本仍由根 POM 管理，模块只写坐标，scope 保持 compile。
 
 ## 门禁与人工检查项
 
@@ -106,7 +118,7 @@
 
 | 门禁 | 判据 |
 | --- | --- |
-| 依赖边界 | 业务模块未直接声明被禁止的底层持久层组件 |
+| 依赖边界 | 业务模块未直接声明被禁止的底层持久层组件；jsqlparser 仅在需要时声明，版本/scope/import 合规 |
 | 迁移存在性 | 持有 `db/migration` 的服务同时声明了 Flyway Starter 与 MySQL 适配器 |
 | 迁移不可回改 | 已在任何环境执行的迁移未被修改（冻结后只增不改） |
 | 脚本编码 | 迁移脚本为 UTF-8 无 BOM |

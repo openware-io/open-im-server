@@ -899,14 +899,23 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 
 
-### 8.3 待决事项（需要决定，不能由我单方面选择）
+### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
-**`mybatis-plus-jsqlparser-4.9`：标准与框架要求直接冲突。**
-已查证：`mybatis-plus-3.5.17.pom` 把它标为 `<optional>true</optional>`（**不会传递**），
-而 **10 个模块使用 `PaginationInnerInterceptor`、14 处调用 `selectPage`** → 分页扩展**运行时需要**它。
-规范 L42/L92 禁止 `mybatis-plus-jsqlparser-*`。三个选项：
-**(A)** 修订规范（把 jsqlparser 从禁令移出，说明它是分页扩展的必需解析器）；
-**(B)** 严格执行（移除 13 处声明，**破坏分页**）；
-**(C)** 改用手写 SQL / 移除分页（改造量最大）。
-**注意**：其余被禁组件（`core`/`extension`/`annotation`/`mybatis-spring`）实测**声明模块数均为 0**，
-说明禁令对它们有效——问题只出在 jsqlparser 这一项。
+**结论：原三选一已决 A（规范例外），并已补齐配套治理。**
+
+- 事实：`mybatis-plus-3.5.17.pom` 把它标为 `<optional>true</optional>`（不传递）；
+  **10 个模块**使用 `PaginationInnerInterceptor`、**16 处**调用 `selectPage`；
+  **13 个模块**显式声明，其中 **6 个模块**的 `PlatformTenantLineHandler` 直接 import
+  `net.sf.jsqlparser.expression.Expression`（`TenantLineHandler#getTenantId()` 的返回类型），
+  因此 scope 必须是 **compile**，不能写 `runtime`。
+- 原规范 L42/L92 把它误列为“底层实现”并禁止。说明：它与 `core`/`extension`/`annotation`/
+  `mybatis-spring` 性质不同，是分页/租户行拦截所需的 SQL 解析器；其余被禁组件的声明模块数仍为 0。
+- 处置 A 已落地：`standards/21` 将其移出禁令、要求分页/租户拦截模块显式声明、版本由根 POM 管理。
+- 本轮补齐 A 的边界与门禁（不是原选项 C 的手写 SQL）：
+  - 坐标唯一：`com.baomidou:mybatis-plus-jsqlparser-4.9`，模块不写版本；
+  - `PaginationInnerInterceptor`/`selectPage`/`TenantLineHandler` 使用方必须声明；
+  - `net.sf.jsqlparser.*` 只允许出现在 `**/config/**` 或 `**/infra/**/config/**`；
+  - 禁止原始 `jsqlparser`、`-common` 与其他主版本，禁止 exclusion；
+  - `validate-persistence-dependency-boundaries.ps1` 已覆盖“使用未声明、版本/scope、越界 import、变体坐标”。
+
+**负向验证**：临时移除 order 模块的声明后门禁按预期失败，恢复后通过。
