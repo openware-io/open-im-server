@@ -99,7 +99,7 @@ class InventoryStockRepositoryAdapterTest {
         "必须用「列 = 列 - 参数」自减，而不是把读出来的值写回: " + sql);
     assertTrue(sql.replace(" ", "").contains("ON_HAND_QTY-RESERVED_QTY>=#{QUANTITY}"),
         "必须带上下界条件（可用量 >= 扣减量），否则并发下会把库存扣成负数: " + sql);
-    assertTrue(sql.replace(" ", "").contains("VERSION=VERSION+1"), "版本号自增必须写在 SQL 里: " + sql);
+    assertTrue(sql.replace(" ", "").contains("REVISION=REVISION+1"), "版本号自增必须写在 SQL 里: " + sql);
     assertTrue(sql.contains("TENANT_ID = #{TENANTID}") && sql.contains("STORE_ID = #{STOREID}")
             && sql.contains("MATERIAL_ID = #{MATERIALID}"),
         "定位口径必须是 (租户, 门店, 物料): " + sql);
@@ -120,7 +120,7 @@ class InventoryStockRepositoryAdapterTest {
         "新的移动加权平均成本必须在同一条语句里落库: " + sql);
     assertTrue(sql.replace(" ", "").contains("CURRENCY_CODE=#{CURRENCYCODE}"),
         "成本币种快照必须与平均成本同一条语句落库: " + sql);
-    assertTrue(sql.replace(" ", "").contains("VERSION=VERSION+1"), "版本号自增必须写在 SQL 里: " + sql);
+    assertTrue(sql.replace(" ", "").contains("REVISION=REVISION+1"), "版本号自增必须写在 SQL 里: " + sql);
   }
 
   /** 行锁读必须是 {@code FOR UPDATE}（事务内持有至提交，串行化同一物料的并发变更）。 */
@@ -268,7 +268,7 @@ class InventoryStockRepositoryAdapterTest {
     assertEquals(MATERIAL_ID, written.getMaterialId());
     assertEquals(0, written.getOnHandQty().signum());
     assertEquals(0, written.getReservedQty().signum());
-    assertEquals(0, written.getVersion());
+    assertEquals(0, written.getRevision());
     assertNull(written.getCurrencyCode(),
         "币种留空由 DDL 的 DEFAULT 'USD' 填充（与迁移前的 INSERT 口径一致）");
     assertNotNull(written.getCreatedAt(), "created_at 是 NOT NULL，必须由适配器填充");
@@ -285,7 +285,7 @@ class InventoryStockRepositoryAdapterTest {
 
     assertEquals(Set.of(), declaredNonColumnProperties(InventoryStockPo.class),
         "库存余额没有展示字段；一旦新增，写入路径的列集合必须同步复核");
-    assertTrue(columns.containsAll(Set.of("onHandQty", "reservedQty", "avgCost", "currencyCode", "version")),
+    assertTrue(columns.containsAll(Set.of("onHandQty", "reservedQty", "avgCost", "currencyCode", "revision")),
         "并发/成本列必须是真列: " + columns);
   }
 
@@ -296,7 +296,7 @@ class InventoryStockRepositoryAdapterTest {
         .map(RecordComponent::getName).collect(Collectors.toSet());
 
     assertEquals(Set.of("id", "tenantId", "storeId", "materialId", "onHandQty", "reservedQty", "avgCost",
-        "currencyCode", "version"), components,
+        "currencyCode", "revision"), components,
         "库存领域模型只承载业务列（审计四列由适配器在写入时填充、读取时丢弃）");
   }
 
@@ -374,7 +374,7 @@ class InventoryStockRepositoryAdapterTest {
     po.setReservedQty(BigDecimal.ONE);
     po.setAvgCost(new BigDecimal("300"));
     po.setCurrencyCode("CNY");
-    po.setVersion(0);
+    po.setRevision(0);
     return po;
   }
 }

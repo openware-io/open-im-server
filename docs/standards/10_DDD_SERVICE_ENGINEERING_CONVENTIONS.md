@@ -339,11 +339,8 @@
 - **A（锁语义）**：有写入路径的聚合，`version` 必须是真的乐观锁——框架 `@Version` 或显式 CAS；否则按“装饰性 version”处理。
 - **B（改名）**：不是锁的字段不得叫 `version`；改用 `revision`、`rowVersion` 等名字，且不得继续在模型/API 中暴露 `version` 语义。
 - **只读/追加模型**：没有更新路径时，必须登记为 `READ_ONLY` / `APPEND_ONLY`，不得借 `version` 暗示并发保护。
-- **已评审的具名例外**（[ADR 0007](../adr/0007-version-named-exceptions.md)；保持字段名，必须有标记且禁止 `@Version`）：
-  - `BUSINESS_VERSION`：字段是业务版本字符串（如客户端发布版本），并发由独立 `row_version` 列保护；
-  - `COUNTER`：并发由其他原子条件（如库存数量）保护，`version` 只是递增的修订计数，不承担锁判定。
-- 例外必须在 PO 字段注释写 `reserved-name-exception: BUSINESS_VERSION|COUNTER`，登记状态必须一致；
-  门禁禁止这两个 PO 使用框架 `@Version`。新增例外必须新 ADR，不能只改登记表。
+- **不再接受具名例外**：[ADR 0007](../adr/0007-version-named-exceptions.md) 已撤回；非锁字段必须真正改名，
+  不得以“业务版本字符串”或“修订计数器”为由继续占用 `version`。
 
 管理方式：
 

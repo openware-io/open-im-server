@@ -370,7 +370,7 @@ class InventoryMovingAverageCostTest {
       throws Exception {
     try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
       statement.executeUpdate("INSERT INTO ord_inventory_stock (tenant_id, store_id, material_id, on_hand_qty, "
-          + "reserved_qty, avg_cost, currency_code, version, created_at, updated_at) VALUES ("
+          + "reserved_qty, avg_cost, currency_code, revision, created_at, updated_at) VALUES ("
           + TENANT_ID + ", " + storeId + ", " + materialId + ", " + onHand + ", 0, " + avgCost + ", '"
           + currency + "', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
     }

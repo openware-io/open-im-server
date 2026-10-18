@@ -91,7 +91,7 @@ public class InventoryStockRepositoryAdapter implements InventoryStockRepository
     po.setReservedQty(stock.reservedQty());
     po.setAvgCost(stock.avgCost());
     po.setCurrencyCode(stock.currencyCode());
-    po.setVersion(stock.version());
+    po.setRevision(stock.revision());
     // 审计时间由适配器兜底（领域模型不承载记账列）：created_at 是 NOT NULL，插入时必须给值。
     LocalDateTime now = LocalDateTime.now();
     po.setCreatedAt(now);
@@ -109,6 +109,6 @@ public class InventoryStockRepositoryAdapter implements InventoryStockRepository
     }
     return new InventoryStock(
         po.getId(), po.getTenantId(), po.getStoreId(), po.getMaterialId(),
-        po.getOnHandQty(), po.getReservedQty(), po.getAvgCost(), po.getCurrencyCode(), po.getVersion());
+        po.getOnHandQty(), po.getReservedQty(), po.getAvgCost(), po.getCurrencyCode(), po.getRevision());
   }
 }

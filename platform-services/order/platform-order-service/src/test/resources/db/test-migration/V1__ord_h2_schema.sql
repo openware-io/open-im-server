@@ -208,7 +208,7 @@ CREATE TABLE ord_inventory_stock (
   avg_cost DECIMAL(20,6) NOT NULL DEFAULT 0,
   -- 平均成本币种快照（生产 V24），缺省 USD（与 V22 的历史回填口径一致）。
   currency_code VARCHAR(3) NOT NULL DEFAULT 'USD',
-  version INT NOT NULL DEFAULT 0,
+  revision INT NOT NULL DEFAULT 0,
   created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
   updated_by BIGINT NOT NULL DEFAULT 0,

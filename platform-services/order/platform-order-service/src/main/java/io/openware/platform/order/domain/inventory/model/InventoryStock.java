@@ -31,7 +31,7 @@ import java.math.BigDecimal;
  * @param reservedQty  预留量
  * @param avgCost      移动加权平均成本（最小货币单位/计量单位，V24）；{@code 0} 表示尚未建立成本基准
  * @param currencyCode {@code avgCost} 的币种快照；币种变更绝不与历史成本混合累加
- * @param version      乐观锁版本号列（并发保护实际由端口上的条件 UPDATE 承担，见端口说明）
+ * @param revision     库存修订计数器（每次入库/扣减/回补在 SQL 内自增；并发保护由数量条件 UPDATE 承担，不是 CAS）
  */
 public record InventoryStock(
     Long id,
@@ -42,7 +42,7 @@ public record InventoryStock(
     BigDecimal reservedQty,
     BigDecimal avgCost,
     String currencyCode,
-    Integer version) {
+    Integer revision) {
 
   /** 可动用量 = 现有量 − 预留量。扣减的准入判定与此口径一致（见仓储端口的扣减约定）。 */
   public BigDecimal availableQty() {
@@ -63,7 +63,7 @@ public record InventoryStock(
 
   /**
    * 首次入库时建立的零额库存行（{@code on_hand_qty = 0}、{@code reserved_qty = 0}、
-   * {@code avg_cost = 0}、{@code version = 0}）。
+   * {@code avg_cost = 0}、{@code revision = 0}）。
    *
    * <p>{@code currencyCode} 留空：DDL 是 {@code NOT NULL DEFAULT 'USD'}，由库的缺省值填充
    * （与迁移前的 INSERT 口径一致——当时也没有写这一列）。

@@ -76,17 +76,6 @@ try {
         }
       }
     }
-    elseif ($reviewed[$normalized].Status -eq 'BUSINESS_VERSION' -or
-            $reviewed[$normalized].Status -eq 'COUNTER') {
-      $status = $reviewed[$normalized].Status
-      $marker = "reserved-name-exception: $status"
-      if ($text -notmatch [regex]::Escape($marker)) {
-        $violations.Add("$status entry must carry the marker '$marker': $normalized")
-      }
-      if ($text -match '@Version\b') {
-        $violations.Add("$status entry must not use the framework @Version annotation: $normalized")
-      }
-    }
   }
 
   foreach ($entry in $reviewed.Keys) {

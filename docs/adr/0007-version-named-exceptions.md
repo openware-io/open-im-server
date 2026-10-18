@@ -1,28 +1,24 @@
-# ADR 0007：`version` 的两类具名例外
+# ADR 0007：`version` 具名例外（已撤回）
 
 ## 状态
 
-已接受（2026-10-18）。
+**已撤回（2026-10-18）**。原决策保留 `ClientRelease.version` 与 `InventoryStock.version` 的字段名，
+现改为实际改名，不再接受任何 `version` 具名例外。
 
-## 背景
+## 撤回原因
 
-`standards/10` 把 `version` 保留给乐观锁。仓库里有两个字段叫 `version`，但不是并发控制：
+原 ADR 把“避免数据库/API 迁移”置于规范之上。保留字段名会让评审者继续把 `version` 当成乐观锁，
+门禁也只能检查标记、无法检查语义，等于把误导制度化。
 
-- `adm_client_release.version`：业务发布版本号（字符串），并发保护用 `row_version`；
-- `ord_inventory_stock.version`：库存修订计数器，每次入库/扣减/回补在 SQL 里自增，
-  并发保护由 `on_hand_qty - reserved_qty >= n` 的条件 UPDATE 承担，不是 `WHERE version = ?`。
+## 实际处理
 
-## 决策
+- `ord_inventory_stock.version` → `revision`（V2 迁移，PO/领域/mapper/adapter/测试同步）；
+- `adm_client_release.version` → `release_version`（V2 迁移，领域/PO 改名 `releaseVersion`）；
+  API DTO 仍输出 JSON 字段 `version`，仅作外部兼容映射；
+- `reserved-identifiers-reviewed.txt` 删除两条例外；
+- `standards/10` 恢复“非锁字段不得叫 `version`”，门禁不再接受例外标记。
 
-不做 DB/API 改名，保留字段名，但必须：
+## 后续
 
-1. 在 PO 字段上写 `reserved-name-exception: BUSINESS_VERSION` 或 `COUNTER` 注释；
-2. `reserved-identifiers-reviewed.txt` 登记为对应状态，登记项必须与注释一致；
-3. 禁止在这两个 PO 上使用框架 `@Version`，也禁止在更新条件里把该列当作 CAS 谓词；
-4. 门禁 `validate-reserved-identifiers.ps1` 检查注释存在、状态匹配、无 `@Version`。
-
-## 后果
-
-- 对外字段名保持兼容，不需要数据库迁移；
-- 字段名仍可能误导，因此依赖注释、登记表、ADR 与门禁四件套，而不是只靠口头约定；
-- 若未来做 API/DB 重构，可再以新 ADR 改为 `release_version` / `revision`，届时删除本例外。
+若未来确有业务字段必须命名为 `version`，应先证明它不是持久化锁字段，并通过新 ADR 明确边界；
+不得复用本 ADR。

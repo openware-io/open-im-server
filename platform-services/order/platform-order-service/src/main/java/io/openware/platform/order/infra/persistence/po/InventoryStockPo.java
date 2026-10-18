@@ -27,11 +27,8 @@ public class InventoryStockPo {
     private BigDecimal avgCost;
     /** {@link #avgCost} 的币种快照（V24），缺省 USD；币种变更绝不与历史成本混合累加。 */
     private String currencyCode;
-    /**
-     * 库存修订计数器，不是 CAS 条件；并发保护由 {@code on_hand_qty - reserved_qty >= n}
-     * 的条件 UPDATE 承担。reserved-name-exception: COUNTER
-     */
-    private Integer version;
+    /** 库存修订计数器，不是 CAS 条件；并发保护由数量条件 UPDATE 承担。 */
+    private Integer revision;
     private Long createdBy;
     private LocalDateTime createdAt;
     private Long updatedBy;

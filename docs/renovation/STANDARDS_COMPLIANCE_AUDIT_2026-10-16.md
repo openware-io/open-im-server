@@ -993,14 +993,12 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
-### 8.41 `version` 具名例外（Q07，2026-10-18）
+### 8.41 `version` 具名例外撤回并改名（Q07，2026-10-18）
 
-- 决策不改名：`ClientRelease.version` 是业务版本字符串（锁在 `row_version`），
-  `InventoryStock.version` 是修订计数器（锁在数量条件 UPDATE）。
-- 新增 [ADR 0007](../adr/0007-version-named-exceptions.md)；两个 PO 字段写
-  `reserved-name-exception: BUSINESS_VERSION|COUNTER`。
-- `validate-reserved-identifiers.ps1` 对这两类状态校验标记存在，并禁止 `@Version`；
-  新增例外必须新 ADR，不能只改登记表。
+- ADR 0007 已撤回：不接受“业务版本字符串/修订计数器”继续占用 `version`。
+- `InventoryStock.version` → `revision`；`ClientRelease.version` → `releaseVersion`
+  （DB 列 `release_version`，API DTO 仍输出 JSON `version` 仅作兼容）。
+- 两条例外已从登记表删除；`standards/10` 恢复“非锁字段不得叫 version”，门禁不再接受例外标记。
 
 ### 8.40 调度与异步关联标识（Q05/Q06，2026-10-18）
 
