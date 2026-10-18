@@ -52,3 +52,4 @@
 | G38 | observability-correlation | validate-observability-correlation.ps1 | blocking | 网关生成/传播 X-Request-Id（HTTP 入口） |
 | G39 | verify-inventory | validate-verify-inventory.ps1 | blocking | scripts/verify 与 43 章 §3 清单一致 |
 | G40 | media-url | validate-media-url.ps1 | blocking | 公共媒体仅经 /api/v1/media-public/**，无旧路径/re-write |
+| G41 | observability-metrics | validate-observability-metrics.ps1 | blocking | 指标名唯一、禁止高基数标签 |

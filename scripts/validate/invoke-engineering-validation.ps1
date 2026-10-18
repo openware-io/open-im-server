@@ -89,6 +89,7 @@ $validators = @(
   @{ Name = 'media-url'; Arguments = @() },
   @{ Name = 'observability-redaction'; Arguments = @() },
   @{ Name = 'observability-correlation'; Arguments = @() },
+  @{ Name = 'observability-metrics'; Arguments = @() },
   @{ Name = 'verify-inventory'; Arguments = @() }
 )
 
