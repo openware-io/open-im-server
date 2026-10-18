@@ -45,3 +45,4 @@
 | G31 | repository-hygiene | validate-repository-hygiene.ps1 | blocking | 仓库卫生 |
 | G32 | tenant-sql | validate-tenant-sql.ps1 | blocking | 租户 SQL 隔离 |
 | G33 | gate-registry | validate-gate-registry.ps1 | blocking | 本注册表与脚本/invoke/report-only 一致性 |
+| G34 | currency-symbols | validate-currency-symbols.ps1 | blocking | 符号/中文名/币种映射只能来自 Currency 枚举 |

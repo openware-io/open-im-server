@@ -194,6 +194,7 @@ C 端报价与我的预约、B 端订单/库存/看板、App 收银/结账/班�
 | 写穿一致 | 租户币种变更同事务写穿门店与法人主体派生列，无残留旧值 |
 
 `字面量扫描` 已由 `scripts/validate/validate-currency-literals.ps1` 实现并接入统一验证入口：扫描服务模块 `src/main/java`（剥离注释），测试、文档、`Currency` 枚举本身与网关协议兜底不在范围内。
+`符号表唯一` 由 `scripts/validate/validate-currency-symbols.ps1` 实现：符号、中文名与 `put/Map.of("USD"|"CNY", ...)` 映射只允许出现在 `Currency` 枚举。
 
 **人工检查项**（评审时确认）：
 

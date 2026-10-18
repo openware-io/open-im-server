@@ -121,7 +121,7 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 |---|---|---|
 | P1 | 补 `mybatis-plus-jsqlparser*` 到禁用清单，并处理 13 个模块 | 门禁 + 改造决策 |
 | P1 | 修 `port-contract` 的路径模式（39 个文件未扫） | 门禁修复 |
-| P1 | 16 章门禁：字面量扫描 ✅；符号表唯一/缺省/快照/写穿 4 个仍待补 | 新增门禁 |
+| P1 | 16 章门禁：字面量扫描 ✅、符号表唯一 ✅；缺省/快照/写穿 3 个仍待补 | 新增门禁 |
 | P1 | 事务边界门禁（12 处在产违规） | 新增门禁 + 改造 |
 | P2 | 审计字段/`@Setter` 领域模型门禁（21 + 3 处在产违规） | 新增门禁 + 改造 |
 | P2 | 补 `service-dependency-graph` 读 `dependencyManagement` | 门禁修复 |
@@ -909,7 +909,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 首扫命中 3 个文件：`PaymentChannelTransactionRecorder`、`AlipayChannel`、`WechatChannel`；
   已全部改用 `Currency.CNY.code()` / `Currency.DEFAULT.code()`，不再写 `"CNY"` 字面量。
 - 门禁已接入统一入口并作为 blocking 运行，当前 0 违规。
-- **仍未实现**的 16 章门禁：符号表唯一、缺省口径、快照不回改、写穿一致（需要集成/数据库级验证）。
+- `符号表唯一` 也已实现：`scripts/validate/validate-currency-symbols.ps1` 扫描服务/SDK/网关主代码，
+  符号、中文名与 `put/Map.of("USD"|"CNY", ...)` 映射只允许出现在 `Currency` 枚举；当前 0 违规。
+- **仍未实现**的 16 章门禁：缺省口径、快照不回改、写穿一致（需要集成/数据库级验证）。
 
 ### 8.27 保留字段名门禁（`version` 的 A+B 路线，2026-10-18）
 
@@ -928,13 +930,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 ### 8.28 门禁注册表与编号（2026-10-18）
 
-- 新增 [GATE_REGISTRY.md](../GATE_REGISTRY.md)：33 个门禁按 G01–G33 编号，
+- 新增 [GATE_REGISTRY.md](../GATE_REGISTRY.md)：34 个门禁按 G01–G34 编号，
   记录门禁名、脚本、模式（blocking/report-only）与说明。
 - 编号是**稳定注册 ID**，不是文件名前缀；不改 32 个既有脚本名，避免破坏 invoke、文档链接和历史记录。
 - 新增 `validate-gate-registry.ps1` 元门禁：校验“脚本文件、注册表、invoke 列表、
   report-only-gates.txt”四方一致；ID 必须连续、登记项必须存在、注册项必须被 invoke。
 - 通过负向验证：删除注册表一行后元门禁按预期失败；恢复后通过。
-- `standards/10` 的门禁计数已同步为 33，并链接注册表；新增/删除/改名门禁必须实时更新注册表与计数。
+- `standards/10` 的门禁计数已同步为 34，并链接注册表；新增/删除/改名门禁必须实时更新注册表与计数。
 
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
