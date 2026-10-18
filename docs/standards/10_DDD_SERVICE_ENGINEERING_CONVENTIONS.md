@@ -370,8 +370,11 @@
 
 规范必须可执行，否则会在迭代中被绕过。全部门禁固化于 `scripts/validate/validate-<name>.ps1`，
 统一入口为 `scripts/validate/invoke-engineering-validation.ps1`，`-Scope {Changed|Full}` 只决定 Maven 目标
-（`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：27 个一律全跑**。
+（`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：33 个一律全跑**。
 治理完成后**全部为阻断模式**：`scripts/validate/report-only-gates.txt` 当前**条目为空**（无任何豁免）。
+
+门禁编号索引见 [GATE_REGISTRY.md](GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、
+统一入口与本文计数，`validate-gate-registry.ps1` 会校验四方一致。
 
 > **判据的权威来源是校验器脚本本身，不是本表。** 本表只说明每个门禁管什么、违规会怎样表述；
 > 修改规则必须改脚本，改完再回来同步本表的描述。这样表格是导航，不会变成第二份会漂移的真相。

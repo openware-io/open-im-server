@@ -923,6 +923,16 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   `KtvSessionPo`、`ProductPo`。
 - 门禁已接入统一入口，负向验证（临时加入不存在的登记项）按预期失败。
 
+### 8.28 门禁注册表与编号（2026-10-18）
+
+- 新增 [GATE_REGISTRY.md](../standards/GATE_REGISTRY.md)：33 个门禁按 G01–G33 编号，
+  记录门禁名、脚本、模式（blocking/report-only）与说明。
+- 编号是**稳定注册 ID**，不是文件名前缀；不改 32 个既有脚本名，避免破坏 invoke、文档链接和历史记录。
+- 新增 `validate-gate-registry.ps1` 元门禁：校验“脚本文件、注册表、invoke 列表、
+  report-only-gates.txt”四方一致；ID 必须连续、登记项必须存在、注册项必须被 invoke。
+- 通过负向验证：删除注册表一行后元门禁按预期失败；恢复后通过。
+- `standards/10` 的门禁计数已同步为 33，并链接注册表；新增/删除/改名门禁必须实时更新注册表与计数。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**
