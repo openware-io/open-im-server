@@ -925,3 +925,5 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
     越界 import、变体坐标、exclusion”。
 
 **负向验证**：临时移除 order 模块的声明后门禁按预期失败，恢复后通过。
+
+**内部 starter 的触发条件**已写入 `standards/21`：先普通 library、策略可配置，达到 8–10 个服务重复且平台团队可承担兼容后再升级为 starter。当前不引入 persistence starter，`PlatformTenantLineHandler` 暂留各模块。

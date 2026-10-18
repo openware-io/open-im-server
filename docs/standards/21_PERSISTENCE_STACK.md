@@ -62,6 +62,25 @@
 - **禁止排除**：分页或租户拦截模块不得对 Starter 或该解析器做 exclusion。
 - 依赖边界由 `scripts/validate/validate-persistence-dependency-boundaries.ps1` 校验：使用未声明、声明未使用、版本/scope 漂移、越界 import、变体坐标都会失败。
 
+## 内部共享模块与 starter 的引入条件
+
+内部 starter 是 Spring Boot 的自动配置分发机制，不是 DDD 的共享内核或限界上下文方案。它只用于稳定的技术横切能力，**不得**承载实体、Repository 基类、领域服务或业务规则。
+
+演进顺序固定为：
+
+1. **版本统一**：依赖版本由根 POM 的 `dependencyManagement` 管理（当前已具备）。
+2. **先显式、再普通库**：优先让使用方显式声明；同类技术代码重复 3 次以上，先抽普通 library（无自动配置、无传递魔法），而不是直接做 starter。
+3. **策略可配置**：差异必须参数化，例如 `TenantTablePolicy` / `ignoreTables`；不得把某一上下文的表名、字段名或忽略规则硬编码进共享模块。
+4. **只有同时满足以下条件，才允许升级为内部 starter**：
+   - 至少 8–10 个服务重复同一套配置或类，普通 library 已无法消除样板；
+   - 策略已收敛，剩余差异可通过配置表达；
+   - 有明确的平台团队负责版本、兼容性与升级支持；
+   - 提供自动配置测试、示例服务和显式 opt-out；
+   - 团队能接受发布锁步，或已有统一升级节奏。
+5. **starter 必须包含**：条件装配、显式 opt-out、根 POM 版本管理、依赖来源说明；不得隐藏强制依赖或改变使用方已有行为。
+
+**当前决策**：不引入 persistence starter。jsqlparser 继续按“显式声明 + 门禁”治理；`PlatformTenantLineHandler` 暂留各模块，待重复度与策略收敛达到上述阈值后，再评估抽取普通 `common-persistence` library。
+
 ## SQL 使用约束
 
 - 优先使用 MyBatis-Plus 提供的安全表达能力实现关系型读写。
