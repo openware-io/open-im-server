@@ -853,9 +853,10 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - `MemberNameToken`（customer）迁移：模型去 `createdAt`，端口 `replaceForMember` 接收 `occurredAt`，
   适配器写入该时间；无响应读者，不需要视图。
 - `PointLedgerEntry.createdAt` 是**刻意暴露的流水时间**（`GET /me/points` 的响应字段），加入 allowlist。
-- 仍有 **4 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
+- `InventoryMaterial.createdAt` / `InventoryTransaction.createdAt` 分别是列表时间区间/响应字段与
+  流水“发生时间”（本表没有 `occurred_at` 列），加入 allowlist，不按记账列删除。
+- 仍有 **2 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
   门禁暂为 report-only（batch 2）：
-  - order inventory 2：`InventoryMaterial`、`InventoryTransaction`；
   - tenant 2：`PricingPlan`、`Tenant`。
 
 **结论**：§8.23 的「审计字段已收口」只对当时的清单成立；`audit-fields` 门禁才是范围的
