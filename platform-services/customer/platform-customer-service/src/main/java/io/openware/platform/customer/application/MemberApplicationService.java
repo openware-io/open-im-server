@@ -646,9 +646,9 @@ public class MemberApplicationService {
         LocalDateTime now = LocalDateTime.now();
         List<MemberNameToken> rows = new ArrayList<>(tokens.size());
         for (String token : tokens) {
-            rows.add(MemberNameToken.of(tenantId, member.id(), token, now));
+            rows.add(MemberNameToken.of(tenantId, member.id(), token));
         }
-        nameTokenRepository.replaceForMember(member.id(), rows);
+        nameTokenRepository.replaceForMember(member.id(), rows, now);
     }
 
     /** 绑定留痕：成功与失败都要有；detail 只写客户号/客户 id 与 IM 账号，绝不带姓名/手机号。 */

@@ -231,7 +231,7 @@ class MemberApplicationServiceTest {
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IM_ACCOUNT_ALREADY_BOUND", record.errorCode());
     verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any());
-    verify(nameTokenRepository, never()).replaceForMember(anyLong(), any());
+    verify(nameTokenRepository, never()).replaceForMember(anyLong(), any(), any());
   }
 
   @Test
@@ -279,7 +279,7 @@ class MemberApplicationServiceTest {
   @SuppressWarnings("unchecked")
   private void assertTokensWrittenSha256Hex(Long memberId) {
     ArgumentCaptor<Collection<MemberNameToken>> captor = ArgumentCaptor.forClass(Collection.class);
-    verify(nameTokenRepository, atLeastOnce()).replaceForMember(eq(memberId), captor.capture());
+    verify(nameTokenRepository, atLeastOnce()).replaceForMember(eq(memberId), captor.capture(), any());
     List<MemberNameToken> rows = List.copyOf(captor.getValue());
     assertFalse(rows.isEmpty());
     rows.forEach(row -> assertEquals(64, row.token().length()));

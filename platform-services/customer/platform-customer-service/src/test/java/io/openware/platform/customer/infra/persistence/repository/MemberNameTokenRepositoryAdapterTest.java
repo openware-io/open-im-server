@@ -64,8 +64,8 @@ class MemberNameTokenRepositoryAdapterTest {
   @Test
   void replaceForMemberDeletesOldRowsThenInsertsNewOnes() {
     adapter.replaceForMember(MEMBER_ID, List.of(
-        MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-a", LocalDateTime.now()),
-        MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-b", null)));
+        MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-a"),
+        MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-b")), LocalDateTime.now());
 
     // 删除条件必须按 member_id 定位（不是无条件删，也不能漏掉 tenant 拦截器）
     ArgumentCaptor<LambdaQueryWrapper<CstMemberNameTokenPo>> deleteCaptor =
@@ -91,7 +91,7 @@ class MemberNameTokenRepositoryAdapterTest {
   /** 空集合 = 只删不插（服务用它表达删除；删光后回填会重新处理这名客户）。 */
   @Test
   void replaceForMemberWithEmptyCollectionOnlyDeletes() {
-    adapter.replaceForMember(MEMBER_ID, List.of());
+    adapter.replaceForMember(MEMBER_ID, List.of(), LocalDateTime.now());
 
     verify(nameTokenMapper).delete(any());
     verify(nameTokenMapper, never()).insert(any(CstMemberNameTokenPo.class));
@@ -105,7 +105,7 @@ class MemberNameTokenRepositoryAdapterTest {
 
     ApiException failure = assertThrows(ApiException.class,
         () -> adapter.replaceForMember(MEMBER_ID, List.of(
-            MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-a", LocalDateTime.now()))));
+            MemberNameToken.of(TENANT_ID, MEMBER_ID, "token-a")), LocalDateTime.now()));
 
     assertEquals("DB_DOWN", failure.getCode());
     // 一次正常删除 + 一次补偿删除

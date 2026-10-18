@@ -82,7 +82,7 @@ class MemberNameIndexRebuildTest {
     assertEquals(List.of(TENANT_ID, TENANT_ID), tenantSeenWhileWriting);
     // 调用前的线程上下文（无）必须被还原，不能把租户泄漏到调用方线程
     assertNull(TenantContextHolder.get());
-    verify(nameTokenRepository, times(2)).replaceForMember(any(), any());
+    verify(nameTokenRepository, times(2)).replaceForMember(any(), any(), any());
   }
 
   @Test
@@ -152,7 +152,7 @@ class MemberNameIndexRebuildTest {
     service.rebuildNameIndexForTenant(TENANT_ID);
     service.rebuildNameIndexForTenant(TENANT_ID);
 
-    verify(nameTokenRepository, times(2)).replaceForMember(eq(1L), any());
+    verify(nameTokenRepository, times(2)).replaceForMember(eq(1L), any(), any());
     // 每次 3 个 token（m / 1 / m1），两次共 6 行
     assertEquals(6, allTokenRows().size());
   }
@@ -165,13 +165,13 @@ class MemberNameIndexRebuildTest {
     when(memberRepository.findById(any())).thenReturn(Optional.of(member(1L, "M1")));
     // 端口实现负责"补偿删除 + 原样抛出"（见 MemberNameTokenRepositoryAdapter）；服务侧只记 failed 并继续。
     org.mockito.Mockito.doThrow(new ApiException(500, "DB_DOWN", "插入失败"))
-        .when(nameTokenRepository).replaceForMember(any(), any());
+        .when(nameTokenRepository).replaceForMember(any(), any(), any());
 
     NameIndexRebuildResult result = service.rebuildNameIndexForTenant(TENANT_ID);
 
     assertEquals(1, result.failed());
     assertEquals(0, result.rebuilt());
-    verify(nameTokenRepository, atLeastOnce()).replaceForMember(any(), any());
+    verify(nameTokenRepository, atLeastOnce()).replaceForMember(any(), any(), any());
   }
 
   @Test
@@ -206,14 +206,14 @@ class MemberNameIndexRebuildTest {
   @SuppressWarnings("unchecked")
   private void assertEmptyTokenWrite(Long memberId) {
     ArgumentCaptor<Collection<MemberNameToken>> captor = ArgumentCaptor.forClass(Collection.class);
-    verify(nameTokenRepository).replaceForMember(eq(memberId), captor.capture());
+    verify(nameTokenRepository).replaceForMember(eq(memberId), captor.capture(), any());
     assertEquals(0, captor.getValue().size());
   }
 
   @SuppressWarnings("unchecked")
   private List<MemberNameToken> allTokenRows() {
     ArgumentCaptor<Collection<MemberNameToken>> captor = ArgumentCaptor.forClass(Collection.class);
-    verify(nameTokenRepository, times(2)).replaceForMember(any(), captor.capture());
+    verify(nameTokenRepository, times(2)).replaceForMember(any(), captor.capture(), any());
     List<MemberNameToken> rows = new ArrayList<>();
     captor.getAllValues().forEach(rows::addAll);
     return rows;

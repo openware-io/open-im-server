@@ -38,7 +38,7 @@ public interface MemberNameTokenRepository {
    * 而回填扫描的判据是"没有 token 行"——半套索引会被误判为已完成，此后按姓名再也搜不到这名客户。
    * 失败时由适配器补偿删除（退回零 token 行状态，交给下一轮回填），并把原异常抛出。
    */
-  void replaceForMember(Long memberId, Collection<MemberNameToken> tokens);
+  void replaceForMember(Long memberId, Collection<MemberNameToken> tokens, java.time.LocalDateTime occurredAt);
 
   /**
    * 关键词 token <b>全部命中</b>的候选 member_id（升序）。

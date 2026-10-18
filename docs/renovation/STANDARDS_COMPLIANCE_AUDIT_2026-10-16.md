@@ -850,12 +850,11 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   DTO 从 `AuditSnapshot` 取时间。
 - `Refund`（payment）迁移：模型去两列，端口读返回 `Persisted`、`insert/updateStatusGuarded`
   接收 `occurredAt`，DTO 从 `AuditSnapshot` 取时间。
-- `PayCollect`、`PaymentIntent`、`Shift`、`PaymentEventOutboxEntry` 的时间字段是**业务时间**
-  （收款单建立/状态迁移、支付有效期、交班时序、事件发生时刻），加入 allowlist 并写明理由，
-  不按记账列删除。
-- 仍有 **6 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
+- `MemberNameToken`（customer）迁移：模型去 `createdAt`，端口 `replaceForMember` 接收 `occurredAt`，
+  适配器写入该时间；无响应读者，不需要视图。
+- `PointLedgerEntry.createdAt` 是**刻意暴露的流水时间**（`GET /me/points` 的响应字段），加入 allowlist。
+- 仍有 **4 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
   门禁暂为 report-only（batch 2）：
-  - customer 2：`MemberNameToken`、`PointLedgerEntry`；
   - order inventory 2：`InventoryMaterial`、`InventoryTransaction`；
   - tenant 2：`PricingPlan`、`Tenant`。
 

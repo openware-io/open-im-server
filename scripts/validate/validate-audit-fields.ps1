@@ -12,6 +12,7 @@
 #   - PaymentIntent: createdAt/updatedAt are payment lifetime facts (expiry/timeout decisions).
 #   - Shift: createdAt is the shift's business time (record ordering), not bookkeeping.
 #   - PaymentEventOutboxEntry: createdAt is the event's creation time used by the outbox relay.
+#   - PointLedgerEntry: createdAt is the ledger entry's own timestamp, exposed by GET /me/points.
 #
 # IMPORTANT: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI).
 #
@@ -33,7 +34,8 @@ $allowlist = @(
   'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/collect/model/PayCollect.java',
   'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/intent/model/PaymentIntent.java',
   'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/shift/model/Shift.java',
-  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/event/model/PaymentEventOutboxEntry.java'
+  'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/event/model/PaymentEventOutboxEntry.java',
+  'platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/domain/point/model/PointLedgerEntry.java'
 )
 
 $violations = [System.Collections.Generic.List[string]]::new()

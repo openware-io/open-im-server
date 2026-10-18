@@ -54,7 +54,7 @@ public class MemberNameTokenRepositoryAdapter implements MemberNameTokenReposito
   }
 
   @Override
-  public void replaceForMember(Long memberId, Collection<MemberNameToken> tokens) {
+  public void replaceForMember(Long memberId, Collection<MemberNameToken> tokens, LocalDateTime occurredAt) {
     if (memberId == null) {
       return;
     }
@@ -62,14 +62,13 @@ public class MemberNameTokenRepositoryAdapter implements MemberNameTokenReposito
     if (tokens == null || tokens.isEmpty()) {
       return;
     }
-    LocalDateTime now = LocalDateTime.now();
     try {
       for (MemberNameToken token : tokens) {
         CstMemberNameTokenPo row = new CstMemberNameTokenPo();
         row.setTenantId(token.tenantId());
         row.setMemberId(memberId);
         row.setToken(token.token());
-        row.setCreatedAt(token.createdAt() == null ? now : token.createdAt());
+        row.setCreatedAt(occurredAt);
         // 唯一键 (tenant_id, member_id, token) 冲突必须抛出：吞掉它会让调用方以为索引已重建。
         nameTokenMapper.insert(row);
       }
@@ -117,7 +116,6 @@ public class MemberNameTokenRepositoryAdapter implements MemberNameTokenReposito
   }
 
   private static MemberNameToken toDomain(CstMemberNameTokenPo po) {
-    return new MemberNameToken(po.getId(), po.getTenantId(), po.getMemberId(), po.getToken(),
-        po.getCreatedAt());
+    return new MemberNameToken(po.getId(), po.getTenantId(), po.getMemberId(), po.getToken());
   }
 }
