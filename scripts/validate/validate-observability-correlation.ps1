@@ -29,7 +29,7 @@ try {
     $gatewayExit = $LASTEXITCODE
 
     $infra = & $maven -B -q -pl sdk/infrastructure -am `
-      '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest' `
+      '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest,SchedulingCorrelationConfigTest,AsyncRequestIdPropagationTest' `
       '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
     $infraExit = $LASTEXITCODE
 
@@ -42,7 +42,7 @@ try {
     }
     if ($infraExit -ne 0) {
       $infra = & $maven -B -q -pl sdk/infrastructure -am `
-        '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest' `
+        '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest,SchedulingCorrelationConfigTest,AsyncRequestIdPropagationTest' `
         '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
       $infraExit = $LASTEXITCODE
     }
@@ -55,7 +55,7 @@ try {
     $violations.Add('Gateway correlation-id test failed (RequestIdFilterTest)')
   }
   if ($infraExit -ne 0) {
-    $violations.Add('HTTP/MQ/scheduled correlation-id tests failed (TenantContextFilterTest, RemotingMqConsumerFactoryTest, RequestIdTaskDecoratorTest)')
+    $violations.Add('HTTP/MQ/scheduled/async correlation-id tests failed (TenantContextFilterTest, RemotingMqConsumerFactoryTest, RequestIdTaskDecoratorTest, SchedulingCorrelationConfigTest, AsyncRequestIdPropagationTest)')
   }
 
   # Every scheduling-enabled application must pull in the scheduler decorator, either directly

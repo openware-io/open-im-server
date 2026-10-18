@@ -993,6 +993,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.40 调度与异步关联标识（Q05/Q06，2026-10-18）
+
+- `SchedulingCorrelationConfigTest` 从 Spring 容器取 `ThreadPoolTaskScheduler` 执行任务，
+  验证任务内 requestId 以 `job-` 开头，而不是只直接调用 decorator。
+- 新增 `RequestIdPropagatingTaskDecorator` 与独立 `applicationTaskExecutor/taskExecutor`；
+  原先 `@Async` 会复用调度器（拿到 `job-` 标识、与定时任务争抢 4 线程池），已修正。
+- `AsyncRequestIdPropagationTest` 验证异步线程继承父 `req-http`。
+
 ### 8.38 营销 CAS 适配器测试（Q04，2026-10-18）
 
 - `MktConsentRepositoryAdapterTest`、`MktCouponRepositoryAdapterTest` 各 2 条：更新 SQL 含 `version` 谓词、
