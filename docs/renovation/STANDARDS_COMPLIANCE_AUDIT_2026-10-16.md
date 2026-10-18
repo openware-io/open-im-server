@@ -885,6 +885,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   命中 0 行抛 `MKT_CONSENT_VERSION_CONFLICT`；marketing 服务测试通过（4 个）。
 - `MktCoupon.save` 的更新分支同样改为 CAS：`version = ?` 谓词 + 自增，
   命中 0 行抛 `MKT_COUPON_VERSION_CONFLICT`。
+- `MktCouponIssuance.save` 收窄为**仅新增**：带 `id` 的调用直接拒绝，状态迁移只能走
+  `markRedeemed` 的状态机 + CAS，避免重新打开重复核销窗口。
 
 **环境验证（2026-10-18，JDK 25 已恢复）**：JDK 25 实际安装于
 `C:\Program Files\Java\jdk-25.0.3`（默认 `JAVA_HOME` 仍指向不存在的 `jdk-25`，运行前需显式设置）。

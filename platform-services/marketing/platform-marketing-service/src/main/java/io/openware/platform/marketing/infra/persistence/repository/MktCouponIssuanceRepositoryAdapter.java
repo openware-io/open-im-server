@@ -44,9 +44,13 @@ public class MktCouponIssuanceRepositoryAdapter implements MktCouponIssuanceRepo
 
   @Override
   public MktCouponIssuance save(MktCouponIssuance issuance) {
+    if (issuance.id() != null) {
+      // 发放状态的迁移必须走 markRedeemed：它把 status / version 条件和写入放在同一条 UPDATE 里。
+      // 允许 save 覆盖已有行会绕过状态机与 CAS，重新打开重复核销的窗口。
+      throw new IllegalStateException("MKT_COUPON_ISSUANCE_USE_MARK_REDEEMED");
+    }
     LocalDateTime now = LocalDateTime.now();
     MktCouponIssuancePo po = new MktCouponIssuancePo();
-    po.setId(issuance.id());
     po.setTenantId(issuance.tenantId());
     po.setCouponId(issuance.couponId());
     po.setCustomerId(issuance.customerId());
@@ -56,14 +60,9 @@ public class MktCouponIssuanceRepositoryAdapter implements MktCouponIssuanceRepo
     po.setStatus(issuance.status());
     po.setIdempotencyKey(issuance.idempotencyKey());
     po.setVersion(issuance.version());
-    if (po.getId() == null) {
-      po.setCreatedAt(now);
-      po.setUpdatedAt(now);
-      mapper.insert(po);
-    } else {
-      po.setUpdatedAt(now);
-      mapper.updateById(po);
-    }
+    po.setCreatedAt(now);
+    po.setUpdatedAt(now);
+    mapper.insert(po);
     return toDomain(po);
   }
 

@@ -17,7 +17,12 @@ public interface MktCouponIssuanceRepository {
   /** 按幂等键读取发放记录（唯一键 uk_mkt_coupon_issuance_idempotency 保证最多一条）。 */
   Optional<MktCouponIssuance> findByIdempotencyKey(String idempotencyKey);
 
-  /** 保存发放记录：{@code id} 为空时新增，否则更新。 */
+  /**
+   * 新增发放记录（{@code id} 必须为空）。
+   *
+   * <p>已落库的发放只能经 {@link #markRedeemed} 迁移状态；实现必须拒绝带 {@code id} 的调用，
+   * 否则会绕过状态机与版本 CAS。
+   */
   MktCouponIssuance save(MktCouponIssuance issuance);
 
   /**
