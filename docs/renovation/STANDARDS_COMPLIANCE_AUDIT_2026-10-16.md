@@ -2,6 +2,7 @@
 
 本文是**一次性的审查记录**，不是规范。规范正文在 `docs/standards/`；门禁目录在
 `docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md` §领域规范门禁。
+“门禁已绿但证据不完整”的遗留项见 [REMEDIATION_QUEUE.md](REMEDIATION_QUEUE.md)。
 
 审查方法：以 **15 份规范文档 + 27 个校验器脚本源码 + 根/域/叶子 POM + CI 接线** 为对象，
 逐条把规范条文映射到实际生效的门禁。**每一条结论都回到源码或实测**，不依据门禁名称推断。
@@ -930,6 +931,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   - `InventoryStockPo` 登记为 `COUNTER`（并发由库存数量原子条件保护，version 只是修订计数）。
 - order 服务全量测试 **743 个通过**；`Product`/`InventoryMaterial` 的适配器测试锁定了版本谓词与自增。
 - 门禁已接入统一入口，负向验证（临时加入不存在的登记项）按预期失败。
+- 每条 `CAS` 条目现在必须附 `evidence=<adapter/mapper>`；门禁检查文件存在且含版本谓词，
+  防止“标了 CAS 但代码没有 CAS”。
 
 ### 8.28 门禁注册表与编号（2026-10-18）
 

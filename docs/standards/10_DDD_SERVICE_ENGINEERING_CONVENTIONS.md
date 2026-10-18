@@ -346,6 +346,7 @@
 管理方式：
 
 - 所有带 `version` 的 PO 必须登记在 `scripts/validate/reserved-identifiers-reviewed.txt`；
+- 标记 `CAS` 的条目必须附 `evidence=<adapter/mapper 路径>`，门禁会检查文件存在且含版本谓词；
 - 新增 `version` 字段未登记、或登记项已不存在，门禁失败；
 - 标记为 `PENDING` 的是已知迁移债务，只减不增；
 - 门禁 `validate-reserved-identifiers.ps1` 已接入统一入口。

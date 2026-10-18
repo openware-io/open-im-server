@@ -29,7 +29,12 @@ if (Test-Path -LiteralPath $reviewPath) {
     if (-not $trimmed -or $trimmed.StartsWith('#')) { continue }
     $parts = $trimmed -split '\|'
     if ($parts.Count -lt 2) { continue }
-    $reviewed[$parts[0].Trim().Replace('\', '/')] = $parts[1].Trim()
+    $status = $parts[1].Trim()
+    $reason = if ($parts.Count -ge 3) { $parts[2].Trim() } else { '' }
+    $reviewed[$parts[0].Trim().Replace('\', '/')] = [pscustomobject]@{
+      Status = $status
+      Reason = $reason
+    }
   }
 }
 
@@ -50,8 +55,26 @@ try {
     if (-not $reviewed.ContainsKey($normalized)) {
       $violations.Add("New version field must be reviewed and registered in reserved-identifiers-reviewed.txt: $normalized")
     }
-    elseif ($reviewed[$normalized] -eq 'PENDING') {
+    elseif ($reviewed[$normalized].Status -eq 'PENDING') {
       $pending.Add($normalized)
+    }
+    elseif ($reviewed[$normalized].Status -eq 'CAS') {
+      $evidenceMatch = [regex]::Match($reviewed[$normalized].Reason, 'evidence=(\S+)')
+      if (-not $evidenceMatch.Success) {
+        $violations.Add("CAS entry must cite an evidence file: $normalized")
+      }
+      else {
+        $evidencePath = Join-Path $root $evidenceMatch.Groups[1].Value
+        if (-not (Test-Path -LiteralPath $evidencePath -PathType Leaf)) {
+          $violations.Add("CAS evidence file does not exist: $($evidenceMatch.Groups[1].Value)")
+        }
+        else {
+          $evidenceCode = [System.IO.File]::ReadAllText($evidencePath, [System.Text.UTF8Encoding]::new($false, $true))
+          if ($evidenceCode -notmatch 'getVersion|version\s*=\s*#\{|version\s*=\s*version\s*\+') {
+            $violations.Add("CAS evidence file has no version predicate: $($evidenceMatch.Groups[1].Value)")
+          }
+        }
+      }
     }
   }
 
