@@ -91,6 +91,8 @@
 | 关联标识存在 | 入口适配器（HTTP/RPC/WS/MQ/定时任务）在日志与消息头中携带关联标识 |
 | 指标口径唯一 | 同名指标不在不同模块重复定义；单位与标签一致 |
 
+`日志脱敏` 的静态部分已由 `scripts/validate/validate-observability-redaction.ps1`（G37）实现：日志语句不得直接打印 `token()/password()/secret()/accessKey()/signature()` 取值。运行期采样与关联标识传播仍为人工检查项。
+
 **人工检查项**（新增关键链路评审时确认）：
 
 1. 该链路的日志上下文、指标口径、追踪传播、告警条件与脱敏是否逐项具备。

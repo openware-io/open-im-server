@@ -948,6 +948,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 预签名直传会话（`/upload-sessions`）不是代理上传，门禁只拦路径以 `/upload` 结尾的路由。
 - `URL 规范唯一` 与 `日志脱敏` 仍需配置/运行期检查，保留为人工项。
 
+### 8.30 可观测性日志脱敏门禁（40 章，2026-10-18）
+
+- 新增 `scripts/validate/validate-observability-redaction.ps1`（G37）：扫描日志语句，
+  禁止直接打印 `token()/password()/secret()/accessKey()/secretKey()/signature()/authorization()` 取值。
+- 这是窄规则，不覆盖运行期采样、签名 URL 文本与关联标识传播；这些仍为人工检查项。
+- 当前 0 违规。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**
