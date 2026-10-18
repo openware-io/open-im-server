@@ -65,8 +65,21 @@ public class MktConsentRepositoryAdapter implements MktConsentRepository {
       po.setUpdatedAt(now);
       mapper.insert(po);
     } else {
-      po.setUpdatedAt(now);
-      mapper.updateById(po);
+      // changeGrant 已把版本 +1；CAS 的期望值是它之前的版本。
+      int expectedVersion = consent.version() == null ? 0 : consent.version() - 1;
+      int updated = mapper.update(null, Wrappers.<MktConsentPo>lambdaUpdate()
+          .eq(MktConsentPo::getId, consent.id())
+          .eq(MktConsentPo::getVersion, expectedVersion)
+          .set(MktConsentPo::getPolicyVersion, consent.policyVersion())
+          .set(MktConsentPo::getGranted, consent.granted() ? 1 : 0)
+          .set(MktConsentPo::getSource, consent.source())
+          .set(MktConsentPo::getOccurredAt, consent.occurredAt())
+          .set(MktConsentPo::getWithdrawnAt, consent.withdrawnAt())
+          .set(MktConsentPo::getUpdatedAt, now)
+          .setSql("version = version + 1"));
+      if (updated == 0) {
+        throw new IllegalStateException("MKT_CONSENT_VERSION_CONFLICT");
+      }
     }
     return toDomain(po);
   }
