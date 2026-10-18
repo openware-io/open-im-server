@@ -9,8 +9,8 @@
 #   1. persistence or serialisation annotations on domain types
 #      (@TableName @TableId @TableField @Entity @Data @Document @JsonIgnore and friends)
 #   2. imports reaching into infrastructure or persistence packages
-#   3. Lombok @Data specifically, because an unconstrained whole-object setter is exactly what the
-#      aggregate-root rule forbids
+#   3. Lombok @Data/@Setter specifically, because an unconstrained whole-object setter is exactly what
+#      the aggregate-root rule forbids
 #
 # Deliberately allowed in the domain layer: java.*, lombok @Getter/@Builder/@RequiredArgsConstructor,
 # domain.repository, domain.event, domain.service, domain.policy and other domain packages.
@@ -27,7 +27,7 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $worklistPath = Join-Path $root '.outputs\quality\domain-model-purity-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
 
-$annotationPattern = '@(TableName|TableId|TableField|TableLogic|Entity|Document|Data|JsonIgnore|JsonInclude|JsonProperty)\b'
+$annotationPattern = '@(TableName|TableId|TableField|TableLogic|Entity|Document|Data|Setter|JsonIgnore|JsonInclude|JsonProperty)\b'
 $infraImportPattern = 'import\s+(io\.openware\.infrastructure|com\.baomidou|org\.apache\.ibatis|org\.springframework|jakarta\.persistence|redis\.clients|org\.apache\.rocketmq|javax\.persistence)\b'
 $persistenceImportPattern = 'import\s+[^;]*\.persistence\.'
 
