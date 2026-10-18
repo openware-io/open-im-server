@@ -9,11 +9,14 @@ Get-ChildItem -Path (Join-Path $root 'sdk'), (Join-Path $root 'gateways'), (Join
   [xml]$pom = Get-Content -LiteralPath $_.FullName -Raw -Encoding UTF8
   $manager = New-Object System.Xml.XmlNamespaceManager($pom.NameTable)
   $manager.AddNamespace('m', 'http://maven.apache.org/POM/4.0.0')
-  foreach ($dependency in $pom.SelectNodes('/m:project/m:dependencies/m:dependency', $manager)) {
-    $groupId = $dependency.SelectSingleNode('m:groupId', $manager).InnerText
-    $artifactId = $dependency.SelectSingleNode('m:artifactId', $manager).InnerText
-    if ($groupId -eq 'io.openware' -and $artifactId -like '*-service') {
-      $violations.Add("Cross-service implementation dependency is forbidden: $($_.FullName) -> $artifactId")
+  foreach ($xpath in @('/m:project/m:dependencies/m:dependency',
+      '/m:project/m:dependencyManagement/m:dependencies/m:dependency')) {
+    foreach ($dependency in $pom.SelectNodes($xpath, $manager)) {
+      $groupId = $dependency.SelectSingleNode('m:groupId', $manager).InnerText
+      $artifactId = $dependency.SelectSingleNode('m:artifactId', $manager).InnerText
+      if ($groupId -eq 'io.openware' -and $artifactId -like '*-service') {
+        $violations.Add("Cross-service implementation dependency is forbidden: $($_.FullName) -> $artifactId")
+      }
     }
   }
 }

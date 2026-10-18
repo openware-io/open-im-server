@@ -871,6 +871,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   扫描 `*/controller/*` 的 `@Transactional`，防止事务边界回到 HTTP 适配层。
   V1 的 12 个事务方法已全部迁移，门禁首次运行即为 0，直接作为**阻塞门禁**运行通过。
 - `controller-repository-boundary` 维持 blocking（14 → 0）。
+- `service-dependency-graph` 现在同时扫描 `dependencies` 与 `dependencyManagement`，
+  避免跨服务实现依赖从依赖管理段绕过门禁。
 
 **环境限制**：本机 JDK 25 仍缺失，Maven 的 enforcer 要求 `[25,)`。上述门禁与受影响模块
 测试已用 JDK 21 + `-Djava.version=21 -Denforcer.skip=true` 验证；恢复 JDK 25 后仍需复跑
