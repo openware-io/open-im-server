@@ -8,6 +8,7 @@ import lombok.Getter; import lombok.Setter;
   @TableId(type = IdType.AUTO) private Long id;
   @TableField(typeHandler = ReleasePlatformTypeHandler.class) private ReleasePlatform platform;
   @TableField(typeHandler = ReleaseChannelTypeHandler.class) private ReleaseChannel channel;
+  /** 业务发布版本号（字符串），不是乐观锁。并发保护用 row_version。reserved-name-exception: BUSINESS_VERSION */
   private String version; @TableField("build_number") private Long buildNumber;
   @TableField(typeHandler = ReleaseStatusTypeHandler.class) private ReleaseStatus status;
   private Boolean mandatory; @TableField("rollout_percent") private Integer rolloutPercent; @TableField("rollout_salt") private String rolloutSalt;

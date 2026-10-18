@@ -15,7 +15,7 @@
 | Q04 | `MktConsent` / `MktCoupon` 的 CAS 无适配器测试 | 已补适配器测试，断言 SQL 谓词与自增 | 0 行冲突路径未覆盖 | 补适配器测试，断言版本谓词与自增 | ✅ 完成 |
 | Q05 | `RequestIdTaskDecorator` 未验证 Spring 调度器真的应用 | 已用 `SchedulingCorrelationConfigTest` 从容器取调度器执行任务验证 | 只直接调用 decorator | Spring 上下文测试：调度任务内 `RequestIdContext` 非空 | ✅ 完成 |
 | Q06 | `@Async` 线程未传播 `RequestIdContext` | 已加独立 `taskExecutor` + 传播 decorator；发现并修复复用调度器的问题 | 只覆盖 HTTP/MQ/调度 | 为 async executor 加 TaskDecorator 并测试 | ✅ 完成 |
-| Q07 | `BUSINESS_VERSION` / `COUNTER` 只登记未改名 | `ClientRelease.version`、`InventoryStock.version` 仍叫 version | B 路线没有真正执行，语义仍可能误导 | 决定改名（DB/API 迁移）或给出不改的 ADR 与禁止并发判定注释 | 待办 |
+| Q07 | `BUSINESS_VERSION` / `COUNTER` 只登记未改名 | ADR 0007 + PO 标记 + 门禁禁 `@Version` | B 路线没有真正执行，语义仍可能误导 | 决定改名（DB/API 迁移）或给出不改的 ADR 与禁止并发判定注释 | ✅ 完成（ADR 决定不改名） |
 | Q08 | 币种写穿/快照只有局部测试 | 写穿是 mock 调用，快照只覆盖订单开关台 | 没有真实租户切币种 + 跨服务快照回归 | 集成测试：切币种同事务写穿；订单/支付/退款历史快照不变 | 待办 |
 | Q09 | `observability-metrics` 当前 0 指标 | 门禁空绿 | 不能证明指标口径能力 | 第一批指标落地后复审；在规范中注明“尚无指标” | 待办 |
 | Q10 | `verify-inventory` 只校验脚本清单 | 不代表 E2E 执行过 | 清单一致 ≠ 真实验收 | CI/发布清单显式调用并保留运行证据 | 待办 |

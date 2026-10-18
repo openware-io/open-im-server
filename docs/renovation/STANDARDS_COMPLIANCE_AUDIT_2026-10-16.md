@@ -993,6 +993,15 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.41 `version` 具名例外（Q07，2026-10-18）
+
+- 决策不改名：`ClientRelease.version` 是业务版本字符串（锁在 `row_version`），
+  `InventoryStock.version` 是修订计数器（锁在数量条件 UPDATE）。
+- 新增 [ADR 0007](../adr/0007-version-named-exceptions.md)；两个 PO 字段写
+  `reserved-name-exception: BUSINESS_VERSION|COUNTER`。
+- `validate-reserved-identifiers.ps1` 对这两类状态校验标记存在，并禁止 `@Version`；
+  新增例外必须新 ADR，不能只改登记表。
+
 ### 8.40 调度与异步关联标识（Q05/Q06，2026-10-18）
 
 - `SchedulingCorrelationConfigTest` 从 Spring 容器取 `ThreadPoolTaskScheduler` 执行任务，
