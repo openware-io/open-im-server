@@ -1,0 +1,39 @@
+# Reviewed inventory for the reserved field name `version` (standards/10).
+#
+# Format: <po-path> | CAS|READ_ONLY|APPEND_ONLY|PENDING | <reason>
+#   CAS         explicit WHERE version = ? CAS (or framework @Version) guards writes
+#   READ_ONLY   the port exposes no update path
+#   APPEND_ONLY inserts only; no update path
+#   PENDING     known debt: has a version column but writes are not guarded yet
+#
+# Rules:
+#   - a new PO with a version field fails the gate until it is reviewed here;
+#   - PENDING entries are migration debt and may only decrease;
+#   - a non-lock use must be renamed to revision/rowVersion instead of being listed here.
+
+im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/infra/clientrelease/persistence/po/ClientReleasePo.java | PENDING | release publishing uses a separate row_version; version still needs a decision
+platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstMemberPo.java | CAS | updateImBinding/updateAttributes take expectedVersion
+platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstPointAccountPo.java | CAS | point balance updates use expectedVersion
+platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstPointRuleConfigPo.java | CAS | rule updates use expectedVersion
+platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstWalletAccountPo.java | CAS | wallet updates use expectedVersion
+platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCampaignPo.java | READ_ONLY | repository only exposes findAvailable
+platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktConsentPo.java | CAS | changeGrant increments version and save uses version - 1 as expected
+platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponIssuancePo.java | CAS | markRedeemed guards status and expectedVersion
+platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponPo.java | CAS | save update branch uses expectedVersion
+platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponRedemptionPo.java | APPEND_ONLY | redemption rows are inserted once; uniqueness is the guard
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryMaterialPo.java | PENDING | update writes editable columns without a version predicate
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryStockPo.java | PENDING | atomic stock SQL exists but version is not part of the predicate
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvServerSessionPo.java | PENDING | session transitions use mapper SQL; verify whether version participates
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvSessionPo.java | PENDING | session transitions use mapper SQL; verify whether version participates
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrderPo.java | CAS | status transitions use AND version = ?
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdOrderVoidApprovalPo.java | CAS | reviewWithVersion uses AND version = ?
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdReservationRuleConfigPo.java | CAS | updateWindowsWithVersion uses AND version = ?
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdVoidRuleConfigPo.java | CAS | updateRequireApprovalWithVersion uses AND version = ?
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/ProductPo.java | PENDING | update goes through updateById without a version predicate
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/ReservationPo.java | CAS | update*WithVersion use AND version = ?
+platform-services/resource/platform-resource-service/src/main/java/io/openware/platform/resource/infra/persistence/po/OccupationPo.java | CAS | releaseWithVersion/cancelWithVersion use mapper conditions
+platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/infra/persistence/po/PricingPlanPo.java | CAS | updateWithVersion uses AND version = ?
+platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/infra/persistence/po/TenantConfigPo.java | CAS | upsert uses AND version = ? and increments
+common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/infra/persistence/po/ChannelConfigPo.java | CAS | status updates use expectedVersion
+common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/infra/persistence/po/PayDailyClosingRuleConfigPo.java | CAS | updateClosingRule uses AND version = ?
+common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/infra/persistence/po/PayRefundRuleConfigPo.java | CAS | updateRefundRule uses AND version = ?

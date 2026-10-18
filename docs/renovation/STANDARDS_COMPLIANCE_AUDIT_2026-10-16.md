@@ -911,6 +911,18 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 门禁已接入统一入口并作为 blocking 运行，当前 0 违规。
 - **仍未实现**的 16 章门禁：符号表唯一、缺省口径、快照不回改、写穿一致（需要集成/数据库级验证）。
 
+### 8.27 保留字段名门禁（`version` 的 A+B 路线，2026-10-18）
+
+- `standards/10` 明确 `version` 是语义保留字：有写路径必须是真锁（`@Version` 或显式 CAS），
+  非锁场景必须改名（`revision` / `rowVersion`）或登记为只读/追加。
+- 新增 `scripts/validate/validate-reserved-identifiers.ps1` 与
+  `scripts/validate/reserved-identifiers-reviewed.txt`：26 个带 `version` 的 PO 全部登记；
+  新增未登记、或登记项已消失均失败。
+- 当前 **6 个 PENDING**（待 A/B 决策）：
+  `ClientReleasePo`、`InventoryMaterialPo`、`InventoryStockPo`、`KtvServerSessionPo`、
+  `KtvSessionPo`、`ProductPo`。
+- 门禁已接入统一入口，负向验证（临时加入不存在的登记项）按预期失败。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**

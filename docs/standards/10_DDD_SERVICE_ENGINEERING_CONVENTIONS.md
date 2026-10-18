@@ -332,6 +332,23 @@
   对 `@TableField(exist = false)` 的字段生成列引用会在运行时抛
   `can not find lambda cache for this property [...]`，编译期完全看不出来。
 
+### 保留字段名与 version 的 A+B 路线
+
+`version` 在本项目里是**语义保留字段名**，不是普通列名。采用 A+B 综合路线：
+
+- **A（锁语义）**：有写入路径的聚合，`version` 必须是真的乐观锁——框架 `@Version` 或显式 CAS；否则按“装饰性 version”处理。
+- **B（改名）**：不是锁的字段不得叫 `version`；改用 `revision`、`rowVersion` 等名字，且不得继续在模型/API 中暴露 `version` 语义。
+- **只读/追加模型**：没有更新路径时，必须登记为 `READ_ONLY` / `APPEND_ONLY`，不得借 `version` 暗示并发保护。
+
+管理方式：
+
+- 所有带 `version` 的 PO 必须登记在 `scripts/validate/reserved-identifiers-reviewed.txt`；
+- 新增 `version` 字段未登记、或登记项已不存在，门禁失败；
+- 标记为 `PENDING` 的是已知迁移债务，只减不增；
+- 门禁 `validate-reserved-identifiers.ps1` 已接入统一入口。
+
+其他保留字段名（`id`、审计四列、`tenantId`/`storeId`）继续按本规范与既有门禁管理，不得复用为业务编码或展示字段。
+
 ### 转换层职责切分
 
 | 层 | 职责 | 禁止 |
