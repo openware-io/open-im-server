@@ -993,6 +993,19 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.38 营销 CAS 适配器测试（Q04，2026-10-18）
+
+- `MktConsentRepositoryAdapterTest`、`MktCouponRepositoryAdapterTest` 各 2 条：更新 SQL 含 `version` 谓词、
+  `version = version + 1`；0 行抛对应 `*_VERSION_CONFLICT`。
+- 这是适配器层 SQL 组装测试，不是真实数据库测试；真实 DB 的 CAS 由 Q03 的订单模块 H2 用例覆盖。
+
+### 8.37 Product/InventoryMaterial 真实 CAS（Q03，2026-10-18）
+
+- 新增 `ProductInventoryMaterialCasIntegrationTest`：H2 + Flyway + 真实 MyBatis。
+- 首次 `version=0` 更新命中并自增到 1；旧版本再更新分别抛
+  `PRODUCT_VERSION_CONFLICT` / `INVENTORY_MATERIAL_VERSION_CONFLICT`。
+- 2 条用例通过。
+
 ### 8.36 Member CAS 必填（Q02，2026-10-18）
 
 - `MemberRepository.updateImBinding/updateAttributes` 的 `expectedVersion` 由 `Integer` 改为 `int`；

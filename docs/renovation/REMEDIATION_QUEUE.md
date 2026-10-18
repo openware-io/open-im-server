@@ -11,8 +11,8 @@
 | --- | --- | --- | --- | --- | --- |
 | Q01 | `reserved-identifiers` 的 CAS 证据 | 每条 CAS 已引用 evidence 文件 | 和 MQ 台账一样，可能标了 CAS 但代码没有版本谓词 | 每条 CAS 必须引用证据文件；门禁检查文件存在且含版本谓词/`@Version` | ✅ 完成 |
 | Q02 | `MemberRepository.updateAttributes` 允许 `expectedVersion=null` | 已改为必填 `int`，始终 CAS | CAS API 仍留绕过口子 | 生产路径禁止 null；迁移/测试用独立入口并标注 | ✅ 完成 |
-| Q03 | `Product` / `InventoryMaterial` 的 CAS 只有 mock 测试 | 适配器测试用 mock mapper 捕获 Wrapper | 没证明真实 SQL 能执行、列集合正确 | 至少一个真实适配器/集成测试覆盖 `WHERE version = ?` 与自增 | 待办 |
-| Q04 | `MktConsent` / `MktCoupon` 的 CAS 无适配器测试 | 只有应用/领域测试 | 同上 | 补适配器测试，断言版本谓词与自增 | 待办 |
+| Q03 | `Product` / `InventoryMaterial` 的 CAS 只有 mock 测试 | 已补真实 H2 + Flyway 集成测试 | 没证明真实 SQL 能执行、列集合正确 | 至少一个真实适配器/集成测试覆盖 `WHERE version = ?` 与自增 | ✅ 完成 |
+| Q04 | `MktConsent` / `MktCoupon` 的 CAS 无适配器测试 | 已补适配器测试，断言 SQL 谓词与自增 | 0 行冲突路径未覆盖 | 补适配器测试，断言版本谓词与自增 | ✅ 完成 |
 | Q05 | `RequestIdTaskDecorator` 未验证 Spring 调度器真的应用 | 只直接调用 decorator | 测试通过不代表 `@Scheduled` 线程带 requestId | Spring 上下文测试：调度任务内 `RequestIdContext` 非空 | 待办 |
 | Q06 | `@Async` 线程未传播 `RequestIdContext` | 只覆盖 HTTP/MQ/调度 | `@EnableAsync` 服务异步线程丢关联标识 | 为 async executor 加 TaskDecorator 并测试 | 待办 |
 | Q07 | `BUSINESS_VERSION` / `COUNTER` 只登记未改名 | `ClientRelease.version`、`InventoryStock.version` 仍叫 version | B 路线没有真正执行，语义仍可能误导 | 决定改名（DB/API 迁移）或给出不改的 ADR 与禁止并发判定注释 | 待办 |
