@@ -996,8 +996,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 ### 8.41 `version` 具名例外撤回并改名（Q07，2026-10-18）
 
 - ADR 0007 已撤回：不接受“业务版本字符串/修订计数器”继续占用 `version`。
-- `InventoryStock.version` → `revision`；`ClientRelease.version` → `releaseVersion`
-  （DB 列 `release_version`，API DTO 仍输出 JSON `version` 仅作兼容）。
+- `InventoryStock.version` → `revision`；`ClientRelease.version` → `releaseVersion`；
+  DB 基线已冻结，列改名走 V2 迁移；API JSON 字段也统一为 `releaseVersion`，不做历史兼容或 JSON 别名。
 - 两条例外已从登记表删除；`standards/10` 恢复“非锁字段不得叫 version”，门禁不再接受例外标记。
 
 ### 8.40 调度与异步关联标识（Q05/Q06，2026-10-18）

@@ -12,9 +12,9 @@
 
 ## 实际处理
 
-- `ord_inventory_stock.version` → `revision`（V2 迁移，PO/领域/mapper/adapter/测试同步）；
-- `adm_client_release.version` → `release_version`（V2 迁移，领域/PO 改名 `releaseVersion`）；
-  API DTO 仍输出 JSON 字段 `version`，仅作外部兼容映射；
+- `ord_inventory_stock.version` → `revision`（V2 改名迁移，PO/领域/mapper/adapter/测试同步）；
+- `adm_client_release.version` → `release_version`（V2 改名迁移，领域/PO/DTO/前端契约统一改名 `releaseVersion`）；
+- 不考虑历史数据兼容，不保留 JSON 兼容映射；基线 V1 已冻结，因此列改名走 V2；
 - `reserved-identifiers-reviewed.txt` 删除两条例外；
 - `standards/10` 恢复“非锁字段不得叫 `version`”，门禁不再接受例外标记。
 

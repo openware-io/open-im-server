@@ -206,7 +206,7 @@ class AdminBatchZeroArchitectureGateTest {
     assertTrue(baseline.contains("adm_app_release"), "retired table name must stay documented in the baseline");
     assertFalse(Files.exists(MODULE_ROOT.resolve(
         "src/main/resources/db/migration/V2__backfill_adm_management_domain.sql")));
-    // V2 起恢复增量迁移：客户端发布版本列改名 release_version（standards/10）。
+    // 基线已冻结；列改名通过 V2 增量迁移完成。
     assertEquals(List.of("V1__adm_management_domain_baseline.sql",
             "V2__adm_client_release_release_version.sql"),
         Files.list(MODULE_ROOT.resolve("src/main/resources/db/migration"))

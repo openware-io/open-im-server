@@ -239,7 +239,7 @@ cd D:\projects\cnb-oss\open-chat-app
 
 **内部 API 等价操作**：
 
-1. **创建草稿**：`POST /admin/client-releases`，字段含 `platform=android`、`channel=stable`、`version`、`buildNumber`、`releaseNotes`、`compatibility`、`artifacts`（直装 APK 需 `downloadUrl` + `sha256` + `sizeBytes`）。
+1. **创建草稿**：`POST /admin/client-releases`，字段含 `platform=android`、`channel=stable`、`releaseVersion`、`buildNumber`、`releaseNotes`、`compatibility`、`artifacts`（直装 APK 需 `downloadUrl` + `sha256` + `sizeBytes`）。
 2. **提交发布**：`POST /admin/client-releases/{id}/submit`：
    - `initialRolloutPercent=100` 且不填 `scheduledAt` → **立即发布**（状态 `released`，记录 `publishedAt`）。
    - 填 `scheduledAt`（未来时间）→ **定时发布**（状态 `scheduled`），到点由调度任务自动转为 `released`。
