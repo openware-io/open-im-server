@@ -373,7 +373,7 @@
 （`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：33 个一律全跑**。
 治理完成后**全部为阻断模式**：`scripts/validate/report-only-gates.txt` 当前**条目为空**（无任何豁免）。
 
-门禁编号索引见 [GATE_REGISTRY.md](GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、
+门禁编号索引见 [GATE_REGISTRY.md](../GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、
 统一入口与本文计数，`validate-gate-registry.ps1` 会校验四方一致。
 
 > **判据的权威来源是校验器脚本本身，不是本表。** 本表只说明每个门禁管什么、违规会怎样表述；

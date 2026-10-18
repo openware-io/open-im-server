@@ -918,14 +918,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 新增 `scripts/validate/validate-reserved-identifiers.ps1` 与
   `scripts/validate/reserved-identifiers-reviewed.txt`：26 个带 `version` 的 PO 全部登记；
   新增未登记、或登记项已消失均失败。
-- 当前 **6 个 PENDING**（待 A/B 决策）：
-  `ClientReleasePo`、`InventoryMaterialPo`、`InventoryStockPo`、`KtvServerSessionPo`、
-  `KtvSessionPo`、`ProductPo`。
+- 当前 **4 个 PENDING**（待 A/B 决策）：
+  `ClientReleasePo`、`InventoryMaterialPo`、`InventoryStockPo`、`ProductPo`。
+  `KtvServerSessionPo` / `KtvSessionPo` 已核实 mapper 使用 `WHERE id = ? AND version = ?`，改登记为 `CAS`。
 - 门禁已接入统一入口，负向验证（临时加入不存在的登记项）按预期失败。
 
 ### 8.28 门禁注册表与编号（2026-10-18）
 
-- 新增 [GATE_REGISTRY.md](../standards/GATE_REGISTRY.md)：33 个门禁按 G01–G33 编号，
+- 新增 [GATE_REGISTRY.md](../GATE_REGISTRY.md)：33 个门禁按 G01–G33 编号，
   记录门禁名、脚本、模式（blocking/report-only）与说明。
 - 编号是**稳定注册 ID**，不是文件名前缀；不改 32 个既有脚本名，避免破坏 invoke、文档链接和历史记录。
 - 新增 `validate-gate-registry.ps1` 元门禁：校验“脚本文件、注册表、invoke 列表、

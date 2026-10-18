@@ -23,8 +23,8 @@ platform-services/marketing/platform-marketing-service/src/main/java/io/openware
 platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponRedemptionPo.java | APPEND_ONLY | redemption rows are inserted once; uniqueness is the guard
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryMaterialPo.java | PENDING | update writes editable columns without a version predicate
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryStockPo.java | PENDING | atomic stock SQL exists but version is not part of the predicate
-platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvServerSessionPo.java | PENDING | session transitions use mapper SQL; verify whether version participates
-platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvSessionPo.java | PENDING | session transitions use mapper SQL; verify whether version participates
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvServerSessionPo.java | CAS | updateWithVersion uses WHERE id = ? AND version = ?
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvSessionPo.java | CAS | updateWithVersion/transferRoom use WHERE id = ? AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrderPo.java | CAS | status transitions use AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdOrderVoidApprovalPo.java | CAS | reviewWithVersion uses AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdReservationRuleConfigPo.java | CAS | updateWindowsWithVersion uses AND version = ?
