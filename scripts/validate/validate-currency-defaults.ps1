@@ -31,6 +31,10 @@ try {
     $tenant = & $maven -B -q -pl platform-services/tenant/platform-tenant-service -am `
       '-Dtest=TenantCurrencyControllerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
     $tenantExit = $LASTEXITCODE
+
+    $order = & $maven -B -q -pl platform-services/order/platform-order-service -am `
+      '-Dtest=OrderIntegrationTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
+    $orderExit = $LASTEXITCODE
   } finally {
     $ErrorActionPreference = $previousErrorAction
   }
@@ -41,6 +45,9 @@ try {
   }
   if ($tenantExit -ne 0) {
     $violations.Add('Tenant currency default/switch tests failed (TenantCurrencyControllerTest)')
+  }
+  if ($orderExit -ne 0) {
+    $violations.Add('Order currency snapshot test failed (OrderIntegrationTest)')
   }
 
   if ($violations.Count -eq 0) {

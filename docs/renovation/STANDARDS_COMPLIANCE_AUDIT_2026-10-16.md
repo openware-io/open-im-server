@@ -121,7 +121,7 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 |---|---|---|
 | P1 | 补 `mybatis-plus-jsqlparser*` 到禁用清单，并处理 13 个模块 | 门禁 + 改造决策 |
 | P1 | 修 `port-contract` 的路径模式（39 个文件未扫） | 门禁修复 |
-| P1 | 16 章门禁：字面量扫描 ✅、符号表唯一 ✅；缺省/快照/写穿 3 个仍待补 | 新增门禁 |
+| P1 | 16 章 5 个门禁：字面量 G13、符号表 G34、缺省/写穿/快照 G35 ✅ | 新增门禁 |
 | P1 | 事务边界门禁（12 处在产违规） | 新增门禁 + 改造 |
 | P2 | 审计字段/`@Setter` 领域模型门禁（21 + 3 处在产违规） | 新增门禁 + 改造 |
 | P2 | 补 `service-dependency-graph` 读 `dependencyManagement` | 门禁修复 |
@@ -911,9 +911,10 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 门禁已接入统一入口并作为 blocking 运行，当前 0 违规。
 - `符号表唯一` 也已实现：`scripts/validate/validate-currency-symbols.ps1` 扫描服务/SDK/网关主代码，
   符号、中文名与 `put/Map.of("USD"|"CNY", ...)` 映射只允许出现在 `Currency` 枚举；当前 0 违规。
-- `缺省口径` 也已实现：`scripts/validate/validate-currency-defaults.ps1` 运行 `CurrencyTest`、
-  `CurrencyResolverTest` 与 `TenantCurrencyControllerTest`，锁定“无行/空值/非法值 → USD”和写入校验。
-- **仍未实现**的 16 章门禁：快照不回改、写穿一致（需要数据库级集成验证）。
+- `缺省口径`、`快照不回改`、`写穿一致` 也已实现：`scripts/validate/validate-currency-defaults.ps1`
+  运行 `CurrencyTest`、`CurrencyResolverTest`、`TenantCurrencyControllerTest` 与
+  `OrderIntegrationTest`（后者新增真 H2 断言：开台/结台后订单 `currency_code` 快照不变）。
+- 16 章 5 个门禁现已全部有可执行校验：字面量 G13、符号表 G34、缺省/写穿/快照 G35。
 
 ### 8.27 保留字段名门禁（`version` 的 A+B 路线，2026-10-18）
 

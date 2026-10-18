@@ -128,6 +128,8 @@ class OrderIntegrationTest {
     assertNotNull(closed.closedAt());
     assertEquals("WAITING_PAYMENT", orderMapper.selectById(order.getId()).getStatus(),
         "结台即结算：没有待确认的客户自助加项时，结台后直接进入待收款");
+    assertEquals("CNY", orderMapper.selectById(order.getId()).getCurrencyCode(),
+        "历史单据的币种快照不得被开台/结台/金额写入改写");
 
     List<OrderItemPo> items =
         orderItemMapper.selectList(new QueryWrapper<OrderItemPo>().eq("order_id", order.getId()));
