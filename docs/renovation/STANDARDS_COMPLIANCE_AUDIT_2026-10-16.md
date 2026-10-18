@@ -946,7 +946,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 新增 `scripts/validate/validate-media-boundaries.ps1`（G36），覆盖 13 章 5 项中的 3 项静态检查：
   无代理上传路由、提供方 SDK 不越出 `common-media-service`、API/DTO 不泄漏 `MEDIA_INTERNAL_ENDPOINT`。
 - 预签名直传会话（`/upload-sessions`）不是代理上传，门禁只拦路径以 `/upload` 结尾的路由。
-- `URL 规范唯一` 与 `日志脱敏` 仍需配置/运行期检查，保留为人工项。
+- `URL 规范唯一` 也已实现：`scripts/validate/validate-media-url.ps1`（G40）校验网关仅一条
+  `/api/v1/media-public/**`、`StripPrefix=3`、无旧路径或 rewrite；13 章 5 项中 4 项已自动化。
+- `日志脱敏` 仍需配置/运行期检查，保留为人工项。
 
 ### 8.30 可观测性日志脱敏门禁（40 章，2026-10-18）
 
