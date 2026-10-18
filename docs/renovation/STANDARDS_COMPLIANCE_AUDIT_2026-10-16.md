@@ -170,9 +170,9 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 |---|---|---|
 | `SmsSendLog` | ✅ 完成（`36ea0cd`） | 改不可变 record：去 `@Setter`、去审计字段、补 `markSent`/`markFailed` |
 | `MailSendLog` | ✅ 完成（`36ea0cd`） | 同上 |
-| `AuditLog` | ⏳ **需要传输类型** | 与前两者**不同**：{@code createdAt} 真的进响应（`AuditLogView:54`），所以适配器重建时仍须带回，必须引入 `Persisted<T>` 之类的载体，不能只挪适配器 |
-| V2 主体（21 个 im-services 模型） | ⏳ | message 5 / user 12 / conversation 4；同样有"审计值是否进响应"的差异要逐模型判断 |
-| V1（14 控制器 / 72 调用点） | ⏳ | 门禁 `controller-repository-boundary` 已在**报告模式**追踪，清单见 `.outputs/quality/controller-repository-boundary-worklist.txt` |
+| `AuditLog` | ✅ 完成 | 已引入 `Persisted`/`AuditSnapshot` 载体，见 §8.24 |
+| V2 主体（21 个 im-services 模型） | ✅ 完成 | 审计字段清单归零，`audit-fields` 已转为 blocking；见 §8.24 |
+| V1（14 控制器 / 72 调用点） | ✅ 完成 | 12 个事务方法迁移，`controller-repository-boundary` 与 `controller-transaction-boundary` 均 blocking；见 §8.23/§8.25 |
 
 **已确证的可复用判据**（sms/mail 试点得出）：先问"**审计字段有没有读者**"。
 `SmsSendLog`/`MailSendLog` 的 `save` 返回领域对象、`update` 返回 void，应用层只用 `id`/`status`，
@@ -748,11 +748,11 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 | 模型 | 字段 | 判定 | 处理 |
 |---|---|---|---|
 | `ConversationMute` | `createdAt` | **纯记账**，无任何读者 | ✅ 已删除字段与 `create(..., occurredAt)` 参数，适配器写 `created_at` |
-| `ConversationGroup` | `createdAt`、`updatedAt` | 纯记账（版本语义由独立 `authorizationVersion` 承担） | ⏳ 但控制器直接返回领域对象，需先引入响应投影/载体 |
-| admin `ClientRelease` | 四列 | 待逐读者核实（可能进响应） | ⏳ 下一批 |
-| admin `ClientReleasePolicy` | 四列 | 同上 | ⏳ |
-| admin `ClientReleaseOperation` | `createdBy`、`createdAt` | 操作日志，需确认是否为业务事实 | ⏳ |
-| admin `ReleaseAuditLog` | `createdBy`、`createdAt` | 审计日志，`createdAt` 很可能是业务事实（事件时刻） | ⏳ 需判定 |
+| `ConversationGroup` | `createdAt`、`updatedAt` | 纯记账（版本语义由独立 `authorizationVersion` 承担） | ✅ 已引入 `ConversationGroupView` 与 `Persisted`（`8a3ac8a`） |
+| admin `ClientRelease` | 四列 | 纯记账，响应走视图 | ✅ 已迁移（`f1f7986`） |
+| admin `ClientReleasePolicy` | 四列 | 同上 | ✅ 已迁移（`f1f7986`） |
+| admin `ClientReleaseOperation` | `createdBy`、`createdAt` | 操作日志，字段是记录自身载荷 | ✅ allowlist（业务事实），见 `validate-audit-fields.ps1` |
+| admin `ReleaseAuditLog` | `createdBy`、`createdAt` | 审计日志，`createdAt` 是事件时刻 | ✅ allowlist（业务事实），见 `validate-audit-fields.ps1` |
 | `UserSyncIndex` | `createdAt` | **业务字段**：per-user 同步索引的消息时刻，供同步消费 | 保留（不是审计列） |
 
 **教训**：§8.11 的"12 个模型"是按**有响应读者的聚合**筛出来的，不是 `domain/**/model/` 的全集；
@@ -969,6 +969,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   `standards/43` §3 清单双向一致；新增脚本未登记、登记脚本不存在均失败。
 - 当前 13 个脚本一致。层级顺序、真机/模拟器证据与一次性数据清理仍需运行期人工验收，
   静态门禁不替代真实执行。
+
+### 8.33 全量回归（2026-10-18）
+
+- 执行 `invoke-engineering-validation.ps1 -Scope Full`（JDK 25）：**全部 39 个门禁 + `mvn clean verify` 通过**。
+- 关键测试计数：order 743、customer 228、admin 173（3 skipped）、payment 148、conversation 19、user 115。
+- **已知偶发**：首次全量运行时 `MediaServiceImageClientTest` 出现一次本地端口连接失败（该测试用随机端口启 `HttpServer`）；
+  单测、admin 模块全量与第二次全量均通过。后续应给该类本地端口测试加稳定化（固定 executor/重试或改用进程内 mock），
+  避免把环境抖动误判为业务失败。
 
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
