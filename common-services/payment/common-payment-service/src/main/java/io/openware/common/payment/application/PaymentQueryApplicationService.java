@@ -8,6 +8,7 @@ import io.openware.common.payment.domain.collect.model.PayCollect;
 import io.openware.common.payment.domain.collect.repository.PayCollectRepository;
 import io.openware.common.payment.domain.intent.model.PaymentIntent;
 import io.openware.common.payment.domain.intent.repository.PaymentIntentRepository;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.domain.shift.repository.ShiftRepository;
@@ -131,7 +132,7 @@ public class PaymentQueryApplicationService {
         List<PayCollect> collects = payCollectRepository.listConfirmedByOrderIds(tenantId, ids);
         List<PaymentIntent> intents = paymentIntentRepository.listByOrderIds(tenantId, ids);
         List<PaymentTransaction> transactions = loadTransactions(tenantId, intents);
-        List<Refund> refunds = refundRepository.listByOrderIds(tenantId, ids);
+        List<Persisted<Refund>> refunds = refundRepository.listByOrderIds(tenantId, ids);
 
         Map<Long, List<PayCollect>> collectsByOrder = new LinkedHashMap<>();
         for (PayCollect collect : collects) {
@@ -146,9 +147,9 @@ public class PaymentQueryApplicationService {
             transactionsByIntent.computeIfAbsent(transaction.paymentIntentId(), key -> new ArrayList<>())
                     .add(transaction);
         }
-        Map<Long, List<Refund>> refundsByOrder = new LinkedHashMap<>();
-        for (Refund refund : refunds) {
-            refundsByOrder.computeIfAbsent(refund.orderId(), key -> new ArrayList<>()).add(refund);
+        Map<Long, List<Persisted<Refund>>> refundsByOrder = new LinkedHashMap<>();
+        for (Persisted<Refund> refund : refunds) {
+            refundsByOrder.computeIfAbsent(refund.aggregate().orderId(), key -> new ArrayList<>()).add(refund);
         }
 
         // 结果顺序跟随请求顺序（列表页按当前页订单批量取，前端可直接按 orderId 索引）。
@@ -156,7 +157,7 @@ public class PaymentQueryApplicationService {
         for (Long orderId : ids) {
             List<PayCollect> orderCollects = collectsByOrder.getOrDefault(orderId, List.of());
             List<PaymentIntent> orderIntents = intentsByOrder.getOrDefault(orderId, List.of());
-            List<Refund> orderRefunds = refundsByOrder.getOrDefault(orderId, List.of());
+            List<Persisted<Refund>> orderRefunds = refundsByOrder.getOrDefault(orderId, List.of());
             if (orderCollects.isEmpty() && orderIntents.isEmpty() && orderRefunds.isEmpty()) {
                 continue;
             }
@@ -170,7 +171,7 @@ public class PaymentQueryApplicationService {
                                                       List<PayCollect> collects,
                                                       List<PaymentIntent> intents,
                                                       Map<Long, List<PaymentTransaction>> transactionsByIntent,
-                                                      List<Refund> refunds) {
+                                                      List<Persisted<Refund>> refunds) {
         Set<String> currencies = new LinkedHashSet<>();
         List<OrderCollectionsDto.Collection> collections = new ArrayList<>();
         long totalCollected = 0L;
@@ -210,7 +211,8 @@ public class PaymentQueryApplicationService {
 
         List<OrderCollectionsDto.Refund> refundViews = new ArrayList<>();
         long refundedAmount = 0L;
-        for (Refund refund : refunds) {
+        for (Persisted<Refund> row : refunds) {
+            Refund refund = row.aggregate();
             currencies.add(currencyOf(refund.currencyCode()));
             long approved = OrderCollectionsDto.minor(refund.approvedAmount());
             long requested = OrderCollectionsDto.minor(refund.requestedAmount());
@@ -226,8 +228,8 @@ public class PaymentQueryApplicationService {
                     currencyOf(refund.currencyCode()),
                     refund.providerRefundNo(),
                     refund.reason(),
-                    refund.createdAt(),
-                    refund.updatedAt()));
+                    row.audit() == null ? null : row.audit().createdAt(),
+                    row.audit() == null ? null : row.audit().updatedAt()));
         }
 
         // 币种：命中数据币种一致才给单一币种；否则只给标记，调用方不得跨币种相加。

@@ -1,5 +1,6 @@
 package io.openware.common.payment.application;
 
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.UUID;
 import io.openware.common.exception.ApiException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,19 +75,20 @@ public class RefundApplicationService {
             String requestId = UUID.randomUUID().toString();
             Refund draft = new Refund(null, tenantId, storeId,
                     context == null ? null : context.businessType(), orderId, null, requestId, amount, null,
-                    currencyCode, null, STATUS_PENDING, reason, requestedBy, null, null, null);
-            Refund saved = refundRepository.insert(draft);
+                    currencyCode, null, STATUS_PENDING, reason, requestedBy, null);
+            Persisted<Refund> saved =
+                    refundRepository.insert(draft, LocalDateTime.now());
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
                     .operatorId(requestedBy)
                     .action("payment.refund.request")
                     .actionLabel("退款申请")
                     .resourceType("refund")
-                    .resourceId(saved.requestId())
-                    .idempotencyKey(saved.requestId())
+                    .resourceId(saved.aggregate().requestId())
+                    .idempotencyKey(saved.aggregate().requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"orderId\":" + orderId + ",\"amount\":\"" + amount + "\",\"currencyCode\":\""
-                            + saved.currencyCode() + "\"}")
+                            + saved.aggregate().currencyCode() + "\"}")
                     .build());
             return RefundDto.from(saved);
         } catch (RuntimeException failure) {
@@ -113,7 +116,8 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto approveRefund(Long refundId, BigDecimal approvedAmount, Long approvedBy) {
         try {
-            Refund refund = requireRefund(refundId);
+            Persisted<Refund> row = requireRefund(refundId);
+            Refund refund = row.aggregate();
             requireStatus(refund, STATUS_PENDING, "approve");
             if (approvedAmount == null || approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalStateException("REFUND_AMOUNT_INVALID");
@@ -122,7 +126,8 @@ public class RefundApplicationService {
                 throw new IllegalStateException("REFUND_AMOUNT_EXCEEDS_REQUEST");
             }
             Refund approved = withStatus(refund, STATUS_APPROVED, approvedAmount, approvedBy, null);
-            transactionGuarded(approved, STATUS_PENDING, "approve");
+            Persisted<Refund> approvedRow =
+                    transactionGuarded(approved, STATUS_PENDING, "approve");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(refund.tenantId())
                     .operatorId(approvedBy)
@@ -134,7 +139,7 @@ public class RefundApplicationService {
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .detailJson("{\"approvedAmount\":\"" + approvedAmount + "\"}")
                     .build());
-            return RefundDto.from(approved);
+            return RefundDto.from(approvedRow);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.approve", "退款审批通过", null, refundId, null, failure);
             throw failure;
@@ -145,10 +150,11 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto rejectRefund(Long refundId, Long rejectedBy) {
         try {
-            Refund refund = requireRefund(refundId);
+            Persisted<Refund> row = requireRefund(refundId);
+            Refund refund = row.aggregate();
             requireStatus(refund, STATUS_PENDING, "reject");
             Refund rejected = withStatus(refund, STATUS_REJECTED, refund.approvedAmount(), rejectedBy, null);
-            transactionGuarded(rejected, STATUS_PENDING, "reject");
+            Persisted<Refund> rejectedRow = transactionGuarded(rejected, STATUS_PENDING, "reject");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(refund.tenantId())
                     .operatorId(rejectedBy)
@@ -159,7 +165,7 @@ public class RefundApplicationService {
                     .idempotencyKey(refund.requestId())
                     .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                     .build());
-            return RefundDto.from(rejected);
+            return RefundDto.from(rejectedRow);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.reject", "退款审批驳回", null, refundId, null, failure);
             throw failure;
@@ -170,7 +176,8 @@ public class RefundApplicationService {
     @Transactional
     public RefundDto markRefunded(Long refundId, String providerRefundNo, Long operatorId) {
         try {
-            Refund refund = requireRefund(refundId);
+            Persisted<Refund> row = requireRefund(refundId);
+            Refund refund = row.aggregate();
             requireStatus(refund, STATUS_APPROVED, "refund");
             if (paymentRuleService != null) {
                 PaymentRuleApplicationService.RefundRuleView rule = paymentRuleService.resolveRefund(
@@ -181,7 +188,7 @@ public class RefundApplicationService {
             }
             Refund refunded = withStatus(refund, STATUS_REFUNDED, refund.approvedAmount(), refund.approvedBy(),
                     providerRefundNo);
-            transactionGuarded(refunded, STATUS_APPROVED, "refund");
+            Persisted<Refund> refundedRow = transactionGuarded(refunded, STATUS_APPROVED, "refund");
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(refund.tenantId())
                     .operatorId(operatorId)
@@ -194,7 +201,7 @@ public class RefundApplicationService {
                     .detailJson("{\"providerRefundNo\":\""
                             + (providerRefundNo == null ? "" : providerRefundNo) + "\"}")
                     .build());
-            return RefundDto.from(refunded);
+            return RefundDto.from(refundedRow);
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.offline", "线下退款登记", null, refundId, null, failure);
             throw failure;
@@ -207,11 +214,10 @@ public class RefundApplicationService {
      * <p>受影响 0 行 = 状态已被他人改变。这里报 {@code REFUND_STATE_INVALID} 而不是冲突码：
      * 对调用方而言语义相同（这次迁移没生效、钱没退出去），而错误里的状态说明更有助于排查。
      */
-    private void transactionGuarded(Refund target, String expectedStatus, String action) {
-        if (!refundRepository.updateStatusGuarded(target, expectedStatus)) {
-            throw new IllegalStateException(
-                    "REFUND_STATE_INVALID: cannot " + action + " refund in state " + expectedStatus);
-        }
+    private Persisted<Refund> transactionGuarded(Refund target, String expectedStatus, String action) {
+        return refundRepository.updateStatusGuarded(target, expectedStatus, LocalDateTime.now())
+                .orElseThrow(() -> new IllegalStateException(
+                        "REFUND_STATE_INVALID: cannot " + action + " refund in state " + expectedStatus));
     }
 
     /** 生成迁移后的退款单快照（不可变模型按需替换字段）。 */
@@ -222,8 +228,7 @@ public class RefundApplicationService {
                 refund.requestedAmount(), approvedAmount, refund.currencyCode(),
                 providerRefundNo == null ? refund.providerRefundNo() : providerRefundNo, status,
                 refund.reason(), refund.requestedBy(),
-                approvedBy == null ? refund.approvedBy() : approvedBy, refund.createdAt(),
-                refund.updatedAt());
+                approvedBy == null ? refund.approvedBy() : approvedBy);
     }
 
     /**
@@ -250,7 +255,7 @@ public class RefundApplicationService {
                 .build());
     }
 
-    private Refund requireRefund(Long refundId) {
+    private Persisted<Refund> requireRefund(Long refundId) {
         return refundRepository.findById(refundId)
                 .orElseThrow(() -> new IllegalStateException("REFUND_NOT_FOUND"));
     }

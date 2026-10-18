@@ -1,6 +1,8 @@
 package io.openware.common.payment.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
@@ -26,21 +28,21 @@ public class RefundRepositoryAdapter implements RefundRepository {
   }
 
   @Override
-  public Optional<Refund> findById(Long refundId) {
-    return Optional.ofNullable(mapper.selectById(refundId)).map(RefundRepositoryAdapter::toDomain);
+  public Optional<Persisted<Refund>> findById(Long refundId) {
+    return Optional.ofNullable(mapper.selectById(refundId)).map(this::toPersisted);
   }
 
   @Override
-  public List<Refund> listByCreatedAtBetween(LocalDateTime fromInclusive, LocalDateTime toInclusive) {
+  public List<Persisted<Refund>> listByCreatedAtBetween(LocalDateTime fromInclusive, LocalDateTime toInclusive) {
     return mapper.selectList(Wrappers.<RefundPo>lambdaQuery()
             .ge(fromInclusive != null, RefundPo::getCreatedAt, fromInclusive)
             .le(toInclusive != null, RefundPo::getCreatedAt, toInclusive)
             .orderByDesc(RefundPo::getCreatedAt))
-        .stream().map(RefundRepositoryAdapter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public List<Refund> listByOrderIds(Long tenantId, List<Long> orderIds) {
+  public List<Persisted<Refund>> listByOrderIds(Long tenantId, List<Long> orderIds) {
     if (orderIds == null || orderIds.isEmpty()) {
       return List.of();
     }
@@ -49,31 +51,33 @@ public class RefundRepositoryAdapter implements RefundRepository {
             .in(RefundPo::getOrderId, orderIds)
             .orderByAsc(RefundPo::getCreatedAt)
             .orderByAsc(RefundPo::getId))
-        .stream().map(RefundRepositoryAdapter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public Refund insert(Refund refund) {
-    LocalDateTime now = LocalDateTime.now();
+  public Persisted<Refund> insert(Refund refund, LocalDateTime occurredAt) {
     RefundPo po = toPo(refund);
-    po.setCreatedAt(now);
-    po.setUpdatedAt(now);
+    po.setCreatedAt(occurredAt);
+    po.setUpdatedAt(occurredAt);
     mapper.insert(po);
-    return toDomain(po);
+    return toPersisted(po);
   }
 
   @Override
-  public boolean updateStatusGuarded(Refund refund, String expectedStatus) {
+  public Optional<Persisted<Refund>> updateStatusGuarded(Refund refund, String expectedStatus,
+                                                         LocalDateTime occurredAt) {
     // 状态守卫：判定与写入在同一条语句里，由数据库保证并发下只有一个赢家。
     // 影响 0 行 = 状态已被他人改变（例如另一名审批者已批准），调用方必须报冲突而不是当作成功。
-    return mapper.update(null, Wrappers.<RefundPo>lambdaUpdate()
+    int updated = mapper.update(null, Wrappers.<RefundPo>lambdaUpdate()
         .eq(RefundPo::getId, refund.id())
         .eq(RefundPo::getStatus, expectedStatus)
         .set(RefundPo::getStatus, refund.status())
         .set(RefundPo::getApprovedAmount, refund.approvedAmount())
         .set(RefundPo::getApprovedBy, refund.approvedBy())
         .set(RefundPo::getProviderRefundNo, refund.providerRefundNo())
-        .set(RefundPo::getUpdatedAt, LocalDateTime.now())) > 0;
+        .set(RefundPo::getUpdatedAt, occurredAt));
+    return updated > 0 ? Optional.ofNullable(mapper.selectById(refund.id())).map(this::toPersisted)
+        : Optional.empty();
   }
 
   private static RefundPo toPo(Refund refund) {
@@ -96,10 +100,14 @@ public class RefundRepositoryAdapter implements RefundRepository {
     return po;
   }
 
+  private Persisted<Refund> toPersisted(RefundPo po) {
+    return new Persisted<>(toDomain(po), new AuditSnapshot(po.getCreatedAt(), po.getUpdatedAt()));
+  }
+
   private static Refund toDomain(RefundPo po) {
     return new Refund(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessType(),
         po.getOrderId(), po.getPaymentTransactionId(), po.getRequestId(), po.getRequestedAmount(),
         po.getApprovedAmount(), po.getCurrencyCode(), po.getProviderRefundNo(), po.getStatus(),
-        po.getReason(), po.getRequestedBy(), po.getApprovedBy(), po.getCreatedAt(), po.getUpdatedAt());
+        po.getReason(), po.getRequestedBy(), po.getApprovedBy());
   }
 }

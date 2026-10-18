@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.payment.domain.billing.repository.OrderBillingRepository;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.infrastructure.audit.AuditClient;
@@ -30,10 +32,11 @@ class RefundApplicationServiceTest {
    */
   @org.junit.jupiter.api.BeforeEach
   void stubPortDefaults() {
-    when(refundRepository.insert(org.mockito.ArgumentMatchers.any(Refund.class)))
-        .thenAnswer(inv -> inv.getArgument(0));
+    when(refundRepository.insert(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(inv -> persisted(inv.getArgument(0)));
     when(refundRepository.updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class),
-        org.mockito.ArgumentMatchers.anyString())).thenReturn(true);
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
+        .thenAnswer(inv -> java.util.Optional.of(persisted(inv.getArgument(0))));
   }
 
   @Test
@@ -44,7 +47,7 @@ class RefundApplicationServiceTest {
     // 退款币种快照：订单读不到（未注入账单查询）时回退当时租户币种，缺省 USD（§1/§5）。
     assertEquals("USD", result.currencyCode());
     ArgumentCaptor<Refund> captor = ArgumentCaptor.forClass(Refund.class);
-    verify(refundRepository).insert(captor.capture());
+    verify(refundRepository).insert(captor.capture(), org.mockito.ArgumentMatchers.any());
     assertEquals(RefundApplicationService.STATUS_PENDING, captor.getValue().status());
     assertEquals(77L, captor.getValue().storeId());
     assertEquals(0, new BigDecimal("50.00").compareTo(captor.getValue().requestedAmount()));
@@ -65,38 +68,38 @@ class RefundApplicationServiceTest {
   @Test
   void approveRefund_movesPendingToApproved() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     RefundDto result = service.approveRefund(1L, new BigDecimal("50.00"), 8L);
 
     assertEquals(RefundApplicationService.STATUS_APPROVED, result.status());
     assertEquals(0, new BigDecimal("50.00").compareTo(result.approvedAmount()));
     assertEquals(8L, result.approvedBy());
-    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString());
+    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
   }
 
   @Test
   void rejectRefund_movesPendingToRejected() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     RefundDto result = service.rejectRefund(1L, 8L);
 
     assertEquals(RefundApplicationService.STATUS_REJECTED, result.status());
     assertEquals(8L, result.approvedBy());
-    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString());
+    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
   }
 
   @Test
   void markRefunded_movesApprovedToRefunded() {
     Refund approved = refund(1L, RefundApplicationService.STATUS_APPROVED, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(approved));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(approved)));
 
     RefundDto result = service.markRefunded(1L, "offline-refund-001", 9L);
 
     assertEquals(RefundApplicationService.STATUS_REFUNDED, result.status());
     assertEquals("offline-refund-001", result.providerRefundNo());
-    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString());
+    verify(refundRepository).updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
   }
 
   /** 退款退**原币种**：能读到原订单时取订单币种快照，而不是当前租户币种（§5/§6.3）。 */
@@ -115,7 +118,7 @@ class RefundApplicationServiceTest {
   @Test
   void approveRefund_rejectsWhenNotPending() {
     Refund rejected = refund(1L, RefundApplicationService.STATUS_REJECTED, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(rejected));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(rejected)));
 
     assertThrows(IllegalStateException.class,
         () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
@@ -124,7 +127,7 @@ class RefundApplicationServiceTest {
   @Test
   void markRefunded_rejectsWhenNotApproved() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     assertThrows(IllegalStateException.class,
         () -> service.markRefunded(1L, "x", 9L));
@@ -133,7 +136,7 @@ class RefundApplicationServiceTest {
   @Test
   void approveRefund_rejectsWhenAmountExceedsRequest() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     assertThrows(IllegalStateException.class,
         () -> service.approveRefund(1L, new BigDecimal("60.00"), 8L));
@@ -149,7 +152,7 @@ class RefundApplicationServiceTest {
 
   private static Refund refund(Long id, String status, BigDecimal requestedAmount) {
     return new Refund(id, 1L, 77L, "KTV", 9L, null, "req-" + id, requestedAmount, null, "USD", null,
-        status, null, 7L, null, null, null);
+        status, null, 7L, null);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -170,7 +173,7 @@ class RefundApplicationServiceTest {
   /** 申请退款失败（落库异常）：FAILURE + 异常类名，且不带幂等键。 */
   @Test
   void requestRefund_writesFailureAuditWithExceptionClassName() {
-    when(refundRepository.insert(org.mockito.ArgumentMatchers.any(Refund.class)))
+    when(refundRepository.insert(org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any()))
         .thenThrow(new org.springframework.dao.DuplicateKeyException("uk_pay_refund_tenant_req"));
 
     assertThrows(org.springframework.dao.DuplicateKeyException.class,
@@ -190,7 +193,7 @@ class RefundApplicationServiceTest {
   @Test
   void approveRefund_writesFailureAudit() {
     Refund rejected = refund(1L, RefundApplicationService.STATUS_REJECTED, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(rejected));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(rejected)));
 
     assertThrows(IllegalStateException.class,
         () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
@@ -208,7 +211,7 @@ class RefundApplicationServiceTest {
   @Test
   void rejectRefund_writesFailureAudit() {
     Refund approved = refund(1L, RefundApplicationService.STATUS_APPROVED, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(approved));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(approved)));
 
     assertThrows(IllegalStateException.class, () -> service.rejectRefund(1L, 8L));
 
@@ -223,7 +226,7 @@ class RefundApplicationServiceTest {
   @Test
   void markRefunded_writesFailureAuditWithoutProviderRefundNo() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     assertThrows(IllegalStateException.class,
         () -> service.markRefunded(1L, "offline-refund-001", 9L));
@@ -240,7 +243,7 @@ class RefundApplicationServiceTest {
   @Test
   void approveRefund_writesSucceededAudit() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     service.approveRefund(1L, new BigDecimal("50.00"), 8L);
 
@@ -254,7 +257,7 @@ class RefundApplicationServiceTest {
   @Test
   void rejectRefund_writesSucceededAudit() {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(pending));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
     service.rejectRefund(1L, 8L);
 
@@ -267,13 +270,17 @@ class RefundApplicationServiceTest {
   @Test
   void markRefunded_writesSucceededAudit() {
     Refund approved = refund(1L, RefundApplicationService.STATUS_APPROVED, new BigDecimal("50.00"));
-    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(approved));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(approved)));
 
     service.markRefunded(1L, "offline-refund-001", 9L);
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.offline", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
+  }
+
+  private static Persisted<Refund> persisted(Refund refund) {
+    return new Persisted<>(refund, new AuditSnapshot(null, null));
   }
 
   private AuditClient.AuditRecord capturedAudit() {

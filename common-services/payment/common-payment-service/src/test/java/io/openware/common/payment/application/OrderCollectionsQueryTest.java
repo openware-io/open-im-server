@@ -22,6 +22,8 @@ import io.openware.common.payment.domain.intent.model.PaymentIntent;
 import io.openware.common.payment.domain.intent.repository.PaymentIntentRepository;
 import io.openware.common.payment.domain.transaction.model.PaymentTransaction;
 import io.openware.common.payment.domain.transaction.repository.PaymentTransactionRepository;
+import io.openware.common.payment.domain.channel.repository.AuditSnapshot;
+import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.domain.shift.repository.ShiftRepository;
@@ -249,10 +251,12 @@ class OrderCollectionsQueryTest {
                 PayCollect.STATE_CONFIRMED, currency, requestJson, responseJson, now, now);
     }
 
-    private Refund refund(Long id, String status, String requested, String approved) {
-        return new Refund(id, TENANT_ID, 1L, "KTV", ORDER_ID, null, "req-" + id,
+    private Persisted<Refund> refund(Long id, String status, String requested, String approved) {
+        LocalDateTime created = LocalDateTime.of(2026, 9, 19, 13, 0).plusMinutes(id);
+        Refund refund = new Refund(id, TENANT_ID, 1L, "KTV", ORDER_ID, null, "req-" + id,
                 new BigDecimal(requested), approved == null ? null : new BigDecimal(approved), "CNY", null,
-                status, null, 7L, null, LocalDateTime.of(2026, 9, 19, 13, 0).plusMinutes(id), null);
+                status, null, 7L, null);
+        return new Persisted<>(refund, new AuditSnapshot(created, null));
     }
 
     /** 已确认收款必须是**按订单批量查询**的那一次调用：非 CONFIRMED 的尝试不得算进已收金额。 */
