@@ -39,6 +39,7 @@ $forbiddenBottom = @('mybatis-plus-core', 'mybatis-plus-extension', 'mybatis-plu
 # It is allowed only as the single managed coordinate below. See standards/21 "jsqlparser usage boundary".
 
 $modulePoms = @{}
+$jsqlparserDeclared = @{}
 foreach ($relativePath in $servicePoms) {
   $absolutePath = Join-Path $root $relativePath
   if (-not (Test-Path -LiteralPath $absolutePath)) { continue }
@@ -59,12 +60,19 @@ foreach ($relativePath in $servicePoms) {
     if ($groupId -ne 'com.baomidou' -or $artifactId -ne $jsqlparserArtifact) {
       $violations.Add("Only '$jsqlparserArtifact' may be declared; found '${groupId}:${artifactId}': $relativePath")
     }
+    else {
+      $jsqlparserDeclared[$relativePath] = $true
+    }
     if ($block -match '<version>') {
       $violations.Add("jsqlparser version must be managed by the root POM, not written in the module: $relativePath")
     }
     if ($block -match '<scope>\s*runtime\s*</scope>') {
       $violations.Add("jsqlparser must stay compile-scoped (TenantLineHandler returns a JSqlParser Expression): $relativePath")
     }
+  }
+
+  if ($text -match '(?s)<exclusions>.*jsqlparser.*</exclusions>') {
+    $violations.Add("Pagination/TenantLine modules must not exclude jsqlparser: $relativePath")
   }
 }
 
@@ -80,6 +88,7 @@ foreach ($relativePath in $gatewayPoms) {
 # 2) Source level: no legacy JPA; JSqlParser imports only inside MyBatis-Plus config extension points;
 #    pagination/tenant-line usage requires the module to declare the parser coordinate.
 $javaFiles = git -C $root ls-files '*src/main/java/*.java'
+$usedModules = @{}
 foreach ($relativePath in $javaFiles) {
   if ($relativePath -notmatch '/src/main/java/') { continue }
   $absolutePath = Join-Path $root $relativePath
@@ -100,9 +109,16 @@ foreach ($relativePath in $javaFiles) {
   if ($code -match 'PaginationInnerInterceptor|selectPage\s*\(|TenantLineHandler') {
     $modulePom = Get-ServiceModulePom $relativePath
     if (-not $modulePom -or -not $modulePoms.ContainsKey($modulePom)) { continue }
+    $usedModules[$modulePom] = $true
     if ($modulePoms[$modulePom] -notmatch [regex]::Escape("<artifactId>$jsqlparserArtifact</artifactId>")) {
       $violations.Add("Module uses pagination/TenantLineHandler but does not declare ${jsqlparserArtifact}: $modulePom")
     }
+  }
+}
+
+foreach ($modulePom in $jsqlparserDeclared.Keys) {
+  if (-not $usedModules.ContainsKey($modulePom)) {
+    $violations.Add("Module declares ${jsqlparserArtifact} but has no pagination/TenantLineHandler usage: $modulePom")
   }
 }
 

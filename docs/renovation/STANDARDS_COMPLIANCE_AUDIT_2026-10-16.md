@@ -905,9 +905,10 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 - 事实：`mybatis-plus-3.5.17.pom` 把它标为 `<optional>true</optional>`（不传递）；
   **10 个模块**使用 `PaginationInnerInterceptor`、**16 处**调用 `selectPage`；
-  **13 个模块**显式声明，其中 **6 个模块**的 `PlatformTenantLineHandler` 直接 import
+  治理前 **13 个模块**声明，其中 **6 个模块**的 `PlatformTenantLineHandler` 直接 import
   `net.sf.jsqlparser.expression.Expression`（`TenantLineHandler#getTenantId()` 的返回类型），
-  因此 scope 必须是 **compile**，不能写 `runtime`。
+  因此 scope 必须是 **compile**，不能写 `runtime`。本轮门禁又发现并移除了 2 个“声明未使用”的模块
+  （`group-idaas-service`、`common-payment-channel-service`），当前为 **11 个业务模块**。
 - 原规范 L42/L92 把它误列为“底层实现”并禁止。说明：它与 `core`/`extension`/`annotation`/
   `mybatis-spring` 性质不同，是分页/租户行拦截所需的 SQL 解析器；其余被禁组件的声明模块数仍为 0。
 - 处置 A 已落地：`standards/21` 将其移出禁令、要求分页/租户拦截模块显式声明、版本由根 POM 管理。
@@ -916,6 +917,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   - `PaginationInnerInterceptor`/`selectPage`/`TenantLineHandler` 使用方必须声明；
   - `net.sf.jsqlparser.*` 只允许出现在 `**/config/**` 或 `**/infra/**/config/**`；
   - 禁止原始 `jsqlparser`、`-common` 与其他主版本，禁止 exclusion；
-  - `validate-persistence-dependency-boundaries.ps1` 已覆盖“使用未声明、版本/scope、越界 import、变体坐标”。
+  - 声明未使用同样失败：本轮据此移除 `group-idaas-service` 与
+    `common-payment-channel-service` 两个多余声明；
+  - `validate-persistence-dependency-boundaries.ps1` 已覆盖“使用未声明、声明未使用、版本/scope、
+    越界 import、变体坐标、exclusion”。
 
 **负向验证**：临时移除 order 模块的声明后门禁按预期失败，恢复后通过。
