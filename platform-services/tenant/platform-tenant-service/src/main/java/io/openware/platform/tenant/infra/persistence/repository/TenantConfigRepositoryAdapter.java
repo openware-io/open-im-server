@@ -60,13 +60,20 @@ public class TenantConfigRepositoryAdapter implements TenantConfigRepository {
         findByScope(draft.tenantId(), draft.storeId(), draft.businessType(), draft.configKey());
     if (existing.isPresent()) {
       TenantConfig current = existing.get();
+      int expectedVersion = current.version() == null ? 0 : current.version();
       // 只改值：作用域列（租户/门店/业态/键）是这条记录的身份，改它们等于把配置搬到别的作用域。
-      mapper.update(null, Wrappers.<TenantConfigPo>lambdaUpdate()
+      // 版本参与 CAS 并自增：并发改同一配置时，后写者必须失败而不是静默覆盖前者。
+      int updated = mapper.update(null, Wrappers.<TenantConfigPo>lambdaUpdate()
           .eq(TenantConfigPo::getId, current.id())
+          .eq(TenantConfigPo::getVersion, expectedVersion)
           .set(TenantConfigPo::getConfigValue, draft.configValue())
-          .set(TenantConfigPo::getUpdatedAt, now));
+          .set(TenantConfigPo::getUpdatedAt, now)
+          .setSql("version = version + 1"));
+      if (updated == 0) {
+        throw new IllegalStateException("TENANT_CONFIG_VERSION_CONFLICT");
+      }
       return new TenantConfig(current.id(), current.tenantId(), current.storeId(), current.businessType(),
-          current.configKey(), draft.configValue(), current.status(), current.version());
+          current.configKey(), draft.configValue(), current.status(), expectedVersion + 1);
     }
     TenantConfigPo po = new TenantConfigPo();
     po.setTenantId(draft.tenantId());

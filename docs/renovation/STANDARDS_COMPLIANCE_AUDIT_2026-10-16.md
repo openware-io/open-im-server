@@ -878,6 +878,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - `MemberRepository` 的 `version` 改为真实 CAS：`updateImBinding` / `updateAttributes` 接收
   `expectedVersion`，适配器加 `version = ?` 谓词并 `version = version + 1`；绑定路径在冲突时返回
   409 `MEMBER_VERSION_CONFLICT`。适配器测试新增 CAS 断言，customer 服务 **228 个测试通过**。
+- `TenantConfig.upsert` 的更新改为 CAS：`version = ?` 谓词 + `version = version + 1`，
+  命中 0 行抛 `TENANT_CONFIG_VERSION_CONFLICT`；新增适配器测试锁定谓词与自增，
+  tenant 服务 **126 个测试通过**。
 
 **环境验证（2026-10-18，JDK 25 已恢复）**：JDK 25 实际安装于
 `C:\Program Files\Java\jdk-25.0.3`（默认 `JAVA_HOME` 仍指向不存在的 `jdk-25`，运行前需显式设置）。
