@@ -84,7 +84,8 @@ $validators = @(
   @{ Name = 'tenant-sql'; Arguments = @() },
   @{ Name = 'gate-registry'; Arguments = @() },
   @{ Name = 'currency-symbols'; Arguments = @() },
-  @{ Name = 'currency-defaults'; Arguments = @() }
+  @{ Name = 'currency-defaults'; Arguments = @() },
+  @{ Name = 'media-boundaries'; Arguments = @() }
 )
 
 foreach ($validator in $validators) {

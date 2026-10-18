@@ -47,3 +47,4 @@
 | G33 | gate-registry | validate-gate-registry.ps1 | blocking | 本注册表与脚本/invoke/report-only 一致性 |
 | G34 | currency-symbols | validate-currency-symbols.ps1 | blocking | 符号/中文名/币种映射只能来自 Currency 枚举 |
 | G35 | currency-defaults | validate-currency-defaults.ps1 | blocking | 缺省 USD、门店写穿、历史单据币种快照由测试锁定 |
+| G36 | media-boundaries | validate-media-boundaries.ps1 | blocking | 无代理上传、提供方 SDK 不越界、内部端点不外泄 |

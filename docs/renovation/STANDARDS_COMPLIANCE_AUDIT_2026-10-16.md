@@ -941,6 +941,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 通过负向验证：删除注册表一行后元门禁按预期失败；恢复后通过。
 - `standards/10` 的门禁计数已同步为 35，并链接注册表；新增/删除/改名门禁必须实时更新注册表与计数。
 
+### 8.29 媒体边界门禁（13 章，2026-10-18）
+
+- 新增 `scripts/validate/validate-media-boundaries.ps1`（G36），覆盖 13 章 5 项中的 3 项静态检查：
+  无代理上传路由、提供方 SDK 不越出 `common-media-service`、API/DTO 不泄漏 `MEDIA_INTERNAL_ENDPOINT`。
+- 预签名直传会话（`/upload-sessions`）不是代理上传，门禁只拦路径以 `/upload` 结尾的路由。
+- `URL 规范唯一` 与 `日志脱敏` 仍需配置/运行期检查，保留为人工项。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**

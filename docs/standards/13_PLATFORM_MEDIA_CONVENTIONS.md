@@ -303,6 +303,9 @@ DELETE /media/multipart-upload-sessions/{id}
 | URL 规范唯一 | 公共读媒体只经 `/api/v1/media-public/**`；无媒体专用反代或 rewrite |
 | 日志脱敏 | 日志不含签名 URL、访问密钥或原始二进制 |
 
+已实现（`scripts/validate/validate-media-boundaries.ps1`，G36）：无代理上传路由、业务/API 层不出现存储提供方 SDK 类型、API/DTO 不泄漏 `MEDIA_INTERNAL_ENDPOINT`。
+`URL 规范唯一` 与 `日志脱敏` 仍需配置/运行期检查，暂列人工项。
+
 **人工检查项**：
 
 1. 新增用途是否已在 §4 登记限额，且有 MIME 白名单。
