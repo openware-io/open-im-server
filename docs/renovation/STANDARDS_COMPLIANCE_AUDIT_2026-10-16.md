@@ -955,6 +955,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 这是窄规则，不覆盖运行期采样、签名 URL 文本与关联标识传播；这些仍为人工检查项。
 - 当前 0 违规。
 
+### 8.31 可观测性关联标识门禁（40 章，2026-10-18）
+
+- 网关新增 `RequestIdFilter`：保留客户端 `X-Request-Id`，缺失/空白时生成 UUID，
+  同时写入下游请求与响应头，顺序为 `HIGHEST_PRECEDENCE`。
+- 新增 G38 `validate-observability-correlation.ps1`：运行 `RequestIdFilterTest`，
+  锁定“保留/生成/下游传播/响应回写”。
+- 当前覆盖 HTTP 入口；MQ 与定时任务的关联标识传播仍是人工项。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**
