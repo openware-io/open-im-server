@@ -9,6 +9,8 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
+mq-semantics | MQ ledger semantic columns | .outputs/quality/mq-semantics-worklist.txt | 47 Topic/Consumer Group rows still lack a real order key or idempotency key (待核/-/empty). Fill them from the producer/consumer payload; do not invent values. The name-level mq-registry gate stays blocking.
+
 # Historical entries, deleted when their worklists reached zero:
 #
 #   audit-fields            13 -> 0  (domain models carrying bookkeeping columns; business-time

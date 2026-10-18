@@ -990,6 +990,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.35 MQ 台账语义门禁（P3，2026-10-18）
+
+- 新增 `scripts/validate/validate-mq-semantics.ps1`（G42）：Topic/Consumer Group 行的顺序键、幂等键
+  不得为空、`-` 或 `待核`；Producer Group 行允许 `-`。
+- 当前 47 行不完整，因此 G42 为 **report-only**，工作清单
+  `.outputs/quality/mq-semantics-worklist.txt`；`mq-registry` 名称一致性门禁仍 blocking。
+- 补值必须来自生产方 Outbox 或事件载荷，不得编造；工作清单归零后删除 report-only 条目并转为 blocking。
+
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 
 **结论：原三选一已决 A（规范例外），并已补齐配套治理。**

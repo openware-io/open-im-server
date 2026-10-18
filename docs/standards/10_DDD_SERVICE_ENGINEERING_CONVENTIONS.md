@@ -373,7 +373,7 @@
 
 规范必须可执行，否则会在迭代中被绕过。全部门禁固化于 `scripts/validate/validate-<name>.ps1`，
 统一入口为 `scripts/validate/invoke-engineering-validation.ps1`，`-Scope {Changed|Full}` 只决定 Maven 目标
-（`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：41 个一律全跑**。
+（`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：42 个一律全跑**。
 治理完成后**全部为阻断模式**：`scripts/validate/report-only-gates.txt` 当前**条目为空**（无任何豁免）。
 
 门禁编号索引见 [GATE_REGISTRY.md](../GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、

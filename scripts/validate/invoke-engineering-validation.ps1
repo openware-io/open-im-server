@@ -65,6 +65,7 @@ $validators = @(
   @{ Name = 'currency-literals'; Arguments = @() },
   @{ Name = 'rocketmq-contracts'; Arguments = @() },
   @{ Name = 'mq-registry'; Arguments = @() },
+  @{ Name = 'mq-semantics'; Arguments = @() },
   @{ Name = 'secret-exposure'; Arguments = @('-ReportPath', (Join-Path $logDirectory "$timestamp-secret-exposure.txt")) },
   @{ Name = 'security-and-flyway-configuration'; Arguments = @() },
   @{ Name = 'service-api-boundaries'; Arguments = @() },
