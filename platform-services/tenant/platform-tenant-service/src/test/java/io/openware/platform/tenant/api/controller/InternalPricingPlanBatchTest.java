@@ -45,7 +45,7 @@ class InternalPricingPlanBatchTest {
     ApiException error = assertThrows(ApiException.class, () -> controller.createBatch(
         new InternalPricingPlanController.BatchPricingRequest(plan, List.of(10L), "batch-1")));
     assertEquals("STORE_SCOPE_FORBIDDEN", error.getCode());
-    verify(pricing, never()).insert(any(PricingPlan.class));
+    verify(pricing, never()).insert(any(PricingPlan.class), any());
   }
 
   @Test
@@ -61,7 +61,7 @@ class InternalPricingPlanBatchTest {
         new InternalPricingPlanController.BatchPricingRequest(plan, List.of(10L, 11L), "batch-2")));
     assertEquals("BUSINESS_TYPE_MISMATCH", error.getCode());
     // 第一个门店已校验通过，但整批失败时仍不得有任何写入
-    verify(pricing, never()).insert(any(PricingPlan.class));
+    verify(pricing, never()).insert(any(PricingPlan.class), any());
   }
 
   @Test

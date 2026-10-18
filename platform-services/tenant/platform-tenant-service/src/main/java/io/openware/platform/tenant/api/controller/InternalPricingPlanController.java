@@ -4,6 +4,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.PricingPlanConverter;
 import io.openware.platform.tenant.domain.pricing.model.PricingPlan;
+import io.openware.platform.tenant.domain.pricing.repository.Persisted;
 import io.openware.platform.tenant.api.dto.PricingPlanView;
 import io.openware.platform.tenant.application.PricingPlanApplicationService;
 import io.openware.platform.tenant.application.PricingPlanApplicationService.PricingPlanBatchCommand;
@@ -49,7 +50,7 @@ public class InternalPricingPlanController {
     @PostMapping("/batch")
     public BatchPricingView createBatch(@RequestBody BatchPricingRequest req) {
         long tenantId = requireTenant();
-        List<PricingPlan> saved = pricingPlanService.createBatch(tenantId, toBatchCommand(req));
+        List<Persisted<PricingPlan>> saved = pricingPlanService.createBatch(tenantId, toBatchCommand(req));
         return new BatchPricingView(saved.stream().map(PricingPlanConverter::toView).toList());
     }
 
@@ -75,7 +76,7 @@ public class InternalPricingPlanController {
         return new PricingPlanBatchCommand(command, req.storeIds(), req.idempotencyKey());
     }
 
-    private PricingPlan save(long tenantId,
+    private Persisted<PricingPlan> save(long tenantId,
                                                                              CreatePricingRequest req) {
         return pricingPlanService.save(tenantId, req.tenantId(), req.storeId(), req.businessType(),
                 req.resourceType(), req.billingUnit(), req.incrementMinutes(), req.roundingDirection(),

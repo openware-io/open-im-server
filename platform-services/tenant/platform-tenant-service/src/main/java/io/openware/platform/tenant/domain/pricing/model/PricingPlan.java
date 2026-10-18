@@ -1,12 +1,12 @@
 package io.openware.platform.tenant.domain.pricing.model;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 /**
  * 计价方案（领域模型）。
  *
- * <p>审计字段（createdBy、updatedBy）不在此承载：由持久化适配器填充。
+ * <p>审计字段（createdBy、updatedBy、createdAt、updatedAt）不在此承载：由持久化适配器填充，
+ * 响应需要的值经 {@code Persisted.audit()} 读取。
  * {@code version} 保留：乐观锁并发语义，每次写入自增。
  *
  * <p><b>作用域由两个字段共同表达</b>（与 {@code uk_tnt_pricing_plan_scope_type} 一致）：
@@ -32,9 +32,7 @@ public record PricingPlan(
     BigDecimal overtimeRate,
     String status,
     Integer version,
-    String idempotencyKey,
-    LocalDateTime createdAt,
-    LocalDateTime updatedAt) {
+    String idempotencyKey) {
 
   /** 方案生效中。 */
   public static final String STATUS_ACTIVE = "ACTIVE";

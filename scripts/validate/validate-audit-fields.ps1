@@ -15,6 +15,7 @@
 #   - PointLedgerEntry: createdAt is the ledger entry's own timestamp, exposed by GET /me/points.
 #   - InventoryMaterial: createdAt is the material creation time used by list range filters and responses.
 #   - InventoryTransaction: createdAt is the transaction's occurrence time (there is no occurred_at column).
+#   - Tenant: createdAt is the platform tenant-creation filter and display fact.
 #
 # IMPORTANT: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI).
 #
@@ -39,7 +40,8 @@ $allowlist = @(
   'common-services/payment/common-payment-service/src/main/java/io/openware/common/payment/domain/event/model/PaymentEventOutboxEntry.java',
   'platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/domain/point/model/PointLedgerEntry.java',
   'platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/domain/inventory/model/InventoryMaterial.java',
-  'platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/domain/inventory/model/InventoryTransaction.java'
+  'platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/domain/inventory/model/InventoryTransaction.java',
+  'platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/domain/tenant/model/Tenant.java'
 )
 
 $violations = [System.Collections.Generic.List[string]]::new()

@@ -9,10 +9,10 @@
 # Format: <gate-name> | <clearing batch> | <worklist path> | <reason>
 # Empty lines and lines starting with '#' are ignored.
 
-audit-fields | audit-field batch 2 (tenant models) | .outputs/quality/audit-fields-worklist.txt | 2 domain models still carry pure bookkeeping columns. The gate scans domain/**/model/** and allowlists append-only payloads, UserSyncIndex, payment models whose timestamps are business time, PointLedgerEntry's exposed ledger timestamp, and inventory timestamps that are business time (material creation filter, transaction occurrence time). The fix is a per-model Persisted/AuditSnapshot migration, not a mechanical delete.
-
 # Historical entries, deleted when their worklists reached zero:
 #
+#   audit-fields            13 -> 0  (domain models carrying bookkeeping columns; business-time
+#                                     fields and append-only payloads stay allowlisted)
 #   controller-repository-boundary  14 -> 0  (controllers holding a *Repository/*Mapper field)
 #   po-containment         183 -> 0  (imports of infra.persistence.po from api/application/domain)
 #   service-api-boundaries  99 -> 0  (controllers and application classes depending on persistence

@@ -116,20 +116,20 @@ class PricingPlanResolverTest {
 
   private static PricingPlan plan(long id, long storeId, String businessType, long pricePerUnit) {
     return new PricingPlan(id, TENANT, storeId, businessType, PricingPlan.RESOURCE_KTV_ROOM, "HOUR", 30,
-        "ROUND_UP", pricePerUnit, 120, null, PricingPlan.STATUS_ACTIVE, 0, null, null, null);
+        "ROUND_UP", pricePerUnit, 120, null, PricingPlan.STATUS_ACTIVE, 0, null);
   }
 
   private static PricingPlan withResource(PricingPlan plan, String resourceType) {
     return new PricingPlan(plan.id(), plan.tenantId(), plan.storeId(), plan.businessType(), resourceType,
         plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(), plan.pricePerUnit(),
         plan.defaultSessionMinutes(), plan.overtimeRate(), plan.status(), plan.version(),
-        plan.idempotencyKey(), plan.createdAt(), plan.updatedAt());
+        plan.idempotencyKey());
   }
 
   private static PricingPlan disabled(PricingPlan plan) {
     return new PricingPlan(plan.id(), plan.tenantId(), plan.storeId(), plan.businessType(),
         plan.resourceType(), plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(),
         plan.pricePerUnit(), plan.defaultSessionMinutes(), plan.overtimeRate(), PricingPlan.STATUS_DISABLED,
-        plan.version(), plan.idempotencyKey(), plan.createdAt(), plan.updatedAt());
+        plan.version(), plan.idempotencyKey());
   }
 }

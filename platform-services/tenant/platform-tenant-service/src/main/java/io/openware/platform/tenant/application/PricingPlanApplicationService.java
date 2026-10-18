@@ -2,14 +2,18 @@ package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.tenant.domain.pricing.model.PricingPlan;
+import io.openware.platform.tenant.domain.pricing.repository.Persisted;
 import io.openware.platform.tenant.domain.pricing.repository.PricingPlanRepository;
 import io.openware.platform.tenant.domain.pricing.service.PricingPlanResolver;
 import io.openware.platform.tenant.domain.store.model.Store;
 import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +62,7 @@ public class PricingPlanApplicationService {
    * 两者都应返回既有方案而不是报冲突。
    */
   @Transactional
-  public PricingPlan save(Long contextTenantId, Long tenantId, Long storeId, String businessType,
+  public Persisted<PricingPlan> save(Long contextTenantId, Long tenantId, Long storeId, String businessType,
                           String resourceType, String billingUnit, Integer incrementMinutes,
                           String roundingDirection, Long pricePerUnit, Integer defaultSessionMinutes,
                           BigDecimal overtimeRate, Integer version, String idempotencyKey) {
@@ -82,33 +86,31 @@ public class PricingPlanApplicationService {
     String scopeBusinessType = effectiveBusinessType == null ? PricingPlan.ANY_BUSINESS_TYPE : effectiveBusinessType;
 
     if (idempotencyKey != null && !idempotencyKey.isBlank()) {
-      PricingPlan idem = pricingPlanRepository
+      Persisted<PricingPlan> idem = pricingPlanRepository
           .findByIdempotencyKey(contextTenantId, idempotencyKey, resourceType).orElse(null);
       if (idem != null) {
         return idem;
       }
     }
 
-    PricingPlan existing = pricingPlanRepository
+    Persisted<PricingPlan> existingRow = pricingPlanRepository
         .findByScope(contextTenantId, effectiveStoreId, scopeBusinessType, resourceType).orElse(null);
+    PricingPlan existing = existingRow == null ? null : existingRow.aggregate();
     PricingPlan draft = new PricingPlan(existing == null ? null : existing.id(), contextTenantId,
         effectiveStoreId, scopeBusinessType, resourceType, billingUnit, incrementMinutes, roundingDirection,
         pricePerUnit, defaultSessionMinutes, overtimeRate, PricingPlan.STATUS_ACTIVE,
-        existing == null ? 0 : existing.version(), idempotencyKey,
-        existing == null ? null : existing.createdAt(), existing == null ? null : existing.updatedAt());
+        existing == null ? 0 : existing.version(), idempotencyKey);
 
     if (existing == null) {
-      return pricingPlanRepository.insert(draft);
+      return pricingPlanRepository.insert(draft, LocalDateTime.now());
     }
     // 客户端提交了版本时先做一次快速失败（可读的 409 而不是让 CAS 静默失败）；
     // 真正的并发判定仍由端口那条带 version 条件的 UPDATE 完成。
     if (version != null && !existing.versionMatches(version)) {
       throw versionConflict();
     }
-    if (!pricingPlanRepository.updateWithVersion(draft, existing.version())) {
-      throw versionConflict();
-    }
-    return draft;
+    return pricingPlanRepository.updateWithVersion(draft, existing.version(), LocalDateTime.now())
+        .orElseThrow(PricingPlanApplicationService::versionConflict);
   }
 
   /**
@@ -118,13 +120,13 @@ public class PricingPlanApplicationService {
    * {@code @Transactional}。校验失败时不会留下“前半批落库、后半批失败”的半截配置。
    */
   @Transactional
-  public List<PricingPlan> createBatch(long contextTenantId, PricingPlanBatchCommand command) {
+  public List<Persisted<PricingPlan>> createBatch(long contextTenantId, PricingPlanBatchCommand command) {
     if (command == null || command.plan() == null || command.storeIds() == null || command.storeIds().isEmpty()) {
       throw new ApiException(400, "PRICING_BATCH_INVALID", "storeIds 和 plan 不能为空");
     }
     PricingPlanCommand plan = command.plan();
     StoreScopeValidation scope = validateStoreScope(contextTenantId, plan.businessType(), command.storeIds());
-    List<PricingPlan> saved = new ArrayList<>();
+    List<Persisted<PricingPlan>> saved = new ArrayList<>();
     for (StoreScopeItem item : scope.stores()) {
       saved.add(save(contextTenantId, contextTenantId, item.storeId(), item.businessType(),
           plan.resourceType(), plan.billingUnit(), plan.incrementMinutes(), plan.roundingDirection(),
@@ -136,7 +138,7 @@ public class PricingPlanApplicationService {
 
   /** 列出某租户生效中的方案；给定门店时按作用域解析出每种资源类型的最终方案。 */
   @Transactional(readOnly = true)
-  public List<PricingPlan> list(Long tenantId, Long storeId, String businessType) {    if (storeId == null) {
+  public List<Persisted<PricingPlan>> list(Long tenantId, Long storeId, String businessType) {    if (storeId == null) {
       return pricingPlanRepository.listActiveByTenant(tenantId, normalize(businessType));
     }
     Store store = requireOwnedStore(tenantId, storeId);
@@ -145,8 +147,12 @@ public class PricingPlanApplicationService {
     if (requested != null && !requested.equals(actual)) {
       throw new ApiException(422, CODE_BUSINESS_TYPE_MISMATCH, "业态与门店不匹配");
     }
-    return PricingPlanResolver.resolve(pricingPlanRepository.listActiveByTenant(tenantId), storeId, actual,
-        List.of(PricingPlan.RESOURCE_KTV_ROOM, PricingPlan.RESOURCE_KTV_SERVER));
+    List<Persisted<PricingPlan>> rows = pricingPlanRepository.listActiveByTenant(tenantId);
+    Map<Long, Persisted<PricingPlan>> byId = rows.stream()
+        .collect(Collectors.toMap(row -> row.aggregate().id(), row -> row));
+    return PricingPlanResolver.resolve(rows.stream().map(Persisted::aggregate).toList(), storeId, actual,
+        List.of(PricingPlan.RESOURCE_KTV_ROOM, PricingPlan.RESOURCE_KTV_SERVER)).stream()
+        .map(plan -> byId.get(plan.id())).toList();
   }
 
   /**

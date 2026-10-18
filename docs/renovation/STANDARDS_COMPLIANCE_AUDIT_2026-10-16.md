@@ -855,12 +855,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - `PointLedgerEntry.createdAt` 是**刻意暴露的流水时间**（`GET /me/points` 的响应字段），加入 allowlist。
 - `InventoryMaterial.createdAt` / `InventoryTransaction.createdAt` 分别是列表时间区间/响应字段与
   流水“发生时间”（本表没有 `occurred_at` 列），加入 allowlist，不按记账列删除。
-- 仍有 **2 个**模型带纯记账列，工作清单 `.outputs/quality/audit-fields-worklist.txt`，
-  门禁暂为 report-only（batch 2）：
-  - tenant 2：`PricingPlan`、`Tenant`。
+- `PricingPlan`（tenant）迁移：模型去两列，端口读返回 `Persisted`、`insert/updateWithVersion`
+  接收 `occurredAt`，`PricingPlanConverter` 从 `AuditSnapshot` 取时间。
+- `Tenant.createdAt` 是平台按创建时间筛选与展示的业务事实（模型注释明确），加入 allowlist。
+- 工作清单已归零（`.outputs/quality/audit-fields-worklist.txt` 已删除），
+  `audit-fields` 从 report-only 条目中移除，转为**阻塞门禁**。
 
 **结论**：§8.23 的「审计字段已收口」只对当时的清单成立；`audit-fields` 门禁才是范围的
-唯一事实来源。13 个模型逐个迁移后，删除 report-only 条目，门禁转为 blocking。
+唯一事实来源。13 个模型迁移完毕，业务时间字段与 append-only 载荷保留在显式 allowlist 中。
 
 
 

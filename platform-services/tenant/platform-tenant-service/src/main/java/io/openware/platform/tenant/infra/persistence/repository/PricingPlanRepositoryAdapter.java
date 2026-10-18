@@ -2,6 +2,8 @@ package io.openware.platform.tenant.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.tenant.domain.pricing.model.PricingPlan;
+import io.openware.platform.tenant.domain.pricing.repository.AuditSnapshot;
+import io.openware.platform.tenant.domain.pricing.repository.Persisted;
 import io.openware.platform.tenant.domain.pricing.repository.PricingPlanRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.PricingPlanMapper;
 import io.openware.platform.tenant.infra.persistence.po.PricingPlanPo;
@@ -28,17 +30,19 @@ public class PricingPlanRepositoryAdapter implements PricingPlanRepository {
   }
 
   @Override
-  public Optional<PricingPlan> findByScope(Long tenantId, Long storeId, String businessType, String resourceType) {
+  public Optional<Persisted<PricingPlan>> findByScope(Long tenantId, Long storeId, String businessType,
+                                                      String resourceType) {
     return mapper.selectList(Wrappers.<PricingPlanPo>lambdaQuery()
             .eq(PricingPlanPo::getTenantId, tenantId)
             .eq(PricingPlanPo::getStoreId, storeId)
             .eq(PricingPlanPo::getBusinessType, businessType)
             .eq(PricingPlanPo::getResourceType, resourceType))
-        .stream().findFirst().map(PricingPlanRepositoryAdapter::toDomain);
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
-  public Optional<PricingPlan> findByIdempotencyKey(Long tenantId, String idempotencyKey, String resourceType) {
+  public Optional<Persisted<PricingPlan>> findByIdempotencyKey(Long tenantId, String idempotencyKey,
+                                                               String resourceType) {
     if (idempotencyKey == null || idempotencyKey.isBlank()) {
       return Optional.empty();
     }
@@ -46,37 +50,37 @@ public class PricingPlanRepositoryAdapter implements PricingPlanRepository {
             .eq(PricingPlanPo::getTenantId, tenantId)
             .eq(PricingPlanPo::getIdempotencyKey, idempotencyKey)
             .eq(PricingPlanPo::getResourceType, resourceType))
-        .stream().findFirst().map(PricingPlanRepositoryAdapter::toDomain);
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
-  public List<PricingPlan> listActiveByTenant(Long tenantId, String businessType) {
+  public List<Persisted<PricingPlan>> listActiveByTenant(Long tenantId, String businessType) {
     return mapper.selectList(Wrappers.<PricingPlanPo>lambdaQuery()
             .eq(PricingPlanPo::getTenantId, tenantId)
             .eq(PricingPlanPo::getStatus, PricingPlan.STATUS_ACTIVE)
             .eq(businessType != null && !businessType.isBlank(), PricingPlanPo::getBusinessType, businessType)
             .orderByDesc(PricingPlanPo::getId))
-        .stream().map(PricingPlanRepositoryAdapter::toDomain).toList();
+        .stream().map(this::toPersisted).toList();
   }
 
   @Override
-  public List<PricingPlan> listActiveByTenant(Long tenantId) {
+  public List<Persisted<PricingPlan>> listActiveByTenant(Long tenantId) {
     return listActiveByTenant(tenantId, null);
   }
 
   @Override
-  public PricingPlan insert(PricingPlan plan) {
-    LocalDateTime now = LocalDateTime.now();
+  public Persisted<PricingPlan> insert(PricingPlan plan, LocalDateTime occurredAt) {
     PricingPlanPo po = toPo(plan);
     po.setVersion(0);
-    po.setCreatedAt(now);
-    po.setUpdatedAt(now);
+    po.setCreatedAt(occurredAt);
+    po.setUpdatedAt(occurredAt);
     mapper.insert(po);
-    return toDomain(po);
+    return toPersisted(po);
   }
 
   @Override
-  public boolean updateWithVersion(PricingPlan plan, int expectedVersion) {
+  public Optional<Persisted<PricingPlan>> updateWithVersion(PricingPlan plan, int expectedVersion,
+                                                            LocalDateTime occurredAt) {
     // CAS：判定与写入在同一条语句里，由数据库保证原子性。
     // 版本自增写在 SQL 里（version + 1）而不是用读出来的值加一，避免覆盖并发写入期间已经涨上去的版本号。
     int affected = mapper.update(null, Wrappers.<PricingPlanPo>lambdaUpdate()
@@ -90,9 +94,10 @@ public class PricingPlanRepositoryAdapter implements PricingPlanRepository {
         .set(PricingPlanPo::getOvertimeRate, plan.overtimeRate())
         .set(PricingPlanPo::getStatus, plan.status())
         .set(PricingPlanPo::getIdempotencyKey, plan.idempotencyKey())
-        .set(PricingPlanPo::getUpdatedAt, LocalDateTime.now())
+        .set(PricingPlanPo::getUpdatedAt, occurredAt)
         .setSql("version = version + 1"));
-    return affected > 0;
+    return affected > 0 ? Optional.ofNullable(mapper.selectById(plan.id())).map(this::toPersisted)
+        : Optional.empty();
   }
 
   private static PricingPlanPo toPo(PricingPlan plan) {
@@ -114,10 +119,14 @@ public class PricingPlanRepositoryAdapter implements PricingPlanRepository {
     return po;
   }
 
+  private Persisted<PricingPlan> toPersisted(PricingPlanPo po) {
+    return new Persisted<>(toDomain(po), new AuditSnapshot(po.getCreatedAt(), po.getUpdatedAt()));
+  }
+
   private static PricingPlan toDomain(PricingPlanPo po) {
     return new PricingPlan(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessType(),
         po.getResourceType(), po.getBillingUnit(), po.getIncrementMinutes(), po.getRoundingDirection(),
         po.getPricePerUnit(), po.getDefaultSessionMinutes(), po.getOvertimeRate(), po.getStatus(),
-        po.getVersion(), po.getIdempotencyKey(), po.getCreatedAt(), po.getUpdatedAt());
+        po.getVersion(), po.getIdempotencyKey());
   }
 }
