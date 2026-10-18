@@ -83,7 +83,8 @@ $validators = @(
   @{ Name = 'repository-hygiene'; Arguments = @() },
   @{ Name = 'tenant-sql'; Arguments = @() },
   @{ Name = 'gate-registry'; Arguments = @() },
-  @{ Name = 'currency-symbols'; Arguments = @() }
+  @{ Name = 'currency-symbols'; Arguments = @() },
+  @{ Name = 'currency-defaults'; Arguments = @() }
 )
 
 foreach ($validator in $validators) {

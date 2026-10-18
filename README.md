@@ -106,7 +106,7 @@ powershell ./run-dev.ps1 -Service gateway
 - [41 Java 日志规范](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](./docs/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E 测试与验收规范](./docs/standards/43_E2E_TESTING_CONVENTIONS.md)
-- [门禁注册表（G01–G34）](./docs/GATE_REGISTRY.md)
+- [门禁注册表（G01–G35）](./docs/GATE_REGISTRY.md)
 - [Gateway](./docs/services/gateway/README.md)
 - [用户服务](./docs/services/im-user-service/README.md)
 - [消息服务](./docs/services/im-message-service/README.md)

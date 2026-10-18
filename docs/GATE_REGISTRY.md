@@ -46,3 +46,4 @@
 | G32 | tenant-sql | validate-tenant-sql.ps1 | blocking | 租户 SQL 隔离 |
 | G33 | gate-registry | validate-gate-registry.ps1 | blocking | 本注册表与脚本/invoke/report-only 一致性 |
 | G34 | currency-symbols | validate-currency-symbols.ps1 | blocking | 符号/中文名/币种映射只能来自 Currency 枚举 |
+| G35 | currency-defaults | validate-currency-defaults.ps1 | blocking | 缺省/非法值行为由 Currency 与租户币种测试锁定 |
