@@ -879,9 +879,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   `expectedVersion`，适配器加 `version = ?` 谓词并 `version = version + 1`；绑定路径在冲突时返回
   409 `MEMBER_VERSION_CONFLICT`。适配器测试新增 CAS 断言，customer 服务 **228 个测试通过**。
 
-**环境限制**：本机 JDK 25 仍缺失，Maven 的 enforcer 要求 `[25,)`。上述门禁与受影响模块
-测试已用 JDK 21 + `-Djava.version=21 -Denforcer.skip=true` 验证；恢复 JDK 25 后仍需复跑
-`invoke-engineering-validation.ps1 -Scope Changed` 的 Maven 步骤。
+**环境验证（2026-10-18，JDK 25 已恢复）**：JDK 25 实际安装于
+`C:\Program Files\Java\jdk-25.0.3`（默认 `JAVA_HOME` 仍指向不存在的 `jdk-25`，运行前需显式设置）。
+已用该 JDK 完成：
+
+- 全仓 `mvn -B -DskipTests clean test-compile`：**BUILD SUCCESS**；
+- `invoke-engineering-validation.ps1 -Scope Changed`：**全部通过**（含 Maven 步骤）；
+- customer 服务测试：**228 个全绿**（JDK 25，不再使用 `-Djava.version=21` 降级）。
 
 
 
