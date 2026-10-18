@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyContextHolder;
 import io.openware.infrastructure.currency.CurrencyResolver;
+import io.openware.infrastructure.observability.RequestIdContext;
 import io.openware.infrastructure.security.JwtProperties;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -187,6 +188,33 @@ class TenantContextFilterTest {
 
     assertThat(response.getStatus()).isEqualTo(200);
     assertThat(currency.get()).isEqualTo(Currency.USD);
+  }
+
+  @Test
+  void keepsIncomingRequestIdAndClearsItAfterRequest() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.addHeader(RequestIdContext.HEADER, "req-123");
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    AtomicReference<String> seen = new AtomicReference<>();
+
+    filter.doFilter(request, response, (req, res) -> seen.set(RequestIdContext.get()));
+
+    assertThat(seen.get()).isEqualTo("req-123");
+    assertThat(response.getHeader(RequestIdContext.HEADER)).isEqualTo("req-123");
+    assertThat(RequestIdContext.get()).isNull();
+  }
+
+  @Test
+  void generatesRequestIdWhenHeaderIsMissing() throws Exception {
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    MockHttpServletResponse response = new MockHttpServletResponse();
+    AtomicReference<String> seen = new AtomicReference<>();
+
+    filter.doFilter(request, response, (req, res) -> seen.set(RequestIdContext.get()));
+
+    assertThat(seen.get()).isNotBlank();
+    assertThat(response.getHeader(RequestIdContext.HEADER)).isEqualTo(seen.get());
+    assertThat(RequestIdContext.get()).isNull();
   }
 
   private static String signedToken(Long tenantId, Long organizationId, Long storeId, Long accountId) {

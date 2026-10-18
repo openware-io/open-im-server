@@ -2,6 +2,7 @@ package io.openware.infrastructure.tenant;
 
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyContextHolder;
+import io.openware.infrastructure.observability.RequestIdContext;
 import io.openware.infrastructure.security.JwtProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -16,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 
 /**
@@ -35,6 +37,12 @@ public class TenantContextFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
+        String requestId = request.getHeader(RequestIdContext.HEADER);
+        if (requestId == null || requestId.isBlank()) {
+            requestId = UUID.randomUUID().toString();
+        }
+        RequestIdContext.set(requestId);
+        response.setHeader(RequestIdContext.HEADER, requestId);
         try {
             String header = request.getHeader(TenantContext.HEADER);
             if (header != null && !header.isBlank()) {
@@ -51,6 +59,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
         } finally {
             TenantContextHolder.clear();
             CurrencyContextHolder.clear();
+            RequestIdContext.clear();
         }
     }
 

@@ -3,6 +3,7 @@ package io.openware.infrastructure.mq.remoting;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.observability.RequestIdContext;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,20 @@ class RemotingMqConsumerFactoryTest {
   private static final String GROUP = "im-message-service-write-command-consumer";
 
   private final RemotingMqConsumerFactory factory = new RemotingMqConsumerFactory("127.0.0.1:9876");
+
+  @Test
+  void restoresRequestIdFromMessagePropertyAndClearsIt() {
+    MessageExt message = message("payload");
+    message.putUserProperty(RequestIdContext.PROPERTY, "req-mq-1");
+    java.util.concurrent.atomic.AtomicReference<String> seen = new java.util.concurrent.atomic.AtomicReference<>();
+
+    ConsumeOrderlyStatus status = factory.consume(TOPIC, GROUP, List.of(message), context(),
+        body -> seen.set(RequestIdContext.get()));
+
+    assertThat(status).isEqualTo(ConsumeOrderlyStatus.SUCCESS);
+    assertThat(seen.get()).isEqualTo("req-mq-1");
+    assertThat(RequestIdContext.get()).isNull();
+  }
 
   @Test
   void newConsumerGroupsStartFromLatestOffset() {

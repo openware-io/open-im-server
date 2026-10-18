@@ -1,6 +1,7 @@
 package io.openware.infrastructure.mq.remoting;
 
 import io.openware.infrastructure.mq.MqProducer;
+import io.openware.infrastructure.observability.RequestIdContext;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
@@ -21,6 +22,7 @@ public class RemotingMqProducer implements MqProducer, AutoCloseable {
     Message message = new Message(topic, body);
     message.setKeys(key);
     message.putUserProperty("shardingKey", shardingKey);
+    putRequestId(message);
     log.debug(
         "Sending ordered RocketMQ message, topic={}, shardingKey={}, key={}, bodySize={}",
         topic,
@@ -40,6 +42,7 @@ public class RemotingMqProducer implements MqProducer, AutoCloseable {
     Message message = new Message(topic, body);
     message.setKeys(key);
     message.putUserProperty("shardingKey", shardingKey);
+    putRequestId(message);
     message.setDelayTimeLevel(level);
     log.info(
         "Sending delayed RocketMQ message, topic={}, shardingKey={}, key={}, delaySeconds={}, delayTimeLevel={}",
@@ -78,6 +81,14 @@ public class RemotingMqProducer implements MqProducer, AutoCloseable {
   public void close() {
     log.info("Shutting down remoting RocketMQ producer.");
     producer.shutdown();
+  }
+
+  /** 把当前 HTTP 请求的关联标识带入消息属性，供消费者续接链路。 */
+  private static void putRequestId(Message message) {
+    String requestId = RequestIdContext.get();
+    if (requestId != null && !requestId.isBlank()) {
+      message.putUserProperty(RequestIdContext.PROPERTY, requestId);
+    }
   }
 
   private static final class StableQueueSelector implements MessageQueueSelector {

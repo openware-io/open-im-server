@@ -5,6 +5,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.mq.MqConsumerFactory;
 import io.openware.infrastructure.mq.MqMessageHandler;
 import io.openware.infrastructure.mq.MqProducer;
+import io.openware.infrastructure.observability.RequestIdContext;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -91,7 +92,15 @@ public class RemotingMqConsumerFactory implements MqConsumerFactory {
     for (MessageExt message : messages) {
       String messageId = message.getMsgId();
       try {
-        handler.handle(message.getBody());
+        String requestId = message.getUserProperty(RequestIdContext.PROPERTY);
+        if (requestId != null && !requestId.isBlank()) {
+          RequestIdContext.set(requestId);
+        }
+        try {
+          handler.handle(message.getBody());
+        } finally {
+          RequestIdContext.clear();
+        }
         transientAttempts.remove(messageId);
       } catch (Exception ex) {
         if (isUnrecoverable(ex)) {

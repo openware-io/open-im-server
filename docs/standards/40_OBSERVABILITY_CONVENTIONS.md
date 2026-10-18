@@ -94,7 +94,7 @@
 `指标口径唯一` 的静态部分已由 `scripts/validate/validate-observability-metrics.ps1`（G41）实现：指标名跨模块唯一，`userId/sessionId/messageId/requestId` 不得作为指标标签。当前尚无自定义指标；运行期指标评审仍为人工项。
 
 `日志脱敏` 的静态部分已由 `scripts/validate/validate-observability-redaction.ps1`（G37）实现：日志语句不得直接打印 `token()/password()/secret()/accessKey()/signature()` 取值。运行期采样与关联标识传播仍为人工检查项。
-`关联标识存在` 的 HTTP 入口已由 `scripts/validate/validate-observability-correlation.ps1`（G38）实现：运行 `RequestIdFilterTest`，锁定网关保留/生成 `X-Request-Id` 并写回响应；MQ/定时任务入口仍为人工项。
+`关联标识存在` 已由 `scripts/validate/validate-observability-correlation.ps1`（G38）实现：网关保留/生成 `X-Request-Id` 并写回响应；`TenantContextFilter` 写入请求上下文，MQ 生产者带消息属性、消费者恢复上下文。定时任务入口仍为人工项。
 
 **人工检查项**（新增关键链路评审时确认）：
 
