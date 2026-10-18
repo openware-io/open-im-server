@@ -121,7 +121,7 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 |---|---|---|
 | P1 | 补 `mybatis-plus-jsqlparser*` 到禁用清单，并处理 13 个模块 | 门禁 + 改造决策 |
 | P1 | 修 `port-contract` 的路径模式（39 个文件未扫） | 门禁修复 |
-| P1 | 补 16 章的 4 个缺失门禁（至少"字面量扫描"，它本可拦住 §4 第 4 条） | 新增门禁 |
+| P1 | 16 章门禁：字面量扫描 ✅；符号表唯一/缺省/快照/写穿 4 个仍待补 | 新增门禁 |
 | P1 | 事务边界门禁（12 处在产违规） | 新增门禁 + 改造 |
 | P2 | 审计字段/`@Setter` 领域模型门禁（21 + 3 处在产违规） | 新增门禁 + 改造 |
 | P2 | 补 `service-dependency-graph` 读 `dependencyManagement` | 门禁修复 |
@@ -900,6 +900,16 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 
 
+
+### 8.26 币种字面量门禁（P1，2026-10-18）
+
+- `standards/16` 的第一个缺失门禁“字面量扫描”已实现：
+  `scripts/validate/validate-currency-literals.ps1`，扫描服务模块 `src/main/java`，
+  先剥离注释；测试、文档、`Currency` 枚举本身与网关协议兜底不在此范围。
+- 首扫命中 3 个文件：`PaymentChannelTransactionRecorder`、`AlipayChannel`、`WechatChannel`；
+  已全部改用 `Currency.CNY.code()` / `Currency.DEFAULT.code()`，不再写 `"CNY"` 字面量。
+- 门禁已接入统一入口并作为 blocking 运行，当前 0 违规。
+- **仍未实现**的 16 章门禁：符号表唯一、缺省口径、快照不回改、写穿一致（需要集成/数据库级验证）。
 
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 

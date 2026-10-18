@@ -1,4 +1,5 @@
 package io.openware.common.payment.channel.infra.persistence;
+import io.openware.infrastructure.currency.Currency;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.payment.channel.infra.persistence.mapper.PayChannelTransactionMapper;
@@ -57,7 +58,7 @@ public class PaymentChannelTransactionRecorder {
         po.setProvider(normalize(provider));
         po.setOrderId(orderId);
         po.setAmount(amount);
-        po.setCurrency(currency == null || currency.isBlank() ? "CNY" : currency);
+        po.setCurrency(currency == null || currency.isBlank() ? Currency.DEFAULT.code() : currency);
         po.setStatus(status == null || status.isBlank() ? "PROCESSING" : status);
         po.setCallbackRaw(callbackRaw);
         LocalDateTime now = LocalDateTime.now();

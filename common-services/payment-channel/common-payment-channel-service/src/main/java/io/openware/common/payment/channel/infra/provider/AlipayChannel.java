@@ -1,4 +1,5 @@
 package io.openware.common.payment.channel.infra.provider;
+import io.openware.infrastructure.currency.Currency;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -119,7 +120,7 @@ public class AlipayChannel implements PaymentChannelProvider {
             String notifyId = params.getOrDefault("notify_id", "");
             String orderId = params.getOrDefault("out_trade_no", "");
             long amount = toCents(params.getOrDefault("total_amount", "0"));
-            String currency = defaultCurrency(params.getOrDefault("currency", "CNY"));
+            String currency = defaultCurrency(params.getOrDefault("currency", Currency.CNY.code()));
             String status = mapTradeStatus(params.getOrDefault("trade_status", ""));
             long tenantId = parseLong(params.getOrDefault("passback_params", "0"));
 
@@ -164,7 +165,7 @@ public class AlipayChannel implements PaymentChannelProvider {
                 request.orderId(),
                 mapTradeStatus(str(resp, "trade_status")),
                 toCents(str(resp, "total_amount")),
-                defaultCurrency("CNY"));
+                defaultCurrency(Currency.CNY.code()));
     }
 
     @Override
@@ -313,7 +314,7 @@ public class AlipayChannel implements PaymentChannelProvider {
     }
 
     private static String defaultCurrency(String currency) {
-        return (currency == null || currency.isBlank()) ? "CNY" : currency.toUpperCase(Locale.ROOT);
+        return (currency == null || currency.isBlank()) ? Currency.CNY.code() : currency.toUpperCase(Locale.ROOT);
     }
 
     private static long parseLong(String value) {

@@ -1,4 +1,5 @@
 package io.openware.common.payment.channel.infra.provider;
+import io.openware.infrastructure.currency.Currency;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -165,7 +166,7 @@ public class WechatChannel implements PaymentChannelProvider {
             String transactionId = params.getOrDefault("transaction_id", "");
             String orderId = params.getOrDefault("out_trade_no", "");
             long amount = parseLong(params.getOrDefault("total_fee", "0"));
-            String currency = defaultCurrency(params.getOrDefault("fee_type", "CNY"));
+            String currency = defaultCurrency(params.getOrDefault("fee_type", Currency.CNY.code()));
             String status = mapTradeState(params.getOrDefault("trade_state", ""));
             long tenantId = parseLong(params.getOrDefault("attach", "0"));
 
@@ -213,12 +214,12 @@ public class WechatChannel implements PaymentChannelProvider {
                     resp.getOrDefault("out_trade_no", request.orderId()),
                     status,
                     parseLong(resp.getOrDefault("total_fee", "0")),
-                    defaultCurrency(resp.getOrDefault("fee_type", "CNY")));
+                    defaultCurrency(resp.getOrDefault("fee_type", Currency.CNY.code())));
         } catch (Exception e) {
             // 解析响应失败会被归结为 FAILED：真实付款可能已成功，因此必须留痕以便对账时区分
             // "渠道明确失败"与"本侧解析失败"。
             log.warn("failed to parse wechat trade response, reporting FAILED: orderId={}", request.orderId(), e);
-            return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, "CNY");
+            return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, Currency.CNY.code());
         }
     }
 
@@ -358,7 +359,7 @@ public class WechatChannel implements PaymentChannelProvider {
         } catch (Exception e) {
             // 同上：解析失败即报 FAILED 会掩盖可能已成功的付款，必须留痕。
             log.warn("failed to parse wechat v3 amount response, reporting FAILED: orderId={}", request.orderId(), e);
-            return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, "CNY");
+            return new QueryOrderResult("wechat", "", request.orderId(), "FAILED", 0L, Currency.CNY.code());
         }
     }
 
@@ -508,7 +509,7 @@ public class WechatChannel implements PaymentChannelProvider {
     }
 
     private static String defaultCurrency(String currency) {
-        return (currency == null || currency.isBlank()) ? "CNY" : currency.toUpperCase(Locale.ROOT);
+        return (currency == null || currency.isBlank()) ? Currency.CNY.code() : currency.toUpperCase(Locale.ROOT);
     }
 
     private static long parseLong(String value) {

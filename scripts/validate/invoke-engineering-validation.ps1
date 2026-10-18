@@ -62,6 +62,7 @@ $validators = @(
   @{ Name = 'exception-handling'; Arguments = @() },
   @{ Name = 'maven-version-ownership'; Arguments = @() },
   @{ Name = 'persistence-dependency-boundaries'; Arguments = @() },
+  @{ Name = 'currency-literals'; Arguments = @() },
   @{ Name = 'rocketmq-contracts'; Arguments = @() },
   @{ Name = 'mq-registry'; Arguments = @() },
   @{ Name = 'secret-exposure'; Arguments = @('-ReportPath', (Join-Path $logDirectory "$timestamp-secret-exposure.txt")) },
