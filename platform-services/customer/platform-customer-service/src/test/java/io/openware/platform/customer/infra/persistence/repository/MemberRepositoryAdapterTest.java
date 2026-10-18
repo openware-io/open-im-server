@@ -284,7 +284,7 @@ class MemberRepositoryAdapterTest {
     when(memberMapper.update(any(), any())).thenReturn(1);
     LocalDateTime boundAt = LocalDateTime.of(2026, 9, 1, 10, 0, 0);
 
-    assertTrue(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", boundAt, null));
+    assertTrue(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", boundAt, null, null));
 
     LambdaUpdateWrapper<CstMemberPo> wrapper = capturedUpdate();
     String set = wrapper.getSqlSet();
@@ -308,10 +308,23 @@ class MemberRepositoryAdapterTest {
   void updateImBindingWritesNameCipherWhenNameChanges() {
     when(memberMapper.update(any(), any())).thenReturn(1);
 
-    adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), "v1:new-cipher");
+    adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), "v1:new-cipher", null);
 
     String set = capturedUpdate().getSqlSet();
     assertTrue(set.contains("name_cipher"), set);
+  }
+
+  /** 传入 expectedVersion 时必须走 version CAS，并在 SQL 侧自增版本。 */
+  @Test
+  void updateImBindingUsesVersionCasWhenExpectedVersionProvided() {
+    when(memberMapper.update(any(), any())).thenReturn(1);
+
+    assertTrue(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), null, 3));
+
+    LambdaUpdateWrapper<CstMemberPo> wrapper = capturedUpdate();
+    String where = evaluatedSql(wrapper).toLowerCase(java.util.Locale.ROOT);
+    assertTrue(where.contains("version ="), where);
+    assertTrue(wrapper.getSqlSet().toLowerCase(java.util.Locale.ROOT).contains("version = version + 1"));
   }
 
   /** 受影响 0 行 = 目标行消失，必须原样返回 false，适配器不得吞掉这个信号。 */
@@ -319,7 +332,7 @@ class MemberRepositoryAdapterTest {
   void updateImBindingReturnsFalseWhenNothingMatched() {
     when(memberMapper.update(any(), any())).thenReturn(0);
 
-    assertFalse(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), null));
+    assertFalse(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), null, null));
   }
 
   /** 可改属性只写真实列，且"传 null 的字段不参与 SET"（不是写成 NULL）。 */
@@ -327,7 +340,7 @@ class MemberRepositoryAdapterTest {
   void updateAttributesSetsOnlyProvidedColumns() {
     when(memberMapper.update(any(), any())).thenReturn(1);
 
-    adapter.updateAttributes(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 10, 0, 0), null, "FROZEN", null);
+    adapter.updateAttributes(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 10, 0, 0), null, "FROZEN", null, null);
 
     String set = capturedUpdate().getSqlSet();
     assertTrue(set.contains("joined_at"), set);

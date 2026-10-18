@@ -66,10 +66,13 @@ public interface MemberRepository {
    * <p>只写四列：{@code im_account} / {@code im_username} / {@code im_bound_at} / {@code updated_at}，
    * 以及<b>可选</b>的 {@code name_cipher}（{@code newNameCipher} 非空时才写）。
    *
-   * @return 是否命中一行；{@code false} = 目标行在此期间消失，调用方必须拒绝而不是当作成功
+   * <p>传入 {@code expectedVersion} 时按 {@code version = ?} 做 CAS 并自增；{@code null} 表示调用方
+   * 没有版本快照（仅限迁移/内部脚本），此时退化为无条件更新。
+   *
+   * @return 是否命中一行；{@code false} = 目标行在此期间消失或版本已变，调用方必须拒绝而不是当作成功
    */
   boolean updateImBinding(Long id, String imAccount, String imUsername, java.time.LocalDateTime imBoundAt,
-                          String newNameCipher);
+                          String newNameCipher, Integer expectedVersion);
 
   /**
    * 更新"可改属性"：建档时间 {@code joined_at}、等级 {@code level_id}、状态 {@code status}、账号
@@ -78,9 +81,11 @@ public interface MemberRepository {
    * <p>存在的理由：这三类字段没有任何业务写路径（等级/权益业务未实现、建档时间只在建档时写、
    * 账号归属由统一账号模型回填），但它们是列表筛选与分页的真实判据——集成测试必须能把库里
    * 的行摆成"某个建档时间/等级/状态"，否则筛选只能靠 mock 断言、证明不了 SQL 真的过滤了。
+   *
+   * <p>{@code expectedVersion} 非空时同样走 {@code version = ?} CAS 并自增。
    */
   boolean updateAttributes(Long id, java.time.LocalDateTime joinedAt, Long levelId, String status,
-                           Long accountId);
+                           Long accountId, Integer expectedVersion);
 
   /** 删除客户档案（{@code MemberPurgeApplicationService} 的最后一个动作）。 */
   boolean deleteById(Long id);

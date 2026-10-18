@@ -349,7 +349,10 @@ public class MemberApplicationService {
         boolean rename = name != null && !name.isBlank();
         String normalizedName = normalizeImUsername(imUsername);
         String newNameCipher = rename ? aesGcmCipher.encrypt(name) : null;
-        memberRepository.updateImBinding(member.id(), normalizedIm, normalizedName, now, newNameCipher);
+        if (!memberRepository.updateImBinding(member.id(), normalizedIm, normalizedName, now, newNameCipher,
+                member.version())) {
+          throw new ApiException(409, "MEMBER_VERSION_CONFLICT", "客户档案已被其他请求修改，请刷新后重试");
+        }
         Member bound = member.withImBinding(normalizedIm, normalizedName, now, newNameCipher);
         // 改姓名要重建盲索引；没改姓名也重建（幂等，顺带覆盖客户号 token，成本极低）。
         rebuildNameTokens(bound);

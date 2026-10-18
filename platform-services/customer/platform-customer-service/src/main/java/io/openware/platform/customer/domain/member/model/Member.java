@@ -81,6 +81,6 @@ public record Member(
                               String newNameCipher) {
     return new Member(id, tenantId, originStoreId, accountId, newImAccount, newImUsername, newImBoundAt,
         memberNo, newNameCipher == null ? nameCipher : newNameCipher, phoneCipher, phoneDigest,
-        levelId, status, joinedAt, expiresAt, version);
+        levelId, status, joinedAt, expiresAt, version == null ? null : version + 1);
   }
 }

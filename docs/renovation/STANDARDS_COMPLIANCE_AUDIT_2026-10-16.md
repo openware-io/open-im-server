@@ -875,6 +875,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   避免跨服务实现依赖从依赖管理段绕过门禁。
 - `domain-model-purity` 现在也覆盖 Lombok `@Setter`（与 `@Data` 同属无约束整对象 setter）；
   当前 0 处，门禁通过。
+- `MemberRepository` 的 `version` 改为真实 CAS：`updateImBinding` / `updateAttributes` 接收
+  `expectedVersion`，适配器加 `version = ?` 谓词并 `version = version + 1`；绑定路径在冲突时返回
+  409 `MEMBER_VERSION_CONFLICT`。适配器测试新增 CAS 断言，customer 服务 **228 个测试通过**。
 
 **环境限制**：本机 JDK 25 仍缺失，Maven 的 enforcer 要求 `[25,)`。上述门禁与受影响模块
 测试已用 JDK 21 + `-Djava.version=21 -Denforcer.skip=true` 验证；恢复 JDK 25 后仍需复跑
