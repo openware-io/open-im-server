@@ -883,6 +883,8 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   tenant 服务 **126 个测试通过**。
 - `MktConsent.save` 的更新路径改为 CAS：以 `changeGrant` 递增前的版本为期望值，
   命中 0 行抛 `MKT_CONSENT_VERSION_CONFLICT`；marketing 服务测试通过（4 个）。
+- `MktCoupon.save` 的更新分支同样改为 CAS：`version = ?` 谓词 + 自增，
+  命中 0 行抛 `MKT_COUPON_VERSION_CONFLICT`。
 
 **环境验证（2026-10-18，JDK 25 已恢复）**：JDK 25 实际安装于
 `C:\Program Files\Java\jdk-25.0.3`（默认 `JAVA_HOME` 仍指向不存在的 `jdk-25`，运行前需显式设置）。

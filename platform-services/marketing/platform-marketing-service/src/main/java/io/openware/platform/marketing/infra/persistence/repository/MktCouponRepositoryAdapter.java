@@ -65,8 +65,25 @@ public class MktCouponRepositoryAdapter implements MktCouponRepository {
       po.setUpdatedAt(now);
       mapper.insert(po);
     } else {
-      po.setUpdatedAt(now);
-      mapper.updateById(po);
+      int expectedVersion = coupon.version() == null ? 0 : coupon.version();
+      int updated = mapper.update(null, Wrappers.<MktCouponPo>lambdaUpdate()
+          .eq(MktCouponPo::getId, coupon.id())
+          .eq(MktCouponPo::getVersion, expectedVersion)
+          .set(MktCouponPo::getCampaignId, coupon.campaignId())
+          .set(MktCouponPo::getDiscountType,
+              coupon.discountType() == null ? null : coupon.discountType().name())
+          .set(MktCouponPo::getDiscountValue, coupon.discountValue())
+          .set(MktCouponPo::getMinAmount, coupon.minAmount())
+          .set(MktCouponPo::getMaxDiscount, coupon.maxDiscount())
+          .set(MktCouponPo::getUsageLimit, coupon.usageLimit())
+          .set(MktCouponPo::getPerCustomerLimit, coupon.perCustomerLimit())
+          .set(MktCouponPo::getStatus, coupon.status())
+          .set(MktCouponPo::getUpdatedAt, now)
+          .setSql("version = version + 1"));
+      if (updated == 0) {
+        throw new IllegalStateException("MKT_COUPON_VERSION_CONFLICT");
+      }
+      po.setVersion(expectedVersion + 1);
     }
     return toDomain(po);
   }
