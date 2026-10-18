@@ -864,6 +864,18 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 **结论**：§8.23 的「审计字段已收口」只对当时的清单成立；`audit-fields` 门禁才是范围的
 唯一事实来源。13 个模型迁移完毕，业务时间字段与 append-only 载荷保留在显式 allowlist 中。
 
+### 8.25 V1/V2 收口门禁（2026-10-18 第二十一次更新）
+
+- `audit-fields` 工作清单归零，已作为**阻塞门禁**运行通过。
+- 新增 `controller-transaction-boundary`（`scripts/validate/validate-controller-transaction-boundary.ps1`）：
+  扫描 `*/controller/*` 的 `@Transactional`，防止事务边界回到 HTTP 适配层。
+  V1 的 12 个事务方法已全部迁移，门禁首次运行即为 0，直接作为**阻塞门禁**运行通过。
+- `controller-repository-boundary` 维持 blocking（14 → 0）。
+
+**环境限制**：本机 JDK 25 仍缺失，Maven 的 enforcer 要求 `[25,)`。上述门禁与受影响模块
+测试已用 JDK 21 + `-Djava.version=21 -Denforcer.skip=true` 验证；恢复 JDK 25 后仍需复跑
+`invoke-engineering-validation.ps1 -Scope Changed` 的 Maven 步骤。
+
 
 
 
