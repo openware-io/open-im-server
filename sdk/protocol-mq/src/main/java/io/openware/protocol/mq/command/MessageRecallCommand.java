@@ -14,6 +14,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class MessageRecallCommand {
   private String commandId;
+  private String conversationId;
   private long userId;
   private String msgId;
   private Instant acceptedAt;

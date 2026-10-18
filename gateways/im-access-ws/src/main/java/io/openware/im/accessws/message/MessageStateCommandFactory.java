@@ -25,31 +25,33 @@ public class MessageStateCommandFactory {
     this.clock = clock;
   }
 
-  public PreparedReadCommand createRead(long userId, List<String> msgIds) {
+  public PreparedReadCommand createRead(long userId, String conversationId, List<String> msgIds) {
     String commandId = commandIdSupplier.get();
     Instant acceptedAt = Instant.now(clock);
     return new PreparedReadCommand(
         MessageReadCommand.builder()
             .commandId(commandId)
+            .conversationId(conversationId)
             .userId(userId)
             .msgIds(List.copyOf(msgIds))
             .acceptedAt(acceptedAt)
             .build(),
         new CommandAcceptance(commandId, acceptedAt),
-        "user:" + userId);
+        conversationId);
   }
 
-  public PreparedRecallCommand createRecall(long userId, String msgId) {
+  public PreparedRecallCommand createRecall(long userId, String conversationId, String msgId) {
     String commandId = commandIdSupplier.get();
     Instant acceptedAt = Instant.now(clock);
     return new PreparedRecallCommand(
         MessageRecallCommand.builder()
             .commandId(commandId)
+            .conversationId(conversationId)
             .userId(userId)
             .msgId(msgId)
             .acceptedAt(acceptedAt)
             .build(),
         new CommandAcceptance(commandId, acceptedAt),
-        msgId);
+        conversationId);
   }
 }

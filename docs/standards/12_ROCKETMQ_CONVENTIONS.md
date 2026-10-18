@@ -62,7 +62,8 @@
 - 变更 Topic 的 Payload、顺序键、幂等键、重试策略或消费目的时，必须完成生产者、消费者、Outbox/Relay 与回放方案的兼容性评审。
 - 合并前必须执行工程规则要求的编码、构建与相关测试校验；未完成台账和服务文档同步的变更不得合并。
 - `mq-registry` 只校验名称一致性；`mq-semantics` 校验 Topic/Consumer Group 的顺序键与幂等键是否为真实值。
-  后者当前为 **report-only**：台账仍有 47 行 `待核`/`-`/空值，必须从生产方 Outbox 或事件载荷补齐，**不得编造**。
+  后者现在是 **blocking**：47 行待补已清零，消息链路统一 `conversationId`；`read`/`recall` 命令新增
+  `conversationId` 字段，客户端必须随请求下发。
 
 ## 资源登记模板
 

@@ -19,6 +19,8 @@ import lombok.Setter;
 @Builder
 public class RecallMessageDto {
   @NotBlank
+  private String conversationId;
+  @NotBlank
   private String msgId;
 }
 

@@ -994,9 +994,10 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 - 新增 `scripts/validate/validate-mq-semantics.ps1`（G42）：Topic/Consumer Group 行的顺序键、幂等键
   不得为空、`-` 或 `待核`；Producer Group 行允许 `-`。
-- 当前 47 行不完整，因此 G42 为 **report-only**，工作清单
-  `.outputs/quality/mq-semantics-worklist.txt`；`mq-registry` 名称一致性门禁仍 blocking。
-- 补值必须来自生产方 Outbox 或事件载荷，不得编造；工作清单归零后删除 report-only 条目并转为 blocking。
+- 47 行已按生产者 Outbox/shardingKey 证据补齐到 0；`read`/`recall` 命令新增 `conversationId`，
+  网关 shardingKey 改为会话键，消费者与台账同步。
+- G42 已从 report-only 转为 **blocking**；工作清单删除，report-only 文件仅保留历史记录。
+- 补值证据来自 `sendOrdered`/Outbox 的 shardingKey 与 eventId；无证据的行不移除、不猜测。
 
 ### 8.3 已决事项：`mybatis-plus-jsqlparser-4.9`（原 A/B/C 冲突）
 

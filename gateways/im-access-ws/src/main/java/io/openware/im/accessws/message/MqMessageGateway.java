@@ -48,7 +48,8 @@ public class MqMessageGateway {
   }
 
   public CommandAcceptance acceptRead(long userId, ReadReceiptDto dto) throws Exception {
-    PreparedReadCommand prepared = stateCommandFactory.createRead(userId, dto.getMsgIds());
+    PreparedReadCommand prepared = stateCommandFactory.createRead(userId, dto.getConversationId(),
+        dto.getMsgIds());
     mqProducer.sendOrdered(
         ImMqTopics.MESSAGE_READ_COMMAND,
         prepared.shardingKey(),
@@ -58,7 +59,8 @@ public class MqMessageGateway {
   }
 
   public CommandAcceptance acceptRecall(long userId, RecallMessageDto dto) throws Exception {
-    PreparedRecallCommand prepared = stateCommandFactory.createRecall(userId, dto.getMsgId());
+    PreparedRecallCommand prepared = stateCommandFactory.createRecall(userId, dto.getConversationId(),
+        dto.getMsgId());
     mqProducer.sendOrdered(
         ImMqTopics.MESSAGE_RECALL_COMMAND,
         prepared.shardingKey(),

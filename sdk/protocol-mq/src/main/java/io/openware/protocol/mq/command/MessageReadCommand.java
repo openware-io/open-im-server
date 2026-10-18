@@ -15,6 +15,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class MessageReadCommand {
   private String commandId;
+  private String conversationId;
   private long userId;
   private List<String> msgIds;
   private Instant acceptedAt;

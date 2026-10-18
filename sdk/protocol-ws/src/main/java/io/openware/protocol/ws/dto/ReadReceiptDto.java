@@ -1,6 +1,7 @@
 package io.openware.protocol.ws.dto;
 
 import java.util.List;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +16,8 @@ import lombok.Setter;
 @AllArgsConstructor
 @Builder
 public class ReadReceiptDto {
+  @NotBlank
+  private String conversationId;
   @NotNull
   private List<String> msgIds;
 }

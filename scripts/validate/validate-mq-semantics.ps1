@@ -30,6 +30,13 @@ if (-not (Test-Path -LiteralPath $registryPath -PathType Leaf)) {
 $rowPattern = '(?m)^\|\s*(Topic|Consumer Group)\s*\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|'
 # The pending marker is built from code points so this script stays ASCII-only.
 $pending = [string]([char]0x5F85) + [char]0x6838
+# Message-chain resources must use conversationId even if some other key is non-empty.
+$messageChain = @(
+  'im_message_command_read_v1',
+  'im_message_command_recall_v1',
+  'im-message-service-read-command-consumer',
+  'im-message-service-recall-command-consumer'
+)
 foreach ($match in [regex]::Matches([System.IO.File]::ReadAllText($registryPath, [System.Text.UTF8Encoding]::new($false, $true)), $rowPattern)) {
   $name = $match.Groups[2].Value.Trim().Trim('`')
   $orderKey = $match.Groups[5].Value.Trim().Trim('`')
@@ -40,6 +47,9 @@ foreach ($match in [regex]::Matches([System.IO.File]::ReadAllText($registryPath,
   }
   if ($idempotencyKey -eq '' -or $idempotencyKey -eq '-' -or $idempotencyKey -eq $pending) {
     $violations.Add("MQ ledger row has no real idempotency key: $name")
+  }
+  if ($name -in $messageChain -and $orderKey -ne 'conversationId') {
+    $violations.Add("Message-chain row must use conversationId as order key: $name (found '$orderKey')")
   }
 }
 
