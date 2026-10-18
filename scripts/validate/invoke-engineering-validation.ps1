@@ -87,7 +87,8 @@ $validators = @(
   @{ Name = 'currency-defaults'; Arguments = @() },
   @{ Name = 'media-boundaries'; Arguments = @() },
   @{ Name = 'observability-redaction'; Arguments = @() },
-  @{ Name = 'observability-correlation'; Arguments = @() }
+  @{ Name = 'observability-correlation'; Arguments = @() },
+  @{ Name = 'verify-inventory'; Arguments = @() }
 )
 
 foreach ($validator in $validators) {

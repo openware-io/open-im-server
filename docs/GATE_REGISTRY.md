@@ -50,3 +50,4 @@
 | G36 | media-boundaries | validate-media-boundaries.ps1 | blocking | 无代理上传、提供方 SDK 不越界、内部端点不外泄 |
 | G37 | observability-redaction | validate-observability-redaction.ps1 | blocking | 日志不得直接打印 token/password/secret/signature |
 | G38 | observability-correlation | validate-observability-correlation.ps1 | blocking | 网关生成/传播 X-Request-Id（HTTP 入口） |
+| G39 | verify-inventory | validate-verify-inventory.ps1 | blocking | scripts/verify 与 43 章 §3 清单一致 |
