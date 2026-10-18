@@ -284,7 +284,7 @@ class MemberRepositoryAdapterTest {
     when(memberMapper.update(any(), any())).thenReturn(1);
     LocalDateTime boundAt = LocalDateTime.of(2026, 9, 1, 10, 0, 0);
 
-    assertTrue(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", boundAt, null, null));
+    assertTrue(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", boundAt, null, 0));
 
     LambdaUpdateWrapper<CstMemberPo> wrapper = capturedUpdate();
     String set = wrapper.getSqlSet();
@@ -308,7 +308,7 @@ class MemberRepositoryAdapterTest {
   void updateImBindingWritesNameCipherWhenNameChanges() {
     when(memberMapper.update(any(), any())).thenReturn(1);
 
-    adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), "v1:new-cipher", null);
+    adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), "v1:new-cipher", 0);
 
     String set = capturedUpdate().getSqlSet();
     assertTrue(set.contains("name_cipher"), set);
@@ -332,7 +332,7 @@ class MemberRepositoryAdapterTest {
   void updateImBindingReturnsFalseWhenNothingMatched() {
     when(memberMapper.update(any(), any())).thenReturn(0);
 
-    assertFalse(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), null, null));
+    assertFalse(adapter.updateImBinding(MEMBER_ID, "im_71", "小明", LocalDateTime.now(), null, 0));
   }
 
   /** 可改属性只写真实列，且"传 null 的字段不参与 SET"（不是写成 NULL）。 */
@@ -340,7 +340,7 @@ class MemberRepositoryAdapterTest {
   void updateAttributesSetsOnlyProvidedColumns() {
     when(memberMapper.update(any(), any())).thenReturn(1);
 
-    adapter.updateAttributes(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 10, 0, 0), null, "FROZEN", null, null);
+    adapter.updateAttributes(MEMBER_ID, LocalDateTime.of(2026, 9, 1, 10, 0, 0), null, "FROZEN", null, 0);
 
     String set = capturedUpdate().getSqlSet();
     assertTrue(set.contains("joined_at"), set);

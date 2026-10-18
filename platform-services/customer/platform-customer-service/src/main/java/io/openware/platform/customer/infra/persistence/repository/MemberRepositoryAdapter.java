@@ -201,32 +201,32 @@ public class MemberRepositoryAdapter implements MemberRepository {
 
   @Override
   public boolean updateImBinding(Long id, String imAccount, String imUsername, LocalDateTime imBoundAt,
-                                 String newNameCipher, Integer expectedVersion) {
+                                 String newNameCipher, int expectedVersion) {
     LambdaUpdateWrapper<CstMemberPo> update = Wrappers.<CstMemberPo>lambdaUpdate()
         .eq(CstMemberPo::getId, id)
-        .eq(expectedVersion != null, CstMemberPo::getVersion, expectedVersion)
+        .eq(CstMemberPo::getVersion, expectedVersion)
         .set(CstMemberPo::getImAccount, imAccount)
         .set(CstMemberPo::getImUsername, imUsername)
         .set(CstMemberPo::getImBoundAt, imBoundAt)
         .set(CstMemberPo::getUpdatedAt, LocalDateTime.now())
         // 姓名只有传了才写：传 null 是"本次不改姓名"，不是"把姓名清空"。
         .set(newNameCipher != null, CstMemberPo::getNameCipher, newNameCipher)
-        .setSql(expectedVersion != null, "version = version + 1");
+        .setSql("version = version + 1");
     return memberMapper.update(null, update) > 0;
   }
 
   @Override
   public boolean updateAttributes(Long id, LocalDateTime joinedAt, Long levelId, String status, Long accountId,
-                                  Integer expectedVersion) {
+                                  int expectedVersion) {
     LambdaUpdateWrapper<CstMemberPo> update = Wrappers.<CstMemberPo>lambdaUpdate()
         .eq(CstMemberPo::getId, id)
-        .eq(expectedVersion != null, CstMemberPo::getVersion, expectedVersion)
+        .eq(CstMemberPo::getVersion, expectedVersion)
         .set(joinedAt != null, CstMemberPo::getJoinedAt, joinedAt)
         .set(levelId != null, CstMemberPo::getLevelId, levelId)
         .set(status != null, CstMemberPo::getStatus, status)
         .set(accountId != null, CstMemberPo::getAccountId, accountId)
         .set(CstMemberPo::getUpdatedAt, LocalDateTime.now())
-        .setSql(expectedVersion != null, "version = version + 1");
+        .setSql("version = version + 1");
     return memberMapper.update(null, update) > 0;
   }
 

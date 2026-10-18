@@ -173,7 +173,8 @@ class MemberJoinedAtRangeIntegrationTest {
      */
     private Long createAt(String name, String phone, LocalDateTime joinedAt) {
         MemberDisplay created = memberService.create(null, name, phone, false, null, null);
-        memberRepository.updateAttributes(created.member().id(), joinedAt, null, null, null, null);
+        memberRepository.updateAttributes(created.member().id(), joinedAt, null, null, null,
+                memberRepository.findById(created.member().id()).orElseThrow().version());
         return created.member().id();
     }
 

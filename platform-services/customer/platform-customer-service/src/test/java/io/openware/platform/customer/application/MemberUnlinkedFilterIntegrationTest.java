@@ -79,7 +79,8 @@ class MemberUnlinkedFilterIntegrationTest {
         Long withoutAccount = create("待认领客户", "13700000101", null, LocalDateTime.of(2026, 9, 1, 10, 0, 0));
         // 账号存在（account_id 有值）但没有 IM 身份：同样是「无有效 IM 关联」
         Long accountWithoutIm = create("有账号无IM", "13700000102", null, LocalDateTime.of(2026, 9, 2, 10, 0, 0));
-        assertTrue(memberRepository.updateAttributes(accountWithoutIm, null, null, null, 9001L, null));
+        assertTrue(memberRepository.updateAttributes(accountWithoutIm, null, null, null, 9001L,
+                versionOf(accountWithoutIm)));
         Long linked = create("已关联IM", "13700000103", "im_2001", LocalDateTime.of(2026, 9, 3, 10, 0, 0));
         // IM 后台删除用户后的残档：im_account 仍有值（不是 NULL），因此**不属于** onlyUnlinked
         create("IM账号已删除", "13700000104", "im_2002", LocalDateTime.of(2026, 9, 4, 10, 0, 0));
@@ -185,12 +186,17 @@ class MemberUnlinkedFilterIntegrationTest {
         MemberDisplay created = memberService.create(null, name, phone, false, imAccount,
                 imAccount == null ? null : "user-" + imAccount);
         assertNotNull(created.member().id(), "建档必须落库");
-        memberRepository.updateAttributes(created.member().id(), joinedAt, null, null, null, null);
+        memberRepository.updateAttributes(created.member().id(), joinedAt, null, null, null,
+                versionOf(created.member().id()));
         return created.member().id();
     }
 
     private void setLevelAndStatus(Long id, Long levelId, String status) {
-        memberRepository.updateAttributes(id, null, levelId, status, null, null);
+        memberRepository.updateAttributes(id, null, levelId, status, null, versionOf(id));
+    }
+
+    private int versionOf(Long id) {
+        return memberRepository.findById(id).orElseThrow().version();
     }
 
     private static List<Long> ids(com.baomidou.mybatisplus.extension.plugins.pagination.Page<MemberDisplay> page) {

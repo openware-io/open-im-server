@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
@@ -230,7 +231,7 @@ class MemberApplicationServiceTest {
     assertEquals("member.im.bind", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IM_ACCOUNT_ALREADY_BOUND", record.errorCode());
-    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), any());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), anyInt());
     verify(nameTokenRepository, never()).replaceForMember(anyLong(), any(), any());
   }
 
@@ -239,7 +240,7 @@ class MemberApplicationServiceTest {
     TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of("member.pii.view")));
     when(memberRepository.findById(9L)).thenReturn(Optional.of(member(9L, 100L, "M9")));
     when(memberRepository.findEarliestByImAccount("im_71")).thenReturn(Optional.empty());
-    when(memberRepository.updateImBinding(eq(9L), eq("im_71"), eq("小明"), any(), eq("v1:new-cipher"), any()))
+    when(memberRepository.updateImBinding(eq(9L), eq("im_71"), eq("小明"), any(), eq("v1:new-cipher"), anyInt()))
         .thenReturn(true);
     when(aesGcmCipher.encrypt("张三")).thenReturn("v1:new-cipher");
 
@@ -261,7 +262,7 @@ class MemberApplicationServiceTest {
   @Test
   void bindImRequiresImAccount() {
     assertThrows(ApiException.class, () -> service.bindIm(9L, "  ", "小明", null));
-    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), any());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), anyInt());
   }
 
   /** 绑定到不存在的客户 → 404，且不触碰任何写路径。 */
@@ -273,7 +274,7 @@ class MemberApplicationServiceTest {
 
     assertEquals(404, failure.getStatus());
     assertEquals("MEMBER_NOT_FOUND", failure.getCode());
-    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), any());
+    verify(memberRepository, never()).updateImBinding(anyLong(), any(), any(), any(), any(), anyInt());
   }
 
   @SuppressWarnings("unchecked")

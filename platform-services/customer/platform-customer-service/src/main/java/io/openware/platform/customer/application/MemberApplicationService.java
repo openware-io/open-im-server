@@ -349,8 +349,9 @@ public class MemberApplicationService {
         boolean rename = name != null && !name.isBlank();
         String normalizedName = normalizeImUsername(imUsername);
         String newNameCipher = rename ? aesGcmCipher.encrypt(name) : null;
+        int expectedVersion = member.version() == null ? 0 : member.version();
         if (!memberRepository.updateImBinding(member.id(), normalizedIm, normalizedName, now, newNameCipher,
-                member.version())) {
+                expectedVersion)) {
           throw new ApiException(409, "MEMBER_VERSION_CONFLICT", "客户档案已被其他请求修改，请刷新后重试");
         }
         Member bound = member.withImBinding(normalizedIm, normalizedName, now, newNameCipher);

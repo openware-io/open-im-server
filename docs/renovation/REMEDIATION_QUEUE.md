@@ -10,7 +10,7 @@
 | ID | 事项 | 现状 | 为什么不够 | 验收标准 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | Q01 | `reserved-identifiers` 的 CAS 证据 | 每条 CAS 已引用 evidence 文件 | 和 MQ 台账一样，可能标了 CAS 但代码没有版本谓词 | 每条 CAS 必须引用证据文件；门禁检查文件存在且含版本谓词/`@Version` | ✅ 完成 |
-| Q02 | `MemberRepository.updateAttributes` 允许 `expectedVersion=null` | 传 null 退化为无条件更新 | CAS API 仍留绕过口子 | 生产路径禁止 null；迁移/测试用独立入口并标注 | 待办 |
+| Q02 | `MemberRepository.updateAttributes` 允许 `expectedVersion=null` | 已改为必填 `int`，始终 CAS | CAS API 仍留绕过口子 | 生产路径禁止 null；迁移/测试用独立入口并标注 | ✅ 完成 |
 | Q03 | `Product` / `InventoryMaterial` 的 CAS 只有 mock 测试 | 适配器测试用 mock mapper 捕获 Wrapper | 没证明真实 SQL 能执行、列集合正确 | 至少一个真实适配器/集成测试覆盖 `WHERE version = ?` 与自增 | 待办 |
 | Q04 | `MktConsent` / `MktCoupon` 的 CAS 无适配器测试 | 只有应用/领域测试 | 同上 | 补适配器测试，断言版本谓词与自增 | 待办 |
 | Q05 | `RequestIdTaskDecorator` 未验证 Spring 调度器真的应用 | 只直接调用 decorator | 测试通过不代表 `@Scheduled` 线程带 requestId | Spring 上下文测试：调度任务内 `RequestIdContext` 非空 | 待办 |

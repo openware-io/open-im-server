@@ -993,6 +993,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.36 Member CAS 必填（Q02，2026-10-18）
+
+- `MemberRepository.updateImBinding/updateAttributes` 的 `expectedVersion` 由 `Integer` 改为 `int`；
+  adapter 无条件 `eq(version)` 且 `version = version + 1`，删除 null 退化为无条件更新的路径。
+- 应用服务从 `member.version()` 取值（缺失按 0）；集成测试改为读取当前版本后再更新。
+- 客户模块 43 个相关测试通过。
+
 ### 8.35 MQ 台账语义门禁（P3，2026-10-18）
 
 - 新增 `scripts/validate/validate-mq-semantics.ps1`（G42）：Topic/Consumer Group 行的顺序键、幂等键
