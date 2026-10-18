@@ -15,14 +15,20 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
 
 /**
  * 媒体服务客户端的线上行为：图片字节走原始请求体、biz/scope 走查询参数，
  * 且请求携带能通过平台内部 HMAC 校验的签名头（用本机 HTTP 服务端复算签名验证）。
+ *
+ * <p>服务端在类级别只启停一次：每个测试反复 bind/close 随机端口在全仓套件里出现过竞态，
+ * 改成一次启动 + 每测试重置响应状态，既保留真实 HTTP 行为又去掉端口抖动。
  */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MediaServiceImageClientTest {
 
   private static final String SECRET = "0123456789abcdef0123456789abcdef";
@@ -40,7 +46,7 @@ class MediaServiceImageClientTest {
   private volatile int responseStatus = 200;
   private volatile String responseBody = "";
 
-  @BeforeEach
+  @BeforeAll
   void startServer() throws IOException {
     authentication = new InternalServiceAuthentication(authenticationProperties());
     server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -70,9 +76,23 @@ class MediaServiceImageClientTest {
         new InternalServiceAuthenticationInterceptor(authentication));
   }
 
-  @AfterEach
+  @BeforeEach
+  void resetState() {
+    responseStatus = 200;
+    responseBody = "";
+    seenQuery.set(null);
+    seenBody.set(null);
+    seenContentType.set(null);
+    seenSource.set(null);
+    seenVersion.set(null);
+    signatureValid.set(null);
+  }
+
+  @AfterAll
   void stopServer() {
-    server.stop(0);
+    if (server != null) {
+      server.stop(0);
+    }
   }
 
   @Test

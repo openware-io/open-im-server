@@ -977,9 +977,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 - 执行 `invoke-engineering-validation.ps1 -Scope Full`（JDK 25）：**全部 39 个门禁 + `mvn clean verify` 通过**。
 - 关键测试计数：order 743、customer 228、admin 173（3 skipped）、payment 148、conversation 19、user 115。
-- **已知偶发**：首次全量运行时 `MediaServiceImageClientTest` 出现一次本地端口连接失败（该测试用随机端口启 `HttpServer`）；
-  单测、admin 模块全量与第二次全量均通过。后续应给该类本地端口测试加稳定化（固定 executor/重试或改用进程内 mock），
-  避免把环境抖动误判为业务失败。
+- **偶发已处理**：首次全量运行时 `MediaServiceImageClientTest` 出现一次本地端口连接失败。
+  已把该测试的 `HttpServer` 从“每测试启停”改为“类级启停 + 每测试重置状态”，
+  随后 admin 模块全量与第二次 `-Scope Full` 均通过。
 
 ### 8.34 可观测性指标口径门禁（40 章，2026-10-18）
 
