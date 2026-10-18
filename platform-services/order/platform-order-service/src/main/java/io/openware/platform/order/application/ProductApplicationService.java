@@ -304,7 +304,7 @@ public class ProductApplicationService {
                 effectiveMaterialId,
                 descriptionProvided ? description : product.description(),
                 images.urls(), images.mainImageUrl());
-        Persisted<Product> persisted = productRepository.update(merged);
+        Persisted<Product> persisted = update(merged);
         Product updated = syncCatalog(persisted.aggregate());
         recordProductAudit("product.update", updated);
         return ProductView.from(updated, persisted.audit());
@@ -324,7 +324,7 @@ public class ProductApplicationService {
                     throw new BusinessException("PRODUCT_NOT_READY_FOR_SHELF", "关联物料不存在或已停用");
                 }
             }
-            Persisted<Product> persisted = productRepository.update(
+            Persisted<Product> persisted = update(
                     product.withStatus(Product.STATUS_ON_SHELF));
             Product published = syncCatalog(persisted.aggregate());
             // 上架此前只有目录同步、没有操作留痕：上架即进入可售卖目录，必须可回溯（沿用既有动作码 product.publish）。
@@ -340,7 +340,7 @@ public class ProductApplicationService {
     public ProductView offShelf(Long id) {
         try {
             Product product = find(id);
-            Persisted<Product> persisted = productRepository.update(
+            Persisted<Product> persisted = update(
                     product.withStatus(Product.STATUS_OFF_SHELF));
             Product unpublished = syncCatalog(persisted.aggregate());
             // 下架同样此前没有操作留痕（沿用既有动作码 product.unpublish）。
@@ -442,7 +442,7 @@ public class ProductApplicationService {
             // 商品侧回指必须落库（ord_product.catalog_item_id 是权威关联方向），
             // 否则下次同步只能靠 ord_catalog_item.product_id 反查，历史脏数据下会建出第二条目录项。
             Product linked = product.withCatalogItemId(inserted.id());
-            productRepository.update(linked);
+            update(linked);
             return linked;
         }
         catalogItemRepository.update(synced);
@@ -620,6 +620,21 @@ public class ProductApplicationService {
                     "该服务人员已关联服务商品「%s」，请先解除原关联".formatted(occupied.name()));
         }
         return server;
+    }
+
+    /**
+     * 商品写入的 CAS 入口：用当前聚合的 version 作为期望值，冲突翻译成 409 业务错误。
+     */
+    private Persisted<Product> update(Product product) {
+        int expectedVersion = product.version() == null ? 0 : product.version();
+        try {
+            return productRepository.update(product, expectedVersion);
+        } catch (IllegalStateException conflict) {
+            if ("PRODUCT_VERSION_CONFLICT".equals(conflict.getMessage())) {
+                throw new BusinessException("PRODUCT_VERSION_CONFLICT", "商品已被并发修改，请刷新后重试");
+            }
+            throw conflict;
+        }
     }
 
     /**

@@ -11,7 +11,7 @@
 #   - PENDING entries are migration debt and may only decrease;
 #   - a non-lock use must be renamed to revision/rowVersion instead of being listed here.
 
-im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/infra/clientrelease/persistence/po/ClientReleasePo.java | PENDING | release publishing uses a separate row_version; version still needs a decision
+im-services/admin/im-admin-service/src/main/java/io/openware/im/admin/infra/clientrelease/persistence/po/ClientReleasePo.java | BUSINESS_VERSION | application release version string; row_version is the lock
 platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstMemberPo.java | CAS | updateImBinding/updateAttributes take expectedVersion
 platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstPointAccountPo.java | CAS | point balance updates use expectedVersion
 platform-services/customer/platform-customer-service/src/main/java/io/openware/platform/customer/infra/persistence/po/CstPointRuleConfigPo.java | CAS | rule updates use expectedVersion
@@ -21,15 +21,15 @@ platform-services/marketing/platform-marketing-service/src/main/java/io/openware
 platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponIssuancePo.java | CAS | markRedeemed guards status and expectedVersion
 platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponPo.java | CAS | save update branch uses expectedVersion
 platform-services/marketing/platform-marketing-service/src/main/java/io/openware/platform/marketing/infra/persistence/po/MktCouponRedemptionPo.java | APPEND_ONLY | redemption rows are inserted once; uniqueness is the guard
-platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryMaterialPo.java | PENDING | update writes editable columns without a version predicate
-platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryStockPo.java | PENDING | atomic stock SQL exists but version is not part of the predicate
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryMaterialPo.java | CAS | update uses WHERE id = ? AND version = ? and increments
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/InventoryStockPo.java | COUNTER | atomic quantity guard; version is an incrementing revision, not a lock
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvServerSessionPo.java | CAS | updateWithVersion uses WHERE id = ? AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/KtvSessionPo.java | CAS | updateWithVersion/transferRoom use WHERE id = ? AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrderPo.java | CAS | status transitions use AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdOrderVoidApprovalPo.java | CAS | reviewWithVersion uses AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdReservationRuleConfigPo.java | CAS | updateWindowsWithVersion uses AND version = ?
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/OrdVoidRuleConfigPo.java | CAS | updateRequireApprovalWithVersion uses AND version = ?
-platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/ProductPo.java | PENDING | update goes through updateById without a version predicate
+platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/ProductPo.java | CAS | update uses WHERE id = ? AND version = ? and increments
 platform-services/order/platform-order-service/src/main/java/io/openware/platform/order/infra/persistence/po/ReservationPo.java | CAS | update*WithVersion use AND version = ?
 platform-services/resource/platform-resource-service/src/main/java/io/openware/platform/resource/infra/persistence/po/OccupationPo.java | CAS | releaseWithVersion/cancelWithVersion use mapper conditions
 platform-services/tenant/platform-tenant-service/src/main/java/io/openware/platform/tenant/infra/persistence/po/PricingPlanPo.java | CAS | updateWithVersion uses AND version = ?

@@ -60,7 +60,7 @@ class ProductItemTypeApplicationServiceTest {
     void stubPersistence() {
         when(productRepository.insert(any(Product.class))).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, Product.class)));
-        when(productRepository.update(any(Product.class))).thenAnswer(invocation ->
+        when(productRepository.update(any(Product.class), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, Product.class)));
         when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, CatalogItem.class).withId(77L)));

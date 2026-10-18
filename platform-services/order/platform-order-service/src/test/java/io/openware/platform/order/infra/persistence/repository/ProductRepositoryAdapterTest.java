@@ -101,20 +101,27 @@ class ProductRepositoryAdapterTest {
     assertEquals(null, written.getServerResourceName());
   }
 
-  /** 更新走实体方法，并保回不可变审计列。 */
+  /** 更新走 version CAS，并保回不可变审计列。 */
   @Test
-  void updateByIdKeepsImmutableAuditColumns() {
+  void updateUsesVersionCasAndKeepsImmutableAuditColumns() {
     when(mapper.selectById(PRODUCT_ID)).thenReturn(po(PRODUCT_ID));
-    when(mapper.updateById(any(ProductPo.class))).thenReturn(1);
+    when(mapper.update(any(), any())).thenReturn(1);
 
-    adapter.update(product());
+    adapter.update(product(), 0);
 
-    ArgumentCaptor<ProductPo> captor = ArgumentCaptor.forClass(ProductPo.class);
-    verify(mapper).updateById(captor.capture());
-    ProductPo written = captor.getValue();
+    ArgumentCaptor<ProductPo> entityCaptor = ArgumentCaptor.forClass(ProductPo.class);
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<ProductPo>> wrapperCaptor =
+        ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper.class);
+    verify(mapper).update(entityCaptor.capture(), wrapperCaptor.capture());
+    ProductPo written = entityCaptor.getValue();
     assertEquals(po(PRODUCT_ID).getCreatedAt(), written.getCreatedAt());
     assertEquals(po(PRODUCT_ID).getCreatedBy(), written.getCreatedBy());
     assertNotNull(written.getUpdatedAt());
+    assertTrue(wrapperCaptor.getValue().getTargetSql().toUpperCase().contains("VERSION ="),
+        "必须带 version 谓词: " + wrapperCaptor.getValue().getTargetSql());
+    assertTrue(wrapperCaptor.getValue().getSqlSet().toLowerCase().contains("version = version + 1"),
+        "版本自增必须写在 SQL: " + wrapperCaptor.getValue().getSqlSet());
   }
 
   /** 商品列表口径：门店 + 状态 + 创建时间闭区间，按 sort_order, id 升序。 */

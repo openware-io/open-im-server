@@ -220,7 +220,7 @@ class InventoryApplicationServiceTest {
 
         assertEquals("MATERIAL_INVALID", error.getCode());
         assertEquals("描述长度不能超过 255 个字符", error.getMessage());
-        verify(materialRepository, never()).update(any(InventoryMaterial.class));
+        verify(materialRepository, never()).update(any(InventoryMaterial.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -233,7 +233,7 @@ class InventoryApplicationServiceTest {
                         null, null, null, null, null, null, null, null, List.of("/a.png"), "/zzz.png")));
 
         assertEquals("MATERIAL_INVALID", error.getCode());
-        verify(materialRepository, never()).update(any(InventoryMaterial.class));
+        verify(materialRepository, never()).update(any(InventoryMaterial.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -417,7 +417,7 @@ class InventoryApplicationServiceTest {
                 () -> service.updateMaterial(10L, new InventoryApplicationService.MaterialCommand(
                         null, null, null, null, null, null, new BigDecimal("10000000000001"), null, null, null)));
         assertEquals("PURCHASE_PRICE_INVALID", tooLarge.getCode());
-        verify(materialRepository, never()).update(any(InventoryMaterial.class));
+        verify(materialRepository, never()).update(any(InventoryMaterial.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     // ---- 辅助 ----
@@ -436,7 +436,7 @@ class InventoryApplicationServiceTest {
 
     /** 物料更新的桩（同上：回填落库结果，端口签名是 {@code Persisted}）。 */
     private void stubMaterialUpdate() {
-        when(materialRepository.update(any(InventoryMaterial.class))).thenAnswer(invocation -> {
+        when(materialRepository.update(any(InventoryMaterial.class), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(invocation -> {
             InventoryMaterial material = invocation.getArgument(0);
             LocalDateTime now = LocalDateTime.now();
             return new Persisted<>(material, new AuditSnapshot(null, material.createdAt(), null, now));
@@ -451,7 +451,7 @@ class InventoryApplicationServiceTest {
 
     private InventoryMaterial capturedUpdate() {
         ArgumentCaptor<InventoryMaterial> captor = ArgumentCaptor.forClass(InventoryMaterial.class);
-        verify(materialRepository).update(captor.capture());
+        verify(materialRepository).update(captor.capture(), org.mockito.ArgumentMatchers.anyInt());
         return captor.getValue();
     }
 

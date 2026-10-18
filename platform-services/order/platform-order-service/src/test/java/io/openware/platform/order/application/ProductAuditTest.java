@@ -55,7 +55,7 @@ class ProductAuditTest {
         // 上下架会同步目录项：商品无回指时走「新建目录项」分支，端口返回值必须是聚合+审计快照。
         when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->
                 persistedCatalog(invocation.getArgument(0, CatalogItem.class)));
-        when(productRepository.update(any(Product.class))).thenAnswer(invocation ->
+        when(productRepository.update(any(Product.class), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, Product.class)));
     }
 

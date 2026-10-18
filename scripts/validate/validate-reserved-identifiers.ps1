@@ -2,8 +2,10 @@
 #
 # `version` is a semantic reserved word in this project: if it exists it must be an
 # optimistic-lock token (framework @Version or explicit CAS). Non-lock uses must be renamed
-# to revision/rowVersion. Every current PENDING model is recorded debt; new version fields
-# must be reviewed before they can enter the codebase.
+# to revision/rowVersion. Two reviewed legacy exceptions are recorded but not treated as locks:
+#   BUSINESS_VERSION  release version string; a separate row_version column is the lock
+#   COUNTER           atomic condition update guards concurrency; version is only a revision
+# Every current PENDING model is recorded debt; new version fields must be reviewed first.
 #
 # IMPORTANT: keep this file ASCII-only (Windows PowerShell 5.1 reads BOM-less .ps1 as ANSI).
 #

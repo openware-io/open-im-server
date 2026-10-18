@@ -54,7 +54,7 @@ class ProductApplicationServiceTest {
         // 端口返回值：聚合 + 审计快照。用调用参数回填，模拟「适配器回写主键」。
         when(productRepository.insert(any(Product.class))).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, Product.class), 10L));
-        when(productRepository.update(any(Product.class))).thenAnswer(invocation ->
+        when(productRepository.update(any(Product.class), org.mockito.ArgumentMatchers.anyInt())).thenAnswer(invocation ->
                 persisted(invocation.getArgument(0, Product.class), null));
         // 目录项新增必须回填主键：syncCatalog 靠它写商品侧的 catalog_item_id 回指。
         when(catalogItemRepository.insert(any(CatalogItem.class))).thenAnswer(invocation ->
@@ -136,7 +136,7 @@ class ProductApplicationServiceTest {
 
         assertEquals(List.of("/x.png", "/y.png"), updated.imageUrls());
         assertEquals("/y.png", updated.mainImageUrl());
-        verify(productRepository, org.mockito.Mockito.atLeastOnce()).update(any(Product.class));
+        verify(productRepository, org.mockito.Mockito.atLeastOnce()).update(any(Product.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -163,7 +163,7 @@ class ProductApplicationServiceTest {
                         List.of("/x.png"), "/y.png")));
 
         assertEquals("PRODUCT_INVALID", error.getCode());
-        verify(productRepository, never()).update(any(Product.class));
+        verify(productRepository, never()).update(any(Product.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     @Test
@@ -296,7 +296,7 @@ class ProductApplicationServiceTest {
 
         ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
         // syncCatalog 在新建目录项后也会写回商品（catalog_item_id 回指），因此这里是至少一次。
-        verify(productRepository, org.mockito.Mockito.atLeastOnce()).update(captor.capture());
+        verify(productRepository, org.mockito.Mockito.atLeastOnce()).update(captor.capture(), org.mockito.ArgumentMatchers.anyInt());
         assertNull(captor.getAllValues().getFirst().description());
     }
 
@@ -313,7 +313,7 @@ class ProductApplicationServiceTest {
 
         assertEquals("PRODUCT_INVALID", error.getCode());
         assertEquals("实物商品必须关联仓库商品", error.getMessage());
-        verify(productRepository, never()).update(any(Product.class));
+        verify(productRepository, never()).update(any(Product.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     /** 更新入口：把非实物商品切换成实物商品时，没选仓库商品同样 400。 */
@@ -355,7 +355,7 @@ class ProductApplicationServiceTest {
 
         assertEquals("PRODUCT_INVALID", error.getCode());
         assertEquals("实物商品必须关联仓库商品", error.getMessage());
-        verify(productRepository, never()).update(any(Product.class));
+        verify(productRepository, never()).update(any(Product.class), org.mockito.ArgumentMatchers.anyInt());
     }
 
     /** 非实物商品（服务/加项）不需要仓库商品也能上架，并同步目录项为 ACTIVE。 */

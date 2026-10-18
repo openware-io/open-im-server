@@ -351,7 +351,13 @@ public class InventoryApplicationService {
         }
         InventoryMaterial desired = existing.edited(name, category, unit, description, safetyStock, purchasePrice,
                 currencyCode, imageUrls, mainImageUrl);
-        Persisted<InventoryMaterial> persisted = materialRepository.update(desired);
+        Persisted<InventoryMaterial> persisted;
+        try {
+            int expectedVersion = desired.version() == null ? 0 : desired.version();
+            persisted = materialRepository.update(desired, expectedVersion);
+        } catch (IllegalStateException conflict) {
+            throw new BusinessException("INVENTORY_MATERIAL_VERSION_CONFLICT", "物料已被并发修改，请刷新后重试");
+        }
         InventoryMaterial updated = persisted.aggregate();
         syncCatalogImages(updated);
         auditClient.recordAsync(AuditClient.AuditRecord.builder()

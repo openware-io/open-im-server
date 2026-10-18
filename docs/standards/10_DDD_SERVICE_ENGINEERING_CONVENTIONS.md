@@ -339,6 +339,9 @@
 - **A（锁语义）**：有写入路径的聚合，`version` 必须是真的乐观锁——框架 `@Version` 或显式 CAS；否则按“装饰性 version”处理。
 - **B（改名）**：不是锁的字段不得叫 `version`；改用 `revision`、`rowVersion` 等名字，且不得继续在模型/API 中暴露 `version` 语义。
 - **只读/追加模型**：没有更新路径时，必须登记为 `READ_ONLY` / `APPEND_ONLY`，不得借 `version` 暗示并发保护。
+- **已评审的遗留例外**（只减不增，必须列入改名计划）：
+  - `BUSINESS_VERSION`：字段是业务版本字符串（如客户端发布版本），并发由独立 `row_version` 列保护；
+  - `COUNTER`：并发由其他原子条件（如库存数量）保护，`version` 只是递增的修订计数，不承担锁判定。
 
 管理方式：
 

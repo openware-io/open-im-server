@@ -107,7 +107,7 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
   }
 
   @Override
-  public Persisted<InventoryMaterial> update(InventoryMaterial material) {
+  public Persisted<InventoryMaterial> update(InventoryMaterial material, int expectedVersion) {
     LocalDateTime now = LocalDateTime.now();
     // 可编辑列**整组显式写出**：null 也要进 SET。
     // 迁移前的实现在这里用 LambdaUpdateWrapper 逐列 set（而不是 updateById），原因相同：
@@ -115,6 +115,7 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
     // 调用方已把「本次不改」解析成既有值，因此写出既有值与不写该列在语义上等价。
     LambdaUpdateWrapper<InventoryMaterialPo> update = new LambdaUpdateWrapper<InventoryMaterialPo>()
         .eq(InventoryMaterialPo::getId, material.id())
+        .eq(InventoryMaterialPo::getVersion, expectedVersion)
         .set(InventoryMaterialPo::getName, material.name())
         .set(InventoryMaterialPo::getCategory, material.category())
         .set(InventoryMaterialPo::getUnit, material.unit())
@@ -124,10 +125,15 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
         .set(InventoryMaterialPo::getCurrencyCode, material.currencyCode())
         .set(InventoryMaterialPo::getImageUrls, material.imageUrls(), ITEM_IMAGES_TYPE_HANDLER)
         .set(InventoryMaterialPo::getMainImageUrl, material.mainImageUrl())
-        .set(InventoryMaterialPo::getUpdatedAt, now);
-    // material_code / tenant_id / store_id / status / version / created_* 不在此列：它们不是可编辑列。
-    mapper.update(null, update);
+        .set(InventoryMaterialPo::getUpdatedAt, now)
+        .setSql("version = version + 1");
+    // material_code / tenant_id / store_id / status / created_* 不在此列：它们不是可编辑列。
+    int affected = mapper.update(null, update);
+    if (affected == 0) {
+      throw new IllegalStateException("INVENTORY_MATERIAL_VERSION_CONFLICT");
+    }
     InventoryMaterialPo written = toPo(material);
+    written.setVersion(expectedVersion + 1);
     // 记账列是不可变的：显式列 UPDATE 不会写到它们，这里读一次只为把原值交给响应视图
     // （迁移前是整行读回后再 updateById，响应里的 created_by/updated_by 就是库里的值）。
     InventoryMaterialPo existing = material.id() == null ? null : mapper.selectById(material.id());
@@ -135,6 +141,9 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
       written.setCreatedBy(existing.getCreatedBy());
       written.setCreatedAt(existing.getCreatedAt());
       written.setUpdatedBy(existing.getUpdatedBy());
+      if (existing.getVersion() != null) {
+        written.setVersion(existing.getVersion());
+      }
     }
     return persisted(written, now);
   }

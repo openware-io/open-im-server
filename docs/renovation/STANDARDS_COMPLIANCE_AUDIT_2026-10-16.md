@@ -918,9 +918,12 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 新增 `scripts/validate/validate-reserved-identifiers.ps1` 与
   `scripts/validate/reserved-identifiers-reviewed.txt`：26 个带 `version` 的 PO 全部登记；
   新增未登记、或登记项已消失均失败。
-- 当前 **4 个 PENDING**（待 A/B 决策）：
-  `ClientReleasePo`、`InventoryMaterialPo`、`InventoryStockPo`、`ProductPo`。
-  `KtvServerSessionPo` / `KtvSessionPo` 已核实 mapper 使用 `WHERE id = ? AND version = ?`，改登记为 `CAS`。
+- 当前 **0 个 PENDING**：
+  - `ProductPo` / `InventoryMaterialPo` 已走 A：端口接收 `expectedVersion`，适配器 `WHERE id = ? AND version = ?` + `version = version + 1`，冲突返回 409；
+  - `KtvServerSessionPo` / `KtvSessionPo` 已核实 mapper CAS；
+  - `ClientReleasePo` 登记为 `BUSINESS_VERSION`（发布版本字符串，锁是独立的 `row_version`）；
+  - `InventoryStockPo` 登记为 `COUNTER`（并发由库存数量原子条件保护，version 只是修订计数）。
+- order 服务全量测试 **743 个通过**；`Product`/`InventoryMaterial` 的适配器测试锁定了版本谓词与自增。
 - 门禁已接入统一入口，负向验证（临时加入不存在的登记项）按预期失败。
 
 ### 8.28 门禁注册表与编号（2026-10-18）

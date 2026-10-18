@@ -154,7 +154,7 @@ class InventoryMaterialRepositoryAdapterTest {
 
     adapter.update(new InventoryMaterial(MATERIAL_ID, TENANT_ID, STORE_ID, "M-10", "新名", "饮品", "瓶",
         null, new BigDecimal("3"), null, "USD", List.of("/new.png"), "/new.png", "ACTIVE", 0,
-        LocalDateTime.of(2026, 9, 19, 20, 0, 0)));
+        LocalDateTime.of(2026, 9, 19, 20, 0, 0)), 0);
 
     LambdaUpdateWrapper<InventoryMaterialPo> wrapper = capturedUpdate();
     String set = wrapper.getSqlSet();
@@ -165,11 +165,13 @@ class InventoryMaterialRepositoryAdapterTest {
     // 清空必须真的下发 NULL（不是跳过该列）。
     assertTrue(evaluatedParams(wrapper).values().contains(null),
         "清空描述/采购价必须把 NULL 作为绑定参数下发: " + set);
-    // 非可编辑列不得被改写。
-    for (String column : List.of("material_code", "tenant_id", "store_id", "status", "version",
+    // 非可编辑列不得被改写；version 只允许以 SQL 自增形式出现。
+    for (String column : List.of("material_code", "tenant_id", "store_id", "status",
         "created_by", "created_at", "updated_by")) {
       assertFalse(set.contains(column), column + " 不是可编辑列，不得进 SET: " + set);
     }
+    assertTrue(set.contains("version = version + 1"), "版本自增必须写在 SQL: " + set);
+    assertTrue(evaluatedSql(wrapper).contains("VERSION = ?"), "必须带 version 谓词: " + evaluatedSql(wrapper));
     // 非列字段绝不能进 SET（本项目真实发生过的运行时炸点）。
     assertFalse(set.contains("on_hand_qty"), "onHandQty 不是列: " + set);
     assertFalse(set.contains("reserved_qty"), "reservedQty 不是列: " + set);
@@ -182,7 +184,7 @@ class InventoryMaterialRepositoryAdapterTest {
     when(mapper.update(isNull(), any())).thenReturn(1);
     when(mapper.selectById(MATERIAL_ID)).thenReturn(po());
 
-    adapter.update(material());
+    adapter.update(material(), 0);
 
     String set = capturedUpdate().getSqlSet();
     assertTrue(set.contains("image_urls"), set);
@@ -201,7 +203,7 @@ class InventoryMaterialRepositoryAdapterTest {
     when(mapper.update(isNull(), any())).thenReturn(1);
     when(mapper.selectById(MATERIAL_ID)).thenReturn(stored);
 
-    InventoryMaterialRepository.Persisted<InventoryMaterial> persisted = adapter.update(material());
+    InventoryMaterialRepository.Persisted<InventoryMaterial> persisted = adapter.update(material(), 0);
 
     assertEquals(9L, persisted.audit().createdBy(), "created_by 必须回库取原值");
     assertEquals(8L, persisted.audit().updatedBy(), "updated_by 必须回库取原值");

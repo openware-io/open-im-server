@@ -39,17 +39,15 @@ public interface ProductRepository {
   /**
    * 覆盖写入既有商品的字段（返回更新后的聚合与审计快照）。
    *
-   * <p><b>不承载并发保护</b>：本表的写入路径（创建、编辑、上下架、目录回指回填）都是
-   * 「读取 → 改字段 → 写回」，没有「读状态 → 判定 → 写状态」的条件更新语义，
-   * 因此不引入 {@code WHERE ... AND version = ?}——那需要工程里有
-   * {@code OptimisticLockerInnerInterceptor}（本工程没有），或把版本条件硬编码进每条语句，
-   * 两者都超出本子域的范围。
+   * <p><b>乐观锁</b>：更新是单条 {@code WHERE id = ? AND version = ?} 的 CAS，
+   * {@code version = version + 1} 写在 SQL 里；受影响 0 行表示并发冲突，适配器抛
+   * {@code PRODUCT_VERSION_CONFLICT}，调用方必须拒绝而不是静默覆盖。
    *
    * <p>{@code null} 字段不写列（与既有 {@code updateById} 的 {@code NOT_NULL} 策略一致）。
    * 这与「切类型时清空 {@code server_resource_id}」的意图存在差异：既有实现在真实数据库上同样
    * 清不掉这一列（既有单测用 mock mapper，观察不到）。本端口保持既有行为，不顺手改语义。
    */
-  Persisted<Product> update(Product product);
+  Persisted<Product> update(Product product, int expectedVersion);
 
   /** 该门店下引用给定分类名的商品条数（「被商品引用的分类禁止删除」的判定）。 */
   long countByCategory(Long tenantId, Long storeId, String category);

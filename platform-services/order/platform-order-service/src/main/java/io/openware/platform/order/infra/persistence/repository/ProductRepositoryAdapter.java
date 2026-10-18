@@ -84,19 +84,28 @@ public class ProductRepositoryAdapter implements ProductRepository {
   }
 
   @Override
-  public Persisted<Product> update(Product product) {
+  public Persisted<Product> update(Product product, int expectedVersion) {
     ProductPo existing = product.id() == null ? null : mapper.selectById(product.id());
     ProductPo po = toPo(product);
+    // id 只做 WHERE 条件；version 交给 setSql 自增，避免实体 SET 覆盖成旧值。
+    po.setId(null);
+    po.setVersion(null);
     if (existing != null) {
       po.setCreatedAt(existing.getCreatedAt());
       po.setCreatedBy(existing.getCreatedBy());
       po.setUpdatedBy(existing.getUpdatedBy());
     }
     po.setUpdatedAt(LocalDateTime.now());
-    // 实体更新（NOT_NULL 策略）：null 字段不写列，与迁移前的 updateById 逐列一致。
-    // 说明见 ProductRepository#update：切类型时清空 server_resource_id 在既有实现里同样写不进去。
-    mapper.updateById(po);
-    return persisted(po);
+    // 实体更新（NOT_NULL 策略）+ 显式 CAS：null 字段不写列，与迁移前的 updateById 逐列一致。
+    int affected = mapper.update(po, Wrappers.<ProductPo>lambdaUpdate()
+        .eq(ProductPo::getId, product.id())
+        .eq(ProductPo::getVersion, expectedVersion)
+        .setSql("version = version + 1"));
+    if (affected == 0) {
+      throw new IllegalStateException("PRODUCT_VERSION_CONFLICT");
+    }
+    ProductPo written = mapper.selectById(product.id());
+    return persisted(written != null ? written : po);
   }
 
   /** 业务聚合 + 审计快照：分开交给上层，领域模型不承载记账字段。 */

@@ -63,8 +63,11 @@ public interface InventoryMaterialRepository {
    *
    * <p>{@code material_code} 不可改（门店内业务主键）；{@code created_at}/{@code created_by} 是不可变列，
    * 由适配器从库里取回原值带上。
+   *
+   * <p><b>乐观锁</b>：更新带 {@code WHERE id = ? AND version = ?}，版本在 SQL 里自增；
+   * 受影响 0 行表示并发冲突，适配器抛 {@code INVENTORY_MATERIAL_VERSION_CONFLICT}。
    */
-  Persisted<InventoryMaterial> update(InventoryMaterial material);
+  Persisted<InventoryMaterial> update(InventoryMaterial material, int expectedVersion);
 
   /** 物料分页列表（当前页记录 + 命中总数），按 id 倒序。 */
   MaterialPage findPage(MaterialQuery query);
