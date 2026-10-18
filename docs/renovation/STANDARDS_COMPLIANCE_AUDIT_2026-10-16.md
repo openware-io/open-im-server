@@ -964,9 +964,9 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
   同时写入下游请求与响应头，顺序为 `HIGHEST_PRECEDENCE`。
 - 新增 G38 `validate-observability-correlation.ps1`：运行 `RequestIdFilterTest`，
   锁定“保留/生成/下游传播/响应回写”。
-- 现在覆盖 HTTP 与 MQ：`RequestIdFilter`、`TenantContextFilter`、`RemotingMqProducer`、
-  `RemotingMqConsumerFactory` 共用 `RequestIdContext`；G38 运行三组测试。
-- 定时任务入口的关联标识仍是人工项。
+- 现在覆盖 HTTP、MQ 与定时任务：`RequestIdFilter`、`TenantContextFilter`、
+  `RemotingMqProducer`/`RemotingMqConsumerFactory`、`RequestIdTaskDecorator` 共用 `RequestIdContext`；
+  G38 运行三组测试并校验所有 `@EnableScheduling` 应用都注册了装饰器。
 
 ### 8.32 E2E 验证脚本清单门禁（43 章，2026-10-18）
 

@@ -49,7 +49,7 @@
 | G35 | currency-defaults | validate-currency-defaults.ps1 | blocking | 缺省 USD、门店写穿、历史单据币种快照由测试锁定 |
 | G36 | media-boundaries | validate-media-boundaries.ps1 | blocking | 无代理上传、SDK 不越界、内部端点不外泄、媒体日志脱敏 |
 | G37 | observability-redaction | validate-observability-redaction.ps1 | blocking | 日志不得直接打印 token/password/secret/signature |
-| G38 | observability-correlation | validate-observability-correlation.ps1 | blocking | 网关生成/传播 X-Request-Id，HTTP → MQ → 消费续接 |
+| G38 | observability-correlation | validate-observability-correlation.ps1 | blocking | HTTP → MQ → 消费 → 定时任务的关联标识续接 |
 | G39 | verify-inventory | validate-verify-inventory.ps1 | blocking | scripts/verify 与 43 章 §3 清单一致 |
 | G40 | media-url | validate-media-url.ps1 | blocking | 公共媒体仅经 /api/v1/media-public/**，无旧路径/re-write |
 | G41 | observability-metrics | validate-observability-metrics.ps1 | blocking | 指标名唯一、禁止高基数标签 |

@@ -6,15 +6,18 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.openware.infrastructure.mq.json.MqJsonCodec;
 import io.openware.infrastructure.mq.remoting.RemotingMqConsumerFactory;
 import io.openware.infrastructure.mq.remoting.RemotingMqProducer;
+import io.openware.infrastructure.observability.SchedulingCorrelationConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 @Configuration
 @Slf4j
 @EnableConfigurationProperties(MqProperties.class)
+@Import(SchedulingCorrelationConfig.class)
 public class MqInfrastructureConfig {
   @Bean
   public ObjectMapper objectMapper() {

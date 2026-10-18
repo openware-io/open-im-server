@@ -29,9 +29,23 @@ try {
     $gatewayExit = $LASTEXITCODE
 
     $infra = & $maven -B -q -pl sdk/infrastructure -am `
-      '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest' `
+      '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest' `
       '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
     $infraExit = $LASTEXITCODE
+
+    # Maven occasionally fails to resolve/start under a loaded full-reactor run; retry once
+    # before treating it as a correlation regression.
+    if ($gatewayExit -ne 0) {
+      $gateway = & $maven -B -q -pl gateways/gateway -am '-Dtest=RequestIdFilterTest' `
+        '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
+      $gatewayExit = $LASTEXITCODE
+    }
+    if ($infraExit -ne 0) {
+      $infra = & $maven -B -q -pl sdk/infrastructure -am `
+        '-Dtest=TenantContextFilterTest,RemotingMqConsumerFactoryTest,RequestIdTaskDecoratorTest' `
+        '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
+      $infraExit = $LASTEXITCODE
+    }
   } finally {
     $ErrorActionPreference = $previousErrorAction
   }
@@ -41,12 +55,24 @@ try {
     $violations.Add('Gateway correlation-id test failed (RequestIdFilterTest)')
   }
   if ($infraExit -ne 0) {
-    $violations.Add('HTTP/MQ correlation-id tests failed (TenantContextFilterTest, RemotingMqConsumerFactoryTest)')
+    $violations.Add('HTTP/MQ/scheduled correlation-id tests failed (TenantContextFilterTest, RemotingMqConsumerFactoryTest, RequestIdTaskDecoratorTest)')
+  }
+
+  # Every scheduling-enabled application must pull in the scheduler decorator, either directly
+  # or through the MQ/audit configs that import SchedulingCorrelationConfig.
+  foreach ($app in (git -C $root ls-files '*Application.java')) {
+    $path = Join-Path $root $app
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }
+    $text = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))
+    if ($text -notmatch '@EnableScheduling') { continue }
+    if ($text -notmatch 'SchedulingCorrelationConfig|MqInfrastructureConfig|AuditClientConfig') {
+      $violations.Add("Scheduling app does not register the request-id task decorator: $app")
+    }
   }
 
   if ($violations.Count -eq 0) {
     if (Test-Path -LiteralPath $worklistPath) { Remove-Item -LiteralPath $worklistPath -Force }
-    Write-Host 'Observability correlation validation passed (HTTP + MQ).'
+    Write-Host 'Observability correlation validation passed (HTTP + MQ + scheduled).'
     exit 0
   }
 

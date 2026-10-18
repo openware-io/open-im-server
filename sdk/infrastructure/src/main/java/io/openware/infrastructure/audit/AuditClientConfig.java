@@ -1,8 +1,10 @@
 package io.openware.infrastructure.audit;
 
+import io.openware.infrastructure.observability.SchedulingCorrelationConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -14,6 +16,7 @@ import org.springframework.web.client.RestClient;
  * 缺失即 fail-fast，避免仓库可见的弱密钥被静默启用；测试环境由 pplication-test.yml 提供占位值。
  */
 @Configuration
+@Import(SchedulingCorrelationConfig.class)
 public class AuditClientConfig {
 
   @Bean
