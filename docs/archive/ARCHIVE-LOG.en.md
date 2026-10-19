@@ -2,9 +2,10 @@
 
 [中文](ARCHIVE-LOG.md) | [English](ARCHIVE-LOG.en.md)
 
-> Batch: 2026-10-19
-> Scope: 11 superpowers docs, 2 historical audits and 1 database audit; renovation is not moved yet.
+> Baseline: 2026-10-19 / `develop/2.3.0`
 > Rule: preserve originals; move with `git mv`; each file has `Status: historical` metadata.
+
+## Batch 1: superpowers and one-off audits (14)
 
 | # | Original path | Archive path | Type |
 | ---: | --- | --- | --- |
@@ -23,7 +24,91 @@
 | 13 | `docs/superpowers/specs/2026-09-04-saas-ktv-closure-design.md` | `docs/archive/superpowers/specs/2026-09-04-saas-ktv-closure-design.md` | plan |
 | 14 | `docs/superpowers/specs/2026-09-14-ktv-inventory-product-design.md` | `docs/archive/superpowers/specs/2026-09-14-ktv-inventory-product-design.md` | plan |
 
+## Batch 2: renovation (78)
+
+| # | Original path | Archive path | Type |
+| ---: | --- | --- | --- |
+| 1 | `docs/renovation/ACCESS_GATEWAY_01_WEBSOCKET.md` | `docs/archive/renovation/ACCESS_GATEWAY_01_WEBSOCKET.md` | renovation |
+| 2 | `docs/renovation/ADMIN_DOMAIN_01_DDD.md` | `docs/archive/renovation/ADMIN_DOMAIN_01_DDD.md` | renovation |
+| 3 | `docs/renovation/ADMIN_READONLY_01_INVENTORY.md` | `docs/archive/renovation/ADMIN_READONLY_01_INVENTORY.md` | renovation |
+| 4 | `docs/renovation/ADMIN_READONLY_02_COMPATIBILITY.md` | `docs/archive/renovation/ADMIN_READONLY_02_COMPATIBILITY.md` | renovation |
+| 5 | `docs/renovation/APP_RELEASE_01_SERVICE.md` | `docs/archive/renovation/APP_RELEASE_01_SERVICE.md` | renovation |
+| 6 | `docs/renovation/APP_RELEASE_02_APP.md` | `docs/archive/renovation/APP_RELEASE_02_APP.md` | renovation |
+| 7 | `docs/renovation/APP_RELEASE_03_ADMIN.md` | `docs/archive/renovation/APP_RELEASE_03_ADMIN.md` | renovation |
+| 8 | `docs/renovation/AUDIT_STORAGE_01_SERVICE.md` | `docs/archive/renovation/AUDIT_STORAGE_01_SERVICE.md` | renovation |
+| 9 | `docs/renovation/BASELINE_FREEZE_RUNBOOK.md` | `docs/archive/renovation/BASELINE_FREEZE_RUNBOOK.md` | renovation |
+| 10 | `docs/renovation/BUILD_GOVERNANCE_01_MAVEN.md` | `docs/archive/renovation/BUILD_GOVERNANCE_01_MAVEN.md` | renovation |
+| 11 | `docs/renovation/CHAT_RELIABILITY_01_SERVICE.md` | `docs/archive/renovation/CHAT_RELIABILITY_01_SERVICE.md` | renovation |
+| 12 | `docs/renovation/CHAT_RELIABILITY_02_APP.md` | `docs/archive/renovation/CHAT_RELIABILITY_02_APP.md` | renovation |
+| 13 | `docs/renovation/CLIENT_INTEGRATION_01_APP.md` | `docs/archive/renovation/CLIENT_INTEGRATION_01_APP.md` | renovation |
+| 14 | `docs/renovation/CLIENT_INTEGRATION_02_ADMIN.md` | `docs/archive/renovation/CLIENT_INTEGRATION_02_ADMIN.md` | renovation |
+| 15 | `docs/renovation/COMMON_FOUNDATION_01_SERVICE.md` | `docs/archive/renovation/COMMON_FOUNDATION_01_SERVICE.md` | renovation |
+| 16 | `docs/renovation/CONVERSATION_MESSAGE_01_NORMALIZATION.md` | `docs/archive/renovation/CONVERSATION_MESSAGE_01_NORMALIZATION.md` | renovation |
+| 17 | `docs/renovation/CUSTOMER_LAYERING_HANDOFF.md` | `docs/archive/renovation/CUSTOMER_LAYERING_HANDOFF.md` | renovation |
+| 18 | `docs/renovation/DOMAIN_LAYERING_HANDOFF.md` | `docs/archive/renovation/DOMAIN_LAYERING_HANDOFF.md` | renovation |
+| 19 | `docs/renovation/DOMAIN_PREFIX_SPEC_REVIEW.md` | `docs/archive/renovation/DOMAIN_PREFIX_SPEC_REVIEW.md` | renovation |
+| 20 | `docs/renovation/DOMAIN_PREFIX_SPEC_V2.md` | `docs/archive/renovation/DOMAIN_PREFIX_SPEC_V2.md` | renovation |
+| 21 | `docs/renovation/DOMAIN_PREFIX_SPEC_V3.md` | `docs/archive/renovation/DOMAIN_PREFIX_SPEC_V3.md` | renovation |
+| 22 | `docs/renovation/E8_PRE_RELEASE_CHECKLIST.md` | `docs/archive/renovation/E8_PRE_RELEASE_CHECKLIST.md` | renovation |
+| 23 | `docs/renovation/ENGINEERING_GOVERNANCE_01_CONFORMANCE.md` | `docs/archive/renovation/ENGINEERING_GOVERNANCE_01_CONFORMANCE.md` | renovation |
+| 24 | `docs/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md` | `docs/archive/renovation/ENGINEERING_GOVERNANCE_02_AUDIT.md` | renovation |
+| 25 | `docs/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md` | `docs/archive/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md` | renovation |
+| 26 | `docs/renovation/IM_OPEN_PLATFORM_01_SERVICE.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md` | renovation |
+| 27 | `docs/renovation/IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md` | renovation |
+| 28 | `docs/renovation/IM_OPEN_PLATFORM_03_QUICKSTART.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_03_QUICKSTART.md` | renovation |
+| 29 | `docs/renovation/IM_OPEN_PLATFORM_04_SERVICE.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_04_SERVICE.md` | renovation |
+| 30 | `docs/renovation/IM_OPEN_PLATFORM_05_AUTHORIZATION_GOVERNANCE_DRAFT.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_05_AUTHORIZATION_GOVERNANCE_DRAFT.md` | renovation |
+| 31 | `docs/renovation/IM_OPEN_PLATFORM_06_REVIEW_SOP.md` | `docs/archive/renovation/IM_OPEN_PLATFORM_06_REVIEW_SOP.md` | renovation |
+| 32 | `docs/renovation/KTV_BUSINESS_01_SERVICE.md` | `docs/archive/renovation/KTV_BUSINESS_01_SERVICE.md` | renovation |
+| 33 | `docs/renovation/KTV_BUSINESS_02_APP.md` | `docs/archive/renovation/KTV_BUSINESS_02_APP.md` | renovation |
+| 34 | `docs/renovation/KTV_BUSINESS_03_ADMIN.md` | `docs/archive/renovation/KTV_BUSINESS_03_ADMIN.md` | renovation |
+| 35 | `docs/renovation/KTV_BUSINESS_04_TEST.md` | `docs/archive/renovation/KTV_BUSINESS_04_TEST.md` | renovation |
+| 36 | `docs/renovation/KTV_RESERVATION_ORDER_STATE_FLOW.md` | `docs/archive/renovation/KTV_RESERVATION_ORDER_STATE_FLOW.md` | renovation |
+| 37 | `docs/renovation/KTV_RESERVATION_ROOM_TYPE.md` | `docs/archive/renovation/KTV_RESERVATION_ROOM_TYPE.md` | renovation |
+| 38 | `docs/renovation/MEDIA_UPLOAD_01_SERVICE.md` | `docs/archive/renovation/MEDIA_UPLOAD_01_SERVICE.md` | renovation |
+| 39 | `docs/renovation/MEDIA_UPLOAD_02_APP.md` | `docs/archive/renovation/MEDIA_UPLOAD_02_APP.md` | renovation |
+| 40 | `docs/renovation/MEDIA_UPLOAD_03_ADMIN.md` | `docs/archive/renovation/MEDIA_UPLOAD_03_ADMIN.md` | renovation |
+| 41 | `docs/renovation/MESSAGE_DOMAIN_01_DDD.md` | `docs/archive/renovation/MESSAGE_DOMAIN_01_DDD.md` | renovation |
+| 42 | `docs/renovation/MESSAGE_SYNC_01_SERVICE.md` | `docs/archive/renovation/MESSAGE_SYNC_01_SERVICE.md` | renovation |
+| 43 | `docs/renovation/MESSAGE_SYNC_02_APP.md` | `docs/archive/renovation/MESSAGE_SYNC_02_APP.md` | renovation |
+| 44 | `docs/renovation/MESSAGE_SYNC_03_TEST.md` | `docs/archive/renovation/MESSAGE_SYNC_03_TEST.md` | renovation |
+| 45 | `docs/renovation/MIGRATION_BASELINE_01_DATA.md` | `docs/archive/renovation/MIGRATION_BASELINE_01_DATA.md` | renovation |
+| 46 | `docs/renovation/MIGRATION_BASELINE_01_HANDOFF.md` | `docs/archive/renovation/MIGRATION_BASELINE_01_HANDOFF.md` | renovation |
+| 47 | `docs/renovation/MULTI_DEVICE_LOGIN_01_SERVICE.md` | `docs/archive/renovation/MULTI_DEVICE_LOGIN_01_SERVICE.md` | renovation |
+| 48 | `docs/renovation/MULTI_TIMEZONE_DESIGN.md` | `docs/archive/renovation/MULTI_TIMEZONE_DESIGN.md` | renovation |
+| 49 | `docs/renovation/NAMING_REMNANT_AUDIT.md` | `docs/archive/renovation/NAMING_REMNANT_AUDIT.md` | renovation |
+| 50 | `docs/renovation/ORDER_LAYERING_HANDOFF.md` | `docs/archive/renovation/ORDER_LAYERING_HANDOFF.md` | renovation |
+| 51 | `docs/renovation/ORDER_RESERVATION_01_SERVICE.md` | `docs/archive/renovation/ORDER_RESERVATION_01_SERVICE.md` | renovation |
+| 52 | `docs/renovation/PAYMENT_LAYERING_HANDOFF.md` | `docs/archive/renovation/PAYMENT_LAYERING_HANDOFF.md` | renovation |
+| 53 | `docs/renovation/PLATFORM_SECURITY_01_GOVERNANCE.md` | `docs/archive/renovation/PLATFORM_SECURITY_01_GOVERNANCE.md` | renovation |
+| 54 | `docs/renovation/PREFIX_CHANGE_SAAS_ADMIN.md` | `docs/archive/renovation/PREFIX_CHANGE_SAAS_ADMIN.md` | renovation |
+| 55 | `docs/renovation/PREFIX_REGISTRATION_PROPOSAL.md` | `docs/archive/renovation/PREFIX_REGISTRATION_PROPOSAL.md` | renovation |
+| 56 | `docs/renovation/PREFIX_REMEDIATION_EXECUTION.md` | `docs/archive/renovation/PREFIX_REMEDIATION_EXECUTION.md` | renovation |
+| 57 | `docs/renovation/README.md` | `docs/archive/renovation/README.md` | renovation |
+| 58 | `docs/renovation/REMEDIATION_QUEUE.md` | `docs/archive/renovation/REMEDIATION_QUEUE.md` | renovation |
+| 59 | `docs/renovation/RESERVATION_E_MIG_01_MIGRATION.md` | `docs/archive/renovation/RESERVATION_E_MIG_01_MIGRATION.md` | renovation |
+| 60 | `docs/renovation/RUNTIME_IDENTIFIER_RENAME.md` | `docs/archive/renovation/RUNTIME_IDENTIFIER_RENAME.md` | renovation |
+| 61 | `docs/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | `docs/archive/renovation/SAAS_MENU_PERMISSION_01_ADMIN.md` | renovation |
+| 62 | `docs/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | `docs/archive/renovation/SAAS_MENU_PERMISSION_02_SERVICE.md` | renovation |
+| 63 | `docs/renovation/SAAS_MENU_PERMISSION_HANDOFF.md` | `docs/archive/renovation/SAAS_MENU_PERMISSION_HANDOFF.md` | renovation |
+| 64 | `docs/renovation/SAAS_MENU_PERMISSION_IMPLEMENTATION_PLAN.md` | `docs/archive/renovation/SAAS_MENU_PERMISSION_IMPLEMENTATION_PLAN.md` | renovation |
+| 65 | `docs/renovation/SAAS_PLATFORM_01_SERVICE.md` | `docs/archive/renovation/SAAS_PLATFORM_01_SERVICE.md` | renovation |
+| 66 | `docs/renovation/SAAS_PLATFORM_02_SERVICE.md` | `docs/archive/renovation/SAAS_PLATFORM_02_SERVICE.md` | renovation |
+| 67 | `docs/renovation/SAAS_PLATFORM_03_APP.md` | `docs/archive/renovation/SAAS_PLATFORM_03_APP.md` | renovation |
+| 68 | `docs/renovation/SAAS_PLATFORM_04_DATA.md` | `docs/archive/renovation/SAAS_PLATFORM_04_DATA.md` | renovation |
+| 69 | `docs/renovation/SAAS_PLATFORM_05_API.md` | `docs/archive/renovation/SAAS_PLATFORM_05_API.md` | renovation |
+| 70 | `docs/renovation/SAAS_PLATFORM_06_TECHNICAL.md` | `docs/archive/renovation/SAAS_PLATFORM_06_TECHNICAL.md` | renovation |
+| 71 | `docs/renovation/SAAS_PLATFORM_07_EXECUTION.md` | `docs/archive/renovation/SAAS_PLATFORM_07_EXECUTION.md` | renovation |
+| 72 | `docs/renovation/SAAS_PLATFORM_08_APP.md` | `docs/archive/renovation/SAAS_PLATFORM_08_APP.md` | renovation |
+| 73 | `docs/renovation/SAAS_PLATFORM_09_SERVICE.md` | `docs/archive/renovation/SAAS_PLATFORM_09_SERVICE.md` | renovation |
+| 74 | `docs/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | `docs/archive/renovation/SAAS_TENANT_HEADQUARTERS_01_SERVICE.md` | renovation |
+| 75 | `docs/renovation/STANDARDS_COMPLIANCE_AUDIT_2026-10-16.md` | `docs/archive/renovation/STANDARDS_COMPLIANCE_AUDIT_2026-10-16.md` | renovation |
+| 76 | `docs/renovation/UNIFIED_NAMING_REMEDIATION_PLAN.md` | `docs/archive/renovation/UNIFIED_NAMING_REMEDIATION_PLAN.md` | renovation |
+| 77 | `docs/renovation/USER_DOMAIN_01_DDD.md` | `docs/archive/renovation/USER_DOMAIN_01_DDD.md` | renovation |
+| 78 | `docs/renovation/WALLET_POINTS_01_SERVICE.md` | `docs/archive/renovation/WALLET_POINTS_01_SERVICE.md` | renovation |
+
 ## Notes
 
-- This batch excludes `docs/renovation/**`; it will move separately after conclusion extraction.
-- Inbound links were updated; see the [archive index](README.en.md).
+- 92 files across both batches, registered in the [archive index](README.en.md).
+- Inbound links were updated; internal relative links were corrected for the new depth.
+- Archived documents keep their original content and are not current contracts.

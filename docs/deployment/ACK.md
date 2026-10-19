@@ -24,7 +24,7 @@ JPUSH_ENDPOINT=https://api.jpush.cn/v3/push
 
 ## 审计存储：独立 schema `gv_audit` 的发布前置与开关
 
-审计日志已改为独立 schema + 按 `occurred_at` 月分区（方案见 [AUDIT_STORAGE_01_SERVICE.md](../renovation/AUDIT_STORAGE_01_SERVICE.md)）。
+审计日志已改为独立 schema + 按 `occurred_at` 月分区（方案见 [AUDIT_STORAGE_01_SERVICE.md](../archive/renovation/AUDIT_STORAGE_01_SERVICE.md)）。
 ACK 上的顺序**不可颠倒**：
 
 1. **先建库授权（运维受控步骤，方案 §8-4 决策 B，不新增 k8s 资源）**：把

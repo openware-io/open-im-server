@@ -54,7 +54,7 @@ Snapshot: 2026-10-19, `develop/2.3.0` baseline.
 | `docs/features/` | 3 | Confirm which features are still current |
 | `docs/im-services/` | 10 | Overlaps the service tree; named `im-` but contains SaaS services |
 | `docs/mq/` | 1 | Merge into messaging/standards or keep as a focused topic |
-| `docs/renovation/` | 78 | Large historical record; some conclusions remain valid |
+| `docs/archive/renovation/` | 78 | Large historical record; some conclusions remain valid |
 | `docs/security/` | 2 | Needs relation to compliance and auth docs |
 | `docs/services/` | 8 | Incomplete tree; platform/shared services missing |
 | `docs/standards/` | 15 | Current standards; bilingual work pending |
@@ -100,7 +100,7 @@ Snapshot: 2026-10-19, `develop/2.3.0` baseline.
 
 | Directory/document | Reason | Target |
 | --- | --- | --- |
-| `docs/renovation/**` (78) | Transformation history and historical decisions; some conclusions still needed | `docs/archive/renovation/` |
+| `docs/archive/renovation/**` (78) | Transformation history and historical decisions; some conclusions still needed | `docs/archive/renovation/` |
 | `docs/superpowers/**` (11) | Historical plans and design snapshots | `docs/archive/superpowers/` |
 | `docs/audit-2026-09-17-exceptions-and-i18n.md` | One-off audit snapshot | `docs/archive/audits/2026-09-17/` |
 | `docs/currency-scope-inventory-2026-09-18.md` | One-off inventory | `docs/archive/inventories/2026-09-18/` |

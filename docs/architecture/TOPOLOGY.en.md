@@ -165,5 +165,5 @@ im-admin-service
 - [Documentation center](../README.en.md)
 - [Documentation audit](../DOCUMENTATION_AUDIT.en.md)
 - [Local deployment](../deployment/LOCAL.md)
-- [Service-board integration](../renovation/IM_OPEN_PLATFORM_04_SERVICE.md)
+- [Service-board integration](../archive/renovation/IM_OPEN_PLATFORM_04_SERVICE.md)
 - [Gateway service](../services/gateway/README.md)

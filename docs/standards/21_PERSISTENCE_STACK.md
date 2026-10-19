@@ -46,7 +46,7 @@
   它与上一条列举的组件性质不同——那些是持久层实现本身，这是分页扩展所需的 SQL 解析器，
   声明它不构成"绕过 Starter 直连底层实现"。**版本仍由根 POM 的 `dependencyManagement` 统一管理**，
   业务模块只声明坐标、不写版本，这正是"禁止散落版本"这一条要守的东西。
-  （2026-10-16 修订：此前该组件被列入禁令，与框架要求冲突，详见 `docs/renovation/STANDARDS_COMPLIANCE_AUDIT_2026-10-16.md` §8.3。）
+  （2026-10-16 修订：此前该组件被列入禁令，与框架要求冲突，详见 `docs/archive/renovation/STANDARDS_COMPLIANCE_AUDIT_2026-10-16.md` §8.3。）
 - 业务模块禁止直接声明 `flyway-core`；迁移能力必须通过 Flyway Starter 与 MySQL 适配器声明。
 - 持久层依赖边界由 `scripts/validate/validate-persistence-dependency-boundaries.ps1` 校验，并接入统一验证入口。
 

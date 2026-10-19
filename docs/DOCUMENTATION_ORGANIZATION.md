@@ -54,7 +54,7 @@
 | `docs/features/` | 3 | 需确认是否仍现行 |
 | `docs/im-services/` | 10 | 与服务目录职责重叠，命名 `im-` 但含 SaaS 服务 |
 | `docs/mq/` | 1 | 需并入消息/标准或保留为专题 |
-| `docs/renovation/` | 78 | 大量历史改造记录，含仍有效的业务结论 |
+| `docs/archive/renovation/` | 78 | 大量历史改造记录，含仍有效的业务结论 |
 | `docs/security/` | 2 | 需与合规、认证文档建立关系 |
 | `docs/services/` | 8 | 服务树不完整，缺平台/公共能力 |
 | `docs/standards/` | 15 | 现行规范，需逐步双语 |
@@ -100,7 +100,7 @@
 
 | 目录/文档 | 归档理由 | 目标位置 |
 | --- | --- | --- |
-| `docs/renovation/**`（78） | 改造过程与历史决策；部分结论仍需提取 | `docs/archive/renovation/` |
+| `docs/archive/renovation/**`（78） | 改造过程与历史决策；部分结论仍需提取 | `docs/archive/renovation/` |
 | `docs/superpowers/**`（11） | 历史计划/设计快照 | `docs/archive/superpowers/` |
 | `docs/audit-2026-09-17-exceptions-and-i18n.md` | 一次性审计快照 | `docs/archive/audits/2026-09-17/` |
 | `docs/currency-scope-inventory-2026-09-18.md` | 一次性盘点 | `docs/archive/inventories/2026-09-18/` |

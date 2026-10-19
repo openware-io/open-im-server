@@ -20,7 +20,7 @@
 - `gateway` 是独立可运行的接入服务，放在 `gateways/gateway`；它不需要空的 API 模块，也不得依赖业务服务实现。
 - 新服务必须以 `im-services/<domain>/<service>-api` 与 `im-services/<domain>/<service>-service`（或 `platform-services/`、`common-services/` 下同名结构）创建；仅在确实没有 Java 消费方时，API 模块可以暂不承载源码，但父 POM 和目录必须预留。
 - 每个业务域使用服务级 Maven 父 POM 聚合 API 与 Service。API 和 Service 都必须继承该父 POM，服务级父 POM再继承根 POM。
-- 根 `im-server` 的版本仅表达全仓构建基线（仅 `MAJOR` 变化）；平台库、各服务域、网关为独立版本单元，各自维护版本；跨端（后端/管理端/客户端）不再强制一致。具体所有权模型见 [20 Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 与 [Maven 版本治理实施记录](./renovation/BUILD_GOVERNANCE_01_MAVEN.md)。
+- 根 `im-server` 的版本仅表达全仓构建基线（仅 `MAJOR` 变化）；平台库、各服务域、网关为独立版本单元，各自维护版本；跨端（后端/管理端/客户端）不再强制一致。具体所有权模型见 [20 Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 与 [Maven 版本治理实施记录](./archive/renovation/BUILD_GOVERNANCE_01_MAVEN.md)。
 - API 叶子模块不得声明版本，一律继承服务域父 POM 版本；可部署 Service 叶子模块仅可声明 `<域基础版本>-SNAPSHOT`（`validate-maven-version-ownership.ps1` 校验其基础版本与域版本一致，正式构建恢复纯 SemVer）；网关作为独立部署单元显式维护自身版本。
 - 版本所有权由 `scripts/validate/validate-maven-version-ownership.ps1` 校验，并通过统一工程校验入口执行。
 
@@ -129,7 +129,7 @@ common-services/
 - 提交前不仅要保证 Maven 构建成功，还要处理新增的 Java/JDT、Spring Boot YAML 配置、弃用 API 等 IDE 诊断
 - 若 IDE 仍提示 `BOOT_VERSION_VALIDATION_CODE` 或 `build file has been changed and may need reload`，需要先完成 Reload，再判断是否属于真实问题
 - 文本编码、PowerShell UTF-8 安全、Java 注释、弃用 API、日志、异常、服务边界、持久层、Flyway、RocketMQ、密钥暴露与 Maven 版本所有权校验均由统一入口执行；不得选择性跳过。
-- 仓库只提交 `.env.example` 模板；`.env` 由 `scripts/initialize-local-env.ps1` 在每台开发机生成并被 `.gitignore` 忽略，不得写入生产或共享环境凭据（本策略以 `docs/renovation/PLATFORM_SECURITY_01_GOVERNANCE.md` 的安全整改为准，取代早期"共享基线"方案）。
+- 仓库只提交 `.env.example` 模板；`.env` 由 `scripts/initialize-local-env.ps1` 在每台开发机生成并被 `.gitignore` 忽略，不得写入生产或共享环境凭据（本策略以 `docs/archive/renovation/PLATFORM_SECURITY_01_GOVERNANCE.md` 的安全整改为准，取代早期"共享基线"方案）。
 - 密钥校验（`scripts/validate/validate-secret-exposure.ps1`）只扫描受版本控制的文件，`.env` 因不受版本控制天然不在扫描范围；需要比对已轮换的历史值时使用 gitignored 的 `.outputs/quality/rotated-credentials.txt`（`-RotatedCredentialFile`）。任何豁免只能通过"文件不受版本控制"或显式分类清单（`scripts/validate/secret-exposure-allowlist.txt`，每条必须写明非凭据理由）实现，禁止长期豁免。
 - 禁止在 Windows PowerShell 批量改写源码、文档、配置时裸用 `Get-Content`、`Set-Content`、`Out-File`；必须显式指定 UTF-8 或按字节读取后按 UTF-8 解码
 - 仅当验证命令真实执行并通过后，才能声明“已修复”“已完成”“已通过”
@@ -167,7 +167,7 @@ common-services/
 > 1. **通用规范**（`docs/standards/*`）——应当如何做，不含项目模块名与存量缺陷；
 > 2. **项目工程规则**（本文）——本工程启用哪些规范、前缀登记表、项目级例外；
 > 3. **工程详细文档 / 事实清单**（[项目事实清单](./business/PROJECT_FACTS_INVENTORY.md)）——**当前工程实际长什么样**，覆盖全部仓库，**需随工程演进时时维护**。
-> 4. **改造方案与历史文档**（`docs/renovation/*`）——从现状到目标的方案；**已实现的方案应维护进上述 1/3 类**，其余标注为历史文档。
+> 4. **改造方案与历史文档**（`docs/archive/renovation/*`）——从现状到目标的方案；**已实现的方案应维护进上述 1/3 类**，其余标注为历史文档。
 
 **分层**：业务线由**代码根与库名**承载；**表前缀只表达限界上下文（域）**。
 
@@ -258,7 +258,7 @@ common-services/
 - 未持有迁移脚本的模块，禁止仅因“以后可能会用”而预置 Flyway 依赖；需要接入时，必须同时补齐脚本、配置和职责说明
 - 持有迁移脚本的服务必须在 `application.yml` 中显式配置 `spring.flyway.enabled=true`，避免依赖存在但职责不清
 - 禁止在生产或开发主链路使用 `ddl-auto=create/update`
-- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本。**冻结点定义**：工程未正式发布前允许重建基线（须在 `docs/renovation/` 留档），冻结以显式基线 tag 为准（tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true`）；冻结后任何 `M`/`D` 变更由 `scripts/validate/validate-flyway-immutability.ps1` 阻断
+- 历史迁移脚本只增不改；如需修正结构，新增后续版本脚本。**冻结点定义**：工程未正式发布前允许重建基线（须在 `docs/archive/renovation/` 留档），冻结以显式基线 tag 为准（tag 名以 `baseline-` 开头，或注释含独立行 `freeze: true`）；冻结后任何 `M`/`D` 变更由 `scripts/validate/validate-flyway-immutability.ps1` 阻断
 - 旧式“大一统初始化脚本”可以保留为历史参考，但不得继续作为权威来源
 - 如果需要重置数据库，必须通过仓库内统一的重建脚本执行，并在 `.outputs/` 留存日志
 

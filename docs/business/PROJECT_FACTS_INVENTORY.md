@@ -19,13 +19,13 @@
 
 | 层 | 定位 | 代码根 | 数据库 | 权威依据 |
 | --- | --- | --- | --- | --- |
-| **IM 业务线** | 类微信的**开放平台**：提供入口、身份授权、用户触达 | [`im-services/`](../../im-services/)、[`gateways/`](../../gateways/) | `im_server` | [IM_OPEN_PLATFORM_01_SERVICE](../renovation/IM_OPEN_PLATFORM_01_SERVICE.md) |
-| **SaaS 业务线** | 建立在 IM 之上的垂直业务（当前是开放平台**第一个接入方**） | [`platform-services/`](../../platform-services/)、[`common-services/`](../../common-services/) | `open_im`（规范称 `gv_saas`） | [SAAS_PLATFORM_09_SERVICE](../renovation/SAAS_PLATFORM_09_SERVICE.md) |
+| **IM 业务线** | 类微信的**开放平台**：提供入口、身份授权、用户触达 | [`im-services/`](../../im-services/)、[`gateways/`](../../gateways/) | `im_server` | [IM_OPEN_PLATFORM_01_SERVICE](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md) |
+| **SaaS 业务线** | 建立在 IM 之上的垂直业务（当前是开放平台**第一个接入方**） | [`platform-services/`](../../platform-services/)、[`common-services/`](../../common-services/) | `open_im`（规范称 `gv_saas`） | [SAAS_PLATFORM_09_SERVICE](../archive/renovation/SAAS_PLATFORM_09_SERVICE.md) |
 | **集团层** | 集团统一账号/组织/登录 SSO，**只管理、不参与业务** | [`group-services/`](../../group-services/) | 随调用方 | [ACCOUNT_PERMISSION_MODEL](../business/ACCOUNT_PERMISSION_MODEL.md) |
 
 **业务线之间的关键关系**（务必理解，命名冲突多源于此）：
 
-1. **IM 是开放平台，SaaS 是它的第一个第三方接入方**（"美团之于微信"）。打车/电商/本地生活未来按**同一标准流程**接入。见 [IM_OPEN_PLATFORM_01_SERVICE](../renovation/IM_OPEN_PLATFORM_01_SERVICE.md)。
+1. **IM 是开放平台，SaaS 是它的第一个第三方接入方**（"美团之于微信"）。打车/电商/本地生活未来按**同一标准流程**接入。见 [IM_OPEN_PLATFORM_01_SERVICE](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md)。
 2. **IM 与 SaaS 互相引用，但各有权威**：
    - SaaS 账号通过 **`idt_oauth_link`**（`provider='IM'`）绑定 IM 账号，schema 注释为"第三方提供方 IM"；
    - SaaS 平台账号 `idt_account`、SaaS 后台账号 `saa_admin_account`（注释"SaaS后台管理员账号"，含 `im_account` 绑定 IM 运营账号、`platform_account_id` 关联 `idt_account`）。

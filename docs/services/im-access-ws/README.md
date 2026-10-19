@@ -5,7 +5,7 @@
 - WebSocket 事件用于实时展示，HTTP `/messages/sync` 负责断线接续与最终一致性。
 - 在线态通过 Redis 集群协调，避免多 Pod 场景将在线用户误判为离线。
 - ACK 正式环境启用极光与生产 APNs；通知默认不包含消息正文和发件人，推送失败不影响权威消息落库。
-- 详情见 [聊天可靠性与群治理服务端改造说明](../../renovation/CHAT_RELIABILITY_01_SERVICE.md)。
+- 详情见 [聊天可靠性与群治理服务端改造说明](../../archive/renovation/CHAT_RELIABILITY_01_SERVICE.md)。
 
 ## 职责
 

@@ -2,7 +2,7 @@
 
 > **性质**：工程详细文档（属[项目事实清单](./PROJECT_FACTS_INVENTORY.md)同类的"工程实际长什么样"）。**四张图**：产品业务图、领域架构图、工程结构图、技术栈架构图。
 > **维护**：与事实清单同步更新——**新增/变更业务线、域、服务、仓库、技术栈版本时，必须同步本图集**。
-> **依据**：[ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../renovation/IM_OPEN_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_09](../renovation/SAAS_PLATFORM_09_SERVICE.md)、[技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)、[工程规则](../ENGINEERING_RULES.md)。所有节点与库名均为实测。
+> **依据**：[ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_09](../archive/renovation/SAAS_PLATFORM_09_SERVICE.md)、[技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)、[工程规则](../ENGINEERING_RULES.md)。所有节点与库名均为实测。
 
 ---
 
@@ -113,7 +113,7 @@ graph LR
 ```
 
 **关键说明**：
-- **审计域是独立域**，被 IM（23 处）与 SaaS（881 处）**共同调用**；对外发布 `common-audit-api`，独立 schema `open_audit`、独立 Flyway history。**表已从 `iam_audit_*` 归位为 `audit_*`**（见[例行整改总纲](../renovation/UNIFIED_NAMING_REMEDIATION_PLAN.md)）。
+- **审计域是独立域**，被 IM（23 处）与 SaaS（881 处）**共同调用**；对外发布 `common-audit-api`，独立 schema `open_audit`、独立 Flyway history。**表已从 `iam_audit_*` 归位为 `audit_*`**（见[例行整改总纲](../archive/renovation/UNIFIED_NAMING_REMEDIATION_PLAN.md)）。
 - **`iam_` 只做授权**（无 Identity Management）：角色/权限/作用域授权/审批；**身份**由 `idt_`（SaaS 平台账号）、`group_account`（集团）、`user_`（IM）分别承担。`iam_menu` 在控制台服务，属 IAM 迭代产物。
 - **`cons_`** 承载运营后台自身数据（账号、菜单）；`iam_menu` 因属 IAM 迭代产物而保留在 `iam_`。
 - **业态（KTV / 酒店 / SPA / 零售）不是域**，是 `ord_` 域上的 `business_type` 列。
@@ -284,7 +284,7 @@ graph TD
 
 | 图 | 回答的问题 | 权威细节在 |
 | --- | --- | --- |
-| 一、产品业务图 | 有几条业务线、彼此什么关系 | [ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../renovation/IM_OPEN_PLATFORM_01_SERVICE.md) |
+| 一、产品业务图 | 有几条业务线、彼此什么关系 | [ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md) |
 | 二、领域架构图 | 有哪些域、表前缀、归谁、放哪个库 | [项目事实清单](./PROJECT_FACTS_INVENTORY.md)（逐行权威） |
 | 三、工程结构图 | 仓库怎么分、服务怎么建、依赖往哪走 | [工程规则](../ENGINEERING_RULES.md)、[10 DDD 规范](../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) |
 | 四、技术栈架构图 | 用什么技术、什么版本 | [22 技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)（**版本唯一权威**） |

@@ -26,7 +26,7 @@
 - Redis：无
 - MQ：无
 
-## 存储与保留（方案：`docs/renovation/AUDIT_STORAGE_01_SERVICE.md`）
+## 存储与保留（方案：`docs/archive/renovation/AUDIT_STORAGE_01_SERVICE.md`）
 
 ### 表与分区
 

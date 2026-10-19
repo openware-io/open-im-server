@@ -5,7 +5,7 @@
 - MySQL 消息、用户同步索引和用户级 `msg_read_status` 是权威数据；Push、Redis 和 MongoDB 不是消息记录来源。
 - `/messages/sync` 返回当前认证用户的 `readAt`，用于新设备恢复和未读数计算；退群后不会继续同步该群消息。
 - 撤回保留 tombstone 与同步游标，并通过 MQ/WebSocket 实时通知，不物理删除造成客户端游标断裂。
-- 详情见 [聊天可靠性与群治理服务端改造说明](../../renovation/CHAT_RELIABILITY_01_SERVICE.md)。
+- 详情见 [聊天可靠性与群治理服务端改造说明](../../archive/renovation/CHAT_RELIABILITY_01_SERVICE.md)。
 
 ## 职责
 

@@ -35,7 +35,7 @@ This change establishes a documentation center, an engineering topology, this au
 
 ### P1: naming and version drift
 
-8. `A380` appears 257 times across 50 docs, mainly under `docs/renovation/`, historical audits and some current deployment docs.
+8. `A380` appears 257 times across 50 docs, mainly under `docs/archive/renovation/`, historical audits and some current deployment docs.
 9. `WV Chat` remains in 9 docs (15 occurrences), including the desktop README, release notes and release runbook artifact names.
 10. 46 references still say `2.2.0`, which no longer matches the `2.2.1` stage tag.
 11. The current service-board doc uses OpenChat, but historical renovation docs keep the legacy name and must be marked historical rather than rewritten.
