@@ -2,9 +2,23 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> 状态：`current`（Phase 1 脚手架，暂未迁移文件）  
+> 状态：`current`（Phase 1：处置清单已生成，历史文件尚未迁移）  
 > 规则来源：[文档整理与归档方案](../DOCUMENTATION_ORGANIZATION.md)  
 > 原则：先登记、后移动；保留原文，不把历史文档改写为现行契约。
+
+## 0. 处置清单
+
+逐文件清单：[disposition-manifest.csv](disposition-manifest.csv)（214 条，覆盖 8 个 im-saas 仓库；不含 `open-green-pass` 和 `.github`）。
+
+| 动作 | 数量 | 含义 |
+| --- | ---: | --- |
+| ARCHIVE | 92 | 历史审计、盘点、renovation、superpowers |
+| UPDATE | 94 | 现行文档，需核对/补双语 |
+| MERGE | 10 | `im-services/**` 合并到服务树 |
+| KEEP | 17 | 当前入口、规范、契约 |
+| SUPERSEDED | 1 | 已撤回 ADR，保留原记录 |
+
+清单由 `scripts/docs/build-disposition-manifest.ps1` 生成；状态为 `planned` 的文件尚未移动或修改。
 
 ## 1. 归档目录
 
