@@ -369,6 +369,18 @@ cd D:\projects\cnb-oss\open-im-server
 
 ## 11. 一次发版后的验收清单
 
+### 11.1 先运行 E2E 验证并保留证据
+
+在满足 `scripts/verify/*.ps1` 各自头部前置条件的网络上执行：
+
+```powershell
+.\scripts\verify\run-all.ps1 -EvidenceDir .outputs\verify\release-<版本>
+```
+
+`run-all.ps1` 逐个执行脚本，保存 `<脚本>.log` 与 `summary.txt`（含退出码、Git 提交）；
+任何脚本失败则整体退出 1。缺少集群、凭据或端口转发导致的失败是预期前置条件失败，必须补齐环境后重跑，
+不能作为“环境问题”跳过。发布记录必须附上该证据目录。
+
 - [ ] 后端各服务 `kubectl get pods -n im-business` 全部 `1/1 Running`，无重启。
 - [ ] `curl https://api.dev.example.com/api/v1/client/releases/latest?platform=android&channel=stable` 返回最新版本（含 downloadUrl/sha256）。
 - [ ] `curl -I https://example.com/download/wv-chat-<版本>.apk` 返回 200，且 SHA-256 与发布记录一致。

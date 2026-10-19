@@ -993,6 +993,13 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.44 E2E 统一执行入口（Q10，2026-10-19）
+
+- 新增 `scripts/verify/run-all.ps1`：逐个运行 `scripts/verify/*.ps1`，保存每个脚本的 log 与
+  `summary.txt`（退出码 + Git 提交）；任一失败整体退出 1。
+- 发布清单（RELEASE_RUNBOOK §11.1）要求先运行该入口并附证据目录；环境缺失导致的失败必须补齐后重跑。
+- G39 清单同步登记 `run-all.ps1`。
+
 ### 8.43 首个指标（Q09，2026-10-19）
 
 - 新增 `openware.scheduled.executions`：调度器每次执行计数，随 `RequestIdTaskDecorator` 递增；

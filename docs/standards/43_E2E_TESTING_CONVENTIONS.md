@@ -58,6 +58,7 @@
 | `verify-wallet-token-display.ps1` | 储值币（代币）与积分展示口径 |
 | `verify-reservation-room-type.ps1` | 预约房型闭环 |
 | `release-status.ps1` | 发布状态与制品哈希核对 |
+| `run-all.ps1` | 统一执行其余验证脚本，按脚本保留 log 与 `summary.txt` 证据 |
 
 `scripts/verify/*.ps1` 与本节清单的一致性由 `scripts/validate/validate-verify-inventory.ps1`（G39）校验：
 新增脚本必须登记，登记脚本必须存在。层级顺序、真机/模拟器证据与一次性数据清理仍需运行期人工验收，静态门禁不能替代。
