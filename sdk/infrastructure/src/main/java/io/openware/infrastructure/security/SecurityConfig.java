@@ -6,6 +6,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -92,5 +94,19 @@ public class SecurityConfig {
   @Bean
   public PasswordEncoder passwordEncoder() {
     return new BCryptPasswordEncoder();
+  }
+
+  /**
+   * 显式声明 UserDetailsService，阻止 Spring Boot 创建带随机密码的默认用户。
+   *
+   * <p>本项目全部走 JWT / 内部服务鉴权；默认用户没有业务用途，却会把
+   * “Using generated security password” 打到启动日志里。这里只保留一个永远拒绝的
+   * 契约，确保自动配置不再生成内存用户。
+   */
+  @Bean
+  public UserDetailsService userDetailsService() {
+    return username -> {
+      throw new UsernameNotFoundException("Password login is not supported");
+    };
   }
 }
