@@ -107,6 +107,8 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 ``
 
 - C 端服务项字段：`id`、`typeId`、`name`、`link`、`introduction`、`iconObjectId`、`iconUrl`、`isTop`、`audience`、`sortOrder`。
+- `link` 可以是绝对 URL、自定义 scheme，也可以是相对路径（如 `/a380/#/service/hotel`）。客户端通过 `AppConfig.apiBase` 解析相对路径，因此同一份后台配置可在本地 Kind（`http://<host>:30080`）和生产域名复用，不需要把环境域名写进 `adm_miniapp_service_item`。
+- 基线迁移 `V3__seed_service_access_entries.sql` 恢复服务接入目录：便民服务（外卖/打车/闪送）、休闲娱乐（A380 首页/酒店/KTV/酒吧/台球/足浴/美食）、出行服务（机票）；运营入口 `KTV 业务` 指向 `/b/`，保持 `audience=operator` 且默认隐藏。
 - **命名不对称（已知差异，如实标注）**：后台读写字段为 `icon`（媒体 objectId），C 端公开读字段为 `iconObjectId` + `iconUrl`（前者是 objectId，后者是解析后的访问 URL）。两端字段命名暂不一致，属历史实现差异，本文档仅如实记录，未改后端代码。
 
 ## 6. 后台管理接口（管理员写）
@@ -164,7 +166,8 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 - [ ] 服务项 `status=0` 停用后从 C 端公开读中消失，记录保留，重新启用后恢复。
 - [ ] `isTop` / `sortOrder` 排序、服务类型分组与置顶优先在 C 端正确。
 - [ ] 后台服务类型删除受「仍含服务项」保护（409）；服务项删除后图标媒体解绑。
-- [ ] `link` 支持小程序路径 / H5 / 自定义 scheme，C 端点击正确跳转。
+- [ ] `link` 支持小程序路径 / H5 / 自定义 scheme / 相对路径，C 端点击正确跳转。
+- [ ] 服务项数据由 `adm_miniapp_service_type` / `adm_miniapp_service_item` 配置，客户端不硬编码服务列表或环境域名。
 - [ ] 字段契约以 §3 / §5 / §6 为准（`link` / `icon` / `status` / `isTop` / `sortOrder`），不与旧 `entryUrl` / `enabled` / `sort` / `iconObjectId` 混用。
 
 ## 10. 交付物与官网引导
