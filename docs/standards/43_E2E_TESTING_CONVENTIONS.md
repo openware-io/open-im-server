@@ -50,7 +50,8 @@
 | `verify-a380-ktv-closure.ps1` | SaaS A380 KTV 预约/履约/账单/结算闭环（真实数据） |
 | `ack-auth-contract.ps1` | ACK 环境授权契约验证 |
 | `local-integration.ps1` | 本地集成入口 |
-| `e2e-ktv-smoke.ps1` | KTV 冒烟 |
+| `e2e-ktv-smoke.ps1` | KTV 冒烟（旧的无 Cookie/JSON 上下文路径，保留作历史对照） |
+| `e2e-ktv-session-smoke.ps1` | 真实 H5 Session 链路的 KTV 冒烟：dev session → CSRF → 选择上下文 → 建单/开台/暂停/恢复/结台 |
 | `verify-unread-secret-toggle.ps1` | 未读角标开关排除实景：临时写入 secret/secret_group 未读投影 → 开关 ON 计入 / OFF 排除(0/空) → finally 清理恢复（需一次性账号参数） |
 | `verify-audit-storage.ps1` | 审计独立 schema/分区/幂等台账/归档清单不变量（需数据库直连） |
 | `verify-audit-platform.ps1` | 审计平台查询与保留策略 |

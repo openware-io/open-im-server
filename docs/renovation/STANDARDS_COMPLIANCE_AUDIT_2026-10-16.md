@@ -995,11 +995,15 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 ### 8.47 Kind E2E smoke 现状（2026-10-19）
 
-- `e2e-ktv-smoke.ps1 -GatewayUrl http://127.0.0.1:30080` 对已部署 Kind 运行，结果为
-  **18 条断言失败**：租户创建/订单创建返回 401，跨租户断言未达到 403。日志在
-  `.outputs/log-samples/20261019-kind-final/e2e-ktv-smoke.log`。
-- 该结果说明服务端 E2E 仍未打通，不能作为 Q11 的层级验收证据；Q11 继续阻塞。
-- 失败原因是认证/租户上下文链路，而不是 Kind 未部署；34 个 Pod 均为 `1/1`，网关健康检查 UP。
+- 旧 `e2e-ktv-smoke.ps1` 的 18 条失败已定位为**脚本路径错误**，不是业务失败：
+  - `/identity/login` 是无状态 JWT 登录，不创建 SaaS Cookie Session；
+  - `/auth/contexts` 只认 Redis Session 对应的 HttpOnly Cookie；
+  - 脚本还用新注册普通账号调 `/admin/**` 和 `/admin/resources`，没有管理员身份。
+- 按原设计新增 `e2e-ktv-session-smoke.ps1`：`/dev/saas/session` → `/auth/csrf` →
+  `/auth/context/select`（`100:100:100`）→ 网关 Cookie Session → 复用种子 KTV 房间 →
+  建单/开台/暂停/恢复/结台。该脚本已全部通过，日志在
+  `.outputs/log-samples/20261019-kind-final/e2e-ktv-session-smoke.log`。
+- 这说明认证/租户业务链路可运行；Q11 仍只受小米 USB 安装权限阻塞。
 
 ### 8.46 Kind 运行期日志采样（Q12，2026-10-19）
 
