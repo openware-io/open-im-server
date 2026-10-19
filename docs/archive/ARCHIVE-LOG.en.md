@@ -107,8 +107,14 @@
 | 77 | `docs/renovation/USER_DOMAIN_01_DDD.md` | `docs/archive/renovation/USER_DOMAIN_01_DDD.md` | renovation |
 | 78 | `docs/renovation/WALLET_POINTS_01_SERVICE.md` | `docs/archive/renovation/WALLET_POINTS_01_SERVICE.md` | renovation |
 
+## Batch 3: merged duplicate archive (1)
+
+| # | Original path | Archive path | Type |
+| ---: | --- | --- | --- |
+| 1 | `docs/im-services/admin/README.md` | `docs/archive/legacy-service-docs/platform-admin-service.md` | service |
+
 ## Notes
 
-- 92 files across both batches, registered in the [archive index](README.en.md).
+- 93 files across three batches, registered in the [archive index](README.en.md).
 - Inbound links were updated; internal relative links were corrected for the new depth.
 - Archived documents keep their original content and are not current contracts.

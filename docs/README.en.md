@@ -96,7 +96,17 @@ im-saas docs
 | [IM message service](services/im-message-service/README.md) | IM domain |
 | [IM conversation service](services/im-conversation-service/README.md) | IM domain |
 | [IM admin service](services/im-admin-service/README.md) | IM domain |
+| [Platform admin BFF](services/platform-admin-service/README.md) | SaaS platform |
+| [Platform identity](services/platform-identity-service/README.md) | SaaS platform |
+| [Tenant service](services/platform-tenant-service/README.md) | SaaS platform |
+| [Customer service](services/platform-customer-service/README.md) | SaaS platform |
+| [Resource service](services/platform-resource-service/README.md) | SaaS platform |
+| [Marketing service](services/platform-marketing-service/README.md) | SaaS platform |
 | [Media support](services/common-media-service/README.md) | Shared capabilities |
+| [Audit service](services/common-audit-service/README.md) | Shared capabilities |
+| [Payment service](services/common-payment-service/README.md) | Shared capabilities |
+| [Payment channel](services/common-payment-channel-service/README.md) | Shared capabilities |
+| [SMS service](services/common-sms-service/README.md) | Shared capabilities |
 | [Business docs](business/) | Business semantics above service docs |
 
 ### 50 Standards

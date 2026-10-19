@@ -107,8 +107,14 @@
 | 77 | `docs/renovation/USER_DOMAIN_01_DDD.md` | `docs/archive/renovation/USER_DOMAIN_01_DDD.md` | renovation |
 | 78 | `docs/renovation/WALLET_POINTS_01_SERVICE.md` | `docs/archive/renovation/WALLET_POINTS_01_SERVICE.md` | renovation |
 
+## 批次 3：合并后归档（1）
+
+| # | 原路径 | 归档路径 | 类型 |
+| ---: | --- | --- | --- |
+| 1 | `docs/im-services/admin/README.md` | `docs/archive/legacy-service-docs/platform-admin-service.md` | service |
+
 ## 说明
 
-- 两个批次共 92 份，均已登记到 [归档索引](README.md)。
+- 三个批次共 93 份，均已登记到 [归档索引](README.md)。
 - 旧路径的入链已更新；归档页内部相对链接已按新层级修正。
 - 归档文档保留原文，不作为现行契约。

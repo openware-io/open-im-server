@@ -9,6 +9,13 @@ SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），�
 - 平台/租户上下文解析：解析 X-Tenant-Context（租户/组织/门店/账号/授权版本），注入 TenantContextHolder。
 - 只做参数校验、权限上下文透传、响应聚合与旧契约适配；**不拥有 SaaS 领域权威表**（无 Mapper/Flyway/权威写表）。
 
+## KTV 运营配置与预约 BFF
+
+- KTV 配置：套餐 `/admin/ktv/pricing-plans`、支付开关 `/admin/ktv/payment-switches`、服务目录 `/admin/ktv/server-catalog`。
+- 储值管理不属于本 BFF：原 `/admin/ktv/wallet-recharge` 已删除；储值是租户级资产，入口在租户后台「储值管理」，直连 customer 域 `/admin/wallets/*` 与 `/business/members/{id}/wallet[/ledger]`。
+- 预约 BFF：`/admin/reservations/**` 转发 order 域，覆盖列表、确认、到店、取消、未到店、分配包厢、开台，以及只读候选包厢查询。
+- 本服务不拥有领域表；只做参数校验、权限上下文透传、响应聚合和旧契约适配。
+
 ## 统一入口原则（SAAS_PLATFORM_02 §9.1）
 
 三个后台（IM 后台 / 平台运营后台 / 租户后台）共用一个登录入口；登录后按账号权限路由：

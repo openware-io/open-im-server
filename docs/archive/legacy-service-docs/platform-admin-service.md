@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by: docs/services/platform-admin-service/README.md
+> Original-location: docs/im-services/admin/README.md
+
 # platform-admin-service
 
 > E0 服务文档基线。职责/端口/入口按当前脚手架实现填写，指标/告警阈值待可观测体系接入后校准。

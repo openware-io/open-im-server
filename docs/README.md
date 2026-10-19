@@ -96,7 +96,17 @@ im-saas 文档
 | [IM 消息服务](services/im-message-service/README.md) | IM 业务域 |
 | [IM 会话服务](services/im-conversation-service/README.md) | IM 业务域 |
 | [IM 管理服务](services/im-admin-service/README.md) | IM 业务域 |
+| [平台管理 BFF](services/platform-admin-service/README.md) | SaaS 平台域 |
+| [平台身份服务](services/platform-identity-service/README.md) | SaaS 平台域 |
+| [租户服务](services/platform-tenant-service/README.md) | SaaS 平台域 |
+| [客户服务](services/platform-customer-service/README.md) | SaaS 平台域 |
+| [资源服务](services/platform-resource-service/README.md) | SaaS 平台域 |
+| [营销服务](services/platform-marketing-service/README.md) | SaaS 平台域 |
 | [媒体支撑](services/common-media-service/README.md) | 公共能力域 |
+| [审计服务](services/common-audit-service/README.md) | 公共能力域 |
+| [支付服务](services/common-payment-service/README.md) | 公共能力域 |
+| [支付渠道](services/common-payment-channel-service/README.md) | 公共能力域 |
+| [短信服务](services/common-sms-service/README.md) | 公共能力域 |
 | [业务文档](business/) | 业务语义，位于服务说明之上 |
 
 ### 50 标准
