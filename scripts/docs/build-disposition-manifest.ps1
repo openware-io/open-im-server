@@ -25,6 +25,16 @@ $repos = @(
 $excludePattern = '\\(node_modules|build|dist|target|\.git|\.dart_tool|\.outputs)\\|\\site\\'
 $manifest = [System.Collections.Generic.List[object]]::new()
 
+if ([string]::IsNullOrWhiteSpace($OutputPath)) {
+  $OutputPath = Join-Path $WorkspaceRoot 'open-im-server/docs/archive/disposition-manifest.csv'
+}
+$existingByPath = @{}
+if (Test-Path -LiteralPath $OutputPath -PathType Leaf) {
+  foreach ($row in (Import-Csv -LiteralPath $OutputPath)) {
+    $existingByPath["$($row.repository)|$($row.path)"] = $row
+  }
+}
+
 function Get-ServiceTarget([string]$relativePath) {
   $name = Split-Path -Leaf (Split-Path -Parent $relativePath)
   $map = @{
@@ -85,7 +95,7 @@ foreach ($repo in $repos) {
         $target = Get-ServiceTarget $relative
         $reason = 'Duplicates the service tree; merge into the authoritative service doc.'
       } elseif ($relative -like 'docs/archive/*') {
-        $action = 'KEEP'; $type = 'archive-index'; $reason = 'Archive index and metadata rules.'
+        $action = 'KEEP'; $type = 'archive'; $reason = 'Archived source retained for history; not a current contract.'
       } elseif ($relative -like 'docs/architecture/*') {
         $action = 'UPDATE'; $type = 'architecture'; $reason = 'Topology/architecture source; keep current.'
       } elseif ($relative -like 'docs/standards/*') {
@@ -124,17 +134,32 @@ foreach ($repo in $repos) {
       }
     }
 
+    $repoPath = if ($repo -eq 'open-im-server') { $relative } else { "$repo/$relative" }
+    $rowStatus = if ($action -eq 'KEEP' -or $action -eq 'SUPERSEDED') { 'current' } else { 'planned' }
+    $existing = $existingByPath["$repo|$repoPath"]
+    if ($null -ne $existing -and $existing.status -in @('archived', 'merged', 'current')) {
+      $rowStatus = $existing.status
+    }
     $manifest.Add([pscustomobject]@{
       repository = $repo
-      path       = if ($repo -eq 'open-im-server') { $relative } else { "$repo/$relative" }
+      path       = $repoPath
       type       = $type
       action     = $action
       target     = if ($repo -eq 'open-im-server') { $target } else { "$repo/$target" }
       lifecycle  = $lifecycle
       owner      = 'im-saas docs'
-      status     = if ($action -eq 'KEEP' -or $action -eq 'SUPERSEDED') { 'current' } else { 'planned' }
+      status     = $rowStatus
       reason     = $reason
     })
+  }
+}
+
+# Preserve historical source rows that no longer exist at their old path (moved/archived docs).
+foreach ($key in $existingByPath.Keys) {
+  $existing = $existingByPath[$key]
+  $alreadyListed = $manifest | Where-Object { "$($_.repository)|$($_.path)" -eq $key }
+  if (-not $alreadyListed) {
+    $manifest.Add($existing)
   }
 }
 
