@@ -993,6 +993,12 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.43 首个指标（Q09，2026-10-19）
+
+- 新增 `openware.scheduled.executions`：调度器每次执行计数，随 `RequestIdTaskDecorator` 递增；
+- `MeterRegistry` 通过 `ObjectProvider` 可选注入，无注册表的测试/环境不失败；
+- G41 从 0 个指标变为 1 个，不再是空门禁。
+
 ### 8.42 币种写穿与快照（Q08，2026-10-19）
 
 - 新增 `TenantCurrencyWriteThroughTest`：真实 H2 + MyBatis，验证切币种时所有门店写穿，

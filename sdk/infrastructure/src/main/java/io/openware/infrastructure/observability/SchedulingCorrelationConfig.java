@@ -1,5 +1,8 @@
 package io.openware.infrastructure.observability;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -15,11 +18,15 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 public class SchedulingCorrelationConfig {
 
   @Bean
-  public ThreadPoolTaskScheduler taskScheduler() {
+  public ThreadPoolTaskScheduler taskScheduler(ObjectProvider<MeterRegistry> registries) {
+    MeterRegistry registry = registries.getIfAvailable();
+    Counter executions = registry == null ? null : Counter.builder("openware.scheduled.executions")
+        .description("Scheduled task executions")
+        .register(registry);
     ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
     scheduler.setPoolSize(4);
     scheduler.setThreadNamePrefix("scheduled-");
-    scheduler.setTaskDecorator(new RequestIdTaskDecorator());
+    scheduler.setTaskDecorator(new RequestIdTaskDecorator(executions));
     scheduler.initialize();
     return scheduler;
   }

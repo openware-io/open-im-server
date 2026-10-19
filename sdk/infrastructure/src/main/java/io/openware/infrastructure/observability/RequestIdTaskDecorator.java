@@ -1,5 +1,6 @@
 package io.openware.infrastructure.observability;
 
+import io.micrometer.core.instrument.Counter;
 import java.util.UUID;
 import org.springframework.core.task.TaskDecorator;
 
@@ -13,12 +14,24 @@ import org.springframework.core.task.TaskDecorator;
 public class RequestIdTaskDecorator implements TaskDecorator {
 
   static final String JOB_PREFIX = "job-";
+  private final Counter executions;
+
+  public RequestIdTaskDecorator() {
+    this(null);
+  }
+
+  RequestIdTaskDecorator(Counter executions) {
+    this.executions = executions;
+  }
 
   @Override
   public Runnable decorate(Runnable runnable) {
     String previous = RequestIdContext.get();
     String jobRequestId = JOB_PREFIX + UUID.randomUUID();
     return () -> {
+      if (executions != null) {
+        executions.increment();
+      }
       RequestIdContext.set(jobRequestId);
       try {
         runnable.run();
