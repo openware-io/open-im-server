@@ -993,6 +993,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.45 真机与运行期证据（Q11/Q12，2026-10-19）
+
+- Q11：`flutter test integration_test/app_startup_test.dart -d c4c90621` 已构建 APK，但 MI 9 返回
+  `INSTALL_FAILED_USER_RESTRICTED`（MIUI 禁止 USB 安装）；重试卸载后仍被用户侧拒绝。当前无 AVD，
+  `open-chat-app` 未配置 Windows 桌面工程，因此真机证据未取得。需在设备上允许“USB 安装/调试”后重跑。
+- Q12：需要可访问的运行环境日志；当前未提供集群/日志入口，保持待运行环境。
+- 两项不得以静态检查代替，也不标记为通过。
+
 ### 8.44 E2E 统一执行入口（Q10，2026-10-19）
 
 - 新增 `scripts/verify/run-all.ps1`：逐个运行 `scripts/verify/*.ps1`，保存每个脚本的 log 与
