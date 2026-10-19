@@ -12,11 +12,24 @@ The problem is not a lack of files. It is the absence of a single engineering-le
 
 - repository READMEs, service docs, business designs and transformation records evolved independently;
 - the architecture doc covered only the IM domain, not SaaS platform, shared capabilities, clients or infrastructure;
-- current docs still mix legacy A380 / WV Chat names;
+- current docs previously mixed legacy A380 / WV Chat names;
 - docs were Chinese-only with no explicit bilingual boundary;
 - versions, routes and service inventories drifted.
 
 This change establishes a documentation center, an engineering topology, this audit and the top-level bilingual set. The rest is scheduled in Phase 2/3.
+
+## 1.1 Progress (2026-10-19)
+
+| Phase | Status | Result |
+| --- | --- | --- |
+| Phase 0 global plan | ✅ | Classification, archival rules, target layout and execution order |
+| Phase 1 manifest | ✅ | 214-row per-file manifest across the 8 im-saas repositories |
+| Phase 2 archive | ✅ | 94 historical docs archived: 78 renovation, 11 superpowers, audits/inventories/old release notes |
+| Phase 3 merge/update | 🟡 | 10 `im-services` docs merged into the service tree; entries/ports/service names still being updated |
+| Phase 4 bilingual/additions | 🟡 | English READMEs for 7 repos; English indexes for services/business/standards; per-doc translation pending |
+| Phase 5 cleanup/gates | 🟡 | Documentation governance gate added; deletion only under the five-condition gate |
+
+Remaining work: per-doc service/standard/business updates, older repo guides, and conclusion extraction from a few historical docs.
 
 ## 2. Findings
 

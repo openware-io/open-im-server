@@ -46,9 +46,9 @@
 3. **release 唯一键 (platform,channel,version)**：同版本发新 build（如 2.0.1 的 83→84）只能 UPDATE 现有 release 的 build_number + UPDATE artifact 的 download_url/sha256/size_bytes，不能 INSERT（会撞唯一键）；只有版本号变化才 INSERT 新 release。`updated_at` 无默认值必须显式给值。
 4. **APK 必须签名**：`android/key.properties` + `xchpro.jks` 驱动 release 签名（原「暂不签名」短期例外已于 2026-09-10 取消）。缺 `key.properties` 时 Gradle 会静默退化为 debug 签名，务必用 `apksigner verify --print-certs` 核对证书 SHA-256 = `27cdc427d6152d0db97b78819d1ac5ba732300e5cc48bdb8820a9ce909fee10d` 后再发布。
 5. **上传制品用 docker mc**：kubectl cp 在 Windows 会把 D 盘冒号误判为 pod 分隔符，必须 docker minio/mc + port-forward（且 mc 镜像 ENTRYPOINT 是 mc，要 `--entrypoint sh`）。
-6. **E2E 前先清 port-forward 僵尸**：Windows 下 `kubectl port-forward` 子进程在 `job_kill` 后可能残留为僵尸进程仍占用端口（如 30002），把请求导到错误目标导致 E2E 全 FAIL。跑 E2E 前必须 `Get-NetTCPConnection -LocalPort <端口>` 确认端口归属，发现非 kubectl 的残留进程用 `Stop-Process -Id <PID> -Force` 清掉再重开。
+6. **E2E 前先清 port-forward 僵尸**：Windows 下 `kubectl port-forward` 子进程在 `job_kill` 后可能残留为僵尸进程仍占用端口（如临时转发端口），把请求导到错误目标导致 E2E 全 FAIL。跑 E2E 前必须 `Get-NetTCPConnection -LocalPort <端口>` 确认端口归属，发现非 kubectl 的残留进程用 `Stop-Process -Id <PID> -Force` 清掉再重开。
 
-## 附录：凭据来源（k8s secret gv-im-secret，base64）
+## 附录：凭据来源（Kind secret `open-im-env`，base64）
 
 - MySQL root：MYSQL_ROOT_PASSWORD；MinIO：MINIO_ROOT_USER/MINIO_ROOT_PASSWORD；bucket=MEDIA_PRIVATE_BUCKET；公网前缀=MEDIA_PUBLIC_BASE_URL。
 - 发版管理员入口：https://admin.dev.example.com（账号 admin）。

@@ -36,7 +36,7 @@ Kubernetes 资源声明不写入部署脚本，统一位于 `k8s/local/`；生�
 .\scripts\verify\local-integration.ps1 -GatewayUrl http://127.0.0.1:3002 -AdminUsername admin -AdminPassword (Read-Host -AsSecureString)
 ```
 
-验证 Kind Kubernetes 时，将 `-GatewayUrl` 改为 `http://127.0.0.1:30002`。
+验证 Kind Kubernetes 时，将 `-GatewayUrl` 改为 `http://127.0.0.1:30080`。
 
 ## Kubernetes 发布版本状态
 
