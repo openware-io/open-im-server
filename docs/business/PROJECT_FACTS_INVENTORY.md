@@ -1,5 +1,7 @@
 # 项目事实清单（Project Facts Inventory）
 
+[中文](PROJECT_FACTS_INVENTORY.md) | [English](PROJECT_FACTS_INVENTORY.en.md)
+
 > **性质**：本文登记**工程的既有事实**——业务线、域、服务归属、表命名空间及其偏差。
 > **维护约定**：**新增域、新增服务、新增/变更表前缀、发现或修掉偏差时，必须同步更新本文**。本文是"当前工程实际长什么样"的唯一权威来源；规范回答"应当如何"，改造方案回答"如何从现状到规范"。
 > **最后更新**：批次 2 迁移基线重建期间（2026-10-13）。所有数据均为实测（各服务 `src/main/resources/db/migration*/` 与 PO `@TableName`）。

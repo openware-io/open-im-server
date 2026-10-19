@@ -150,7 +150,7 @@ im-saas docs
 | Architecture overview | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | Documentation audit | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
 | Repository READMEs | each `README.md` | `README.en.md` (7 product repos + this repo) | ✅ |
-| Services/business/standards | Chinese bodies | Services: per-doc English summaries; business/standards: English indexes | 🟡 business/standards per-doc translation pending |
+| Services/business/standards | Chinese bodies | Per-doc English summaries (`README.en.md` / `*.en.md`) | ✅ |
 
 ## 6. Documentation governance
 

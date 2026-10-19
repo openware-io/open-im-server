@@ -1,5 +1,7 @@
 # 技术栈版本矩阵
 
+[中文](22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | [English](22_TECHNOLOGY_STACK_VERSION_MATRIX.en.md)
+
 ## 目的与范围
 
 本文是服务端仓库的技术栈版本清单。它用于评审依赖升级、排查兼容性问题和核对部署基线，不替代 Maven 的实际解析结果。

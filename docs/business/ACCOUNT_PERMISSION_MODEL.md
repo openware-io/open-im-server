@@ -1,5 +1,7 @@
 # 账号权限体系（Account & Permission Model）
 
+[中文](ACCOUNT_PERMISSION_MODEL.md) | [English](ACCOUNT_PERMISSION_MODEL.en.md)
+
 > 本文是产品级长期约定，沉淀账号、角色、权限、租户作用域与域边界。架构较复杂（多端多账号体系），任何涉及账号/权限的改动以本文为准。
 >
 > 📐 **产品业务图与领域架构图见** [工程架构图集](./ARCHITECTURE_DIAGRAMS.md)（§一 产品业务图、§二 领域架构图）。

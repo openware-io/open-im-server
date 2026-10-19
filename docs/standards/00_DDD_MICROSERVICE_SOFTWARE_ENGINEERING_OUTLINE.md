@@ -1,5 +1,7 @@
 # DDD 微服务软件工程规范纲要
 
+[中文](00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) | [English](00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.en.md)
+
 ## 目标
 
 软件工程规范由可复用的规则体系与项目专属的实施方案组成。二者必须分离：规范回答“长期应当如何做”，方案回答“当前工程如何从现状达到规范”。

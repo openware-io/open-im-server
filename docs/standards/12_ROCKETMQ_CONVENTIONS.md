@@ -1,5 +1,7 @@
 # RocketMQ 治理规范
 
+[中文](12_ROCKETMQ_CONVENTIONS.md) | [English](12_ROCKETMQ_CONVENTIONS.en.md)
+
 ## 适用范围
 
 - 本规范适用于所有通过 `protocol-mq` 定义或使用的 RocketMQ Topic、Producer Group、Consumer Group、消息契约及运行配置。

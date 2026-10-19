@@ -1,5 +1,7 @@
 # 16 币种约定（租户级单一来源 · CNY/USD）
 
+[中文](16_CURRENCY_CONVENTIONS.md) | [English](16_CURRENCY_CONVENTIONS.en.md)
+
 > 状态：已定稿并进入实现（2026-09-18）。本文是币种能力的**唯一权威约定**，后端、后台（`open-saas-admin`）、
 > B 端/C 端（`open-saas-mobile`）、App（`open-chat-app`）一律照此实现；与本文冲突的旧写法（硬编码 `¥`/`元`/`CNY`）一律清理。
 > 全场景影响面清单（逐条 `文件:行号`）见 `docs/currency-scope-inventory-2026-09-18.md`，实现前必须对照该清单逐项确认。

@@ -1,5 +1,7 @@
 # 文本编码与批量改写规范
 
+[中文](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | [English](30_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
+
 ## 目标与适用范围
 
 **目标**：让仓库内的文本**始终是 UTF-8 且不被二次编码**，并让批量改写**可安全执行、可校验**；中文注释与文案是本项目的正常内容，不是需要规避的风险。

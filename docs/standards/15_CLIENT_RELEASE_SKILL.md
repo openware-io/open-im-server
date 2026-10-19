@@ -1,5 +1,7 @@
 # 客户端发版 Skill（Android 直装 APK）
 
+[中文](15_CLIENT_RELEASE_SKILL.md) | [English](15_CLIENT_RELEASE_SKILL.en.md)
+
 > 本文档仅适用于 **Android 直装 APK**。Windows 桌面端 EXE 发版见 [`RELEASE_RUNBOOK.md`](../RELEASE_RUNBOOK.md) 第 5.6 节；Windows 同样必须在后台创建并提交客户端发布记录。
 > 对 Android APK 而言，本文档是唯一、可执行的发版操作手册。任何 AI 或人类执行 Android 发版时，先读本文档，再直接运行快捷脚本，不要自行推断打包命令或版本规则。
 > 打包命令以 [open-chat-app/BUILD.md](https://github.com/openware-io/open-chat-app/blob/develop/2.2.0-auth/BUILD.md) 为权威来源；本文档负责「一步步怎么做」并引用脚本。

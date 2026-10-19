@@ -1,5 +1,7 @@
 # Maven 工程规范
 
+[中文](20_MAVEN_ENGINEERING_CONVENTIONS.md) | [English](20_MAVEN_ENGINEERING_CONVENTIONS.en.md)
+
 ## 目标与适用范围
 
 本规范适用于本仓库全部 Maven 模块、构建脚本、发布脚本和 CI 校验入口。

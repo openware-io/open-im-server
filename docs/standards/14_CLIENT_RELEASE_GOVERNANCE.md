@@ -1,5 +1,7 @@
 # 客户端发布与版本治理规范
 
+[中文](14_CLIENT_RELEASE_GOVERNANCE.md) | [English](14_CLIENT_RELEASE_GOVERNANCE.en.md)
+
 ## 1. 目的与适用范围
 
 本规范约束消费者客户端在 Android、iOS、Windows、macOS、Linux 的版本命名、构建、制品、渠道、灰度、最低支持版本、更新校验与审计。它适用于客户端、PC 管理后台、CI/CD 与分发存储；不改变领域业务 REST/WS 协议的版本策略。

@@ -1,5 +1,7 @@
 # Java 日志规范
 
+[中文](41_JAVA_LOGGING_CONVENTIONS.md) | [English](41_JAVA_LOGGING_CONVENTIONS.en.md)
+
 ## 目标与适用范围
 
 **目标**：让生产日志可检索、可归因、可告警——每条日志都能回答"谁、做了什么、结果如何"，并能按标识字段串联同一次业务操作。

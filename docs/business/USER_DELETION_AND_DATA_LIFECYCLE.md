@@ -1,5 +1,7 @@
 # IM 用户注销与管理员删除规范
 
+[中文](USER_DELETION_AND_DATA_LIFECYCLE.md) | [English](USER_DELETION_AND_DATA_LIFECYCLE.en.md)
+
 ## 业务原则
 
 1. 用户主动注销是软删除：`user_account` 保留，状态为“注销/disabled”，注销申请与注销日志保留；所有 IM 业务查询、列表、搜索、登录和会话展示均不得再显示该用户。

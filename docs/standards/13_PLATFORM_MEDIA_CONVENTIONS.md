@@ -1,5 +1,7 @@
 # 平台媒体对象与私有访问工程规范
 
+[中文](13_PLATFORM_MEDIA_CONVENTIONS.md) | [English](13_PLATFORM_MEDIA_CONVENTIONS.en.md)
+
 ## 1. 目标与适用范围
 
 **目标**：让媒体二进制**直连受管媒体域名**、控制面**只经 Gateway**，使对象键不可猜测、读取地址不可持久化滥用，并让存储提供方可替换而不影响客户端与业务服务。

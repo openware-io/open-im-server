@@ -1,5 +1,7 @@
 # 会话空间与隐私边界（产品业务文档）
 
+[中文](CONVERSATION_TYPES_AND_PRIVACY.md) | [English](CONVERSATION_TYPES_AND_PRIVACY.en.md)
+
 > 文档定位：open-chat 的**产品业务文档**，沉淀"四类会话空间 + 消息生命周期 + 隐私边界"的需求语义。需求来源为 Telegram 类 IM 原型规格（PRD + 高保真原型），本文件是其在工程内的权威落点；实现细节见 [频道域设计](../features/CHANNEL_01_SERVICE.md) 与 [私密聊天与 E2EE 设计](../features/SECRET_CHAT_01_E2EE.md)。
 
 ## 1. 核心产品原则

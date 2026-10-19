@@ -8,12 +8,12 @@
 
 ## 0. 处置清单
 
-逐文件清单：[disposition-manifest.csv](disposition-manifest.csv)（349 条，覆盖 8 个 im-saas 仓库；包含历史源路径和当前归档路径；不含 `open-green-pass` 和 `.github`）。
+逐文件清单：[disposition-manifest.csv](disposition-manifest.csv)（369 条，覆盖 8 个 im-saas 仓库；包含历史源路径和当前归档路径；不含 `open-green-pass` 和 `.github`）。
 
 | 动作 | 数量 | 含义 |
 | --- | ---: | --- |
 | ARCHIVE | 93 | 历史审计、盘点、renovation、superpowers |
-| UPDATE | 126 | 现行文档，需核对/补双语 |
+| UPDATE | 146 | 现行文档，需核对/补双语 |
 | MERGE | 10 | `im-services/**` 合并到服务树 |
 | KEEP | 119 | 当前入口、规范、契约、归档页 |
 | SUPERSEDED | 1 | 已撤回 ADR，保留原记录 |

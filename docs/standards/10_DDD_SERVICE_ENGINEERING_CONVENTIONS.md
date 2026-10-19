@@ -1,5 +1,7 @@
 # 业务微服务 DDD 工程规范
 
+[中文](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | [English](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.en.md)
+
 ## 目标与适用范围
 
 本规范适用于任何承载用户、群组、会话、消息、订单、账户等业务能力的 Java 微服务。本规范不绑定组织名、仓库名、构建工具、包名或模块命名方式。

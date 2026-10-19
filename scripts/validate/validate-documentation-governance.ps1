@@ -84,6 +84,19 @@ if (Test-Path -LiteralPath $serviceRoot) {
   }
 }
 
+# 2c) Every business/standards document has an English summary pair.
+foreach ($domainRoot in @('docs/business', 'docs/standards')) {
+  $fullRoot = Join-Path $root $domainRoot
+  if (-not (Test-Path -LiteralPath $fullRoot)) { continue }
+  foreach ($doc in (Get-ChildItem $fullRoot -File -Filter '*.md')) {
+    if ($doc.Name -match '^README' -or $doc.Name -match '\.en\.md$') { continue }
+    $en = Join-Path $doc.DirectoryName ($doc.BaseName + '.en.md')
+    if (-not (Test-Path -LiteralPath $en)) {
+      Add-Violation "missing English summary: $domainRoot/$($doc.BaseName).en.md"
+    }
+  }
+}
+
 # 3) Legacy names in current operational docs (archive and governance records excluded).
 $legacyRoots = @('README.md', 'docs/ARCHITECTURE.md', 'docs/architecture', 'docs/deployment', 'docs/services', 'docs/business', 'docs/standards')
 $allowPatterns = @(

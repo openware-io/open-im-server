@@ -1,5 +1,7 @@
 # 43 E2E 测试与验收规范（Testing & Acceptance Conventions）
 
+[中文](43_E2E_TESTING_CONVENTIONS.md) | [English](43_E2E_TESTING_CONVENTIONS.en.md)
+
 > 适用对象：本工程的服务端、IM 客户端（App / PC 客户端 / PC 管理后台）、SaaS 前端（H5 与后台）与统一门户。本规范随实践渐进补充，改动需同步更新本文与 SDD 台账。
 
 ## 0. 目标与适用范围

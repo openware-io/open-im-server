@@ -1,5 +1,7 @@
 # 工程架构图集（Architecture Diagrams）
 
+[中文](ARCHITECTURE_DIAGRAMS.md) | [English](ARCHITECTURE_DIAGRAMS.en.md)
+
 > **性质**：工程详细文档（属[项目事实清单](./PROJECT_FACTS_INVENTORY.md)同类的"工程实际长什么样"）。**四张图**：产品业务图、领域架构图、工程结构图、技术栈架构图。
 > **维护**：与事实清单同步更新——**新增/变更业务线、域、服务、仓库、技术栈版本时，必须同步本图集**。
 > **依据**：[ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_09](../archive/renovation/SAAS_PLATFORM_09_SERVICE.md)、[技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)、[工程规则](../ENGINEERING_RULES.md)。所有节点与库名均为实测。

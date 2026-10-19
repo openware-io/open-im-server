@@ -1,5 +1,7 @@
 # 可观测性规范
 
+[中文](40_OBSERVABILITY_CONVENTIONS.md) | [English](40_OBSERVABILITY_CONVENTIONS.en.md)
+
 ## 目标与范围
 
 可观测性用于在不依赖临时复现的情况下，识别系统状态、定位故障、评估风险并支撑审计。本规范适用于业务服务、网关、异步任务、消息消费者和基础设施适配器。
