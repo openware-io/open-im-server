@@ -206,11 +206,12 @@ class AdminBatchZeroArchitectureGateTest {
     assertTrue(baseline.contains("adm_app_release"), "retired table name must stay documented in the baseline");
     assertFalse(Files.exists(MODULE_ROOT.resolve(
         "src/main/resources/db/migration/V2__backfill_adm_management_domain.sql")));
-    // 基线已冻结；列改名通过 V2，服务接入通过 V3，展示品牌通过 V4。
+    // 基线已冻结；列改名通过 V2，服务接入通过 V3，展示品牌通过 V4/V5。
     assertEquals(List.of("V1__adm_management_domain_baseline.sql",
             "V2__adm_client_release_release_version.sql",
             "V3__seed_service_access_entries.sql",
-            "V4__rebrand_service_access_entries.sql"),
+            "V4__rebrand_service_access_entries.sql",
+            "V5__rebrand_operator_service_entry.sql"),
         Files.list(MODULE_ROOT.resolve("src/main/resources/db/migration"))
             .map(path -> path.getFileName().toString()).sorted().toList());
     String serviceSeed = Files.readString(MODULE_ROOT.resolve(
@@ -221,6 +222,10 @@ class AdminBatchZeroArchitectureGateTest {
     String serviceRebrand = Files.readString(MODULE_ROOT.resolve(
         "src/main/resources/db/migration/V4__rebrand_service_access_entries.sql"));
     assertTrue(serviceRebrand.contains("OpenChat 服务中心"));
+    String operatorRebrand = Files.readString(MODULE_ROOT.resolve(
+        "src/main/resources/db/migration/V5__rebrand_operator_service_entry.sql"));
+    assertTrue(operatorRebrand.contains("OpenChat 运营后台"));
+    assertTrue(operatorRebrand.contains("/b/"));
   }
 
   @Test
