@@ -130,7 +130,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedep
 | `/api/v1/users/**` | `/users/**` | `im-user-service` | `api-users` | 用户资料与账号能力。 |
 | `/api/v1/device-tokens/**` | `/device-tokens/**` | `im-user-service` | `api-device-tokens` | 设备推送令牌管理。 |
 | `/api/v1/friends/**` | `/friends/**` | `im-user-service` | `api-friends` | 好友关系和好友申请。 |
-| `/api/v1/points/**` | `/points/**` | `im-user-service` | `api-points` | 用户积分和积分记录。 |
 | `/api/v1/user-stickers/**` | `/user-stickers/**` | `im-user-service` | `api-user-stickers` | 用户贴纸能力。 |
 | `/api/v1/messages/**` | `/messages/**` | `im-message-service` | `api-messages` | 消息发送、历史、已读与撤回。 |
 | `/api/v1/favorites/**` | `/favorites/**` | `im-message-service` | `api-favorites` | 消息收藏与收藏列表。 |

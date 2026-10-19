@@ -59,7 +59,7 @@ Client
 
 ### IM domain
 
-- **im-user-service**: profiles, registration/login, device tokens, E2EE device keys, friendships, points, user stickers.
+- **im-user-service**: profiles, registration/login, device tokens, E2EE device keys, friendships, user stickers; points belong to the SaaS customer domain.
 - **im-message-service**: history, offline messages, read receipts, recall/clear, channel cursors, secret-message ciphertext and destruction.
 - **im-conversation-service**: groups and members, roles/mute rules, channels, secret chats (E2EE), RTC config.
 - **im-admin-service**: IM admin APIs, client config, release checks, reports and mini-program service configuration.

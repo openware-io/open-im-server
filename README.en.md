@@ -128,7 +128,6 @@ External REST APIs use `/api/v1/**`. Gateway applies `StripPrefix=2` to business
 | `/api/v1/users/**` | `/users/**` | `im-user-service` | `api-users` |
 | `/api/v1/device-tokens/**` | `/device-tokens/**` | `im-user-service` | `api-device-tokens` |
 | `/api/v1/friends/**` | `/friends/**` | `im-user-service` | `api-friends` |
-| `/api/v1/points/**` | `/points/**` | `im-user-service` | `api-points` |
 | `/api/v1/user-stickers/**` | `/user-stickers/**` | `im-user-service` | `api-user-stickers` |
 | `/api/v1/messages/**` | `/messages/**` | `im-message-service` | `api-messages` |
 | `/api/v1/favorites/**` | `/favorites/**` | `im-message-service` | `api-favorites` |
