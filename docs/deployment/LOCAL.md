@@ -37,6 +37,8 @@ kubectl --context kind-open-im-local get ingress -n open-im-local
 - SaaS 管理后台：`http://<本机IP>:30080/saas/`
 - SaaS C 端：`http://<本机IP>:30080/a380/`
 - SaaS B 端：`http://<本机IP>:30080/b/`
+- IM 管理后台：`http://<本机IP>:30080/im/`
+- 网关健康检查：`http://<本机IP>:30080/actuator/health`
 - 官网：`http://<本机IP>:30080/website/`
 
 停止并删除本地 Kind 环境：

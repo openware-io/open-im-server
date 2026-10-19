@@ -54,19 +54,6 @@ The first run builds all service images and downloads dependencies; duration dep
 
 Use `http://127.0.0.1:30080/` for local-only access. LAN devices need inbound `30080`.
 
-#### Legacy direct ports (for identifying old environments only)
-
-Early environments used standalone ports; the current one-click deployment uses the `30080` Ingress. IPs in old screenshots are no longer authoritative.
-
-| Role | Legacy port | Current entry |
-| --- | --- | --- |
-| Unified portal | `30083` | `/` |
-| SaaS admin | `30081` | `/saas/` |
-| SaaS mobile C-end | `30082` | `/a380/` |
-| SaaS mobile B-end | `30082` | `/b/` |
-| IM admin | `5173` | `/im/` |
-| Gateway health | `30002` | `/actuator/health` |
-
 ### Accounts and passwords
 
 | Role | Username | Credential source |
