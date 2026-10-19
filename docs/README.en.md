@@ -90,7 +90,7 @@ im-saas docs
 
 | Document | Relationship |
 | --- | --- |
-| [Services](services/) | Runtime service responsibilities and APIs |
+| [Services](services/README.en.md) | Runtime service directory by layer |
 | [Gateway](services/gateway/README.md) | Edge entry |
 | [IM user service](services/im-user-service/README.md) | IM domain |
 | [IM message service](services/im-message-service/README.md) | IM domain |

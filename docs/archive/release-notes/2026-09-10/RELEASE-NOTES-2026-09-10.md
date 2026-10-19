@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by: docs/RELEASE_RUNBOOK.md
+> Original-location: RELEASE-NOTES-2026-09-10.md
+
 # 发布清单（IM 消息删除语义改造 + 本周问题修复）
 
 - 分支：`develop/2.0.0-saas-20260826`

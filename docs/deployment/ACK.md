@@ -104,7 +104,7 @@ Internet
 - `im-message-service`
 - `im-conversation-service`
 - `common-media-service`
-- `im-order-service`
+- `platform-order-service`
 - `im-admin-service`
 - `im-access-ws`
 - `pc-admin`（源码目录已确认：`D:\projects\cnb-oss\open-chat-admin`）

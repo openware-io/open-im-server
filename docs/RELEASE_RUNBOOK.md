@@ -151,7 +151,7 @@ $services = [ordered]@{
   'im-message-service'     = 'im-services/message/im-message-service/target/im-message-service-1.0.14.jar'
   'im-conversation-service'= 'im-services/conversation/im-conversation-service/target/im-conversation-service-1.0.14.jar'
   'common-media-service'     = 'common-services/media/common-media-service/target/common-media-service-1.0.14.jar'
-  'im-order-service'       = 'im-services/order/im-order-service/target/im-order-service-1.0.14.jar'
+  'platform-order-service' = 'platform-services/order/platform-order-service/target/platform-order-service-2.2.0-SNAPSHOT.jar'
   'im-admin-service'       = 'im-services/admin/im-admin-service/target/im-admin-service-1.0.14.jar'
   'im-access-ws'           = 'gateways/im-access-ws/target/im-access-ws-1.0.14.jar'
   'gateway'                = 'gateways/gateway/target/gateway-1.0.14.jar'
@@ -184,7 +184,7 @@ kubeconfig 路径从 VS Code 配置读取：`Code\User\settings.json` 的 `vs-ku
 | gateway | 3002 | | im-user-service | 3100 |
 | im-access-ws | 3001 | | im-message-service | 3200 |
 | im-conversation-service | 3300 | | im-admin-service | 3400 |
-| im-order-service | 3500 | | common-media-service | 3600 |
+| platform-order-service | 4130 | | common-media-service | 3600 |
 
 ---
 
@@ -260,7 +260,7 @@ cd D:\projects\cnb-oss\open-chat-app
    ```powershell
    cd D:\projects\cnb-oss\open-chat-desktop
    npm run build:win
-   # 产物：dist\WV Chat Setup <version>.exe
+   # 产物：dist\OpenChat Setup <version>.exe
    ```
 
 3. 打开管理后台「客户端发布」创建发布：平台选 `Windows`，渠道选 `Stable`，填入版本、Windows buildNumber 和更新说明；制品类型选 `EXE`，架构选 `x64`，上传该 EXE。上传完成后由对象存储自动回填下载 URL、SHA-256 和文件大小。

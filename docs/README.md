@@ -90,7 +90,7 @@ im-saas 文档
 
 | 文档 | 关系 |
 | --- | --- |
-| [服务说明](services/) | 运行时服务的职责与接口 |
+| [服务说明](services/README.md) | 运行时服务目录与分层 |
 | [Gateway](services/gateway/README.md) | 接入层入口 |
 | [IM 用户服务](services/im-user-service/README.md) | IM 业务域 |
 | [IM 消息服务](services/im-message-service/README.md) | IM 业务域 |

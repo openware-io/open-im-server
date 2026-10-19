@@ -17,8 +17,8 @@
 
 ## 2. 构建产物
 
-- **App 必须带 prod 环境**：`tools\build.ps1 android prod`（或 `flutter build apk --release --dart-define=APP_ENV=prod`），否则 App 默认 dev 环境 base URL=http://192.168.1.3:3002（本地），用户设备连不上报网络错误。产物 build/app/outputs/flutter-apk/app-release.apk（APK 不签名）。
-- npm run build:win  →  dist/WV Chat Setup <ver>.exe。
+- **App 必须带 prod 环境**：`tools\build.ps1 android prod`（或 `flutter build apk --release --dart-define=APP_ENV=prod`），否则 App 默认 dev 环境 base URL 指向本地开发网关，用户设备连不上报网络错误。产物 build/app/outputs/flutter-apk/app-release.apk（APK 不签名）。
+- npm run build:win  →  dist/OpenChat Setup <ver>.exe。
 
 ## 3. 上传制品到 MinIO（im-business-private bucket）
 
@@ -41,7 +41,7 @@
 
 ## 6. 打包发版踩坑记录（必记，避免再犯）
 
-1. **App 必须 APP_ENV=prod**：缺 `--dart-define=APP_ENV=prod` 时 App 默认 dev 环境，base URL 指向本地 `http://192.168.1.3:3002`，用户 Android 设备连不上报「网络错误」（浏览器却正常）。用 `tools\build.ps1 android prod`。
+1. **App 必须 APP_ENV=prod**：缺 `--dart-define=APP_ENV=prod` 时 App 默认 dev 环境，base URL 指向本地 `http://<开发机IP>:3002`，用户 Android 设备连不上报「网络错误」（浏览器却正常）。用 `tools\build.ps1 android prod`。
 2. **TLS 根证书信任**：`api.dev.example.com` 的证书链根是 `Sectigo Public Server Authentication Root R46`（较新根），部分旧 Android 系统信任库未收录 → SSL 握手失败报「网络错误」。已在 App 内置 `android/app/src/main/res/raw/sectigo_r46.pem` + `res/xml/network_security_config.xml`（trust-anchors = system + 该根）兜底。换证书/域名后必须同步验证 App 是否信任新根。
 3. **release 唯一键 (platform,channel,version)**：同版本发新 build（如 2.0.1 的 83→84）只能 UPDATE 现有 release 的 build_number + UPDATE artifact 的 download_url/sha256/size_bytes，不能 INSERT（会撞唯一键）；只有版本号变化才 INSERT 新 release。`updated_at` 无默认值必须显式给值。
 4. **APK 必须签名**：`android/key.properties` + `xchpro.jks` 驱动 release 签名（原「暂不签名」短期例外已于 2026-09-10 取消）。缺 `key.properties` 时 Gradle 会静默退化为 debug 签名，务必用 `apksigner verify --print-certs` 核对证书 SHA-256 = `27cdc427d6152d0db97b78819d1ac5ba732300e5cc48bdb8820a9ce909fee10d` 后再发布。
