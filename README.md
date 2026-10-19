@@ -1,5 +1,10 @@
 # OpenIM Server
 
+[中文](README.md) | [English](README.en.md)
+
+> 状态：`current`（2.2.1 阶段）  
+> 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
+
 ## 本地部署
 
 本地 Docker Compose、独立 Kind 集群和直接运行本地进程的部署说明见[部署文档索引](./docs/deployment/README.md)。
@@ -10,15 +15,14 @@ OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一
 
 ## 当前服务拓扑
 
-- `gateway`：统一入口，只负责路由、鉴权透传、限流等横切能力
-- `im-user-service`：认证、用户资料、设备令牌、好友关系链、积分、用户贴纸
-- `im-message-service`：消息历史、离线消息、已读、撤回、清空会话消息
-- `im-conversation-service`：群组、成员管理、RTC 信令配置
-- `common-media-service`：通用媒体上传会话、对象元数据、私有访问授权与业务引用登记
-- `im-order-service`：预约订单、核销、门店与预约配置
-- `im-admin-service`：管理端接口、客户端配置、版本更新、举报受理、迷你服务配置
-- `im-access-ws`：WebSocket 长连接接入、鉴权、在线会话维护、跨实例广播
-- `common` / `protocol-ws` / `infrastructure`：共享内核、协议契约、基础设施实现
+按“体验层 → 接入层 → SaaS 平台域 → IM 业务域 → 公共能力域 → 数据基础设施”组织，完整映射见[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
+
+- **L0 体验层**：`open-chat-app`、`open-chat-desktop`、`open-saas-admin`、`open-chat-admin`、`open-saas-mobile`、`open-website`
+- **L1 接入层**：`gateway`（HTTPS REST 横切）、`im-access-ws`（WebSocket 接入）、`unified-portal`（统一登录）
+- **L2 SaaS 平台域**：`platform-identity-service`、`platform-tenant-service`、`platform-admin-service`、`platform-customer-service`、`platform-order-service`、`platform-resource-service`、`platform-marketing-service`
+- **L3 IM 业务域**：`im-user-service`、`im-message-service`、`im-conversation-service`、`im-admin-service`
+- **L4 公共能力域**：`common-media-service`、`common-audit-service`、`common-mail-service`、`common-sms-service`、`common-payment-service`、`common-payment-channel-service`、`group-idaas-service`
+- **L5 数据基础设施**：MySQL（`open_im` / `open_saas` / `open_group` / `open_audit`）、MongoDB（`im_chat`）、Redis、RocketMQ、MinIO
 
 ## 访问入口
 
@@ -51,12 +55,12 @@ OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一
 | `/api/v1/conversations/**` | `/conversations/**` | `im-conversation-service` | `api-conversations` | 会话查询和管理。 |
 | `/api/v1/groups/**` | `/groups/**` | `im-conversation-service` | `api-groups` | 群组、成员和群角色。 |
 | `/api/v1/rtc/**` | `/rtc/**` | `im-conversation-service` | `api-rtc` | RTC 信令配置查询。 |
-| `/api/v1/reservations/**` | `/reservations/**` | `im-order-service` | `api-reservations` | 预约创建、查询、取消和核销。 |
+| `/api/v1/business/**` | `/business/**` | `platform-order-service` | `api-business-order` | 订单、KTV、预约与目录等业务编排。 |
 | `/api/v1/media/**` | `/media/**` | `common-media-service` | `api-media` | 仅处理上传会话、完成确认、对象状态和访问授权；文件二进制由客户端直连对象存储。 |
 | `/api/v1/admin/**` | `/admin/**` | `im-admin-service` | `api-admin` | 管理端后台业务接口。 |
 | `/api/v1/config/client/**` | `/config/client/**` | `im-admin-service` | `api-client-config` | 客户端配置下发。 |
 | `/api/v1/config/app-update` | `/config/app-update` | `im-admin-service` | `api-app-update` | 应用版本更新检查。 |
-| `/api/v1/miniapp/im-services/**` | `/miniapp/im-services/**` | `im-admin-service` | `api-miniapp-services` | 小程序服务配置。 |
+| `/api/v1/miniapp/services` | `/miniapp/services` | `im-admin-service` | `api-miniapp-services` | 服务板块公开读接口（C 端服务目录）。 |
 | `/api/v1/reports/**` | `/reports/**` | `im-admin-service` | `api-reports` | 举报提交与处理。 |
 
 | 客户端请求路径 | 目标服务 | 协议与约束 |
@@ -89,7 +93,10 @@ powershell ./run-dev.ps1 -Service gateway
 
 ## 文档索引
 
+- [文档中心](./docs/README.md)
+- [工程拓扑](./docs/architecture/TOPOLOGY.zh.md)
 - [架构总览](./docs/ARCHITECTURE.md)
+- [文档审计](./docs/DOCUMENTATION_AUDIT.md)
 - [00 DDD 微服务软件工程规范纲要](./docs/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
 - [工程规范](./docs/ENGINEERING_RULES.md)
 - [10 DDD 服务工程规范](./docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
