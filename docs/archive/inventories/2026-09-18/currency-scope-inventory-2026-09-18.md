@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/currency-scope-inventory-2026-09-18.md
+
 # 现金与币种全场景影响面清单（CNY / USD，默认 USD）
 
 - 日期：2026-09-18

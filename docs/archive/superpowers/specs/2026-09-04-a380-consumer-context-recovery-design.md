@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/specs/2026-09-04-a380-consumer-context-recovery-design.md
+
 # A380 Consumer Context and Recovery Design
 
 ## Problem

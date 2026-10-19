@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/plans/2026-09-11-im-three-phase-reliability-plan.md
+
 # IM 三阶段可靠性改造计划
 
 ## 目标与门禁

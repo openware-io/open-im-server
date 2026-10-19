@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/plans/2026-09-03-a380-permission-release.md
+
 # A380 Permission Release Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.

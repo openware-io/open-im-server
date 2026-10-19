@@ -121,8 +121,8 @@ im-saas docs
 | Document | Relationship |
 | --- | --- |
 | [renovation](renovation/) | Transformation history; background only |
-| [superpowers](superpowers/) | Design and plan snapshots |
-| [Historical audit](audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 audit snapshot |
+| [superpowers](archive/superpowers/) | Design and plan snapshots (archived) |
+| [Historical audit](archive/audits/2026-09-17/audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 audit snapshot (archived) |
 
 ## 4. Language and status
 

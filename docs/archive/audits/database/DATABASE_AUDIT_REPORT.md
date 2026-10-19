@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/DATABASE_AUDIT_REPORT.md
+
 # 数据库规范全量审计报告
 
 审计日期：2026-09-03  

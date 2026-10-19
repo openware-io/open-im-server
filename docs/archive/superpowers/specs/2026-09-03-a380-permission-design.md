@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/specs/2026-09-03-a380-permission-design.md
+
 # A380 权限链路与发布一致性设计
 
 ## 目标

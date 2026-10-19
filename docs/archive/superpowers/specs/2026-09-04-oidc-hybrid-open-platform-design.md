@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/specs/2026-09-04-oidc-hybrid-open-platform-design.md
+
 # OAuth 2.0 + OIDC Hybrid 开放平台改造设计
 
 **状态：** 已完成联合审查与 2026-09-04 权限基线复核，待实施评审；在阻断问题关闭前不得宣称已具备完整 OIDC/B 端企业授权能力

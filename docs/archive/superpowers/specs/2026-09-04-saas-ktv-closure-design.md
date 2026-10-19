@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/specs/2026-09-04-saas-ktv-closure-design.md
+
 # SaaS/KTV 交易闭环整改设计
 
 **目标**：将 SaaS/KTV 从认证可用的骨架收敛为可信的预约、履约、资源、账单和收款闭环，并让 C/B/Admin 三端遵循同一服务端契约。

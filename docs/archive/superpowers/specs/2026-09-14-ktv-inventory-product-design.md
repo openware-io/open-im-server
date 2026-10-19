@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/specs/2026-09-14-ktv-inventory-product-design.md
+
 # KTV 仓库与商品上架设计
 
 ## 1. 目标与边界

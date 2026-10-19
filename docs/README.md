@@ -121,8 +121,8 @@ im-saas 文档
 | 文档 | 关系 |
 | --- | --- |
 | [renovation](renovation/) | 改造过程；仅作背景 |
-| [superpowers](superpowers/) | 设计与计划快照 |
-| [历史审计](audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 审计快照 |
+| [superpowers](archive/superpowers/) | 设计与计划快照（已归档） |
+| [历史审计](archive/audits/2026-09-17/audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 审计快照（已归档） |
 
 ## 4. 语言与状态
 

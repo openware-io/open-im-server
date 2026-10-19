@@ -20,6 +20,8 @@
 
 清单由 `scripts/docs/build-disposition-manifest.ps1` 生成；状态为 `planned` 的文件尚未移动或修改。
 
+首批已归档（14 份）：[归档批次记录](ARCHIVE-LOG.md)。
+
 ## 1. 归档目录
 
 ```text

@@ -1,3 +1,8 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/superpowers/reports/2026-09-11-im-saas-regression-report.md
+
 # IM + SaaS 回归与发布记录（2026-09-11）
 
 ## 本次修复
