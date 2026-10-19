@@ -195,7 +195,7 @@ C 端报价与我的预约、B 端订单/库存/看板、App 收银/结账/班�
 
 `字面量扫描` 已由 `scripts/validate/validate-currency-literals.ps1` 实现并接入统一验证入口：扫描服务模块 `src/main/java`（剥离注释），测试、文档、`Currency` 枚举本身与网关协议兜底不在范围内。
 `符号表唯一` 由 `scripts/validate/validate-currency-symbols.ps1` 实现：符号、中文名与 `put/Map.of("USD"|"CNY", ...)` 映射只允许出现在 `Currency` 枚举。
-`缺省口径`、`快照不回改`、`写穿一致` 由 `scripts/validate/validate-currency-defaults.ps1` 实现：运行 `CurrencyTest`、`CurrencyResolverTest`、`TenantCurrencyControllerTest` 与 `OrderIntegrationTest`，分别锁定默认 USD、写穿调用、以及订单开台/结台后 `currency_code` 快照不变。
+`缺省口径`、`快照不回改`、`写穿一致` 由 `scripts/validate/validate-currency-defaults.ps1` 实现：运行 `CurrencyTest`、`CurrencyResolverTest`、`TenantCurrencyControllerTest`、`TenantCurrencyWriteThroughTest`（H2 真库写穿/回滚）、`OrderIntegrationTest`（订单历史快照）与 `PaymentIntegrationTest`（支付核销快照）。
 
 **人工检查项**（评审时确认）：
 

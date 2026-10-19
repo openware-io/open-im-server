@@ -29,8 +29,12 @@ try {
     $sdkExit = $LASTEXITCODE
 
     $tenant = & $maven -B -q -pl platform-services/tenant/platform-tenant-service -am `
-      '-Dtest=TenantCurrencyControllerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
+      '-Dtest=TenantCurrencyControllerTest,TenantCurrencyWriteThroughTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
     $tenantExit = $LASTEXITCODE
+
+    $payment = & $maven -B -q -pl common-services/payment/common-payment-service -am `
+      '-Dtest=PaymentIntegrationTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
+    $paymentExit = $LASTEXITCODE
 
     $order = & $maven -B -q -pl platform-services/order/platform-order-service -am `
       '-Dtest=OrderIntegrationTest' '-Dsurefire.failIfNoSpecifiedTests=false' test 2>&1
@@ -44,7 +48,10 @@ try {
     $violations.Add('Currency default tests failed (sdk/infrastructure: CurrencyTest, CurrencyResolverTest)')
   }
   if ($tenantExit -ne 0) {
-    $violations.Add('Tenant currency default/switch tests failed (TenantCurrencyControllerTest)')
+    $violations.Add('Tenant currency default/switch tests failed (TenantCurrencyControllerTest, TenantCurrencyWriteThroughTest)')
+  }
+  if ($paymentExit -ne 0) {
+    $violations.Add('Payment currency snapshot test failed (PaymentIntegrationTest)')
   }
   if ($orderExit -ne 0) {
     $violations.Add('Order currency snapshot test failed (OrderIntegrationTest)')
