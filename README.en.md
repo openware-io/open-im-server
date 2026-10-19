@@ -164,6 +164,7 @@ im-saas docs
 │  └─ Engineering topology (./docs/architecture/TOPOLOGY.en.md)
 ├─ Architecture and governance
 │  ├─ Architecture overview (./docs/ARCHITECTURE.en.md)
+│  ├─ Documentation organization plan (./docs/DOCUMENTATION_ORGANIZATION.en.md)
 │  ├─ Documentation audit (./docs/DOCUMENTATION_AUDIT.en.md)
 │  ├─ Engineering rules (./docs/ENGINEERING_RULES.md)
 │  └─ Gate registry (./docs/GATE_REGISTRY.md)

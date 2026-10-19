@@ -12,8 +12,11 @@
 im-saas docs
 ├─ 00 Getting started
 │  ├─ One-click deployment
-│  ├─ Entry points and account rules
-│  └─ Documentation audit (findings and plan)
+│  └─ Entry points and account rules
+├─ 05 Documentation governance
+│  ├─ Organization and archival plan
+│  ├─ Documentation audit (findings and plan)
+│  └─ Archive index
 ├─ 10 Architecture
 │  ├─ Engineering topology (repo / deployment / service / data)
 │  ├─ Architecture overview (runtime boundaries and ownership)
@@ -55,8 +58,14 @@ im-saas docs
 | Document | Relationship |
 | --- | --- |
 | [One-click deployment](../README.en.md#one-click-deployment-recommended) | Start here: requirements, Kind deployment, entries and verification |
-| [Engineering topology](architecture/TOPOLOGY.en.md) | After deployment: repositories, deployment units, services and data |
-| [Documentation audit](DOCUMENTATION_AUDIT.en.md) | Current documentation findings, priorities and plan |
+
+### 05 Documentation governance
+
+| Document | Relationship |
+| --- | --- |
+| [Organization and archival plan](DOCUMENTATION_ORGANIZATION.en.md) | Global classification, actions, archival rules and execution order |
+| [Documentation audit](DOCUMENTATION_AUDIT.en.md) | Current findings, priorities and phased plan |
+| [Archive index](archive/README.en.md) | Registration, metadata and move checklist for historical docs |
 
 ### 10 Architecture and governance
 

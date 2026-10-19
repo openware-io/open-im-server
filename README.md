@@ -183,6 +183,7 @@ im-saas 文档
 │  └─ 工程拓扑（./docs/architecture/TOPOLOGY.zh.md）
 ├─ 架构与治理
 │  ├─ 架构总览（./docs/ARCHITECTURE.md）
+│  ├─ 文档整理与归档方案（./docs/DOCUMENTATION_ORGANIZATION.md）
 │  ├─ 文档审计（./docs/DOCUMENTATION_AUDIT.md）
 │  ├─ 工程规范（./docs/ENGINEERING_RULES.md）
 │  └─ 门禁注册表（./docs/GATE_REGISTRY.md）

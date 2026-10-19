@@ -1,0 +1,45 @@
+# im-saas Documentation Archive Index
+
+[中文](README.md) | [English](README.en.md)
+
+> Status: `current` (Phase 1 scaffold; no files moved yet)  
+> Rules: [Documentation Organization and Archival Plan](../DOCUMENTATION_ORGANIZATION.en.md)  
+> Principle: register first, move later; preserve the original and never rewrite history as a current contract.
+
+## 1. Archive directories
+
+```text
+docs/archive/
+├─ audits/           one-off audits and database audits
+├─ inventories/      scope/currency/resource inventories
+├─ renovation/       transformation history and decisions
+├─ superpowers/      historical design and plan snapshots
+└─ release-notes/    old release and acceptance records
+```
+
+## 2. Metadata
+
+Every archived document starts with:
+
+```markdown
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by: <relative path to current doc, may be empty>
+> Original-location: <old path>
+```
+
+## 3. Register
+
+Register each item when Phase 2 starts. No file may move before it is registered.
+
+| Original path | Archive path | Type | Replacement | Status |
+| --- | --- | --- | --- | --- |
+| (pending) | `docs/archive/...` | audit / plan / renovation | (may be empty) | planned |
+
+## 4. Move checklist
+
+1. Use `git mv` to preserve history.
+2. Add the metadata header.
+3. Update inbound links and leave a redirect note at high-traffic old paths.
+4. Update this index.
+5. Run `scripts/validate/validate-documentation-links.ps1`.
