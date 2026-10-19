@@ -305,7 +305,8 @@ DELETE /media/multipart-upload-sessions/{id}
 
 已实现（`scripts/validate/validate-media-boundaries.ps1`，G36）：无代理上传路由、业务/API 层不出现存储提供方 SDK 类型、API/DTO 不泄漏 `MEDIA_INTERNAL_ENDPOINT`、媒体日志不打印签名 URL/密钥/二进制。
 `URL 规范唯一` 由 `scripts/validate/validate-media-url.ps1`（G40）校验：网关仅一条 `/api/v1/media-public/**`、`StripPrefix=3`、无旧路径/rewrite。
-运行期日志采样仍需人工抽查，静态门禁只覆盖日志语句形态。
+运行期日志抽查已在 Kind `open-im-local` 完成一次：34 个 Pod、敏感模式 0 命中；默认用户密码日志已修复。
+后续仍按发布周期抽查，单次采样不能替代持续核验。
 
 **人工检查项**：
 

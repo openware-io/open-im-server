@@ -993,6 +993,15 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.46 Kind 运行期日志采样（Q12，2026-10-19）
+
+- 在 `open-im-local` 采样 34 个 Pod 的最近 300 行日志，扫描 `Using generated security password`、
+  `Bearer ...`、`Authorization:`、手机号模式；证据保存在 `.outputs/log-samples/20261019-kind-final`。
+- 首轮发现 Spring Boot 默认用户密码日志：`SecurityConfig` 覆盖的服务已修复；`im-access-ws` 因自带
+  `SecurityFilterChain` 未导入 `SecurityConfig`，单独补 `UserDetailsService` 后修复。
+- 最终采样：34 个 Pod，敏感模式 **0 命中**。
+- 运行期抽查仍需按发布周期重复，不能由一次采样替代。
+
 ### 8.45 真机与运行期证据（Q11/Q12，2026-10-19）
 
 - Q11：`flutter test integration_test/app_startup_test.dart -d c4c90621` 已构建 APK，但 MI 9 返回
