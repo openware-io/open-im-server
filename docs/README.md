@@ -6,30 +6,123 @@
 > 当前阶段：2.2.1（2026-10-19）  
 > 语言约定：面向工程决策和交付的顶层文档提供中英双语；历史审计/renovation 记录只做归档标注，不追写双语。
 
-## 1. 从这里开始
+## 1. 文档层次
 
-| 文档 | 用途 |
+```text
+im-saas 文档
+├─ 00 入门
+│  ├─ 一键部署
+│  ├─ 访问入口与账号规则
+│  └─ 文档审计（问题与计划）
+├─ 10 架构
+│  ├─ 工程拓扑（仓库 / 部署单元 / 服务 / 数据）
+│  ├─ 架构总览（运行时边界与职责）
+│  └─ 工程规范（研发与门禁）
+├─ 20 部署与运行
+│  ├─ 本地部署
+│  ├─ Docker Compose
+│  ├─ Kubernetes / Kind
+│  └─ 发布手册
+├─ 30 服务
+│  ├─ 接入层（gateway / im-access-ws）
+│  ├─ IM 业务域
+│  ├─ SaaS 平台域
+│  └─ 公共能力域
+├─ 40 业务
+│  └─ 会话、隐私、KTV、订单等业务语义
+├─ 50 标准
+│  └─ DDD、RocketMQ、媒体、版本、币种、日志、测试
+└─ 90 历史
+   ├─ renovation（改造过程）
+   ├─ superpowers（设计与计划快照）
+   └─ audit（历史审计）
+```
+
+## 2. 阅读路径
+
+| 目标 | 顺序 |
 | --- | --- |
-| [一键部署](../README.md#一键部署推荐) | 环境要求、Kind 一键部署、访问与验证 |
-| [工程拓扑](architecture/TOPOLOGY.zh.md) | 仓库、部署单元、服务、数据的分层结构 |
-| [架构总览](ARCHITECTURE.md) | 运行时边界、服务职责与关键约束 |
-| [文档审计](DOCUMENTATION_AUDIT.md) | 本次排查的问题、优先级和分批计划 |
-| [本地部署](deployment/LOCAL.md) | Kind / Docker Compose / 本地进程 |
-| [工程规范](ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
-| [发布手册](RELEASE_RUNBOOK.md) | 发布、回滚与版本追溯 |
-| [服务说明](services/) | 各运行时服务的职责与接口 |
-| [业务文档](business/) | 会话、隐私、KTV 等业务语义 |
-| [标准](standards/) | DDD、RocketMQ、媒体、版本、币种等规范 |
-| [历史方案](renovation/) | 改造过程记录；默认视为历史，不作为现行契约 |
+| 第一次上手 | 一键部署 → 访问入口/账号规则 → 工程拓扑 |
+| 理解系统 | 工程拓扑 → 架构总览 → 服务说明 |
+| 本地开发 | 本地部署 → 服务说明 → 工程规范 |
+| 发布交付 | 发布手册 → 部署说明 → E2E 规范 |
+| 追溯历史 | 文档审计 → renovation / audit（仅作背景，不作为现行契约） |
 
-## 2. 语言与状态
+## 3. 分层索引
+
+### 00 入门
+
+| 文档 | 关系 |
+| --- | --- |
+| [一键部署](../README.md#一键部署推荐) | 起点：环境要求、Kind 一键部署、入口与验证 |
+| [工程拓扑](architecture/TOPOLOGY.zh.md) | 一键部署之后：理解仓库、部署单元、服务和数据层次 |
+| [文档审计](DOCUMENTATION_AUDIT.md) | 了解当前文档问题、优先级和后续计划 |
+
+### 10 架构与治理
+
+| 文档 | 关系 |
+| --- | --- |
+| [工程拓扑](architecture/TOPOLOGY.zh.md) | 架构文档的顶层结构 |
+| [架构总览](ARCHITECTURE.md) | 拓扑的运行时解释：边界、职责、数据归属 |
+| [工程规范](ENGINEERING_RULES.md) | 约束研发、评审与门禁 |
+| [门禁注册表](GATE_REGISTRY.md) | 工程规范的可执行检查清单 |
+
+### 20 部署与运行
+
+| 文档 | 关系 |
+| --- | --- |
+| [本地部署](deployment/LOCAL.md) | 三种本地方式的统一入口 |
+| [Docker Compose](deployment/DOCKER.md) | 日常联调 |
+| [Kubernetes 清单](../k8s/README.md) | Kind / ACK 资源与镜像 |
+| [发布手册](RELEASE_RUNBOOK.md) | 发布、回滚、版本追溯 |
+| [本地部署索引](deployment/README.md) | 部署文档的上级目录 |
+
+### 30 服务与业务
+
+| 文档 | 关系 |
+| --- | --- |
+| [服务说明](services/) | 运行时服务的职责与接口 |
+| [Gateway](services/gateway/README.md) | 接入层入口 |
+| [IM 用户服务](services/im-user-service/README.md) | IM 业务域 |
+| [IM 消息服务](services/im-message-service/README.md) | IM 业务域 |
+| [IM 会话服务](services/im-conversation-service/README.md) | IM 业务域 |
+| [IM 管理服务](services/im-admin-service/README.md) | IM 业务域 |
+| [媒体支撑](services/common-media-service/README.md) | 公共能力域 |
+| [业务文档](business/) | 业务语义，位于服务说明之上 |
+
+### 50 标准
+
+| 文档 | 关系 |
+| --- | --- |
+| [00 DDD 微服务规范纲要](standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) | 标准体系总纲 |
+| [10 DDD 服务工程规范](standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 服务实现规范 |
+| [12 RocketMQ 规范](standards/12_ROCKETMQ_CONVENTIONS.md) | 消息与事件 |
+| [13 平台媒体规范](standards/13_PLATFORM_MEDIA_CONVENTIONS.md) | 媒体与对象存储 |
+| [14 客户端发布治理](standards/14_CLIENT_RELEASE_GOVERNANCE.md) | 客户端版本 |
+| [15 客户端发布操作](standards/15_CLIENT_RELEASE_SKILL.md) | 发布操作 |
+| [16 币种规范](standards/16_CURRENCY_CONVENTIONS.md) | 金额、代币与展示 |
+| [20 Maven 工程规范](standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | 构建与依赖 |
+| [21 持久层标准](standards/21_PERSISTENCE_STACK.md) | 数据访问 |
+| [22 技术栈版本矩阵](standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | 版本基线 |
+| [40 可观测性规范](standards/40_OBSERVABILITY_CONVENTIONS.md) | 日志、指标、追踪 |
+| [43 E2E 测试规范](standards/43_E2E_TESTING_CONVENTIONS.md) | 验收与冒烟 |
+
+### 90 历史归档
+
+| 文档 | 关系 |
+| --- | --- |
+| [renovation](renovation/) | 改造过程；仅作背景 |
+| [superpowers](superpowers/) | 设计与计划快照 |
+| [历史审计](audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 审计快照 |
+
+## 4. 语言与状态
 
 - **现行文档**：`*.md` 为中文，配套 `*.en.md` 为英文；文件顶部提供语言切换。
 - **历史文档**：保留原始中文，标题或索引标注“历史/归档”，不要求补英文。
 - **状态标记**：`current`、`draft`、`historical`、`superseded`；新文档必须显式标注。
 - **单一事实源**：运行时路由以 `gateways/gateway/src/main/resources/application.yml` 为准；数据表以 Flyway 迁移为准；本文档只做导航和解释。
 
-## 3. 当前双语覆盖
+## 5. 当前双语覆盖
 
 | 层级 | 中文 | 英文 | 状态 |
 | --- | --- | --- | --- |
@@ -40,7 +133,7 @@
 | 仓库 README | 各仓库 `README.md` | 待补 `README.en.md` | ⏳ Phase 2 |
 | 服务/业务/标准 | 中文为主 | 待补 | ⏳ Phase 3 |
 
-## 4. 文档治理规则
+## 6. 文档治理规则
 
 1. 新增顶层文档必须同时提交中英文版本和语言切换链接。
 2. 文档中的路由、服务名、表名必须能在代码或迁移中找到对应来源。

@@ -156,11 +156,53 @@ Besides the one-click Kind deployment, two independent local modes are available
 
 ## Documentation
 
-- [Documentation center](./docs/README.en.md)
-- [Engineering topology](./docs/architecture/TOPOLOGY.en.md)
-- [Architecture overview](./docs/ARCHITECTURE.en.md)
-- [Documentation audit](./docs/DOCUMENTATION_AUDIT.en.md)
-- [Engineering rules](./docs/ENGINEERING_RULES.md)
-- [Release runbook](./docs/RELEASE_RUNBOOK.md)
-- [Services](./docs/services/)
-- [Standards](./docs/standards/)
+```text
+im-saas docs
+├─ Getting started
+│  ├─ Documentation center (./docs/README.en.md)
+│  ├─ One-click deployment (top of this README)
+│  └─ Engineering topology (./docs/architecture/TOPOLOGY.en.md)
+├─ Architecture and governance
+│  ├─ Architecture overview (./docs/ARCHITECTURE.en.md)
+│  ├─ Documentation audit (./docs/DOCUMENTATION_AUDIT.en.md)
+│  ├─ Engineering rules (./docs/ENGINEERING_RULES.md)
+│  └─ Gate registry (./docs/GATE_REGISTRY.md)
+├─ Deployment and operations
+│  ├─ Local deployment (./docs/deployment/LOCAL.md)
+│  ├─ Deployment index (./docs/deployment/README.md)
+│  └─ Release runbook (./docs/RELEASE_RUNBOOK.md)
+├─ Services
+│  ├─ Edge: gateway / im-access-ws
+│  ├─ IM domain: user / message / conversation / admin
+│  ├─ SaaS platform: platform-*
+│  └─ Shared capabilities: common-* / group-idaas
+├─ Business and standards
+│  ├─ Business docs (./docs/business/)
+│  └─ Standards (./docs/standards/)
+└─ Historical archive
+   ├─ renovation (./docs/renovation/)
+   ├─ superpowers (./docs/superpowers/)
+   └─ Audit snapshot (./docs/audit-2026-09-17-exceptions-and-i18n.md)
+```
+
+- Full hierarchy, reading paths and bilingual coverage: [Documentation center](./docs/README.en.md).
+- Service entry: [services](./docs/services/).
+- Standards entry: [standards](./docs/standards/).
+
+### Standards
+
+- [00 DDD microservice outline](./docs/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
+- [10 DDD service conventions](./docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
+- [12 RocketMQ conventions](./docs/standards/12_ROCKETMQ_CONVENTIONS.md)
+- [13 Platform media conventions](./docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
+- [14 Client release governance](./docs/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
+- [15 Client release operations](./docs/standards/15_CLIENT_RELEASE_SKILL.md)
+- [16 Currency conventions](./docs/standards/16_CURRENCY_CONVENTIONS.md)
+- [20 Maven conventions](./docs/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
+- [21 Persistence stack](./docs/standards/21_PERSISTENCE_STACK.md)
+- [22 Technology stack matrix](./docs/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
+- [30 Text encoding and batch editing](./docs/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- [40 Observability conventions](./docs/standards/40_OBSERVABILITY_CONVENTIONS.md)
+- [41 Java logging conventions](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)
+- [42 Logging and diagnostics](./docs/standards/42_LOGGING_AND_OUTPUTS.md)
+- [43 E2E testing conventions](./docs/standards/43_E2E_TESTING_CONVENTIONS.md)

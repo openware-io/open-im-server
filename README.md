@@ -175,12 +175,42 @@ powershell ./run-dev.ps1 -Service gateway
 
 ## 文档索引
 
-- [文档中心](./docs/README.md)
-- [工程拓扑](./docs/architecture/TOPOLOGY.zh.md)
-- [架构总览](./docs/ARCHITECTURE.md)
-- [文档审计](./docs/DOCUMENTATION_AUDIT.md)
+```text
+im-saas 文档
+├─ 入门
+│  ├─ 文档中心（./docs/README.md）
+│  ├─ 一键部署（README 顶部）
+│  └─ 工程拓扑（./docs/architecture/TOPOLOGY.zh.md）
+├─ 架构与治理
+│  ├─ 架构总览（./docs/ARCHITECTURE.md）
+│  ├─ 文档审计（./docs/DOCUMENTATION_AUDIT.md）
+│  ├─ 工程规范（./docs/ENGINEERING_RULES.md）
+│  └─ 门禁注册表（./docs/GATE_REGISTRY.md）
+├─ 部署与运行
+│  ├─ 本地部署（./docs/deployment/LOCAL.md）
+│  ├─ 部署索引（./docs/deployment/README.md）
+│  └─ 发布手册（./docs/RELEASE_RUNBOOK.md）
+├─ 服务
+│  ├─ 接入层：Gateway / im-access-ws
+│  ├─ IM 域：user / message / conversation / admin
+│  ├─ SaaS 平台域：platform-*
+│  └─ 公共能力域：common-* / group-idaas
+├─ 业务与标准
+│  ├─ 业务文档（./docs/business/）
+│  └─ 标准（./docs/standards/）
+└─ 历史归档
+   ├─ renovation（./docs/renovation/）
+   ├─ superpowers（./docs/superpowers/）
+   └─ 审计快照（./docs/audit-2026-09-17-exceptions-and-i18n.md）
+```
+
+- 完整层级、阅读路径和双语覆盖见[文档中心](./docs/README.md)。
+- 服务说明入口：[服务目录](./docs/services/)。
+- 标准入口：[标准目录](./docs/standards/)。
+
+### 标准目录
+
 - [00 DDD 微服务软件工程规范纲要](./docs/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
-- [工程规范](./docs/ENGINEERING_RULES.md)
 - [10 DDD 服务工程规范](./docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ 治理规范](./docs/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 平台媒体规范](./docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
@@ -195,12 +225,3 @@ powershell ./run-dev.ps1 -Service gateway
 - [41 Java 日志规范](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](./docs/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E 测试与验收规范](./docs/standards/43_E2E_TESTING_CONVENTIONS.md)
-- [门禁注册表（G01–G42）](./docs/GATE_REGISTRY.md)
-- [Gateway](./docs/services/gateway/README.md)
-- [用户服务](./docs/services/im-user-service/README.md)
-- [消息服务](./docs/services/im-message-service/README.md)
-- [会话服务](./docs/services/im-conversation-service/README.md)
-- [媒体支撑服务](./docs/services/common-media-service/README.md)
-- [订单服务](./platform-services/order/platform-order-service/)
-- [管理服务](./docs/services/im-admin-service/README.md)
-- [长连接接入层](./docs/services/im-access-ws/README.md)
