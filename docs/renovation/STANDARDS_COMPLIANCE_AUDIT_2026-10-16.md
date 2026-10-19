@@ -1016,11 +1016,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 ### 8.45 真机与运行期证据（Q11/Q12，2026-10-19）
 
-- Q11：`flutter test integration_test/app_startup_test.dart -d c4c90621` 已构建 APK，但 MI 9 返回
-  `INSTALL_FAILED_USER_RESTRICTED`（MIUI 禁止 USB 安装）；重试卸载后仍被用户侧拒绝。当前无 AVD，
-  `open-chat-app` 未配置 Windows 桌面工程，因此真机证据未取得。需在设备上允许“USB 安装/调试”后重跑。
-- Q12：需要可访问的运行环境日志；当前未提供集群/日志入口，保持待运行环境。
-- 两项不得以静态检查代替，也不标记为通过。
+- Q11 安装通道已打通：临时执行 `pm disable-user com.miui.securitycenter` 后
+  `adb install` 成功，随后立即恢复安全中心。App 以
+  `OPEN_API_BASE=http://192.168.3.35:30080` 构建并安装，真机启动到登录页（MI 9，Android 11）。
+- 这说明 APK、签名、MTP、Kind API 均正常；阻塞点是 MIUI SecurityCenter 的 ADB 安装拦截。
+- 剩余问题：`flutter test integration_test/app_startup_test.dart -d c4c90621` 在安装/启动后
+  卡在测试 runner，无法自动收集断言；真机自动化证据仍不完整。
+- 临时停用安全中心是测试期绕过，不是产品方案；安装后已恢复。
+- Q12：运行期日志采样已完成，见 §8.46。
 
 ### 8.44 E2E 统一执行入口（Q10，2026-10-19）
 
