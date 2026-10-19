@@ -5,6 +5,7 @@ param(
   [switch]$ForceRebuild,
   [switch]$Stop,
   [switch]$ValidateOnly,
+  [switch]$PruneImages,
   [string]$ReleaseManifestPath,
   [string]$Namespace = 'open-im-local',
   [string]$KindClusterName = 'open-im-local',
@@ -123,3 +124,8 @@ try {
 }
 
 Write-Host "Kind deployment completed. Release manifest: $ReleaseManifestPath"
+
+if ($PruneImages) {
+  & (Join-Path $PSScriptRoot 'prune-local-images.ps1') -ReleaseManifestPath $ReleaseManifestPath
+  if ($LASTEXITCODE -ne 0) { throw 'Local image cleanup failed.' }
+}

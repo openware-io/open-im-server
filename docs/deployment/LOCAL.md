@@ -103,8 +103,13 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 ```powershell
 .\deploy-k8s.ps1 -ReleaseManifestPath <本地发布清单路径> -SkipBuild
 .\deploy-k8s.ps1 -SaasReleaseManifestPath <远程发布清单路径> -ValidateOnly
+.\deploy-k8s.ps1 -ForceRedeploy -PruneImages
 .\deploy-k8s.ps1 -Stop
 ```
+
+`-PruneImages` 在部署成功后清理 `ghcr.io/openware-io/*` 中不属于本次发布清单的旧镜像，
+并清理 Docker 构建缓存；Kind 已导入的镜像不受影响。也可单独执行
+`scripts/deploy/prune-local-images.ps1`。
 
 脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支使用 `<模块版本>-SNAPSHOT` 镜像标签，允许开发环境覆盖；正式发布使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、`dirty`、手工标签及 `@sha256` 镜像后缀；构建时间与 Git 修订写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
 
