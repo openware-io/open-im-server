@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > 维护范围：`D:\projects\cnb-oss` 下的 im-saas 产品仓库与 `open-im-server` 工程文档  
-> 当前阶段：2.2.1（2026-10-19）  
+> 当前阶段：`develop/2.3.0` 开发中（最近阶段 tag `2.2.1`）  
 > 语言约定：面向工程决策和交付的顶层文档提供中英双语；历史审计/renovation 记录只做归档标注，不追写双语。
 
 ## 1. 文档层次

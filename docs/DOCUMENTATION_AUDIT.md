@@ -3,8 +3,8 @@
 [中文](DOCUMENTATION_AUDIT.md) | [English](DOCUMENTATION_AUDIT.en.md)
 
 > 状态：`current`  
-> 版本：2.2.1 阶段  
-> 方法：对工作区 241 个 Markdown 文件做命名、版本、链接、服务清单和语言覆盖检查；对运行中的 Kind 部署做服务清单核对。
+> 版本：`develop/2.3.0` 文档整改（基线 tag `2.2.1`）  
+> 方法：对工作区 249 个 Markdown 文件做命名、版本、链接、服务清单和语言覆盖检查；对运行中的 Kind 部署做服务清单核对。
 
 ## 1. 结论
 
@@ -35,9 +35,9 @@
 
 ### P1：命名与版本漂移
 
-8. `A380` 在 42 个文档中出现 240 次，主要集中在 `docs/renovation/`、历史审计和部分现行部署文档。
-9. `WV Chat` 仍在 5 个文档中出现，包括桌面端 README、发布说明和发布手册产物名。
-10. 文档中仍有 44 处 `2.2.0`，与当前 2.2.1 阶段 tag 不一致。
+8. `A380` 在 50 个文档中出现 257 次，主要集中在 `docs/renovation/`、历史审计和部分现行部署文档。
+9. `WV Chat` 仍在 9 个文档中出现 15 次，包括桌面端 README、发布说明和发布手册产物名。
+10. 文档中仍有 46 处 `2.2.0`，与当前阶段 tag `2.2.1` 不一致。
 11. 现行服务板块文档已改为 OpenChat，但历史 renovation 文档保留旧名，需要标注“历史”而非直接改写。
 
 ### P1：路由、服务与数据说明漂移
@@ -49,14 +49,14 @@
 
 ### P2：文档组织与可维护性
 
-16. `open-im-server/docs` 有 162 个 Markdown，历史审计、renovation、superpowers 计划与现行规范混放。
+16. `open-im-server/docs` 有 165 个 Markdown，历史审计、renovation、superpowers 计划与现行规范混放。
 17. 缺少文档中心索引；根 README 的“文档索引”是平铺列表，不能表达层次。
 18. 历史文档没有 `historical` / `superseded-by` 元数据，读者无法判断是否仍有效。
 19. 没有 CI 文档门禁检查双语配对、旧命名和失效链接。
 
 ## 3. 分批计划
 
-### Phase 1（本次）
+### Phase 1（已完成，2026-10-19）
 
 - 新增 `docs/README.md` / `.en.md` 文档中心；
 - 新增 `docs/architecture/TOPOLOGY.zh.md` / `.en.md` 分层拓扑；

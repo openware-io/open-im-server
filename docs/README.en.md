@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs  
-> Current stage: 2.2.1 (2026-10-19)  
+> Current stage: developing on `develop/2.3.0` (latest stage tag `2.2.1`)  
 > Language policy: top-level engineering and delivery docs are bilingual; historical audit/renovation records stay Chinese-only and are marked as historical.
 
 ## 1. Documentation hierarchy

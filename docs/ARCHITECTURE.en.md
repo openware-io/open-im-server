@@ -2,7 +2,7 @@
 
 [中文](ARCHITECTURE.md) | [English](ARCHITECTURE.en.md)
 
-> Status: `current` (2.2.1 stage)  
+> Status: `current` (developing on `develop/2.3.0`)  
 > Repository/deployment-unit mapping and data ownership: [Engineering topology](architecture/TOPOLOGY.en.md).
 
 ## 1. Overall shape

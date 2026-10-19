@@ -167,7 +167,7 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 - 统一门户：`http://<宿主机局域网IP>:30080/`
 - MinIO API/控制台：`http://<宿主机局域网IP>:30900` / `http://<宿主机局域网IP>:30901`
 
-首次部署默认同时显式绑定 `127.0.0.1` 和自动识别的宿主机局域网 IPv4，避免 Windows/WSL localhost relay 抢占 `0.0.0.0` 后导致回环入口失效。脚本只从已连接且具有默认网关的网卡选择广告地址；如存在多个网卡，可通过 `-LocalAdvertiseAddress <IP>` 明确指定。早期使用的固定个人局域网地址与独立 `30002/30081/30082/30083/5173` 入口**已废弃**，不再作为 Kind 入口（现行入口为统一 Ingress）。
+首次部署默认同时显式绑定 `127.0.0.1` 和自动识别的宿主机局域网 IPv4，避免 Windows/WSL localhost relay 抢占 `0.0.0.0` 后导致回环入口失效。脚本只从已连接且具有默认网关的网卡选择广告地址；如存在多个网卡，可通过 `-LocalAdvertiseAddress <IP>` 明确指定。当前 Kind 入口统一为 `30080` Ingress。
 
 在 Kind 上下文中，脚本通过统一 Ingress 暴露应用入口；默认绑定 `0.0.0.0`，由宿主机防火墙控制局域网访问范围。需要仅本机访问时可显式传入 `-LocalBindAddress 127.0.0.1`。`-Stop` 只会停止本地入口并删除 Kind 集群中的 `open-im-local` 命名空间。
 
@@ -193,7 +193,7 @@ Kubernetes 的数据库与 MinIO 本地存储使用 `emptyDir`。Pod 重建或�
 - Docker 与 Kubernetes 脚本不会启动、停止、删除或修改对方的应用容器及数据。
 - 直接运行脚本仅管理其在 `.outputs/local-deployment/` 中记录的进程，不会停止 Compose 容器、Kubernetes 资源或其数据。
 - Docker Compose 与 Kubernetes 模式可复用镜像层，但 Kubernetes 应用镜像始终使用不可变发布标签。重新构建镜像不会替换正在运行的容器或 Pod；需要运行对应部署脚本完成发布。
-- Docker 使用端口 `3002`、`8080`；Kubernetes 使用 `30002`、`5173`，两者的应用访问端口不会冲突。
+- Docker 使用端口 `3002`、`8080`；Kubernetes 使用统一 Ingress `30080`，两者的应用访问端口不会冲突。
 - Kubernetes 状态使用 `kubectl get pods -n open-im-local` 查询；Compose 状态使用 `docker compose ps` 查询。
 
 ## 验证

@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> Status: `current` (2.2.1 stage)  
+> Status: `current` (developing on `develop/2.3.0`; latest stage tag `2.2.1`)  
 > Engineering topology and documentation entry: [Documentation center](./docs/README.en.md) and [Engineering topology](./docs/architecture/TOPOLOGY.en.md).
 
 ## One-click deployment (recommended)

@@ -3,8 +3,8 @@
 [中文](DOCUMENTATION_AUDIT.md) | [English](DOCUMENTATION_AUDIT.en.md)
 
 > Status: `current`  
-> Version: 2.2.1 stage  
-> Method: checked 241 Markdown files in the workspace for naming, version, links, service inventory and language coverage; cross-checked the running Kind deployment for the live service inventory.
+> Version: `develop/2.3.0` documentation remediation (baseline tag `2.2.1`)  
+> Method: checked 249 Markdown files in the workspace for naming, version, links, service inventory and language coverage; cross-checked the running Kind deployment for the live service inventory.
 
 ## 1. Conclusion
 
@@ -35,9 +35,9 @@ This change establishes a documentation center, an engineering topology, this au
 
 ### P1: naming and version drift
 
-8. `A380` appears 240 times across 42 docs, mainly under `docs/renovation/`, historical audits and some current deployment docs.
-9. `WV Chat` remains in 5 docs, including the desktop README, release notes and release runbook artifact names.
-10. 44 references still say `2.2.0`, which no longer matches the 2.2.1 stage tag.
+8. `A380` appears 257 times across 50 docs, mainly under `docs/renovation/`, historical audits and some current deployment docs.
+9. `WV Chat` remains in 9 docs (15 occurrences), including the desktop README, release notes and release runbook artifact names.
+10. 46 references still say `2.2.0`, which no longer matches the `2.2.1` stage tag.
 11. The current service-board doc uses OpenChat, but historical renovation docs keep the legacy name and must be marked historical rather than rewritten.
 
 ### P1: route, service and data drift
@@ -49,14 +49,14 @@ This change establishes a documentation center, an engineering topology, this au
 
 ### P2: organization and maintainability
 
-16. `open-im-server/docs` contains 162 Markdown files; historical audits, renovation and superpowers plans sit beside current standards.
+16. `open-im-server/docs` contains 165 Markdown files; historical audits, renovation and superpowers plans sit beside current standards.
 17. There is no documentation center; the root README index is a flat list that cannot express hierarchy.
 18. Historical docs have no `historical` / `superseded-by` metadata.
 19. There is no CI gate for bilingual pairs, legacy naming or broken links.
 
 ## 3. Phased plan
 
-### Phase 1 (this change)
+### Phase 1 (completed, 2026-10-19)
 
 - Add `docs/README.md` / `.en.md` documentation center;
 - Add `docs/architecture/TOPOLOGY.zh.md` / `.en.md` layered topology;

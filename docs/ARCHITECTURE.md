@@ -2,7 +2,7 @@
 
 [中文](ARCHITECTURE.md) | [English](ARCHITECTURE.en.md)
 
-> 状态：`current`（2.2.1 阶段）  
+> 状态：`current`（`develop/2.3.0` 开发中）  
 > 工程分层、仓库/部署单元映射和数据归属见[工程拓扑](architecture/TOPOLOGY.zh.md)。
 
 ## 1. 总体形态

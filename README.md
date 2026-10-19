@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> 状态：`current`（2.2.1 阶段）  
+> 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
 > 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
 
 ## 一键部署（推荐）

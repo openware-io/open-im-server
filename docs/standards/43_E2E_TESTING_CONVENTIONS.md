@@ -79,7 +79,7 @@
 
 ## 4. 真实设备规范
 
-- Android：统一使用 AVD（API 35，Google APIs，x86_64，当前命名 `codex-oidc-api35`，设备 `emulator-5554`）；运行命令以 `dart run tools/run_integration_tests.dart --device=emulator-5554 ...` 为基准；App 访问 Kind 用 `http://10.0.2.2:<NodePort>`/`ws://10.0.2.2:30002/ws/im/v1`。
+- Android：统一使用 AVD（API 35，Google APIs，x86_64，当前命名 `codex-oidc-api35`，设备 `emulator-5554`）；运行命令以 `dart run tools/run_integration_tests.dart --device=emulator-5554 ...` 为基准；App 访问 Kind 用 `http://10.0.2.2:30080`/`ws://10.0.2.2:30080/ws/im/v1`。
 - PC 客户端与 PC 管理后台：本地构建安装包（`npm run build:win` 等）并**本地安装后**走核心链路（登录、会话、服务板块/WebView 打开、设置），不能只用 typecheck/build 代替。
 - 报告：集成测试报告落客户端的 `build/test-reports/<run>/report.html`；关键命令与结果记录到 SDD 台账。
 
