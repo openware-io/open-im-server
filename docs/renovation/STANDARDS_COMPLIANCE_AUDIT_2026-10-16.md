@@ -993,6 +993,14 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 - 当前仓库尚无自定义指标（0 个），门禁为后续新增指标设约束；运行期指标评审仍为人工项。
 - 40 章 3 项现均有静态或行为门禁：脱敏 G37、关联标识 G38（HTTP 入口）、指标口径 G41。
 
+### 8.47 Kind E2E smoke 现状（2026-10-19）
+
+- `e2e-ktv-smoke.ps1 -GatewayUrl http://127.0.0.1:30080` 对已部署 Kind 运行，结果为
+  **18 条断言失败**：租户创建/订单创建返回 401，跨租户断言未达到 403。日志在
+  `.outputs/log-samples/20261019-kind-final/e2e-ktv-smoke.log`。
+- 该结果说明服务端 E2E 仍未打通，不能作为 Q11 的层级验收证据；Q11 继续阻塞。
+- 失败原因是认证/租户上下文链路，而不是 Kind 未部署；34 个 Pod 均为 `1/1`，网关健康检查 UP。
+
 ### 8.46 Kind 运行期日志采样（Q12，2026-10-19）
 
 - 在 `open-im-local` 采样 34 个 Pod 的最近 300 行日志，扫描 `Using generated security password`、
