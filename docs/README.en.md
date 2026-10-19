@@ -107,13 +107,13 @@ im-saas docs
 | [Payment service](services/common-payment-service/README.md) | Shared capabilities |
 | [Payment channel](services/common-payment-channel-service/README.md) | Shared capabilities |
 | [SMS service](services/common-sms-service/README.md) | Shared capabilities |
-| [Business docs](business/) | Business semantics above service docs |
+| [Business docs](business/README.en.md) | Business semantics above service docs |
 
 ### 50 Standards
 
 | Document | Relationship |
 | --- | --- |
-| [00 DDD outline](standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) | Standards umbrella |
+| [Standards index](standards/README.en.md) | Standards umbrella and index |
 | [10 DDD service conventions](standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | Service implementation |
 | [12 RocketMQ conventions](standards/12_ROCKETMQ_CONVENTIONS.md) | Messaging and events |
 | [13 Platform media conventions](standards/13_PLATFORM_MEDIA_CONVENTIONS.md) | Media and object storage |
@@ -150,7 +150,7 @@ im-saas docs
 | Architecture overview | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | Documentation audit | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
 | Repository READMEs | each `README.md` | `README.en.md` pending | ⏳ Phase 2 |
-| Services/business/standards | mostly Chinese | pending | ⏳ Phase 3 |
+| Services/business/standards | Chinese bodies | English indexes (`services/README.en.md`, `business/README.en.md`, `standards/README.en.md`) | 🟡 per-doc translation pending |
 
 ## 6. Documentation governance
 

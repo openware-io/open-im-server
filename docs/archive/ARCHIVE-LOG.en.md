@@ -113,8 +113,14 @@
 | ---: | --- | --- | --- |
 | 1 | `docs/im-services/admin/README.md` | `docs/archive/legacy-service-docs/platform-admin-service.md` | service |
 
+## Batch 4: old release note (1)
+
+| # | Original path | Archive path | Type |
+| ---: | --- | --- | --- |
+| 1 | `RELEASE-NOTES-2026-09-10.md` | `docs/archive/release-notes/2026-09-10/RELEASE-NOTES-2026-09-10.md` | release |
+
 ## Notes
 
-- 93 files across three batches, registered in the [archive index](README.en.md).
+- 94 files across four batches, registered in the [archive index](README.en.md).
 - Inbound links were updated; internal relative links were corrected for the new depth.
 - Archived documents keep their original content and are not current contracts.

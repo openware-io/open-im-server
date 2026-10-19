@@ -107,13 +107,13 @@ im-saas 文档
 | [支付服务](services/common-payment-service/README.md) | 公共能力域 |
 | [支付渠道](services/common-payment-channel-service/README.md) | 公共能力域 |
 | [短信服务](services/common-sms-service/README.md) | 公共能力域 |
-| [业务文档](business/) | 业务语义，位于服务说明之上 |
+| [业务文档](business/README.md) | 业务语义，位于服务说明之上 |
 
 ### 50 标准
 
 | 文档 | 关系 |
 | --- | --- |
-| [00 DDD 微服务规范纲要](standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) | 标准体系总纲 |
+| [标准目录](standards/README.md) | 标准体系总纲与索引 |
 | [10 DDD 服务工程规范](standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 服务实现规范 |
 | [12 RocketMQ 规范](standards/12_ROCKETMQ_CONVENTIONS.md) | 消息与事件 |
 | [13 平台媒体规范](standards/13_PLATFORM_MEDIA_CONVENTIONS.md) | 媒体与对象存储 |
@@ -150,7 +150,7 @@ im-saas 文档
 | 架构总览 | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | 文档审计 | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
 | 仓库 README | 各仓库 `README.md` | 待补 `README.en.md` | ⏳ Phase 2 |
-| 服务/业务/标准 | 中文为主 | 待补 | ⏳ Phase 3 |
+| 服务/业务/标准 | 中文正文 | 英文索引（`services/README.en.md`、`business/README.en.md`、`standards/README.en.md`） | 🟡 逐篇翻译待补 |
 
 ## 6. 文档治理规则
 

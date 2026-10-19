@@ -113,8 +113,14 @@
 | ---: | --- | --- | --- |
 | 1 | `docs/im-services/admin/README.md` | `docs/archive/legacy-service-docs/platform-admin-service.md` | service |
 
+## 批次 4：旧发布说明（1）
+
+| # | 原路径 | 归档路径 | 类型 |
+| ---: | --- | --- | --- |
+| 1 | `RELEASE-NOTES-2026-09-10.md` | `docs/archive/release-notes/2026-09-10/RELEASE-NOTES-2026-09-10.md` | release |
+
 ## 说明
 
-- 三个批次共 93 份，均已登记到 [归档索引](README.md)。
+- 四个批次共 94 份，均已登记到 [归档索引](README.md)。
 - 旧路径的入链已更新；归档页内部相对链接已按新层级修正。
 - 归档文档保留原文，不作为现行契约。

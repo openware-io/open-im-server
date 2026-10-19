@@ -171,7 +171,7 @@
 "open-im-server","k8s/README.md","governance","UPDATE","k8s/README.md","current","im-saas docs","planned","Current governance/docs file; verify scope and links."
 "open-im-server","README.en.md","governance","KEEP","README.en.md","current","im-saas docs","current","Current entry or governance document."
 "open-im-server","README.md","governance","KEEP","README.md","current","im-saas docs","current","Current entry or governance document."
-"open-im-server","RELEASE-NOTES-2026-09-10.md","governance","UPDATE","RELEASE-NOTES-2026-09-10.md","current","im-saas docs","planned","Current governance/docs file; verify scope and links."
+"open-im-server","RELEASE-NOTES-2026-09-10.md","release","ARCHIVE","docs/archive/release-notes/2026-09-10/RELEASE-NOTES-2026-09-10.md","historical","im-saas docs","archived","Old release note; superseded by the release runbook."
 "open-im-server","scripts/README.md","governance","UPDATE","scripts/README.md","current","im-saas docs","planned","Current governance/docs file; verify scope and links."
 "open-chat-app","open-chat-app/android/app/src/main/res/raw/readme.md","guide","UPDATE","open-chat-app/android/app/src/main/res/raw/readme.md","current","im-saas docs","planned","Current content needs verification and update."
 "open-chat-app","open-chat-app/BUILD.md","guide","UPDATE","open-chat-app/BUILD.md","current","im-saas docs","planned","Current content needs verification and update."

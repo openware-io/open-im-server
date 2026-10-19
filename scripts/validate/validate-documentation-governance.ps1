@@ -44,7 +44,9 @@ $pairedDocs = @(
   'docs/DOCUMENTATION_AUDIT.md',
   'docs/DOCUMENTATION_ORGANIZATION.md',
   'docs/architecture/TOPOLOGY.zh.md',
-  'docs/services/README.md'
+  'docs/services/README.md',
+  'docs/business/README.md',
+  'docs/standards/README.md'
 )
 foreach ($relative in $pairedDocs) {
   $path = Join-Path $root $relative
