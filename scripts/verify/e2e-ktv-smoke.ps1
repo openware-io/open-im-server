@@ -7,9 +7,9 @@
 #   POST /api/v1/identity/login      login     body {loginType, loginIdentifier, credential} -> {accountId, accessToken(JWT), expiresInSeconds}
 #   GET  /api/v1/auth/contexts       header Authorization: Bearer <accessToken> -> {items:[{contextId,tenantId,organizationId,storeId,roles,scopeType}]}
 #   POST /api/v1/auth/context/select header Authorization: Bearer <accessToken> + body {contextId} -> {tenantContextToken(JWT/opaque placeholder), tenantId, ...}
-#   * Skeleton mismatch: select returns a JWT/opaque token, but each business service's TenantContextFilter parses
-#     X-Tenant-Context as JSON ({tenantId,organizationId,storeId,accountId,authorizationVersion,permissions}),
-#     so the smoke test builds the JSON context header directly.
+#   * Current contract: business services verify X-Tenant-Context as a signed JWT
+#     (issuer open-saas-identity, audience open-saas-services). This script signs the same claims
+#     with JWT_SECRET so the smoke test exercises the real filter instead of a JSON shortcut.
 #   * Multi-tenant INSERT/SELECT is enforced by TenantLineInnerInterceptor, which requires X-Tenant-Context
 #     (a missing header raises "tenant context missing").
 #
@@ -33,7 +33,8 @@ param(
   [string]$GatewayUrl = 'http://127.0.0.1:3002',
   [string]$Authz = '',          # optional: an existing logged-in Bearer (business services do not verify Authorization, only pass it through)
   [switch]$SkipLogin = $false,  # skip register/login (reuse an existing account)
-  [string]$AccountId = ''       # existing account ID used with SkipLogin (paired with -Authz for an existing Bearer)
+  [string]$AccountId = '',      # existing account ID used with SkipLogin (paired with -Authz for an existing Bearer)
+  [string]$JwtSecret = $env:JWT_SECRET
 )
 
 $ErrorActionPreference = 'Continue'
@@ -45,6 +46,52 @@ function Step([string]$Name) { Write-Host ''; Write-Host ('== ' + $Name + ' ==')
 
 $headers = @{ 'Content-Type' = 'application/json' }
 if (-not [string]::IsNullOrWhiteSpace($Authz)) { $headers['Authorization'] = "Bearer $Authz" }
+
+if ([string]::IsNullOrWhiteSpace($JwtSecret)) {
+  $envFile = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) '.env'
+  if (Test-Path -LiteralPath $envFile) {
+    foreach ($line in [System.IO.File]::ReadLines($envFile)) {
+      if ($line -match '^\s*JWT_SECRET\s*=\s*(.+?)\s*$') { $JwtSecret = $Matches[1].Trim('"').Trim("'"); break }
+    }
+  }
+}
+if ([string]::IsNullOrWhiteSpace($JwtSecret)) {
+  throw 'JWT_SECRET is required to sign X-Tenant-Context. Pass -JwtSecret or set JWT_SECRET.'
+}
+
+function ConvertTo-Base64Url([byte[]]$Bytes) {
+  return [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+# TenantContextFilter accepts only a signed JWT; build the same claims as TenantContextTokenSigner.
+function New-TenantContextJwt([long]$tenantId, [long]$accountId, $organizationId, [long]$storeId,
+                              [string[]]$permissions, [int]$authorizationVersion = 1) {
+  $now = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+  $payload = [ordered]@{
+    sub = [string]$accountId
+    iss = 'open-saas-identity'
+    aud = @('open-saas-services')
+    tenantId = $tenantId
+    organizationId = $organizationId
+    storeId = $storeId
+    authorizationVersion = $authorizationVersion
+    permissions = @($permissions)
+    iat = $now
+    exp = $now + 1800
+  }
+  if ($tenantId -le 0) { $payload['scopeType'] = 'PLATFORM' }
+  $headerPart = ConvertTo-Base64Url ([Text.Encoding]::UTF8.GetBytes('{"alg":"HS256","typ":"JWT"}'))
+  $payloadPart = ConvertTo-Base64Url ([Text.Encoding]::UTF8.GetBytes(($payload | ConvertTo-Json -Compress -Depth 6)))
+  $unsigned = "$headerPart.$payloadPart"
+  $hmac = New-Object System.Security.Cryptography.HMACSHA256
+  $hmac.Key = [Text.Encoding]::UTF8.GetBytes($JwtSecret)
+  try {
+    $signature = ConvertTo-Base64Url ($hmac.ComputeHash([Text.Encoding]::UTF8.GetBytes($unsigned)))
+  } finally {
+    $hmac.Dispose()
+  }
+  return "$unsigned.$signature"
+}
 
 function Assert([bool]$cond, [string]$msg) {
   if ($cond) { Write-Host ('  PASS ' + $msg) -ForegroundColor Green }
@@ -117,12 +164,11 @@ function Invoke-Raw {
   }
 }
 
-# Build the X-Tenant-Context JSON header (TenantContextFilter parses it as JSON and expects a permissions array)
+# Build the X-Tenant-Context signed JWT (TenantContextFilter verifies issuer/audience/signature).
 function Set-TenantContext([long]$tenantId, [long]$accountId, $organizationId, [long]$storeId, [string[]]$permissions = @()) {
-  $ctx = @{ tenantId = $tenantId; organizationId = $organizationId; storeId = $storeId; accountId = $accountId; authorizationVersion = 1; permissions = @($permissions) }
-  $json = $ctx | ConvertTo-Json -Compress
-  $headers['X-Tenant-Context'] = $json
-  Write-Host ('  X-Tenant-Context=' + $json) -ForegroundColor DarkGray
+  $token = New-TenantContextJwt $tenantId $accountId $organizationId $storeId $permissions
+  $headers['X-Tenant-Context'] = $token
+  Write-Host ('  X-Tenant-Context=' + $token.Substring(0, [Math]::Min(24, $token.Length)) + '...') -ForegroundColor DarkGray
 }
 
 # Query the reconciliation summary (payment /admin/reconciliations/summary, reads SUCCEEDED pay_transaction rows)
@@ -172,7 +218,7 @@ if ($null -ne $accountId) {
   $selData = (Data $sel)
   $tc = $selData.tenantContextToken
   Write-Host ('  select.tenantContextToken=' + $(if ($tc) { $tc.Substring(0, [Math]::Min(24, $tc.Length)) + '...' } else { '<null>' }))
-  Write-Host '  note: that token is a JWT/opaque placeholder while business services parse X-Tenant-Context as JSON, so Set-TenantContext builds the JSON header below' -ForegroundColor DarkGray
+  Write-Host '  note: business services verify X-Tenant-Context as a signed JWT; the script signs the same claims with JWT_SECRET' -ForegroundColor DarkGray
 }
 
 # ------------------------------------------------------------------ tenant init
