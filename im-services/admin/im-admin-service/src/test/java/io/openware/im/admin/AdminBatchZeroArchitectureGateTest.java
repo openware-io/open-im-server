@@ -206,11 +206,17 @@ class AdminBatchZeroArchitectureGateTest {
     assertTrue(baseline.contains("adm_app_release"), "retired table name must stay documented in the baseline");
     assertFalse(Files.exists(MODULE_ROOT.resolve(
         "src/main/resources/db/migration/V2__backfill_adm_management_domain.sql")));
-    // 基线已冻结；列改名通过 V2 增量迁移完成。
+    // 基线已冻结；列改名通过 V2 增量迁移完成；服务接入目录通过 V3 增量恢复。
     assertEquals(List.of("V1__adm_management_domain_baseline.sql",
-            "V2__adm_client_release_release_version.sql"),
+            "V2__adm_client_release_release_version.sql",
+            "V3__seed_service_access_entries.sql"),
         Files.list(MODULE_ROOT.resolve("src/main/resources/db/migration"))
             .map(path -> path.getFileName().toString()).sorted().toList());
+    String serviceSeed = Files.readString(MODULE_ROOT.resolve(
+        "src/main/resources/db/migration/V3__seed_service_access_entries.sql"));
+    assertTrue(serviceSeed.contains("adm_miniapp_service_item"));
+    assertTrue(serviceSeed.contains("/a380/#/service/hotel"));
+    assertTrue(serviceSeed.contains("出行服务"));
   }
 
   @Test
