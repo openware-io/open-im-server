@@ -27,14 +27,14 @@ IM 对第三方外部服务提供**两层接入**，外部服务（打车 / 外�
 ## 2. C 端入口链路
 
 ``text
-App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
+服务板块入口 ──点击──▶ 服务页（服务板块）
                                 │
                                 ├─ 服务类型分组（便民服务 / 休闲娱乐 / …）
                                 │     └─ 服务项（小程序）：外卖 / 打车 / KTV 预订 / …
                                 │            └─ 点击跳转 link（小程序路径 / H5 / 自定义 scheme）
 ``
 
-- 入口位于 **App 头部 A380 板块**，进入「服务页」即服务板块。
+- 入口位于 **App 服务板块**，进入「服务页」即服务板块。
 - 服务页数据来自 C 端公开读接口 `GET /api/v1/miniapp/services`（见 §5），**只返回已发布（`status = true`）的服务项**，按「服务类型」分组展示，置顶项优先。
 - 服务板块只负责**发现与跳转**；跳转后的下单 / 支付 / 履约由外部服务方在其小程序或 H5 内闭环完成。
 
@@ -108,7 +108,8 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 
 - C 端服务项字段：`id`、`typeId`、`name`、`link`、`introduction`、`iconObjectId`、`iconUrl`、`isTop`、`audience`、`sortOrder`。
 - `link` 可以是绝对 URL、自定义 scheme，也可以是相对路径（如 `/a380/#/service/hotel`）。客户端通过 `OPEN_SERVICE_BASE` 解析相对路径（本地 Kind 默认与 API 同源，生产默认 `https://miniservice.dev.example.com`），因此同一份后台配置可在本地和生产复用，不需要把环境域名写进 `adm_miniapp_service_item`。
-- 基线迁移 `V3__seed_service_access_entries.sql` 恢复服务接入目录：便民服务（外卖/打车/闪送）、休闲娱乐（A380 首页/酒店/KTV/酒吧/台球/足浴/美食）、出行服务（机票）；运营入口 `KTV 业务` 指向 `/b/`，保持 `audience=operator` 且默认隐藏。
+- 基线迁移 `V3__seed_service_access_entries.sql` 恢复服务接入目录：便民服务（外卖/打车/闪送）、休闲娱乐（OpenChat 服务中心/酒店/KTV/酒吧/台球/足浴/美食）、出行服务（机票）；运营入口 `KTV 业务` 指向 `/b/`，保持 `audience=operator` 且默认隐藏。
+- `V4__rebrand_service_access_entries.sql` 把遗留 A380 展示名替换为 OpenChat 服务中心；`/a380/` 只是兼容路由，不再作为用户可见品牌。
 - **命名不对称（已知差异，如实标注）**：后台读写字段为 `icon`（媒体 objectId），C 端公开读字段为 `iconObjectId` + `iconUrl`（前者是 objectId，后者是解析后的访问 URL）。两端字段命名暂不一致，属历史实现差异，本文档仅如实记录，未改后端代码。
 
 ## 6. 后台管理接口（管理员写）
@@ -145,7 +146,7 @@ App 头部 A380 板块 ──点击──▶ 服务页（服务板块）
 2 建服务项：POST /admin/miniapp/services 登记 { typeId, name:"打车", link:"<打车小程序/H5/自定义scheme>",
              introduction:"打车服务入口", icon:"<媒体objectId>", status:1, isTop:0, sortOrder:<排序> }
 3 启用：确保 status=1（发布）；如需临时下线，PUT status=0（停用）
-4 C 端验证：App 头部 A380 板块 → 服务页，确认「打车」服务项出现、图标/介绍正确
+4 C 端验证：App 服务板块 → 服务页，确认「打车」服务项出现、图标/介绍正确
 5 跳转验证：点击服务项，正确跳转打车小程序/H5/scheme；业务闭环由打车方自持
 6 （可选）叠加 OAuth：若需 IM 账号互通/用户同步，再按 IM_OPEN_PLATFORM_02 注册应用 + 授权
 ``
