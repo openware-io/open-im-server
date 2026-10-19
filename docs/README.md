@@ -10,6 +10,7 @@
 
 | 文档 | 用途 |
 | --- | --- |
+| [一键部署](../README.md#一键部署推荐) | 环境要求、Kind 一键部署、访问与验证 |
 | [工程拓扑](architecture/TOPOLOGY.zh.md) | 仓库、部署单元、服务、数据的分层结构 |
 | [架构总览](ARCHITECTURE.md) | 运行时边界、服务职责与关键约束 |
 | [文档审计](DOCUMENTATION_AUDIT.md) | 本次排查的问题、优先级和分批计划 |

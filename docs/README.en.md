@@ -10,6 +10,7 @@
 
 | Document | Purpose |
 | --- | --- |
+| [One-click deployment](../README.en.md#one-click-deployment-recommended) | Requirements, Kind deployment, entry points and verification |
 | [Engineering topology](architecture/TOPOLOGY.en.md) | Repositories, deployment units, services and data layers |
 | [Architecture overview](ARCHITECTURE.en.md) | Runtime boundaries, responsibilities and constraints |
 | [Documentation audit](DOCUMENTATION_AUDIT.en.md) | Findings, priorities and phased plan |

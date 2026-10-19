@@ -5,13 +5,74 @@
 > Status: `current` (2.2.1 stage)  
 > Engineering topology and documentation entry: [Documentation center](./docs/README.en.md) and [Engineering topology](./docs/architecture/TOPOLOGY.en.md).
 
-## Local deployment
+## One-click deployment (recommended)
 
-- [Deployment index](./docs/deployment/README.md)
-- [Scripts](./scripts/README.md)
-- [Kubernetes manifests](./k8s/README.md)
+`deploy-k8s.ps1` is the one-click entry for the complete local environment: it builds the service images, imports them into Kind, applies the Kubernetes manifests, waits for health and prints the entry points. This path has been validated on Windows + Docker Desktop + Kind.
 
-OpenIM Server is split into microservices. The public entry is `gateway` (HTTPS/WSS); the backend is split into the user, message, conversation, admin, SaaS platform, shared capability and long-lived connection layers.
+### Requirements
+
+| Item | Requirement |
+| --- | --- |
+| OS | Windows 10/11, PowerShell 5.1+ (PowerShell 7 recommended) |
+| Container runtime | Docker Desktop, **Linux containers**, Docker Engine running |
+| Kubernetes tools | `kind` and `kubectl` on `PATH`; Docker Desktop's built-in Kubernetes is not used |
+| Java | JDK 25 with a valid `JAVA_HOME` |
+| Build | Repository `mvnw.cmd`; first run needs Maven/npm/Docker registry access or a warm cache |
+| Version control | Git |
+| Config | Repository-root `.env`; generate it first and review the local values |
+| Ports | Default entry `30080`; Docker/Kind needs free ports and disk space |
+| Recommended resources | 16 GB RAM, 4 vCPU, 30 GB free disk (lower configurations may time out while starting all JVMs/Pods) |
+
+### Run
+
+```powershell
+cd open-im-server
+
+# 1. Generate .env (existing file is preserved; use -Force to recreate)
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\initialize-local-env.ps1
+
+# 2. Review .env (database, Redis, MQ, MinIO addresses and secrets)
+notepad .env
+
+# 3. Build and deploy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
+```
+
+The first run builds all service images and downloads dependencies; duration depends on network and machine speed.
+
+### Entry points
+
+| Entry | URL |
+| --- | --- |
+| Unified portal | `http://<host-ip>:30080/` |
+| SaaS admin | `http://<host-ip>:30080/saas/` |
+| SaaS C-end (A380 H5) | `http://<host-ip>:30080/a380/` |
+| SaaS B-end / operator console | `http://<host-ip>:30080/b/` |
+| Website | `http://<host-ip>:30080/website/` |
+
+Use `http://127.0.0.1:30080/` for local-only access. LAN devices need inbound `30080`.
+
+### Verify and stop
+
+```powershell
+# All Pods should be Running and Ready
+kubectl --context kind-open-im-local get pods -n open-im-local
+
+# Inspect entries
+kubectl --context kind-open-im-local get ingress -n open-im-local
+
+# Stop and delete the local Kind environment
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Stop
+```
+
+Force a rebuild or prune old images with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRebuild -ForceRedeploy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
+```
+
+See [Local deployment](./docs/deployment/LOCAL.md) for all parameters, data lifecycle and troubleshooting.
 
 ## Runtime topology
 
@@ -64,9 +125,9 @@ External REST APIs use `/api/v1/**`. Gateway applies `StripPrefix=2` to business
 | `/api/v1/reports/**` | `/reports/**` | `im-admin-service` | `api-reports` |
 | `/ws/im/v1?ticket=...` | — | `im-access-ws` | WebSocket, no `StripPrefix` |
 
-## Run locally
+## Other run modes
 
-Three independent local modes are available. See [Local deployment](./docs/deployment/LOCAL.md) for prerequisites, startup order, stop scope and verification.
+Besides the one-click Kind deployment, two independent local modes are available. See [Local deployment](./docs/deployment/LOCAL.md) for prerequisites, startup order, stop scope and verification.
 
 | Mode | Use case | Command | Gateway |
 | --- | --- | --- | --- |

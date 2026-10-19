@@ -5,13 +5,76 @@
 > 状态：`current`（2.2.1 阶段）  
 > 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
 
-## 本地部署
+## 一键部署（推荐）
 
-本地 Docker Compose、独立 Kind 集群和直接运行本地进程的部署说明见[部署文档索引](./docs/deployment/README.md)。
-脚本目录与职责见[脚本说明](./scripts/README.md)。
-Kind 集群资源清单见[Kubernetes 清单说明](./k8s/README.md)。
+`deploy-k8s.ps1` 是完整本地环境的一键入口：构建业务镜像、导入 Kind、应用 Kubernetes 清单、等待服务健康并输出访问入口。该路径已在 Windows + Docker Desktop + Kind 环境完成全量部署验证。
 
-OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一由 `gateway` 暴露 HTTPS/WSS，后端按用户域、聊天域、管理域与长连接接入层拆分部署。
+### 环境要求
+
+| 项目 | 要求 |
+| --- | --- |
+| 操作系统 | Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7） |
+| 容器运行时 | Docker Desktop，**Linux 容器模式**，Docker Engine 已启动 |
+| Kubernetes 工具 | `kind`、`kubectl` 在 `PATH` 中；不需要启用 Docker Desktop 内置 Kubernetes |
+| Java | JDK 25，`JAVA_HOME` 可用 |
+| 构建工具 | 仓库自带 `mvnw.cmd`；首次运行需要访问 Maven/npm/Docker 依赖源，或已有本地缓存 |
+| 版本控制 | Git |
+| 配置 | 仓库根目录 `.env`；首次执行初始化脚本生成，按本机环境检查 |
+| 端口 | 默认入口 `30080`；Docker/Kind 需要可用端口和足够磁盘 |
+| 资源建议 | 16 GB RAM、4 vCPU、30 GB 可用磁盘（低于该配置可能因 JVM/Pod 数量导致启动超时） |
+
+### 执行
+
+```powershell
+cd open-im-server
+
+# 1. 生成 .env（已存在时不会覆盖；需要重建用 -Force）
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\initialize-local-env.ps1
+
+# 2. 检查 .env（数据库、Redis、MQ、MinIO 地址与密钥）
+notepad .env
+
+# 3. 一键构建并部署
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
+```
+
+首次运行会构建全部业务镜像并下载依赖，耗时取决于网络和机器性能。
+
+### 访问
+
+部署完成后按本机地址访问：
+
+| 入口 | 地址 |
+| --- | --- |
+| 统一门户 | `http://<本机IP>:30080/` |
+| SaaS 管理后台 | `http://<本机IP>:30080/saas/` |
+| SaaS C 端（A380 H5） | `http://<本机IP>:30080/a380/` |
+| SaaS B 端 / 运营后台 | `http://<本机IP>:30080/b/` |
+| 官网 | `http://<本机IP>:30080/website/` |
+
+仅本机访问可使用 `http://127.0.0.1:30080/`；局域网设备访问需允许 `30080` 入站。
+
+### 验证与停止
+
+```powershell
+# 所有 Pod 应为 Running 且 Ready
+kubectl --context kind-open-im-local get pods -n open-im-local
+
+# 查看入口
+kubectl --context kind-open-im-local get ingress -n open-im-local
+
+# 停止并删除本地 Kind 环境
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Stop
+```
+
+需要强制重建或清理旧镜像时使用：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRebuild -ForceRedeploy
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
+```
+
+完整参数、数据生命周期和故障排查见[本地部署说明](./docs/deployment/LOCAL.md)。
 
 ## 当前服务拓扑
 
@@ -68,9 +131,9 @@ OpenIM Server 已按微服务方向完成第一阶段拆分：对外入口统一
 | `/ws/im/v1?ticket={one-time-ticket}` | `im-access-ws` | WebSocket 长连接。客户端先调用 `POST /api/v1/auth/ws-ticket` 获取一次性 `ticket`；该入口不适用 REST 的 `StripPrefix=2` 规则。 |
 | `/_docs/{user,message,conversation,order,support,admin}/api-docs` | 对应业务服务 | 仅供网关聚合 Swagger 使用；网关移除 `Authorization` 后转发，不属于客户端业务接口。 |
 
-## 本地运行
+## 其他运行方式
 
-本仓库提供三种相互独立的本地运行方式。完整的依赖条件、启动顺序、停止范围和验证步骤见[本地运行说明](./docs/deployment/LOCAL.md)；同一时刻应只选择一种方式运行完整环境。
+除一键 Kind 部署外，仓库还提供另外两种相互独立的本地运行方式。完整的依赖条件、启动顺序、停止范围和验证步骤见[本地运行说明](./docs/deployment/LOCAL.md)；同一时刻应只选择一种方式运行完整环境。
 
 | 方式 | 适用场景 | 入口命令 | 网关地址 |
 | --- | --- | --- | --- |

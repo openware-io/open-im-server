@@ -6,6 +6,47 @@
 
 脚本组织规则见 [`scripts/README.md`](../../scripts/README.md)：部署实现位于 `scripts/deploy/`，运行中系统的冒烟验证位于 `scripts/verify/`，仓库静态检查位于 `scripts/validate/`。
 
+## 一键部署（推荐）
+
+首次接触项目时，先用 Kind 一键部署获得完整 IM + SaaS 环境，再按需深入 Docker Compose 或单服务调试。该入口已在 Windows + Docker Desktop + Kind 上完成全量部署验证。
+
+### 环境要求
+
+- Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7）；
+- Docker Desktop，Linux 容器模式，Docker Engine 已启动；
+- `kind`、`kubectl` 已安装并在 `PATH` 中；
+- JDK 25，`JAVA_HOME` 可用；
+- Git；首次构建可访问 Maven/npm/Docker 依赖源或已有缓存；
+- 仓库根目录 `.env`（由初始化脚本生成，按本机环境检查）；
+- 默认入口端口 `30080` 可用；建议 16 GB RAM、4 vCPU、30 GB 可用磁盘。
+
+### 执行与验证
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\initialize-local-env.ps1
+notepad .env
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
+
+kubectl --context kind-open-im-local get pods -n open-im-local
+kubectl --context kind-open-im-local get ingress -n open-im-local
+```
+
+入口：
+
+- 统一门户：`http://<本机IP>:30080/`
+- SaaS 管理后台：`http://<本机IP>:30080/saas/`
+- SaaS C 端：`http://<本机IP>:30080/a380/`
+- SaaS B 端：`http://<本机IP>:30080/b/`
+- 官网：`http://<本机IP>:30080/website/`
+
+停止并删除本地 Kind 环境：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Stop
+```
+
+完整参数、重建与清理命令见[根 README 的一键部署章节](../../README.md#一键部署推荐)。
+
 ## 方式选择与依赖条件
 
 | 方式 | 适用场景 | 必备条件 | 是否依赖 Docker Desktop | 数据生命周期 |
@@ -29,7 +70,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\initialize-local-e
 | 阶段 | 必须先就绪的组件 | 可启动的组件 | 关键依赖 |
 | --- | --- | --- | --- |
 | 1 | MySQL、Redis、MongoDB、RocketMQ NameServer、RocketMQ Broker、MinIO | 无 | 所有业务服务依赖 MySQL、Redis、RocketMQ；消息服务额外依赖 MongoDB；媒体支撑服务依赖 MinIO。 |
-| 2 | 阶段 1 | `im-user-service`、`im-conversation-service`、`common-media-service`、`im-order-service` | 用户、会话、媒体和订单服务可并行启动；订单服务运行期调用用户服务，因此应等待用户服务健康后再执行涉及用户的操作。 |
+| 2 | 阶段 1 | `im-user-service`、`im-conversation-service`、`common-media-service`、`platform-order-service` | 用户、会话、媒体和订单服务可并行启动；订单服务运行期调用用户服务，因此应等待用户服务健康后再执行涉及用户的操作。 |
 | 3 | 用户、会话服务健康 | `im-message-service` | 消息服务调用用户和会话服务，并使用 MongoDB。 |
 | 4 | Redis、RocketMQ Broker | `im-access-ws` | 长连接接入层依赖 Redis 和 RocketMQ。 |
 | 5 | 用户、消息、会话、订单服务健康 | `im-admin-service` | 管理服务调用用户、消息、会话和订单服务。 |
