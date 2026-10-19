@@ -48,11 +48,43 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
 | --- | --- |
 | 统一门户 | `http://<本机IP>:30080/` |
 | SaaS 管理后台 | `http://<本机IP>:30080/saas/` |
-| SaaS C 端（A380 H5） | `http://<本机IP>:30080/a380/` |
+| SaaS C 端（H5） | `http://<本机IP>:30080/a380/` |
 | SaaS B 端 / 运营后台 | `http://<本机IP>:30080/b/` |
+| IM 管理后台 | `http://<本机IP>:30080/im/` |
+| 网关健康检查 | `http://<本机IP>:30080/actuator/health` |
 | 官网 | `http://<本机IP>:30080/website/` |
 
 仅本机访问可使用 `http://127.0.0.1:30080/`；局域网设备访问需允许 `30080` 入站。
+
+#### 历史直连端口（仅用于识别旧环境）
+
+早期环境使用独立端口；当前一键部署统一走 `30080` Ingress。旧文档截图中的 IP 不再作为参考，按角色对照即可：
+
+| 角色 | 旧端口 | 现行入口 |
+| --- | --- | --- |
+| 统一门户 | `30083` | `/` |
+| SaaS 管理后台 | `30081` | `/saas/` |
+| SaaS 移动端 C 端 | `30082` | `/a380/` |
+| SaaS 移动端 B 端 | `30082` | `/b/` |
+| IM 管理后台 | `5173` | `/im/` |
+| 网关健康检查 | `30002` | `/actuator/health` |
+
+### 系统账号与口令
+
+| 角色 | 用户名 | 口令来源 |
+| --- | --- | --- |
+| SaaS 管理员 | `admin` | 管理员种子账号；口令由部署环境设置/轮换，仓库不存明文 |
+| B 端运营账号 | 已授予运营权限的 IM 账号 | 无独立 B 端口令，走 IM OAuth 登录 |
+| IM 管理后台 | 由 SaaS 后台管理员体系管理 | 使用 `admin` 或已授权管理员账号 |
+
+规则与位置：
+
+- SaaS 管理员种子位于 `platform-services/admin/platform-admin-service/src/main/resources/db/migration/V1__cons_admin_account.sql`；迁移只写入 BCrypt `password_hash`，不写明文口令。
+- `scripts/initialize-local-env.ps1` 只生成基础设施密钥（数据库、Redis、MongoDB、RocketMQ、MinIO 等），**不生成也不重置 SaaS 管理员口令**。
+- 修改管理员口令：登录 SaaS 后台后调用 `POST /api/v1/admin/auth/password`（或对应后台页面）；修改后当前会话立即失效。
+- 验收脚本不内置口令，统一从环境变量 `IM_SAAS_ADMIN_PASSWORD` 注入；未注入时脚本会明确报错。
+- B 端不需要单独创建账号：在 SaaS 后台为某个 IM 账号授予运营权限和门店范围，然后从 `/b/` 走 IM OAuth 登录并选择门店。
+- 本地人工冒烟已用 `admin` 账号验证；实际口令由部署者保管，不写入仓库或本文档。
 
 ### 验证与停止
 

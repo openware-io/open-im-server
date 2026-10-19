@@ -46,11 +46,43 @@ The first run builds all service images and downloads dependencies; duration dep
 | --- | --- |
 | Unified portal | `http://<host-ip>:30080/` |
 | SaaS admin | `http://<host-ip>:30080/saas/` |
-| SaaS C-end (A380 H5) | `http://<host-ip>:30080/a380/` |
+| SaaS C-end (H5) | `http://<host-ip>:30080/a380/` |
 | SaaS B-end / operator console | `http://<host-ip>:30080/b/` |
+| IM admin | `http://<host-ip>:30080/im/` |
+| Gateway health | `http://<host-ip>:30080/actuator/health` |
 | Website | `http://<host-ip>:30080/website/` |
 
 Use `http://127.0.0.1:30080/` for local-only access. LAN devices need inbound `30080`.
+
+#### Legacy direct ports (for identifying old environments only)
+
+Early environments used standalone ports; the current one-click deployment uses the `30080` Ingress. IPs in old screenshots are no longer authoritative.
+
+| Role | Legacy port | Current entry |
+| --- | --- | --- |
+| Unified portal | `30083` | `/` |
+| SaaS admin | `30081` | `/saas/` |
+| SaaS mobile C-end | `30082` | `/a380/` |
+| SaaS mobile B-end | `30082` | `/b/` |
+| IM admin | `5173` | `/im/` |
+| Gateway health | `30002` | `/actuator/health` |
+
+### Accounts and passwords
+
+| Role | Username | Credential source |
+| --- | --- | --- |
+| SaaS administrator | `admin` | Seeded admin account; password set/rotated by the deployment environment, never stored in the repo |
+| B-end operator | An IM account granted operator permission | No separate B-end password; sign in through IM OAuth |
+| IM admin | Managed by the SaaS admin account system | Use `admin` or another authorized admin |
+
+Rules and locations:
+
+- The SaaS admin seed lives in `platform-services/admin/platform-admin-service/src/main/resources/db/migration/V1__cons_admin_account.sql`; it stores only a BCrypt `password_hash`, never plaintext.
+- `scripts/initialize-local-env.ps1` generates infrastructure secrets (DB, Redis, MongoDB, RocketMQ, MinIO) only; it does **not** generate or reset the SaaS admin password.
+- Change the admin password after signing in through `POST /api/v1/admin/auth/password` (or the admin UI); the current session is revoked immediately.
+- Verification scripts never embed a password; they read `IM_SAAS_ADMIN_PASSWORD` and fail explicitly when it is missing.
+- B-end needs no separate account: grant an IM account operator permission and store scope in the SaaS admin, then sign in at `/b/` through IM OAuth and select a store.
+- Local smoke has been verified with the `admin` account; the actual password is held by the deployer and is intentionally not committed to the repo or this document.
 
 ### Verify and stop
 
