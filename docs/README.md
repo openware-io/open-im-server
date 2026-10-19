@@ -150,7 +150,7 @@ im-saas 文档
 | 架构总览 | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | 文档审计 | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
 | 仓库 README | 各仓库 `README.md` | `README.en.md`（7 个产品仓库 + 本仓库） | ✅ |
-| 服务/业务/标准 | 中文正文 | 英文索引（`services/README.en.md`、`business/README.en.md`、`standards/README.en.md`） | 🟡 逐篇翻译待补 |
+| 服务/业务/标准 | 中文正文 | 服务：逐篇英文摘要；业务/标准：英文索引 | 🟡 业务/标准逐篇翻译待补 |
 
 ## 6. 文档治理规则
 

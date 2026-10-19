@@ -1,5 +1,7 @@
 # im-access-ws
 
+[中文](README.md) | [English](README.en.md)
+
 ## 当前实时与推送语义
 
 - WebSocket 事件用于实时展示，HTTP `/messages/sync` 负责断线接续与最终一致性。

@@ -1,5 +1,7 @@
 # platform-admin-service
 
+[中文](README.md) | [English](README.en.md)
+
 SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），端口 4150。
 
 ## 职责

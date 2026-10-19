@@ -1,5 +1,7 @@
 # im-message-service
 
+[中文](README.md) | [English](README.en.md)
+
 ## 当前消息可靠性语义
 
 - MySQL 消息、用户同步索引和用户级 `msg_read_status` 是权威数据；Push、Redis 和 MongoDB 不是消息记录来源。

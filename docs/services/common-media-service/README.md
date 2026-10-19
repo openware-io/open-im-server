@@ -1,5 +1,7 @@
 # common-media-service
 
+[中文](README.md) | [English](README.en.md)
+
 ## 职责
 
 - 提供通用媒体上传会话、分片上传和完成确认

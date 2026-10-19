@@ -1,5 +1,7 @@
 # im-conversation-service
 
+[中文](README.md) | [English](README.en.md)
+
 ## 当前群聊语义
 
 - 群角色为 `OWNER`、`ADMIN`、`MEMBER`；群主和管理员可修改群资料，普通成员邀请默认允许并可由群资料开关关闭。

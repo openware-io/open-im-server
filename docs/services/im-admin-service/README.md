@@ -1,5 +1,7 @@
 # im-admin-service
 
+[中文](README.md) | [English](README.en.md)
+
 ## 职责
 
 - 管理端后台接口

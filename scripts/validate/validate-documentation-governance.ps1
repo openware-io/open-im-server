@@ -72,6 +72,18 @@ foreach ($relative in $pairedDocs) {
   }
 }
 
+# 2b) Every service README has an English summary pair.
+$serviceRoot = Join-Path $root 'docs/services'
+if (Test-Path -LiteralPath $serviceRoot) {
+  foreach ($serviceDir in (Get-ChildItem $serviceRoot -Directory)) {
+    $zh = Join-Path $serviceDir.FullName 'README.md'
+    $en = Join-Path $serviceDir.FullName 'README.en.md'
+    if ((Test-Path -LiteralPath $zh) -and -not (Test-Path -LiteralPath $en)) {
+      Add-Violation "missing service English summary: docs/services/$($serviceDir.Name)/README.en.md"
+    }
+  }
+}
+
 # 3) Legacy names in current operational docs (archive and governance records excluded).
 $legacyRoots = @('README.md', 'docs/ARCHITECTURE.md', 'docs/architecture', 'docs/deployment', 'docs/services', 'docs/business', 'docs/standards')
 $allowPatterns = @(

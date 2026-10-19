@@ -1,5 +1,7 @@
 # im-user-service
 
+[中文](README.md) | [English](README.en.md)
+
 ## 职责
 
 - 注册登录

@@ -8,12 +8,12 @@
 
 ## 0. Disposition manifest
 
-Per-file manifest: [disposition-manifest.csv](disposition-manifest.csv) (332 rows, 8 im-saas repositories; includes historical source paths and current archive paths; excludes `open-green-pass` and `.github`).
+Per-file manifest: [disposition-manifest.csv](disposition-manifest.csv) (349 rows, 8 im-saas repositories; includes historical source paths and current archive paths; excludes `open-green-pass` and `.github`).
 
 | Action | Count | Meaning |
 | --- | ---: | --- |
 | ARCHIVE | 93 | Historical audits, inventories, renovation, superpowers |
-| UPDATE | 109 | Current docs needing verification/bilingual work |
+| UPDATE | 126 | Current docs needing verification/bilingual work |
 | MERGE | 10 | `im-services/**` merged into the service tree |
 | KEEP | 119 | Current entries, rules, contracts and archive pages |
 | SUPERSEDED | 1 | Withdrawn ADR, retained as a record |

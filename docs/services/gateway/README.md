@@ -1,5 +1,7 @@
 # gateway
 
+[中文](README.md) | [English](README.en.md)
+
 ## 职责
 
 - 对外统一暴露 HTTPS/WSS 入口
