@@ -18,8 +18,8 @@ import org.junit.jupiter.api.Test;
  * 内部端点 {@code GET /internal/iam/tenant-config/{tenantId}/wallet-token}：
  * 供 platform-customer-service 读取「目标租户」的钱包代币展示配置（品牌名 + ratio）。
  *
- * <p>口径：缺行 → {@code A380币/100}；空值/非数字/非正数 → {@code A380币/100}；
- * 非法 tenantId → {@code A380币/100}；读路径绝不抛异常（C 端余额/流水展示不能因此失败）。
+ * <p>口径：缺行 → {@code OpenChat币/100}；空值/非数字/非正数 → {@code OpenChat币/100}；
+ * 非法 tenantId → {@code OpenChat币/100}；读路径绝不抛异常（C 端余额/流水展示不能因此失败）。
  */
 class InternalWalletTokenConfigControllerTest {
 
@@ -51,7 +51,7 @@ class InternalWalletTokenConfigControllerTest {
         assertThat(token.ratio()).isEqualTo(500L);
     }
 
-    /** 无配置（缺行）：回退缺省 A380币 / 100。 */
+    /** 无配置（缺行）：回退缺省 OpenChat币 / 100。 */
     @Test
     void fallsBackToDefaultsWhenTenantHasNoConfig() {
         when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.empty());
@@ -59,7 +59,7 @@ class InternalWalletTokenConfigControllerTest {
 
         InternalTenantWalletToken token = controller.tenantWalletToken(TENANT_ID);
 
-        assertThat(token.brandName()).isEqualTo("A380币");
+        assertThat(token.brandName()).isEqualTo("OpenChat币");
         assertThat(token.ratio()).isEqualTo(100L);
     }
 
@@ -69,7 +69,7 @@ class InternalWalletTokenConfigControllerTest {
         when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_brand_name")).thenReturn(java.util.Optional.of("   "));
         when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("abc"));
         InternalTenantWalletToken notANumber = controller.tenantWalletToken(TENANT_ID);
-        assertThat(notANumber.brandName()).isEqualTo("A380币");
+        assertThat(notANumber.brandName()).isEqualTo("OpenChat币");
         assertThat(notANumber.ratio()).isEqualTo(100L);
 
         when(tenantConfigReader.findValue(TENANT_ID, 0L, "wallet_ratio")).thenReturn(java.util.Optional.of("0"));
@@ -97,9 +97,9 @@ class InternalWalletTokenConfigControllerTest {
     /** 非法 tenantId（null / 非正）不查询配置、直接回退缺省，不抛异常。 */
     @Test
     void fallsBackForInvalidTenantIdWithoutQuerying() {
-        assertThat(controller.tenantWalletToken(null).brandName()).isEqualTo("A380币");
+        assertThat(controller.tenantWalletToken(null).brandName()).isEqualTo("OpenChat币");
         assertThat(controller.tenantWalletToken(null).ratio()).isEqualTo(100L);
         assertThat(controller.tenantWalletToken(0L).ratio()).isEqualTo(100L);
-        assertThat(controller.tenantWalletToken(-1L).brandName()).isEqualTo("A380币");
+        assertThat(controller.tenantWalletToken(-1L).brandName()).isEqualTo("OpenChat币");
     }
 }

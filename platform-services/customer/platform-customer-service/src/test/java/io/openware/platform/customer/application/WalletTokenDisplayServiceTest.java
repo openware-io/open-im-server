@@ -63,14 +63,14 @@ class WalletTokenDisplayServiceTest {
     WalletAccountView account = service.decorate(account(250L, 0L));
 
     assertEquals("250", account.tokenAmount());
-    assertEquals("A380币", account.tokenBrandName());
+    assertEquals("OpenChat币", account.tokenBrandName());
   }
 
   /** 余额 0 → 0 个代币（不产生空值/异常）。 */
   @Test
   void zeroBalanceYieldsZeroTokens() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
 
     assertEquals("0", service.decorate(account(0L, 0L)).tokenAmount());
   }
@@ -79,7 +79,7 @@ class WalletTokenDisplayServiceTest {
   @Test
   void frozenAmountDoesNotAffectAvailableTokenDisplay() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
 
     WalletAccountView account = service.decorate(account(100L, 999999L));
 
@@ -91,10 +91,10 @@ class WalletTokenDisplayServiceTest {
   @Test
   void invalidRatioFallsBackToDefault() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 0L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 0L));
     assertEquals("100", service.decorate(account(100L, 0L)).tokenAmount());
 
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", -5L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", -5L));
     assertEquals("100", service.decorate(account(100L, 0L)).tokenAmount());
   }
 
@@ -102,7 +102,7 @@ class WalletTokenDisplayServiceTest {
   @Test
   void roundsHalfUpToWholeTokens() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 33L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 33L));
 
     assertEquals("50", service.decorate(account(150L, 0L)).tokenAmount());
     assertEquals("0", service.decorate(account(1L, 0L)).tokenAmount());
@@ -126,7 +126,7 @@ class WalletTokenDisplayServiceTest {
     WalletAccountView account = service.decorate(account(100L, 0L));
 
     verify(client).resolve(null);
-    assertEquals("A380币", account.tokenBrandName());
+    assertEquals("OpenChat币", account.tokenBrandName());
     assertEquals("100", account.tokenAmount());
   }
 
@@ -140,14 +140,14 @@ class WalletTokenDisplayServiceTest {
   @Test
   void decoratesLedgerPageByEntryAmount() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
     LedgerPage page = new LedgerPage(List.of(ledger(100L, 5000L), ledger(250L, 4750L)), 2L);
 
     WalletLedgerPageView decorated = service.decorate(page, 1L, 20L);
 
     assertEquals("100", decorated.records().get(0).tokenAmount());
     assertEquals("250", decorated.records().get(1).tokenAmount());
-    assertEquals("A380币", decorated.records().get(0).tokenBrandName());
+    assertEquals("OpenChat币", decorated.records().get(0).tokenBrandName());
     // 金额与余额口径不变（对账/入账仍按最小货币单位）
     assertEquals(100L, decorated.records().get(0).amount());
     assertEquals(5000L, decorated.records().get(0).balanceAfter());
@@ -172,7 +172,7 @@ class WalletTokenDisplayServiceTest {
   @Test
   void tokenAmountNeverParticipatesInAmountFieldsOrSums() {
     withTenant(100L);
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
     WalletAccountView account = account(12345L, 678L);
 
     long availableBefore = account.availableAmount();

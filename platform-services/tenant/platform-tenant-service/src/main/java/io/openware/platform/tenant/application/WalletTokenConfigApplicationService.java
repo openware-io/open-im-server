@@ -37,8 +37,8 @@ public class WalletTokenConfigApplicationService {
     public static final String CONFIG_KEY_BRAND_NAME = "wallet_brand_name";
     /** 租户配置键：1 个主单位兑换的代币个数。 */
     public static final String CONFIG_KEY_RATIO = "wallet_ratio";
-    /** 缺省品牌展示名（与 V7__seed_a380_tenant.sql 的种子值一致）。 */
-    public static final String DEFAULT_BRAND_NAME = "A380币";
+    /** 缺省品牌展示名（与租户配置种子值一致，可用 SaaS 后台覆盖）。 */
+    public static final String DEFAULT_BRAND_NAME = "OpenChat币";
     /** 缺省比例：1 个主单位 = 100 个代币。 */
     public static final long DEFAULT_RATIO = 100L;
 

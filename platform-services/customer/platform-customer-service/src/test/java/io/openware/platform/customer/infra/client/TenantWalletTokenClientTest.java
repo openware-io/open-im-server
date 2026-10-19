@@ -6,7 +6,7 @@ import io.openware.platform.customer.infra.client.TenantWalletTokenClient.Wallet
 import org.junit.jupiter.api.Test;
 
 /**
- * 租户代币展示配置客户端：失败一律回退缺省 {@code A380币 / 100} 且不抛异常
+ * 租户代币展示配置客户端：失败一律回退缺省 {@code OpenChat币 / 100} 且不抛异常
  * （C 端余额/流水展示不能因租户配置读取失败而失败）。
  */
 class TenantWalletTokenClientTest {
@@ -30,14 +30,14 @@ class TenantWalletTokenClientTest {
 
     WalletTokenConfig config = client.resolve(100L);
 
-    assertEquals("A380币", config.brandName());
+    assertEquals("OpenChat币", config.brandName());
     assertEquals(100L, config.ratio());
   }
 
-  /** 缺省配置就是 A380币 / 100（与 tenant-service 的缺省口径一致）。 */
+  /** 缺省配置就是 OpenChat币 / 100（与 tenant-service 的缺省口径一致）。 */
   @Test
   void defaultConfigMatchesTenantServiceDefaults() {
-    assertEquals("A380币", WalletTokenConfig.DEFAULT.brandName());
+    assertEquals("OpenChat币", WalletTokenConfig.DEFAULT.brandName());
     assertEquals(100L, WalletTokenConfig.DEFAULT.ratio());
   }
 }

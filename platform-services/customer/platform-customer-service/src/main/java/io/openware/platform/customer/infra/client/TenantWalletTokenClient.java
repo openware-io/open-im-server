@@ -30,7 +30,7 @@ public class TenantWalletTokenClient {
     private static final String WALLET_TOKEN_PATH = "/internal/iam/tenant-config/%d/wallet-token";
 
     /** 缺省代币品牌展示名（与 tenant-service 的 wallet_brand_name 缺省一致；是文案，不是币种）。 */
-    public static final String DEFAULT_BRAND_NAME = "A380币";
+    public static final String DEFAULT_BRAND_NAME = "OpenChat币";
     /** 缺省比例：1 个主单位 = 100 个代币。 */
     public static final long DEFAULT_RATIO = 100L;
 

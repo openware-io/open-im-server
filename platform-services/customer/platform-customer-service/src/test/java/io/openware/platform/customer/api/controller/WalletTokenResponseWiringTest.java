@@ -64,7 +64,7 @@ class WalletTokenResponseWiringTest {
     myAssetsController = new MyAssetsController(memberService, pointService, walletService, displayService);
     memberController = new MemberController(memberService, pointService, walletService, displayService);
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, ACCOUNT_ID, 1));
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("A380币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
     when(memberService.getOrCreateByAccount(ACCOUNT_ID))
         .thenReturn(MemberDisplay.withoutDisplay(member(MEMBER_ID)));
   }
@@ -82,7 +82,7 @@ class WalletTokenResponseWiringTest {
     WalletAccountView wallet = myAssetsController.wallet();
 
     assertEquals("100", wallet.tokenAmount());
-    assertEquals("A380币", wallet.tokenBrandName());
+    assertEquals("OpenChat币", wallet.tokenBrandName());
     assertEquals(100L, wallet.availableAmount());
   }
 
@@ -98,7 +98,7 @@ class WalletTokenResponseWiringTest {
     assertEquals(1L, result.total());
     assertEquals(1L, result.current());
     assertEquals("250", result.records().get(0).tokenAmount());
-    assertEquals("A380币", result.records().get(0).tokenBrandName());
+    assertEquals("OpenChat币", result.records().get(0).tokenBrandName());
   }
 
   /**
@@ -135,7 +135,7 @@ class WalletTokenResponseWiringTest {
     MemberMeResponse me = memberController.me();
 
     assertEquals("100", me.wallet().tokenAmount());
-    assertEquals("A380币", me.wallet().tokenBrandName());
+    assertEquals("OpenChat币", me.wallet().tokenBrandName());
     // 冻结 500 不影响可用代币展示口径，且冻结金额字段原样保留
     assertEquals(500L, me.wallet().frozenAmount());
     // 积分仍是数量口径：只有个数，没有币种/代币字段
@@ -162,7 +162,7 @@ class WalletTokenResponseWiringTest {
 
     WalletAccountView wallet = memberController.wallet(MEMBER_ID);
 
-    assertEquals("A380币", wallet.tokenBrandName());
+    assertEquals("OpenChat币", wallet.tokenBrandName());
     assertEquals("100", wallet.tokenAmount());
   }
 
