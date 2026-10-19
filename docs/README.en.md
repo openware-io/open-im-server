@@ -149,7 +149,7 @@ im-saas docs
 | Engineering topology | `docs/architecture/TOPOLOGY.zh.md` | `docs/architecture/TOPOLOGY.en.md` | ✅ |
 | Architecture overview | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | Documentation audit | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
-| Repository READMEs | each `README.md` | `README.en.md` pending | ⏳ Phase 2 |
+| Repository READMEs | each `README.md` | `README.en.md` (7 product repos + this repo) | ✅ |
 | Services/business/standards | Chinese bodies | English indexes (`services/README.en.md`, `business/README.en.md`, `standards/README.en.md`) | 🟡 per-doc translation pending |
 
 ## 6. Documentation governance
@@ -159,3 +159,12 @@ im-saas docs
 3. Historical docs are not rewritten as current facts; add a `superseded-by` note when conclusions change.
 4. Legacy names (A380, WV Chat, etc.) are allowed only in historical/archived docs; current docs must use OpenChat.
 5. Documentation changes must pass link validation; topology, routing or data-ownership changes must update this index and the topology doc.
+6. Run before committing:
+
+```powershell
+./scripts/validate/validate-documentation-links.ps1
+./scripts/validate/validate-documentation-governance.ps1
+./scripts/validate/validate-standards-governance.ps1
+```
+
+CI runs the same checks in `.github/workflows/docs-governance.yml`.

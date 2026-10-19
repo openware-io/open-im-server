@@ -149,7 +149,7 @@ im-saas 文档
 | 工程拓扑 | `docs/architecture/TOPOLOGY.zh.md` | `docs/architecture/TOPOLOGY.en.md` | ✅ |
 | 架构总览 | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
 | 文档审计 | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
-| 仓库 README | 各仓库 `README.md` | 待补 `README.en.md` | ⏳ Phase 2 |
+| 仓库 README | 各仓库 `README.md` | `README.en.md`（7 个产品仓库 + 本仓库） | ✅ |
 | 服务/业务/标准 | 中文正文 | 英文索引（`services/README.en.md`、`business/README.en.md`、`standards/README.en.md`） | 🟡 逐篇翻译待补 |
 
 ## 6. 文档治理规则
@@ -159,3 +159,12 @@ im-saas 文档
 3. 历史文档不直接改写成新事实；需要新结论时新增 `superseded-by` 说明。
 4. 过期命名（A380、WV Chat 等）只允许出现在历史/归档文档中；现行文档必须使用 OpenChat。
 5. 文档变更必须通过链接校验；涉及拓扑、路由、数据归属的变更必须同步更新本索引和拓扑文档。
+6. 提交前运行：
+
+```powershell
+.\scripts\validate\validate-documentation-links.ps1
+.\scripts\validate\validate-documentation-governance.ps1
+.\scripts\validate\validate-standards-governance.ps1
+```
+
+CI 在 `.github/workflows/docs-governance.yml` 中执行同样的检查。

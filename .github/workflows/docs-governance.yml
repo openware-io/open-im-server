@@ -1,0 +1,40 @@
+name: Documentation governance
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "README.en.md"
+      - "docs/**"
+      - "scripts/validate/validate-documentation-*.ps1"
+      - "scripts/validate/validate-standards-governance.ps1"
+      - ".github/workflows/docs-governance.yml"
+  push:
+    branches:
+      - main
+      - develop/2.3.0
+    paths:
+      - "README.md"
+      - "README.en.md"
+      - "docs/**"
+      - "scripts/validate/validate-documentation-*.ps1"
+      - "scripts/validate/validate-standards-governance.ps1"
+      - ".github/workflows/docs-governance.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate documentation links and index
+        shell: pwsh
+        run: ./scripts/validate/validate-documentation-links.ps1
+      - name: Validate documentation governance
+        shell: pwsh
+        run: ./scripts/validate/validate-documentation-governance.ps1
+      - name: Validate standards governance
+        shell: pwsh
+        run: ./scripts/validate/validate-standards-governance.ps1
