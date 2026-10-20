@@ -1,6 +1,6 @@
 # Gate registry validator (documentation maintenance).
 #
-# The registry in docs/development/governance/GATE_REGISTRY.md is the numbered index of every validator.
+# The registry in docs/80-development/governance/GATE_REGISTRY.md is the numbered index of every validator.
 # This meta-gate keeps four views consistent:
 #   1. scripts/validate/validate-*.ps1 files
 #   2. the registry rows (ID, gate, script, mode)
@@ -21,14 +21,14 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$registryPath = Join-Path $root 'docs\development\governance\GATE_REGISTRY.md'
+$registryPath = Join-Path $root 'docs\80-development\governance\GATE_REGISTRY.md'
 $reportOnlyPath = Join-Path $root 'scripts\validate\report-only-gates.txt'
 $invokePath = Join-Path $root 'scripts\validate\invoke-engineering-validation.ps1'
 $worklistPath = Join-Path $root '.outputs\quality\gate-registry-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
-  Write-Error 'Gate registry is missing: docs/development/governance/GATE_REGISTRY.md'
+  Write-Error 'Gate registry is missing: docs/80-development/governance/GATE_REGISTRY.md'
   exit 1
 }
 

@@ -16,13 +16,13 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$docPath = Join-Path $root 'docs\development\standards\43_E2E_TESTING_CONVENTIONS.md'
+$docPath = Join-Path $root 'docs\80-development\standards\43_E2E_TESTING_CONVENTIONS.md'
 $verifyDir = Join-Path $root 'scripts\verify'
 $worklistPath = Join-Path $root '.outputs\quality\verify-inventory-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
 
 if (-not (Test-Path -LiteralPath $docPath)) {
-  Write-Error 'E2E standard is missing: docs/development/standards/43_E2E_TESTING_CONVENTIONS.md'
+  Write-Error 'E2E standard is missing: docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md'
   exit 1
 }
 

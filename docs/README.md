@@ -11,23 +11,23 @@
 ```text
 docs/
 ├─ README.md / README.en.md
-├─ getting-started/        # 5 分钟上手
-├─ product/                # 产品定位、能力、截图
-├─ architecture/           # 拓扑、架构总览、ADR
-├─ reference/              # API、协议、MQ 台账、OpenAPI 契约
-├─ domain/                 # 领域语义、业务规则、功能专题
-├─ services/               # 服务说明：edge / im / platform / common
-├─ deployment/             # 本地、Docker、K8s、推送配置
-├─ operations/             # 发布、升级、回滚、运维
-├─ development/            # 贡献者入口
-│  ├─ standards/           # 强制工程规范
-│  ├─ governance/          # 工程规则、门禁、文档治理
-│  ├─ tooling/             # IDE 等开发工具配置
-│  └─ contributing/        # 贡献流程
-├─ security/               # 安全设计、敏感数据、遗留风险
-├─ compliance/             # 合规与整改
-├─ assets/                 # 截图、图、Logo
-└─ archive/                # 历史文档，仅作背景
+├─ 00-getting-started/      # 5 分钟上手
+├─ 10-product/              # 产品定位、能力、截图
+├─ 20-architecture/         # 拓扑、架构总览、ADR
+├─ 30-reference/            # API、协议、MQ 台账、OpenAPI 契约
+├─ 40-domain/               # 领域语义、业务规则、功能专题
+├─ 50-services/             # 服务说明：edge / im / platform / common
+├─ 60-deployment/           # 本地、Docker、K8s、推送配置
+├─ 70-operations/           # 发布、升级、回滚、运维
+├─ 80-development/          # 贡献者入口
+│  ├─ standards/            # 强制工程规范
+│  ├─ governance/           # 工程规则、门禁、文档治理
+│  ├─ tooling/              # IDE 等开发工具配置
+│  └─ contributing/         # 贡献流程
+├─ 90-security/             # 安全设计、敏感数据、遗留风险
+├─ 91-compliance/           # 合规与整改
+├─ assets/                  # 截图、图、Logo（资源目录，不编号）
+└─ 99-archive/              # 历史文档，仅作背景
 ```
 
 ## 2. 阅读路径
@@ -47,71 +47,71 @@ docs/
 
 | 文档 | 关系 |
 | --- | --- |
-| [快速开始](getting-started/README.md) | 5 分钟跑起来的最短路径 |
+| [快速开始](00-getting-started/README.md) | 5 分钟跑起来的最短路径 |
 | [一键部署](../README.md#一键部署推荐) | 环境要求、Kind 一键部署、入口与验证 |
-| [OpenChat 产品介绍](product/README.md) | 项目定位、产品界面、能力矩阵、适用场景 |
+| [OpenChat 产品介绍](10-product/README.md) | 项目定位、产品界面、能力矩阵、适用场景 |
 
 ### 架构与参考
 
 | 文档 | 关系 |
 | --- | --- |
-| [架构总览](architecture/OVERVIEW.md) | 运行时边界、职责、数据归属 |
-| [工程拓扑](architecture/TOPOLOGY.zh.md) | 仓库 / 部署单元 / 服务 / 数据 |
-| [API 文档](reference/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
-| [协议说明](reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
-| [OpenAPI 契约](reference/contracts/README.md) | 跨服务/对外接口契约 |
-| [MQ 台账](reference/mq/REGISTRY.md) | Topic / 事件登记 |
-| [ADR 0007](architecture/adr/0007-version-named-exceptions.md) | 已撤回的 version 字段名决策 |
+| [架构总览](20-architecture/OVERVIEW.md) | 运行时边界、职责、数据归属 |
+| [工程拓扑](20-architecture/TOPOLOGY.zh.md) | 仓库 / 部署单元 / 服务 / 数据 |
+| [API 文档](30-reference/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
+| [协议说明](30-reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
+| [OpenAPI 契约](30-reference/contracts/README.md) | 跨服务/对外接口契约 |
+| [MQ 台账](30-reference/mq/REGISTRY.md) | Topic / 事件登记 |
+| [ADR 0007](20-architecture/adr/0007-version-named-exceptions.md) | 已撤回的 version 字段名决策 |
 
 ### 领域与服务
 
 | 文档 | 关系 |
 | --- | --- |
-| [领域文档](domain/README.md) | 会话、隐私、KTV、订单等业务语义 |
-| [服务目录](services/README.md) | 运行时服务目录与分层 |
-| [接入层服务](services/edge/README.md) | gateway / im-access-ws |
-| [IM 业务域服务](services/im/README.md) | 用户、消息、会话、管理 |
-| [SaaS 平台域服务](services/platform/README.md) | 管理 BFF、身份、租户、客户、资源、营销 |
-| [公共能力域服务](services/common/README.md) | 媒体、审计、支付、支付渠道、短信 |
+| [领域文档](40-domain/README.md) | 会话、隐私、KTV、订单等业务语义 |
+| [服务目录](50-services/README.md) | 运行时服务目录与分层 |
+| [接入层服务](50-services/edge/README.md) | gateway / im-access-ws |
+| [IM 业务域服务](50-services/im/README.md) | 用户、消息、会话、管理 |
+| [SaaS 平台域服务](50-services/platform/README.md) | 管理 BFF、身份、租户、客户、资源、营销 |
+| [公共能力域服务](50-services/common/README.md) | 媒体、审计、支付、支付渠道、短信 |
 
 ### 交付与运维
 
 | 文档 | 关系 |
 | --- | --- |
-| [本地部署](deployment/LOCAL.md) | 三种本地方式的统一入口 |
-| [Docker Compose](deployment/DOCKER.md) | 日常联调 |
+| [本地部署](60-deployment/LOCAL.md) | 三种本地方式的统一入口 |
+| [Docker Compose](60-deployment/DOCKER.md) | 日常联调 |
 | [Kubernetes 清单](../k8s/README.md) | Kind / ACK 资源与镜像 |
-| [推送配置](deployment/PUSH_SETUP.md) | 推送通道与环境配置 |
-| [发布手册](operations/RELEASE_RUNBOOK.md) | 发布、回滚、版本追溯 |
+| [推送配置](60-deployment/PUSH_SETUP.md) | 推送通道与环境配置 |
+| [发布手册](70-operations/RELEASE_RUNBOOK.md) | 发布、回滚、版本追溯 |
 
 ### 贡献者文档
 
 | 文档 | 关系 |
 | --- | --- |
-| [参与贡献](development/contributing/README.md) | 提交前检查与协作流程 |
-| [工程规范](development/governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
-| [门禁注册表](development/governance/GATE_REGISTRY.md) | 可执行检查清单 |
-| [IDE 配置](development/tooling/IDE_SETUP.md) | VS Code / Trae 诊断与 JDK 配置 |
-| [AI 协作原则](development/governance/AI_COLLABORATION_PRINCIPLES.md) | 人机协作边界 |
-| [文档整理与归档方案](development/governance/DOCUMENTATION_ORGANIZATION.md) | 分类、归档规则和执行顺序 |
-| [标准目录](development/standards/README.md) | DDD、RocketMQ、媒体、版本、币种、日志、测试 |
-| [数据库迁移标准](development/standards/DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
+| [参与贡献](80-development/contributing/README.md) | 提交前检查与协作流程 |
+| [工程规范](80-development/governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
+| [门禁注册表](80-development/governance/GATE_REGISTRY.md) | 可执行检查清单 |
+| [IDE 配置](80-development/tooling/IDE_SETUP.md) | VS Code / Trae 诊断与 JDK 配置 |
+| [AI 协作原则](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | 人机协作边界 |
+| [文档整理与归档方案](80-development/governance/DOCUMENTATION_ORGANIZATION.md) | 分类、归档规则和执行顺序 |
+| [标准目录](80-development/standards/README.md) | DDD、RocketMQ、媒体、版本、币种、日志、测试 |
+| [数据库迁移标准](80-development/standards/DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
 
 ### 安全与合规
 
 | 文档 | 关系 |
 | --- | --- |
-| [安全文档](security/) | 敏感数据保护、延后安全发现 |
-| [合规文档](compliance/) | 中国区合规、P0 整改 |
-| [文档审计](archive/audits/DOCUMENTATION_AUDIT.md) | 历史审计快照，已归档 |
+| [安全文档](90-security/) | 敏感数据保护、延后安全发现 |
+| [合规文档](91-compliance/) | 中国区合规、P0 整改 |
+| [文档审计](99-archive/audits/DOCUMENTATION_AUDIT.md) | 历史审计快照，已归档 |
 
 ### 历史归档
 
 | 文档 | 关系 |
 | --- | --- |
-| [归档索引](archive/README.md) | 历史文档登记、元数据和移动检查 |
-| [renovation](archive/renovation/) | 改造过程；仅作背景 |
-| [superpowers](archive/superpowers/) | 设计与计划快照（已归档） |
+| [归档索引](99-archive/README.md) | 历史文档登记、元数据和移动检查 |
+| [renovation](99-archive/renovation/) | 改造过程；仅作背景 |
+| [superpowers](99-archive/superpowers/) | 设计与计划快照（已归档） |
 
 ## 4. 语言与状态
 

@@ -1,6 +1,6 @@
 # OpenChat
 
-[中文](README.md) | [English](README.en.md) · [Product introduction](docs/product/README.en.md) · [Engineering topology](docs/architecture/TOPOLOGY.en.md) · [One-click deployment](#one-click-deployment-recommended)
+[中文](README.md) | [English](README.en.md) · [Product introduction](docs/10-product/README.en.md) · [Engineering topology](docs/20-architecture/TOPOLOGY.en.md) · [One-click deployment](#one-click-deployment-recommended)
 
 [![Documentation governance](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml/badge.svg?branch=main)](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -20,7 +20,7 @@ OpenChat combines an IM open platform, multi-tenant SaaS, operations consoles, m
 </table>
 
 > Status: `current` (developing on `develop/2.3.0`; latest stage tag `2.2.1`)  
-> Engineering topology and documentation entry: [Documentation center](docs/README.en.md) and [Engineering topology](docs/architecture/TOPOLOGY.en.md).
+> Engineering topology and documentation entry: [Documentation center](docs/README.en.md) and [Engineering topology](docs/20-architecture/TOPOLOGY.en.md).
 
 ## One-click deployment (recommended)
 
@@ -108,11 +108,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRebui
 powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
 ```
 
-See [Local deployment](docs/deployment/LOCAL.md) for all parameters, data lifecycle and troubleshooting.
+See [Local deployment](docs/60-deployment/LOCAL.md) for all parameters, data lifecycle and troubleshooting.
 
 ## Runtime topology
 
-The system is organized as “experience → edge → SaaS platform → IM domain → shared capabilities → data infrastructure”. See [Engineering topology](docs/architecture/TOPOLOGY.en.md) for the repository/deployment mapping.
+The system is organized as “experience → edge → SaaS platform → IM domain → shared capabilities → data infrastructure”. See [Engineering topology](docs/20-architecture/TOPOLOGY.en.md) for the repository/deployment mapping.
 
 - **L0 Experience**: `open-chat-app`, `open-chat-desktop`, `open-saas-admin`, `open-chat-admin`, `open-saas-mobile`, `open-website`
 - **L1 Edge**: `gateway` (HTTPS REST), `im-access-ws` (WebSocket), `unified-portal` (unified sign-in)
@@ -162,7 +162,7 @@ External REST APIs use `/api/v1/**`. Gateway applies `StripPrefix=2` to business
 
 ## Other run modes
 
-Besides the one-click Kind deployment, two independent local modes are available. See [Local deployment](docs/deployment/LOCAL.md) for prerequisites, startup order, stop scope and verification.
+Besides the one-click Kind deployment, two independent local modes are available. See [Local deployment](docs/60-deployment/LOCAL.md) for prerequisites, startup order, stop scope and verification.
 
 | Mode | Use case | Command | Gateway |
 | --- | --- | --- | --- |
@@ -174,38 +174,38 @@ Besides the one-click Kind deployment, two independent local modes are available
 
 ```text
 im-saas docs
-├─ Getting started
-│  ├─ Product introduction (./docs/product/README.en.md)
-│  ├─ Getting started (./docs/getting-started/README.en.md)
+├─ 00 Getting started and product
+│  ├─ Getting started (./docs/00-getting-started/README.en.md)
+│  ├─ Product introduction (./docs/10-product/README.en.md)
 │  ├─ Documentation center (./docs/README.en.md)
 │  ├─ One-click deployment (top of this README)
-│  └─ Engineering topology (./docs/architecture/TOPOLOGY.en.md)
-├─ Architecture and reference
-│  ├─ Architecture overview (./docs/architecture/OVERVIEW.en.md)
-│  ├─ API / protocol (./docs/reference/)
-│  ├─ ADR / MQ registry (./docs/architecture/adr/, ./docs/reference/mq/)
-│  └─ Contracts (./docs/reference/contracts/)
-├─ Domain and services
-│  ├─ Domain docs (./docs/domain/)
-│  ├─ Service catalog (./docs/services/README.en.md)
+│  └─ Engineering topology (./docs/20-architecture/TOPOLOGY.en.md)
+├─ 20 Architecture and 30 Reference
+│  ├─ Architecture overview (./docs/20-architecture/OVERVIEW.en.md)
+│  ├─ API / protocol (./docs/30-reference/)
+│  ├─ ADR / MQ registry (./docs/20-architecture/adr/, ./docs/30-reference/mq/)
+│  └─ Contracts (./docs/30-reference/contracts/)
+├─ 40 Domain and 50 Services
+│  ├─ Domain docs (./docs/40-domain/)
+│  ├─ Service catalog (./docs/50-services/README.en.md)
 │  └─ edge / im / platform / common
-├─ Delivery and operations
-│  ├─ Local deployment (./docs/deployment/LOCAL.md)
-│  ├─ Deployment index (./docs/deployment/README.md)
-│  └─ Release runbook (./docs/operations/RELEASE_RUNBOOK.md)
-├─ Development and governance
-│  ├─ Engineering rules (./docs/development/governance/ENGINEERING_RULES.md)
-│  ├─ Gate registry (./docs/development/governance/GATE_REGISTRY.md)
-│  ├─ Standards (./docs/development/standards/)
-│  ├─ IDE / tooling (./docs/development/tooling/)
-│  └─ Contributing (./docs/development/contributing/)
-├─ Security and compliance
-│  ├─ Security (./docs/security/)
-│  └─ Compliance (./docs/compliance/)
-└─ Historical archive
-   ├─ Archive index (./docs/archive/README.en.md)
-   ├─ renovation (./docs/archive/renovation/)
-   ├─ superpowers (./docs/archive/superpowers/)
+├─ 60 Deployment and 70 Operations
+│  ├─ Local deployment (./docs/60-deployment/LOCAL.md)
+│  ├─ Deployment index (./docs/60-deployment/README.md)
+│  └─ Release runbook (./docs/70-operations/RELEASE_RUNBOOK.md)
+├─ 80 Development and governance
+│  ├─ Engineering rules (./docs/80-development/governance/ENGINEERING_RULES.md)
+│  ├─ Gate registry (./docs/80-development/governance/GATE_REGISTRY.md)
+│  ├─ Standards (./docs/80-development/standards/)
+│  ├─ IDE / tooling (./docs/80-development/tooling/)
+│  └─ Contributing (./docs/80-development/contributing/)
+├─ 90 Security and 91 Compliance
+│  ├─ Security (./docs/90-security/)
+│  └─ Compliance (./docs/91-compliance/)
+└─ 99 Historical archive
+   ├─ Archive index (./docs/99-archive/README.en.md)
+   ├─ renovation (./docs/99-archive/renovation/)
+   ├─ superpowers (./docs/99-archive/superpowers/)
    └─ Audit snapshots (./docs/archive/audits/)
 ```
    ├─ superpowers (./docs/superpowers/)
@@ -213,23 +213,23 @@ im-saas docs
 ```
 
 - Full hierarchy, reading paths and bilingual coverage: [Documentation center](docs/README.en.md).
-- Service entry: [services](docs/services/).
-- Standards entry: [standards](docs/development/standards/).
+- Service entry: [services](docs/50-services/).
+- Standards entry: [standards](docs/80-development/standards/).
 
 ### Standards
 
-- [00 DDD microservice outline](docs/development/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
-- [10 DDD service conventions](docs/development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
-- [12 RocketMQ conventions](docs/development/standards/12_ROCKETMQ_CONVENTIONS.md)
-- [13 Platform media conventions](docs/development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
-- [14 Client release governance](docs/development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
-- [15 Client release operations](docs/development/standards/15_CLIENT_RELEASE_SKILL.md)
-- [16 Currency conventions](docs/development/standards/16_CURRENCY_CONVENTIONS.md)
-- [20 Maven conventions](docs/development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
-- [21 Persistence stack](docs/development/standards/21_PERSISTENCE_STACK.md)
-- [22 Technology stack matrix](docs/development/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
-- [30 Text encoding and batch editing](docs/development/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
-- [40 Observability conventions](docs/development/standards/40_OBSERVABILITY_CONVENTIONS.md)
-- [41 Java logging conventions](docs/development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
-- [42 Logging and diagnostics](docs/development/standards/42_LOGGING_AND_OUTPUTS.md)
-- [43 E2E testing conventions](docs/development/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [00 DDD microservice outline](docs/80-development/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
+- [10 DDD service conventions](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
+- [12 RocketMQ conventions](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
+- [13 Platform media conventions](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
+- [14 Client release governance](docs/80-development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
+- [15 Client release operations](docs/80-development/standards/15_CLIENT_RELEASE_SKILL.md)
+- [16 Currency conventions](docs/80-development/standards/16_CURRENCY_CONVENTIONS.md)
+- [20 Maven conventions](docs/80-development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
+- [21 Persistence stack](docs/80-development/standards/21_PERSISTENCE_STACK.md)
+- [22 Technology stack matrix](docs/80-development/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
+- [30 Text encoding and batch editing](docs/80-development/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- [40 Observability conventions](docs/80-development/standards/40_OBSERVABILITY_CONVENTIONS.md)
+- [41 Java logging conventions](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
+- [42 Logging and diagnostics](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
+- [43 E2E testing conventions](docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md)

@@ -24,7 +24,7 @@ function Get-Utf8Text([string]$path) {
 }
 
 # 1) Archive metadata and archive-local English index pairs.
-$archiveRoot = Join-Path $root 'docs/archive'
+$archiveRoot = Join-Path $root 'docs/99-archive'
 if (Test-Path -LiteralPath $archiveRoot) {
   $archiveDocs = Get-ChildItem $archiveRoot -Recurse -File -Filter '*.md' |
     Where-Object { $_.Name -notin @('README.md', 'README.en.md', 'ARCHIVE-LOG.md', 'ARCHIVE-LOG.en.md') }
@@ -40,13 +40,13 @@ if (Test-Path -LiteralPath $archiveRoot) {
 $pairedDocs = @(
   'README.md',
   'docs/README.md',
-  'docs/product/README.md',
-  'docs/architecture/OVERVIEW.md',
-  'docs/architecture/TOPOLOGY.zh.md',
-  'docs/services/README.md',
-  'docs/domain/README.md',
-  'docs/development/standards/README.md',
-  'docs/development/governance/DOCUMENTATION_ORGANIZATION.md'
+  'docs/10-product/README.md',
+  'docs/20-architecture/OVERVIEW.md',
+  'docs/20-architecture/TOPOLOGY.zh.md',
+  'docs/50-services/README.md',
+  'docs/40-domain/README.md',
+  'docs/80-development/standards/README.md',
+  'docs/80-development/governance/DOCUMENTATION_ORGANIZATION.md'
 )
 foreach ($relative in $pairedDocs) {
   $path = Join-Path $root $relative
@@ -73,19 +73,19 @@ foreach ($relative in $pairedDocs) {
 }
 
 # 2b) Every service README has an English summary pair.
-$serviceRoot = Join-Path $root 'docs/services'
+$serviceRoot = Join-Path $root 'docs/50-services'
 if (Test-Path -LiteralPath $serviceRoot) {
   foreach ($serviceDir in (Get-ChildItem $serviceRoot -Recurse -Directory)) {
     $zh = Join-Path $serviceDir.FullName 'README.md'
     $en = Join-Path $serviceDir.FullName 'README.en.md'
     if ((Test-Path -LiteralPath $zh) -and -not (Test-Path -LiteralPath $en)) {
-      Add-Violation "missing service English summary: docs/services/$($serviceDir.Name)/README.en.md"
+      Add-Violation "missing service English summary: docs/50-services/$($serviceDir.Name)/README.en.md"
     }
   }
 }
 
 # 2c) Every business/standards document has an English summary pair.
-foreach ($domainRoot in @('docs/domain', 'docs/development/standards')) {
+foreach ($domainRoot in @('docs/40-domain', 'docs/80-development/standards')) {
   $fullRoot = Join-Path $root $domainRoot
   if (-not (Test-Path -LiteralPath $fullRoot)) { continue }
   foreach ($doc in (Get-ChildItem $fullRoot -File -Filter '*.md')) {
@@ -98,11 +98,11 @@ foreach ($domainRoot in @('docs/domain', 'docs/development/standards')) {
 }
 
 # 3) Legacy names in current operational docs (archive and governance records excluded).
-$legacyRoots = @('README.md', 'docs/architecture', 'docs/deployment', 'docs/services', 'docs/domain', 'docs/development/standards')
+$legacyRoots = @('README.md', 'docs/20-architecture', 'docs/60-deployment', 'docs/50-services', 'docs/40-domain', 'docs/80-development/standards')
 $allowPatterns = @(
   'docs/README.md', 'docs/README.en.md',
-  'docs/DOCUMENTATION_AUDIT.md', 'docs/DOCUMENTATION_AUDIT.en.md',
-  'docs/DOCUMENTATION_ORGANIZATION.md', 'docs/DOCUMENTATION_ORGANIZATION.en.md'
+  'docs/99-archive/audits/DOCUMENTATION_AUDIT.md', 'docs/99-archive/audits/DOCUMENTATION_AUDIT.en.md',
+  'docs/80-development/governance/DOCUMENTATION_ORGANIZATION.md', 'docs/80-development/governance/DOCUMENTATION_ORGANIZATION.en.md'
 )
 $legacyTerms = @('WV Chat', 'im-order-service')
 foreach ($relativeRoot in $legacyRoots) {
