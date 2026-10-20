@@ -71,6 +71,8 @@ spec:
             - { name: MONGODB_HOST, value: mongodb }
             - { name: MONGODB_PORT, value: '27017' }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
+            - { name: INTERNAL_USER_SERVICE_BASE_URL, value: http://im-user-service:3100 }
+            - { name: INTERNAL_ADMIN_SERVICE_BASE_URL, value: http://im-admin-service:3400 }
           ports: [ { containerPort: 3300 } ]
           readinessProbe: &http3300 { httpGet: { path: /actuator/health, port: 3300 }, initialDelaySeconds: 30, periodSeconds: 5 }
           livenessProbe: { httpGet: { path: /actuator/health, port: 3300 }, initialDelaySeconds: 90, periodSeconds: 5 }

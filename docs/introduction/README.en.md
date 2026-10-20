@@ -37,6 +37,8 @@ It is not a chat-SDK demo. It is a product-grade foundation that runs locally en
 
 The in-app service board and H5 home cover hotels, KTV, bars, billiards, food, delivery and travel.
 
+Local demo data includes the `OpenChat 生活服务` tenant, `OpenChat KTV 旗舰店`, six KTV rooms, the service catalog, paid/completed orders and reservations.
+
 ![OpenChat C-end service board](../assets/screenshots/c-end.jpg)
 
 ### 3.3 IM admin console
@@ -44,6 +46,18 @@ The in-app service board and H5 home cover hotels, KTV, bars, billiards, food, d
 The console manages users, conversations, groups, client releases, open-platform apps and audit logs.
 
 ![OpenIM admin login](../assets/screenshots/im-admin.jpg)
+
+### 3.4 OpenChat App (Xiaomi 9 device)
+
+The conversation list, group chat and service board come from the running Kind environment; demo accounts and messages are local seed data.
+
+<table>
+  <tr>
+    <td align="center"><img src="../assets/screenshots/phone-im-home.jpg" width="260" alt="OpenChat conversations"><br><sub>Conversations</sub></td>
+    <td align="center"><img src="../assets/screenshots/phone-im-group.jpg" width="260" alt="OpenChat group chat"><br><sub>Group chat</sub></td>
+    <td align="center"><img src="../assets/screenshots/phone-im-service.jpg" width="260" alt="OpenChat service board"><br><sub>Service board</sub></td>
+  </tr>
+</table>
 
 ## 4. Capability matrix
 

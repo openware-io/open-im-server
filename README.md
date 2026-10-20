@@ -11,6 +11,14 @@
 
 OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面端和本地一键部署放在同一套工程体系里：既能作为可运行的产品底座，也能作为微服务、长连接可靠消息和多租户权限设计的参考实现。
 
+<table>
+  <tr>
+    <td align="center"><img src="docs/assets/screenshots/c-end.jpg" width="360" alt="OpenChat SaaS C 端"><br><sub>SaaS C 端</sub></td>
+    <td align="center"><img src="docs/assets/screenshots/phone-im-home.jpg" width="180" alt="OpenChat 会话列表"><br><sub>App 会话</sub></td>
+    <td align="center"><img src="docs/assets/screenshots/phone-im-service.jpg" width="180" alt="OpenChat 服务板块"><br><sub>App 服务板块</sub></td>
+  </tr>
+</table>
+
 > 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
 > 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
 

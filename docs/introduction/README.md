@@ -37,6 +37,8 @@ OpenChat 把两套通常分开建设的能力放在同一个工程体系里：
 
 App 内的服务板块与 H5 首页，覆盖酒店、KTV、酒吧、台球、美食、外卖、出行等服务入口。
 
+本地 demo 数据包含 `OpenChat 生活服务` 租户、`OpenChat KTV 旗舰店`、6 个 KTV 包厢、服务目录、已支付/已完成订单和预约记录。
+
 ![OpenChat C 端服务板块](../assets/screenshots/c-end.jpg)
 
 ### 3.3 IM 管理后台
@@ -44,6 +46,18 @@ App 内的服务板块与 H5 首页，覆盖酒店、KTV、酒吧、台球、美
 管理后台提供用户、会话、群组、客户端版本、开放平台应用和审计日志等管理能力。
 
 ![OpenIM 管理后台登录页](../assets/screenshots/im-admin.jpg)
+
+### 3.4 OpenChat App（小米 9 实机）
+
+会话列表、群聊和服务板块来自真实运行的 Kind 环境；演示账号与消息均为本地 demo 数据。
+
+<table>
+  <tr>
+    <td align="center"><img src="../assets/screenshots/phone-im-home.jpg" width="260" alt="OpenChat 会话列表"><br><sub>会话列表</sub></td>
+    <td align="center"><img src="../assets/screenshots/phone-im-group.jpg" width="260" alt="OpenChat 群聊"><br><sub>群聊</sub></td>
+    <td align="center"><img src="../assets/screenshots/phone-im-service.jpg" width="260" alt="OpenChat 服务板块"><br><sub>服务板块</sub></td>
+  </tr>
+</table>
 
 ## 4. 能力矩阵
 
