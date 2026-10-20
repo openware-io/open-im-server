@@ -146,6 +146,7 @@
 5. 校验存在 `db/migration` 的 Service 是相应权威数据的唯一迁移所有者；跨服务不得复用或修改其迁移脚本。
 6. 门禁发现例外时必须强制失败。临时例外须有架构决策记录、负责人、到期时间、退出条件和补充验证范围。
 7. 目录模板由 G43 `validate-service-layout.ps1` 校验；文档治理由 G44 `validate-documentation-governance.ps1` 校验，二者均为 blocking。
+8. 控制器路由完整性由 G45 `validate-controller-mapping-integrity.ps1` 校验：禁止同一服务内重复 HTTP 方法与完整路径，禁止方法路径重复类路径；`consumes` 不同的合法重载需显式保留。
 
 ## Service 内部目录
 

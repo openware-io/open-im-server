@@ -17,9 +17,17 @@
   "spring-boot.ls.problem.version-validation.UNSUPPORTED_COMMERCIAL_VERSION": "IGNORE",
   "spring-boot.ls.problem.version-validation.UPDATE_LATEST_MAJOR_VERSION": "IGNORE",
   "spring-boot.ls.problem.version-validation.UPDATE_LATEST_MINOR_VERSION": "IGNORE",
-  "spring-boot.ls.problem.version-validation.UPDATE_LATEST_PATCH_VERSION": "IGNORE"
+  "spring-boot.ls.problem.version-validation.UPDATE_LATEST_PATCH_VERSION": "IGNORE",
+  "spring-boot.ls.problem.boot2.EXTRACT_REQUEST_MAPPING_PARENT_PATH": "IGNORE"
 }
 ```
+
+## IDE 提示与编译告警的区别
+
+- `EXTEND_REQUEST_MAPPING_PARENT_PATH` / `EXTRACT_REQUEST_MAPPING_PARENT_PATH` 是 Spring Boot Tools 的**结构风格提示**，不是 `javac` 编译告警，也不会让 `mvn` 构建失败。
+- 它建议把多个方法共享的路径前缀提升到类级 `@RequestMapping`。是否提取取决于可读性，不强制；涉及 `{id}` 等路径变量时，提升后反而可能降低可读性。
+- 真实的重复路由、类路径重复和方法路径重复由 G45 `validate-controller-mapping-integrity.ps1` 检查。
+- 本地把该提示设为 `IGNORE`，让 Problems 面板聚焦真正的编译/门禁问题；如果团队决定统一提取，再单独改造控制器，不要用 IDE 提示代替门禁。
 
 ## 重新导入与刷新建议
 

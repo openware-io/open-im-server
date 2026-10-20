@@ -24,6 +24,7 @@ Layering, package structure, naming, domain modeling and service implementation 
 - A top-level `controller` package is legacy-only and must be listed in `scripts/validate/service-layout-legacy-controllers.txt`.
 - Media adapter-only services may omit `domain`; other business services require `api / application / domain / infra`.
 - `validate-service-layout.ps1` (G43) is blocking; legacy exceptions must migrate out.
+- `validate-controller-mapping-integrity.ps1` (G45) blocks duplicate verb/path mappings and method paths that repeat the class path; `consumes` overloads are allowed.
 
 ## Related
 
