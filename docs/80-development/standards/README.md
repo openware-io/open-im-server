@@ -24,3 +24,4 @@
 | 41 | [Java 日志规范](41_JAVA_LOGGING_CONVENTIONS.md) | 日志级别、字段、脱敏和采样 |
 | 42 | [日志输出与诊断规范](42_LOGGING_AND_OUTPUTS.md) | 输出位置、诊断包和故障排查 |
 | 43 | [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md) | 冒烟、真实设备、验收和凭据注入 |
+| 44 | [架构决策记录（ADR）规范](44_ARCHITECTURE_DECISION_RECORDS.md) | ADR 编号、状态、模板、索引与门禁 |

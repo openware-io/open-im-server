@@ -61,6 +61,7 @@ docs/
 | [协议说明](30-reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
 | [OpenAPI 契约](30-reference/contracts/README.md) | 跨服务/对外接口契约 |
 | [MQ 台账](30-reference/mq/REGISTRY.md) | Topic / 事件登记 |
+| [ADR 索引](20-architecture/adr/README.md) | 架构决策记录、状态与模板 |
 | [ADR 0007](20-architecture/adr/0007-version-named-exceptions.md) | 已撤回的 version 字段名决策 |
 
 ### 领域与服务
@@ -96,6 +97,7 @@ docs/
 | [文档整理与归档方案](80-development/governance/DOCUMENTATION_ORGANIZATION.md) | 分类、归档规则和执行顺序 |
 | [标准目录](80-development/standards/README.md) | DDD、RocketMQ、媒体、版本、币种、日志、测试 |
 | [数据库迁移标准](80-development/standards/DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
+| [ADR 规范](80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.md) | 决策记录的编号、状态、模板与门禁 |
 
 ### 安全与合规
 

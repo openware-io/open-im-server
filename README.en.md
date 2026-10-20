@@ -233,3 +233,4 @@ im-saas docs
 - [41 Java logging conventions](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 Logging and diagnostics](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E testing conventions](docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [44 Architecture Decision Records](docs/80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.en.md)

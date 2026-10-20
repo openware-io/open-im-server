@@ -58,3 +58,4 @@
 | G44 | documentation-governance | validate-documentation-governance.ps1 | blocking | 归档元数据、双语配对、旧命名与文档资产治理 |
 | G45 | controller-mapping-integrity | validate-controller-mapping-integrity.ps1 | blocking | 控制器路由重复、类路径重复与 consumes 重载 |
 | G46 | autowired-constructor | validate-autowired-constructor.ps1 | blocking | 单构造器禁止不必要的 @Autowired |
+| G47 | architecture-decisions | validate-architecture-decisions.ps1 | blocking | ADR 目录、索引、模板、编号、章节与状态 |

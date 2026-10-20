@@ -61,6 +61,7 @@ docs/
 | [Protocol](30-reference/PROTOCOL.md) | WebSocket events and REST conventions |
 | [OpenAPI contracts](30-reference/contracts/README.md) | External and cross-service contracts |
 | [MQ registry](30-reference/mq/REGISTRY.md) | Topic/event registry |
+| [ADR index](20-architecture/adr/README.en.md) | Architecture decisions, status and template |
 | [ADR 0007](20-architecture/adr/0007-version-named-exceptions.md) | Withdrawn version-field decision |
 
 ### Domain and services
@@ -96,6 +97,7 @@ docs/
 | [Documentation organization](80-development/governance/DOCUMENTATION_ORGANIZATION.en.md) | Classification and archive rules |
 | [Standards index](80-development/standards/README.en.md) | DDD, RocketMQ, media, release, currency, logging, testing |
 | [Database migration](80-development/standards/DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
+| [ADR standard](80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template and gate |
 
 ### Security and compliance
 

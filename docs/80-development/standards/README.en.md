@@ -24,3 +24,4 @@
 | 41 | [Java logging conventions](41_JAVA_LOGGING_CONVENTIONS.md) | Levels, fields, redaction and sampling |
 | 42 | [Logging and diagnostics](42_LOGGING_AND_OUTPUTS.md) | Output locations, diagnostic bundles and troubleshooting |
 | 43 | [E2E testing conventions](43_E2E_TESTING_CONVENTIONS.md) | Smoke, real devices, acceptance and credential injection |
+| 44 | [Architecture Decision Records](44_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template, index and gate |
