@@ -19,11 +19,14 @@ im-saas docs
 ├─ 05 Documentation governance
 │  ├─ Organization and archival plan
 │  ├─ Documentation audit (findings and plan)
+│  ├─ Engineering rules / gates / IDE / collaboration
 │  └─ Archive index
 ├─ 10 Architecture
 │  ├─ Engineering topology (repo / deployment / service / data)
 │  ├─ Architecture overview (runtime boundaries and ownership)
-│  └─ Engineering rules (development and gates)
+│  ├─ API docs / protocol / ADR
+│  ├─ MQ registry (topic/event registration)
+│  └─ Contracts
 ├─ 20 Deployment and operations
 │  ├─ Local deployment
 │  ├─ Docker Compose
@@ -35,9 +38,11 @@ im-saas docs
 │  ├─ SaaS platform
 │  └─ Shared capabilities
 ├─ 40 Business
-│  └─ Conversation, privacy, KTV and order semantics
+│  ├─ Conversation, privacy, KTV and order semantics
+│  └─ Feature topics
 ├─ 50 Standards
-│  └─ DDD, RocketMQ, media, release, currency, logging and testing
+│  ├─ DDD, RocketMQ, media, release, currency, logging and testing
+│  └─ Database migration
 └─ 90 Historical
    ├─ renovation
    ├─ superpowers
@@ -74,16 +79,21 @@ im-saas docs
 | --- | --- |
 | [Organization and archival plan](DOCUMENTATION_ORGANIZATION.en.md) | Global classification, actions, archival rules and execution order |
 | [Documentation audit](DOCUMENTATION_AUDIT.en.md) | Current findings, priorities and phased plan |
+| [Engineering rules](governance/ENGINEERING_RULES.md) | Development, review and gate rules |
+| [Gate registry](governance/GATE_REGISTRY.md) | Executable checks |
+| [IDE setup](engineering/IDE_SETUP.md) | VS Code / Trae diagnostics and JDK config |
+| [AI collaboration](engineering/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
 | [Archive index](archive/README.en.md) | Registration, metadata and move checklist for historical docs |
 
-### 10 Architecture and governance
+### 10 Architecture
 
 | Document | Relationship |
 | --- | --- |
 | [Engineering topology](architecture/TOPOLOGY.en.md) | Top-level structure |
 | [Architecture overview](ARCHITECTURE.en.md) | Runtime boundaries, ownership and data |
-| [Engineering rules](ENGINEERING_RULES.md) | Development, review and gates |
-| [Gate registry](GATE_REGISTRY.md) | Executable checks derived from the rules |
+| [API docs](architecture/API_DOCUMENTATION.md) | Gateway Swagger/OpenAPI entry |
+| [Protocol](architecture/PROTOCOL.md) | WebSocket events and REST conventions |
+| [ADR 0007](architecture/adr/0007-version-named-exceptions.md) | Withdrawn version-field decision |
 
 ### 20 Deployment and operations
 
@@ -92,7 +102,7 @@ im-saas docs
 | [Local deployment](deployment/LOCAL.md) | Shared entry for local modes |
 | [Docker Compose](deployment/DOCKER.md) | Daily integration |
 | [Kubernetes manifests](../k8s/README.md) | Kind/ACK resources and images |
-| [Release runbook](RELEASE_RUNBOOK.md) | Release, rollback and traceability |
+| [Release runbook](operations/RELEASE_RUNBOOK.md) | Release, rollback and traceability |
 | [Deployment index](deployment/README.md) | Parent index for deployment docs |
 
 ### 30 Services and business
@@ -132,6 +142,8 @@ im-saas docs
 | [20 Maven conventions](standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | Build and dependencies |
 | [21 Persistence stack](standards/21_PERSISTENCE_STACK.md) | Data access |
 | [22 Technology stack matrix](standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | Version baseline |
+| [Database migration](standards/DATABASE_MIGRATION_STANDARD.md) | Flyway and data migration |
+| [MQ registry](architecture/mq/REGISTRY.md) | Topic/event registry |
 | [40 Observability](standards/40_OBSERVABILITY_CONVENTIONS.md) | Logs, metrics and traces |
 | [43 E2E testing](standards/43_E2E_TESTING_CONVENTIONS.md) | Acceptance and smoke tests |
 

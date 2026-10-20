@@ -2,7 +2,7 @@
 
 [中文](CONVERSATION_TYPES_AND_PRIVACY.md) | [English](CONVERSATION_TYPES_AND_PRIVACY.en.md)
 
-> 文档定位：open-chat 的**产品业务文档**，沉淀"四类会话空间 + 消息生命周期 + 隐私边界"的需求语义。需求来源为 Telegram 类 IM 原型规格（PRD + 高保真原型），本文件是其在工程内的权威落点；实现细节见 [频道域设计](../features/CHANNEL_01_SERVICE.md) 与 [私密聊天与 E2EE 设计](../features/SECRET_CHAT_01_E2EE.md)。
+> 文档定位：open-chat 的**产品业务文档**，沉淀"四类会话空间 + 消息生命周期 + 隐私边界"的需求语义。需求来源为 Telegram 类 IM 原型规格（PRD + 高保真原型），本文件是其在工程内的权威落点；实现细节见 [频道域设计](features/CHANNEL_01_SERVICE.md) 与 [私密聊天与 E2EE 设计](features/SECRET_CHAT_01_E2EE.md)。
 
 ## 1. 核心产品原则
 
@@ -47,11 +47,11 @@
 | 能力 | 实现状态 |
 |------|---------|
 | 云端单聊 / 群组基础 | ✅ 已有（发送/已读/撤回/离线/多端同步） |
-| 频道（单向发布/订阅） | ✅ 已实现并部署（详见 [频道域设计](../features/CHANNEL_01_SERVICE.md)） |
+| 频道（单向发布/订阅） | ✅ 已实现并部署（详见 [频道域设计](features/CHANNEL_01_SERVICE.md)） |
 | 私密聊天会话（握手/安全码/销毁策略） | ✅ 已实现并部署 |
 | 设备身份（DeviceKey 注册/续期/恢复） | ✅ 已实现并部署 |
 | 密文存储（SecretMessage，服务端不解密） | ✅ 已实现并部署 |
-| 定时销毁引擎（已读后计时 + 周期扫描） | ✅ 已实现并部署（详见 [私密聊天与 E2EE 设计](../features/SECRET_CHAT_01_E2EE.md)） |
+| 定时销毁引擎（已读后计时 + 周期扫描） | ✅ 已实现并部署（详见 [私密聊天与 E2EE 设计](features/SECRET_CHAT_01_E2EE.md)） |
 | 客户端 E2EE 加解密（密钥协商 + 端到端加解密） | ⏳ 待前端实现（后端基础已就绪） |
 | 编辑 / 反应 / 置顶 / 邀请链接 / 话题 / 审计事件 | 📋 需求范围内，待排期 |
 

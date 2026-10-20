@@ -149,20 +149,33 @@ docs/
 ├─ DOCUMENTATION_AUDIT.md / .en.md
 ├─ architecture/
 │  ├─ TOPOLOGY.zh.md / TOPOLOGY.en.md
-│  └─ DECISIONS.md（ADR 索引）
+│  ├─ API_DOCUMENTATION.md
+│  ├─ PROTOCOL.md
+│  ├─ adr/
+│  ├─ mq/REGISTRY.md
+│  └─ contracts/（如启用）
 ├─ deployment/
-│  ├─ LOCAL.md
-│  ├─ DOCKER.md
-│  ├─ KUBERNETES.md
-│  └─ ENVIRONMENTS.md
+│  ├─ README.md / LOCAL.md / DOCKER.md / KUBERNETES.md
+├─ engineering/
+│  ├─ IDE_SETUP.md
+│  ├─ PUSH_SETUP.md
+│  └─ AI_COLLABORATION_PRINCIPLES.md
+├─ governance/
+│  ├─ ENGINEERING_RULES.md
+│  └─ GATE_REGISTRY.md
+├─ operations/
+│  └─ RELEASE_RUNBOOK.md
 ├─ services/
-│  ├─ edge/
-│  ├─ im/
-│  ├─ platform/
-│  └─ common/
+│  ├─ gateway/、im-*/、platform-*/、common-*/
 ├─ business/
+│  ├─ README.md
+│  └─ features/
 ├─ standards/
+│  ├─ 10–43 标准文档与英文摘要
+│  └─ DATABASE_MIGRATION_STANDARD.md
 ├─ security/ + compliance/ + contracts/
+├─ introduction/
+├─ assets/
 └─ archive/
    ├─ README.md / README.en.md
    ├─ audits/
@@ -172,7 +185,7 @@ docs/
    └─ release-notes/
 ```
 
-顶层只保留入口、架构和治理文档；细节进入对应目录。历史目录不再与现行目录平级混放。
+顶层只保留入口、架构和文档治理说明；细节进入对应目录。历史目录不再与现行目录平级混放。
 
 ## 6. 归档规范
 

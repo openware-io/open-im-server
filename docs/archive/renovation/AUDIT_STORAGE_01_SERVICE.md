@@ -8,7 +8,7 @@
 > 方案集：`AUDIT_STORAGE`；序号：`01`；实施边界：`common-audit-service`（表结构 / 迁移 / 仓储 / 归档任务）、
 > `open-saas-admin`（列表分页契约）、`k8s/local`（本地 Kind，验证与运维主路径）/ `k8s/ack`（建库授权与归档投递）；
 > 状态：**实施中**（编号进度见 §9）；不变量依据：[21 持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)、
-> [数据库迁移脚本规范](../../DATABASE_MIGRATION_STANDARD.md)、[CHINA_COMPLIANCE](../../compliance/CHINA_COMPLIANCE.md)、
+> [数据库迁移脚本规范](../../standards/DATABASE_MIGRATION_STANDARD.md)、[CHINA_COMPLIANCE](../../compliance/CHINA_COMPLIANCE.md)、
 > [PLATFORM_SECURITY_01_GOVERNANCE](./PLATFORM_SECURITY_01_GOVERNANCE.md)。
 
 ## 0. 决策记录（已确认）

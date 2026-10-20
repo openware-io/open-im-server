@@ -16,6 +16,8 @@
 | 16 | [币种规范](16_CURRENCY_CONVENTIONS.md) | 金额最小单位、币种字典、展示和结算快照 |
 | 20 | [Maven 工程规范](20_MAVEN_ENGINEERING_CONVENTIONS.md) | 模块、依赖、构建和版本 |
 | 21 | [持久层技术栈标准](21_PERSISTENCE_STACK.md) | MyBatis-Plus、Flyway、数据访问边界 |
+| — | [数据库迁移脚本规范](DATABASE_MIGRATION_STANDARD.md) | Flyway 命名、不可变迁移与验证 |
+| — | [MQ 台账](../architecture/mq/REGISTRY.md) | Topic / 事件登记 |
 | 22 | [技术栈版本矩阵](22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | Java、Spring Boot、数据库和中间件版本 |
 | 30 | [文本编码与批量改写规范](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8、换行、批量编辑和校验 |
 | 40 | [可观测性规范](40_OBSERVABILITY_CONVENTIONS.md) | 日志、指标、追踪和告警 |

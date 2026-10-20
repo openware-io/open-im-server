@@ -105,7 +105,7 @@ LLM 很容易默默选择一种理解并直接实现。应显式执行以下行�
 
 ## 与工程规范协同
 
-本指南约束协作方式与改码行为，不替代工程规范。项目硬性约束以 [工程规则](./ENGINEERING_RULES.md) 和 [DDD 微服务软件工程规范纲要](./standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) 为准。
+本指南约束协作方式与改码行为，不替代工程规范。项目硬性约束以 [工程规则](../governance/ENGINEERING_RULES.md) 和 [DDD 微服务软件工程规范纲要](../standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) 为准。
 
 建议执行顺序：
 
@@ -134,7 +134,7 @@ LLM 很容易默默选择一种理解并直接实现。应显式执行以下行�
 
 ### 对应“目标驱动执行”
 
-- Maven 相关改动至少执行与影响范围相符的 `validate`、`compile`、`test` 或 `verify` 验证，具体命令遵循 [Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)。
+- Maven 相关改动至少执行与影响范围相符的 `validate`、`compile`、`test` 或 `verify` 验证，具体命令遵循 [Maven 工程规范](../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)。
 - Bug 修复优先提供复现证据、日志、测试或最小验证过程，不只凭阅读代码宣布完成。
 - 改动引入新的诊断或静态检查问题时，必须在交付前处理，或明确说明残留风险。
 

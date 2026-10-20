@@ -377,7 +377,7 @@ api/controller + application + domain + infra
 - **A（锁语义）**：有写入路径的聚合，`version` 必须是真的乐观锁——框架 `@Version` 或显式 CAS；否则按“装饰性 version”处理。
 - **B（改名）**：不是锁的字段不得叫 `version`；改用 `revision`、`rowVersion` 等名字，且不得继续在模型/API 中暴露 `version` 语义。
 - **只读/追加模型**：没有更新路径时，必须登记为 `READ_ONLY` / `APPEND_ONLY`，不得借 `version` 暗示并发保护。
-- **不再接受具名例外**：[ADR 0007](../adr/0007-version-named-exceptions.md) 已撤回；非锁字段必须真正改名，
+- **不再接受具名例外**：[ADR 0007](../architecture/adr/0007-version-named-exceptions.md) 已撤回；非锁字段必须真正改名，
   不得以“业务版本字符串”或“修订计数器”为由继续占用 `version`。
 
 管理方式：
@@ -414,7 +414,7 @@ api/controller + application + domain + infra
 （`Changed` → `mvn validate`，`Full` → `mvn clean verify`），**不影响跑哪些校验器：42 个一律全跑**。
 治理完成后**全部为阻断模式**：`scripts/validate/report-only-gates.txt` 当前**条目为空**（无任何豁免）。
 
-门禁编号索引见 [GATE_REGISTRY.md](../GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、
+门禁编号索引见 [GATE_REGISTRY.md](../governance/GATE_REGISTRY.md)；新增、删除或改名门禁必须同步更新注册表、
 统一入口与本文计数，`validate-gate-registry.ps1` 会校验四方一致。
 
 > **判据的权威来源是校验器脚本本身，不是本表。** 本表只说明每个门禁管什么、违规会怎样表述；

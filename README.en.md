@@ -183,12 +183,12 @@ im-saas docs
 │  ├─ Architecture overview (./docs/ARCHITECTURE.en.md)
 │  ├─ Documentation organization plan (./docs/DOCUMENTATION_ORGANIZATION.en.md)
 │  ├─ Documentation audit (./docs/DOCUMENTATION_AUDIT.en.md)
-│  ├─ Engineering rules (./docs/ENGINEERING_RULES.md)
-│  └─ Gate registry (./docs/GATE_REGISTRY.md)
+│  ├─ Engineering rules (./docs/governance/ENGINEERING_RULES.md)
+│  └─ Gate registry (./docs/governance/GATE_REGISTRY.md)
 ├─ Deployment and operations
 │  ├─ Local deployment (./docs/deployment/LOCAL.md)
 │  ├─ Deployment index (./docs/deployment/README.md)
-│  └─ Release runbook (./docs/RELEASE_RUNBOOK.md)
+│  └─ Release runbook (./docs/operations/RELEASE_RUNBOOK.md)
 ├─ Services
 │  ├─ Edge: gateway / im-access-ws
 │  ├─ IM domain: user / message / conversation / admin

@@ -4,7 +4,7 @@
 
 > **性质**：工程详细文档（属[项目事实清单](./PROJECT_FACTS_INVENTORY.md)同类的"工程实际长什么样"）。**四张图**：产品业务图、领域架构图、工程结构图、技术栈架构图。
 > **维护**：与事实清单同步更新——**新增/变更业务线、域、服务、仓库、技术栈版本时，必须同步本图集**。
-> **依据**：[ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_09](../archive/renovation/SAAS_PLATFORM_09_SERVICE.md)、[技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)、[工程规则](../ENGINEERING_RULES.md)。所有节点与库名均为实测。
+> **依据**：[ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md)、[SAAS_PLATFORM_09](../archive/renovation/SAAS_PLATFORM_09_SERVICE.md)、[技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)、[工程规则](../governance/ENGINEERING_RULES.md)。所有节点与库名均为实测。
 
 ---
 
@@ -288,7 +288,7 @@ graph TD
 | --- | --- | --- |
 | 一、产品业务图 | 有几条业务线、彼此什么关系 | [ACCOUNT_PERMISSION_MODEL](./ACCOUNT_PERMISSION_MODEL.md)、[IM 开放平台方案](../archive/renovation/IM_OPEN_PLATFORM_01_SERVICE.md) |
 | 二、领域架构图 | 有哪些域、表前缀、归谁、放哪个库 | [项目事实清单](./PROJECT_FACTS_INVENTORY.md)（逐行权威） |
-| 三、工程结构图 | 仓库怎么分、服务怎么建、依赖往哪走 | [工程规则](../ENGINEERING_RULES.md)、[10 DDD 规范](../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) |
+| 三、工程结构图 | 仓库怎么分、服务怎么建、依赖往哪走 | [工程规则](../governance/ENGINEERING_RULES.md)、[10 DDD 规范](../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) |
 | 四、技术栈架构图 | 用什么技术、什么版本 | [22 技术栈版本矩阵](../standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)（**版本唯一权威**） |
 
 > **图只表达结构与关系，不复制细节数值**——细节以对应权威文档为准，避免两处维护。版本号是唯一例外（评审时需一屏可读），故在 4.2 复列并注明权威来源。

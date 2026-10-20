@@ -4,7 +4,7 @@
 
 - 本台账仅登记仓库中已经实现的 RocketMQ 资源。
 - 资源名称、责任模块、消费目的、顺序键和幂等键必须与 `protocol-mq` 常量及服务实现保持一致。
-- 新增或修改资源时，必须同步遵守 [12 RocketMQ 治理规范](../standards/12_ROCKETMQ_CONVENTIONS.md)。
+- 新增或修改资源时，必须同步遵守 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)。
 
 ## 已实现资源
 

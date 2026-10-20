@@ -15,14 +15,14 @@
 - 频道是"一对多单向广播"会话：仅频道主（owner）可发布消息，订阅者只读。
 - 订阅校验基于会话元数据（`isOwner || isSubscribed`），消息服务通过内部接口查询授权。
 - 创建频道返回 `myRole/subscribed/memberCount`；删除消息仅 owner 可执行。
-- 完整设计见 [频道域服务端设计](../../features/CHANNEL_01_SERVICE.md)。
+- 完整设计见 [频道域服务端设计](../../business/features/CHANNEL_01_SERVICE.md)。
 
 ## 私密聊天语义（E2EE）
 
 - 私密聊天是一对一 E2EE 会话：`userA/userB` 规范化存储（小号在前），同一对用户唯一。
 - 握手状态机：`pending -> ready`，双方提交公钥后计算 SHA-256 安全码指纹；`safeCode` 展示用，真加密后由客户端本地计算。
 - 销毁策略：`off/30s/5m/1h/1d`，参与者可设置；消息服务通过内部接口读取策略驱动定时销毁。
-- 完整设计见 [私密聊天与 E2EE 服务端设计](../../features/SECRET_CHAT_01_E2EE.md)。
+- 完整设计见 [私密聊天与 E2EE 服务端设计](../../business/features/SECRET_CHAT_01_E2EE.md)。
 
 ## 职责
 

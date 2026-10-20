@@ -28,6 +28,6 @@
 - 使用 Producer Group `im-access-ws-producer` 发布 `im_message_command_send_v1`；运行配置变量为 `IM_ACCESS_WS_MQ_PRODUCER_GROUP`
 - 使用 Consumer Group `im-access-ws-delivery-consumer` 消费 `im_message_event_stored_v1`，以 `conversationId` 作为 MQ 分片键保障会话顺序，并以 `eventId` 实现幂等
 - 发送命令使用 `commandId` 作为幂等键；消费者的重复投递、重试和 DLQ 处理不得重复下行业务副作用
-- 启用 MQ ACL 时，Remoting 客户端必须配置 `AclClientRPCHook`；资源定义和变更规则见 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md) 与 [MQ 资源台账](../../mq/REGISTRY.md)
+- 启用 MQ ACL 时，Remoting 客户端必须配置 `AclClientRPCHook`；资源定义和变更规则见 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md) 与 [MQ 资源台账](../../architecture/mq/REGISTRY.md)
 - 启动仅扫描网关自身组件，并显式装配 Redis、RocketMQ 和 JWT 解析所需的平台配置；不会加载业务服务组件或 MyBatis 配置
 - 网关通过排除 `infrastructure` 的 MyBatis 传递依赖维持无持久化运行时；消息事件下行发布失败会释放 `eventId` 去重占用并抛回 MQ 触发重试

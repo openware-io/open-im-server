@@ -1,6 +1,6 @@
 # 私密聊天与 E2EE 服务端设计（SECRET_CHAT_01_E2EE）
 
-> 文档定位：私密聊天（Secret Chat）+ E2EE 能力在服务端的工程沉淀文档。核心原则：**传输加密 ≠ E2EE；删除/撤回 = 同步删除动作**（产品语义见 [会话空间与隐私边界](../business/CONVERSATION_TYPES_AND_PRIVACY.md)）。实现遵守 [10 DDD 服务工程规范](../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [ENGINEERING_RULES](../ENGINEERING_RULES.md)。
+> 文档定位：私密聊天（Secret Chat）+ E2EE 能力在服务端的工程沉淀文档。核心原则：**传输加密 ≠ E2EE；删除/撤回 = 同步删除动作**（产品语义见 [会话空间与隐私边界](../CONVERSATION_TYPES_AND_PRIVACY.md)）。实现遵守 [10 DDD 服务工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [ENGINEERING_RULES](../../governance/ENGINEERING_RULES.md)。
 
 ## 1. 能力总览
 

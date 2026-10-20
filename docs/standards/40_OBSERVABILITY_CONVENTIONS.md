@@ -110,5 +110,5 @@
 | --- | --- | --- |
 | 被依赖 | [41_JAVA_LOGGING_CONVENTIONS.md](41_JAVA_LOGGING_CONVENTIONS.md) | 日志的声明、文案与级别实现本规范的统一原则 |
 | 被依赖 | [42_LOGGING_AND_OUTPUTS.md](42_LOGGING_AND_OUTPUTS.md) | 日志与诊断产物的落盘与目录约定 |
-| 引用 | [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |
+| 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |
 | 关联 | [13_PLATFORM_MEDIA_CONVENTIONS.md](13_PLATFORM_MEDIA_CONVENTIONS.md) | 媒体访问事件的审计与脱敏要求 |

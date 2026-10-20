@@ -15,7 +15,7 @@
 | 顺序号 | `09` |
 | 实施边界 | 领域聚合、应用用例、Repository 端口、领域事件与服务内部目录 |
 | 前置方案 | [SAAS_PLATFORM_02_SERVICE](SAAS_PLATFORM_02_SERVICE.md)、[SAAS_PLATFORM_04_DATA](SAAS_PLATFORM_04_DATA.md)、[SAAS_PLATFORM_05_API](SAAS_PLATFORM_05_API.md) |
-| 工程依据 | [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[工程规范](../../ENGINEERING_RULES.md) |
+| 工程依据 | [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[工程规范](../../governance/ENGINEERING_RULES.md) |
 
 本文将业务设计约束落实为 `api -> application -> domain <- infra`。Controller 只做输入校验、上下文提取与 DTO 转换；Application 只编排用例、事务、幂等、Repository 端口和 Outbox；Domain 持有不变量与状态迁移；Infra 承担 PO/Mapper、缓存、MQ、RPC 和渠道适配。
 

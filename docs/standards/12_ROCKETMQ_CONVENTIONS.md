@@ -6,7 +6,7 @@
 
 - 本规范适用于所有通过 `protocol-mq` 定义或使用的 RocketMQ Topic、Producer Group、Consumer Group、消息契约及运行配置。
 - 当前 MQ 集群为独立集群。资源名称不得附加 `dev`、`test`、`prod` 等环境后缀；环境隔离由独立 NameServer、Broker、ACL 与部署配置完成。
-- 已实现资源的唯一登记来源为 [MQ 资源台账](../mq/REGISTRY.md)。未登记资源不得接入生产链路。
+- 已实现资源的唯一登记来源为 [MQ 资源台账](../architecture/mq/REGISTRY.md)。未登记资源不得接入生产链路。
 
 ## 术语与前置假设
 
@@ -60,7 +60,7 @@
 
 ## 变更门禁
 
-- 新增、重命名、废弃或变更 MQ 资源时，必须在同一变更中同步更新协议常量、[MQ 资源台账](../mq/REGISTRY.md)、所属服务 README 与相关校验门禁。
+- 新增、重命名、废弃或变更 MQ 资源时，必须在同一变更中同步更新协议常量、[MQ 资源台账](../architecture/mq/REGISTRY.md)、所属服务 README 与相关校验门禁。
 - 变更 Topic 的 Payload、顺序键、幂等键、重试策略或消费目的时，必须完成生产者、消费者、Outbox/Relay 与回放方案的兼容性评审。
 - 合并前必须执行工程规则要求的编码、构建与相关测试校验；未完成台账和服务文档同步的变更不得合并。
 - `mq-registry` 只校验名称一致性；`mq-semantics` 校验 Topic/Consumer Group 的顺序键与幂等键是否为真实值。
@@ -73,7 +73,7 @@
 
 1. **协议常量**：在 `protocol-mq` 增加常量（Topic / Producer Group / Consumer Group），业务侧只引用常量。
 2. **命名**：Topic 用 `<领域>_<实体>_<类别>_<动作>_v<主版本>`；组名用 `<服务名>-...`；不含环境后缀。
-3. **台账**：[MQ 资源台账](../mq/REGISTRY.md) 登记资源名、生产方、消费方、顺序键、幂等键与重试/DLQ 策略。
+3. **台账**：[MQ 资源台账](../architecture/mq/REGISTRY.md) 登记资源名、生产方、消费方、顺序键、幂等键与重试/DLQ 策略。
 4. **服务配置**：Producer Group 走服务专属变量 `<SERVICE>_MQ_PRODUCER_GROUP`。
 5. **可靠性**：权威写入走 Outbox；消费者按登记的幂等键去重（数据库唯一约束或持久化幂等记录）。
 6. **文档**：同步所属服务 README 与相关门禁清单。
@@ -103,8 +103,8 @@ Consumer Group:     <service>-<purpose>-consumer
 
 | 关系 | 文档 | 说明 |
 | --- | --- | --- |
-| 引用 | [MQ 资源台账](../mq/REGISTRY.md) | 已实现资源的唯一登记来源 |
+| 引用 | [MQ 资源台账](../architecture/mq/REGISTRY.md) | 已实现资源的唯一登记来源 |
 | 关联 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 消息链路的关联标识、指标与脱敏要求 |
 | 关联 | [10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 领域事件与可靠发布的架构约束；本规范给出 MQ 侧规则 |
-| 引用 | [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |
+| 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |
 

@@ -1,8 +1,18 @@
 # 数据库迁移脚本规范
 
+[中文](DATABASE_MIGRATION_STANDARD.md) | [English](DATABASE_MIGRATION_STANDARD.en.md)
+
+## 目标与适用范围
+
 本规范适用于各服务 `src/main/resources/db/migration/` 下由 Flyway 执行的 SQL 脚本。
 
-## 基本规则
+## 术语与前置假设
+
+- **迁移（migration）**：一次不可变的结构或数据变更，对应一个带版本号的 SQL 文件。
+- **基线（baseline）**：新建数据库首次执行的结构脚本；已执行过的基线不得修改。
+- **归属**：每张表只属于一个服务；跨服务只保存标识，不建立跨库外键。
+
+## 原则与约束
 
 - 使用 Flyway 默认命名：`V{版本号}__{英文描述}.sql`；版本号在单个服务内单调递增且不可复用。
 - 文件使用 UTF-8 编码，SQL 关键字使用大写，标识符使用反引号，缩进使用两个空格。
@@ -25,8 +35,28 @@
 - 初始化数据仅包含本地启动所需的最小数据，明确标记用途；生产业务数据不得写入基线脚本。
 - 密码、密钥、令牌和真实用户隐私数据不得出现在迁移脚本中。
 
-## 提交前验证
+## 模板或示例
+
+```sql
+-- V12__add_order_remark.sql
+-- Domain: order; applies only to a new database without executed baseline.
+ALTER TABLE ord_order
+  ADD COLUMN remark varchar(255) NOT NULL DEFAULT '' COMMENT 'Order remark' AFTER status;
+```
+
+## 门禁与验证
 
 1. 使用空数据库执行对应服务的全部迁移，确认 SQL 可执行。
 2. 运行该服务的 Flyway 配置与迁移契约测试。
 3. 检查迁移文件为 UTF-8、名称符合 Flyway 规则，且没有修改已发布版本。
+
+## 可验证的验收标准
+
+- `flyway-conventions`、`flyway-immutability` 门禁通过。
+- 空库全量迁移成功；已有库增量迁移成功。
+- 迁移文件命名、编码、注释和索引符合本规范。
+
+## 与其他规范的关系
+
+- [持久层技术栈标准](21_PERSISTENCE_STACK.md)
+- [文本编码与批量改写规范](30_TEXT_ENCODING_AND_BATCH_EDITING.md)

@@ -58,7 +58,7 @@
 
 1. `scripts/validate/validate-java-logging-conventions.ps1` 会拦截手写日志器声明。
 2. `scripts/validate/validate-java-exception-logging.ps1` 会拦截静默异常或无上下文异常处理。
-3. 发布前统一通过[统一工程校验入口](../ENGINEERING_RULES.md)执行校验（`scripts/validate/invoke-engineering-validation.ps1`）。
+3. 发布前统一通过[统一工程校验入口](../governance/ENGINEERING_RULES.md)执行校验（`scripts/validate/invoke-engineering-validation.ps1`）。
 
 ## 日志写法模板
 
@@ -106,4 +106,4 @@ public class MessageSendApplicationService {
 | 关联 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 日志是可观测性三信号之一；指标与追踪另见该文 |
 | 依赖 | [42_LOGGING_AND_OUTPUTS.md](42_LOGGING_AND_OUTPUTS.md) | 日志与诊断产物的落盘位置与目录约束 |
 | 关联 | [30_TEXT_ENCODING_AND_BATCH_EDITING.md](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | 中文日志的编码口径（UTF-8 无 BOM） |
-| 引用 | [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |
+| 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |

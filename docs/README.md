@@ -19,11 +19,14 @@ im-saas 文档
 ├─ 05 文档治理
 │  ├─ 文档整理与归档方案
 │  ├─ 文档审计（问题与计划）
+│  ├─ 工程规范 / 门禁 / IDE / 协作原则
 │  └─ 归档索引
 ├─ 10 架构
 │  ├─ 工程拓扑（仓库 / 部署单元 / 服务 / 数据）
 │  ├─ 架构总览（运行时边界与职责）
-│  └─ 工程规范（研发与门禁）
+│  ├─ API 文档 / 协议 / ADR
+│  ├─ MQ 台账（Topic / 事件登记）
+│  └─ 契约
 ├─ 20 部署与运行
 │  ├─ 本地部署
 │  ├─ Docker Compose
@@ -35,9 +38,11 @@ im-saas 文档
 │  ├─ SaaS 平台域
 │  └─ 公共能力域
 ├─ 40 业务
-│  └─ 会话、隐私、KTV、订单等业务语义
+│  ├─ 会话、隐私、KTV、订单等业务语义
+│  └─ 功能专题
 ├─ 50 标准
-│  └─ DDD、RocketMQ、媒体、版本、币种、日志、测试
+│  ├─ DDD、RocketMQ、媒体、版本、币种、日志、测试
+│  └─ 数据库迁移标准
 └─ 90 历史
    ├─ renovation（改造过程）
    ├─ superpowers（设计与计划快照）
@@ -74,16 +79,21 @@ im-saas 文档
 | --- | --- |
 | [文档整理与归档方案](DOCUMENTATION_ORGANIZATION.md) | 全局分类、处置动作、归档规则和执行顺序 |
 | [文档审计](DOCUMENTATION_AUDIT.md) | 当前问题、优先级和分批计划 |
+| [工程规范](governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
+| [门禁注册表](governance/GATE_REGISTRY.md) | 可执行检查清单 |
+| [IDE 配置](engineering/IDE_SETUP.md) | VS Code / Trae 诊断与 JDK 配置 |
+| [AI 协作原则](engineering/AI_COLLABORATION_PRINCIPLES.md) | 人机协作边界 |
 | [归档索引](archive/README.md) | 历史文档的登记、元数据和移动检查 |
 
-### 10 架构与治理
+### 10 架构
 
 | 文档 | 关系 |
 | --- | --- |
 | [工程拓扑](architecture/TOPOLOGY.zh.md) | 架构文档的顶层结构 |
 | [架构总览](ARCHITECTURE.md) | 拓扑的运行时解释：边界、职责、数据归属 |
-| [工程规范](ENGINEERING_RULES.md) | 约束研发、评审与门禁 |
-| [门禁注册表](GATE_REGISTRY.md) | 工程规范的可执行检查清单 |
+| [API 文档](architecture/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
+| [协议说明](architecture/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
+| [ADR 0007](architecture/adr/0007-version-named-exceptions.md) | 已撤回的 version 字段名决策 |
 
 ### 20 部署与运行
 
@@ -92,7 +102,7 @@ im-saas 文档
 | [本地部署](deployment/LOCAL.md) | 三种本地方式的统一入口 |
 | [Docker Compose](deployment/DOCKER.md) | 日常联调 |
 | [Kubernetes 清单](../k8s/README.md) | Kind / ACK 资源与镜像 |
-| [发布手册](RELEASE_RUNBOOK.md) | 发布、回滚、版本追溯 |
+| [发布手册](operations/RELEASE_RUNBOOK.md) | 发布、回滚、版本追溯 |
 | [本地部署索引](deployment/README.md) | 部署文档的上级目录 |
 
 ### 30 服务与业务
@@ -132,6 +142,8 @@ im-saas 文档
 | [20 Maven 工程规范](standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | 构建与依赖 |
 | [21 持久层标准](standards/21_PERSISTENCE_STACK.md) | 数据访问 |
 | [22 技术栈版本矩阵](standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | 版本基线 |
+| [数据库迁移标准](standards/DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
+| [MQ 台账](architecture/mq/REGISTRY.md) | Topic / 事件登记 |
 | [40 可观测性规范](standards/40_OBSERVABILITY_CONVENTIONS.md) | 日志、指标、追踪 |
 | [43 E2E 测试规范](standards/43_E2E_TESTING_CONVENTIONS.md) | 验收与冒烟 |
 

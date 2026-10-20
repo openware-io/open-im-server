@@ -37,7 +37,7 @@
 | MySQL、MyBatis-Plus、Flyway | [21 持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md) | 权威库、持久化技术栈和迁移资源所有权 |
 | 编码与批量编辑 | [30 文本编码与批量改写规范](../../standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8 无 BOM、批量改动控制和乱码防护 |
 | 日志与诊断 | [40 可观测性规范](../../standards/40_OBSERVABILITY_CONVENTIONS.md)、[41 Java 日志规范](../../standards/41_JAVA_LOGGING_CONVENTIONS.md) | 改造期间的日志、异常和诊断要求 |
-| 项目硬性规则 | [工程规则](../../ENGINEERING_RULES.md) | 编译、注释、弃用 API、编码和 IDE 诊断门禁 |
+| 项目硬性规则 | [工程规则](../../governance/ENGINEERING_RULES.md) | 编译、注释、弃用 API、编码和 IDE 诊断门禁 |
 
 ## 4. 当前基线
 

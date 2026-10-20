@@ -149,20 +149,33 @@ docs/
 ├─ DOCUMENTATION_AUDIT.md / .en.md
 ├─ architecture/
 │  ├─ TOPOLOGY.zh.md / TOPOLOGY.en.md
-│  └─ DECISIONS.md (ADR index)
+│  ├─ API_DOCUMENTATION.md
+│  ├─ PROTOCOL.md
+│  ├─ adr/
+│  ├─ mq/REGISTRY.md
+│  └─ contracts/ (when enabled)
 ├─ deployment/
-│  ├─ LOCAL.md
-│  ├─ DOCKER.md
-│  ├─ KUBERNETES.md
-│  └─ ENVIRONMENTS.md
+│  ├─ README.md / LOCAL.md / DOCKER.md / KUBERNETES.md
+├─ engineering/
+│  ├─ IDE_SETUP.md
+│  ├─ PUSH_SETUP.md
+│  └─ AI_COLLABORATION_PRINCIPLES.md
+├─ governance/
+│  ├─ ENGINEERING_RULES.md
+│  └─ GATE_REGISTRY.md
+├─ operations/
+│  └─ RELEASE_RUNBOOK.md
 ├─ services/
-│  ├─ edge/
-│  ├─ im/
-│  ├─ platform/
-│  └─ common/
+│  ├─ gateway/, im-*/, platform-*/, common-*/
 ├─ business/
+│  ├─ README.md
+│  └─ features/
 ├─ standards/
+│  ├─ 10–43 standards and English summaries
+│  └─ DATABASE_MIGRATION_STANDARD.md
 ├─ security/ + compliance/ + contracts/
+├─ introduction/
+├─ assets/
 └─ archive/
    ├─ README.md / README.en.md
    ├─ audits/
@@ -171,6 +184,8 @@ docs/
    ├─ superpowers/
    └─ release-notes/
 ```
+
+The top level keeps only entry points, architecture and documentation-governance notes; details live in their topic directories. Historical directories no longer sit beside current contracts.
 
 Only entry, architecture and governance docs remain at the top level. Details move into their domain directories. Historical directories no longer sit beside current ones.
 

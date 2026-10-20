@@ -6,7 +6,7 @@
 >
 > 最后核查：2026-07-31
 >
-> Maven 版本模型与依赖门禁以 [20 Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 和根 `pom.xml` 为准。
+> Maven 版本模型与依赖门禁以 [20 Maven 工程规范](../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 和根 `pom.xml` 为准。
 
 ## 模块职责
 
@@ -20,7 +20,7 @@
 - `gateway` 是独立可运行的接入服务，放在 `gateways/gateway`；它不需要空的 API 模块，也不得依赖业务服务实现。
 - 新服务必须以 `im-services/<domain>/<service>-api` 与 `im-services/<domain>/<service>-service`（或 `platform-services/`、`common-services/` 下同名结构）创建；仅在确实没有 Java 消费方时，API 模块可以暂不承载源码，但父 POM 和目录必须预留。
 - 每个业务域使用服务级 Maven 父 POM 聚合 API 与 Service。API 和 Service 都必须继承该父 POM，服务级父 POM再继承根 POM。
-- 根 `im-server` 的版本仅表达全仓构建基线（仅 `MAJOR` 变化）；平台库、各服务域、网关为独立版本单元，各自维护版本；跨端（后端/管理端/客户端）不再强制一致。具体所有权模型见 [20 Maven 工程规范](./standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 与 [Maven 版本治理实施记录](./archive/renovation/BUILD_GOVERNANCE_01_MAVEN.md)。
+- 根 `im-server` 的版本仅表达全仓构建基线（仅 `MAJOR` 变化）；平台库、各服务域、网关为独立版本单元，各自维护版本；跨端（后端/管理端/客户端）不再强制一致。具体所有权模型见 [20 Maven 工程规范](../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 与 [Maven 版本治理实施记录](../archive/renovation/BUILD_GOVERNANCE_01_MAVEN.md)。
 - API 叶子模块不得声明版本，一律继承服务域父 POM 版本；可部署 Service 叶子模块仅可声明 `<域基础版本>-SNAPSHOT`（`validate-maven-version-ownership.ps1` 校验其基础版本与域版本一致，正式构建恢复纯 SemVer）；网关作为独立部署单元显式维护自身版本。
 - 版本所有权由 `scripts/validate/validate-maven-version-ownership.ps1` 校验，并通过统一工程校验入口执行。
 
@@ -136,7 +136,7 @@ common-services/
 
 ## RocketMQ 生产规范
 
-- RocketMQ 资源命名、协议边界、可靠性、安全与变更门禁以 [12 RocketMQ 治理规范](./standards/12_ROCKETMQ_CONVENTIONS.md) 为准；已实现资源以 [MQ 资源台账](./mq/REGISTRY.md) 为唯一台账。
+- RocketMQ 资源命名、协议边界、可靠性、安全与变更门禁以 [12 RocketMQ 治理规范](../standards/12_ROCKETMQ_CONVENTIONS.md) 为准；已实现资源以 [MQ 资源台账](../architecture/mq/REGISTRY.md) 为唯一台账。
 - 当前阶段统一采用 Remoting 直连模式：
   - `org.apache.rocketmq:rocketmq-client:5.3.1`
 - 未来如引入 Proxy + gRPC，只能在 `infrastructure` 新增实现，不得修改业务层 Topic、Payload、Sharding Key 语义
@@ -155,7 +155,7 @@ common-services/
 - 运行时代码分三层四区：IM 业务（`im-services/`）、SaaS 业务（`platform-services/`）、集团层（`group-services/`）、通用支撑（`common-services/`，如媒体/审核/邮件/短信/支付）；公共 SDK 库放 `sdk/`（`common`/`infrastructure`/`protocol-mq`）。IM 与 SaaS **数据库独立、代码独立、独立部署、可独立销售**；公共工程规范、技术框架与公共依赖抽为公共结构共享，业务形态不耦合。
 - 单库不等于混用。表名统一使用“已登记领域缩写前缀 + 单数业务名词”；缩写的目的在于控制表名长度，但必须语义稳定、全局唯一，禁止按开发人员偏好临时创造。
 
-> 📐 **工程结构图**（仓库划分 · 构建单元 · 依赖方向 · 服务内分层）见 [工程架构图集](./business/ARCHITECTURE_DIAGRAMS.md) §三；**领域架构图**（域 → 表前缀 → 权威服务 → 库）见同文件 §二。
+> 📐 **工程结构图**（仓库划分 · 构建单元 · 依赖方向 · 服务内分层）见 [工程架构图集](../business/ARCHITECTURE_DIAGRAMS.md) §三；**领域架构图**（域 → 表前缀 → 权威服务 → 库）见同文件 §二。
 
 #### 命名空间分层与命名原则
 
@@ -166,7 +166,7 @@ common-services/
 > 工程文档三分（不得混写）：
 > 1. **通用规范**（`docs/standards/*`）——应当如何做，不含项目模块名与存量缺陷；
 > 2. **项目工程规则**（本文）——本工程启用哪些规范、前缀登记表、项目级例外；
-> 3. **工程详细文档 / 事实清单**（[项目事实清单](./business/PROJECT_FACTS_INVENTORY.md)）——**当前工程实际长什么样**，覆盖全部仓库，**需随工程演进时时维护**。
+> 3. **工程详细文档 / 事实清单**（[项目事实清单](../business/PROJECT_FACTS_INVENTORY.md)）——**当前工程实际长什么样**，覆盖全部仓库，**需随工程演进时时维护**。
 > 4. **改造方案与历史文档**（`docs/archive/renovation/*`）——从现状到目标的方案；**已实现的方案应维护进上述 1/3 类**，其余标注为历史文档。
 
 **分层**：业务线由**代码根与库名**承载；**表前缀只表达限界上下文（域）**。
@@ -182,7 +182,7 @@ common-services/
 
 **数据库命名**：库名与业务线一一对应——IM 业务线 `open_im`（变量 `IM_DATABASE`）、SaaS 业务线 `open_saas`（变量 `SAAS_DATABASE`）、审计域 `open_audit`（变量 `AUDIT_DATABASE`）、集团层 `open_group`（变量 `GROUP_DATABASE`）。**不得让某业务线的服务连到另一业务线的库**（跨域表须按原则 5 显式登记）。
 
-> 变更任一前缀、域边界或库名之前，先更新 [项目事实清单](./business/PROJECT_FACTS_INVENTORY.md) 的对应行，再改本表与 `scripts/validate/table-prefixes.txt`——**两处必须同改**（门禁 `validate-flyway-conventions.ps1` 分别校验"前缀已登记"与"已登记前缀必须出现在本表"）；移除前缀须**先删本表行、再删清单行**。
+> 变更任一前缀、域边界或库名之前，先更新 [项目事实清单](../business/PROJECT_FACTS_INVENTORY.md) 的对应行，再改本表与 `scripts/validate/table-prefixes.txt`——**两处必须同改**（门禁 `validate-flyway-conventions.ps1` 分别校验"前缀已登记"与"已登记前缀必须出现在本表"）；移除前缀须**先删本表行、再删清单行**。
 
 ### 领域与数据库表前缀登记表
 
@@ -272,5 +272,5 @@ common-services/
 - 构建与验证使用 `scripts/validate/invoke-engineering-validation.ps1`；该入口通过 Maven Wrapper 串行执行 Maven 并持久化日志。
 - 禁止通过 `> xxx.log`、`2>&1` 等方式把临时日志直接写到仓库根目录
 - 临时调试日志如需保留，必须按“日期 + 任务名”落到 `.outputs/logs/debug/`
-- 详细目录约定见 [42 日志输出与诊断规范](./standards/42_LOGGING_AND_OUTPUTS.md)
-- 编码与批量改写规范见 [30 文本编码与批量改写规范](./standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- 详细目录约定见 [42 日志输出与诊断规范](../standards/42_LOGGING_AND_OUTPUTS.md)
+- 编码与批量改写规范见 [30 文本编码与批量改写规范](../standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)

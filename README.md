@@ -202,12 +202,12 @@ im-saas 文档
 │  ├─ 架构总览（./docs/ARCHITECTURE.md）
 │  ├─ 文档整理与归档方案（./docs/DOCUMENTATION_ORGANIZATION.md）
 │  ├─ 文档审计（./docs/DOCUMENTATION_AUDIT.md）
-│  ├─ 工程规范（./docs/ENGINEERING_RULES.md）
-│  └─ 门禁注册表（./docs/GATE_REGISTRY.md）
+│  ├─ 工程规范（./docs/governance/ENGINEERING_RULES.md）
+│  └─ 门禁注册表（./docs/governance/GATE_REGISTRY.md）
 ├─ 部署与运行
 │  ├─ 本地部署（./docs/deployment/LOCAL.md）
 │  ├─ 部署索引（./docs/deployment/README.md）
-│  └─ 发布手册（./docs/RELEASE_RUNBOOK.md）
+│  └─ 发布手册（./docs/operations/RELEASE_RUNBOOK.md）
 ├─ 服务
 │  ├─ 接入层：Gateway / im-access-ws
 │  ├─ IM 域：user / message / conversation / admin
@@ -238,6 +238,7 @@ im-saas 文档
 - [20 Maven 工程规范](./docs/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
 - [21 持久层技术栈标准](./docs/standards/21_PERSISTENCE_STACK.md)
 - [22 技术栈版本矩阵](./docs/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
+- [数据库迁移标准](./docs/standards/DATABASE_MIGRATION_STANDARD.md)
 - [30 文本编码与批量改写规范](./docs/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
 - [40 可观测性规范](./docs/standards/40_OBSERVABILITY_CONVENTIONS.md)
 - [41 Java 日志规范](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)

@@ -1,6 +1,6 @@
 # 频道域服务端设计（CHANNEL_01_SERVICE）
 
-> 文档定位：`im-conversation-service` 频道（Channel）域的工程沉淀文档，供后续开发与维护对齐。频道属"单向广播"会话空间，产品语义见 [会话空间与隐私边界](../business/CONVERSATION_TYPES_AND_PRIVACY.md)；实现遵守 [10 DDD 服务工程规范](../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [ENGINEERING_RULES](../ENGINEERING_RULES.md)。
+> 文档定位：`im-conversation-service` 频道（Channel）域的工程沉淀文档，供后续开发与维护对齐。频道属"单向广播"会话空间，产品语义见 [会话空间与隐私边界](../CONVERSATION_TYPES_AND_PRIVACY.md)；实现遵守 [10 DDD 服务工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [ENGINEERING_RULES](../../governance/ENGINEERING_RULES.md)。
 
 ## 1. 领域语义
 
@@ -29,7 +29,7 @@
 ## 5. 数据模型（Flyway）
 
 - 基线 `V1__conversation_baseline.sql` 建 `conversation_channel` 与 `conversation_channel_subscription`（批次 2 已把原 `V1~V16` 合并为单一 V1）。
-- 该基线同时完成表名规范化（`channel`→`conversation_channel` 等）、审计字段（`created_by/updated_by`）与 `bigint unsigned` 主键，对齐工程数据库规范（[21 持久化栈](../standards/21_PERSISTENCE_STACK.md)）。
+- 该基线同时完成表名规范化（`channel`→`conversation_channel` 等）、审计字段（`created_by/updated_by`）与 `bigint unsigned` 主键，对齐工程数据库规范（[21 持久化栈](../../standards/21_PERSISTENCE_STACK.md)）。
 
 ## 6. 接口契约
 

@@ -141,4 +141,4 @@
 | 关联 | [15_CLIENT_RELEASE_SKILL.md](15_CLIENT_RELEASE_SKILL.md) | 客户端发版操作手册；其验收步骤引用本规范的真实设备要求 |
 | 引用 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 验证过程与结果的日志、指标与脱敏共同原则 |
 | 引用 | [42_LOGGING_AND_OUTPUTS.md](42_LOGGING_AND_OUTPUTS.md) | 验证报告与诊断产物的落盘目录约定 |
-| 引用 | [ENGINEERING_RULES.md](../ENGINEERING_RULES.md) | 统一工程校验入口（`-Scope Full`）与项目级启用方式 |
+| 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口（`-Scope Full`）与项目级启用方式 |

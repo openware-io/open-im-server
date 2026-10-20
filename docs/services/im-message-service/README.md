@@ -18,7 +18,7 @@
 - 提供消息历史、搜索、离线消息、已读回执、撤回与清空会话等查询管理接口
 - 频道消息游标拉取（`/messages/channel/{channelId}?afterSeq=&limit=`，订阅校验后按会话内序号递增返回）
 - 私密消息密文存储（`/secret-messages/**`：仅存密文与元数据，服务端不解密；游标拉取供参与设备同步）
-- 私密消息定时销毁引擎（已读后计时 + 周期扫描，见 [私密聊天与 E2EE 服务端设计](../../features/SECRET_CHAT_01_E2EE.md)）
+- 私密消息定时销毁引擎（已读后计时 + 周期扫描，见 [私密聊天与 E2EE 服务端设计](../../business/features/SECRET_CHAT_01_E2EE.md)）
 
 ## 当前接口
 
@@ -33,7 +33,7 @@
 - 使用 Producer Group `im-message-service-producer` 发布 `im_message_event_stored_v1`；运行配置变量为 `IM_MESSAGE_SERVICE_MQ_PRODUCER_GROUP`
 - 使用 Consumer Group `im-message-service-write-command-consumer` 消费 `im_message_command_send_v1`，以 `conversationId` 保证会话顺序、以 `commandId` 实现幂等
 - 权威消息写入与 `msg_outbox` 记录在同一事务提交，由 Outbox Relay 发布事件；重复投递、重试和 DLQ 处理必须保持 `eventId` 幂等
-- 启用 MQ ACL 时，Remoting 客户端必须配置 `AclClientRPCHook`；资源定义和变更规则见 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md) 与 [MQ 资源台账](../../mq/REGISTRY.md)
+- 启用 MQ ACL 时，Remoting 客户端必须配置 `AclClientRPCHook`；资源定义和变更规则见 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md) 与 [MQ 资源台账](../../architecture/mq/REGISTRY.md)
 - 管理端消息治理接口已迁入 `im-admin-service`
 - 群与会话元数据不在该服务承载，由 `im-conversation-service` 负责
 

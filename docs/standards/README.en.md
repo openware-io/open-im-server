@@ -16,6 +16,8 @@
 | 16 | [Currency conventions](16_CURRENCY_CONVENTIONS.md) | Minor units, dictionaries, display and settlement snapshots |
 | 20 | [Maven conventions](20_MAVEN_ENGINEERING_CONVENTIONS.md) | Modules, dependencies, builds and versions |
 | 21 | [Persistence stack](21_PERSISTENCE_STACK.md) | MyBatis-Plus, Flyway and data-access boundaries |
+| — | [Database migration](DATABASE_MIGRATION_STANDARD.en.md) | Flyway naming, immutable migrations and validation |
+| — | [MQ registry](../architecture/mq/REGISTRY.md) | Topic/event registry |
 | 22 | [Technology stack matrix](22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | Java, Spring Boot, database and middleware versions |
 | 30 | [Text encoding and batch editing](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8, line endings, batch edits and validation |
 | 40 | [Observability conventions](40_OBSERVABILITY_CONVENTIONS.md) | Logs, metrics, traces and alerts |
