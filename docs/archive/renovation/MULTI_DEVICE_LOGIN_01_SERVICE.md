@@ -14,7 +14,7 @@
 | 方案集 | `MULTI_DEVICE_LOGIN` |
 | 顺序号 | `01` |
 | 实施边界 | `SERVICE`（服务端会话/设备/扫码授权） |
-| 前置方案 | [架构总览](../../ARCHITECTURE.md)、IM 账号域（`im-user-service`） |
+| 前置方案 | [架构总览](../../architecture/OVERVIEW.md)、IM 账号域（`im-user-service`） |
 | 后置方案 | `MULTI_DEVICE_LOGIN_02_APP`（手机/桌面端交互与扫码页）、`MULTI_DEVICE_LOGIN_03_TEST`（多端联调与验收） |
 | 目标工程 | `im-user-service`（会话/设备/扫码）、`im-access-ws`（长连接路由）、`gateway`（鉴权） |
 

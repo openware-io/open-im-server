@@ -941,7 +941,7 @@ CAS 方法同时接收 `operatorId` 与 `occurredAt`。这不是扩大范围，�
 
 ### 8.28 门禁注册表与编号（2026-10-18）
 
-- 新增 [GATE_REGISTRY.md](../../governance/GATE_REGISTRY.md)：35 个门禁按 G01–G35 编号，
+- 新增 [GATE_REGISTRY.md](../../development/governance/GATE_REGISTRY.md)：35 个门禁按 G01–G35 编号，
   记录门禁名、脚本、模式（blocking/report-only）与说明。
 - 编号是**稳定注册 ID**，不是文件名前缀；不改 32 个既有脚本名，避免破坏 invoke、文档链接和历史记录。
 - 新增 `validate-gate-registry.ps1` 元门禁：校验“脚本文件、注册表、invoke 列表、

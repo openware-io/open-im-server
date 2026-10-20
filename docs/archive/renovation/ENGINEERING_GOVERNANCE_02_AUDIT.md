@@ -5,7 +5,7 @@
 
 # im-saas 工程规范一致性审查报告
 
-> 方案集：`ENGINEERING_GOVERNANCE`；序号：`02`；前置：[01 工程规范一致性治理计划](./ENGINEERING_GOVERNANCE_01_CONFORMANCE.md)；后置：[03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md)
+> 方案集：`ENGINEERING_GOVERNANCE`；序号：`02`；前置：[01 工程规范一致性治理计划](ENGINEERING_GOVERNANCE_01_CONFORMANCE.md)；后置：[03 整改方案](ENGINEERING_GOVERNANCE_03_REMEDIATION.md)
 > 审查日期：2026-10-12
 > 审查范围：`open-im-server`、`open-chat-app`、`open-chat-admin`、`open-chat-desktop`、`open-chat-turn`、`open-saas-admin`、`open-saas-mobile`、`open-website`
 > 排除范围：`open-green-pass`（测试治理平台，按要求不纳入）

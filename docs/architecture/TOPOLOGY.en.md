@@ -161,9 +161,9 @@ im-admin-service
 
 ## 7. Related documents
 
-- [Architecture overview](../ARCHITECTURE.en.md)
+- [Architecture overview](OVERVIEW.en.md)
 - [Documentation center](../README.en.md)
-- [Documentation audit](../DOCUMENTATION_AUDIT.en.md)
+- [Documentation audit](../archive/audits/DOCUMENTATION_AUDIT.en.md)
 - [Local deployment](../deployment/LOCAL.md)
 - [Service-board integration](../archive/renovation/IM_OPEN_PLATFORM_04_SERVICE.md)
-- [Gateway service](../services/gateway/README.md)
+- [Gateway service](../services/edge/gateway/README.md)

@@ -9,7 +9,7 @@
 
 ## 1. 设计约束
 
-本文是 `SAAS_PLATFORM_02_SERVICE` 的表级实施基线。字段命名以数据库 `snake_case` 为准，Java 使用 `camelCase`。本文件遵循 [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[工程规范](../../governance/ENGINEERING_RULES.md) 和[持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)。
+本文是 `SAAS_PLATFORM_02_SERVICE` 的表级实施基线。字段命名以数据库 `snake_case` 为准，Java 使用 `camelCase`。本文件遵循 [业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[工程规范](../../development/governance/ENGINEERING_RULES.md) 和[持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md)。
 
 > **IM 与 SaaS 数据库独立**：本文只描述 SaaS 产品数据库；IM 产品数据库（现有 `gv_im`）独立演进。SaaS 内部多租户采用共享库 + 行级租户隔离（不为每个租户建独立库）。现有 `ord_` 预约数据随账号归属从 IM 库迁至 SaaS 库（见 `SAAS_PLATFORM_07_EXECUTION` E0）。
 
@@ -38,7 +38,7 @@
 | marketing | `mkt_` | 活动、优惠券、发放、同意、触达任务 |
 | each domain | `*_outbox` | 本服务事务 Outbox |
 
-`ord_` 是既有订单迁移方案已经冻结的兼容前缀；不得将其复制到新域。领域与表前缀的权威登记见 [工程规范中的登记表](../../governance/ENGINEERING_RULES.md#领域与数据库表前缀登记表)，不得再创建同义前缀；既有库表不因本次规范统一而重命名。未来新增领域，须先在该登记表及其领域设计中补充前缀，再创建 Flyway 表。
+`ord_` 是既有订单迁移方案已经冻结的兼容前缀；不得将其复制到新域。领域与表前缀的权威登记见 [工程规范中的登记表](../../development/governance/ENGINEERING_RULES.md#领域与数据库表前缀登记表)，不得再创建同义前缀；既有库表不因本次规范统一而重命名。未来新增领域，须先在该登记表及其领域设计中补充前缀，再创建 Flyway 表。
 
 ## 3. 租户与授权表
 

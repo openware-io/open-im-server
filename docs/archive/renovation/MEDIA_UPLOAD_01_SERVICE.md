@@ -7,7 +7,7 @@
 
 > 方案集：`MEDIA_UPLOAD`；顺序：01；后续：[App](MEDIA_UPLOAD_02_APP.md)、[PC 管理后台](MEDIA_UPLOAD_03_ADMIN.md)。
 >
-> 长期规则：[平台媒体对象与私有访问工程规范](../../standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。
+> 长期规则：[平台媒体对象与私有访问工程规范](../../development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。
 
 ## 目标与边界
 

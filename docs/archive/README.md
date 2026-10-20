@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > 状态：`current`（Phase 2：94 份历史文档已归档）  
-> 规则来源：[文档整理与归档方案](../DOCUMENTATION_ORGANIZATION.md)  
+> 规则来源：[文档整理与归档方案](../development/governance/DOCUMENTATION_ORGANIZATION.md)
 > 原则：先登记、后移动；保留原文，不把历史文档改写为现行契约。
 
 ## 0. 处置清单

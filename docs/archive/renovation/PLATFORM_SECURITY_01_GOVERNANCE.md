@@ -11,10 +11,10 @@
 
 本文不修改下列规范，只定义整改目标、实施顺序、兼容策略、验收证据与回滚边界：
 
-1. [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)。
-2. [持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)。
-3. [Java 日志规范](../../standards/41_JAVA_LOGGING_CONVENTIONS.md)。
-4. [RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)。
+1. [业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)。
+2. [持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md)。
+3. [Java 日志规范](../../development/standards/41_JAVA_LOGGING_CONVENTIONS.md)。
+4. [RocketMQ 治理规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md)。
 
 未经评审确认，不执行本文涉及的密钥轮换、数据库迁移、内部协议、消息写入链路或发布门禁变更。
 

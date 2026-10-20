@@ -7,7 +7,7 @@
 
 ## 1. 文档定位
 
-本文是 `im-user` 域从当前实现迁移至既定工程规范的项目专用改造方案，不是通用规范，不修改 [10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 的定义。
+本文是 `im-user` 域从当前实现迁移至既定工程规范的项目专用改造方案，不是通用规范，不修改 [10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 的定义。
 
 本文定义评估结论、目标状态、实施前置条件、迁移批次、兼容边界、验证和回滚策略，并记录实际实施状态。
 
@@ -32,12 +32,12 @@
 
 | 主题 | 采用标准 | 本方案中的作用 |
 | --- | --- | --- |
-| DDD 分层、对象隔离、服务域边界 | [10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 目标包结构、依赖方向、Repository 契约、对象转换和测试分层 |
-| Maven 聚合、依赖与发布 | [20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | API/Service 模块、局部 Reactor、依赖 scope、构建与发布验证 |
-| MySQL、MyBatis-Plus、Flyway | [21 持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md) | 权威库、持久化技术栈和迁移资源所有权 |
-| 编码与批量编辑 | [30 文本编码与批量改写规范](../../standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8 无 BOM、批量改动控制和乱码防护 |
-| 日志与诊断 | [40 可观测性规范](../../standards/40_OBSERVABILITY_CONVENTIONS.md)、[41 Java 日志规范](../../standards/41_JAVA_LOGGING_CONVENTIONS.md) | 改造期间的日志、异常和诊断要求 |
-| 项目硬性规则 | [工程规则](../../governance/ENGINEERING_RULES.md) | 编译、注释、弃用 API、编码和 IDE 诊断门禁 |
+| DDD 分层、对象隔离、服务域边界 | [10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 目标包结构、依赖方向、Repository 契约、对象转换和测试分层 |
+| Maven 聚合、依赖与发布 | [20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | API/Service 模块、局部 Reactor、依赖 scope、构建与发布验证 |
+| MySQL、MyBatis-Plus、Flyway | [21 持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md) | 权威库、持久化技术栈和迁移资源所有权 |
+| 编码与批量编辑 | [30 文本编码与批量改写规范](../../development/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8 无 BOM、批量改动控制和乱码防护 |
+| 日志与诊断 | [40 可观测性规范](../../development/standards/40_OBSERVABILITY_CONVENTIONS.md)、[41 Java 日志规范](../../development/standards/41_JAVA_LOGGING_CONVENTIONS.md) | 改造期间的日志、异常和诊断要求 |
+| 项目硬性规则 | [工程规则](../../development/governance/ENGINEERING_RULES.md) | 编译、注释、弃用 API、编码和 IDE 诊断门禁 |
 
 ## 4. 当前基线
 
@@ -48,7 +48,7 @@
 | 服务域聚合 | [user 域父 POM](../../../im-services/user/pom.xml) 只聚合 `im-user-api` 与 `im-user-service` | 符合服务域局部 Reactor，保留 |
 | API 与部署制品 | [API POM](../../../im-services/user/im-user-api/pom.xml) 与 [Service POM](../../../im-services/user/im-user-service/pom.xml) 均继承 user 域父 POM | 符合同域版本与父继承边界，保留 |
 | 持久化与迁移归属 | [Service POM](../../../im-services/user/im-user-service/pom.xml) 声明 MySQL、MyBatis-Plus、Flyway；迁移由 Service 资源目录持有 | 符合权威数据服务职责，保留 |
-| 服务职责 | [服务说明](../../services/im-user-service/README.md) 已列出账户、用户资料、设备令牌、关系链、积分和贴纸 | 作为一个用户域内的子域集合保留，暂不拆服务 |
+| 服务职责 | [服务说明](../../services/im/im-user-service/README.md) 已列出账户、用户资料、设备令牌、关系链、积分和贴纸 | 作为一个用户域内的子域集合保留，暂不拆服务 |
 
 ### 4.2 已确认的规范偏差
 
@@ -204,7 +204,7 @@ MyBatis PO / Mapper / Repository Adapter / Redis / MQ / Security ---------- infr
 
 #### 兼容要求
 
-- 保持事件名称、版本、幂等键、顺序键和消费者可见 Payload 语义；遵循 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)。
+- 保持事件名称、版本、幂等键、顺序键和消费者可见 Payload 语义；遵循 [12 RocketMQ 治理规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md)。
 - 聚合收集领域事件，应用层在同一事务内保存聚合与 Outbox；`infra.messaging` 负责异步投递。
 
 #### 验收
@@ -265,7 +265,7 @@ MyBatis PO / Mapper / Repository Adapter / Redis / MQ / Security ---------- infr
 1. 先补齐第 5 节的规范缺口或批准限时例外。
 2. 执行批次 0 的行为基线和门禁建设。
 3. 按批次 1 至 3 的单一垂直切片推进；任一批次未通过验收不得并行扩大范围。
-4. 完成批次 4 后，更新 [服务说明](../../services/im-user-service/README.md)、运行手册、测试证据和本方案的实际完成状态。
+4. 完成批次 4 后，更新 [服务说明](../../services/im/im-user-service/README.md)、运行手册、测试证据和本方案的实际完成状态。
 
 本方案完成不以“包名已迁移”定义，而以以下事实定义：领域层不含框架和中间件依赖；Controller 不暴露领域对象；持久化模型只存在于 `infra`；同一行为的接口、数据和事件契约已验证兼容；所有约定门禁与构建验证均通过。
 

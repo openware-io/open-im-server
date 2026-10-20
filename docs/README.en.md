@@ -2,190 +2,137 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs  
-> Current stage: developing on `develop/2.3.0` (latest stage tag `2.2.1`)  
-> Language policy: top-level engineering and delivery docs are bilingual; historical audit/renovation records stay Chinese-only and are marked as historical.
+> Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs.
+> Stage: `develop/2.3.0` in development (latest stage tag `2.2.1`).
+> Language: top-level engineering and delivery docs are bilingual; historical audits/renovation stay Chinese-only with archive metadata.
 
-## 1. Documentation hierarchy
+## 1. Structure
 
 ```text
-im-saas docs
-├─ 00 Getting started
-│  ├─ One-click deployment
-│  └─ Entry points and account rules
-├─ 01 Product introduction
-│  ├─ Positioning and capability matrix
-│  └─ Product screenshots
-├─ 05 Documentation governance
-│  ├─ Organization and archival plan
-│  ├─ Documentation audit (findings and plan)
-│  ├─ Engineering rules / gates / IDE / collaboration
-│  └─ Archive index
-├─ 10 Architecture
-│  ├─ Engineering topology (repo / deployment / service / data)
-│  ├─ Architecture overview (runtime boundaries and ownership)
-│  ├─ API docs / protocol / ADR
-│  ├─ MQ registry (topic/event registration)
-│  └─ Contracts
-├─ 20 Deployment and operations
-│  ├─ Local deployment
-│  ├─ Docker Compose
-│  ├─ Kubernetes / Kind
-│  └─ Release runbook
-├─ 30 Services
-│  ├─ Edge (gateway / im-access-ws)
-│  ├─ IM domain
-│  ├─ SaaS platform
-│  └─ Shared capabilities
-├─ 40 Business
-│  ├─ Conversation, privacy, KTV and order semantics
-│  └─ Feature topics
-├─ 50 Standards
-│  ├─ DDD, RocketMQ, media, release, currency, logging and testing
-│  └─ Database migration
-└─ 90 Historical
-   ├─ renovation
-   ├─ superpowers
-   └─ audit snapshots
+docs/
+├─ README.md / README.en.md
+├─ getting-started/        # five-minute start
+├─ product/                # positioning, capabilities, screenshots
+├─ architecture/           # topology, overview, ADRs
+├─ reference/              # API, protocol, MQ registry, OpenAPI contracts
+├─ domain/                 # domain semantics, business rules, feature topics
+├─ services/               # service docs: edge / im / platform / common
+├─ deployment/             # local, Docker, K8s, push configuration
+├─ operations/             # release, upgrade, rollback, operations
+├─ development/            # contributor entry
+│  ├─ standards/           # enforced engineering standards
+│  ├─ governance/          # rules, gates, documentation governance
+│  ├─ tooling/             # IDE and developer tooling
+│  └─ contributing/        # contribution workflow
+├─ security/               # security design, sensitive data, deferred findings
+├─ compliance/             # compliance and remediation
+├─ assets/                 # screenshots, diagrams, brand assets
+└─ archive/                # historical context only
 ```
 
 ## 2. Reading paths
 
 | Goal | Order |
 | --- | --- |
-| First run | Product introduction → one-click deployment → entry points/accounts → engineering topology |
-| Understand the system | Engineering topology → architecture overview → service docs |
-| Local development | Local deployment → service docs → engineering rules |
-| Release | Release runbook → deployment docs → E2E conventions |
-| Historical context | Documentation audit → renovation/audit (background only, not current contracts) |
+| First run | Product → getting started → one-click deployment → accounts |
+| Understand the system | Architecture overview → topology → service docs |
+| Extend the system | Domain docs → service docs → engineering standards |
+| Deploy and operate | Local deployment → Docker/K8s → release runbook |
+| Contribute | Contributing → gate registry → DDD conventions |
+| Historical context | Archive index → renovation / audits (background only) |
 
-## 3. Index by layer
+## 3. Index
 
-### 00 Getting started
-
-| Document | Relationship |
-| --- | --- |
-| [One-click deployment](../README.en.md#one-click-deployment-recommended) | Start here: requirements, Kind deployment, entries and verification |
-
-### 01 Product introduction
+### Start and product
 
 | Document | Relationship |
 | --- | --- |
-| [OpenChat product introduction](introduction/README.en.md) | Positioning, product surfaces, capability matrix, audience and quick start |
+| [Getting started](getting-started/README.en.md) | Shortest path to a running system |
+| [One-click deployment](../README.en.md#one-click-deployment-recommended) | Requirements, Kind deployment, entry points |
+| [Product introduction](product/README.en.md) | Positioning, screens, capabilities, audience |
 
-### 05 Documentation governance
-
-| Document | Relationship |
-| --- | --- |
-| [Organization and archival plan](DOCUMENTATION_ORGANIZATION.en.md) | Global classification, actions, archival rules and execution order |
-| [Documentation audit](DOCUMENTATION_AUDIT.en.md) | Current findings, priorities and phased plan |
-| [Engineering rules](governance/ENGINEERING_RULES.md) | Development, review and gate rules |
-| [Gate registry](governance/GATE_REGISTRY.md) | Executable checks |
-| [IDE setup](engineering/IDE_SETUP.md) | VS Code / Trae diagnostics and JDK config |
-| [AI collaboration](engineering/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
-| [Archive index](archive/README.en.md) | Registration, metadata and move checklist for historical docs |
-
-### 10 Architecture
+### Architecture and reference
 
 | Document | Relationship |
 | --- | --- |
-| [Engineering topology](architecture/TOPOLOGY.en.md) | Top-level structure |
-| [Architecture overview](ARCHITECTURE.en.md) | Runtime boundaries, ownership and data |
-| [API docs](architecture/API_DOCUMENTATION.md) | Gateway Swagger/OpenAPI entry |
-| [Protocol](architecture/PROTOCOL.md) | WebSocket events and REST conventions |
+| [Architecture overview](architecture/OVERVIEW.en.md) | Runtime boundaries, ownership, data |
+| [Engineering topology](architecture/TOPOLOGY.en.md) | Repo / deployment / service / data |
+| [API documentation](reference/API_DOCUMENTATION.md) | Gateway Swagger/OpenAPI entry |
+| [Protocol](reference/PROTOCOL.md) | WebSocket events and REST conventions |
+| [OpenAPI contracts](reference/contracts/README.md) | External and cross-service contracts |
+| [MQ registry](reference/mq/REGISTRY.md) | Topic/event registry |
 | [ADR 0007](architecture/adr/0007-version-named-exceptions.md) | Withdrawn version-field decision |
 
-### 20 Deployment and operations
+### Domain and services
 
 | Document | Relationship |
 | --- | --- |
-| [Local deployment](deployment/LOCAL.md) | Shared entry for local modes |
+| [Domain docs](domain/README.en.md) | Conversation, privacy, KTV and order semantics |
+| [Service catalog](services/README.en.md) | Runtime services and layers |
+| [Edge services](services/edge/README.en.md) | gateway / im-access-ws |
+| [IM services](services/im/README.en.md) | user, message, conversation, admin |
+| [SaaS platform services](services/platform/README.en.md) | admin BFF, identity, tenant, customer, resource, marketing |
+| [Shared capabilities](services/common/README.en.md) | media, audit, payment, payment channel, SMS |
+
+### Delivery and operations
+
+| Document | Relationship |
+| --- | --- |
+| [Local deployment](deployment/LOCAL.md) | Unified entry for local modes |
 | [Docker Compose](deployment/DOCKER.md) | Daily integration |
-| [Kubernetes manifests](../k8s/README.md) | Kind/ACK resources and images |
-| [Release runbook](operations/RELEASE_RUNBOOK.md) | Release, rollback and traceability |
-| [Deployment index](deployment/README.md) | Parent index for deployment docs |
+| [Kubernetes manifests](../k8s/README.md) | Kind / ACK resources and images |
+| [Push setup](deployment/PUSH_SETUP.md) | Push channels and environment setup |
+| [Release runbook](operations/RELEASE_RUNBOOK.md) | Release, rollback, traceability |
 
-### 30 Services and business
-
-| Document | Relationship |
-| --- | --- |
-| [Services](services/README.en.md) | Runtime service directory by layer |
-| [Gateway](services/gateway/README.md) | Edge entry |
-| [IM user service](services/im-user-service/README.md) | IM domain |
-| [IM message service](services/im-message-service/README.md) | IM domain |
-| [IM conversation service](services/im-conversation-service/README.md) | IM domain |
-| [IM admin service](services/im-admin-service/README.md) | IM domain |
-| [Platform admin BFF](services/platform-admin-service/README.md) | SaaS platform |
-| [Platform identity](services/platform-identity-service/README.md) | SaaS platform |
-| [Tenant service](services/platform-tenant-service/README.md) | SaaS platform |
-| [Customer service](services/platform-customer-service/README.md) | SaaS platform |
-| [Resource service](services/platform-resource-service/README.md) | SaaS platform |
-| [Marketing service](services/platform-marketing-service/README.md) | SaaS platform |
-| [Media support](services/common-media-service/README.md) | Shared capabilities |
-| [Audit service](services/common-audit-service/README.md) | Shared capabilities |
-| [Payment service](services/common-payment-service/README.md) | Shared capabilities |
-| [Payment channel](services/common-payment-channel-service/README.md) | Shared capabilities |
-| [SMS service](services/common-sms-service/README.md) | Shared capabilities |
-| [Business docs](business/README.en.md) | Business semantics above service docs |
-
-### 50 Standards
+### Contributor docs
 
 | Document | Relationship |
 | --- | --- |
-| [Standards index](standards/README.en.md) | Standards umbrella and index |
-| [10 DDD service conventions](standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | Service implementation |
-| [12 RocketMQ conventions](standards/12_ROCKETMQ_CONVENTIONS.md) | Messaging and events |
-| [13 Platform media conventions](standards/13_PLATFORM_MEDIA_CONVENTIONS.md) | Media and object storage |
-| [14 Client release governance](standards/14_CLIENT_RELEASE_GOVERNANCE.md) | Client versions |
-| [15 Client release skill](standards/15_CLIENT_RELEASE_SKILL.md) | Release operations |
-| [16 Currency conventions](standards/16_CURRENCY_CONVENTIONS.md) | Money, tokens and display |
-| [20 Maven conventions](standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | Build and dependencies |
-| [21 Persistence stack](standards/21_PERSISTENCE_STACK.md) | Data access |
-| [22 Technology stack matrix](standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md) | Version baseline |
-| [Database migration](standards/DATABASE_MIGRATION_STANDARD.md) | Flyway and data migration |
-| [MQ registry](architecture/mq/REGISTRY.md) | Topic/event registry |
-| [40 Observability](standards/40_OBSERVABILITY_CONVENTIONS.md) | Logs, metrics and traces |
-| [43 E2E testing](standards/43_E2E_TESTING_CONVENTIONS.md) | Acceptance and smoke tests |
+| [Contributing](development/contributing/README.en.md) | Pre-commit checks and workflow |
+| [Engineering rules](development/governance/ENGINEERING_RULES.md) | Development, review and gates |
+| [Gate registry](development/governance/GATE_REGISTRY.md) | Executable checks |
+| [IDE setup](development/tooling/IDE_SETUP.md) | VS Code / Trae diagnostics and JDK config |
+| [AI collaboration](development/governance/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
+| [Documentation organization](development/governance/DOCUMENTATION_ORGANIZATION.en.md) | Classification and archive rules |
+| [Standards index](development/standards/README.en.md) | DDD, RocketMQ, media, release, currency, logging, testing |
+| [Database migration](development/standards/DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
 
-### 90 Historical archive
+### Security and compliance
 
 | Document | Relationship |
 | --- | --- |
-| [renovation](archive/renovation/) | Transformation history; background only |
-| [superpowers](archive/superpowers/) | Design and plan snapshots (archived) |
-| [Historical audit](archive/audits/2026-09-17/audit-2026-09-17-exceptions-and-i18n.md) | 2026-09-17 audit snapshot (archived) |
+| [Security](security/) | Sensitive data protection and deferred findings |
+| [Compliance](compliance/) | China compliance and P0 remediation |
+| [Documentation audit](archive/audits/DOCUMENTATION_AUDIT.en.md) | Historical audit snapshot |
+
+### Archive
+
+| Document | Relationship |
+| --- | --- |
+| [Archive index](archive/README.en.md) | Registration, metadata and move checklist |
+| [renovation](archive/renovation/) | Change history; background only |
+| [superpowers](archive/superpowers/) | Design and plan snapshots |
 
 ## 4. Language and status
 
-- **Current docs**: `*.md` is Chinese, the paired `*.en.md` is English; each file starts with a language switch.
-- **Historical docs**: keep the original Chinese, mark them historical/archived, and do not require an English pair.
-- **Status labels**: `current`, `draft`, `historical`, `superseded`; new docs must declare one.
-- **Single source of truth**: runtime routes come from `gateways/gateway/src/main/resources/application.yml`; tables come from Flyway migrations; this index only navigates and explains.
+- Current docs: `*.md` Chinese with `*.en.md` English, language switch at the top.
+- Historical docs: Chinese-only with archive metadata.
+- Status: `current`, `draft`, `historical`, `superseded`.
+- Sources of truth: gateway routes in `gateways/gateway/src/main/resources/application.yml`; tables in Flyway migrations.
 
-## 5. Current bilingual coverage
+## 5. Governance
 
-| Level | Chinese | English | Status |
-| --- | --- | --- | --- |
-| Documentation center | `docs/README.md` | `docs/README.en.md` | ✅ |
-| Engineering topology | `docs/architecture/TOPOLOGY.zh.md` | `docs/architecture/TOPOLOGY.en.md` | ✅ |
-| Architecture overview | `docs/ARCHITECTURE.md` | `docs/ARCHITECTURE.en.md` | ✅ |
-| Documentation audit | `docs/DOCUMENTATION_AUDIT.md` | `docs/DOCUMENTATION_AUDIT.en.md` | ✅ |
-| Repository READMEs | each `README.md` | `README.en.md` (7 product repos + this repo) | ✅ |
-| Services/business/standards | Chinese bodies | Per-doc English summaries (`README.en.md` / `*.en.md`) | ✅ |
-
-## 6. Documentation governance
-
-1. New top-level docs must include both Chinese and English versions with language links.
-2. Routes, service names and table names must be traceable to code or migrations.
-3. Historical docs are not rewritten as current facts; add a `superseded-by` note when conclusions change.
-4. Legacy names (A380, WV Chat, etc.) are allowed only in historical/archived docs; current docs must use OpenChat.
-5. Documentation changes must pass link validation; topology, routing or data-ownership changes must update this index and the topology doc.
-6. Run before committing:
+1. New top-level docs need Chinese and English versions with language switches.
+2. Routes, service names and tables must map to code or migrations.
+3. Historical docs are not rewritten as current facts; add `superseded-by` instead.
+4. Legacy names (A380, WV Chat) are archive-only; current docs use OpenChat.
+5. Documentation changes must pass link checks; topology/route/ownership changes also update this index.
+6. Before committing:
 
 ```powershell
-./scripts/validate/validate-documentation-links.ps1
-./scripts/validate/validate-documentation-governance.ps1
-./scripts/validate/validate-standards-governance.ps1
+.\scripts\validate\validate-documentation-links.ps1
+.\scripts\validate\validate-documentation-governance.ps1
+.\scripts\validate\validate-standards-governance.ps1
 ```
 
 CI runs the same checks in `.github/workflows/docs-governance.yml`.

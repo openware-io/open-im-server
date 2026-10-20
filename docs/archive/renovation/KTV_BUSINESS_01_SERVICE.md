@@ -20,7 +20,7 @@
 | 实施边界 | `SERVICE`（服务端业务细化） |
 | 前置方案 | [SAAS_PLATFORM_01_SERVICE](SAAS_PLATFORM_01_SERVICE.md)（KTV 首发决策、§3 决策总览、§6 统一交易/资金/履约、§17 完成标准）、[SAAS_PLATFORM_02_SERVICE](SAAS_PLATFORM_02_SERVICE.md)（§5.2 权限码、§7 KTV 履约）、[SAAS_PLATFORM_04_DATA](SAAS_PLATFORM_04_DATA.md)（`res_resource`/`ord_order`/`ord_order_item`/`ord_ktv_session`/`cst_wallet_*`/`cst_point_*` 字段）、[SAAS_PLATFORM_05_API](SAAS_PLATFORM_05_API.md)（§6 订单与 KTV 履约、§7 支付、§8 会员营销）、[SAAS_PLATFORM_06_TECHNICAL](SAAS_PLATFORM_06_TECHNICAL.md)（§4.3 计时计费、§7.2 优惠叠加、§7.3 储值）、[SAAS_PLATFORM_09_SERVICE](SAAS_PLATFORM_09_SERVICE.md)（§3.3 KtvSession 聚合、§3.5 会员/营销聚合）、[SAAS_PLATFORM_03_APP](SAAS_PLATFORM_03_APP.md)/[SAAS_PLATFORM_08_APP](SAAS_PLATFORM_08_APP.md)（B 端页面与角色） |
 | 后置方案 | [KTV_BUSINESS_02_APP](KTV_BUSINESS_02_APP.md)（B 端 KTV 页面/交互）、[KTV_BUSINESS_03_ADMIN](KTV_BUSINESS_03_ADMIN.md)（PC 后台配置：计价方案/服务人员/支付开关；储值为租户级「储值管理」页，见 §8）、[KTV_BUSINESS_04_TEST](KTV_BUSINESS_04_TEST.md)（自动化/联调/E2E） |
-| 工程依据 | [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)、[工程规范](../../governance/ENGINEERING_RULES.md) |
+| 工程依据 | [业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md)、[工程规范](../../development/governance/ENGINEERING_RULES.md) |
 
 ### 0.1 范围与一致性原则
 

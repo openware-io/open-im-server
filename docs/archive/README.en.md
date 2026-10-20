@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > Status: `current` (Phase 2: 94 historical documents archived)  
-> Rules: [Documentation Organization and Archival Plan](../DOCUMENTATION_ORGANIZATION.en.md)  
+> Rules: [Documentation Organization and Archival Plan](../development/governance/DOCUMENTATION_ORGANIZATION.en.md)
 > Principle: register first, move later; preserve the original and never rewrite history as a current contract.
 
 ## 0. Disposition manifest

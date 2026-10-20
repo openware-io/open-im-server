@@ -12,7 +12,7 @@
 - 实施边界：Flutter App
 - 前置方案：[MESSAGE_SYNC_01_SERVICE.md](MESSAGE_SYNC_01_SERVICE.md)
 - 后置方案：[MESSAGE_SYNC_03_TEST.md](MESSAGE_SYNC_03_TEST.md)
-- 适用标准：[10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
+- 适用标准：[10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 
 ## 目标与本地状态
 

@@ -115,7 +115,7 @@ Internet
 
 管理端生产镜像在构建时固定注入 `VITE_API_BASE_URL=/api/v1`，浏览器访问 `https://admin.dev.example.com` 时由管理端容器内的 Nginx 将 `/api/` 转发至集群内 `gateway:3002`。本地开发继续使用 `.env.development` 中的 `http://127.0.0.1:3002/api/v1`，两种环境不共用访问地址。
 
-每次发布按「服务域独立版本模型」：后端各服务/网关镜像标签 = 对应模块的独立版本（见 [20 Maven 工程规范](../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)），管理端 `package.json` 与客户端 `pubspec.yaml` 各自独立版本；镜像标签不使用 `latest`。构建时将版本注入 `VITE_APP_VERSION`，Git 提交与构建时间写入镜像 label 供追溯。
+每次发布按「服务域独立版本模型」：后端各服务/网关镜像标签 = 对应模块的独立版本（见 [20 Maven 工程规范](../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)），管理端 `package.json` 与客户端 `pubspec.yaml` 各自独立版本；镜像标签不使用 `latest`。构建时将版本注入 `VITE_APP_VERSION`，Git 提交与构建时间写入镜像 label 供追溯。
 
 ### 发版版本规范
 

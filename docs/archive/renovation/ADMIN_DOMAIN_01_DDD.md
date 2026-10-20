@@ -7,7 +7,7 @@
 
 ## 1. 文档定位
 
-本文是 `im-admin` 域迁移至既定工程规范的项目专用方案，不修改 [10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)、[21 持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md) 和 [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md) 的定义。
+本文是 `im-admin` 域迁移至既定工程规范的项目专用方案，不修改 [10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)、[21 持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md) 和 [12 RocketMQ 治理规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md) 的定义。
 
 `im-admin-service` 是 PC 管理后台的业务服务和管理端 BFF，不是接入网关，也不是所有业务表的共享数据库管理工具。它负责管理端认证、授权、操作审计、管理域事实、跨域管理编排和管理读投影。
 

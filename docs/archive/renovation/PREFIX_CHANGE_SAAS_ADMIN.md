@@ -7,7 +7,7 @@
 
 > 供你裁决的执行预案。**未改动代码或登记表。**
 >
-> **裁决进展**：**G1 已定案——采用 `console_`**（用户 2026-10-14 确认）。**V1 已撤销**：查证 git 历史后确认 `iam_` 跨服务是"IAM 按迭代逐步定义、数据随消费方就近放置"的有意结果，`iam_menu` **不需要改名**（详见 [项目事实清单](../../business/PROJECT_FACTS_INVENTORY.md) §3.1）。因此本文件**只剩 `saa_admin_account` 一项改名**。
+> **裁决进展**：**G1 已定案——采用 `console_`**（用户 2026-10-14 确认）。**V1 已撤销**：查证 git 历史后确认 `iam_` 跨服务是"IAM 按迭代逐步定义、数据随消费方就近放置"的有意结果，`iam_menu` **不需要改名**（详见 [项目事实清单](../../domain/PROJECT_FACTS_INVENTORY.md) §3.1）。因此本文件**只剩 `saa_admin_account` 一项改名**。
 
 ---
 
@@ -31,7 +31,7 @@
 实测 `platform-admin-service`：
 
 - 对外路由全部在 **`/admin`** 下（`/admin/auth`、`/admin/staff`、`/admin/ktv`、`/admin/media`、`/admin/reports`、`/admin/reservations`、`/admin/tenant/overview`…）；
-- 设计文档 [SAAS_PLATFORM_09_SERVICE](./SAAS_PLATFORM_09_SERVICE.md) L28 定义它为 **`saas-admin` = SaaS Admin BFF**，"不拥有上述任一领域权威写表"——**实测吻合**：它聚合各域，不建业务域的表。
+- 设计文档 [SAAS_PLATFORM_09_SERVICE](SAAS_PLATFORM_09_SERVICE.md) L28 定义它为 **`saas-admin` = SaaS Admin BFF**，"不拥有上述任一领域权威写表"——**实测吻合**：它聚合各域，不建业务域的表。
 - 但它**确实有自己的数据**，且不是业务事实：
   - `saa_admin_account`（COMMENT `'SaaS后台管理员账号'`）：控制台**登录账号**——`username`/`password_hash`/`role`(SUPER_ADMIN/PLATFORM_ADMIN/TENANT_ADMIN)/`status`/`im_account`/`idaas_subject`/`platform_account_id`。
   - `iam_menu`（COMMENT `'平台/租户/门店菜单定义'`）：控制台**菜单与导航**——`code`/`name`/`path`/`icon`/`i18n_key`/`sort_no`/`scope_level`(PLATFORM/TENANT/STORE)/`required_permission`。

@@ -30,7 +30,7 @@
 | 方案集 | `SAAS_PLATFORM` |
 | 顺序号 | `01` |
 | 实施边界 | 服务端领域与业务基线；后续另行拆分数据、PC、收银端、移动 App 与测试方案 |
-| 前置方案 | [架构总览](../../ARCHITECTURE.md)、[订单域预约业务迁移方案](ORDER_RESERVATION_01_SERVICE.md) |
+| 前置方案 | [架构总览](../../architecture/OVERVIEW.md)、[订单域预约业务迁移方案](ORDER_RESERVATION_01_SERVICE.md) |
 | 后置方案 | 租户/IAM、交易支付、资源履约、会员营销、PC、收银端、移动 App 的详细设计与实施方案 |
 
 本文记录第二阶段已经确认的业务方案与边界，作为后续需求、领域拆分、接口契约和实施排期的共同基线。

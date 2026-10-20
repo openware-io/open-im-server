@@ -7,7 +7,7 @@
 
 > 方案集：`MEDIA_UPLOAD`；序号：02；服务端前置：[MEDIA_UPLOAD_01_SERVICE](MEDIA_UPLOAD_01_SERVICE.md)；PC 后台并行方案：[MEDIA_UPLOAD_03_ADMIN](MEDIA_UPLOAD_03_ADMIN.md)。
 >
-> 长期规范：[平台媒体对象与私有访问工程规范](../../standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。本方案只说明 Flutter App 的改造与验收。
+> 长期规范：[平台媒体对象与私有访问工程规范](../../development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。本方案只说明 Flutter App 的改造与验收。
 
 ## 目标与边界
 

@@ -40,14 +40,13 @@ if (Test-Path -LiteralPath $archiveRoot) {
 $pairedDocs = @(
   'README.md',
   'docs/README.md',
-  'docs/introduction/README.md',
-  'docs/ARCHITECTURE.md',
-  'docs/DOCUMENTATION_AUDIT.md',
-  'docs/DOCUMENTATION_ORGANIZATION.md',
+  'docs/product/README.md',
+  'docs/architecture/OVERVIEW.md',
   'docs/architecture/TOPOLOGY.zh.md',
   'docs/services/README.md',
-  'docs/business/README.md',
-  'docs/standards/README.md'
+  'docs/domain/README.md',
+  'docs/development/standards/README.md',
+  'docs/development/governance/DOCUMENTATION_ORGANIZATION.md'
 )
 foreach ($relative in $pairedDocs) {
   $path = Join-Path $root $relative
@@ -76,7 +75,7 @@ foreach ($relative in $pairedDocs) {
 # 2b) Every service README has an English summary pair.
 $serviceRoot = Join-Path $root 'docs/services'
 if (Test-Path -LiteralPath $serviceRoot) {
-  foreach ($serviceDir in (Get-ChildItem $serviceRoot -Directory)) {
+  foreach ($serviceDir in (Get-ChildItem $serviceRoot -Recurse -Directory)) {
     $zh = Join-Path $serviceDir.FullName 'README.md'
     $en = Join-Path $serviceDir.FullName 'README.en.md'
     if ((Test-Path -LiteralPath $zh) -and -not (Test-Path -LiteralPath $en)) {
@@ -86,7 +85,7 @@ if (Test-Path -LiteralPath $serviceRoot) {
 }
 
 # 2c) Every business/standards document has an English summary pair.
-foreach ($domainRoot in @('docs/business', 'docs/standards')) {
+foreach ($domainRoot in @('docs/domain', 'docs/development/standards')) {
   $fullRoot = Join-Path $root $domainRoot
   if (-not (Test-Path -LiteralPath $fullRoot)) { continue }
   foreach ($doc in (Get-ChildItem $fullRoot -File -Filter '*.md')) {
@@ -99,7 +98,7 @@ foreach ($domainRoot in @('docs/business', 'docs/standards')) {
 }
 
 # 3) Legacy names in current operational docs (archive and governance records excluded).
-$legacyRoots = @('README.md', 'docs/ARCHITECTURE.md', 'docs/architecture', 'docs/deployment', 'docs/services', 'docs/business', 'docs/standards')
+$legacyRoots = @('README.md', 'docs/architecture', 'docs/deployment', 'docs/services', 'docs/domain', 'docs/development/standards')
 $allowPatterns = @(
   'docs/README.md', 'docs/README.en.md',
   'docs/DOCUMENTATION_AUDIT.md', 'docs/DOCUMENTATION_AUDIT.en.md',

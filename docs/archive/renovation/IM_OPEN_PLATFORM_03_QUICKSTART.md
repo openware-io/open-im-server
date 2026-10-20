@@ -9,9 +9,9 @@
 
 > 状态：迁移预览 / Migration preview · 所属方案集 / Series: `IM_OPEN_PLATFORM` · 当前 OAuth/OIDC 规范以 `docs/superpowers/specs/2026-09-04-oidc-hybrid-open-platform-design.md` 为准。
 
-本文给出第三方系统（SaaS / 打车 / 电商 / 本地生活等）接入 IM 开放平台的**最小可跑流程**与可直接复制的参考示例（PKCE S256 生成 + curl 调用）。标准接入规范、前后台差异、A380 实例、用户同步与验收标准见 [IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md](./IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)；**申请与审核（IM 后台怎么审、密钥怎么交付）见 [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**。
+本文给出第三方系统（SaaS / 打车 / 电商 / 本地生活等）接入 IM 开放平台的**最小可跑流程**与可直接复制的参考示例（PKCE S256 生成 + curl 调用）。标准接入规范、前后台差异、A380 实例、用户同步与验收标准见 [IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)；**申请与审核（IM 后台怎么审、密钥怎么交付）见 [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**。
 
-This doc gives the **minimal runnable flow** and copy-paste examples (PKCE S256 + curl) for third-party systems. See [IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md](./IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md) for the standard spec, front/back-channel split, A380 worked example, user sync and acceptance checklist; the **application review flow is in [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**.
+This doc gives the **minimal runnable flow** and copy-paste examples (PKCE S256 + curl) for third-party systems. See [IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md) for the standard spec, front/back-channel split, A380 worked example, user sync and acceptance checklist; the **application review flow is in [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**.
 
 > **流程有一步在平台侧**：提交申请后状态是 `PENDING`，**不会**返回 `appSecret`；必须等平台运营在 IM 后台「第三方接入」页**通过**后才发放密钥。别跳过这一步直接去调 `/oauth/authorize`。
 >
@@ -22,7 +22,7 @@ This doc gives the **minimal runnable flow** and copy-paste examples (PKCE S256 
 ## 0. 前置条件 / Prerequisites
 
 - 已开通 IM 开放平台访问入口。网关将 `/open/**` 与 `/oauth/**` 直达 `im-user-service`，路径**不带** `/api`。下文以占位基地址 `https://im.example.com` 表示（本地联调可换网关地址）。
-- **应用已审核通过**（`GET /open/applications/{appId}` → `APPROVED`）并已从平台安全渠道拿到 `appSecret`；密钥**只放服务端**，不要写进 H5/App。审核与交付规则见 [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md) §3.4。
+- **应用已审核通过**（`GET /open/applications/{appId}` → `APPROVED`）并已从平台安全渠道拿到 `appSecret`；密钥**只放服务端**，不要写进 H5/App。审核与交付规则见 [IM_OPEN_PLATFORM_06_REVIEW_SOP.md](IM_OPEN_PLATFORM_06_REVIEW_SOP.md) §3.4。
 - 需要一个可登录 IM 的账号用于用户级授权，以及一个回调地址（HTTPS，或自定义 scheme 如 `openchat://`），且与登记的 `callbackUrl` **精确一致**。
 - public client（Flutter/Electron/H5）只使用 `appId + PKCE`，**不得**内置 secret；只有 confidential 后端服务保存 `appSecret`。
 
@@ -36,7 +36,7 @@ This doc gives the **minimal runnable flow** and copy-paste examples (PKCE S256 
 
 > ⚠️ 这一步只是**提交申请**：响应是 `{ appId, status: "PENDING" }`，**不返回 `appSecret`**。
 > 请让平台运营在 IM 后台「第三方接入」页**通过**（该页也有「驳回/重置密钥/吊销」），
-> 之后才能拿到 `appSecret` 并继续第 2 步。审核口径与话术见 [06 SOP](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md)。
+> 之后才能拿到 `appSecret` 并继续第 2 步。审核口径与话术见 [06 SOP](IM_OPEN_PLATFORM_06_REVIEW_SOP.md)。
 > 用 `GET /open/applications/{appId}` 轮询状态（`APPROVED` 才继续）。
 
 请求体 Request body：

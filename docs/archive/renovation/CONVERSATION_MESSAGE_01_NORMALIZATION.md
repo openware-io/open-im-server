@@ -9,10 +9,10 @@
 
 本文是 `im-conversation` 与 `im-message` 服务的项目专用联合治理方案，用于完成服务边界、数据所有权、DDD 分层、跨服务协作和工程门禁的规范化。本文不修改下列通用规范的定义：
 
-1. [业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)。
-2. [Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)。
-3. [持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)。
-4. [RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)。
+1. [业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)。
+2. [Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)。
+3. [持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md)。
+4. [RocketMQ 治理规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md)。
 
 本方案只定义改造顺序、目标边界、兼容要求、迁移策略、验收标准和回滚原则。未经评审确认，不执行本方案中的业务代码、数据库、MQ 契约或运行配置修改。
 

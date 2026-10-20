@@ -5,7 +5,7 @@
 
 # 迁移基线重建交接（批次 2）
 
-> 方案集：`MIGRATION_BASELINE`；序号：`01`；前置：[01 数据重建方案](./MIGRATION_BASELINE_01_DATA.md)
+> 方案集：`MIGRATION_BASELINE`；序号：`01`；前置：[01 数据重建方案](MIGRATION_BASELINE_01_DATA.md)
 > 状态：**第 2 步（19 个迁移根合并）已全部完成并提交**；worklist 415 → **7**，且这 7 条全是已挂起的前缀决策
 > 目标读者：**新会话**（上一个会话上下文已接近上限，故在此交接）
 > 交接时间：2026-10-13；分支 `develop/2.2.0-auth`
@@ -50,7 +50,7 @@
   | `common-payment-service`（含 `tenant_payment_method`→`tnt_` 跨服务改名） | `e2be171` | 15 文件 → 1（12 表） |
   | `group-idaas-service`（**未改表名**） | `e2be171` | 2 文件 → 1（3 表） |
 
-- **与迁移无关的门禁自伤项已闭合**：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内非 ASCII 脚本清零。详见 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
+- **与迁移无关的门禁自伤项已闭合**：新增 `validate-powershell-ascii-only.ps1`，门禁数 23 → **24**，`scripts/validate` 内非 ASCII 脚本清零。详见 [03 整改方案](ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §19 与 N-24。
 
 ## 1. 开工前的 4 条硬约束（踩过，不要再踩）
 
@@ -178,7 +178,7 @@
 ### 步骤 2：登记表与规范同步
 
 - `docs/ENGINEERING_RULES.md` 前缀登记表补 `mail_` / `sms_` / `open_` / 集团域 / `media_`（worklist 开头 2 条就是这里）。
-- 同步 [01 方案](./MIGRATION_BASELINE_01_DATA.md) §3 的前缀登记结果。
+- 同步 [01 方案](MIGRATION_BASELINE_01_DATA.md) §3 的前缀登记结果。
 
 ### 步骤 3：三个门禁转阻断（**只在 worklist 归零后**）
 
@@ -300,7 +300,7 @@ git ls-tree -r $tag | Select-String 'src/main/resources/db/migration(-audit)?/.*
 
 **⚠️ 本轮核实：这一步现在不能做，且原表述有误——务必按 `ENGINEERING_GOVERNANCE_03` §5.3/§5.4 执行。**
 
-原表述"打 `v2.2.0` 注释 tag，**名字用 `baseline-` 前缀**"是**自相矛盾**的（`v2.2.0` 不是 `baseline-` 前缀）。权威来源是 [03 整改方案](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §5.3：tag 名**保持 `v2.2.0`**，靠**注释里的 `freeze: true` 独立行**表达冻结语义（门禁两种都认，但 `baseline-` 前缀会**破坏 `publish-images.yml` 的 `tags: ['v*']` 触发**）。
+原表述"打 `v2.2.0` 注释 tag，**名字用 `baseline-` 前缀**"是**自相矛盾**的（`v2.2.0` 不是 `baseline-` 前缀）。权威来源是 [03 整改方案](ENGINEERING_GOVERNANCE_03_REMEDIATION.md) §5.3：tag 名**保持 `v2.2.0`**，靠**注释里的 `freeze: true` 独立行**表达冻结语义（门禁两种都认，但 `baseline-` 前缀会**破坏 `publish-images.yml` 的 `tags: ['v*']` 触发**）。
 
 **两个"现在不能打"的硬理由**：
 
@@ -354,12 +354,12 @@ git push origin v2.2.0
 - 由 profile `audit-schema` 原子切换：`application-audit-schema.yml` 同时切库名和 `spring.flyway.locations`。两者共用历史表 `flyway_schema_history_audit`，因此**目录与库必须同进同退**。
 - 两边都 `CREATE TABLE iam_audit_log` / `iam_audit_idempotency`，**物理设计不同**（老库普通表+唯一键幂等；新库 `occurred_at` 月分区主表+幂等台账），是**同名不同库**，不是重复。
 - 已有测试固化该约束：`AuditPartitionInvariantTest`（"两个迁移目录必须物理隔离"）；`application.yml:15` 原注释亦写明"两个目录**不得混用**"。
-- 结论：**分别在各自根内做规范化，保持两个根**。`[01 方案](./MIGRATION_BASELINE_01_DATA.md)` §3 里"合并双迁移根为单根"的写法是**错误前提**，应废弃（DC-17 只要求保留分区，并未要求合根）。
+- 结论：**分别在各自根内做规范化，保持两个根**。`[01 方案](MIGRATION_BASELINE_01_DATA.md)` §3 里"合并双迁移根为单根"的写法是**错误前提**，应废弃（DC-17 只要求保留分区，并未要求合根）。
 
 **② history 表名"统一"不具备规则依据，本轮不做。**
 
 - 现状：多数服务用 `flyway_schema_history_<service>`；IM 四服务与 media 用 `<service>_schema_history`（`admin_`/`conversation_`/`msg_`/`user_`/`support_schema_history`）。
-- 已核对 `ENGINEERING_RULES.md`、`DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](./MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
+- 已核对 `ENGINEERING_RULES.md`、`DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
 - 结论：**不改**（改名需同步 config、无门禁收益、纯churn）。若将来确有统一诉求，应先写成规范＋门禁，再一次性改。
 
 ### 3.2 ⚠️ `target/classes` 会残留合并前的迁移文件（本轮踩到，务必先读）
@@ -427,7 +427,7 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
    - **✅ 领域命名建议（本轮按用户给出的领域定义 + 设计文档重新推导，取代上面的 A/B 二选一）**
 
      **⚠️ 本轮推翻了我上一轮"建议改名"的结论——依据是本仓自己的规范**：`ENGINEERING_RULES.md:182` 明文"新领域、新前缀或前缀语义变更必须先完成架构确认，并在上表及对应领域设计中登记后才能创建 Flyway 表；**既有表不得仅为统一缩写而重命名**"。而 `audit_`（已登记、0 表使用、实际用 `iam_audit_*`）与 `paych_`（实际用 `pay_channel_*`）**都是照原样留档、没有改名**。所以本仓既定处置是**登记 + 差异留档**。
-     **→ 前缀决策的权威材料：v3（最新）[DOMAIN_PREFIX_SPEC_V3.md](./DOMAIN_PREFIX_SPEC_V3.md)**——重新设计稿：设计原则（**概念的层级 = 名字的层级，一一对应不重复**）、可直接并入的条文 3.1–3.6、全部 22 个前缀按"只认限界上下文"重新推导、7 条问题处置（P1–P7）、以及 D1–D7 决策清单。
+     **→ 前缀决策的权威材料：v3（最新）[DOMAIN_PREFIX_SPEC_V3.md](DOMAIN_PREFIX_SPEC_V3.md)**——重新设计稿：设计原则（**概念的层级 = 名字的层级，一一对应不重复**）、可直接并入的条文 3.1–3.6、全部 22 个前缀按"只认限界上下文"重新推导、7 条问题处置（P1–P7）、以及 D1–D7 决策清单。
      **v1/v2 均已被取代**（v2 顶部已加作废说明）：v1 `DOMAIN_PREFIX_SPEC_REVIEW.md`、v2 `DOMAIN_PREFIX_SPEC_V2.md` 是过程稿，**以 v3 为准**。用户在我提交 v2 后指出两处错误：① `open` 表示**整个工程开源**，**没有语义可重定义**（对全集恒真的词无法区分任何东西）；② 我建议的 `iam_menu` → `saas_menu` 等于**把业务线名写进表前缀**，与我自己写的条文自相矛盾。v3 已纠正：**`console_` 才是域词**。
      **另一处需你拍板的关键点（v3 §五）**：那 3 张表实为 **OAuth 2.0 授权服务器**（`OauthConsentController`、`/oauth/consent`、授权码），但 `open` 在本仓被定义为"开源"——**你的定义与事实对不上，所以问题不在前缀写法，而在"这个域叫什么"**。v3 给了 A 保留 `open_` 并写明"开放授权" / **B 改 `oauth_`（建议，7 处引用）** / C 并入 `user_` 三个选项。
 
@@ -513,9 +513,9 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 
 | 用途 | 路径 |
 | --- | --- |
-| 数据重建方案（步骤、验收、回滚） | [MIGRATION_BASELINE_01_DATA.md](./MIGRATION_BASELINE_01_DATA.md) |
-| 整改方案（批次、决策、门禁清单） | [ENGINEERING_GOVERNANCE_03_REMEDIATION.md](./ENGINEERING_GOVERNANCE_03_REMEDIATION.md) |
-| 审查报告（问题出处） | [ENGINEERING_GOVERNANCE_02_AUDIT.md](./ENGINEERING_GOVERNANCE_02_AUDIT.md) |
+| 数据重建方案（步骤、验收、回滚） | [MIGRATION_BASELINE_01_DATA.md](MIGRATION_BASELINE_01_DATA.md) |
+| 整改方案（批次、决策、门禁清单） | [ENGINEERING_GOVERNANCE_03_REMEDIATION.md](ENGINEERING_GOVERNANCE_03_REMEDIATION.md) |
+| 审查报告（问题出处） | [ENGINEERING_GOVERNANCE_02_AUDIT.md](ENGINEERING_GOVERNANCE_02_AUDIT.md) |
 | 主 worklist（378 条，权威口径） | `.outputs/quality/flyway-conventions-worklist.txt` |
 | 租户 SQL worklist（41 条） | `.outputs/quality/tenant-sql-worklist.txt` |
 | 密钥暴露报告（4 条） | `.outputs/quality/secret-exposure-report.txt` |

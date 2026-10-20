@@ -136,7 +136,7 @@ GET {IM_BASE}/open/applications/{appId}
 
 ## 4. 第 2 步：IM 后台审批（平台侧）/ Step 2 · Review in IM Admin Console
 
-> 完整审核 SOP（判定标准、驳回话术、密钥交付与重置、吊销回滚）见 **[`IM_OPEN_PLATFORM_06_REVIEW_SOP.md`](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**。
+> 完整审核 SOP（判定标准、驳回话术、密钥交付与重置、吊销回滚）见 **[`IM_OPEN_PLATFORM_06_REVIEW_SOP.md`](IM_OPEN_PLATFORM_06_REVIEW_SOP.md)**。
 
 ### 4.1 页面入口 / Where to click
 

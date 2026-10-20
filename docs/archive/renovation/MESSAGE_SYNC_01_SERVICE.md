@@ -12,7 +12,7 @@
 - 实施边界：消息服务、接入网关、数据与契约
 - 前置方案：[MESSAGE_DOMAIN_01_DDD.md](MESSAGE_DOMAIN_01_DDD.md)
 - 后置方案：[MESSAGE_SYNC_02_APP.md](MESSAGE_SYNC_02_APP.md)、[MESSAGE_SYNC_03_TEST.md](MESSAGE_SYNC_03_TEST.md)
-- 适用标准：[10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[12 RocketMQ 规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)、[21 持久化技术栈规范](../../standards/21_PERSISTENCE_STACK.md)
+- 适用标准：[10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[12 RocketMQ 规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md)、[21 持久化技术栈规范](../../development/standards/21_PERSISTENCE_STACK.md)
 
 ## 目标、结论与非目标
 

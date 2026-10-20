@@ -1,6 +1,6 @@
 # OpenChat
 
-[中文](README.md) | [English](README.en.md) · [产品介绍](docs/introduction/README.md) · [工程拓扑](docs/architecture/TOPOLOGY.zh.md) · [一键部署](#一键部署推荐)
+[中文](README.md) | [English](README.en.md) · [产品介绍](docs/product/README.md) · [工程拓扑](docs/architecture/TOPOLOGY.zh.md) · [一键部署](#一键部署推荐)
 
 [![Documentation governance](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml/badge.svg?branch=main)](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
@@ -20,7 +20,7 @@ OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面�
 </table>
 
 > 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
-> 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
+> 工程级拓扑与文档导航见[文档中心](docs/README.md)和[工程拓扑](docs/architecture/TOPOLOGY.zh.md)。
 
 ## 一键部署（推荐）
 
@@ -110,11 +110,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRebui
 powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
 ```
 
-完整参数、数据生命周期和故障排查见[本地部署说明](./docs/deployment/LOCAL.md)。
+完整参数、数据生命周期和故障排查见[本地部署说明](docs/deployment/LOCAL.md)。
 
 ## 当前服务拓扑
 
-按“体验层 → 接入层 → SaaS 平台域 → IM 业务域 → 公共能力域 → 数据基础设施”组织，完整映射见[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
+按“体验层 → 接入层 → SaaS 平台域 → IM 业务域 → 公共能力域 → 数据基础设施”组织，完整映射见[工程拓扑](docs/architecture/TOPOLOGY.zh.md)。
 
 - **L0 体验层**：`open-chat-app`、`open-chat-desktop`、`open-saas-admin`、`open-chat-admin`、`open-saas-mobile`、`open-website`
 - **L1 接入层**：`gateway`（HTTPS REST 横切）、`im-access-ws`（WebSocket 接入）、`unified-portal`（统一登录）
@@ -139,7 +139,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedep
 
 ## 路由约定
 
-外部 REST API 统一使用 `/api/v1/**`。Gateway 对以下业务路由统一执行 `StripPrefix=2`，因此后端 Controller 接收的路径不包含 `/api/v1` 前缀。路由配置的唯一实现来源是 `gateways/gateway/src/main/resources/application.yml`；变更该文件时必须在同一变更中同步更新本表和[网关服务说明](./docs/services/gateway/README.md)。
+外部 REST API 统一使用 `/api/v1/**`。Gateway 对以下业务路由统一执行 `StripPrefix=2`，因此后端 Controller 接收的路径不包含 `/api/v1` 前缀。路由配置的唯一实现来源是 `gateways/gateway/src/main/resources/application.yml`；变更该文件时必须在同一变更中同步更新本表和[网关服务说明](docs/services/edge/gateway/README.md)。
 
 | 客户端请求路径 | 转发后的服务内路径 | 目标服务 | 路由标识 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -168,7 +168,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedep
 
 ## 其他运行方式
 
-除一键 Kind 部署外，仓库还提供另外两种相互独立的本地运行方式。完整的依赖条件、启动顺序、停止范围和验证步骤见[本地运行说明](./docs/deployment/LOCAL.md)；同一时刻应只选择一种方式运行完整环境。
+除一键 Kind 部署外，仓库还提供另外两种相互独立的本地运行方式。完整的依赖条件、启动顺序、停止范围和验证步骤见[本地运行说明](docs/deployment/LOCAL.md)；同一时刻应只选择一种方式运行完整环境。
 
 | 方式 | 适用场景 | 入口命令 | 网关地址 |
 | --- | --- | --- | --- |
@@ -194,53 +194,59 @@ powershell ./run-dev.ps1 -Service gateway
 ```text
 im-saas 文档
 ├─ 入门
-│  ├─ 产品介绍（./docs/introduction/README.md）
+│  ├─ 产品介绍（./docs/product/README.md）
+│  ├─ 快速开始（./docs/getting-started/README.md）
 │  ├─ 文档中心（./docs/README.md）
 │  ├─ 一键部署（README 顶部）
 │  └─ 工程拓扑（./docs/architecture/TOPOLOGY.zh.md）
-├─ 架构与治理
-│  ├─ 架构总览（./docs/ARCHITECTURE.md）
-│  ├─ 文档整理与归档方案（./docs/DOCUMENTATION_ORGANIZATION.md）
-│  ├─ 文档审计（./docs/DOCUMENTATION_AUDIT.md）
-│  ├─ 工程规范（./docs/governance/ENGINEERING_RULES.md）
-│  └─ 门禁注册表（./docs/governance/GATE_REGISTRY.md）
-├─ 部署与运行
+├─ 架构与参考
+│  ├─ 架构总览（./docs/architecture/OVERVIEW.md）
+│  ├─ API / 协议（./docs/reference/）
+│  ├─ ADR / MQ 台账（./docs/architecture/adr/、./docs/reference/mq/）
+│  └─ 契约（./docs/reference/contracts/）
+├─ 领域与服务
+│  ├─ 领域文档（./docs/domain/）
+│  ├─ 服务目录（./docs/services/README.md）
+│  └─ edge / im / platform / common
+├─ 交付与运维
 │  ├─ 本地部署（./docs/deployment/LOCAL.md）
 │  ├─ 部署索引（./docs/deployment/README.md）
 │  └─ 发布手册（./docs/operations/RELEASE_RUNBOOK.md）
-├─ 服务
-│  ├─ 接入层：Gateway / im-access-ws
-│  ├─ IM 域：user / message / conversation / admin
-│  ├─ SaaS 平台域：platform-*
-│  └─ 公共能力域：common-* / group-idaas
-├─ 业务与标准
-│  ├─ 业务文档（./docs/business/）
-│  └─ 标准（./docs/standards/）
+├─ 开发与治理
+│  ├─ 工程规范（./docs/development/governance/ENGINEERING_RULES.md）
+│  ├─ 门禁注册表（./docs/development/governance/GATE_REGISTRY.md）
+│  ├─ 标准（./docs/development/standards/）
+│  ├─ IDE / 工具（./docs/development/tooling/）
+│  └─ 参与贡献（./docs/development/contributing/）
+├─ 安全与合规
+│  ├─ 安全（./docs/security/）
+│  └─ 合规（./docs/compliance/）
 └─ 历史归档
-   ├─ renovation（./docs/renovation/）
-   ├─ superpowers（./docs/superpowers/）
-   └─ 审计快照（./docs/audit-2026-09-17-exceptions-and-i18n.md）
+   ├─ 归档索引（./docs/archive/README.md）
+   ├─ renovation（./docs/archive/renovation/）
+   ├─ superpowers（./docs/archive/superpowers/）
+   └─ 审计快照（./docs/archive/audits/）
 ```
 
-- 完整层级、阅读路径和双语覆盖见[文档中心](./docs/README.md)。
-- 服务说明入口：[服务目录](./docs/services/)。
-- 标准入口：[标准目录](./docs/standards/)。
+- 完整层级、阅读路径和双语覆盖见[文档中心](docs/README.md)。
+- 服务说明入口：[服务目录](docs/services/)。
+- 标准入口：[标准目录](docs/development/standards/)。
 
 ### 标准目录
 
-- [00 DDD 微服务软件工程规范纲要](./docs/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
-- [10 DDD 服务工程规范](./docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
-- [12 RocketMQ 治理规范](./docs/standards/12_ROCKETMQ_CONVENTIONS.md)
-- [13 平台媒体规范](./docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
-- [14 客户端发布与版本治理规范](./docs/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
-- [15 客户端发布操作规范](./docs/standards/15_CLIENT_RELEASE_SKILL.md)
-- [16 币种规范](./docs/standards/16_CURRENCY_CONVENTIONS.md)
-- [20 Maven 工程规范](./docs/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
-- [21 持久层技术栈标准](./docs/standards/21_PERSISTENCE_STACK.md)
-- [22 技术栈版本矩阵](./docs/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
-- [数据库迁移标准](./docs/standards/DATABASE_MIGRATION_STANDARD.md)
-- [30 文本编码与批量改写规范](./docs/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
-- [40 可观测性规范](./docs/standards/40_OBSERVABILITY_CONVENTIONS.md)
-- [41 Java 日志规范](./docs/standards/41_JAVA_LOGGING_CONVENTIONS.md)
-- [42 日志输出与诊断规范](./docs/standards/42_LOGGING_AND_OUTPUTS.md)
-- [43 E2E 测试与验收规范](./docs/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [00 DDD 微服务软件工程规范纲要](docs/development/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
+- [10 DDD 服务工程规范](docs/development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
+- [12 RocketMQ 治理规范](docs/development/standards/12_ROCKETMQ_CONVENTIONS.md)
+- [13 平台媒体规范](docs/development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
+- [14 客户端发布与版本治理规范](docs/development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)
+- [15 客户端发布操作规范](docs/development/standards/15_CLIENT_RELEASE_SKILL.md)
+- [16 币种规范](docs/development/standards/16_CURRENCY_CONVENTIONS.md)
+- [20 Maven 工程规范](docs/development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
+- [21 持久层技术栈标准](docs/development/standards/21_PERSISTENCE_STACK.md)
+- [22 技术栈版本矩阵](docs/development/standards/22_TECHNOLOGY_STACK_VERSION_MATRIX.md)
+- [数据库迁移标准](docs/development/standards/DATABASE_MIGRATION_STANDARD.md)
+- [30 文本编码与批量改写规范](docs/development/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- [40 可观测性规范](docs/development/standards/40_OBSERVABILITY_CONVENTIONS.md)
+- [41 Java 日志规范](docs/development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
+- [42 日志输出与诊断规范](docs/development/standards/42_LOGGING_AND_OUTPUTS.md)
+- [43 E2E 测试与验收规范](docs/development/standards/43_E2E_TESTING_CONVENTIONS.md)

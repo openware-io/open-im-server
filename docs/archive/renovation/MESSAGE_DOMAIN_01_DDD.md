@@ -7,7 +7,7 @@
 
 ## 1. 文档定位
 
-本文是 `im-message` 域迁移至既定工程规范的项目专用改造方案，不修改 [10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 的定义。
+本文是 `im-message` 域迁移至既定工程规范的项目专用改造方案，不修改 [10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) 与 [20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) 的定义。
 
 ## 2. 目标与边界
 

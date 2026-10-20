@@ -6,7 +6,7 @@
 # IM 开放平台 · 第三方接入申请与审核 SOP
 
 > 状态：生效 / Status: Active · 所属方案集 / Series: `IM_OPEN_PLATFORM`
-> 前置 / Predecessor: `IM_OPEN_PLATFORM_01_SERVICE.md` · 配套 / Companion: [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](./IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)（第三方接入指南）
+> 前置 / Predecessor: `IM_OPEN_PLATFORM_01_SERVICE.md` · 配套 / Companion: [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)（第三方接入指南）
 >
 > 本文回答两件事：**第三方怎么申请**、**平台运营在 IM 后台怎么审**。审核不是「点一下通过」——材料、回调地址、scope 都要按下面的标准逐项核。
 
@@ -149,7 +149,7 @@ IM 后台 → 左侧菜单 **「第三方接入」**（路由 `/open-platform/ap
 
 | 文档 | 内容 |
 | --- | --- |
-| [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](./IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md) | 第三方接入指南（前后台两段 + A380 实例 + 自测脚本） |
+| [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md) | 第三方接入指南（前后台两段 + A380 实例 + 自测脚本） |
 | `IM_OPEN_PLATFORM_03_QUICKSTART.md` | 快速上手（PKCE + curl） |
 | `IM_OPEN_PLATFORM_04_SERVICE.md` | 轻量层：C 端服务板块服务项接入（无需账号互通） |
 | `IM_OPEN_PLATFORM_01_SERVICE.md` | 开放平台总体方案与实施边界 |

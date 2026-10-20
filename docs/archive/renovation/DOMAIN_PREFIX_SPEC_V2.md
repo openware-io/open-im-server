@@ -5,7 +5,7 @@
 
 # 领域与表前缀规范 v2（业务线 → 域 → 实体）
 
-> ⛔ **本文件已被 [DOMAIN_PREFIX_SPEC_V3.md](./DOMAIN_PREFIX_SPEC_V3.md) 取代，仅作留档。**
+> ⛔ **本文件已被 [DOMAIN_PREFIX_SPEC_V3.md](DOMAIN_PREFIX_SPEC_V3.md) 取代，仅作留档。**
 >
 > 用户在审阅中指出本文件两处错误：① `open` 表示整个工程开源，**没有语义可重定义**；② 本文件建议 `iam_menu` → `saas_menu`，等于**把业务线名写进表前缀**，与 4.2 自相矛盾。v3 已重新设计，请以 v3 为准。
 

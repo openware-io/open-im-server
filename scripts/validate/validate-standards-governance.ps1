@@ -2,7 +2,7 @@
 #
 # Prevents the failure mode found in the audit: standards that contradict each other or the
 # implementation, standards that carry project-specific content, and standards that lack the
-# minimal template. Enforced per docs/standards/*.md (the reusable rule layer).
+# minimal template. Enforced per docs/development/standards/*.md (the reusable rule layer).
 #
 # Checks:
 #   1. minimal template: each requirement in standards-governance-rules.txt [sections] must be
@@ -56,7 +56,7 @@ $hardForbidden = @(
 
 Push-Location $root
 try {
-  $standardFiles = git -C $root ls-files 'docs/standards/*.md' | Where-Object { $_ -notmatch '(^|/)README(\.en)?\.md$' -and $_ -notmatch '\.en\.md$' }
+  $standardFiles = git -C $root ls-files 'docs/development/standards/*.md' | Where-Object { $_ -notmatch '(^|/)README(\.en)?\.md$' -and $_ -notmatch '\.en\.md$' }
   foreach ($relativePath in $standardFiles) {
     $path = Join-Path $root $relativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }

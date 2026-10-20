@@ -12,7 +12,7 @@
 - 实施边界：自动化测试、服务联调与验收
 - 前置方案：[MESSAGE_SYNC_01_SERVICE.md](MESSAGE_SYNC_01_SERVICE.md)、[MESSAGE_SYNC_02_APP.md](MESSAGE_SYNC_02_APP.md)
 - 后置方案：无
-- 适用标准：[20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)、[40 可观测性规范](../../standards/40_OBSERVABILITY_CONVENTIONS.md)
+- 适用标准：[20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)、[40 可观测性规范](../../development/standards/40_OBSERVABILITY_CONVENTIONS.md)
 
 ## 服务端测试矩阵
 

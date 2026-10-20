@@ -161,9 +161,9 @@ im-admin-service
 
 ## 7. 相关文档
 
-- [架构总览](../ARCHITECTURE.md)
+- [架构总览](OVERVIEW.md)
 - [文档中心](../README.md)
-- [文档审计](../DOCUMENTATION_AUDIT.md)
+- [文档审计](../archive/audits/DOCUMENTATION_AUDIT.md)
 - [本地部署](../deployment/LOCAL.md)
 - [服务板块接入规范](../archive/renovation/IM_OPEN_PLATFORM_04_SERVICE.md)
-- [网关服务说明](../services/gateway/README.md)
+- [网关服务说明](../services/edge/gateway/README.md)

@@ -11,7 +11,7 @@
 - 顺序号：`02`
 - 实施边界：Flutter App 的消息同步、群资料、WebSocket 事件和极光通知处理
 - 前置方案：[服务端改造说明](CHAT_RELIABILITY_01_SERVICE.md)
-- 关联契约：[消息 OpenAPI 快照](../../contracts/openapi/message.json)、[会话 OpenAPI 快照](../../contracts/openapi/conversation.json)
+- 关联契约：[消息 OpenAPI 快照](../../reference/contracts/openapi/message.json)、[会话 OpenAPI 快照](../../reference/contracts/openapi/conversation.json)
 
 ## 消息同步约定
 

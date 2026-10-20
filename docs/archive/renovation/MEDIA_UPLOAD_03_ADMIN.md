@@ -7,7 +7,7 @@
 
 > 方案集：`MEDIA_UPLOAD`；序号：03；服务端前置：[MEDIA_UPLOAD_01_SERVICE](MEDIA_UPLOAD_01_SERVICE.md)；App 并行方案：[MEDIA_UPLOAD_02_APP](MEDIA_UPLOAD_02_APP.md)。
 >
-> 长期规范：[平台媒体对象与私有访问工程规范](../../standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。本方案仅覆盖 PC 管理后台已有业务和新业务接入准则。
+> 长期规范：[平台媒体对象与私有访问工程规范](../../development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)。本方案仅覆盖 PC 管理后台已有业务和新业务接入准则。
 
 ## 实施状态
 

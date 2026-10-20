@@ -38,8 +38,8 @@ IM 是**开放平台**（参考微信开放平台）：任何第三方业务系�
 
 ## 3. 标准接入流程（5 步）
 
-> 实施状态：流程已落地。**申请/审核**见 [`IM_OPEN_PLATFORM_06_REVIEW_SOP.md`](./IM_OPEN_PLATFORM_06_REVIEW_SOP.md)，
-> 面向第三方的完整步骤（含前后台两段与 A380 实例）见 [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](./IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)。
+> 实施状态：流程已落地。**申请/审核**见 [`IM_OPEN_PLATFORM_06_REVIEW_SOP.md`](IM_OPEN_PLATFORM_06_REVIEW_SOP.md)，
+> 面向第三方的完整步骤（含前后台两段与 A380 实例）见 [`IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md`](IM_OPEN_PLATFORM_02_INTEGRATION_GUIDE.md)。
 
 ```text
 1 应用申请：第三方 POST /open/applications 提交应用信息/回调域名/申请 scope → 状态 PENDING（此时不发放密钥）

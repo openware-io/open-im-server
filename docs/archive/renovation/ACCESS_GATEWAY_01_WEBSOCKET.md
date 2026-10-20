@@ -11,10 +11,10 @@
 
 规范依据：
 
-- [10 业务微服务 DDD 工程规范](../../standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
-- [12 RocketMQ 治理规范](../../standards/12_ROCKETMQ_CONVENTIONS.md)
-- [20 Maven 工程规范](../../standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
-- [21 持久层技术栈标准](../../standards/21_PERSISTENCE_STACK.md)
+- [10 业务微服务 DDD 工程规范](../../development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
+- [12 RocketMQ 治理规范](../../development/standards/12_ROCKETMQ_CONVENTIONS.md)
+- [20 Maven 工程规范](../../development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md)
+- [21 持久层技术栈标准](../../development/standards/21_PERSISTENCE_STACK.md)
 
 ## 2. 已确认架构决策
 

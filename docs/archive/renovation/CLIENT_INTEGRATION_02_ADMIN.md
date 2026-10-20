@@ -11,7 +11,7 @@
 >
 > 最后核查：2026-07-31
 >
-> 媒体上传、读取 URL 与存储配置章节已由 [MEDIA_UPLOAD_03_ADMIN](MEDIA_UPLOAD_03_ADMIN.md) 和[平台媒体对象与私有访问工程规范](../../standards/13_PLATFORM_MEDIA_CONVENTIONS.md)取代；本文件中与代理上传、公共 Bucket、稳定媒体 URL 或旧 `IM_MEDIA_*` 配置有关的描述不再作为实施依据。
+> 媒体上传、读取 URL 与存储配置章节已由 [MEDIA_UPLOAD_03_ADMIN](MEDIA_UPLOAD_03_ADMIN.md) 和[平台媒体对象与私有访问工程规范](../../development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)取代；本文件中与代理上传、公共 Bucket、稳定媒体 URL 或旧 `IM_MEDIA_*` 配置有关的描述不再作为实施依据。
 
 ## 1. 目标与结论
 

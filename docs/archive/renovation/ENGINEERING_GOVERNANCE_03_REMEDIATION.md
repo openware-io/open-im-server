@@ -5,8 +5,8 @@
 
 # im-saas 工程规范整改方案（v10 · 批次 0 已执行）
 
-> 方案集：`ENGINEERING_GOVERNANCE`；序号：`03`；前置：[01 治理计划](./ENGINEERING_GOVERNANCE_01_CONFORMANCE.md)、[02 审查报告](./ENGINEERING_GOVERNANCE_02_AUDIT.md)
-> 配套审查报告：[ENGINEERING_GOVERNANCE_02_AUDIT.md](./ENGINEERING_GOVERNANCE_02_AUDIT.md)（同目录）
+> 方案集：`ENGINEERING_GOVERNANCE`；序号：`03`；前置：[01 治理计划](ENGINEERING_GOVERNANCE_01_CONFORMANCE.md)、[02 审查报告](ENGINEERING_GOVERNANCE_02_AUDIT.md)
+> 配套审查报告：[ENGINEERING_GOVERNANCE_02_AUDIT.md](ENGINEERING_GOVERNANCE_02_AUDIT.md)（同目录）
 > v1→v2 决策 → v3 无上线前提 → v4 例外归零+留档 → v5 纯开源开发阶段 → v6 全案自审 → v7 执行移出+深查 11 项 → v8 附录 C 确认 + 根目录治理 + 报告脱敏归档 → v9 附录 A.8 全部确认（无待决项）→ **v10 批次 0 执行完成（含 Kind 运行环境轮换）**
 > 定位：按 `standards/00:28`，属**改造方案**，不重写规范正文。本文件已按其自身建议归档至 `docs/renovation/`。
 >

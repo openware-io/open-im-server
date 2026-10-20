@@ -3,7 +3,7 @@
 > 文档状态：初版（清单与方案阶段，未执行整改）
 > 适用范围：open-chat / Open Chat 即时通讯系统（含 open-im-server 后端、open-chat-app / open-chat-desktop 客户端、open-chat-admin / open-saas-admin 管理端、SaaS 平台服务）
 > 责任方：法务/合规、安全、产品、研发（联合）
-> 关联文档：docs/security/SENSITIVE_DATA_PROTECTION.md、docs/features/SECRET_CHAT_01_E2EE.md、docs/business/CONVERSATION_TYPES_AND_PRIVACY.md
+> 关联文档：docs/security/SENSITIVE_DATA_PROTECTION.md、docs/domain/features/SECRET_CHAT_01_E2EE.md、docs/domain/CONVERSATION_TYPES_AND_PRIVACY.md
 
 ---
 
