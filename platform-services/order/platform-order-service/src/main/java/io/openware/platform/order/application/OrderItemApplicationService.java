@@ -22,7 +22,6 @@ import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,7 +57,6 @@ public class OrderItemApplicationService {
   private final MemberLookupProvider memberLookupProvider;
   private final PendingApprovalApplicationService pendingApprovalService;
 
-  @Autowired
   public OrderItemApplicationService(OrderItemRepository orderItemRepository,
                                      CatalogItemRepository catalogItemRepository,
                                      OrderRepository orderRepository,

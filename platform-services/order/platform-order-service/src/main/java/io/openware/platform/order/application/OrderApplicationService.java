@@ -24,7 +24,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,7 +47,6 @@ public class OrderApplicationService {
   private final DailySerialNumberGenerator dailySerialNumberGenerator;
   private final MemberLookupProvider memberLookupProvider;
 
-  @Autowired
   public OrderApplicationService(OrderRepository orderRepository,
                                  KtvSessionApplicationService ktvSessionService,
                                  ResourceStateClient resourceStateClient,

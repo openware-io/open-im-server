@@ -57,3 +57,4 @@
 | G43 | service-layout | validate-service-layout.ps1 | blocking | Service 内部目录固定模板、controller 位置与遗留包 allowlist |
 | G44 | documentation-governance | validate-documentation-governance.ps1 | blocking | 归档元数据、双语配对、旧命名与文档资产治理 |
 | G45 | controller-mapping-integrity | validate-controller-mapping-integrity.ps1 | blocking | 控制器路由重复、类路径重复与 consumes 重载 |
+| G46 | autowired-constructor | validate-autowired-constructor.ps1 | blocking | 单构造器禁止不必要的 @Autowired |

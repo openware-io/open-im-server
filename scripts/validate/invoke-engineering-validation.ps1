@@ -72,6 +72,7 @@ $validators = @(
   @{ Name = 'service-layout'; Arguments = @() },
   @{ Name = 'controller-repository-boundary'; Arguments = @() },
   @{ Name = 'controller-mapping-integrity'; Arguments = @() },
+  @{ Name = 'autowired-constructor'; Arguments = @() },
   @{ Name = 'controller-transaction-boundary'; Arguments = @() },
   @{ Name = 'domain-model-purity'; Arguments = @() },
   @{ Name = 'audit-fields'; Arguments = @() },

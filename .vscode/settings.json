@@ -1,6 +1,8 @@
 {
   "java.configuration.updateBuildConfiguration": "automatic",
   "boot-java.validation.java.version-validation": "OFF",
+  "spring-boot.ls.problem.version-validation.SUPPORTED_OSS_VERSION": "IGNORE",
+  "spring-boot.ls.problem.version-validation.SUPPORTED_COMMERCIAL_VERSION": "IGNORE",
   "spring-boot.ls.problem.version-validation.UNSUPPORTED_OSS_VERSION": "IGNORE",
   "spring-boot.ls.problem.version-validation.UNSUPPORTED_COMMERCIAL_VERSION": "IGNORE",
   "spring-boot.ls.problem.version-validation.UPDATE_LATEST_MAJOR_VERSION": "IGNORE",
