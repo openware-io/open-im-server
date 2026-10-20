@@ -23,7 +23,7 @@ This change establishes a documentation center, an engineering topology, this au
 | Phase | Status | Result |
 | --- | --- | --- |
 | Phase 0 global plan | ✅ | Classification, archival rules, target layout and execution order |
-| Phase 1 manifest | ✅ | 369-row per-file manifest across the 8 im-saas repositories |
+| Phase 1 manifest | ✅ | 371-row per-file manifest across the 8 im-saas repositories |
 | Phase 2 archive | ✅ | 94 historical docs archived: 78 renovation, 11 superpowers, audits/inventories/old release notes |
 | Phase 3 merge/update | ✅ | 10 `im-services` docs merged; entries/ports/service names/routes aligned |
 | Phase 4 bilingual/additions | ✅ | English READMEs for 7 repos; per-doc English summaries for services/business/standards |

@@ -13,6 +13,9 @@ im-saas docs
 ├─ 00 Getting started
 │  ├─ One-click deployment
 │  └─ Entry points and account rules
+├─ 01 Product introduction
+│  ├─ Positioning and capability matrix
+│  └─ Product screenshots
 ├─ 05 Documentation governance
 │  ├─ Organization and archival plan
 │  ├─ Documentation audit (findings and plan)
@@ -45,7 +48,7 @@ im-saas docs
 
 | Goal | Order |
 | --- | --- |
-| First run | One-click deployment → entry points/accounts → engineering topology |
+| First run | Product introduction → one-click deployment → entry points/accounts → engineering topology |
 | Understand the system | Engineering topology → architecture overview → service docs |
 | Local development | Local deployment → service docs → engineering rules |
 | Release | Release runbook → deployment docs → E2E conventions |
@@ -58,6 +61,12 @@ im-saas docs
 | Document | Relationship |
 | --- | --- |
 | [One-click deployment](../README.en.md#one-click-deployment-recommended) | Start here: requirements, Kind deployment, entries and verification |
+
+### 01 Product introduction
+
+| Document | Relationship |
+| --- | --- |
+| [OpenChat product introduction](introduction/README.en.md) | Positioning, product surfaces, capability matrix, audience and quick start |
 
 ### 05 Documentation governance
 

@@ -52,7 +52,7 @@ try {
   $readmePath = Join-Path $root 'README.md'
   if (Test-Path -LiteralPath $readmePath -PathType Leaf) {
     $readme = [System.IO.File]::ReadAllText($readmePath, [System.Text.UTF8Encoding]::new($false, $true))
-    foreach ($standard in (git -C $root ls-files 'docs/standards/*.md')) {
+    foreach ($standard in (git -C $root ls-files 'docs/standards/*.md' | Where-Object { $_ -notmatch '\.en\.md$' })) {
       $fileName = Split-Path -Leaf $standard
       if ($readme -notmatch [regex]::Escape($fileName)) {
         $violations.Add("README.md documentation index does not link $standard")

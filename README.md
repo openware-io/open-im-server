@@ -1,6 +1,15 @@
-# OpenIM Server
+# OpenChat
 
-[中文](README.md) | [English](README.en.md)
+[中文](README.md) | [English](README.en.md) · [产品介绍](docs/introduction/README.md) · [工程拓扑](docs/architecture/TOPOLOGY.zh.md) · [一键部署](#一键部署推荐)
+
+[![Documentation governance](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml/badge.svg?branch=main)](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+**开源的即时通讯 + 多租户 SaaS 一体化平台。**
+
+![OpenChat 官网首页](docs/assets/screenshots/website.jpg)
+
+OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面端和本地一键部署放在同一套工程体系里：既能作为可运行的产品底座，也能作为微服务、长连接可靠消息和多租户权限设计的参考实现。
 
 > 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
 > 工程级拓扑与文档导航见[文档中心](./docs/README.md)和[工程拓扑](./docs/architecture/TOPOLOGY.zh.md)。
@@ -177,6 +186,7 @@ powershell ./run-dev.ps1 -Service gateway
 ```text
 im-saas 文档
 ├─ 入门
+│  ├─ 产品介绍（./docs/introduction/README.md）
 │  ├─ 文档中心（./docs/README.md）
 │  ├─ 一键部署（README 顶部）
 │  └─ 工程拓扑（./docs/architecture/TOPOLOGY.zh.md）

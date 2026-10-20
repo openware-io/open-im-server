@@ -40,6 +40,7 @@ if (Test-Path -LiteralPath $archiveRoot) {
 $pairedDocs = @(
   'README.md',
   'docs/README.md',
+  'docs/introduction/README.md',
   'docs/ARCHITECTURE.md',
   'docs/DOCUMENTATION_AUDIT.md',
   'docs/DOCUMENTATION_ORGANIZATION.md',

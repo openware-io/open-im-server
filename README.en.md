@@ -1,6 +1,15 @@
-# OpenIM Server
+# OpenChat
 
-[中文](README.md) | [English](README.en.md)
+[中文](README.md) | [English](README.en.md) · [Product introduction](docs/introduction/README.en.md) · [Engineering topology](docs/architecture/TOPOLOGY.en.md) · [One-click deployment](#one-click-deployment-recommended)
+
+[![Documentation governance](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml/badge.svg?branch=main)](https://github.com/openware-io/open-im-server/actions/workflows/docs-governance.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+**An open-source instant-messaging + multi-tenant SaaS platform.**
+
+![OpenChat website](docs/assets/screenshots/website.jpg)
+
+OpenChat combines an IM open platform, multi-tenant SaaS, operations consoles, mobile/desktop clients and one-click local deployment in one engineering system. It works as a runnable product foundation and as a reference implementation for microservices, reliable long connections and multi-tenant permissions.
 
 > Status: `current` (developing on `develop/2.3.0`; latest stage tag `2.2.1`)  
 > Engineering topology and documentation entry: [Documentation center](./docs/README.en.md) and [Engineering topology](./docs/architecture/TOPOLOGY.en.md).
@@ -158,6 +167,7 @@ Besides the one-click Kind deployment, two independent local modes are available
 ```text
 im-saas docs
 ├─ Getting started
+│  ├─ Product introduction (./docs/introduction/README.en.md)
 │  ├─ Documentation center (./docs/README.en.md)
 │  ├─ One-click deployment (top of this README)
 │  └─ Engineering topology (./docs/architecture/TOPOLOGY.en.md)
