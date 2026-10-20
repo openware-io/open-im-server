@@ -145,6 +145,7 @@
 4. 校验服务域 API 与 Service 的有效版本一致，并校验平台 BOM版本符合批准的平台兼容策略。
 5. 校验存在 `db/migration` 的 Service 是相应权威数据的唯一迁移所有者；跨服务不得复用或修改其迁移脚本。
 6. 门禁发现例外时必须强制失败。临时例外须有架构决策记录、负责人、到期时间、退出条件和补充验证范围。
+7. 目录模板由 G43 `validate-service-layout.ps1` 校验；文档治理由 G44 `validate-documentation-governance.ps1` 校验，二者均为 blocking。
 
 ## Service 内部目录
 
@@ -207,6 +208,40 @@
 - `common` 仅可放当前服务内部的通用异常处理、局部工具和非业务配置；不得成为逃避领域归属的业务对象容器。
 - 跨服务通用的技术能力放入平台或共享技术模块；跨服务稳定的业务契约放入独立契约模块；不得将服务私有领域模型下沉到公共模块。
 - 示例：采用“服务域父模块 + API + Service”结构的工程，可将稳定 Java 契约放入 `<service>-api`，将可部署实现放入 `<service>-service`。这是一种推荐落地方式，不是本规范唯一允许的目录形式。
+
+### 当前固定模板与门禁基线（G43）
+
+从 2026-10-20 起，`im-server` 的 Service 内部目录按以下模板校验；新服务不得再引入模板外目录。
+
+```text
+<ctx>/
+├── api/
+│   ├── controller/        # 公共与内部 HTTP 入站适配器
+│   ├── dto/
+│   └── converter/
+├── application/           # 用例编排、事务、Command/Query/Result
+├── domain/                # 聚合、实体、值对象、领域服务、Repository 契约
+├── infra/                 # 持久化、缓存、MQ、RPC、外部适配
+├── config/                # Spring 运行配置（标准支持包）
+└── handler/               # Web 异常/统一响应处理（标准支持包）
+```
+
+固定规则：
+
+1. 所有 `@RestController` 必须位于 `api/controller`（允许 `api/<feature>/` 的功能子包）；`config`、`handler` 只放配置和横切适配，不放业务规则。
+2. 顶层 `controller` 是**迁移期遗留**，只允许 `service-layout-legacy-controllers.txt` 中列出的服务；新服务或新控制器不得使用。
+3. `media`、`conversation`、`messaging`、`scheduler`、`command`、`integration` 是现有 IM 服务的迁移期功能包；新代码应放入 `infra.*` 或 `application.*`。
+4. 媒体类 adapter-only 能力可以没有 `domain`；其他业务服务必须同时具备 `api / application / domain / infra`。
+5. 模板偏差由 `scripts/validate/validate-service-layout.ps1`（G43）强制失败；历史遗留只能通过显式 allowlist 存在，并必须逐步迁出。
+
+新增服务的最小检查：
+
+```text
+api/controller + application + domain + infra
++ config/handler（按需）
++ Flyway 归属（如持有数据）
++ G18 / G21 / G43 全绿
+```
 
 ## 分层职责与依赖规则
 

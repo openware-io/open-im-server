@@ -1,4 +1,4 @@
-package io.openware.im.admin.api;
+package io.openware.im.admin.api.controller;
 
 import io.openware.common.enums.ReportStatus;
 import io.openware.common.enums.SensitiveWordCategory;

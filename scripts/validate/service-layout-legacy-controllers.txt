@@ -1,0 +1,8 @@
+# Services allowed to keep the legacy top-level controller package during migration.
+# Format: <service-name> | <reason>
+# Remove a service from this file as soon as its controllers move to api/controller.
+im-user-service | legacy public controllers; migrate to api/controller
+im-message-service | legacy secret-message controllers; migrate to api/controller
+im-conversation-service | legacy group/channel controllers; migrate to api/controller
+im-admin-service | legacy admin controllers; migrate to api/controller
+common-media-service | legacy media controllers; migrate to api/controller

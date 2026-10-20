@@ -66,7 +66,7 @@ try {
   # punishing the intended dependency direction.
   $persistenceImportPattern = 'import\s+[^;]*\.infra\.persistence\.(mapper|po|repository)\.'
   foreach ($domain in $domainRoots) {
-    foreach ($file in ($tracked | Where-Object { $_ -like "$domain/*/*-service/src/main/java/*/controller/*" })) {
+    foreach ($file in ($tracked | Where-Object { $_ -like "$domain/*/*-service/src/main/java/*/controller/*" -or $_ -like "$domain/*/*-service/src/main/java/*/api/controller/*" })) {
       if (Test-FileContains $file $persistenceImportPattern) {
         $violations.Add("controller depends on a persistence implementation: $file")
       }

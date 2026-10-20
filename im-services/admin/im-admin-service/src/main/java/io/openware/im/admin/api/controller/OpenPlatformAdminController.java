@@ -1,4 +1,4 @@
-package io.openware.im.admin.api;
+package io.openware.im.admin.api.controller;
 
 import io.openware.common.dto.PageResult;
 import io.openware.im.admin.integration.OpenPlatformAdminClient;

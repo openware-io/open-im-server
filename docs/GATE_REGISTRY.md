@@ -54,3 +54,5 @@
 | G40 | media-url | validate-media-url.ps1 | blocking | 公共媒体仅经 /api/v1/media-public/**，无旧路径/re-write |
 | G41 | observability-metrics | validate-observability-metrics.ps1 | blocking | 指标名唯一、禁止高基数标签 |
 | G42 | mq-semantics | validate-mq-semantics.ps1 | blocking | MQ 台账顺序键/幂等键必须真实，消息链路用 conversationId |
+| G43 | service-layout | validate-service-layout.ps1 | blocking | Service 内部目录固定模板、controller 位置与遗留包 allowlist |
+| G44 | documentation-governance | validate-documentation-governance.ps1 | blocking | 归档元数据、双语配对、旧命名与文档资产治理 |

@@ -1,4 +1,4 @@
-package io.openware.im.admin.api;
+package io.openware.im.admin.api.controller;
 
 import io.openware.im.admin.application.AdminManagementApplicationService;
 import io.openware.im.admin.application.AdminManagementApplicationService.ConfigurationChange;
