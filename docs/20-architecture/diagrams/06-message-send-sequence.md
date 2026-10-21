@@ -7,6 +7,7 @@
 > 重点：幂等、事务、Outbox、重试和离线补偿。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
 sequenceDiagram
   autonumber
   participant C as 发送端

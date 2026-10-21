@@ -7,39 +7,17 @@
 > Does not answer: full ER models; exact columns follow each service's Flyway.
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
 flowchart LR
-  subgraph Edge["Edge"]
-    WS["im-access-ws"]
+  subgraph GROUPS["Service groups"]
+    direction TB
+    IM["IM domain<br/>user / message<br/>conversation / admin"]
+    SAAS["SaaS platform<br/>identity / tenant / customer<br/>order / resource / marketing"]
+    SHARED["Shared capabilities<br/>media / audit / payment<br/>sms / mail / IAM"]
+    EDGE["Edge<br/>im-access-ws"]
   end
-
-  subgraph IM["IM domain"]
-    USER["im-user-service"]
-    MSG["im-message-service"]
-    CONV["im-conversation-service"]
-    IMADM["im-admin-service"]
-  end
-
-  subgraph SaaS["SaaS platform"]
-    ID["platform-identity-service"]
-    TEN["platform-tenant-service"]
-    CUS["platform-customer-service"]
-    ORD["platform-order-service"]
-    RES["platform-resource-service"]
-    MKT["platform-marketing-service"]
-    PADM["platform-admin-service<br/>BFF"]
-  end
-
-  subgraph Shared["Shared capabilities"]
-    AUD["common-audit-service"]
-    MEDIA["common-media-service"]
-    PAY["common-payment-service"]
-    PAYCH["common-payment-channel-service"]
-    SMS["common-sms-service"]
-    MAIL["common-mail-service"]
-    IDAAS["group-idaas-service"]
-  end
-
-  subgraph Stores["Stores"]
+  subgraph STORES["Stores"]
+    direction TB
     IMDB[("open_im")]
     SADB[("open_saas")]
     GDB[("open_group")]
@@ -48,36 +26,28 @@ flowchart LR
     REDIS[("Redis")]
     MINIO[("MinIO")]
   end
-
-  USER -->|"owns"| IMDB
-  MSG -->|"owns"| IMDB
-  CONV -->|"owns"| IMDB
-  IMADM -.->|"config / read projection"| IMDB
-
-  ID -->|"owns"| SADB
-  TEN -->|"owns"| SADB
-  CUS -->|"owns"| SADB
-  ORD -->|"owns"| SADB
-  RES -->|"owns"| SADB
-  MKT -->|"owns"| SADB
-  PADM -.->|"read-only aggregation"| SADB
-
-  AUD -->|"owns"| ADB
-  IDAAS -->|"owns"| GDB
-  PAY -->|"owns"| SADB
-  PAYCH -->|"config"| SADB
-  SMS -->|"config"| SADB
-  MAIL -->|"config"| SADB
-
-  MSG -.->|"hot projection / offline inbox"| MONGO
-  USER -.->|"session / presence"| REDIS
-  MSG -.->|"cache / routing"| REDIS
-  WS -.->|"presence routing"| REDIS
-  MEDIA -->|"metadata"| SADB
-  MEDIA -->|"objects"| MINIO
-
-  IMDB -.->|"IDs / events only"| SADB
-  SADB -.->|"IDs / events only"| IMDB
+  IM --> IMDB
+  IM -.-> MONGO
+  IM -.-> REDIS
+  SAAS --> SADB
+  SAAS -.-> REDIS
+  SHARED --> SADB
+  SHARED --> ADB
+  SHARED --> GDB
+  SHARED --> MINIO
+  EDGE -.-> REDIS
+  IMDB -.->|"IDs / events"| SADB
+  SADB -.->|"IDs / events"| IMDB
+  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
+  classDef saas fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
+  classDef shared fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
+  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
+  classDef store fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
+  class IM im
+  class SAAS saas
+  class SHARED shared
+  class EDGE edge
+  class IMDB,SADB,GDB,ADB,MONGO,REDIS,MINIO store
 ```
 
 ## Ownership table

@@ -27,6 +27,34 @@
 - Table names are prefixes; exact schema follows each service's Flyway and domain model.
 - Diagrams are Mermaid sources, reviewable in Git; no opaque screenshots.
 
+## Visual rules
+
+Diagrams use **C4 semantics plus controlled Mermaid layout**:
+
+| Type | Technique | Reason |
+| --- | --- | --- |
+| 01 Context | actors / boundary / external systems | boundary only; no internal services |
+| 02 Container | grouped clients, edge, IM, platform, shared, data | Mermaid C4 overlaps labels with many nodes; grouped flowchart is stable |
+| 03 Deployment | namespace / ingress / pod groups / infrastructure | must map to K8s manifests |
+| 04 Data ownership | service groups → stores, dotted cross-domain links | owner first, cross-domain references second |
+| 05 Contexts | domain boundaries + dependency direction | no tables or classes |
+| 06 Sequence | `sequenceDiagram` | call order, idempotency and retries |
+| 07 Events | producer → topic family → consumer | grouped by family; exact registry linked |
+| 08 States | `stateDiagram-v2` | explicit terminal and failure states |
+
+Palette:
+
+```text
+grey    clients
+blue    edge
+green   IM domain
+amber   SaaS platform
+red     shared capabilities
+purple  data and messaging
+```
+
+Use at most six primary colors; color expresses layer, not importance.
+
 ## Sources of truth
 
 - Services and ports: [k8s/local/applications.yaml](../../../k8s/local/applications.yaml)

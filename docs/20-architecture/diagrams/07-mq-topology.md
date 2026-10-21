@@ -7,6 +7,7 @@
 > 精确 Topic/Consumer Group 清单见 [MQ 台账](../../30-reference/mq/REGISTRY.md)，本图按事件族聚合。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
 flowchart LR
   subgraph Producers["生产者"]
     WS["im-access-ws"]

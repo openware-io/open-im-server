@@ -7,6 +7,7 @@
 > 不回答：内部服务、数据库、类结构。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
 flowchart LR
   subgraph Actors["参与者"]
     C["C 端用户<br/>App / Desktop / H5"]
@@ -37,6 +38,12 @@ flowchart LR
   PLATFORM -->|"支付 / 退款"| PAY
   PLATFORM -->|"OAuth / OIDC"| IDP
   PLATFORM -->|"指标 / 日志 / 告警"| OBS
+  classDef actor fill:#F4F5F7,stroke:#8993A4,color:#172B4D
+  classDef system fill:#0052CC,stroke:#0747A6,color:#FFFFFF,stroke-width:2px
+  classDef external fill:#FFFAE6,stroke:#FF991F,color:#172B4D
+  class C,O,A,D actor
+  class PLATFORM system
+  class PUSH,SMS,PAY,IDP,OBS external
 ```
 
 ## 读图要点

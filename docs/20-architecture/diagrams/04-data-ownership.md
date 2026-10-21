@@ -7,39 +7,17 @@
 > 不回答：完整 ER 图；精确字段以各服务 Flyway 为准。
 
 ```mermaid
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
 flowchart LR
-  subgraph Edge["接入层"]
-    WS["im-access-ws"]
+  subgraph GROUPS["服务组"]
+    direction TB
+    IM["IM 业务域<br/>user / message<br/>conversation / admin"]
+    SAAS["SaaS 平台域<br/>identity / tenant / customer<br/>order / resource / marketing"]
+    SHARED["公共能力域<br/>media / audit / payment<br/>sms / mail / IAM"]
+    EDGE["接入层<br/>im-access-ws"]
   end
-
-  subgraph IM["IM 业务域"]
-    USER["im-user-service"]
-    MSG["im-message-service"]
-    CONV["im-conversation-service"]
-    IMADM["im-admin-service"]
-  end
-
-  subgraph SaaS["SaaS 平台域"]
-    ID["platform-identity-service"]
-    TEN["platform-tenant-service"]
-    CUS["platform-customer-service"]
-    ORD["platform-order-service"]
-    RES["platform-resource-service"]
-    MKT["platform-marketing-service"]
-    PADM["platform-admin-service<br/>BFF"]
-  end
-
-  subgraph Shared["公共能力"]
-    AUD["common-audit-service"]
-    MEDIA["common-media-service"]
-    PAY["common-payment-service"]
-    PAYCH["common-payment-channel-service"]
-    SMS["common-sms-service"]
-    MAIL["common-mail-service"]
-    IDAAS["group-idaas-service"]
-  end
-
-  subgraph Stores["存储"]
+  subgraph STORES["存储"]
+    direction TB
     IMDB[("open_im")]
     SADB[("open_saas")]
     GDB[("open_group")]
@@ -48,36 +26,28 @@ flowchart LR
     REDIS[("Redis")]
     MINIO[("MinIO")]
   end
-
-  USER -->|"拥有"| IMDB
-  MSG -->|"拥有"| IMDB
-  CONV -->|"拥有"| IMDB
-  IMADM -.->|"配置 / 读投影"| IMDB
-
-  ID -->|"拥有"| SADB
-  TEN -->|"拥有"| SADB
-  CUS -->|"拥有"| SADB
-  ORD -->|"拥有"| SADB
-  RES -->|"拥有"| SADB
-  MKT -->|"拥有"| SADB
-  PADM -.->|"只读聚合"| SADB
-
-  AUD -->|"拥有"| ADB
-  IDAAS -->|"拥有"| GDB
-  PAY -->|"拥有"| SADB
-  PAYCH -->|"配置"| SADB
-  SMS -->|"配置"| SADB
-  MAIL -->|"配置"| SADB
-
-  MSG -.->|"热投影 / 离线收件箱"| MONGO
-  USER -.->|"会话 / 在线状态"| REDIS
-  MSG -.->|"缓存 / 路由"| REDIS
-  WS -.->|"在线路由"| REDIS
-  MEDIA -->|"元数据"| SADB
-  MEDIA -->|"对象"| MINIO
-
-  IMDB -.->|"只传 ID / 事件"| SADB
-  SADB -.->|"只传 ID / 事件"| IMDB
+  IM --> IMDB
+  IM -.-> MONGO
+  IM -.-> REDIS
+  SAAS --> SADB
+  SAAS -.-> REDIS
+  SHARED --> SADB
+  SHARED --> ADB
+  SHARED --> GDB
+  SHARED --> MINIO
+  EDGE -.-> REDIS
+  IMDB -.->|"ID / 事件"| SADB
+  SADB -.->|"ID / 事件"| IMDB
+  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
+  classDef saas fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
+  classDef shared fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
+  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
+  classDef store fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
+  class IM im
+  class SAAS saas
+  class SHARED shared
+  class EDGE edge
+  class IMDB,SADB,GDB,ADB,MONGO,REDIS,MINIO store
 ```
 
 ## 归属表

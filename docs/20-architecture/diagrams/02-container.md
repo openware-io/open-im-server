@@ -7,127 +7,79 @@
 > 不回答：Pod 副本、Node、数据库表结构。
 
 ```mermaid
-flowchart TB
-  subgraph Clients["客户端"]
-    APP["open-chat-app<br/>Android / iOS / Web"]
-    DESK["open-chat-desktop"]
-    H5["open-saas-mobile<br/>C 端 / B 端 H5"]
-    IMADMIN["open-chat-admin<br/>pc-admin"]
-    SAASADMIN["open-saas-admin"]
-    WEB["open-website"]
+%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
+flowchart LR
+  subgraph CLIENTS["客户端"]
+    direction TB
+    APP["C 端客户端"]
+    ADMIN["管理后台"]
+    OPEN["开放平台"]
   end
-
-  subgraph Edge["接入层"]
-    ING["ingress-nginx"]
-    GW["gateway<br/>:3002"]
-    WS["im-access-ws<br/>:3001"]
+  subgraph EDGE["接入层"]
+    direction TB
+    GW["gateway"]
+    WS["im-access-ws"]
   end
-
   subgraph IM["IM 业务域"]
-    USER["im-user-service<br/>:3100"]
-    MSG["im-message-service<br/>:3200"]
-    CONV["im-conversation-service<br/>:3300"]
-    IMADM["im-admin-service<br/>:3400"]
+    direction TB
+    USER["user"]
+    MSG["message"]
+    CONV["conversation"]
+    IMADM["im-admin"]
   end
-
-  subgraph Platform["SaaS 平台域"]
-    ID["platform-identity-service<br/>:4100"]
-    TEN["platform-tenant-service<br/>:4110"]
-    RES["platform-resource-service<br/>:4120"]
-    ORD["platform-order-service<br/>:4130"]
-    PADM["platform-admin-service<br/>BFF :4150"]
-    CUS["platform-customer-service<br/>:4160"]
-    MKT["platform-marketing-service<br/>:4170"]
+  subgraph PLAT["SaaS 平台域"]
+    direction TB
+    ID["identity"]
+    TEN["tenant"]
+    ORD["order"]
+    PADM["admin BFF"]
+    CUS["customer"]
+    MKT["marketing"]
   end
-
-  subgraph Common["公共能力域"]
-    MEDIA["common-media-service<br/>:3600"]
-    PAY["common-payment-service<br/>:4140"]
-    PAYCH["common-payment-channel-service<br/>:4180"]
-    AUD["common-audit-service<br/>:4190"]
-    SMS["common-sms-service<br/>:4200"]
-    MAIL["common-mail-service<br/>:4210"]
-    IDAAS["group-idaas-service<br/>:4220"]
+  subgraph COMMON["公共能力域"]
+    direction TB
+    MEDIA["media"]
+    PAY["payment"]
+    AUD["audit"]
+    SMS["sms"]
+    IAM["IAM"]
   end
-
-  subgraph Data["数据与消息基础设施"]
-    MYSQL[("MySQL<br/>open_im / open_saas<br/>open_group / open_audit")]
-    REDIS[("Redis<br/>会话 / 在线 / 缓存")]
-    MONGO[("MongoDB<br/>im_chat 消息投影")]
-    MQ[("RocketMQ<br/>命令 / 事件")]
-    MINIO[("MinIO<br/>媒体对象")]
+  subgraph DATA["数据与消息"]
+    direction TB
+    MYSQL[("MySQL")]
+    REDIS[("Redis")]
+    MONGO[("MongoDB")]
+    MQ[("RocketMQ")]
+    MINIO[("MinIO")]
   end
-
-  APP --> ING
-  DESK --> ING
-  H5 --> ING
-  IMADMIN --> ING
-  SAASADMIN --> ING
-  WEB --> ING
-  ING --> GW
-  ING --> WS
-  ING --> IMADMIN
-  ING --> SAASADMIN
-  ING --> H5
-  ING --> WEB
-
-  GW --> USER
-  GW --> MSG
-  GW --> CONV
-  GW --> IMADM
-  GW --> ID
-  GW --> TEN
-  GW --> RES
-  GW --> ORD
-  GW --> PADM
-  GW --> CUS
-  GW --> MKT
-  GW --> MEDIA
-  GW --> PAY
-  GW --> PAYCH
-  GW --> AUD
-  GW --> SMS
-  GW --> MAIL
-  GW --> IDAAS
-
+  APP --> GW
+  ADMIN --> GW
+  OPEN --> GW
+  APP --> WS
+  GW --> IM
+  GW --> PLAT
+  GW --> COMMON
   WS --> MQ
   WS --> REDIS
-  WS --> USER
-  WS --> CONV
-
-  USER --> MYSQL
-  USER --> MQ
-  MSG --> MYSQL
-  MSG --> MONGO
-  MSG --> REDIS
-  MSG --> MQ
-  CONV --> MYSQL
-  CONV --> MQ
-  IMADM --> MYSQL
-  IMADM --> MQ
-
-  ID --> MYSQL
-  TEN --> MYSQL
-  RES --> MYSQL
-  RES --> MQ
-  ORD --> MYSQL
-  ORD --> MQ
-  CUS --> MYSQL
-  CUS --> MQ
-  MKT --> MYSQL
-  MKT --> MQ
-  PADM -.->|"BFF 聚合"| ID
-  PADM -.->|"BFF 聚合"| TEN
-
-  MEDIA --> MYSQL
-  MEDIA --> MINIO
-  PAY --> MYSQL
-  PAY --> MQ
-  PAYCH --> MYSQL
-  AUD --> MYSQL
-  SMS --> MYSQL
-  MAIL --> MYSQL
-  IDAAS --> MYSQL
+  IM --> MYSQL
+  IM --> MONGO
+  IM --> MQ
+  PLAT --> MYSQL
+  PLAT --> MQ
+  COMMON --> MYSQL
+  COMMON --> MINIO
+  classDef client fill:#F4F5F7,stroke:#8993A4,color:#172B4D,stroke-width:1px
+  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
+  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
+  classDef platform fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
+  classDef common fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
+  classDef data fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
+  class APP,ADMIN,OPEN client
+  class GW,WS edge
+  class USER,MSG,CONV,IMADM im
+  class ID,TEN,ORD,PADM,CUS,MKT platform
+  class MEDIA,PAY,AUD,SMS,IAM common
+  class MYSQL,REDIS,MONGO,MQ,MINIO data
 ```
 
 ## 读图要点
@@ -138,6 +90,30 @@ flowchart TB
 - `platform-admin-service` 是 BFF，聚合身份/租户等能力，不拥有独立业务数据。
 - `common-*` 只提供公共能力，不反向依赖 IM/SaaS 业务域。
 - 完整端口与副本以 [K8s 清单](../../../k8s/local/applications.yaml) 为准。
+
+## 服务与端口
+
+图中使用短名，完整服务名和本地端口如下：
+
+| 图中名称 | 服务 | 端口 |
+| --- | --- | --- |
+| `user` | `im-user-service` | `3100` |
+| `message` | `im-message-service` | `3200` |
+| `conversation` | `im-conversation-service` | `3300` |
+| `im-admin` | `im-admin-service` | `3400` |
+| `identity` | `platform-identity-service` | `4100` |
+| `tenant` | `platform-tenant-service` | `4110` |
+| `order` | `platform-order-service` | `4130` |
+| `admin BFF` | `platform-admin-service` | `4150` |
+| `customer` | `platform-customer-service` | `4160` |
+| `marketing` | `platform-marketing-service` | `4170` |
+| `media` | `common-media-service` | `3600` |
+| `payment` | `common-payment-service` | `4140` |
+| `audit` | `common-audit-service` | `4190` |
+| `sms` | `common-sms-service` | `4200` |
+| `IAM` | `group-idaas-service` | `4220` |
+| `gateway` | `gateway` | `3002` |
+| `im-access-ws` | `im-access-ws` | `3001` |
 
 ## 协议
 
