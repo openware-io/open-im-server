@@ -13,6 +13,7 @@
 | [项目事实清单](PROJECT_FACTS_INVENTORY.md) | 当前产品/工程事实清单 |
 | [用户删除与数据生命周期](USER_DELETION_AND_DATA_LIFECYCLE.md) | 注销、删除、保留和审计要求 |
 | [功能专题](features/README.md) | 频道、私密会话、私密群聊等实现专题 |
+| [酒店业务](hotel/README.md) | 房型、房价、库存日历、预订支付与入住退房 |
 
 ## 相关
 
