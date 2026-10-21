@@ -2,6 +2,8 @@
 
 [中文](03-deployment.md) | [English](03-deployment.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: Deployment  
 > Answers: where containers run, how the edge, namespace, ports, storage and dependencies connect.  
 > Default: Kind local environment `open-im-local`; ACK changes edge/infrastructure implementations, not logical service boundaries.

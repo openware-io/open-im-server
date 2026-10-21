@@ -2,6 +2,8 @@
 
 [中文](01-system-context.md) | [English](01-system-context.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: C4 Level 1 — System Context  
 > Answers: who uses OpenChat, and which external systems sit outside its boundary?  
 > Does not answer: internal services, databases or class structure.

@@ -2,6 +2,8 @@
 
 [中文](06-message-send-sequence.md) | [English](06-message-send-sequence.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：Sequence  
 > 回答：一条 IM 消息从客户端发出到接收方收到，经过哪些边界？  
 > 重点：幂等、事务、Outbox、重试和离线补偿。

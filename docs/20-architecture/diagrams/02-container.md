@@ -2,6 +2,8 @@
 
 [中文](02-container.md) | [English](02-container.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：C4 Level 2 — Container  
 > 回答：系统由哪些可部署单元组成？它们的职责、协议和依赖是什么？  
 > 不回答：Pod 副本、Node、数据库表结构。

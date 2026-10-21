@@ -2,6 +2,8 @@
 
 [中文](03-deployment.md) | [English](03-deployment.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：Deployment  
 > 回答：容器实际跑在哪里？入口、命名空间、端口、存储和依赖怎么连？  
 > 默认示例：Kind 本地环境 `open-im-local`；ACK 只替换入口和基础设施实现，不改变逻辑服务边界。

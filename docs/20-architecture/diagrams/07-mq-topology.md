@@ -2,6 +2,8 @@
 
 [中文](07-mq-topology.md) | [English](07-mq-topology.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：Event Flow  
 > 回答：有哪些事件族？谁生产、谁消费？顺序键和幂等键是什么？  
 > 精确 Topic/Consumer Group 清单见 [MQ 台账](../../30-reference/mq/REGISTRY.md)，本图按事件族聚合。

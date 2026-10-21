@@ -2,6 +2,8 @@
 
 [中文](08-order-reservation-state.md) | [English](08-order-reservation-state.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: State Machine  
 > Answers: which transitions are allowed for orders, reservations and KTV sessions, and which states are terminal.  
 > State strings follow code and Flyway; this diagram does not replace business rule docs.

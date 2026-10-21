@@ -2,6 +2,8 @@
 
 [中文](01-system-context.md) | [English](01-system-context.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：C4 Level 1 — System Context  
 > 回答：谁在使用 OpenChat？系统边界外有哪些外部系统？  
 > 不回答：内部服务、数据库、类结构。

@@ -2,6 +2,8 @@
 
 [中文](02-container.md) | [English](02-container.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: C4 Level 2 — Container  
 > Answers: which deployable units exist, what do they own, and how do they communicate?  
 > Does not answer: pod replicas, nodes or table schemas.

@@ -2,6 +2,8 @@
 
 [中文](07-mq-topology.md) | [English](07-mq-topology.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: Event Flow  
 > Answers: which event families exist, who produces/consumes them, and what are the ordering and idempotency keys.  
 > Exact topics/consumer groups live in the [MQ registry](../../30-reference/mq/REGISTRY.md); this diagram groups by family.

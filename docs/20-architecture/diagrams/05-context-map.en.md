@@ -2,6 +2,8 @@
 
 [中文](05-context-map.md) | [English](05-context-map.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: DDD Context Map  
 > Answers: which bounded contexts exist, who depends on whom, and how they collaborate.  
 > Does not answer: deployment replicas or table schemas.

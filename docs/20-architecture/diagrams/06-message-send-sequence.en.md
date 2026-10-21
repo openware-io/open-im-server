@@ -2,6 +2,8 @@
 
 [中文](06-message-send-sequence.md) | [English](06-message-send-sequence.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: Sequence  
 > Answers: what happens between a client sending an IM message and the recipient receiving it.  
 > Focus: idempotency, transactions, Outbox, retries and offline compensation.

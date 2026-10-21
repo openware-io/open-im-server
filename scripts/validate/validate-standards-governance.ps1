@@ -56,7 +56,7 @@ $hardForbidden = @(
 
 Push-Location $root
 try {
-  $standardFiles = git -C $root ls-files 'docs/80-development/standards/*.md' | Where-Object { $_ -notmatch '(^|/)README(\.en)?\.md$' -and $_ -notmatch '\.en\.md$' }
+  $standardFiles = git -C $root ls-files 'docs/80-development/standards/*.md' | Where-Object { $_ -notmatch '(^|/)README(\.en)?\.md$' -and $_ -notmatch '\.en\.md$' -and $_ -notmatch 'STANDARDS_MAP' }
   foreach ($relativePath in $standardFiles) {
     $path = Join-Path $root $relativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { continue }

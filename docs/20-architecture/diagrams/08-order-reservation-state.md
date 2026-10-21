@@ -2,6 +2,8 @@
 
 [中文](08-order-reservation-state.md) | [English](08-order-reservation-state.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：State Machine  
 > 回答：订单、预约、KTV 会话允许哪些状态迁移？哪些是终态？  
 > 状态字符串以代码和 Flyway 为准；本图不替代业务规则文档。

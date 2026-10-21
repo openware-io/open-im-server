@@ -2,6 +2,8 @@
 
 [中文](04-data-ownership.md) | [English](04-data-ownership.en.md)
 
+> Diagram revision: `2026-10-21` · C4 semantics / grouped layout
+
 > View: Data Ownership  
 > Answers: which service owns which data, what crosses boundaries, and which stores are not authoritative.  
 > Does not answer: full ER models; exact columns follow each service's Flyway.

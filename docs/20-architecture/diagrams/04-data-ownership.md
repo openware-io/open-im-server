@@ -2,6 +2,8 @@
 
 [中文](04-data-ownership.md) | [English](04-data-ownership.en.md)
 
+> 图版本：`2026-10-21` · C4 语义 / 分组布局
+
 > 视角：Data Ownership  
 > 回答：哪类数据由哪个服务拥有？跨服务共享了什么？哪些存储不是权威事实？  
 > 不回答：完整 ER 图；精确字段以各服务 Flyway 为准。

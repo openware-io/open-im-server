@@ -95,4 +95,4 @@
 - [标准目录](README.md)：按分类块浏览；
 - [工程规范](../governance/ENGINEERING_RULES.md)：流程与责任；
 - [门禁注册表](../governance/GATE_REGISTRY.md)：L3 的可执行实现；
-- [架构决策记录](../20-architecture/adr/README.md)：原则冲突时的决策历史。
+- [架构决策记录](../../20-architecture/adr/README.md)：原则冲突时的决策历史。
