@@ -5,6 +5,7 @@
 > 维护范围：`D:\projects\cnb-oss` 下的 im-saas 产品仓库与 `open-im-server` 工程文档  
 > 当前阶段：`develop/2.3.0` 开发中（最近阶段 tag `2.2.1`）  
 > 语言约定：面向工程决策和交付的顶层文档提供中英双语；历史审计/renovation 记录只做归档标注，不追写双语。
+> 常用入口：[门禁清单](80-development/governance/GATE_REGISTRY.md) · [工程标准版图](80-development/standards/STANDARDS_MAP.md) · [架构图集](20-architecture/diagrams/README.md) · [部署索引](60-deployment/README.md)
 
 ## 1. 文档结构
 
@@ -58,6 +59,7 @@ docs/
 | [架构总览](20-architecture/OVERVIEW.md) | 运行时边界、职责、数据归属 |
 | [工程拓扑](20-architecture/TOPOLOGY.zh.md) | 仓库 / 部署单元 / 服务 / 数据 |
 | [架构图集](20-architecture/diagrams/README.md) | 8 张核心架构图：上下文、容器、部署、数据、上下文、时序、MQ、状态机 |
+| [参考索引](30-reference/README.md) | API、协议、契约与 MQ 台账的统一入口 |
 | [API 文档](30-reference/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
 | [协议说明](30-reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
 | [OpenAPI 契约](30-reference/contracts/README.md) | 跨服务/对外接口契约 |
@@ -81,6 +83,7 @@ docs/
 | 文档 | 关系 |
 | --- | --- |
 | [本地部署](60-deployment/LOCAL.md) | 三种本地方式的统一入口 |
+| [部署索引](60-deployment/README.md) | 部署、ACK、客户端发布与环境配置 |
 | [Docker Compose](60-deployment/DOCKER.md) | 日常联调 |
 | [Kubernetes 清单](../k8s/README.md) | Kind / ACK 资源与镜像 |
 | [推送配置](60-deployment/PUSH_SETUP.md) | 推送通道与环境配置 |
@@ -106,8 +109,8 @@ docs/
 
 | 文档 | 关系 |
 | --- | --- |
-| [安全文档](90-security/) | 敏感数据保护、延后安全发现 |
-| [合规文档](91-compliance/) | 中国区合规、P0 整改 |
+| [安全文档](90-security/README.md) | 敏感数据保护、延后安全发现 |
+| [合规文档](91-compliance/README.md) | 中国区合规、P0 整改 |
 | [文档审计](99-archive/audits/DOCUMENTATION_AUDIT.md) | 历史审计快照，已归档 |
 
 ### 历史归档

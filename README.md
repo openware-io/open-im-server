@@ -233,6 +233,7 @@ im-saas 文档
 - 服务说明入口：[服务目录](docs/50-services/)。
 - 标准入口：[标准目录](docs/80-development/standards/)。
 - 标准体系与缺口：[工程标准版图](docs/80-development/standards/STANDARDS_MAP.md)。
+- 门禁清单：[GATE_REGISTRY](docs/80-development/governance/GATE_REGISTRY.md)。
 
 ### 标准目录
 

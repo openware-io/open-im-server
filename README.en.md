@@ -217,6 +217,7 @@ im-saas docs
 - Service entry: [services](docs/50-services/).
 - Standards entry: [standards](docs/80-development/standards/).
 - Standards system and gaps: [standards map](docs/80-development/standards/STANDARDS_MAP.en.md).
+- Gate checklist: [GATE_REGISTRY](docs/80-development/governance/GATE_REGISTRY.md).
 
 ### Standards
 

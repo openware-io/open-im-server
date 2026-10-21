@@ -27,7 +27,7 @@ function Get-Utf8Text([string]$path) {
 $archiveRoot = Join-Path $root 'docs/99-archive'
 if (Test-Path -LiteralPath $archiveRoot) {
   $archiveDocs = Get-ChildItem $archiveRoot -Recurse -File -Filter '*.md' |
-    Where-Object { $_.Name -notin @('README.md', 'README.en.md', 'ARCHIVE-LOG.md', 'ARCHIVE-LOG.en.md') }
+    Where-Object { $_.Name -notin @('README.md', 'README.en.md', 'ARCHIVE-LOG.md', 'ARCHIVE-LOG.en.md', 'INDEX.md', 'INDEX.en.md') }
   foreach ($doc in $archiveDocs) {
     $text = Get-Utf8Text $doc.FullName
     if (-not $text.TrimStart([char]0xFEFF).StartsWith('> Status: historical')) {

@@ -12,6 +12,7 @@
 | [Conversation types and privacy](CONVERSATION_TYPES_AND_PRIVACY.md) | Private/group/channel/secret chats and data boundaries |
 | [Project facts inventory](PROJECT_FACTS_INVENTORY.md) | Current product and engineering facts |
 | [User deletion and data lifecycle](USER_DELETION_AND_DATA_LIFECYCLE.md) | Cancellation, deletion, retention and audit requirements |
+| [Feature topics](features/README.en.md) | Channel, secret chat and secret-group implementation topics |
 
 ## Related
 

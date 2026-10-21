@@ -7,6 +7,10 @@
 | [本地运行说明](LOCAL.md) | Windows 本地开发与联调 | 直接运行本地进程、Docker Compose、独立 Kind 集群的依赖条件、启动顺序、端口、停止范围和验证方式。 |
 | [Docker Compose 部署](DOCKER.md) | Docker Compose | 首次部署、日常更新、停止、数据重置和容器化基础设施说明。 |
 | [Kubernetes 清单说明](../../k8s/README.md) | Kind Kubernetes | 本地清单、镜像导入、Secret 生成、节点拓扑与静态校验。 |
+| [ACK 部署方案](ACK.md) | 生产 ACK | 隔离边界、域名证书、发布清单与执行顺序。 |
+| [客户端发布 SOP](CLIENT_RELEASE_SOP.md) | 客户端发布 | 发布前检查、构建、签名、灰度和回滚。 |
+| [OAuth 客户端环境登记](OAUTH_CLIENT_REGISTRY_BY_ENV.md) | 身份接入 | 各环境 OAuth client 注册与配置基线。 |
+| [发布规范](RELEASE_SPECIFICATION.md) | 版本发布 | 版本号、制品、发布清单和追溯规则。 |
 | [脚本目录说明](../../scripts/README.md) | 部署与验证脚本 | 各脚本的职责、稳定入口、运行期验证和发布版本追溯命令。 |
 
 部署脚本的稳定入口始终位于仓库根目录：`deploy-local.ps1`、`deploy-docker.ps1`、`deploy-k8s.ps1`。不得直接修改生成的 Kubernetes 运行资源或绕过部署脚本手工替换镜像，否则版本、Git 修订和发布记录会失去一致性。

@@ -5,6 +5,7 @@
 > Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs.
 > Stage: `develop/2.3.0` in development (latest stage tag `2.2.1`).
 > Language: top-level engineering and delivery docs are bilingual; historical audits/renovation stay Chinese-only with archive metadata.
+> Quick links: [Gate registry](80-development/governance/GATE_REGISTRY.md) · [Standards map](80-development/standards/STANDARDS_MAP.en.md) · [Architecture diagrams](20-architecture/diagrams/README.en.md) · [Deployment index](60-deployment/README.md)
 
 ## 1. Structure
 
@@ -58,6 +59,7 @@ docs/
 | [Architecture overview](20-architecture/OVERVIEW.en.md) | Runtime boundaries, ownership, data |
 | [Engineering topology](20-architecture/TOPOLOGY.en.md) | Repo / deployment / service / data |
 | [Architecture diagrams](20-architecture/diagrams/README.en.md) | Eight core diagrams: context, container, deployment, data, contexts, sequence, MQ, state machines |
+| [Reference index](30-reference/README.en.md) | API, protocol, contracts and MQ registry |
 | [API documentation](30-reference/API_DOCUMENTATION.md) | Gateway Swagger/OpenAPI entry |
 | [Protocol](30-reference/PROTOCOL.md) | WebSocket events and REST conventions |
 | [OpenAPI contracts](30-reference/contracts/README.md) | External and cross-service contracts |
@@ -81,6 +83,7 @@ docs/
 | Document | Relationship |
 | --- | --- |
 | [Local deployment](60-deployment/LOCAL.md) | Unified entry for local modes |
+| [Deployment index](60-deployment/README.md) | Deployment, ACK, client release and environment config |
 | [Docker Compose](60-deployment/DOCKER.md) | Daily integration |
 | [Kubernetes manifests](../k8s/README.md) | Kind / ACK resources and images |
 | [Push setup](60-deployment/PUSH_SETUP.md) | Push channels and environment setup |
@@ -106,8 +109,8 @@ docs/
 
 | Document | Relationship |
 | --- | --- |
-| [Security](90-security/) | Sensitive data protection and deferred findings |
-| [Compliance](91-compliance/) | China compliance and P0 remediation |
+| [Security](90-security/README.en.md) | Sensitive data protection and deferred findings |
+| [Compliance](91-compliance/README.en.md) | China compliance and P0 remediation |
 | [Documentation audit](99-archive/audits/DOCUMENTATION_AUDIT.en.md) | Historical audit snapshot |
 
 ### Archive

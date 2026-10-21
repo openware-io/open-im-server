@@ -61,3 +61,4 @@
 | G47 | architecture-decisions | validate-architecture-decisions.ps1 | blocking | ADR 目录、索引、模板、编号、章节与状态 |
 | G48 | standards-catalog | validate-standards-catalog.ps1 | blocking | 标准分类编号、唯一性、英文摘要与索引 |
 | G49 | standards-map | validate-standards-map.ps1 | blocking | 标准版图层级、领域、门禁证据与覆盖完整性 |
+| G50 | documentation-reachability | validate-documentation-reachability.ps1 | blocking | 现行文档可从 README / docs/README 递归到达（历史归档豁免） |
