@@ -182,6 +182,7 @@ im-saas docs
 │  └─ Engineering topology (./docs/20-architecture/TOPOLOGY.en.md)
 ├─ 20 Architecture and 30 Reference
 │  ├─ Architecture overview (./docs/20-architecture/OVERVIEW.en.md)
+│  ├─ Architecture diagrams (./docs/20-architecture/diagrams/)
 │  ├─ API / protocol (./docs/30-reference/)
 │  ├─ ADR / MQ registry (./docs/20-architecture/adr/, ./docs/30-reference/mq/)
 │  └─ Contracts (./docs/30-reference/contracts/)

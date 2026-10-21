@@ -57,6 +57,7 @@ docs/
 | --- | --- |
 | [架构总览](20-architecture/OVERVIEW.md) | 运行时边界、职责、数据归属 |
 | [工程拓扑](20-architecture/TOPOLOGY.zh.md) | 仓库 / 部署单元 / 服务 / 数据 |
+| [架构图集](20-architecture/diagrams/README.md) | 8 张核心架构图：上下文、容器、部署、数据、上下文、时序、MQ、状态机 |
 | [API 文档](30-reference/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
 | [协议说明](30-reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
 | [OpenAPI 契约](30-reference/contracts/README.md) | 跨服务/对外接口契约 |

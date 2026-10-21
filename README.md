@@ -201,6 +201,7 @@ im-saas 文档
 │  └─ 工程拓扑（./docs/20-architecture/TOPOLOGY.zh.md）
 ├─ 20 架构与 30 参考
 │  ├─ 架构总览（./docs/20-architecture/OVERVIEW.md）
+│  ├─ 架构图集（./docs/20-architecture/diagrams/）
 │  ├─ API / 协议（./docs/30-reference/）
 │  ├─ ADR / MQ 台账（./docs/20-architecture/adr/、./docs/30-reference/mq/）
 │  └─ 契约（./docs/30-reference/contracts/）

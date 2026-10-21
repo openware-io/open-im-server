@@ -4,6 +4,7 @@
 
 > Status: `current` (developing on `develop/2.3.0`)  
 > Repository/deployment-unit mapping and data ownership: [Engineering topology](TOPOLOGY.en.md).
+> Eight core diagrams: [architecture diagrams](diagrams/README.en.md).
 
 ## 1. Overall shape
 

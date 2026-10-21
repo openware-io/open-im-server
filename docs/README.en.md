@@ -57,6 +57,7 @@ docs/
 | --- | --- |
 | [Architecture overview](20-architecture/OVERVIEW.en.md) | Runtime boundaries, ownership, data |
 | [Engineering topology](20-architecture/TOPOLOGY.en.md) | Repo / deployment / service / data |
+| [Architecture diagrams](20-architecture/diagrams/README.en.md) | Eight core diagrams: context, container, deployment, data, contexts, sequence, MQ, state machines |
 | [API documentation](30-reference/API_DOCUMENTATION.md) | Gateway Swagger/OpenAPI entry |
 | [Protocol](30-reference/PROTOCOL.md) | WebSocket events and REST conventions |
 | [OpenAPI contracts](30-reference/contracts/README.md) | External and cross-service contracts |

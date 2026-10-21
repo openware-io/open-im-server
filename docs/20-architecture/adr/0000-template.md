@@ -1,6 +1,6 @@
 # ADR NNNN: 标题
 
-[中文](NNNN-kebab-case.md) | [English](NNNN-kebab-case.en.md)
+中文 | English（复制模板后改为实际文件名：`NNNN-kebab-case.md` / `.en.md`）
 
 ## Status / 状态
 

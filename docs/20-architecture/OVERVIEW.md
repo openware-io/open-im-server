@@ -4,6 +4,7 @@
 
 > 状态：`current`（`develop/2.3.0` 开发中）  
 > 工程分层、仓库/部署单元映射和数据归属见[工程拓扑](TOPOLOGY.zh.md)。
+> 8 张核心架构图见[架构图集](diagrams/README.md)。
 
 ## 1. 总体形态
 
