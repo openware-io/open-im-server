@@ -95,6 +95,7 @@ docs/
 | --- | --- |
 | [Contributing](80-development/contributing/README.en.md) | Pre-commit checks and workflow |
 | [Engineering rules](80-development/governance/ENGINEERING_RULES.md) | Development, review and gates |
+| [Repositories and branches](80-development/governance/ENGINEERING_REPOSITORIES.en.md) | Full repository scope, unified version branch and consistency check |
 | [Gate registry](80-development/governance/GATE_REGISTRY.md) | Executable checks |
 | [Gate catalog](80-development/governance/GATE_CATALOG.en.md) | Categories, owners, stages and evidence |
 | [Gate governance](80-development/standards/04_GATE_GOVERNANCE.en.md) | Add, classify, review and retire gates |

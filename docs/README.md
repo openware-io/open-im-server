@@ -95,6 +95,7 @@ docs/
 | --- | --- |
 | [参与贡献](80-development/contributing/README.md) | 提交前检查与协作流程 |
 | [工程规范](80-development/governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
+| [工程仓库与分支](80-development/governance/ENGINEERING_REPOSITORIES.md) | 全工程仓库范围、统一版本分支与一致性检查 |
 | [门禁注册表](80-development/governance/GATE_REGISTRY.md) | 可执行检查清单 |
 | [门禁目录](80-development/governance/GATE_CATALOG.md) | 类别、Owner、阶段与证据 |
 | [门禁治理规范](80-development/standards/04_GATE_GOVERNANCE.md) | 新增、分类、评审与退役规则 |
