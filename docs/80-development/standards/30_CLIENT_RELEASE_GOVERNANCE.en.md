@@ -1,6 +1,6 @@
 # Client Release Governance
 
-[中文](14_CLIENT_RELEASE_GOVERNANCE.md) | [English](14_CLIENT_RELEASE_GOVERNANCE.en.md)
+[中文](30_CLIENT_RELEASE_GOVERNANCE.md) | [English](30_CLIENT_RELEASE_GOVERNANCE.en.md)
 
 > English summary; the Chinese document is normative.
 

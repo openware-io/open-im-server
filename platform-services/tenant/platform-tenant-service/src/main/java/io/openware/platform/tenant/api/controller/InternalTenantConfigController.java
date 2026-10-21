@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 租户配置内部端点：供 identity-service / platform-admin-service 在 **context select 签发上下文**时
- * 读取「目标租户」的币种（`docs/standards/16_CURRENCY_CONVENTIONS.md` §3.1），
+ * 读取「目标租户」的币种（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §3.1），
  * 以及供 platform-customer-service 读取「目标租户」的钱包代币展示配置（品牌名 + ratio，§9）。
  *
  * <p>为什么放在 `/internal/iam/` 前缀下：该前缀由 {@code InternalServiceAuthenticationFilter} 统一要求

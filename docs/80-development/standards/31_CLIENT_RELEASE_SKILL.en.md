@@ -1,6 +1,6 @@
 # Client Release Operations
 
-[中文](15_CLIENT_RELEASE_SKILL.md) | [English](15_CLIENT_RELEASE_SKILL.en.md)
+[中文](31_CLIENT_RELEASE_SKILL.md) | [English](31_CLIENT_RELEASE_SKILL.en.md)
 
 > English summary; the Chinese document is normative.
 

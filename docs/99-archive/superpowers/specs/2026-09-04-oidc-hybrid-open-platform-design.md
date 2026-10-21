@@ -15,8 +15,8 @@
 
 | 领域 | 必须遵循的权威规范 | 本方案的落点 | 验证门禁 |
 | --- | --- | --- | --- |
-| 服务架构 | `docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md`、`ENGINEERING_GOVERNANCE_01_CONFORMANCE.md` | Provider 归 `im-user-service`；SaaS BFF 归 `platform-identity-service`；租户安装归 `platform-tenant-service`；Gateway 仅做入口、鉴权、限流和上下文透传；遵循 `api -> application -> domain <- infra` | 架构评审、模块依赖检查、统一工程验证 |
-| 数据库 | `DATABASE_MIGRATION_STANDARD.md`、各服务 Flyway 规范 | MySQL 为权威库；Redis 只存授权码/会话/缓存/限流/幂等；Mongo 只存消息投影；新表必须使用领域前缀、审计字段和统一字符集；不使用物理外键或 JSON 核心查询字段 | Flyway 校验、迁移演练、Schema Review |
+| 服务架构 | `docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md`、`ENGINEERING_GOVERNANCE_01_CONFORMANCE.md` | Provider 归 `im-user-service`；SaaS BFF 归 `platform-identity-service`；租户安装归 `platform-tenant-service`；Gateway 仅做入口、鉴权、限流和上下文透传；遵循 `api -> application -> domain <- infra` | 架构评审、模块依赖检查、统一工程验证 |
+| 数据库 | `23_DATABASE_MIGRATION_STANDARD.md`、各服务 Flyway 规范 | MySQL 为权威库；Redis 只存授权码/会话/缓存/限流/幂等；Mongo 只存消息投影；新表必须使用领域前缀、审计字段和统一字符集；不使用物理外键或 JSON 核心查询字段 | Flyway 校验、迁移演练、Schema Review |
 | Maven/发布 | `20_MAVEN_ENGINEERING_CONVENTIONS.md`、发布 Runbook | 版本由服务域父 POM 所有；依赖先经 BOM；协议模块变更后执行 `install`；发布沿用现有 Runbook、ACK 和版本规则 | `invoke-engineering-validation.ps1`、CI Full、发布检查单 |
 | API 契约 | `docs/contracts/openapi/README.md` | Java DTO、OpenAPI snapshot、Bridge、Flutter、Electron、H5 和官网示例必须同源核对；禁止只维护手工 Markdown 契约 | OpenAPI 导出/差异检查、契约测试 |
 | Flutter | `open-chat-app/docs/architecture.md`、`project-conventions.md` | 非 UI 抽象进 `packages/gv_core`，UI 基础进 `packages/gv_ui`；业务留在 services/repositories/providers/screens；依赖经 `AppInjectionModule` 注册；文案进入中英文 ARB | generator、`dart format`、`flutter analyze`、相关测试 |

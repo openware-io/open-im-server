@@ -38,7 +38,7 @@ public class WalletTokenDisplayService {
 
     /**
      * 1 个主单位包含的最小货币单位数：CNY 分 / USD cent 均为 1/100 主单位
-     * （`docs/standards/16_CURRENCY_CONVENTIONS.md` §1 当前只支持 CNY/USD）；
+     * （`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §1 当前只支持 CNY/USD）；
      * 若未来引入非 2 位小数币种，需改为按币种解析最小单位位数。
      */
     private static final BigDecimal MINOR_UNITS_PER_MAJOR = BigDecimal.valueOf(100L);

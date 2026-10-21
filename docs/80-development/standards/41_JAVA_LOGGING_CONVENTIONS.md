@@ -105,5 +105,5 @@ public class MessageSendApplicationService {
 | --- | --- | --- |
 | 关联 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 日志是可观测性三信号之一；指标与追踪另见该文 |
 | 依赖 | [42_LOGGING_AND_OUTPUTS.md](42_LOGGING_AND_OUTPUTS.md) | 日志与诊断产物的落盘位置与目录约束 |
-| 关联 | [30_TEXT_ENCODING_AND_BATCH_EDITING.md](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | 中文日志的编码口径（UTF-8 无 BOM） |
+| 关联 | [01_TEXT_ENCODING_AND_BATCH_EDITING.md](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | 中文日志的编码口径（UTF-8 无 BOM） |
 | 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口与项目级启用方式 |

@@ -1,6 +1,6 @@
 # 文本编码与批量改写规范
 
-[中文](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | [English](30_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
+[中文](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | [English](01_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
 
 ## 目标与适用范围
 

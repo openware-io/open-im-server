@@ -5,8 +5,8 @@
 
 # 规范遵守情况审查（2026-10-16）
 
-本文是**一次性的审查记录**，不是规范。规范正文在 `docs/standards/`；门禁目录在
-`docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md` §领域规范门禁。
+本文是**一次性的审查记录**，不是规范。规范正文在 `docs/80-development/standards/`；门禁目录在
+`docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md` §领域规范门禁。
 “门禁已绿但证据不完整”的遗留项见 [REMEDIATION_QUEUE.md](REMEDIATION_QUEUE.md)。
 
 审查方法：以 **15 份规范文档 + 27 个校验器脚本源码 + 根/域/叶子 POM + CI 接线** 为对象，
@@ -99,7 +99,7 @@ pathspec 原为 `*db/migration/*.sql`，只匹配 **19/22** 个迁移文件；
 
 | 规范 | 声明 | 实现 |
 |---|---|---|
-| `16_CURRENCY_CONVENTIONS.md:186` | **"必须进统一校验入口，不得选择性跳过"** 的 5 个门禁（字面量扫描 / 符号表唯一 / 缺省口径 / 快照不回改 / 写穿一致） | **0 个** |
+| `24_CURRENCY_CONVENTIONS.md:186` | **"必须进统一校验入口，不得选择性跳过"** 的 5 个门禁（字面量扫描 / 符号表唯一 / 缺省口径 / 快照不回改 / 写穿一致） | **0 个** |
 | `13_PLATFORM_MEDIA_CONVENTIONS.md` §10 | 5 个可自动化项 | **0 个** |
 | `40_OBSERVABILITY_CONVENTIONS.md` §门禁 | 3 个可自动化项（日志脱敏 / 关联标识 / 指标口径） | **0 个** |
 | `43_E2E_TESTING_CONVENTIONS.md` | 层级顺序、真机验证、一次性数据清理 | **0 个**（`scripts/verify/*` **没有任何流水线调用**） |

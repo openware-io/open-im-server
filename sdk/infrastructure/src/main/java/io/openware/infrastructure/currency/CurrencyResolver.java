@@ -1,7 +1,7 @@
 package io.openware.infrastructure.currency;
 
 /**
- * 当前请求币种的唯一读取入口（{@code docs/standards/16_CURRENCY_CONVENTIONS.md} §2、§3.3）。
+ * 当前请求币种的唯一读取入口（{@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §2、§3.3）。
  *
  * <p>取值顺序：签名上下文携带的币种（由 {@code TenantContextFilter} 从 JWT claim {@code currency} 解析）。
  * 缺省 USD，绝不因为缺 claim 而失败（老 token 兼容）。

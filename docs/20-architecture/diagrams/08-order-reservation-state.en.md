@@ -120,4 +120,4 @@ stateDiagram-v2
 
 - [Domain docs](../../40-domain/README.en.md)
 - [Order service](../../50-services/platform/platform-order-service/README.en.md)
-- [Database migration](../../80-development/standards/DATABASE_MIGRATION_STANDARD.en.md)
+- [Database migration](../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.en.md)

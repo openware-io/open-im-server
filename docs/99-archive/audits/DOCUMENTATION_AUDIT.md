@@ -90,7 +90,7 @@
 
 ### Phase 3
 
-- `docs/standards/**`、`docs/deployment/**`、`docs/business/**` 按优先级补双语；
+- `docs/80-development/standards/**`、`docs/deployment/**`、`docs/business/**` 按优先级补双语；
 - 部署文档中的旧命名、端口、Ingress 路径做一次全量核对；
 - 服务板块、钱包品牌、B 端入口等近期变更同步到现行文档。
 

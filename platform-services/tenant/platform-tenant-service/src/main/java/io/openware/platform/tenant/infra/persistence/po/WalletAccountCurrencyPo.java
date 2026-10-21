@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 /**
  * 会员储值账户（`cst_wallet_account`）的**币种联动视图**。
  *
- * <p>本 PO 只用于「租户切换币种」时的余额保护（`docs/standards/16_CURRENCY_CONVENTIONS.md` §2.2.2）：
+ * <p>本 PO 只用于「租户切换币种」时的余额保护（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §2.2.2）：
  * 校验是否存在非零余额且币种不同的账户，并在显式 `migrateBalances` 时把币种改写为新币种（金额数字不变）。
  *
  * <p>为什么由 tenant-service 直接读这张表：全平台共用同一个 MySQL 库（各服务 datasource 均指向

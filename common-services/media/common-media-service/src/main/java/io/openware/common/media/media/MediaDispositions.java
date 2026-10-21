@@ -3,7 +3,7 @@ package io.openware.common.media.media;
 import java.util.Locale;
 
 /**
- * 公共媒体对象的 {@code Content-Disposition} 取值（`docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md` §2/§7）。
+ * 公共媒体对象的 {@code Content-Disposition} 取值（`docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md` §2/§7）。
  *
  * <p>可直接渲染的类型（图片/音频/视频）必须落 {@code inline}：落成 {@code attachment} 时，
  * {@code <img>} 这类子资源渲染虽不受影响，但**直接打开/预览/新窗口查看/WebView 内查看**会被浏览器强制下载，

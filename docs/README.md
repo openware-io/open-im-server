@@ -97,8 +97,8 @@ docs/
 | [AI 协作原则](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | 人机协作边界 |
 | [文档整理与归档方案](80-development/governance/DOCUMENTATION_ORGANIZATION.md) | 分类、归档规则和执行顺序 |
 | [标准目录](80-development/standards/README.md) | DDD、RocketMQ、媒体、版本、币种、日志、测试 |
-| [数据库迁移标准](80-development/standards/DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
-| [ADR 规范](80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.md) | 决策记录的编号、状态、模板与门禁 |
+| [数据库迁移标准](80-development/standards/23_DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
+| [ADR 规范](80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md) | 决策记录的编号、状态、模板与门禁 |
 
 ### 安全与合规
 

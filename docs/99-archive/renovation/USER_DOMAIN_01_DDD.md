@@ -35,7 +35,7 @@
 | DDD 分层、对象隔离、服务域边界 | [10 业务微服务 DDD 工程规范](../../80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 目标包结构、依赖方向、Repository 契约、对象转换和测试分层 |
 | Maven 聚合、依赖与发布 | [20 Maven 工程规范](../../80-development/standards/20_MAVEN_ENGINEERING_CONVENTIONS.md) | API/Service 模块、局部 Reactor、依赖 scope、构建与发布验证 |
 | MySQL、MyBatis-Plus、Flyway | [21 持久层技术栈标准](../../80-development/standards/21_PERSISTENCE_STACK.md) | 权威库、持久化技术栈和迁移资源所有权 |
-| 编码与批量编辑 | [30 文本编码与批量改写规范](../../80-development/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8 无 BOM、批量改动控制和乱码防护 |
+| 编码与批量编辑 | [30 文本编码与批量改写规范](../../80-development/standards/01_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8 无 BOM、批量改动控制和乱码防护 |
 | 日志与诊断 | [40 可观测性规范](../../80-development/standards/40_OBSERVABILITY_CONVENTIONS.md)、[41 Java 日志规范](../../80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md) | 改造期间的日志、异常和诊断要求 |
 | 项目硬性规则 | [工程规则](../../80-development/governance/ENGINEERING_RULES.md) | 编译、注释、弃用 API、编码和 IDE 诊断门禁 |
 

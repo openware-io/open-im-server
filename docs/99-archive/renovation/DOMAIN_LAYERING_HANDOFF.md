@@ -230,4 +230,4 @@ powershell -File scripts/validate/validate-service-api-boundaries.ps1 -ReportOnl
 .\mvnw.cmd --offline -B -ntp -pl platform-services/resource/platform-resource-service -am clean test
 ```
 
-规范细则见 `docs/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md`（"领域模型与只读投影的边界"、"端口命名与契约"、"聚合装配与持久化契约"、"转换层职责切分"、"跨上下文读取"、"领域规范门禁"六节）。
+规范细则见 `docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md`（"领域模型与只读投影的边界"、"端口命名与契约"、"聚合装配与持久化契约"、"转换层职责切分"、"跨上下文读取"、"领域规范门禁"六节）。

@@ -3,8 +3,8 @@
 > 本文档是「怎么发版、怎么管版本」的唯一操作手册，供人类与后续 AI 代理共同遵守。
 
 本文的严格镜像与 manifest 门禁适用于本组织维护的业务服务；第三方中间件和工具按其官方发布规范及基础设施审批清单管理。
-> **Android APK 发版先看 [`standards/15_CLIENT_RELEASE_SKILL.md`](../80-development/standards/15_CLIENT_RELEASE_SKILL.md) 并直接运行 `open-chat-app/tools/release.ps1`；Windows 桌面端 EXE 发版按本文档第 5.6 节执行。** 后端/管理后台/官网部署仍按本文档执行。
-> 治理规则（版本命名、灰度、审计、安全门禁等）见 [`standards/14_CLIENT_RELEASE_GOVERNANCE.md`](../80-development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)；
+> **Android APK 发版先看 [`standards/31_CLIENT_RELEASE_SKILL.md`](../80-development/standards/31_CLIENT_RELEASE_SKILL.md) 并直接运行 `open-chat-app/tools/release.ps1`；Windows 桌面端 EXE 发版按本文档第 5.6 节执行。** 后端/管理后台/官网部署仍按本文档执行。
+> 治理规则（版本命名、灰度、审计、安全门禁等）见 [`standards/30_CLIENT_RELEASE_GOVERNANCE.md`](../80-development/standards/30_CLIENT_RELEASE_GOVERNANCE.md)；
 > ACK 集群拓扑与域名见 [`deployment/ACK.md`](../60-deployment/ACK.md)。本文档与这两篇互补，本文档负责「一步步怎么做」。
 
 ---
@@ -343,7 +343,7 @@ cd D:\projects\cnb-oss\open-im-server
 | --- | --- |
 | `scripts/deploy/ack.ps1` | 校验并部署已生成的正式发布清单；不构建、不推送、不接受直接 tag |
 | `open-chat-app/tools/build.ps1` | 客户端构建（`android prod apk`） |
-| `open-chat-app/tools/release.ps1` | 客户端一键发版（bump → 构建 → 上传 → 建记录 → 提交 → 验收），见 15_CLIENT_RELEASE_SKILL.md |
+| `open-chat-app/tools/release.ps1` | 客户端一键发版（bump → 构建 → 上传 → 建记录 → 提交 → 验收），见 31_CLIENT_RELEASE_SKILL.md |
 | `open-website/scripts/build-and-push.sh` | 官网镜像构建推送 |
 | `open-website/scripts/deploy.sh` | 官网镜像部署 |
 | `open-saas-mobile/Dockerfile` | SaaS 移动 H5（Vue 双端）镜像构建（版本读 `VERSION`） |

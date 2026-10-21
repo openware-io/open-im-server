@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 租户级币种单一来源（`docs/standards/16_CURRENCY_CONVENTIONS.md` §2）。
+ * 租户级币种单一来源（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §2）。
  *
  * <p>存储位置：`tnt_tenant_config` 的 `(tenant_id, store_id=0, config_key='currency')`。
  * 缺省（无行/空值/非法值）解析为 **USD**；非法值绝不抛给业务，只在下发写入时校验并 400。

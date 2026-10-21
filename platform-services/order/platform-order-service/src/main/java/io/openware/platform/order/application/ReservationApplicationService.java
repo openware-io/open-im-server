@@ -598,7 +598,7 @@ public class ReservationApplicationService {
             organizationId = r.storeId();
         }
 
-        // 币种取当前请求租户币种（docs/standards/16_CURRENCY_CONVENTIONS.md §2/§3.3），
+        // 币种取当前请求租户币种（docs/80-development/standards/24_CURRENCY_CONVENTIONS.md §2/§3.3），
         // 不再硬编码 CNY：缺 claim 时 CurrencyResolver 回退 USD，绝不因缺 claim 失败。
         // 领域模型不可变：直接构造落库实体（金额六个列全 0、状态 DRAFT、版本 0）。
         Order order = new Order(null, r.tenantId(), organizationId, r.storeId(),

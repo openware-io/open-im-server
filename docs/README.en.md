@@ -97,8 +97,8 @@ docs/
 | [AI collaboration](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
 | [Documentation organization](80-development/governance/DOCUMENTATION_ORGANIZATION.en.md) | Classification and archive rules |
 | [Standards index](80-development/standards/README.en.md) | DDD, RocketMQ, media, release, currency, logging, testing |
-| [Database migration](80-development/standards/DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
-| [ADR standard](80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template and gate |
+| [Database migration](80-development/standards/23_DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
+| [ADR standard](80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template and gate |
 
 ### Security and compliance
 

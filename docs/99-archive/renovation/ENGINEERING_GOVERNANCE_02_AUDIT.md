@@ -9,7 +9,7 @@
 > 审查日期：2026-10-12
 > 审查范围：`open-im-server`、`open-chat-app`、`open-chat-admin`、`open-chat-desktop`、`open-chat-turn`、`open-saas-admin`、`open-saas-mobile`、`open-website`
 > 排除范围：`open-green-pass`（测试治理平台，按要求不纳入）
-> 规则基线：`open-im-server/docs/ENGINEERING_RULES.md`、`docs/standards/00~43`、`docs/DATABASE_MIGRATION_STANDARD.md`、`docs/security/*`、`docs/renovation/*` 治理记录
+> 规则基线：`open-im-server/docs/ENGINEERING_RULES.md`、`docs/80-development/standards/00~43`、`docs/23_DATABASE_MIGRATION_STANDARD.md`、`docs/security/*`、`docs/renovation/*` 治理记录
 > 审查方式：只读。所有结论以 file:line 为准；关键结论由审查人本地复现
 
 ---
@@ -50,7 +50,7 @@
 
 ### B-1【阻断】生产管理员口令明文提交，且被 5 个在库验收脚本当登录凭据
 
-- 规则：`docs/DATABASE_MIGRATION_STANDARD.md:26`「密码、密钥、令牌和真实用户隐私数据不得出现在迁移脚本中。」
+- 规则：`docs/23_DATABASE_MIGRATION_STANDARD.md:26`「密码、密钥、令牌和真实用户隐私数据不得出现在迁移脚本中。」
 - 证据（已本地复现）：
   - `platform-services/admin/platform-admin-service/src/main/resources/db/migration/V2__saa_admin_account_seed.sql:1`
     `-- SaaS 后台管理员种子账号：admin / «已轮换-管理员初始口令»（BCrypt 真实哈希）`，`:7` 以该口令的 BCrypt 哈希入库，角色 `SUPER_ADMIN`
@@ -206,15 +206,15 @@
 - 重复索引：`im-message-service/.../V1__init_msg_schema.sql:27-28` 同一列组合同时建 `uk_` 与 `idx_`
 
 ### H-13 文档治理失真
-- `standards/15_CLIENT_RELEASE_SKILL.md` 整体是项目 runbook：`:140-143` 本机绝对路径 `D:\projects\cnb\open-chat-app`、`:37` 具体 JPush AppKey、`:27` 历史版本序列 —— 违反 `standards/00:32`「规范不得包含项目模块名称、存量缺陷、具体待办或迁移顺序」；`:5` `../../../open-chat-app/BUILD.md`、`:141/:145` `../../RELEASE_RUNBOOK.md` 三条链接失效（正确应为 `../RELEASE_RUNBOOK.md`，同文件 `:3` 写法正确 → 自相矛盾）
+- `standards/31_CLIENT_RELEASE_SKILL.md` 整体是项目 runbook：`:140-143` 本机绝对路径 `D:\projects\cnb\open-chat-app`、`:37` 具体 JPush AppKey、`:27` 历史版本序列 —— 违反 `standards/00:32`「规范不得包含项目模块名称、存量缺陷、具体待办或迁移顺序」；`:5` `../../../open-chat-app/BUILD.md`、`:141/:145` `../../RELEASE_RUNBOOK.md` 三条链接失效（正确应为 `../RELEASE_RUNBOOK.md`，同文件 `:3` 写法正确 → 自相矛盾）
 - `standards/43` 同样含项目模块名、`D:\projects\cnb\oidc-hybrid-e2e`、AVD 名、测试账号前缀；`standards/16` 是“项目实施方案写成标准”；`standards/20:154` 自称“不记录任何具体工程的模块名称”，但 `:23/:46/:61/:78` 含 `im-access-ws`、`gateway`、`im-services/user` 等
 - `standards/00:101-111` 的七项最小模板：15 份标准中 10 份缺 3 项以上
 - 22 份文档用反引号包裹仓库路径而未做成可跳转链接（违反 `standards/00:37`）
 - `docs/DATABASE_AUDIT_REPORT.md` 称“18 个服务 107 个生产迁移文件、仅 1 个建表缺排序规则”，实际为 18 个模块 **199 个** 迁移文件、2 张表完全未声明字符集 → 审计报告已过期
 - `ENGINEERING_RULES.md:7` 等多份文档标「最后核查 2026-07-31」，却描述 2026-09 的行为
-- `docs/renovation/KTV_RESERVATION_ROOM_TYPE.md:10` 残留截断引用 `见 docs/standards/16…`
+- `docs/renovation/KTV_RESERVATION_ROOM_TYPE.md:10` 残留截断引用 `见 docs/80-development/standards/16…`
 - `README.md:90-111` 文档索引缺 `standards/13/14/15/16/43`
-- 同类规则分散在 `docs/standards/21`、`docs/DATABASE_MIGRATION_STANDARD.md`、`docs/deployment/RELEASE_SPECIFICATION.md`、`docs/RELEASE_RUNBOOK.md`、`docs/renovation/*`，权威边界不清；`DATABASE_MIGRATION_STANDARD.md:11`「不使用 IF NOT EXISTS/DROP TABLE」被 11 处实现违反
+- 同类规则分散在 `docs/80-development/standards/21`、`docs/23_DATABASE_MIGRATION_STANDARD.md`、`docs/deployment/RELEASE_SPECIFICATION.md`、`docs/RELEASE_RUNBOOK.md`、`docs/renovation/*`，权威边界不清；`23_DATABASE_MIGRATION_STANDARD.md:11`「不使用 IF NOT EXISTS/DROP TABLE」被 11 处实现违反
 
 ### H-14 客户端仓库（详见第 6 节）
 - `open-chat-app`：根目录**跟踪** `_sticker_panel_dump.txt`（307 行源码转储，含乱码）与 `cursor.mark`；`pubspec.yaml:37,41,111` 注释真乱码（已用 UTF-8 读取复核）；自身文档声称的 `packages/gv_core`/`gv_ui` 实际为 `open_core`/`open_ui`；65 处用户可见硬编码中文（自身规范禁止）
@@ -229,7 +229,7 @@
 
 - 架构与模块：`sdk/common` 存 9 个单域枚举（`RtcAction`/`RtcMediaType` 零引用死代码）与 IM 业务常量 `MSG_DEDUP_TTL_SEC`/`RECALL_WINDOW_MS`；28 个 Controller 仍在 `.../controller/` 旧包（im-admin 10、conversation 9、media 6、message 2、user 1），im-admin 同时存在两套；`im-admin-service` 有 11 个业务 DTO 放在 `io.openware.im.common.dto`，直接违反 `ENGINEERING_RULES.md:87`「禁止伪装为 common.dto 混入业务对象」；8 个服务缺 `domain` 层（customer/identity/marketing/resource/payment/payment-channel/idaas，media 连 api/application 都缺）；61 个 application 文件直接依赖 Mapper/PO；17 个 Controller 方法直接返回领域模型；`platform-services/*-api` 依赖 `spring-boot-starter-validation`（引入 Spring 运行时）
 - 构建：`standards/22` 的 sdk BOM 版本写 `1.0.5`，实际 2.2.0；`sdk/pom.xml` 实为纯聚合器（无 `dependencyManagement`），与 `standards/20:44` 描述不符；`minio`/`aliyun-sdk-oss` 版本硬编码在两个叶子模块且未进矩阵；4 个结构聚合 POM 版本停 2.0.1 与基线 2.2.0 脱节且门禁不校验；`ENGINEERING_RULES.md:24` 的“叶子模块不得声明版本”与 `standards/20:45`/门禁脚本互相矛盾（13 个 `*-service` 声明 `2.2.0-SNAPSHOT`）；`release_manager/verify.bat` 是第二个门禁入口且漏跑 2 个校验、密钥校验用 `-ReportOnly`（恒 exit 0）
-- 数据：`docs/DATABASE_MIGRATION_STANDARD.md` 的 `IF NOT EXISTS`/`DROP TABLE` 被 11 处违反（门禁空转，见 H-11）；`deploy/database/init.sql` 是孤儿文件且建库名与 `ENGINEERING_RULES.md:154` 的 `gv_im` 冲突（还声称被 compose 挂载，实际 compose 无该挂载）
+- 数据：`docs/23_DATABASE_MIGRATION_STANDARD.md` 的 `IF NOT EXISTS`/`DROP TABLE` 被 11 处违反（门禁空转，见 H-11）；`deploy/database/init.sql` 是孤儿文件且建库名与 `ENGINEERING_RULES.md:154` 的 `gv_im` 冲突（还声称被 compose 挂载，实际 compose 无该挂载）
 - 输出治理：`.outputs/` 根目录 18 个散落日志（含 `mvn-package-final.log` 814 KB、`deploy-k8s-*.log`）、`.outputs/logs/` 根目录 30 个未按 `<yyyyMMdd>` 归档的日志；`standards/42` 要求的 `.outputs/logs/debug/` 与 `.outputs/logs/im-services/` 目录不存在；`validate-secret-exposure.ps1:10` 默认写到 `standards/42` 未定义 `.outputs/quality/`
 - 其它：`validate-service-api-boundaries.ps1:28` 只匹配 `import`，发现不了全路径引用；`Currency` 字面量出现在网关与支付渠道（`CurrencyResponseHeaderFilter.java:81` `"CNY"/"USD"`）；`iam_audit_log` 等按 `V1`/`V2` 版本在 `db/migration` 与 `db/migration-audit` 两个根下并存（靠 profile 切换，可运行但脆弱）；无统一数据库重建脚本（`ENGINEERING_RULES.md:223` 要求）
 

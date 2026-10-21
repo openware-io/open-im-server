@@ -3,7 +3,7 @@ package io.openware.infrastructure.currency;
 import java.util.Locale;
 
 /**
- * 受支持币种（{@code docs/standards/16_CURRENCY_CONVENTIONS.md} §2）：全仓唯一符号/小数位来源。
+ * 受支持币种（{@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §2）：全仓唯一符号/小数位来源。
  *
  * <p>任何模块**不得**自建符号表，也不得在业务代码里写 {@code "¥"}、{@code "元"}、{@code "CNY"}、{@code "RMB"} 字面量。
  * 新增币种只扩展本枚举，不允许散落映射。

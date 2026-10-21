@@ -66,7 +66,7 @@
 - **合并 `common-audit-service` 的双迁移根**为单根 + 分区表基线（DC-17 保留分区）
   > ⚠️ **本条前提有误，已废弃**：`db/migration`（老库 `open_im` 历史）与 `db/migration-audit`（新库 `open_audit` 基线）由 profile `audit-schema` 原子切换、共用历史表且**同名不同库**，已有 `AuditPartitionInvariantTest` 固化"必须物理隔离"。两根本轮各自规范化、**不合并**。详见 [交接书 §3.1.1](MIGRATION_BASELINE_01_HANDOFF.md)。
 - **history 表名统一** `<service>_schema_history`（media 由 `support_schema_history` 改）
-  > ⚠️ **本条无规则依据，本轮不做**：`ENGINEERING_RULES.md` / `DATABASE_MIGRATION_STANDARD.md` / `standards/21` 均未规定 history 表命名，也无门禁检查。现状为多数服务 `flyway_schema_history_<service>`、IM 四服务与 media 用 `<service>_schema_history`。若要统一，应先立规范＋门禁再一次性改。
+  > ⚠️ **本条无规则依据，本轮不做**：`ENGINEERING_RULES.md` / `23_DATABASE_MIGRATION_STANDARD.md` / `standards/21` 均未规定 history 表命名，也无门禁检查。现状为多数服务 `flyway_schema_history_<service>`、IM 四服务与 media 用 `<service>_schema_history`。若要统一，应先立规范＋门禁再一次性改。
 - 删除"先建后删"迁移与孤儿 `deploy/database/init.sql`
 
 ## 4. 执行顺序
@@ -89,7 +89,7 @@
 
 **同时修正了门禁的一处误报（重要）**：原 `validate-flyway-conventions.ps1` 的字段检查要求标识符**带反引号**（`` `id` ``、`` `created_by` ``），导致"定义正确但未加反引号"的表被误报为"缺字段"。改为反引号可选后，worklist **418 → 382**（36 条误报被清除），邮件模块归零。
 
-**遗留待办（下一轮必须处理）**：`DATABASE_MIGRATION_STANDARD.md:8` 要求"标识符使用反引号"，而当前门禁**尚未单独校验反引号**——本轮样板文件仍使用无反引号写法。因此：
+**遗留待办（下一轮必须处理）**：`23_DATABASE_MIGRATION_STANDARD.md:8` 要求"标识符使用反引号"，而当前门禁**尚未单独校验反引号**——本轮样板文件仍使用无反引号写法。因此：
 1. 门禁需新增一条独立检查："标识符未使用反引号"（与"缺字段"分开报，避免再次混为一谈）；
 2. 后续模块改写时应统一加反引号，并回头补上样板模块的反引号。
 

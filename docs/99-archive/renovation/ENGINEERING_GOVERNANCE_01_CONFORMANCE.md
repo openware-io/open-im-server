@@ -13,7 +13,7 @@
 
 ## 规则来源
 
-- `docs/standards/` 定义可复用工程规则。
+- `docs/80-development/standards/` 定义可复用工程规则。
 - `docs/ENGINEERING_RULES.md` 定义本项目的适配规则，必须与根 `pom.xml` 和校验脚本一致。
 - `docs/renovation/` 记录项目改造背景、决策、证据与未完成事项，不覆盖工程规则。
 - 根 `pom.xml`、`scripts/validate/` 与 CI 命令是可执行事实；文档变更必须同时说明对应实现和验收命令。

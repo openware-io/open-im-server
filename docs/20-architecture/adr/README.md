@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> 规则入口：[ADR 规范](../../80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.md)  
+> 规则入口：[ADR 规范](../../80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md)
 > 模板：[0000-template.md](0000-template.md)  
 > 原则：一个 ADR 一个决策；已接受记录不重写；撤回/替代记录仍保留。
 

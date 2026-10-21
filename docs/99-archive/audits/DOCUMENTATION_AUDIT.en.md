@@ -90,7 +90,7 @@ No standalone empty-shell docs remain to clean; all historical documents are ret
 
 ### Phase 3
 
-- Add bilingual versions for `docs/standards/**`, `docs/deployment/**`, `docs/business/**` by priority;
+- Add bilingual versions for `docs/80-development/standards/**`, `docs/deployment/**`, `docs/business/**` by priority;
 - Recheck legacy names, ports and Ingress paths in deployment docs;
 - Sync recent changes (service board, wallet brand, B-end entry) into current docs.
 

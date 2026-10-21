@@ -1,6 +1,6 @@
 # 架构决策记录（ADR）规范
 
-[中文](44_ARCHITECTURE_DECISION_RECORDS.md) | [English](44_ARCHITECTURE_DECISION_RECORDS.en.md)
+[中文](02_ARCHITECTURE_DECISION_RECORDS.md) | [English](02_ARCHITECTURE_DECISION_RECORDS.en.md)
 
 > 状态：`current`（`develop/2.3.0`）  
 > 适用范围：`docs/20-architecture/adr/` 下的架构决策记录。

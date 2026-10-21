@@ -6,7 +6,7 @@ import io.openware.infrastructure.currency.Currency;
 import java.util.Map;
 
 /**
- * 支付渠道的**币种能力**（`docs/standards/16_CURRENCY_CONVENTIONS.md` §2.2.3）。
+ * 支付渠道的**币种能力**（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §2.2.3）。
  *
  * <p>现金 / 储值 / 积分与币种无关（跟随订单快照币种）；线上渠道受币种约束：
  * 微信、支付宝**仅支持 CNY**，Stripe 以 USD 结算。租户币种不满足渠道能力时：

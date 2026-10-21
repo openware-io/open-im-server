@@ -1,6 +1,6 @@
 # 数据库迁移脚本规范
 
-[中文](DATABASE_MIGRATION_STANDARD.md) | [English](DATABASE_MIGRATION_STANDARD.en.md)
+[中文](23_DATABASE_MIGRATION_STANDARD.md) | [English](23_DATABASE_MIGRATION_STANDARD.en.md)
 
 ## 目标与适用范围
 
@@ -59,4 +59,4 @@ ALTER TABLE ord_order
 ## 与其他规范的关系
 
 - [持久层技术栈标准](21_PERSISTENCE_STACK.md)
-- [文本编码与批量改写规范](30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- [文本编码与批量改写规范](01_TEXT_ENCODING_AND_BATCH_EDITING.md)

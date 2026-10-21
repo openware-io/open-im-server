@@ -108,5 +108,5 @@
 | --- | --- | --- |
 | 引用 | [41_JAVA_LOGGING_CONVENTIONS.md](41_JAVA_LOGGING_CONVENTIONS.md) | 代码内日志的声明、文案与级别 |
 | 引用 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 日志、指标、追踪、告警与审计的共同原则 |
-| 依赖 | [30_TEXT_ENCODING_AND_BATCH_EDITING.md](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | 写出日志与报告时的 UTF-8 无 BOM 口径 |
+| 依赖 | [01_TEXT_ENCODING_AND_BATCH_EDITING.md](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | 写出日志与报告时的 UTF-8 无 BOM 口径 |
 | 关联 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 统一工程校验入口与仓库整洁断言 |

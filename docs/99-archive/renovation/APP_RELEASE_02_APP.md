@@ -5,7 +5,7 @@
 
 # 客户端版本发布治理：App 实施方案
 
-> 方案集：`APP_RELEASE`；序号：`02`；实施边界：`open-chat-app` Flutter 客户端；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)；后置：[管理后台方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../../80-development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)；实现规范：`open-chat-app/docs/coding_guidelines.md`、`open-chat-app/docs/architecture.md`、`open-chat-app/docs/multi_environment_build_commands.md`；状态：设计待实施。
+> 方案集：`APP_RELEASE`；序号：`02`；实施边界：`open-chat-app` Flutter 客户端；前置：[服务端方案](APP_RELEASE_01_SERVICE.md)；后置：[管理后台方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../../80-development/standards/30_CLIENT_RELEASE_GOVERNANCE.md)；实现规范：`open-chat-app/docs/coding_guidelines.md`、`open-chat-app/docs/architecture.md`、`open-chat-app/docs/multi_environment_build_commands.md`；状态：设计待实施。
 
 ## 1. 范围和一次性切换原则
 

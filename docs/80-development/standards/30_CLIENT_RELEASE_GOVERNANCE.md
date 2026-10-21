@@ -1,6 +1,6 @@
 # 客户端发布与版本治理规范
 
-[中文](14_CLIENT_RELEASE_GOVERNANCE.md) | [English](14_CLIENT_RELEASE_GOVERNANCE.en.md)
+[中文](30_CLIENT_RELEASE_GOVERNANCE.md) | [English](30_CLIENT_RELEASE_GOVERNANCE.en.md)
 
 ## 1. 目的与适用范围
 
@@ -130,7 +130,7 @@ decisions={ optional_update | mandatory_update | unsupported_client | up_to_date
 
 | 关系 | 文档 | 说明 |
 | --- | --- | --- |
-| 被依赖 | [15_CLIENT_RELEASE_SKILL.md](15_CLIENT_RELEASE_SKILL.md) | 客户端发版 Skill 的规则来源（版本命名、渠道、签名、审计） |
+| 被依赖 | [31_CLIENT_RELEASE_SKILL.md](31_CLIENT_RELEASE_SKILL.md) | 客户端发版 Skill 的规则来源（版本命名、渠道、签名、审计） |
 | 关联 | [20_MAVEN_ENGINEERING_CONVENTIONS.md](20_MAVEN_ENGINEERING_CONVENTIONS.md) | 后端 JAR/Maven 版本治理；与客户端展示版本、构建号、协议版本是四个独立概念 |
 | 关联 | [43_E2E_TESTING_CONVENTIONS.md](43_E2E_TESTING_CONVENTIONS.md) | 发布前的端到端验收与真实设备要求 |
 | 引用 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 发布相关的日志、指标与脱敏共同原则 |

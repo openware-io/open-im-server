@@ -11,7 +11,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * 公共媒体读取的 {@code Content-Disposition} 纠正（`docs/standards/13_PLATFORM_MEDIA_CONVENTIONS.md` §2）。
+ * 公共媒体读取的 {@code Content-Disposition} 纠正（`docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md` §2）。
  *
  * <p>对象存储里的**存量**对象是历史实现上传时落成 {@code Content-Disposition: attachment} 的：
  * {@code <img>} 这类子资源渲染不受影响，但**直接打开/预览/新窗口查看/WebView 内查看**会被浏览器强制下载，

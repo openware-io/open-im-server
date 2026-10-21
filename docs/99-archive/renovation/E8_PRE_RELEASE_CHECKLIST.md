@@ -34,7 +34,7 @@
 | --- | --- | --- |
 | Feature Flag 灰度开关 | ✅ | tnt_tenant_config 灰度项，租户默认 + 门店覆盖两级 |
 | 灰度维度控制 | ✅ | tenant（store_id=0）/ store（store_id>0）两级，见 V4 注释 |
-| 监控与告警生效 | 🟡 | 依赖 Observability 落地（见 docs/standards/40_OBSERVABILITY_CONVENTIONS.md） |
+| 监控与告警生效 | 🟡 | 依赖 Observability 落地（见 docs/80-development/standards/40_OBSERVABILITY_CONVENTIONS.md） |
 | 渠道生产验证 | 🟡 | 支付宝/微信/Stripe 后置专项，默认关闭 |
 | 密钥轮换 | 🟡 | 渠道密钥/支付密钥轮换演练 |
 | 应急预案 | 🟡 | 回滚/熔断/降级预案 |

@@ -120,4 +120,4 @@ stateDiagram-v2
 
 - [领域文档](../../40-domain/README.md)
 - [订单服务](../../50-services/platform/platform-order-service/README.md)
-- [数据库迁移标准](../../80-development/standards/DATABASE_MIGRATION_STANDARD.md)
+- [数据库迁移标准](../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.md)

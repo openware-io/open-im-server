@@ -57,7 +57,7 @@
 | `docs/archive/renovation/` | 78 | 大量历史改造记录，含仍有效的业务结论 |
 | `docs/security/` | 2 | 需与合规、认证文档建立关系 |
 | `docs/services/` | 8 | 服务树不完整，缺平台/公共能力 |
-| `docs/standards/` | 15 | 现行规范，需逐步双语 |
+| `docs/80-development/standards/` | 15 | 现行规范，需逐步双语 |
 | `docs/superpowers/` | 11 | 历史设计与计划快照 |
 | 其他产品仓库 | 84 | README 无英文版，部分发布说明过期 |
 
@@ -77,8 +77,8 @@
 | `docs/PROTOCOL.md` | KEEP | WebSocket/协议契约 |
 | `docs/API_DOCUMENTATION.md` | UPDATE | 网关 Swagger/OpenAPI 入口 |
 | `docs/PUSH_SETUP.md`、`docs/IDE_SETUP.md` | UPDATE | 开发环境与推送配置 |
-| `docs/DATABASE_MIGRATION_STANDARD.md` | KEEP | 迁移规范 |
-| `docs/standards/**` | UPDATE | 现行标准；逐步双语 |
+| `docs/23_DATABASE_MIGRATION_STANDARD.md` | KEEP | 迁移规范 |
+| `docs/80-development/standards/**` | UPDATE | 现行标准；逐步双语 |
 | `docs/business/**` | UPDATE | 业务语义；吸收 renovation 中仍有效的结论 |
 | `docs/deployment/**` | UPDATE | 统一 30080 入口、环境矩阵、发布步骤 |
 | `docs/services/**` | UPDATE/ADD | 统一服务树，补齐平台/公共能力 |

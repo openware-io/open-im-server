@@ -10,5 +10,6 @@
 - [platform-customer-service](platform-customer-service/README.md)
 - [platform-identity-service](platform-identity-service/README.md)
 - [platform-marketing-service](platform-marketing-service/README.md)
+- [platform-order-service](platform-order-service/README.md)
 - [platform-resource-service](platform-resource-service/README.md)
 - [platform-tenant-service](platform-tenant-service/README.md)

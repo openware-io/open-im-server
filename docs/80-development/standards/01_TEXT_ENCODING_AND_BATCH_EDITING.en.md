@@ -1,6 +1,6 @@
 # Text Encoding and Batch Editing
 
-[中文](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | [English](30_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
+[中文](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | [English](01_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
 
 > English summary; the Chinese document is normative.
 

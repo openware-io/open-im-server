@@ -84,7 +84,7 @@
 | `open-saas-mobile/README.md:103` | `D:\projects\cnb\open-im-server\scripts\deploy\sync-oidc-client-registry.ps1` | ❌ **旧路径 + 旧名，必须改** |
 | `open-chat-desktop/docs/architecture.md:53` | 提到 `open-im-server` / `open-chat-app` 的 worktree 约定 | ❌ 改 |
 | `open-im-server/docs/RELEASE_RUNBOOK.md` | 15 处绝对路径 | ❌ 改（活文档） |
-| `open-im-server/docs/standards/15` | 4 处绝对路径 | ❌ 改（规范禁止） |
+| `open-im-server/docs/80-development/standards/15` | 4 处绝对路径 | ❌ 改（规范禁止） |
 
 ---
 
@@ -140,7 +140,7 @@ docs/common-services/        ← audit / media / mail / sms
 | 类别 | 判据 | 去向 |
 | --- | --- | --- |
 | ① 已实现 → **工程实现文档** | 描述现状事实、长期有效 | 各仓 `docs/business/`、`docs/services/`、`docs/im-services/`、`docs/deployment/`；实现文档需**跟随代码所在仓库**（如 IM 客户端架构文档应在 `open-chat-*/docs/`） |
-| ② 规范更新 → **工程规范文档** | 描述应当如何 | `open-im-server/docs/standards/*` + `docs/ENGINEERING_RULES.md` |
+| ② 规范更新 → **工程规范文档** | 描述应当如何 | `open-im-server/docs/80-development/standards/*` + `docs/ENGINEERING_RULES.md` |
 | ③ 其余 → **标历史文档** | 过时方案稿/盘点/快照 | 留原处 + 统一标注 |
 
 ⚠️ **跨仓库课题**：`open-im-server/docs/` 里现在也放着**前端仓库的文档**（如 `CLIENT_INTEGRATION_01_APP.md` 讲 App）。三分法需**同时决定"文档是否该跟着它描述的仓库走"**——这是本轮新发现的治理问题，**需你定口径**。

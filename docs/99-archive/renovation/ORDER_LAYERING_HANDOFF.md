@@ -169,7 +169,7 @@ powershell -File scripts/validate/invoke-engineering-validation.ps1 -Scope Chang
 
 推送后从 CI 触发 `publish-images`，暴露出本地 27 个门禁全过、**CI 上 `documentation-links` 失败**：
 
-> `docs/standards/15_CLIENT_RELEASE_SKILL.md` 用 `../../../open-chat-app/BUILD.md` **指向兄弟仓库**。
+> `docs/80-development/standards/31_CLIENT_RELEASE_SKILL.md` 用 `../../../open-chat-app/BUILD.md` **指向兄弟仓库**。
 
 **为什么本地发现不了**：本工作区同时 checkout 了 10 个仓库，那个相对路径**在本机确实存在**；
 CI 只 checkout `open-im-server`，路径解析到仓库之外，必然断。**这是一个只有

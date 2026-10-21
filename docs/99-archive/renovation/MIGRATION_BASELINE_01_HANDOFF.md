@@ -72,7 +72,7 @@
 
 已完成于 `0e10d21`。修复内容与**为什么必须修**（两处静默失效）：
 
-1. 门禁原本**完全没有**反引号检查，且审计列检查把反引号写成可选 → 违反 `docs/DATABASE_MIGRATION_STANDARD.md:8`（"标识符使用反引号"）的表**静默通过**。现新增第 11 项：表名与列名必须加反引号，每张表最多报 2 条（表名 + 首个违规列），保证 worklist 可读。
+1. 门禁原本**完全没有**反引号检查，且审计列检查把反引号写成可选 → 违反 `docs/23_DATABASE_MIGRATION_STANDARD.md:8`（"标识符使用反引号"）的表**静默通过**。现新增第 11 项：表名与列名必须加反引号，每张表最多报 2 条（表名 + 首个违规列），保证 worklist 可读。
 2. 索引正则原本**硬编码了反引号** → 未加反引号的索引**完全不匹配**，索引命名规则静默失效。改为反引号可选后，原本被漏掉的索引问题暴露出来（索引命名类 70 → 81 条）。
 3. 新增的裸标识符分支必须排除"列定义"：`name VARCHAR(255)` 里的 `VARCHAR` 会被误读成索引名。已加"裸标识符后不得紧跟 `(`"约束修掉（净减 5 条误报）。
 4. **不要用 .NET 条件组** `(?(name)yes|no)`：它解析的是 **balancing group**、不是命名组，因此永远不匹配、会静默关掉检查。改用普通交替 `(?:`a`|b)`。
@@ -359,7 +359,7 @@ git push origin v2.2.0
 **② history 表名"统一"不具备规则依据，本轮不做。**
 
 - 现状：多数服务用 `flyway_schema_history_<service>`；IM 四服务与 media 用 `<service>_schema_history`（`admin_`/`conversation_`/`msg_`/`user_`/`support_schema_history`）。
-- 已核对 `ENGINEERING_RULES.md`、`DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
+- 已核对 `ENGINEERING_RULES.md`、`23_DATABASE_MIGRATION_STANDARD.md`、`standards/21` —— **都没有规定 history 表命名**，也没有任何门禁检查它。`[01 方案](MIGRATION_BASELINE_01_DATA.md)` §3 的"统一为 `<service>_schema_history`"是计划意图而非规范要求。
 - 结论：**不改**（改名需同步 config、无门禁收益、纯churn）。若将来确有统一诉求，应先写成规范＋门禁，再一次性改。
 
 ### 3.2 ⚠️ `target/classes` 会残留合并前的迁移文件（本轮踩到，务必先读）
@@ -523,4 +523,4 @@ b423d1b refactor(migration): consolidate identity-service baseline into one V1
 | 统一门禁入口 | `scripts/validate/invoke-engineering-validation.ps1` |
 | 报告模式登记 | `scripts/validate/report-only-gates.txt` |
 | ASCII 延期清单 | `scripts/validate/powershell-ascii-allowlist.txt` |
-| 规范原文 | `docs/standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md`、`docs/DATABASE_MIGRATION_STANDARD.md` |
+| 规范原文 | `docs/80-development/standards/01_TEXT_ENCODING_AND_BATCH_EDITING.md`、`docs/23_DATABASE_MIGRATION_STANDARD.md` |

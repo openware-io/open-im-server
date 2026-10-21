@@ -472,7 +472,7 @@ api/controller + application + domain + infra
 
 | 门禁 | 阻断的写法 |
 | --- | --- |
-| `documentation-links` | 相对链接指向不存在的路径（**含仓库外路径**，CI 只 checkout 本仓）；根 README 未索引 `docs/standards/*` |
+| `documentation-links` | 相对链接指向不存在的路径（**含仓库外路径**，CI 只 checkout 本仓）；根 README 未索引 `docs/80-development/standards/*` |
 | `standards-governance` | 标准文档缺 7 个必备章节之一（目标/术语/规则/模板/门禁/验收/关系）；正文出现占位标记（未完成事项的标记词，清单见 `scripts/validate/standards-governance-rules.txt`） |
 | `text-encoding` | UTF-8 BOM、非法 UTF-8、替换字符 U+FFFD、或字面 Unicode 句点转义 |
 | `powershell-utf8-safety` | `.ps1` 带 BOM 或不是合法 UTF-8；**Windows PowerShell 5.1 把无 BOM 的 `.ps1` 当 ANSI 读**，故 `.ps1` 必须无 BOM |

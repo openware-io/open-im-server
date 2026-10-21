@@ -57,7 +57,7 @@ Snapshot: 2026-10-19, `develop/2.3.0` baseline.
 | `docs/archive/renovation/` | 78 | Large historical record; some conclusions remain valid |
 | `docs/security/` | 2 | Needs relation to compliance and auth docs |
 | `docs/services/` | 8 | Incomplete tree; platform/shared services missing |
-| `docs/standards/` | 15 | Current standards; bilingual work pending |
+| `docs/80-development/standards/` | 15 | Current standards; bilingual work pending |
 | `docs/superpowers/` | 11 | Historical design and plan snapshots |
 | Other product repositories | 84 | No English README; some release notes stale |
 
@@ -77,8 +77,8 @@ Snapshot: 2026-10-19, `develop/2.3.0` baseline.
 | `docs/PROTOCOL.md` | KEEP | WebSocket/protocol contract |
 | `docs/API_DOCUMENTATION.md` | UPDATE | Gateway Swagger/OpenAPI entry |
 | `docs/PUSH_SETUP.md`, `docs/IDE_SETUP.md` | UPDATE | Development environment and push setup |
-| `docs/DATABASE_MIGRATION_STANDARD.md` | KEEP | Migration standard |
-| `docs/standards/**` | UPDATE | Current standards; bilingual by priority |
+| `docs/23_DATABASE_MIGRATION_STANDARD.md` | KEEP | Migration standard |
+| `docs/80-development/standards/**` | UPDATE | Current standards; bilingual by priority |
 | `docs/business/**` | UPDATE | Business semantics; absorb still-valid renovation conclusions |
 | `docs/deployment/**` | UPDATE | Unified 30080 entry, environment matrix, release steps |
 | `docs/services/**` | UPDATE/ADD | Unified service tree; add platform/shared services |

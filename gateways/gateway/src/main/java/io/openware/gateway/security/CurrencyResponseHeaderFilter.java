@@ -12,7 +12,7 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 /**
- * 网关币种兜底（{@code docs/standards/16_CURRENCY_CONVENTIONS.md} §3.5）。
+ * 网关币种兜底（{@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §3.5）。
  *
  * <p>在响应上注入 {@code X-Currency}（取自签名上下文，缺省 {@code USD}），并配 CORS
  * {@code exposedHeaders}（见 application.yml），供**漏带 currencyCode 的旧接口**兜底渲染。

@@ -11,7 +11,7 @@
 - 顺序号：`01`
 - 实施边界：消息服务、会话服务、WebSocket 接入、MySQL、RocketMQ、Redis 与 ACK 运行配置
 - 关联契约：[消息 OpenAPI 快照](../../30-reference/contracts/openapi/message.json)、[会话 OpenAPI 快照](../../30-reference/contracts/openapi/conversation.json)
-- 适用标准：[DDD 服务约定](../../80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[RocketMQ 约定](../../80-development/standards/12_ROCKETMQ_CONVENTIONS.md)、[数据库迁移规范](../../80-development/standards/DATABASE_MIGRATION_STANDARD.md)
+- 适用标准：[DDD 服务约定](../../80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)、[RocketMQ 约定](../../80-development/standards/12_ROCKETMQ_CONVENTIONS.md)、[数据库迁移规范](../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.md)
 
 ## 目标与边界
 
@@ -50,7 +50,7 @@
 ## 数据与迁移
 
 - `msg_read_status` 通过 `V2__add_msg_read_status_sync_index.sql` 增加 `(user_id, msg_id)` 索引，支撑 `/messages/sync` 按当前用户批量读取 `readAt`。
-- 本次无需新增表，也不得修改已经执行的 Flyway 脚本。后续结构调整必须新增更高版本迁移并遵守 [数据库迁移规范](../../80-development/standards/DATABASE_MIGRATION_STANDARD.md)。
+- 本次无需新增表，也不得修改已经执行的 Flyway 脚本。后续结构调整必须新增更高版本迁移并遵守 [数据库迁移规范](../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.md)。
 - ACK 已验证该迁移将 `im_server` 从 v1 升级至 v2；发布前应确认 Flyway 日志中存在成功应用记录。
 
 ## ACK 发布与验收

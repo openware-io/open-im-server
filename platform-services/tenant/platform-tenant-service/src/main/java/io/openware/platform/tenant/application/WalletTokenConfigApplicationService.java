@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
  * 租户级钱包代币展示配置（品牌展示名 + 兑换比例）的唯一读取口径。
  *
  * <p>存储位置：{@code tnt_tenant_config} 的 {@code (tenant_id, store_id=0)} 下的键
- * {@code wallet_brand_name} / {@code wallet_ratio}（见 {@code docs/standards/16_CURRENCY_CONVENTIONS.md} §9）。
+ * {@code wallet_brand_name} / {@code wallet_ratio}（见 {@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §9）。
  * 缺省为 {@code A380币} / {@code 100}；无行、空值、非数字、非正数一律按缺省处理，<b>读路径绝不抛异常</b>——
  * 租户配置读取失败不能影响 C 端余额/流水展示，也不能影响客户端渲染。
  *

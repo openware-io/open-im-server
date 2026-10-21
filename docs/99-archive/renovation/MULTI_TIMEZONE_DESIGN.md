@@ -18,7 +18,7 @@
 > - 因此「换机/换库」不会改变营业日口径，跨时区门店按北京时间营业日归档（如需按当地时区营业，后续再按本文档方案实施）。
 >
 > 若日后要开多时区：先在本文档确认实施范围（门店时区配置 → 发号/报表/账单口径 → 前端选择器），
-> 再按「写路径 fail-closed、读路径降级」的既有约定落地，并同步 `docs/standards/` 相关规范。
+> 再按「写路径 fail-closed、读路径降级」的既有约定落地，并同步 `docs/80-development/standards/` 相关规范。
 
 - 日期：2026-09-18
 - 状态：**只读调研 + 方案设计产出**。本文档是本次改造中**唯一被写入的文件**；未修改任何代码、配置、k8s、测试、版本号，未 push，未跑发版脚本。
@@ -307,7 +307,7 @@ GROUP BY r.store_id ORDER BY n DESC LIMIT 20;
 | **门店时区为空时** | 租户 `default_timezone`；仍为空 → 平台默认 `Asia/Shanghai`。**写路径 fail-closed**（见决策点 2） | 存量门店全部为中国门店（`V7__seed_a380_tenant.sql:12`），缺省 Shanghai 保证历史解释不变 |
 | **时区格式校验** | 写入时必须能被 `java.time.ZoneId.of()` 解析，落库用 IANA ID（`Asia/Shanghai`、`America/New_York`、`Asia/Bangkok`），**禁止 `+08:00` 这种偏移字面量** | DST 地区必须靠 IANA 规则；偏移字面量在 DST 切换日会错 1 小时（§6.4 TC-D3） |
 | **是否需要写接口** | **需要**：新增 `PUT /admin/tenant/stores/{id}` 允许改 `timezone` / `business_day_cutoff`（当前只有 `GET`，`StoreController.java:25-33`）。属于 ADM 权限域，复用既有门店权限码 | 没有写入口就无法接入海外门店；必须先有时区才能谈多时区 |
-| **改时区后的历史数据** | **不改历史解释**：时区变更只影响**变更之后**新产生记录的换算；需要可追溯时，在记录上快照 `store_timezone`（见 §2.2 选项 A2） | 与币种改造的「历史快照不重算」口径一致（`docs/standards/16_CURRENCY_CONVENTIONS.md` 在 `CashierApplicationService.java:49-51` 的落地方式：开班固化币种快照） |
+| **改时区后的历史数据** | **不改历史解释**：时区变更只影响**变更之后**新产生记录的换算；需要可追溯时，在记录上快照 `store_timezone`（见 §2.2 选项 A2） | 与币种改造的「历史快照不重算」口径一致（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` 在 `CashierApplicationService.java:49-51` 的落地方式：开班固化币种快照） |
 
 ### 2.2 存储口径
 

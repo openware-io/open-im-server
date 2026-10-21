@@ -7,7 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 
 /**
  * 营业日结汇总（{@code pay_daily_closing.summary_json} 的唯一结构定义）：**按币种分组**落库，
- * 禁止跨币种静默求和（{@code docs/standards/16_CURRENCY_CONVENTIONS.md} §5/§6）。
+ * 禁止跨币种静默求和（{@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §5/§6）。
  *
  * <p><b>为什么按币种分组</b>：同一门店同一营业日可能同时存在 CNY 与 USD 的收款 / 退款 / 交班，
  * 把两种币种相加会得出没有业务含义的「收款总额」和「长短款」。因此金额只出现在

@@ -5,7 +5,7 @@
 
 # 客户端版本发布治理重构方案
 
-> 方案集：`APP_RELEASE`；序号：`01`；实施边界：`im-admin-service`、Flyway、Gateway、OpenAPI 与发布任务；状态：设计待实施；后续方案：[App 实施方案](APP_RELEASE_02_APP.md)、[管理后台实施方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../../80-development/standards/14_CLIENT_RELEASE_GOVERNANCE.md)。
+> 方案集：`APP_RELEASE`；序号：`01`；实施边界：`im-admin-service`、Flyway、Gateway、OpenAPI 与发布任务；状态：设计待实施；后续方案：[App 实施方案](APP_RELEASE_02_APP.md)、[管理后台实施方案](APP_RELEASE_03_ADMIN.md)；长期规则：[客户端发布与版本治理规范](../../80-development/standards/30_CLIENT_RELEASE_GOVERNANCE.md)。
 
 ## 1. 结论与边界
 

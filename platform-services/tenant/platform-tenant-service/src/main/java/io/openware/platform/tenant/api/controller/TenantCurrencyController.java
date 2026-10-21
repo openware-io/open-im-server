@@ -15,7 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * 租户级币种配置（`docs/standards/16_CURRENCY_CONVENTIONS.md` §2）。
+ * 租户级币种配置（`docs/80-development/standards/24_CURRENCY_CONVENTIONS.md` §2）。
  *
  * <p>读写契约：
  * <ul>

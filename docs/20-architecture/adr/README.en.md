@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> Rules: [ADR standard](../../80-development/standards/44_ARCHITECTURE_DECISION_RECORDS.en.md)  
+> Rules: [ADR standard](../../80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md)
 > Template: [0000-template.md](0000-template.md)  
 > One decision per ADR; accepted records are immutable; withdrawn/superseded records stay in the log.
 

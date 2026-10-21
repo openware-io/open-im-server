@@ -1,6 +1,6 @@
 # Architecture Decision Records (ADR)
 
-[中文](44_ARCHITECTURE_DECISION_RECORDS.md) | [English](44_ARCHITECTURE_DECISION_RECORDS.en.md)
+[中文](02_ARCHITECTURE_DECISION_RECORDS.md) | [English](02_ARCHITECTURE_DECISION_RECORDS.en.md)
 
 > Status: `current` (`develop/2.3.0`).  
 > Scope: architecture decision records under `docs/20-architecture/adr/`.

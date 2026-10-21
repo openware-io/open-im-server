@@ -79,7 +79,7 @@
 | --- | --- | --- |
 | 对象转换 | MapStruct 的适用边界、配置、编译器处理器、手写转换条件 | 缺少独立规范 |
 | 数据库变更 | Flyway 编号、脚本格式、回滚、数据修复和验证 | [21 持久层技术栈标准](21_PERSISTENCE_STACK.md)，完整迁移规范：规范尚未独立成文 |
-| 文本与批处理 | 源码编码、批量编辑和脚本输出如何保证正确 | [30 文本编码与批量改写规范](30_TEXT_ENCODING_AND_BATCH_EDITING.md) |
+| 文本与批处理 | 源码编码、批量编辑和脚本输出如何保证正确 | [30 文本编码与批量改写规范](01_TEXT_ENCODING_AND_BATCH_EDITING.md) |
 | 本地开发 | Wrapper、JDK、IDE、格式化、静态分析、测试数据和一键启动 | [IDE 配置说明](../tooling/IDE_SETUP.md)，统一开发环境规范：规范尚未独立成文 |
 | 自动化门禁 | 规则如何脚本化、在何处执行、失败如何处理、例外如何批准 | [工程规则](../governance/ENGINEERING_RULES.md)，门禁治理规范：规范尚未独立成文 |
 | API 契约工具 | OpenAPI、错误码、兼容性、客户端生成和契约测试 | 缺少独立规范 |
@@ -159,7 +159,7 @@
 
 | 门禁 | 判据 |
 | --- | --- |
-| 最小模板完整 | `docs/standards/*.md` 每份含七项必需部分（见下节） |
+| 最小模板完整 | `docs/80-development/standards/*.md` 每份含七项必需部分（见下节） |
 | 规范不含项目内容 | 规范层不出现仓库模块名、绝对本地路径、未完成事项占位符 |
 | 文档可达 | 每份规范可从根 README 或索引到达 |
 | 链接可跳转 | 仓库内引用使用相对 Markdown 链接且目标存在 |
@@ -189,7 +189,7 @@
 | --- | --- | --- |
 | 被依赖 | [10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | 设计思想与架构层；遵循本文的分层与最小模板 |
 | 被依赖 | [20_MAVEN_ENGINEERING_CONVENTIONS.md](20_MAVEN_ENGINEERING_CONVENTIONS.md) | 工程实现层 |
-| 被依赖 | [30_TEXT_ENCODING_AND_BATCH_EDITING.md](30_TEXT_ENCODING_AND_BATCH_EDITING.md) | 工具与开发效能层 |
+| 被依赖 | [01_TEXT_ENCODING_AND_BATCH_EDITING.md](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | 工具与开发效能层 |
 | 被依赖 | [40_OBSERVABILITY_CONVENTIONS.md](40_OBSERVABILITY_CONVENTIONS.md) | 质量、安全与可靠性层 |
 | 引用 | [ENGINEERING_RULES.md](../governance/ENGINEERING_RULES.md) | 本项目的工程规则：启用清单、前缀登记表与项目级例外 |
 

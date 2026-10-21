@@ -1,6 +1,6 @@
 # Database Migration Standard
 
-[中文](DATABASE_MIGRATION_STANDARD.md) | [English](DATABASE_MIGRATION_STANDARD.en.md)
+[中文](23_DATABASE_MIGRATION_STANDARD.md) | [English](23_DATABASE_MIGRATION_STANDARD.en.md)
 
 > English summary; the Chinese document is normative.
 

@@ -41,9 +41,9 @@
 
 | 出处 | 写的 | 问题 |
 | --- | --- | --- |
-| `standards/16_CURRENCY_CONVENTIONS.md:3-4,83` | `open-saas-admin`、`open-saas-mobile`、`open-chat-app` | 旧产品名；且该文件是**币种能力的唯一权威约定**，名字错了会长期传播 |
+| `standards/24_CURRENCY_CONVENTIONS.md:3-4,83` | `open-saas-admin`、`open-saas-mobile`、`open-chat-app` | 旧产品名；且该文件是**币种能力的唯一权威约定**，名字错了会长期传播 |
 | `standards/43_E2E_TESTING_CONVENTIONS.md:3` | `open-im-server`、`open-chat-app`、`open-chat-desktop` | 同上，"适用对象"一篇就错 |
-| `standards/15_CLIENT_RELEASE_SKILL.md:141` | `` `D:\projects\cnb\open-im-server` `` | **绝对路径**——`standards/10` 明确"不绑定仓库名/路径"；且它同时泄露开发者本机目录，并再次暴露旧名 |
+| `standards/31_CLIENT_RELEASE_SKILL.md:141` | `` `D:\projects\cnb\open-im-server` `` | **绝对路径**——`standards/10` 明确"不绑定仓库名/路径"；且它同时泄露开发者本机目录，并再次暴露旧名 |
 
 ### 2.3 前端/客户端的实际名字（供你确认映射）
 

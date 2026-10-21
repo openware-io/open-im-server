@@ -1213,9 +1213,9 @@ C 端 `c-end/saas.js`：
 
 ### 6.4 建议的改造分层（顺序建议）
 
-1. **先冻结口径**（§5.1）：明确 `decimal(20,6)` 的金额列到底是「分」还是「元」，写进 `docs/standards/`。这是所有后续工作的前提，且是纯文档动作。
+1. **先冻结口径**（§5.1）：明确 `decimal(20,6)` 的金额列到底是「分」还是「元」，写进 `docs/80-development/standards/`。这是所有后续工作的前提，且是纯文档动作。
 2. **激活单一来源**：把 `tnt_store.default_currency` 接上读写（含门店创建/编辑接口），并在网关或 tenant 上下文里把当前币种下发给所有服务。现证据显示该列是死列（§1.3）。
-3. **补齐快照列**：按 §6.3 的清单补 `pay_refund` / `pay_shift` / `pay_daily_closing` / `cst_wallet_ledger` / `mkt_coupon_redemption` 的币种列（**新增 Flyway 迁移，不改历史迁移**，遵守 `docs/DATABASE_MIGRATION_STANDARD.md`）。
+3. **补齐快照列**：按 §6.3 的清单补 `pay_refund` / `pay_shift` / `pay_daily_closing` / `cst_wallet_ledger` / `mkt_coupon_redemption` 的币种列（**新增 Flyway 迁移，不改历史迁移**，遵守 `docs/23_DATABASE_MIGRATION_STANDARD.md`）。
 4. **后端补默认值与校验**：`ReservationApplicationService.java:174`、`WalletApplicationService.java:134`、`MyAssetsController.java:37`、`MemberController.java:62`、`KtvConfigApplicationService.java:102-104`、`RestKtvConfigDomainClient.java:130,315`、`KtvPricingController.java:121-124`（`money()` 改为按币种渲染或改为返回数值 + 由前端渲染）；并校验 `collect` 的 `currencyCode` 必须等于订单币种（当前无校验，`CollectApplicationService.java:117-131`）。
 5. **报表加币种维度**：`ReportMapper` 的 4 条聚合 SQL 加 `currency_code` 分组/过滤；`ReportController.java:188-190` 的 `opsKey` 加入币种；`platform-services/order/.../ReportController.java:52-53,115-116` 的 Java 聚合加币种 key。
 6. **前端统一格式化**：三端各自收敛到一个函数（§6.2），并同步改造 §3 列出的守卫测试。

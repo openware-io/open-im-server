@@ -164,7 +164,7 @@ common-services/
 > **`open-im-server` 是后端总仓库，也是整个工程的全局视角所在。** 工程分三层——**IM 业务线**（`im-services/`、`gateways/`，IM 是开放平台本身）、**SaaS 业务线**（`platform-services/`、`common-services/`，IM 开放平台之上的垂直业务）、**集团层**（`group-services/`，统管两条业务线、只管理不参与业务）。关联前端仓库（`open-chat-app`/`open-chat-desktop`/`open-chat-admin`/`open-saas-admin`/`open-saas-mobile`/`open-website`）的文档**集中登记在本仓 `docs/`**，不分散到各自仓库。
 >
 > 工程文档三分（不得混写）：
-> 1. **通用规范**（`docs/standards/*`）——应当如何做，不含项目模块名与存量缺陷；
+> 1. **通用规范**（`docs/80-development/standards/*`）——应当如何做，不含项目模块名与存量缺陷；
 > 2. **项目工程规则**（本文）——本工程启用哪些规范、前缀登记表、项目级例外；
 > 3. **工程详细文档 / 事实清单**（[项目事实清单](../../40-domain/PROJECT_FACTS_INVENTORY.md)）——**当前工程实际长什么样**，覆盖全部仓库，**需随工程演进时时维护**。
 > 4. **改造方案与历史文档**（`docs/archive/renovation/*`）——从现状到目标的方案；**已实现的方案应维护进上述 1/3 类**，其余标注为历史文档。
@@ -273,4 +273,4 @@ common-services/
 - 禁止通过 `> xxx.log`、`2>&1` 等方式把临时日志直接写到仓库根目录
 - 临时调试日志如需保留，必须按“日期 + 任务名”落到 `.outputs/logs/debug/`
 - 详细目录约定见 [42 日志输出与诊断规范](../standards/42_LOGGING_AND_OUTPUTS.md)
-- 编码与批量改写规范见 [30 文本编码与批量改写规范](../standards/30_TEXT_ENCODING_AND_BATCH_EDITING.md)
+- 编码与批量改写规范见 [30 文本编码与批量改写规范](../standards/01_TEXT_ENCODING_AND_BATCH_EDITING.md)

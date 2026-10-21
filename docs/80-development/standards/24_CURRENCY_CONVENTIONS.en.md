@@ -1,6 +1,6 @@
 # Currency Conventions
 
-[中文](16_CURRENCY_CONVENTIONS.md) | [English](16_CURRENCY_CONVENTIONS.en.md)
+[中文](24_CURRENCY_CONVENTIONS.md) | [English](24_CURRENCY_CONVENTIONS.en.md)
 
 > English summary; the Chinese document is normative.
 
