@@ -8,65 +8,9 @@
 > Answers: which event families exist, who produces/consumes them, and what are the ordering and idempotency keys.  
 > Exact topics/consumer groups live in the [MQ registry](../../30-reference/mq/REGISTRY.md); this diagram groups by family.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph Producers["Producers"]
-    WS["im-access-ws"]
-    MSG["im-message-service"]
-    USER["im-user-service"]
-    CONV["im-conversation-service"]
-    ORD["platform-order-service"]
-    PAY["common-payment-service"]
-    MKT["platform-marketing-service"]
-    CUS["platform-customer-service"]
-    RES["platform-resource-service"]
-  end
+![MQ / 事件拓扑](07-mq-topology.svg)
 
-  subgraph Topics["Topic families"]
-    CMD["im_message_command_*<br/>send / read / recall<br/>secret_destroy"]
-    MEVT["im_message_event_*<br/>stored / edited / recalled<br/>chat_cleared / secret_*"]
-    UEVT["im_user_event_*<br/>friend / status / auth<br/>profile / purge / wipe"]
-    CEVT["im_conversation_event_*<br/>authorization / secret_chat"]
-    SEVT["SaaS event topics<br/>ord_* / pay_* / mkt_*<br/>cst_* / res_*"]
-  end
-
-  subgraph Consumers["Consumers"]
-    MSGC["im-message-service<br/>write / read / recall / secret"]
-    WSC["im-access-ws<br/>delivery / notification"]
-    ADMC["im-admin-service<br/>projection"]
-    IDC["platform-identity-service<br/>profile"]
-    ORDC["platform-order-service"]
-    PAYC["common-payment-service"]
-    CUSC["platform-customer-service<br/>points"]
-    RESC["platform-resource-service<br/>occupation"]
-  end
-
-  WS -->|"commandId"| CMD
-  CMD -->|"conversationId"| MSGC
-  MSG -->|"Outbox · eventId"| MEVT
-  MEVT -->|"conversationId"| WSC
-  MEVT --> ADMC
-
-  USER -->|"Outbox · eventId"| UEVT
-  UEVT -->|"userId"| WSC
-  UEVT -->|"friend accepted"| MSGC
-  UEVT -->|"userId"| IDC
-
-  CONV -->|"Outbox · eventId"| CEVT
-  CEVT -->|"conversationId"| WSC
-  CEVT --> MSGC
-
-  ORD -->|"Outbox · tenantId"| SEVT
-  PAY -->|"Outbox · tenantId"| SEVT
-  MKT -->|"Outbox · tenantId"| SEVT
-  CUS -->|"Outbox · tenantId"| SEVT
-  RES -->|"Outbox · tenantId"| SEVT
-  SEVT --> ORDC
-  SEVT --> PAYC
-  SEVT --> CUSC
-  SEVT --> RESC
-```
+> Source: [D2](src/07-mq-topology.d2) · theme: D2 5
 
 ## Ordering and idempotency
 

@@ -8,49 +8,9 @@
 > 回答：哪类数据由哪个服务拥有？跨服务共享了什么？哪些存储不是权威事实？  
 > 不回答：完整 ER 图；精确字段以各服务 Flyway 为准。
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
-flowchart LR
-  subgraph GROUPS["服务组"]
-    direction TB
-    IM["IM 业务域<br/>user / message<br/>conversation / admin"]
-    SAAS["SaaS 平台域<br/>identity / tenant / customer<br/>order / resource / marketing"]
-    SHARED["公共能力域<br/>media / audit / payment<br/>sms / mail / IAM"]
-    EDGE["接入层<br/>im-access-ws"]
-  end
-  subgraph STORES["存储"]
-    direction TB
-    IMDB[("open_im")]
-    SADB[("open_saas")]
-    GDB[("open_group")]
-    ADB[("open_audit")]
-    MONGO[("MongoDB<br/>im_chat")]
-    REDIS[("Redis")]
-    MINIO[("MinIO")]
-  end
-  IM --> IMDB
-  IM -.-> MONGO
-  IM -.-> REDIS
-  SAAS --> SADB
-  SAAS -.-> REDIS
-  SHARED --> SADB
-  SHARED --> ADB
-  SHARED --> GDB
-  SHARED --> MINIO
-  EDGE -.-> REDIS
-  IMDB -.->|"ID / 事件"| SADB
-  SADB -.->|"ID / 事件"| IMDB
-  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
-  classDef saas fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
-  classDef shared fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
-  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
-  classDef store fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
-  class IM im
-  class SAAS saas
-  class SHARED shared
-  class EDGE edge
-  class IMDB,SADB,GDB,ADB,MONGO,REDIS,MINIO store
-```
+![数据归属图](04-data-ownership.svg)
+
+> 图源：[D2](src/04-data-ownership.d2) · 主题：D2 5
 
 ## 归属表
 

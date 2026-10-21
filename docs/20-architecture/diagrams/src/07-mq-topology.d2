@@ -1,0 +1,76 @@
+direction: right
+
+title: "OpenChat · MQ / Event Topology" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+producers: "Producers" {
+  direction: down
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.border-radius: 12
+  ws: "im-access-ws"
+  msg: "im-message-service"
+  user: "im-user-service"
+  conv: "im-conversation-service"
+  order: "platform-order-service"
+  pay: "common-payment-service"
+  marketing: "platform-marketing-service"
+  customer: "platform-customer-service"
+  resource: "platform-resource-service"
+}
+
+topics: "Topic families" {
+  direction: down
+  style.fill: "#EAE6FF"
+  style.stroke: "#5243AA"
+  style.border-radius: 12
+  cmd: "Message commands\nsend / read / recall\nsecret destroy" { shape: queue }
+  mevt: "Message events\nstored / edited / recalled" { shape: queue }
+  uevt: "User events\nfriend / status / profile" { shape: queue }
+  cevt: "Conversation events\nauthorization / secret chat" { shape: queue }
+  sevt: "SaaS events\norder / payment / coupon" { shape: queue }
+}
+
+consumers: "Consumers" {
+  direction: down
+  style.fill: "#E3FCEF"
+  style.stroke: "#00875A"
+  style.border-radius: 12
+  msgc: "im-message-service\nwrite / read / recall"
+  wsc: "im-access-ws\ndelivery / notification"
+  admin: "im-admin-service\nprojection"
+  identity: "platform-identity-service\nprofile"
+  orderc: "platform-order-service"
+  payc: "common-payment-service"
+  customerc: "platform-customer-service\npoints"
+  resourcec: "platform-resource-service\noccupation"
+}
+
+producers.ws -> topics.cmd: "commandId"
+topics.cmd -> consumers.msgc: "conversationId"
+producers.msg -> topics.mevt: "Outbox / eventId"
+topics.mevt -> consumers.wsc: "conversationId"
+topics.mevt -> consumers.admin: "projection"
+
+producers.user -> topics.uevt: "Outbox / eventId"
+topics.uevt -> consumers.wsc: "userId"
+topics.uevt -> consumers.msgc: "friend accepted"
+topics.uevt -> consumers.identity: "profile"
+
+producers.conv -> topics.cevt: "Outbox / eventId"
+topics.cevt -> consumers.wsc: "conversationId"
+topics.cevt -> consumers.msgc
+
+producers.order -> topics.sevt: "tenantId"
+producers.pay -> topics.sevt: "tenantId"
+producers.marketing -> topics.sevt: "tenantId"
+producers.customer -> topics.sevt: "tenantId"
+producers.resource -> topics.sevt: "tenantId"
+topics.sevt -> consumers.orderc
+topics.sevt -> consumers.payc
+topics.sevt -> consumers.customerc
+topics.sevt -> consumers.resourcec

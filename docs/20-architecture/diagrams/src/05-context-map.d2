@@ -1,0 +1,75 @@
+direction: right
+
+title: "OpenChat · Bounded Contexts" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+edge: "Edge and portal" {
+  direction: down
+  style.fill: "#DEEBFF"
+  style.stroke: "#0052CC"
+  style.border-radius: 12
+  gateway: "gateway"
+  ws: "im-access-ws"
+  portal: "unified-portal"
+}
+
+im: "IM domain" {
+  direction: down
+  style.fill: "#E3FCEF"
+  style.stroke: "#00875A"
+  style.border-radius: 12
+  user: "User context"
+  conversation: "Conversation context"
+  message: "Message context"
+  admin: "IM admin read model"
+}
+
+saas: "SaaS platform" {
+  direction: down
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.border-radius: 12
+  identity: "Identity context"
+  tenant: "Tenant context"
+  customer: "Customer / member"
+  order: "Order / reservation"
+  resource: "Resource / inventory"
+  marketing: "Marketing context"
+  bff: "Platform admin BFF"
+}
+
+shared: "Shared capabilities" {
+  direction: down
+  style.fill: "#FFEBE6"
+  style.stroke: "#DE350B"
+  style.border-radius: 12
+  media: "Media"
+  audit: "Audit"
+  payment: "Payment"
+  channel: "Payment channel"
+  sms: "SMS / mail"
+  iam: "Group IAM"
+}
+
+edge.gateway -> im: "REST"
+edge.gateway -> saas: "REST"
+edge.ws -> im.message: "commands"
+edge.portal -> saas.identity: "OAuth / session"
+
+im.user -> im.message: "friend / profile events"
+im.conversation -> im.message: "authorization events"
+im.admin -> im.message: "read projection"
+
+saas.bff -> saas.identity: "aggregate"
+saas.bff -> saas.tenant: "aggregate"
+saas.bff -> saas.order: "aggregate"
+saas.order -> saas.resource: "room / inventory"
+saas.order -> saas.customer: "customer / member"
+saas.order -> shared.payment: "collect / refund"
+saas.marketing -> saas.customer: "coupon / points"
+saas.identity -> shared.iam: "OIDC"
+shared.payment -> shared.channel: "channel config"

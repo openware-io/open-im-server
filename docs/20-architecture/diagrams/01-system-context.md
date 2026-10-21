@@ -8,45 +8,9 @@
 > 回答：谁在使用 OpenChat？系统边界外有哪些外部系统？  
 > 不回答：内部服务、数据库、类结构。
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph Actors["参与者"]
-    C["C 端用户<br/>App / Desktop / H5"]
-    O["运营、门店与服务人员<br/>IM Admin / SaaS Admin"]
-    A["平台管理员<br/>租户 / 权限 / 审计"]
-    D["开放平台开发者<br/>第三方应用"]
-  end
+![系统上下文图](01-system-context.svg)
 
-  subgraph OpenChat["OpenChat 系统边界"]
-    PLATFORM["OpenChat<br/>IM + 多租户 SaaS<br/>REST / WebSocket"]
-  end
-
-  subgraph External["外部系统"]
-    PUSH["推送服务<br/>APNs / FCM / JPush"]
-    SMS["短信服务"]
-    PAY["支付渠道<br/>微信 / 支付宝 / 其他"]
-    IDP["企业 IdP / OAuth"]
-    OBS["监控与告警"]
-  end
-
-  C -->|"HTTPS / WSS"| PLATFORM
-  O -->|"HTTPS"| PLATFORM
-  A -->|"HTTPS"| PLATFORM
-  D -->|"OAuth2 / OpenAPI"| PLATFORM
-
-  PLATFORM -->|"推送"| PUSH
-  PLATFORM -->|"验证码 / 通知"| SMS
-  PLATFORM -->|"支付 / 退款"| PAY
-  PLATFORM -->|"OAuth / OIDC"| IDP
-  PLATFORM -->|"指标 / 日志 / 告警"| OBS
-  classDef actor fill:#F4F5F7,stroke:#8993A4,color:#172B4D
-  classDef system fill:#0052CC,stroke:#0747A6,color:#FFFFFF,stroke-width:2px
-  classDef external fill:#FFFAE6,stroke:#FF991F,color:#172B4D
-  class C,O,A,D actor
-  class PLATFORM system
-  class PUSH,SMS,PAY,IDP,OBS external
-```
+> 图源：[D2](src/01-system-context.d2) · 主题：D2 5
 
 ## 读图要点
 

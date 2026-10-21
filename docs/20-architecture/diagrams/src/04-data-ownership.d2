@@ -1,0 +1,63 @@
+direction: right
+
+title: "OpenChat · Data Ownership" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+groups: "Service groups" {
+  direction: down
+  style.fill: "#FAFBFC"
+  style.stroke: "#C1C7D0"
+  style.border-radius: 12
+
+  im: "IM domain\nuser / message\nconversation / admin" {
+    style.fill: "#E3FCEF"
+    style.stroke: "#00875A"
+    style.border-radius: 10
+  }
+  saas: "SaaS platform\nidentity / tenant / customer\norder / resource / marketing" {
+    style.fill: "#FFFAE6"
+    style.stroke: "#FF991F"
+    style.border-radius: 10
+  }
+  shared: "Shared capabilities\nmedia / audit / payment\nsms / mail / IAM" {
+    style.fill: "#FFEBE6"
+    style.stroke: "#DE350B"
+    style.border-radius: 10
+  }
+  edge: "Edge\nim-access-ws" {
+    style.fill: "#DEEBFF"
+    style.stroke: "#0052CC"
+    style.border-radius: 10
+  }
+}
+
+stores: "Stores" {
+  direction: down
+  style.fill: "#FAFBFC"
+  style.stroke: "#C1C7D0"
+  style.border-radius: 12
+  imdb: "open_im" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  sadb: "open_saas" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  gdb: "open_group" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  adb: "open_audit" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  mongo: "MongoDB\nim_chat" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  redis: "Redis" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+  minio: "MinIO" { shape: cylinder; style.fill: "#EAE6FF"; style.stroke: "#5243AA" }
+}
+
+groups.im -> stores.imdb: "owns"
+groups.im -> stores.mongo: "projection"
+groups.im -> stores.redis: "cache"
+groups.saas -> stores.sadb: "owns"
+groups.saas -> stores.redis: "cache"
+groups.shared -> stores.sadb: "config"
+groups.shared -> stores.adb: "owns"
+groups.shared -> stores.gdb: "IAM"
+groups.shared -> stores.minio: "objects"
+groups.edge -> stores.redis: "presence"
+stores.imdb -> stores.sadb: "IDs / events" { style.stroke-dash: 3 }
+stores.sadb -> stores.imdb: "IDs / events" { style.stroke-dash: 3 }

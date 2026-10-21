@@ -8,63 +8,9 @@
 > Answers: which bounded contexts exist, who depends on whom, and how they collaborate.  
 > Does not answer: deployment replicas or table schemas.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph Edge["Edge and portal"]
-    GW["gateway"]
-    WS["im-access-ws"]
-    PORTAL["unified-portal"]
-  end
+![限界上下文图](05-context-map.svg)
 
-  subgraph IM["IM domain"]
-    USER["User context"]
-    CONV["Conversation context"]
-    MSG["Message context"]
-    IMADM["IM admin read model"]
-  end
-
-  subgraph SaaS["SaaS platform"]
-    ID["Identity context"]
-    TEN["Tenant context"]
-    CUS["Customer/member context"]
-    ORD["Order/reservation context"]
-    RES["Resource/inventory context"]
-    MKT["Marketing context"]
-    BFF["Platform admin BFF"]
-  end
-
-  subgraph Shared["Shared capabilities"]
-    MEDIA["Media"]
-    AUD["Audit"]
-    PAY["Payment"]
-    PAYCH["Payment channel"]
-    SMS["SMS/mail"]
-    IDAAS["Group IAM"]
-  end
-
-  GW -->|"REST"| IM
-  GW -->|"REST"| SaaS
-  WS -->|"commands"| MSG
-  PORTAL -->|"OAuth / session"| ID
-
-  CONV -->|"authorization events"| MSG
-  USER -->|"friend/profile events"| MSG
-  IMADM -.->|"read projection"| MSG
-  IMADM -.->|"read projection"| CONV
-
-  BFF -->|"aggregate"| ID
-  BFF -->|"aggregate"| TEN
-  BFF -->|"aggregate"| ORD
-  ORD -->|"room/inventory"| RES
-  ORD -->|"customer/member"| CUS
-  ORD -->|"collect/refund"| PAY
-  ORD -.->|"order events"| AUD
-  MKT -->|"coupon/points"| CUS
-  MKT -.->|"order events"| ORD
-  ID -->|"OIDC / enterprise login"| IDAAS
-  PAY -->|"channel config"| PAYCH
-```
+> Source: [D2](src/05-context-map.d2) · theme: D2 5
 
 ## Relationships
 

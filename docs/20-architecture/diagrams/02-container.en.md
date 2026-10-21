@@ -8,81 +8,9 @@
 > Answers: which deployable units exist, what do they own, and how do they communicate?  
 > Does not answer: pod replicas, nodes or table schemas.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph CLIENTS["Clients"]
-    direction TB
-    APP["C-end clients"]
-    ADMIN["Admin consoles"]
-    OPEN["Open platform"]
-  end
-  subgraph EDGE["Edge"]
-    direction TB
-    GW["gateway"]
-    WS["im-access-ws"]
-  end
-  subgraph IM["IM domain"]
-    direction TB
-    USER["user"]
-    MSG["message"]
-    CONV["conversation"]
-    IMADM["im-admin"]
-  end
-  subgraph PLAT["SaaS platform"]
-    direction TB
-    ID["identity"]
-    TEN["tenant"]
-    ORD["order"]
-    PADM["admin BFF"]
-    CUS["customer"]
-    MKT["marketing"]
-  end
-  subgraph COMMON["Shared capabilities"]
-    direction TB
-    MEDIA["media"]
-    PAY["payment"]
-    AUD["audit"]
-    SMS["sms"]
-    IAM["IAM"]
-  end
-  subgraph DATA["Data and messaging"]
-    direction TB
-    MYSQL[("MySQL")]
-    REDIS[("Redis")]
-    MONGO[("MongoDB")]
-    MQ[("RocketMQ")]
-    MINIO[("MinIO")]
-  end
-  APP --> GW
-  ADMIN --> GW
-  OPEN --> GW
-  APP --> WS
-  GW --> IM
-  GW --> PLAT
-  GW --> COMMON
-  WS --> MQ
-  WS --> REDIS
-  IM --> MYSQL
-  IM --> MONGO
-  IM --> MQ
-  PLAT --> MYSQL
-  PLAT --> MQ
-  COMMON --> MYSQL
-  COMMON --> MINIO
-  classDef client fill:#F4F5F7,stroke:#8993A4,color:#172B4D,stroke-width:1px
-  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
-  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
-  classDef platform fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
-  classDef common fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
-  classDef data fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
-  class APP,ADMIN,OPEN client
-  class GW,WS edge
-  class USER,MSG,CONV,IMADM im
-  class ID,TEN,ORD,PADM,CUS,MKT platform
-  class MEDIA,PAY,AUD,SMS,IAM common
-  class MYSQL,REDIS,MONGO,MQ,MINIO data
-```
+![容器图](02-container.svg)
+
+> Source: [D2](src/02-container.d2) · theme: D2 5
 
 ## Reading notes
 

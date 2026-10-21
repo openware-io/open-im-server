@@ -8,49 +8,9 @@
 > Answers: which service owns which data, what crosses boundaries, and which stores are not authoritative.  
 > Does not answer: full ER models; exact columns follow each service's Flyway.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
-flowchart LR
-  subgraph GROUPS["Service groups"]
-    direction TB
-    IM["IM domain<br/>user / message<br/>conversation / admin"]
-    SAAS["SaaS platform<br/>identity / tenant / customer<br/>order / resource / marketing"]
-    SHARED["Shared capabilities<br/>media / audit / payment<br/>sms / mail / IAM"]
-    EDGE["Edge<br/>im-access-ws"]
-  end
-  subgraph STORES["Stores"]
-    direction TB
-    IMDB[("open_im")]
-    SADB[("open_saas")]
-    GDB[("open_group")]
-    ADB[("open_audit")]
-    MONGO[("MongoDB<br/>im_chat")]
-    REDIS[("Redis")]
-    MINIO[("MinIO")]
-  end
-  IM --> IMDB
-  IM -.-> MONGO
-  IM -.-> REDIS
-  SAAS --> SADB
-  SAAS -.-> REDIS
-  SHARED --> SADB
-  SHARED --> ADB
-  SHARED --> GDB
-  SHARED --> MINIO
-  EDGE -.-> REDIS
-  IMDB -.->|"IDs / events"| SADB
-  SADB -.->|"IDs / events"| IMDB
-  classDef im fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
-  classDef saas fill:#FFFAE6,stroke:#FF991F,color:#172B4D,stroke-width:1.5px
-  classDef shared fill:#FFEBE6,stroke:#DE350B,color:#172B4D,stroke-width:1.5px
-  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
-  classDef store fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
-  class IM im
-  class SAAS saas
-  class SHARED shared
-  class EDGE edge
-  class IMDB,SADB,GDB,ADB,MONGO,REDIS,MINIO store
-```
+![数据归属图](04-data-ownership.svg)
+
+> Source: [D2](src/04-data-ownership.d2) · theme: D2 5
 
 ## Ownership table
 

@@ -8,69 +8,9 @@
 > 回答：容器实际跑在哪里？入口、命名空间、端口、存储和依赖怎么连？  
 > 默认示例：Kind 本地环境 `open-im-local`；ACK 只替换入口和基础设施实现，不改变逻辑服务边界。
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
-flowchart TB
-  subgraph CLIENT["客户端"]
-    direction TB
-    APP["Mobile / desktop / web"]
-    ADMIN["Admin consoles"]
-  end
-  subgraph K8S["Kind · open-im-local"]
-    direction TB
-    ING["ingress-nginx<br/>:30080 / :30443"]
-    subgraph EDGE["Edge"]
-      direction TB
-      GW["gateway :3002"]
-      WS["im-access-ws :3001"]
-    end
-    subgraph APPS["Application pods"]
-      direction TB
-      IM["IM services<br/>:3100–:3400"]
-      PLAT["Platform services<br/>:4100–:4170"]
-      COMMON["Common services<br/>:3600–:4220"]
-      WEB["Admin / web :80"]
-    end
-    subgraph INFRA["Infrastructure"]
-      direction TB
-      MYSQL[("MySQL :3306")]
-      REDIS[("Redis :6379")]
-      MONGO[("MongoDB :27017")]
-      MQ[("RocketMQ :9876")]
-      MINIO[("MinIO :9000")]
-      PVC[("local-path PVC")]
-    end
-  end
-  APP --> ING
-  ADMIN --> ING
-  ING --> GW
-  ING --> WS
-  ING --> WEB
-  GW --> IM
-  GW --> PLAT
-  GW --> COMMON
-  WS --> MQ
-  IM --> MYSQL
-  IM --> REDIS
-  IM --> MONGO
-  IM --> MQ
-  PLAT --> MYSQL
-  PLAT --> MQ
-  COMMON --> MYSQL
-  COMMON --> MINIO
-  MYSQL --> PVC
-  REDIS --> PVC
-  MONGO --> PVC
-  MINIO --> PVC
-  classDef client fill:#F4F5F7,stroke:#8993A4,color:#172B4D,stroke-width:1px
-  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
-  classDef apps fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
-  classDef infra fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
-  class APP,ADMIN client
-  class GW,WS,ING edge
-  class IM,PLAT,COMMON,WEB apps
-  class MYSQL,REDIS,MONGO,MQ,MINIO,PVC infra
-```
+![部署拓扑](03-deployment.svg)
+
+> 图源：[D2](src/03-deployment.d2) · 主题：D2 5
 
 ## 端口与命名空间
 

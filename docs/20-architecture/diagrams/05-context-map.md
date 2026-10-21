@@ -8,64 +8,9 @@
 > 回答：有哪些限界上下文？谁依赖谁？跨上下文通过什么协作？  
 > 不回答：部署副本、数据库表结构。
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph Edge["接入与门户"]
-    GW["gateway"]
-    WS["im-access-ws"]
-    PORTAL["unified-portal"]
-  end
+![限界上下文图](05-context-map.svg)
 
-  subgraph IM["IM 业务域"]
-    USER["用户上下文"]
-    CONV["会话上下文"]
-    MSG["消息上下文"]
-    IMADM["IM 管理读模型"]
-  end
-
-  subgraph SaaS["SaaS 平台域"]
-    ID["身份上下文"]
-    TEN["租户上下文"]
-    CUS["客户/会员上下文"]
-    ORD["订单/预约上下文"]
-    RES["资源/库存上下文"]
-    MKT["营销上下文"]
-    BFF["平台管理 BFF"]
-  end
-
-  subgraph Shared["公共能力域"]
-    MEDIA["媒体"]
-    AUD["审计"]
-    PAY["支付"]
-    PAYCH["支付渠道"]
-    SMS["短信/邮件"]
-    IDAAS["集团 IAM"]
-  end
-
-  GW -->|"REST"| IM
-  GW -->|"REST"| SaaS
-  WS -->|"命令"| MSG
-  PORTAL -->|"OAuth / Session"| ID
-
-  CONV -->|"会话授权事件"| MSG
-  USER -->|"好友/资料事件"| MSG
-  IMADM -.->|"读投影"| MSG
-  IMADM -.->|"读投影"| CONV
-
-  BFF -->|"聚合"| ID
-  BFF -->|"聚合"| TEN
-  BFF -->|"聚合"| ORD
-  ORD -->|"房间/库存"| RES
-  ORD -->|"客户/会员"| CUS
-  ORD -->|"收款/退款"| PAY
-  ORD -.->|"订单事件"| AUD
-  MKT -->|"优惠券/积分"| CUS
-  MKT -.->|"订单事件"| ORD
-  ID -->|"OIDC / 企业登录"| IDAAS
-  PAY -->|"渠道配置"| PAYCH
-
-```
+> 图源：[D2](src/05-context-map.d2) · 主题：D2 5
 
 ## 上下文关系
 

@@ -1,0 +1,94 @@
+direction: right
+
+title: "OpenChat · Container View" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+clients: "Clients" {
+  direction: down
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.border-radius: 12
+  app: "App / Desktop / H5"
+  admin: "Admin consoles"
+  open: "Open platform"
+}
+
+edge: "Edge" {
+  direction: down
+  style.fill: "#DEEBFF"
+  style.stroke: "#0052CC"
+  style.border-radius: 12
+  gateway: "gateway\nREST :3002"
+  ws: "im-access-ws\nWS :3001"
+}
+
+im: "IM domain" {
+  direction: down
+  style.fill: "#E3FCEF"
+  style.stroke: "#00875A"
+  style.border-radius: 12
+  user: "user\n:3100"
+  message: "message\n:3200"
+  conversation: "conversation\n:3300"
+  admin: "im-admin\n:3400"
+}
+
+platform: "SaaS platform" {
+  direction: down
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.border-radius: 12
+  identity: "identity\n:4100"
+  tenant: "tenant\n:4110"
+  order: "order\n:4130"
+  adminbff: "admin BFF\n:4150"
+  customer: "customer\n:4160"
+  marketing: "marketing\n:4170"
+}
+
+shared: "Shared capabilities" {
+  direction: down
+  style.fill: "#FFEBE6"
+  style.stroke: "#DE350B"
+  style.border-radius: 12
+  media: "media\n:3600"
+  payment: "payment\n:4140"
+  audit: "audit\n:4190"
+  sms: "sms\n:4200"
+  iam: "IAM\n:4220"
+}
+
+data: "Data and messaging" {
+  direction: down
+  style.fill: "#EAE6FF"
+  style.stroke: "#5243AA"
+  style.border-radius: 12
+  mysql: "MySQL" { shape: cylinder }
+  redis: "Redis" { shape: cylinder }
+  mongo: "MongoDB" { shape: cylinder }
+  mq: "RocketMQ" { shape: queue }
+  minio: "MinIO" { shape: cylinder }
+}
+
+clients.app -> edge.gateway: "HTTPS"
+clients.app -> edge.ws: "WSS"
+clients.admin -> edge.gateway: "HTTPS"
+clients.open -> edge.gateway: "OAuth2 / OpenAPI"
+
+edge.gateway -> im: "REST"
+edge.gateway -> platform: "REST"
+edge.gateway -> shared: "REST"
+edge.ws -> data.mq: "commands"
+
+im -> data.mysql: "authority"
+im -> data.mongo: "projection"
+im -> data.mq: "events"
+platform -> data.mysql
+platform -> data.mq
+shared -> data.mysql
+shared -> data.minio: "objects"
+edge.ws -> data.redis: "session / presence"

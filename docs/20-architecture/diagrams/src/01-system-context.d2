@@ -1,0 +1,81 @@
+direction: right
+
+title: "OpenChat · System Context" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+users: "C-end users" {
+  shape: person
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.font-color: "#172B4D"
+}
+
+ops: "Operations / stores" {
+  shape: person
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.font-color: "#172B4D"
+}
+
+admins: "Platform admins" {
+  shape: person
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.font-color: "#172B4D"
+}
+
+system: "OpenChat\nIM + multi-tenant SaaS" {
+  style.fill: "#E8F0FE"
+  style.stroke: "#2563EB"
+  style.font-color: "#172B4D"
+  style.border-radius: 14
+  style.shadow: true
+}
+
+push: "Push\nAPNs / FCM / JPush" {
+  shape: cloud
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.font-color: "#172B4D"
+}
+
+sms: "SMS" {
+  shape: cloud
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.font-color: "#172B4D"
+}
+
+payment: "Payment channels" {
+  shape: cloud
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.font-color: "#172B4D"
+}
+
+idp: "Enterprise IdP / OAuth" {
+  shape: cloud
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.font-color: "#172B4D"
+}
+
+obs: "Monitoring / alerting" {
+  shape: cloud
+  style.fill: "#FFFAE6"
+  style.stroke: "#FF991F"
+  style.font-color: "#172B4D"
+}
+
+users -> system: "HTTPS / WSS"
+ops -> system: "HTTPS"
+admins -> system: "HTTPS"
+system -> push: "push"
+system -> sms: "verification / notification"
+system -> payment: "pay / refund"
+system -> idp: "OIDC"
+system -> obs: "metrics / logs"

@@ -8,45 +8,9 @@
 > Answers: who uses OpenChat, and which external systems sit outside its boundary?  
 > Does not answer: internal services, databases or class structure.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0","edgeLabelBackground":"#FFFFFF"}}}%%
-flowchart LR
-  subgraph Actors["Actors"]
-    C["C-end users<br/>App / Desktop / H5"]
-    O["Operations and store staff<br/>IM Admin / SaaS Admin"]
-    A["Platform admins<br/>tenant / IAM / audit"]
-    D["Open-platform developers<br/>third-party apps"]
-  end
+![系统上下文图](01-system-context.svg)
 
-  subgraph OpenChat["OpenChat system boundary"]
-    PLATFORM["OpenChat<br/>IM + multi-tenant SaaS<br/>REST / WebSocket"]
-  end
-
-  subgraph External["External systems"]
-    PUSH["Push<br/>APNs / FCM / JPush"]
-    SMS["SMS"]
-    PAY["Payment channels<br/>WeChat / Alipay / others"]
-    IDP["Enterprise IdP / OAuth"]
-    OBS["Monitoring and alerting"]
-  end
-
-  C -->|"HTTPS / WSS"| PLATFORM
-  O -->|"HTTPS"| PLATFORM
-  A -->|"HTTPS"| PLATFORM
-  D -->|"OAuth2 / OpenAPI"| PLATFORM
-
-  PLATFORM -->|"push"| PUSH
-  PLATFORM -->|"verification / notification"| SMS
-  PLATFORM -->|"payment / refund"| PAY
-  PLATFORM -->|"OAuth / OIDC"| IDP
-  PLATFORM -->|"metrics / logs / alerts"| OBS
-  classDef actor fill:#F4F5F7,stroke:#8993A4,color:#172B4D
-  classDef system fill:#0052CC,stroke:#0747A6,color:#FFFFFF,stroke-width:2px
-  classDef external fill:#FFFAE6,stroke:#FF991F,color:#172B4D
-  class C,O,A,D actor
-  class PLATFORM system
-  class PUSH,SMS,PAY,IDP,OBS external
-```
+> Source: [D2](src/01-system-context.d2) · theme: D2 5
 
 ## Reading notes
 

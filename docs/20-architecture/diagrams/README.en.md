@@ -25,22 +25,25 @@
 - Arrow direction: caller → callee; event diagrams go producer → topic → consumer.
 - Ports follow `k8s/local/applications.yaml` and the running Services.
 - Table names are prefixes; exact schema follows each service's Flyway and domain model.
-- Diagrams are Mermaid sources, reviewable in Git; no opaque screenshots.
+- Sources: 01–05 and 07 are D2 (`src/*.d2`); 06 and 08 are Mermaid; SVG is a D2 build artifact and is never hand-edited.
+- Diagrams must be diffable and reviewable; Markdown embeds SVG, not GitHub's Mermaid cache.
 
 ## Visual rules
 
-Diagrams use **C4 semantics plus controlled Mermaid layout**:
+Architecture diagrams use **C4 semantics plus D2 layout**; sequence/state keep dedicated diagrams:
 
 | Type | Technique | Reason |
 | --- | --- | --- |
-| 01 Context | actors / boundary / external systems | boundary only; no internal services |
-| 02 Container | grouped clients, edge, IM, platform, shared, data | Mermaid C4 overlaps labels with many nodes; grouped flowchart is stable |
-| 03 Deployment | namespace / ingress / pod groups / infrastructure | must map to K8s manifests |
-| 04 Data ownership | service groups → stores, dotted cross-domain links | owner first, cross-domain references second |
-| 05 Contexts | domain boundaries + dependency direction | no tables or classes |
-| 06 Sequence | `sequenceDiagram` | call order, idempotency and retries |
-| 07 Events | producer → topic family → consumer | grouped by family; exact registry linked |
-| 08 States | `stateDiagram-v2` | explicit terminal and failure states |
+| 01 Context | D2 actors / boundary / external systems | boundary only; no internal services |
+| 02 Container | D2 grouped clients, edge, IM, platform, shared, data | grouped layout is stable and labels are not clipped |
+| 03 Deployment | D2 namespace / ingress / pod groups / infrastructure | must map to K8s manifests |
+| 04 Data ownership | D2 service groups → stores, dotted cross-domain links | owner first, cross-domain references second |
+| 05 Contexts | D2 domain boundaries + dependency direction | no tables or classes |
+| 06 Sequence | Mermaid `sequenceDiagram` | call order, idempotency and retries |
+| 07 Events | D2 producer → topic family → consumer | grouped by family; exact registry linked |
+| 08 States | Mermaid `stateDiagram-v2` | explicit terminal and failure states |
+
+D2 build command (from repository root): `pwsh -File scripts/render-architecture-diagrams.ps1`. Layouts: `01/03` dagre, `02/05/07` ELK, `04` TALA; do not switch layouts casually.
 
 Palette:
 

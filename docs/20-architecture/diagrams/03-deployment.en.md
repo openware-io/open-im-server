@@ -8,69 +8,9 @@
 > Answers: where containers run, how the edge, namespace, ports, storage and dependencies connect.  
 > Default: Kind local environment `open-im-local`; ACK changes edge/infrastructure implementations, not logical service boundaries.
 
-```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px","primaryColor":"#E8F0FE","primaryTextColor":"#172B4D","primaryBorderColor":"#2563EB","lineColor":"#5E6C84","clusterBkg":"#FAFBFC","clusterBorder":"#C1C7D0"}}}%%
-flowchart TB
-  subgraph CLIENT["Clients"]
-    direction TB
-    APP["Mobile / desktop / web"]
-    ADMIN["Admin consoles"]
-  end
-  subgraph K8S["Kind · open-im-local"]
-    direction TB
-    ING["ingress-nginx<br/>:30080 / :30443"]
-    subgraph EDGE["Edge"]
-      direction TB
-      GW["gateway :3002"]
-      WS["im-access-ws :3001"]
-    end
-    subgraph APPS["Application pods"]
-      direction TB
-      IM["IM services<br/>:3100–:3400"]
-      PLAT["Platform services<br/>:4100–:4170"]
-      COMMON["Common services<br/>:3600–:4220"]
-      WEB["Admin / web :80"]
-    end
-    subgraph INFRA["Infrastructure"]
-      direction TB
-      MYSQL[("MySQL :3306")]
-      REDIS[("Redis :6379")]
-      MONGO[("MongoDB :27017")]
-      MQ[("RocketMQ :9876")]
-      MINIO[("MinIO :9000")]
-      PVC[("local-path PVC")]
-    end
-  end
-  APP --> ING
-  ADMIN --> ING
-  ING --> GW
-  ING --> WS
-  ING --> WEB
-  GW --> IM
-  GW --> PLAT
-  GW --> COMMON
-  WS --> MQ
-  IM --> MYSQL
-  IM --> REDIS
-  IM --> MONGO
-  IM --> MQ
-  PLAT --> MYSQL
-  PLAT --> MQ
-  COMMON --> MYSQL
-  COMMON --> MINIO
-  MYSQL --> PVC
-  REDIS --> PVC
-  MONGO --> PVC
-  MINIO --> PVC
-  classDef client fill:#F4F5F7,stroke:#8993A4,color:#172B4D,stroke-width:1px
-  classDef edge fill:#DEEBFF,stroke:#0052CC,color:#172B4D,stroke-width:1.5px
-  classDef apps fill:#E3FCEF,stroke:#00875A,color:#172B4D,stroke-width:1.5px
-  classDef infra fill:#EAE6FF,stroke:#5243AA,color:#172B4D,stroke-width:1.5px
-  class APP,ADMIN client
-  class GW,WS,ING edge
-  class IM,PLAT,COMMON,WEB apps
-  class MYSQL,REDIS,MONGO,MQ,MINIO,PVC infra
-```
+![部署拓扑](03-deployment.svg)
+
+> Source: [D2](src/03-deployment.d2) · theme: D2 5
 
 ## Ports and namespace
 

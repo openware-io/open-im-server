@@ -1,0 +1,89 @@
+direction: down
+
+title: "OpenChat · Deployment (Kind)" {
+  near: top-center
+  shape: text
+  style.font-size: 30
+  style.bold: true
+}
+
+clients: "Clients" {
+  direction: right
+  style.fill: "#F4F5F7"
+  style.stroke: "#8993A4"
+  style.border-radius: 12
+  app: "Mobile / desktop / web"
+  admin: "Admin consoles"
+}
+
+kind: "Kind cluster · open-im-local" {
+  direction: down
+  style.fill: "#FAFBFC"
+  style.stroke: "#C1C7D0"
+  style.border-radius: 14
+
+  ingress: "ingress-nginx\n:30080 / :30443" {
+    style.fill: "#DEEBFF"
+    style.stroke: "#0052CC"
+    style.border-radius: 10
+  }
+
+  edge: "Edge pods" {
+    direction: right
+    style.fill: "#DEEBFF"
+    style.stroke: "#0052CC"
+    style.border-radius: 10
+    gateway: "gateway\n:3002"
+    ws: "im-access-ws\n:3001"
+  }
+
+  apps: "Application pods" {
+    direction: right
+    style.fill: "#E3FCEF"
+    style.stroke: "#00875A"
+    style.border-radius: 10
+    im: "IM services\n:3100–:3400"
+    platform: "Platform services\n:4100–:4170"
+    shared: "Common services\n:3600–:4220"
+    web: "Admin / web\n:80"
+  }
+
+  infra: "Infrastructure" {
+    direction: right
+    style.fill: "#EAE6FF"
+    style.stroke: "#5243AA"
+    style.border-radius: 10
+    mysql: "MySQL\n:3306" { shape: cylinder }
+    redis: "Redis\n:6379" { shape: cylinder }
+    mongo: "MongoDB\n:27017" { shape: cylinder }
+    mq: "RocketMQ\n:9876" { shape: queue }
+    minio: "MinIO\n:9000" { shape: cylinder }
+    pvc: "local-path PVC" { shape: cylinder }
+  }
+}
+
+clients.app -> kind.ingress: "HTTPS"
+clients.admin -> kind.ingress: "HTTPS"
+
+kind.ingress -> kind.edge.gateway
+kind.ingress -> kind.edge.ws
+kind.ingress -> kind.apps.web
+
+kind.edge.gateway -> kind.apps.im
+kind.edge.gateway -> kind.apps.platform
+kind.edge.gateway -> kind.apps.shared
+kind.edge.ws -> kind.infra.mq: "commands"
+
+kind.apps.im -> kind.infra.mysql
+kind.apps.im -> kind.infra.redis
+kind.apps.im -> kind.infra.mongo
+kind.apps.im -> kind.infra.mq
+kind.apps.platform -> kind.infra.mysql
+kind.apps.platform -> kind.infra.mq
+kind.apps.shared -> kind.infra.mysql
+kind.apps.shared -> kind.infra.minio
+
+kind.infra.mysql -> kind.infra.pvc
+kind.infra.redis -> kind.infra.pvc
+kind.infra.mongo -> kind.infra.pvc
+kind.infra.minio -> kind.infra.pvc
