@@ -36,7 +36,7 @@ $readmeText = if (Test-Path -LiteralPath $readmePath) {
 
 $ids = @{}
 $standards = Get-ChildItem $standardsRoot -File -Filter '*.md' | Where-Object {
-  $_.Name -notin @('README.md', 'README.en.md') -and $_.Name -notmatch '\.en\.md$'
+  $_.Name -notin @('README.md', 'README.en.md', 'STANDARDS_MAP.md') -and $_.Name -notmatch '\.en\.md$'
 }
 foreach ($file in $standards) {
   $relative = $file.FullName.Substring($root.Length + 1)

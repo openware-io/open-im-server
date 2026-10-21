@@ -4,6 +4,7 @@
 
 > Status: `current` (`develop/2.3.0`).
 > Chinese is normative; this index provides English summaries. New standards must be registered here and in the root README.
+> Layers, domains, gates and gaps: [standards map](STANDARDS_MAP.en.md).
 
 ## Numbering
 
@@ -31,6 +32,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 00 | [DDD microservice engineering outline](00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.en.md) | Service boundaries, contracts and governance |
 | 01 | [Text encoding and batch editing](01_TEXT_ENCODING_AND_BATCH_EDITING.en.md) | UTF-8, line endings, batch edits and validation |
 | 02 | [Architecture Decision Records](02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template, index and gate |
+| 03 | [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md) | Correctness, boundaries, single source of truth, automation and evolution |
 
 ## 10–19 Architecture and service design
 

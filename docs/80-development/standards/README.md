@@ -4,6 +4,7 @@
 
 > 状态：`current`（`develop/2.3.0`）  
 > 标准正文以中文为准；本目录提供英文索引和一句话摘要。新增标准必须同时登记到本索引和根 README。
+> 标准之间的层级、领域、门禁和缺口见[工程标准版图](STANDARDS_MAP.md)。
 
 ## 编号规则
 
@@ -31,6 +32,7 @@
 | 00 | [DDD 微服务软件工程规范纲要](00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md) | 服务拆分、边界、契约和工程治理总纲 |
 | 01 | [文本编码与批量改写规范](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8、换行、批量编辑和校验 |
 | 02 | [架构决策记录（ADR）规范](02_ARCHITECTURE_DECISION_RECORDS.md) | ADR 编号、状态、模板、索引与门禁 |
+| 03 | [工程原则](03_ENGINEERING_PRINCIPLES.md) | 正确性、边界、单一事实源、自动化与可演进 |
 
 ## 10–19 架构与服务设计
 

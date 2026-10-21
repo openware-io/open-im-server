@@ -216,12 +216,14 @@ im-saas docs
 - Full hierarchy, reading paths and bilingual coverage: [Documentation center](docs/README.en.md).
 - Service entry: [services](docs/50-services/).
 - Standards entry: [standards](docs/80-development/standards/).
+- Standards system and gaps: [standards map](docs/80-development/standards/STANDARDS_MAP.en.md).
 
 ### Standards
 
 - [00 DDD microservice outline](docs/80-development/standards/00_DDD_MICROSERVICE_SOFTWARE_ENGINEERING_OUTLINE.md)
 - [01 Text encoding and batch editing](docs/80-development/standards/01_TEXT_ENCODING_AND_BATCH_EDITING.en.md)
 - [02 Architecture Decision Records](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md)
+- [03 Engineering principles](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.en.md)
 - [10 DDD service conventions](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ conventions](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 Platform media conventions](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)

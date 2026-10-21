@@ -96,7 +96,9 @@ docs/
 | [IDE setup](80-development/tooling/IDE_SETUP.md) | VS Code / Trae diagnostics and JDK config |
 | [AI collaboration](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
 | [Documentation organization](80-development/governance/DOCUMENTATION_ORGANIZATION.en.md) | Classification and archive rules |
-| [Standards index](80-development/standards/README.en.md) | DDD, RocketMQ, media, release, currency, logging, testing |
+| [Standards index](80-development/standards/README.en.md) | Browse standards by classification block |
+| [Standards map](80-development/standards/STANDARDS_MAP.en.md) | Layers, domains, gates and coverage gaps |
+| [Engineering principles](80-development/standards/03_ENGINEERING_PRINCIPLES.en.md) | L0 judgement and trade-off principles |
 | [Database migration](80-development/standards/23_DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
 | [ADR standard](80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template and gate |
 

@@ -60,3 +60,4 @@
 | G46 | autowired-constructor | validate-autowired-constructor.ps1 | blocking | 单构造器禁止不必要的 @Autowired |
 | G47 | architecture-decisions | validate-architecture-decisions.ps1 | blocking | ADR 目录、索引、模板、编号、章节与状态 |
 | G48 | standards-catalog | validate-standards-catalog.ps1 | blocking | 标准分类编号、唯一性、英文摘要与索引 |
+| G49 | standards-map | validate-standards-map.ps1 | blocking | 标准版图层级、领域、门禁证据与覆盖完整性 |
