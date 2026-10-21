@@ -33,6 +33,7 @@
 | 01 | [文本编码与批量改写规范](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | UTF-8、换行、批量编辑和校验 |
 | 02 | [架构决策记录（ADR）规范](02_ARCHITECTURE_DECISION_RECORDS.md) | ADR 编号、状态、模板、索引与门禁 |
 | 03 | [工程原则](03_ENGINEERING_PRINCIPLES.md) | 正确性、边界、单一事实源、自动化与可演进 |
+| 04 | [门禁治理规范](04_GATE_GOVERNANCE.md) | 分类、编号、放置、生命周期与文档影响 |
 
 ## 10–19 架构与服务设计
 

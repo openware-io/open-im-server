@@ -5,7 +5,7 @@
 > Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs.
 > Stage: `develop/2.3.0` in development (latest stage tag `2.2.1`).
 > Language: top-level engineering and delivery docs are bilingual; historical audits/renovation stay Chinese-only with archive metadata.
-> Quick links: [Gate registry](80-development/governance/GATE_REGISTRY.md) · [Standards map](80-development/standards/STANDARDS_MAP.en.md) · [Architecture diagrams](20-architecture/diagrams/README.en.md) · [Deployment index](60-deployment/README.md)
+> Quick links: [Gate registry](80-development/governance/GATE_REGISTRY.md) · [Gate catalog](80-development/governance/GATE_CATALOG.en.md) · [Standards map](80-development/standards/STANDARDS_MAP.en.md) · [Architecture diagrams](20-architecture/diagrams/README.en.md) · [Deployment index](60-deployment/README.md)
 
 ## 1. Structure
 
@@ -96,12 +96,15 @@ docs/
 | [Contributing](80-development/contributing/README.en.md) | Pre-commit checks and workflow |
 | [Engineering rules](80-development/governance/ENGINEERING_RULES.md) | Development, review and gates |
 | [Gate registry](80-development/governance/GATE_REGISTRY.md) | Executable checks |
+| [Gate catalog](80-development/governance/GATE_CATALOG.en.md) | Categories, owners, stages and evidence |
+| [Gate governance](80-development/standards/04_GATE_GOVERNANCE.en.md) | Add, classify, review and retire gates |
 | [IDE setup](80-development/tooling/IDE_SETUP.md) | VS Code / Trae diagnostics and JDK config |
 | [AI collaboration](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | Human-AI collaboration boundaries |
 | [Documentation organization](80-development/governance/DOCUMENTATION_ORGANIZATION.en.md) | Classification and archive rules |
 | [Standards index](80-development/standards/README.en.md) | Browse standards by classification block |
 | [Standards map](80-development/standards/STANDARDS_MAP.en.md) | Layers, domains, gates and coverage gaps |
 | [Engineering principles](80-development/standards/03_ENGINEERING_PRINCIPLES.en.md) | L0 judgement and trade-off principles |
+| [Gate governance](80-development/standards/04_GATE_GOVERNANCE.en.md) | Gate classification, registration, lifecycle and docs impact |
 | [Database migration](80-development/standards/23_DATABASE_MIGRATION_STANDARD.en.md) | Flyway and data migration |
 | [ADR standard](80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template and gate |
 

@@ -5,7 +5,7 @@
 > 维护范围：`D:\projects\cnb-oss` 下的 im-saas 产品仓库与 `open-im-server` 工程文档  
 > 当前阶段：`develop/2.3.0` 开发中（最近阶段 tag `2.2.1`）  
 > 语言约定：面向工程决策和交付的顶层文档提供中英双语；历史审计/renovation 记录只做归档标注，不追写双语。
-> 常用入口：[门禁清单](80-development/governance/GATE_REGISTRY.md) · [工程标准版图](80-development/standards/STANDARDS_MAP.md) · [架构图集](20-architecture/diagrams/README.md) · [部署索引](60-deployment/README.md)
+> 常用入口：[门禁清单](80-development/governance/GATE_REGISTRY.md) · [门禁目录](80-development/governance/GATE_CATALOG.md) · [工程标准版图](80-development/standards/STANDARDS_MAP.md) · [架构图集](20-architecture/diagrams/README.md) · [部署索引](60-deployment/README.md)
 
 ## 1. 文档结构
 
@@ -96,12 +96,15 @@ docs/
 | [参与贡献](80-development/contributing/README.md) | 提交前检查与协作流程 |
 | [工程规范](80-development/governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
 | [门禁注册表](80-development/governance/GATE_REGISTRY.md) | 可执行检查清单 |
+| [门禁目录](80-development/governance/GATE_CATALOG.md) | 类别、Owner、阶段与证据 |
+| [门禁治理规范](80-development/standards/04_GATE_GOVERNANCE.md) | 新增、分类、评审与退役规则 |
 | [IDE 配置](80-development/tooling/IDE_SETUP.md) | VS Code / Trae 诊断与 JDK 配置 |
 | [AI 协作原则](80-development/governance/AI_COLLABORATION_PRINCIPLES.md) | 人机协作边界 |
 | [文档整理与归档方案](80-development/governance/DOCUMENTATION_ORGANIZATION.md) | 分类、归档规则和执行顺序 |
 | [标准目录](80-development/standards/README.md) | 按分类块浏览标准 |
 | [工程标准版图](80-development/standards/STANDARDS_MAP.md) | 层级、领域、门禁与覆盖缺口 |
 | [工程原则](80-development/standards/03_ENGINEERING_PRINCIPLES.md) | L0 判断依据与取舍原则 |
+| [门禁治理](80-development/standards/04_GATE_GOVERNANCE.md) | 门禁分类、登记、生命周期与文档影响 |
 | [数据库迁移标准](80-development/standards/23_DATABASE_MIGRATION_STANDARD.md) | Flyway 与数据迁移 |
 | [ADR 规范](80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md) | 决策记录的编号、状态、模板与门禁 |
 

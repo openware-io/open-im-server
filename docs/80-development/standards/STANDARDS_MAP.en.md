@@ -31,6 +31,7 @@ Numbers are a **classification index**, not a dependency graph. Dependencies are
 | 01 | [Text encoding and batch editing](01_TEXT_ENCODING_AND_BATCH_EDITING.en.md) | L2 | collaboration | G01, G29 | active |
 | 02 | [Architecture Decision Records](02_ARCHITECTURE_DECISION_RECORDS.en.md) | L0 | governance | G47 | active |
 | 03 | [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md) | L0 | foundation | G48, G49 | active |
+| 04 | [Gate governance](04_GATE_GOVERNANCE.en.md) | L0 | governance | G33, G48, G49, G51, G52 | active |
 | 10 | [DDD service engineering](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.en.md) | L1 | architecture | G18, G19, G20, G21, G24, G25, G43 | active |
 | 12 | [RocketMQ governance](12_ROCKETMQ_CONVENTIONS.en.md) | L2 | messaging | G14, G15, G42 | active |
 | 13 | [Platform media](13_PLATFORM_MEDIA_CONVENTIONS.en.md) | L2 | media | G36, G40 | active |
@@ -50,7 +51,7 @@ Numbers are a **classification index**, not a dependency graph. Dependencies are
 
 | Concern | L1 domain standards | L2 practices | Status |
 | --- | --- | --- | --- |
-| foundation | 00 | 03 | ✅ |
+| foundation | 00 | 03, 04 | ✅ |
 | architecture | 10 | 12, 13 | ✅ |
 | build | 20, 22 | — | ✅ |
 | data | 21, 24 | 23 | ✅ |

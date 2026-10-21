@@ -8,7 +8,10 @@
 1. 新增、删除或改名门禁脚本，必须同步更新本表；
 2. 新增门禁必须同时接入 `invoke-engineering-validation.ps1`；
 3. `模式` 必须与 `report-only-gates.txt` 一致：文件中有条目 = report-only，否则 = blocking；
-4. `validate-gate-registry.ps1` 会校验“脚本、注册表、invoke、report-only”四方一致，缺一即失败。
+4. `validate-gate-registry.ps1` 会校验“脚本、注册表、invoke、report-only”四方一致，缺一即失败；
+5. 新增门禁必须在 [GATE_CATALOG.md](GATE_CATALOG.md) 登记 `Category` / `Owner` / `Stage` / 文档证据，由 G51 校验；
+6. 类别、编号、放置位置、生命周期和退役规则见 [04 门禁治理规范](../standards/04_GATE_GOVERNANCE.md)；
+7. 门禁脚本本身、高风险 API、迁移和部署清单变更，必须同步对应文档，由 G52 `validate-docs-impact.ps1` 校验。
 
 | ID | 门禁 | 脚本 | 模式 | 说明 |
 | --- | --- | --- | --- | --- |
@@ -62,3 +65,5 @@
 | G48 | standards-catalog | validate-standards-catalog.ps1 | blocking | 标准分类编号、唯一性、英文摘要与索引 |
 | G49 | standards-map | validate-standards-map.ps1 | blocking | 标准版图层级、领域、门禁证据与覆盖完整性 |
 | G50 | documentation-reachability | validate-documentation-reachability.ps1 | blocking | 现行文档可从 README / docs/README 递归到达（历史归档豁免） |
+| G51 | gate-catalog | validate-gate-catalog.ps1 | blocking | 门禁类别、Owner、阶段与目录覆盖 |
+| G52 | docs-impact | validate-docs-impact.ps1 | blocking | 高风险代码变更必须伴随对应文档变更 |

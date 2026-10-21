@@ -31,6 +31,7 @@
 | 01 | [文本编码与批量改写规范](01_TEXT_ENCODING_AND_BATCH_EDITING.md) | L2 | collaboration | G01, G29 | active |
 | 02 | [架构决策记录（ADR）规范](02_ARCHITECTURE_DECISION_RECORDS.md) | L0 | governance | G47 | active |
 | 03 | [工程原则](03_ENGINEERING_PRINCIPLES.md) | L0 | foundation | G48, G49 | active |
+| 04 | [门禁治理规范](04_GATE_GOVERNANCE.md) | L0 | governance | G33, G48, G49, G51, G52 | active |
 | 10 | [DDD 服务工程规范](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md) | L1 | architecture | G18, G19, G20, G21, G24, G25, G43 | active |
 | 12 | [RocketMQ 治理规范](12_ROCKETMQ_CONVENTIONS.md) | L2 | messaging | G14, G15, G42 | active |
 | 13 | [平台媒体规范](13_PLATFORM_MEDIA_CONVENTIONS.md) | L2 | media | G36, G40 | active |
@@ -50,7 +51,7 @@
 
 | 关注面 | L1 领域标准 | L2 实践标准 | 状态 |
 | --- | --- | --- | --- |
-| foundation | 00 | 03 | ✅ |
+| foundation | 00 | 03, 04 | ✅ |
 | architecture | 10 | 12, 13 | ✅ |
 | build | 20, 22 | — | ✅ |
 | data | 21, 24 | 23 | ✅ |

@@ -33,6 +33,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 01 | [Text encoding and batch editing](01_TEXT_ENCODING_AND_BATCH_EDITING.en.md) | UTF-8, line endings, batch edits and validation |
 | 02 | [Architecture Decision Records](02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template, index and gate |
 | 03 | [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md) | Correctness, boundaries, single source of truth, automation and evolution |
+| 04 | [Gate governance](04_GATE_GOVERNANCE.en.md) | Classification, IDs, placement, lifecycle and docs impact |
 
 ## 10–19 Architecture and service design
 

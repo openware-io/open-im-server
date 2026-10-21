@@ -233,7 +233,7 @@ im-saas 文档
 - 服务说明入口：[服务目录](docs/50-services/)。
 - 标准入口：[标准目录](docs/80-development/standards/)。
 - 标准体系与缺口：[工程标准版图](docs/80-development/standards/STANDARDS_MAP.md)。
-- 门禁清单：[GATE_REGISTRY](docs/80-development/governance/GATE_REGISTRY.md)。
+- 门禁清单：[GATE_REGISTRY](docs/80-development/governance/GATE_REGISTRY.md) · [门禁目录](docs/80-development/governance/GATE_CATALOG.md)。
 
 ### 标准目录
 
@@ -241,6 +241,7 @@ im-saas 文档
 - [01 文本编码与批量改写规范](docs/80-development/standards/01_TEXT_ENCODING_AND_BATCH_EDITING.md)
 - [02 架构决策记录（ADR）规范](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md)
 - [03 工程原则](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.md)
+- [04 门禁治理规范](docs/80-development/standards/04_GATE_GOVERNANCE.md)
 - [10 DDD 服务工程规范](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ 治理规范](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 平台媒体规范](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
