@@ -16,8 +16,9 @@ search -> quote -> booking -> payment -> confirmation
 cancel / payment timeout / no-show
 check-in -> check-out (admin web + mobile front desk)
 admin rate and inventory management
-OTA external contract + sandbox verification
+OTA external contract (no live channel, no sandbox)
 order, payment, audit and permissions
+C-end unified order center (cross-group/store)
 ```
 
 The mobile front desk follows the KTV B-end workbench:
@@ -29,7 +30,36 @@ check-out / move room to cleaning
 booking lookup / room status
 ```
 
-Out of MVP: dynamic yield, chain CRS, complex packages, multi-currency settlement, corporate rates. OTA contract and sandbox are in MVP; real OTA launch scope is a business decision.
+### 1.1 User order center (platform capability)
+
+Users do not care which group/store an order belongs to. C-end "My orders" must be unified:
+
+```text
+GET /api/v1/my/orders
+GET /api/v1/my/orders/{orderType}/{orderId}
+```
+
+- The list does not require `X-Tenant-Context`; it queries by the authenticated global `platformUserId`.
+- Order tables remain the write model; add `ord_user_order_index` as the unified read model.
+- Detail first checks index ownership, then restores the order's tenant context for reads.
+- Hotel orders, KTV orders and future order types write to the same index.
+- This is a platform capability, not a hotel-private page; see ADR-0009.
+
+### 1.2 Marketing scope
+
+Only points exist today; membership and coupons are not implemented. MVP does not refactor the marketing domain:
+
+| Capability | MVP |
+| --- | --- |
+| Points earn | yes: on paid/completed event, idempotent |
+| Points redemption | no |
+| Membership levels/benefits | no |
+| Coupon issue/redeem | no |
+| Member/negotiated rates | no |
+
+Quote and payment reserve a `MarketingBenefitPort` with a no-op implementation. Marketing gets its own initiative later; hotel MVP is not a marketing-domain project.
+
+Out of MVP: dynamic yield, chain CRS, complex packages, multi-currency settlement beyond USD/CNY, corporate rates. OTA contract is in MVP; real channel adapters and sandbox are not.
 
 ## 1.1 Access modes: one hotel domain, two entries
 
@@ -171,7 +201,7 @@ Any failed night rolls back the whole range. Holds expire; payment callback uses
 | `PAY_AT_HOTEL` | confirm and hold inventory; pay at desk | `CONFIRMED` (unpaid) |
 | `DEPOSIT` | pay deposit now, balance later | `PENDING_DEPOSIT` → `CONFIRMED` |
 
-Store management configures payment mode, deposit ratio (`depositRatioBps`), cancellation/no-show policy and invoice support. Group defaults may be overridden per store.
+Store management configures payment mode, deposit ratio (`depositRatioBps`), cancellation/no-show policy and invoice support. Group defaults may be overridden per store. The scope follows the KTV config model: tenant default → business default → store override.
 
 ## 8. API draft
 
@@ -181,6 +211,9 @@ GET  /api/v1/hotels/{hotelId}/room-types?checkIn=&checkOut=
 POST /api/v1/hotel-bookings
 GET  /api/v1/hotel-bookings/{bookingId}
 POST /api/v1/hotel-bookings/{bookingId}/cancel
+
+GET  /api/v1/my/orders?type=&status=&page=
+GET  /api/v1/my/orders/{orderType}/{orderId}
 
 POST /api/v1/admin/hotels
 PUT  /api/v1/admin/hotels/{hotelId}/inventory
@@ -214,9 +247,9 @@ POST /internal/hotels/holds/{holdId}/release
 
 ## 11. Confirmed and remaining decisions
 
-Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA is deferred, with channel fields reserved. C-end service-center flow exists; the B-end prototype is built inside `open-saas-admin` on the 2.4.0 branch.
+Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA contract only — no live channel and no sandbox. Invoice and guest registration are not connected; fields are reserved. Front desk is Admin Web + mobile (KTV B-end reference). Default currency is USD; USD/CNY supported. C-end orders are unified across group/store via ADR-0009. Marketing is points-earn only; no membership/coupons.
 
-Remaining: front-desk client, invoice/deposit/China guest registration, loyalty, currency.
+Remaining: damage deposit/pre-authorization, points redemption, marketing-domain expansion.
 
 See [Hotel decisions](HOTEL_DECISIONS.en.md).
 

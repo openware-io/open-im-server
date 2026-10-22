@@ -38,8 +38,9 @@ MVP 不是“先做一半功能”，而是：
 取消 / 超时未付 / no-show
 入住 → 退房（Admin Web + 移动前台）
 后台房价与库存维护
-OTA 对外接入规范 + 沙箱验证
+OTA 对外接入规范（不接真实渠道、不做沙箱）
 订单、支付、审计、权限
+C 端统一订单中心（跨集团/门店）
 ```
 
 移动前台参考 KTV B 端工作台：
@@ -51,6 +52,35 @@ OTA 对外接入规范 + 沙箱验证
 订单查询 / 房态查看
 ```
 
+### 1.1 用户订单中心（平台能力）
+
+用户不关心订单属于哪个集团/门店，C 端“我的订单”必须统一：
+
+```text
+GET /api/v1/my/orders
+GET /api/v1/my/orders/{orderType}/{orderId}
+```
+
+- 查询入口不要求 `X-Tenant-Context`，按当前登录用户的全局 `platformUserId` 查询；
+- 写模型仍是各订单表；新增 `ord_user_order_index` 作为统一读模型；
+- 详情先用索引校验归属，再恢复订单所属租户上下文读取；
+- 酒店订单、KTV 订单、后续其他订单类型都写入同一索引；
+- 这是平台级能力，不是酒店私有页面；边界见 ADR-0009。
+
+### 1.2 营销域范围
+
+当前只有积分，会员/优惠券未实现。MVP 不做营销域重构：
+
+| 能力 | MVP |
+| --- | --- |
+| 积分赚取 | 做：支付/完成事件触发，幂等 |
+| 积分抵扣 | 不做 |
+| 会员等级/权益 | 不做 |
+| 优惠券/发券/核销 | 不做 |
+| 会员价/协议价 | 不做 |
+
+报价和支付预留 `MarketingBenefitPort`（默认空实现）；等营销域独立立项后再接，不把酒店 MVP 变成营销域项目。
+
 ### MVP 明确不做
 
 | 项 | 结论 |
@@ -60,19 +90,19 @@ OTA 对外接入规范 + 沙箱验证
 | 动态收益定价、自动调价 | 不做 |
 | 跨集团 CRS / 子集团层级 | 不做；当前 `tenant=集团`、`store=门店` |
 | 复杂套餐、会议宴会、长租 | 不做 |
-| 多币种结算 | 沿用现有币种能力，默认人民币 |
+| 多币种结算 | 支持 USD / CNY，默认 USD；不做第三方币种 |
 | 会员等级价、企业协议价 | 二期 |
-| OTA 真实渠道上线 | 规范、沙箱、适配器骨架进 MVP；**是否首发即接真实 OTA，需要业务确认** |
+| OTA 真实渠道上线 / 沙箱 | 不做；只交付对外规范与内部渠道模型 |
 | 渠道经理全量同步 | 不在 MVP；由 OTA 规范预留 |
 
-### MVP 之外的 OTA 边界
+### MVP 的 OTA 边界
 
-OTA 不是“以后再说”，而是 MVP 就要立住的对外契约：
+OTA 首发不接真实渠道，也不做沙箱；MVP 只做“规范实现”：
 
-- 本期交付 `Hotel Channel v1` 对外接入规范、鉴权、幂等、错误码、版本策略和沙箱用例；
-- 至少完成一个**沙箱渠道适配器**，验证 ARI 推送、订单拉取、取消回传；
-- 真实 OTA（携程/美团/飞猪等）上线时间由业务确认，不阻塞自营渠道闭环；
-- 渠道经理（Channel Manager）作为 OTA 的聚合层，本期只定义接口，不实现完整产品。
+- 交付 `Hotel Channel v1` 对外规范：鉴权、幂等、错误码、版本、ARI、订单、取消；
+- 内部渠道模型：`Channel`、`ChannelMapping`、`ExternalBookingRef`；
+- 契约先以 OpenAPI/接口文档评审，不实现真实 OTA 适配器；
+- 真实 OTA、沙箱适配器、渠道经理都放到后续阶段。
 
 ### 接入模式：一套酒店域，两种入口
 
@@ -175,7 +205,7 @@ common-audit-service
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `Hotel` | `tenantId`, `storeId`, `name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
-| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `invoiceMode` | 接入模式、支付策略、取消政策；在店铺管理中维护 |
+| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `currency`, `invoiceMode` | 接入模式、支付策略、币种、取消政策；在店铺管理中维护 |
 | `HotelRoomType` | `hotelId`, `code`, `name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
 | `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
 | `RatePlan` | `roomTypeId`, `code`, `name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
@@ -192,6 +222,7 @@ common-audit-service
 | `HotelBooking` | `bookingNo`, `tenantId`, `storeId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount`, `status`, `amountMinor`, `currency` | 酒店预订聚合根 |
 | `HotelBookingNight` | `bookingId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
 | `HotelGuest` | `bookingId`, `name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
+| `UserOrderIndex` | `platformUserId`, `tenantId`, `storeId`, `orderType`, `orderId`, `status`, `amountMinor`, `currency` | C 端跨集团/门店订单读模型，见 ADR-0009 |
 
 **不复用 KTV `Reservation` 的 slot 语义**：KTV 按时间点/包厢，酒店按“日期区间 + 房型库存”；强行复用会让两边都变形。
 
@@ -294,7 +325,7 @@ WHERE tenant_id = :tenantId
 - 定金比例（`depositRatioBps`，如 3000 = 30%）；
 - 取消/未入住政策；
 - 是否支持发票（后续）。
-同一酒店不同门店可以不同；集团默认值可被门店覆盖。
+同一酒店不同门店可以不同；集团默认值可被门店覆盖。配置作用域沿用 KTV 配置模型：租户默认 → 业态默认 → 门店覆盖。
 
 ## 8. API 草案
 
@@ -307,6 +338,13 @@ GET  /api/v1/hotels/{hotelId}/room-types?checkIn=&checkOut=
 POST /api/v1/hotel-bookings
 GET  /api/v1/hotel-bookings/{bookingId}
 POST /api/v1/hotel-bookings/{bookingId}/cancel
+```
+
+C 端统一订单（跨集团/门店，见 ADR-0009）：
+
+```text
+GET /api/v1/my/orders?type=&status=&page=
+GET /api/v1/my/orders/{orderType}/{orderId}
 ```
 
 后台（经 admin BFF）：
@@ -370,11 +408,11 @@ hotel.checkin.completed
 | 2 | 库存按房型还是具体房间？ | 按房型卖，入住时分配具体房间 |
 | 3 | 支付模式？ | **店铺配置**：预付 / 到店付 / 定金；不写死 |
 | 4 | 取消政策？ | 按房价计划配置，默认入住前 24h 免费取消 |
-| 5 | 是否接 OTA/渠道经理？ | OTA **要做**：MVP 交付对外接入规范 + 沙箱；真实 OTA 上线范围待确认。渠道经理是可选聚合层，模型预留 `channel` / `externalRef` |
-| 6 | 前台操作端？ | 先 admin Web，移动端二期 |
-| 7 | 发票/押金/公安登记？ | 仍需产品确认；字段和接口先预留 |
-| 8 | 会员/积分/优惠券？ | 复用现有 customer/marketing，MVP 只做优惠券抵扣 |
-| 9 | 多币种？ | 沿用现有币种能力，MVP 默认人民币 |
+| 5 | 是否接 OTA/渠道经理？ | OTA **要做规范**：MVP 只交付对外规范与内部渠道模型；真实 OTA、沙箱、渠道经理后续 |
+| 6 | 前台操作端？ | Admin Web + 移动端；移动端参考 KTV B 端 |
+| 7 | 发票/押金/公安登记？ | 发票、公安**暂不接入**，字段预留；押金/预授权仍待确认 |
+| 8 | 会员/积分/优惠券？ | 只做**积分赚取**；会员等级、积分抵扣、优惠券不做 |
+| 9 | 多币种？ | 支持 USD / CNY，默认 USD |
 | 10 | 原型范围？ | C 端已有服务中心酒店流程；B 端原型在 `open-saas-admin` 代码内补建；不另建独立原型项目 |
 
 ## 12. 迭代计划

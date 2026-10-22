@@ -16,7 +16,7 @@ Documentation, architecture boundary/ADR, API contract/versioning/idempotency, d
 | --- | --- | --- |
 | Documentation | conditional pass | bilingual, statused and reachable; OTA contract still draft |
 | Architecture | ADR-0008 proposed | resource + order modular boundary recorded; awaiting acceptance |
-| API contract | incomplete | draft only; no OpenAPI YAML or contract tests |
+| API contract | partial | `hotel-channel-v1.yaml` added; `hotel-booking-v1.yaml` pending |
 | Data model | review required | table names, unique keys and migrations not frozen |
 | Security | review required | PII, tenant isolation and channel credentials specified, not checked |
 | Observability | review required | metric names proposed, not wired to the standard |
@@ -45,7 +45,7 @@ G18 API boundaries, G24 port contract, G25 PO containment, G27/G28 Flyway, G32 t
 ```text
 [x] ADR-0008 submitted (proposed; awaiting accepted)
 [ ] hotel-booking-v1.yaml reviewed
-[ ] hotel-channel-v1.yaml reviewed
+[x] hotel-channel-v1.yaml created (review pending)
 [ ] table list + ER diagram reviewed
 [ ] security/tenant-isolation checklist confirmed
 [ ] concurrency/payment/OTA test cases listed
@@ -60,3 +60,14 @@ G18 API boundaries, G24 port contract, G25 PO containment, G27/G28 Flyway, G32 t
 - [Decisions](HOTEL_DECISIONS.en.md)
 - [Standards map](../../80-development/standards/STANDARDS_MAP.en.md)
 - [Gate catalog](../../80-development/governance/GATE_CATALOG.md)
+
+## 8. Incremental review (2026-10-22)
+
+| Change | Conclusion | Action |
+| --- | --- | --- |
+| C-end orders across group/store | platform capability, not a hotel endpoint | ADR-0009 `proposed`; add `ord_user_order_index`, backfill and reconciliation |
+| OTA not live, no sandbox | contract and internal channel model only | contract first; real adapters later |
+| Membership/coupons | not in hotel MVP | points earn only; marketing is a separate initiative |
+| Currency | default USD, support USD/CNY | `HotelPolicy.currency`, store-configurable |
+| Mobile front desk | in MVP | KTV B-end reference; prototype pending |
+| Invoice/guest registration | not connected | fields reserved; outside MVP acceptance |

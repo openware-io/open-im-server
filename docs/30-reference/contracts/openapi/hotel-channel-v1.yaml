@@ -1,0 +1,406 @@
+openapi: 3.1.0
+info:
+  title: OpenChat Hotel Channel API
+  version: 1.0.0
+  description: |
+    External OTA / channel-manager contract for hotel ARI, bookings,
+    cancellation and status queries. This is a contract-first draft; no
+    adapter or sandbox is implemented in the 2.4.0 MVP.
+servers:
+  - url: https://api.example.com/api/v1/open/hotel
+    description: Production placeholder
+security:
+  - ChannelHmac: []
+tags:
+  - name: ARI
+  - name: Bookings
+paths:
+  /v1/ari:
+    post:
+      tags: [ARI]
+      operationId: pushAri
+      summary: Push availability, rates and restrictions
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AriPushRequest'
+      responses:
+        '200':
+          description: Per-item result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AriPushResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /v1/bookings:
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      summary: Create an OTA booking
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+      responses:
+        '201':
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '200':
+          description: Idempotent replay returns the existing booking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '409':
+          $ref: '#/components/responses/InventoryUnavailable'
+        '422':
+          $ref: '#/components/responses/PolicyRejected'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/bookings/{externalRef}:
+    get:
+      tags: [Bookings]
+      operationId: getBooking
+      summary: Query an OTA booking
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ExternalRef'
+      responses:
+        '200':
+          description: Booking status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/bookings/{externalRef}/cancel:
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      summary: Cancel an OTA booking
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ExternalRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      responses:
+        '200':
+          description: Current booking state after cancellation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/PolicyRejected'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/bookings/{externalRef}/modify:
+    post:
+      tags: [Bookings]
+      operationId: modifyBooking
+      summary: Modify dates, room type or room count
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ExternalRef'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModifyRequest'
+      responses:
+        '200':
+          description: Modified booking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '409':
+          $ref: '#/components/responses/InventoryUnavailable'
+        '422':
+          $ref: '#/components/responses/PolicyRejected'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    ChannelHmac:
+      type: apiKey
+      in: header
+      name: X-Channel-Signature
+      description: HMAC-SHA256 over timestamp + nonce + body hash; use X-Channel-Code and X-Channel-Timestamp.
+  parameters:
+    ChannelCode:
+      name: X-Channel-Code
+      in: header
+      required: true
+      schema:
+        type: string
+        example: sandbox
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        maxLength: 128
+    ExternalRef:
+      name: externalRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 128
+  schemas:
+    AriPushRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AriItem'
+    AriItem:
+      type: object
+      required: [hotelRef, roomTypeRef, ratePlanRef, stayDate, total, sold, stopSell, priceMinor, currency, version]
+      properties:
+        hotelRef:
+          type: string
+        roomTypeRef:
+          type: string
+        ratePlanRef:
+          type: string
+        stayDate:
+          type: string
+          format: date
+        total:
+          type: integer
+          minimum: 0
+        sold:
+          type: integer
+          minimum: 0
+        stopSell:
+          type: boolean
+        priceMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          enum: [USD, CNY]
+          default: USD
+        minStay:
+          type: integer
+          minimum: 1
+        version:
+          type: integer
+          minimum: 0
+    AriPushResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AriResult'
+    AriResult:
+      type: object
+      required: [stayDate, accepted]
+      properties:
+        stayDate:
+          type: string
+          format: date
+        accepted:
+          type: boolean
+        code:
+          type: string
+        message:
+          type: string
+    BookingCreateRequest:
+      type: object
+      required: [externalRef, hotelRef, roomTypeRef, ratePlanRef, checkIn, checkOut, rooms, guests, amountMinor, currency, paymentResponsibility]
+      properties:
+        externalRef:
+          type: string
+          maxLength: 128
+        hotelRef:
+          type: string
+        roomTypeRef:
+          type: string
+        ratePlanRef:
+          type: string
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        rooms:
+          type: integer
+          minimum: 1
+          maximum: 20
+        guests:
+          type: integer
+          minimum: 1
+        guest:
+          $ref: '#/components/schemas/Guest'
+        amountMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          enum: [USD, CNY]
+          default: USD
+        paymentResponsibility:
+          type: string
+          enum: [OTA_COLLECT, HOTEL_COLLECT, PREPAID]
+    Guest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 128
+        phone:
+          type: string
+          maxLength: 32
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    ModifyRequest:
+      type: object
+      properties:
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        roomTypeRef:
+          type: string
+        rooms:
+          type: integer
+          minimum: 1
+    BookingResponse:
+      type: object
+      required: [bookingNo, externalRef, status, currency, amountMinor]
+      properties:
+        bookingNo:
+          type: string
+        externalRef:
+          type: string
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW]
+        hotelRef:
+          type: string
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        rooms:
+          type: integer
+        currency:
+          type: string
+          enum: [USD, CNY]
+        amountMinor:
+          type: integer
+        refundMinor:
+          type: integer
+        paymentResponsibility:
+          type: string
+          enum: [OTA_COLLECT, HOTEL_COLLECT, PREPAID]
+        confirmedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+  responses:
+    Unauthorized:
+      description: Invalid signature or credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Channel cannot access this hotel
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Mapping or booking not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InventoryUnavailable:
+      description: Inventory or stop-sell conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Current booking state does not allow the operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PolicyRejected:
+      description: Cancellation or modification rejected by policy
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

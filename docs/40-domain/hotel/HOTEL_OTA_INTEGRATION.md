@@ -6,14 +6,18 @@
 > 定位：**对外接入契约**，不是某一家 OTA 的私有文档。  
 > 原则：先定契约、再做适配器；OTA 是销售渠道，不是第二套酒店域。
 
+契约文件：[hotel-channel-v1.yaml](../../30-reference/contracts/openapi/hotel-channel-v1.yaml)。
+
 ## 1. 范围
 
 本规范覆盖：
 
 - 酒店、房型、房价计划、库存与限制（ARI）的对外映射；
 - OTA 订单进入、确认、取消、修改、退款状态回传；
-- 渠道鉴权、幂等、重试、错误码、版本与沙箱；
+- 渠道鉴权、幂等、重试、错误码、版本；
 - 渠道经理（Channel Manager）作为聚合层的边界。
+
+**明确不包含**：真实 OTA 适配器、沙箱环境、渠道经理实现。MVP 只做规范与内部渠道模型。
 
 不覆盖：
 
@@ -71,7 +75,7 @@ POST /api/v1/open/hotel/v1/ari
   "sold": 14,
   "stopSell": false,
   "priceMinor": 36800,
-  "currency": "CNY",
+  "currency": "USD",
   "minStay": 1,
   "version": 12
 }
@@ -104,7 +108,7 @@ POST /api/v1/open/hotel/v1/bookings
   "guests": 2,
   "guest": { "name": "ZHANG SAN", "phone": "+8613800000000" },
   "amountMinor": 73600,
-  "currency": "CNY",
+  "currency": "USD",
   "paymentResponsibility": "OTA_COLLECT"
 }
 ```
@@ -190,12 +194,16 @@ hotel.ari.updated
 - 旧版本至少保留一个发布周期，弃用需公告和迁移窗口；
 - 渠道适配器与核心契约解耦，禁止在核心域写 OTA 专有字段。
 
-## 8. 沙箱与上线
+## 8. 规范实现与后续沙箱
 
-- `channelCode=sandbox` 提供固定酒店/房型/库存和模拟订单；
-- 沙箱用例必须覆盖：正常下单、重复下单、库存不足、取消、重复取消、签名失败、乱序 ARI；
-- 渠道上线前完成契约测试和映射核对；
-- 上线后监控：推送成功率、订单拉取延迟、库存冲突、对账差异。
+本期只交付规范与内部渠道模型：
+
+- OpenAPI/接口文档评审通过；
+- `Channel` / `ChannelMapping` / `ExternalBookingRef` 模型落地；
+- 不实现真实 OTA 适配器、不提供沙箱环境；
+- 后续接真实渠道时，再补沙箱、契约测试和映射核对。
+
+沙箱后续必须覆盖：正常下单、重复下单、库存不足、取消、重复取消、签名失败、乱序 ARI。
 
 ## 9. 与内部模型的关系
 
@@ -211,7 +219,7 @@ ARI -> InventoryCalendar / DailyRate
 
 ## 10. 待确认
 
-1. 首发是否接真实 OTA，还是先沙箱 + 自营渠道？
+1. 真实 OTA 首发时间（本期不接，只做规范）；
 2. 优先接哪家：携程、美团、飞猪，还是通过渠道经理？
 3. OTA 结算模式：OTA 代收、酒店现付、预付？
 4. 是否需要虚拟卡/信用卡担保？

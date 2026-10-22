@@ -13,11 +13,15 @@
 | H-C02 | Single-store entry | Enter from Leisure; show only that store |
 | H-C03 | Group entry | Enter from OpenChat Service Center; show group hotels/stores |
 | H-C04 | Payment modes | Prepay, pay-at-hotel and deposit; configured in **store management**, never hard-coded |
-| H-C05 | OTA | **Required**; MVP delivers the external contract + sandbox; real OTA launch scope is TBD |
+| H-C05 | OTA | **Contract only**; no live channel and no sandbox in this phase; implement the external contract and internal channel model |
 | H-C06 | Prototype scope | C-end service-center flow exists; build the B-end prototype inside `open-saas-admin` on the 2.4.0 branch, not a separate prototype project |
 | H-C07 | Invoice / guest registration | **Not in MVP**; fields and interfaces reserved for finance/tax and public-security integration |
 | H-C08 | Front-desk client | **Admin Web + mobile**; mobile follows the KTV B-end workbench |
 | H-C09 | Group mapping | `tenantId=group`, `storeId=hotel store`; no `groupId` in phase 1 |
+| H-C10 | Currency | Default USD; support USD/CNY; configurable per store |
+| H-C11 | User order list | Cross-group/store unified view, platform read model; see ADR-0009 |
+| H-C12 | OTA sandbox | Not built; contract and internal channel model only |
+| H-C13 | Marketing | Points earn only; no membership levels, points redemption or coupons |
 
 ## OTA and channel manager
 
@@ -42,13 +46,24 @@
 
 | ID | Question | Options | Impact |
 | --- | --- | --- | --- |
-| H-Q06 | Membership, points and coupons? | none / coupon / full | integration with customer and marketing |
-| H-Q07 | Multi-currency in MVP? | CNY only / multi-currency | pricing and settlement |
 | H-Q08 | Damage deposit / pre-authorization in MVP? | yes / no | separate from booking deposit; affects check-in and refunds |
+
+## Marketing judgement
+
+**Membership and coupons do not belong in the hotel MVP.** Reasons:
+
+- member levels affect pricing, benefits, settlement and permissions;
+- coupons require issuance, budget, redemption, refunds, reconciliation and anti-abuse;
+- both are marketing-domain capabilities with no implementation today; bundling them turns the hotel MVP into a marketing-domain rewrite.
+
+MVP does only:
+
+- points earn on paid/completed events, idempotent;
+- a no-op `MarketingBenefitPort` for future coupon/member-price integration.
 
 ## Next
 
-1. Answer H-Q06–H-Q08.
-2. Confirm the OTA launch scope (sandbox / real OTA / channel manager).
-3. Freeze MVP scope and close ADR-0008, OpenAPI, data model, security and test items.
+1. Answer H-Q08 (damage deposit/pre-authorization).
+2. Confirm real OTA launch timing (contract only in this phase).
+3. Freeze MVP scope and close ADR, OpenAPI, data model, security and test items.
 4. Split S1–S5 tasks and migrations.

@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | 文档规范 | ⚠ 有条件通过 | 酒店文档已双语、状态化、可索引；OTA 规范仍是 draft |
 | 架构边界 | ⚠ ADR-0008 proposed | 推荐 resource + order 模块化；ADR 已建，待评审为 accepted |
-| API 契约 | ❌ 未完成 | 仍是草案，未生成 OpenAPI YAML/契约测试 |
+| API 契约 | ⚠ 部分完成 | `hotel-channel-v1.yaml` 已建；`hotel-booking-v1.yaml` 待建 |
 | 数据模型 | ⚠ 待评审 | 表名/唯一键/迁移方案未冻结 |
 | 安全 | ⚠ 待评审 | PII、租户隔离、OTA 凭据已提要求，未形成检查项 |
 | 可观测性 | ⚠ 待评审 | 指标名已提，未接入标准 |
@@ -116,7 +116,7 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 ```text
 [x] ADR-0008 已提交（proposed，待 accepted）
 [ ] hotel-booking-v1.yaml 已评审
-[ ] hotel-channel-v1.yaml 已评审
+[x] hotel-channel-v1.yaml 已创建（待评审）
 [ ] 表清单 + ER 图已评审
 [ ] 安全/租户隔离检查项已确认
 [ ] 并发/支付/OTA 测试用例已列出
@@ -131,3 +131,14 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 - [决策](HOTEL_DECISIONS.md)
 - [工程标准版图](../../80-development/standards/STANDARDS_MAP.md)
 - [门禁目录](../../80-development/governance/GATE_CATALOG.md)
+
+## 8. 2026-10-22 增量审查
+
+| 增量 | 结论 | 动作 |
+| --- | --- | --- |
+| C 端订单跨集团/门店 | 平台级能力，不是酒店私有接口 | ADR-0009 `proposed`；补 `ord_user_order_index` 和回填/对账 |
+| OTA 首发不接、沙箱不做 | 只做规范与内部渠道模型 | 契约先行，真实适配器后置 |
+| 会员/优惠券 | 不并入酒店 MVP | 只做积分赚取；营销域单独立项 |
+| 币种 | 默认 USD，支持 USD/CNY | `HotelPolicy.currency`，门店可配置 |
+| 移动前台 | 纳入 MVP | 参考 KTV B 端，原型待补 |
+| 发票/公安 | 不接入 | 字段预留，不进入 MVP 验收 |
