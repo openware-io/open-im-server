@@ -26,6 +26,7 @@
 ## 相关
 
 - [业务文档目录](../README.md)
+- [库存平台域](../inventory/README.md)
 - [订单服务](../../50-services/platform/platform-order-service/README.md)
 - [资源服务](../../50-services/platform/platform-resource-service/README.md)
 - [支付服务](../../50-services/common/common-payment-service/README.md)

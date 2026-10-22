@@ -26,6 +26,7 @@
 ## Related
 
 - [Domain documentation](../README.en.md)
+- [Inventory platform](../inventory/README.en.md)
 - [Order service](../../50-services/platform/platform-order-service/README.en.md)
 - [Resource service](../../50-services/platform/platform-resource-service/README.en.md)
 - [Payment service](../../50-services/common/common-payment-service/README.en.md)

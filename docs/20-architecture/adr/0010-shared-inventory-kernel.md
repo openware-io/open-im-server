@@ -1,4 +1,4 @@
-# ADR 0010：库存作为共享平台能力（stock + capacity）
+# ADR 0010：库存作为公共支撑域（stock + capacity）
 
 ## Status / 状态
 
