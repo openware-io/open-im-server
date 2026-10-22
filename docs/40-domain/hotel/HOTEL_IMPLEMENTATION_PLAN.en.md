@@ -15,6 +15,7 @@ date-range inventory calendar
 search -> quote -> booking -> payment -> confirmation
 cancel / payment timeout / no-show
 check-in -> check-out (admin web + mobile front desk)
+stay deposit collect / settle / refund
 admin rate and inventory management
 OTA external contract (no live channel, no sandbox)
 order, payment, audit and permissions
@@ -166,6 +167,11 @@ Order (`open_saas`, `ord_*`):
 | `HotelBooking` | booking no, tenant/store, hotel, room type, rate plan, check-in/out, rooms, guests, status, amount/currency |
 | `HotelBookingNight` | booking, stay date, price, tax, currency |
 | `HotelGuest` | booking, name, phone, ID type, masked ID |
+| `StayDeposit` | booking, amount/currency, mode, status, collected/refunded timestamps |
+| `StayDepositLedger` | deposit, entry type (COLLECT/DEDUCT/REFUND), amount, reason, operator, idempotency key |
+| `UserOrderIndex` | platform user, tenant, store, order type/id/no, status, amount/currency |
+
+The stay deposit is a liability, not revenue: collect/refund never enter `HotelBooking.amountMinor` or revenue reports. Only actual deductions become revenue/receivable.
 
 Do not reuse KTV `Reservation`; its slot semantics conflict with date-range room inventory.
 
@@ -188,7 +194,9 @@ RELEASED (expired)
 3. Quote nightly rates, tax and cancellation policy; no inventory change.
 4. Create booking + inventory hold in one transaction.
 5. Pay; callback is idempotent; confirm booking and consume hold.
-6. Check in: assign physical room; check out: release room to cleaning.
+6. Check in: collect the stay deposit, assign a physical room and mark `OCCUPIED`.
+7. Check out: post deductions, refund the deposit balance, move the room to `CLEANING` and then `AVAILABLE`.
+8. Mark `COMPLETED` after settlement.
 
 ## 7. Inventory concurrency
 
@@ -217,6 +225,23 @@ Any failed night rolls back the whole range. Holds expire; payment callback uses
 | `DEPOSIT` | pay deposit now, balance later | `PENDING_DEPOSIT` → `CONFIRMED` |
 
 Store management configures payment mode, deposit ratio (`depositRatioBps`), cancellation/no-show policy and invoice support. Group defaults may be overridden per store. The scope follows the KTV config model: tenant default → business default → store override.
+
+### Stay deposit policy (store configuration)
+
+The stay deposit is not the booking deposit and not revenue. It is collected at check-in and settled/refunded at check-out; only actual deductions become revenue.
+
+`StayDeposit.mode`:
+
+| Mode | Description |
+| --- | --- |
+| `COLLECT` | MVP default: cash/WeChat/Alipay/card collection; refund to original channel or cash |
+| `PRE_AUTH` | reserved: card pre-authorization only, enabled per channel capability |
+
+Store config: `stayDepositRequired`, `stayDepositMode`, `stayDepositMinor`, `stayDepositRatioBps`, `stayDepositCapMinor`, `depositRefundMethod`.
+
+States: `COLLECTED → PARTIALLY_DEDUCTED → REFUNDED`; `COLLECTED → REFUNDED`; `COLLECTED → VOID`.
+
+Deductions (minibar, damage) go through `StayDepositLedger(DEDUCT)` with reason, operator and evidence. Refunds prefer the original channel; cash refunds require front-desk authorization.
 
 ## 8. API draft
 
@@ -262,9 +287,9 @@ POST /internal/hotels/holds/{holdId}/release
 
 ## 11. Confirmed and remaining decisions
 
-Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA contract only — no live channel and no sandbox. Invoice and guest registration are not connected; fields are reserved. Front desk is Admin Web + mobile (KTV B-end reference). Default currency is USD; USD/CNY supported. C-end orders are unified across group/store via ADR-0009. Marketing: points earn and redemption via payment POINT leg; no membership/coupons.
+Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and booking deposit. The stay deposit is also in MVP, tracked separately from order revenue. OTA contract only — no live channel and no sandbox. Invoice and guest registration are not connected; fields are reserved. Front desk is Admin Web + mobile (KTV B-end reference). Default currency is USD; USD/CNY supported. C-end orders are unified across group/store via ADR-0009. Marketing: points earn and redemption via payment POINT leg; no membership/coupons.
 
-Remaining: damage deposit/pre-authorization and marketing-domain expansion (membership/coupons).
+Remaining: marketing-domain expansion (membership/coupons) and real OTA launch timing.
 
 See [Hotel decisions](HOTEL_DECISIONS.en.md).
 

@@ -37,6 +37,7 @@ MVP 不是“先做一半功能”，而是：
 搜索 → 报价 → 下单 → 支付 → 确认
 取消 / 超时未付 / no-show
 入住 → 退房（Admin Web + 移动前台）
+押金收取 / 结算 / 退还
 后台房价与库存维护
 OTA 对外接入规范（不接真实渠道、不做沙箱）
 订单、支付、审计、权限
@@ -220,7 +221,7 @@ common-audit-service
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `Hotel` | `tenantId`, `storeId`, `name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
-| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `currency`, `pointsRedeemEnabled`, `pointsMaxRatioBps`, `invoiceMode` | 接入模式、支付策略、币种、取消政策；在店铺管理中维护 |
+| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `stayDepositMode`, `stayDepositMinor`, `stayDepositRatioBps`, `cancelPolicy`, `currency`, `pointsRedeemEnabled`, `pointsMaxRatioBps`, `invoiceMode` | 接入模式、支付策略、押金策略、币种、取消政策；在店铺管理中维护 |
 | `HotelRoomType` | `hotelId`, `code`, `name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
 | `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
 | `RatePlan` | `roomTypeId`, `code`, `name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
@@ -237,7 +238,11 @@ common-audit-service
 | `HotelBooking` | `bookingNo`, `tenantId`, `storeId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount`, `status`, `amountMinor`, `currency` | 酒店预订聚合根 |
 | `HotelBookingNight` | `bookingId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
 | `HotelGuest` | `bookingId`, `name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
+| `StayDeposit` | `bookingId`, `amountMinor`, `currency`, `mode`, `status`, `collectedAt`, `refundedAt` | 入住押金，独立于订单收入；`mode=COLLECT`（MVP）/`PRE_AUTH`（预留） |
+| `StayDepositLedger` | `depositId`, `entryType`（COLLECT/DEDUCT/REFUND）, `amountMinor`, `reason`, `operatorId`, `idempotencyKey` | 押金收取、扣减、退还流水 |
 | `UserOrderIndex` | `platformUserId`, `tenantId`, `storeId`, `orderType`, `orderId`, `status`, `amountMinor`, `currency` | C 端跨集团/门店订单读模型，见 ADR-0009 |
+
+押金不是收入：`StayDeposit` 的收取/退还不得计入 `HotelBooking.amountMinor`，也不得进入订单收入报表；只有实际扣减（如损坏赔偿）才转为收入/应收。
 
 **不复用 KTV `Reservation` 的 slot 语义**：KTV 按时间点/包厢，酒店按“日期区间 + 房型库存”；强行复用会让两边都变形。
 
@@ -299,10 +304,14 @@ CONSUMED -> RELEASED 取消且可退库存（按政策）
 
 ### 入住 / 退房
 
-1. 前台选择具体 `HotelRoom`，写 `roomId`；
-2. `CHECKED_IN`，房间状态 `OCCUPIED`；
-3. 退房 `CHECKED_OUT`，房间状态 `CLEANING` → `AVAILABLE`；
-4. 账务结清后 `COMPLETED`。
+1. 前台确认订单与住客；
+2. 按 `HotelPolicy.stayDeposit*` 收取押金，写 `StayDeposit` + `StayDepositLedger(COLLECT)`；
+3. 选择具体 `HotelRoom`，写 `roomId`，`CHECKED_IN`，房间状态 `OCCUPIED`；
+4. 退房：先结算消费/赔偿，写 `DEDUCT`；剩余押金写 `REFUND`；
+5. `CHECKED_OUT`，房间状态 `CLEANING` → `AVAILABLE`；
+6. 账务结清后 `COMPLETED`。
+
+押金未收取时是否允许入住，由门店策略 `stayDepositRequired` 控制；默认必须收取。
 
 ## 7. 库存与并发
 
@@ -341,6 +350,41 @@ WHERE tenant_id = :tenantId
 - 取消/未入住政策；
 - 是否支持发票（后续）。
 同一酒店不同门店可以不同；集团默认值可被门店覆盖。配置作用域沿用 KTV 配置模型：租户默认 → 业态默认 → 门店覆盖。
+
+### 押金策略（店铺配置）
+
+押金不是“定金”，也不是收入：
+
+- 定金：预订时支付，抵扣房费；
+- 押金：入住时收取，退房结算/退还；实际扣减才转收入。
+
+`StayDeposit.mode`：
+
+| 模式 | 说明 |
+| --- | --- |
+| `COLLECT` | MVP 默认：现金/微信/支付宝/刷卡收取，退房原路退回或现金退 |
+| `PRE_AUTH` | 预留：仅银行卡预授权，按通道能力启用 |
+
+店铺配置：
+
+```text
+stayDepositRequired     是否必须收押金
+stayDepositMode         COLLECT / PRE_AUTH
+stayDepositMinor        固定金额
+stayDepositRatioBps     或按订单金额比例
+stayDepositCapMinor     封顶金额
+depositRefundMethod     ORIGINAL / CASH
+```
+
+状态：
+
+```text
+COLLECTED -> PARTIALLY_DEDUCTED -> REFUNDED
+COLLECTED -> REFUNDED
+COLLECTED -> VOID
+```
+
+扣减（迷你吧、损坏赔偿）必须走 `StayDepositLedger(DEDUCT)`，保留原因、操作人、凭证；退款必须原路优先，现金退款需前台授权。
 
 ## 8. API 草案
 
@@ -425,7 +469,7 @@ hotel.checkin.completed
 | 4 | 取消政策？ | 按房价计划配置，默认入住前 24h 免费取消 |
 | 5 | 是否接 OTA/渠道经理？ | OTA **要做规范**：MVP 只交付对外规范与内部渠道模型；真实 OTA、沙箱、渠道经理后续 |
 | 6 | 前台操作端？ | Admin Web + 移动端；移动端参考 KTV B 端 |
-| 7 | 发票/押金/公安登记？ | 发票、公安**暂不接入**，字段预留；押金/预授权仍待确认 |
+| 7 | 发票/押金/公安登记？ | 押金**纳入 MVP**，统一叫“押金”；发票、公安暂不接入，字段预留 |
 | 8 | 会员/积分/优惠券？ | 积分**赚取 + 抵扣**都做（复用支付 POINT 分腿）；会员等级、优惠券不做 |
 | 9 | 多币种？ | 支持 USD / CNY，默认 USD |
 | 10 | 原型范围？ | C 端已有服务中心酒店流程；B 端原型在 `open-saas-admin` 代码内补建；不另建独立原型项目 |

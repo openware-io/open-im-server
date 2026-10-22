@@ -30,7 +30,7 @@ Documentation, architecture boundary/ADR, API contract/versioning/idempotency, d
 2. **OpenAPI contracts**: `hotel-booking-v1.yaml` and `hotel-channel-v1.yaml`.
 3. **Data model review**: `res_*`/`ord_*` prefixes, inventory and external-booking unique keys, money in minor units, Flyway rules.
 4. **Security checklist**: tenant/store isolation, PII encryption/redaction, channel secrets, no card data, audit coverage, cross-tenant tests.
-5. **Test and observability plan**: last-room concurrency, duplicate/out-of-order payment callbacks, cancellation/refund, OTA contract cases, overbooking metric equals zero.
+5. **Test and observability plan**: last-room concurrency, duplicate/out-of-order payment callbacks, cancellation/refund, stay-deposit collect/deduct/refund, OTA contract cases, overbooking metric equals zero.
 
 ## 4. Already compliant
 

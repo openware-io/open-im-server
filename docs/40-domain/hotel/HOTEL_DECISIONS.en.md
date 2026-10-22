@@ -22,6 +22,7 @@
 | H-C11 | User order list | Cross-group/store unified view, platform read model; see ADR-0009 |
 | H-C12 | OTA sandbox | Not built; contract and internal channel model only |
 | H-C13 | Marketing | Points earn + redemption; no membership levels or coupons |
+| H-C14 | Stay deposit | In MVP; product term "deposit"; pre-authorization is a payment-mode reserve only |
 
 ## OTA and channel manager
 
@@ -42,11 +43,9 @@
 | H-D07 | Configure cancellation policy per rate plan | Policies differ by rate | proposed |
 | H-D08 | Encrypt guest ID data and redact logs | Security and compliance baseline | required |
 
-## Decisions required
+## Confirmed boundary
 
-| ID | Question | Options | Impact |
-| --- | --- | --- | --- |
-| H-Q08 | Damage deposit / pre-authorization in MVP? | yes / no | separate from booking deposit; affects check-in and refunds |
+The stay deposit is in MVP. Product and front-desk wording uses "deposit"; pre-authorization is reserved as a payment-channel capability only.
 
 ## Marketing judgement
 
@@ -64,7 +63,6 @@ MVP points scope:
 
 ## Next
 
-1. Answer H-Q08 (damage deposit/pre-authorization).
-2. Confirm real OTA launch timing (contract only in this phase).
+1. Confirm real OTA launch timing (contract only in this phase).
 3. Freeze MVP scope and close ADR, OpenAPI, data model, security and test items.
 4. Split S1–S5 tasks and migrations.
