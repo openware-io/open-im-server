@@ -6,6 +6,18 @@
 > Scope: SaaS admin (platform / headquarters / store / IM).  
 > Principle: roles choose the workspace, permissions decide visibility, context decides data scope.
 
+## 0. Implementation status
+
+| Phase | Status | Delivered |
+| --- | --- | --- |
+| P0 role profile / landing / server menus | done | `iam_role_profile`; login/session roles/workspaces/landing; role landing |
+| P1 all-locations rollup | done | Overview scope: all / hotel / KTV / single store |
+| P2 role templates / store scope | done (basic) | Real role-workbench profiles with workspace/landing/scope editing |
+| P3 onboarding | done (basic) | Data-driven tenant onboarding checklist |
+| P4 entitlement-driven modules | pending | Subscription/business entitlement and module visibility |
+| P5 action-level permissions | pending | Page permissions exist; action permissions pending |
+| P6 mobile role/task parity | pending | Mobile front desk reuses role/task model |
+
 ## 1. Problem
 
 The current admin mixes four layers in one sidebar:
