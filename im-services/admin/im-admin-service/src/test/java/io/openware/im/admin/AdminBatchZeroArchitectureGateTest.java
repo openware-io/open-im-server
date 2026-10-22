@@ -131,7 +131,7 @@ class AdminBatchZeroArchitectureGateTest {
   @Test
   void httpCompatibilityMatrixMustCoverAllPublishedRouteFamilies() throws IOException {
     String matrix = Files.readString(PROJECT_ROOT.resolve(
-        "docs/renovation/ADMIN_READONLY_02_COMPATIBILITY.md"));
+        "docs/99-archive/renovation/ADMIN_READONLY_02_COMPATIBILITY.md"));
 
     for (String routeFamily : List.of(
         "/admin/users", "/admin/friends", "/admin/messages", "/admin/points/accounts",
