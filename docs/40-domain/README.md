@@ -4,10 +4,12 @@
 
 > 状态：`current`（`develop/2.3.0`）  
 > 业务语义正文以中文为准；本目录提供英文索引。历史改造背景见 `docs/archive/renovation/`。
+> 领域分类与依赖见[业务域版图](DOMAIN_MAP.md)。
 
 | 文档 | 说明 |
 | --- | --- |
 | [账号与权限模型](ACCOUNT_PERMISSION_MODEL.md) | 平台账号、IM 账号、租户/门店角色和运营权限 |
+| [业务域版图](DOMAIN_MAP.md) | 核心/支撑/通用/边缘域、Owner 与依赖规则 |
 | [架构图与业务线](ARCHITECTURE_DIAGRAMS.md) | IM 与 SaaS 两条业务线、域边界和关键链路 |
 | [会话类型与隐私边界](CONVERSATION_TYPES_AND_PRIVACY.md) | 私聊、群聊、频道、私密会话与数据边界 |
 | [项目事实清单](PROJECT_FACTS_INVENTORY.md) | 当前产品/工程事实清单 |

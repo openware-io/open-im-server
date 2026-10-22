@@ -79,6 +79,7 @@ $validators = @(
   @{ Name = 'documentation-reachability'; Arguments = @() },
   @{ Name = 'gate-catalog'; Arguments = @() },
   @{ Name = 'docs-impact'; Arguments = @() },
+  @{ Name = 'domain-map'; Arguments = @() },
   @{ Name = 'controller-transaction-boundary'; Arguments = @() },
   @{ Name = 'domain-model-purity'; Arguments = @() },
   @{ Name = 'audit-fields'; Arguments = @() },

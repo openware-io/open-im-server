@@ -3,7 +3,7 @@
 [中文](GATE_CATALOG.md) | [English](GATE_CATALOG.en.md)
 
 > 状态：`current`（`develop/2.3.0`）
-> 作用：按治理面组织 G01–G52；`GATE_REGISTRY.md` 是唯一编号台账，本目录补充类别、Owner 和阶段。
+> 作用：按治理面组织 G01–G53；`GATE_REGISTRY.md` 是唯一编号台账，本目录补充类别、Owner 和阶段。
 > 新增门禁流程见 [门禁治理规范](../standards/04_GATE_GOVERNANCE.md)。
 
 ## 分类说明
@@ -32,6 +32,7 @@
 | G50 | documentation-reachability | meta | governance | docs | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
 | G51 | gate-catalog | meta | governance | static | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
 | G52 | docs-impact | meta | governance | docs | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
+| G53 | domain-map | meta | governance | static | [业务域分类](../standards/05_DOMAIN_CLASSIFICATION.md) |
 
 ## 代码质量
 

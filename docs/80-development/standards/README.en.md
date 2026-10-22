@@ -34,6 +34,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 02 | [Architecture Decision Records](02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template, index and gate |
 | 03 | [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md) | Correctness, boundaries, single source of truth, automation and evolution |
 | 04 | [Gate governance](04_GATE_GOVERNANCE.en.md) | Classification, IDs, placement, lifecycle and docs impact |
+| 05 | [Domain classification](05_DOMAIN_CLASSIFICATION.en.md) | Core/supporting/generic/edge domains, dependencies and ownership |
 
 ## 10–19 Architecture and service design
 

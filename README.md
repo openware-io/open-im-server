@@ -242,6 +242,7 @@ im-saas 文档
 - [02 架构决策记录（ADR）规范](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md)
 - [03 工程原则](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.md)
 - [04 门禁治理规范](docs/80-development/standards/04_GATE_GOVERNANCE.md)
+- [05 业务域分类规范](docs/80-development/standards/05_DOMAIN_CLASSIFICATION.md)
 - [10 DDD 服务工程规范](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ 治理规范](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 平台媒体规范](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)

@@ -226,6 +226,7 @@ im-saas docs
 - [02 Architecture Decision Records](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md)
 - [03 Engineering principles](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.en.md)
 - [04 Gate governance](docs/80-development/standards/04_GATE_GOVERNANCE.en.md)
+- [05 Domain classification](docs/80-development/standards/05_DOMAIN_CLASSIFICATION.en.md)
 - [10 DDD service conventions](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ conventions](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 Platform media conventions](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)

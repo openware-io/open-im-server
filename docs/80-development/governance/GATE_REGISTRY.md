@@ -67,3 +67,4 @@
 | G50 | documentation-reachability | validate-documentation-reachability.ps1 | blocking | 现行文档可从 README / docs/README 递归到达（历史归档豁免） |
 | G51 | gate-catalog | validate-gate-catalog.ps1 | blocking | 门禁类别、Owner、阶段与目录覆盖 |
 | G52 | docs-impact | validate-docs-impact.ps1 | blocking | 高风险代码变更必须伴随对应文档变更 |
+| G53 | domain-map | validate-domain-map.ps1 | blocking | 业务域类型、Owner、模块、依赖与服务覆盖 |
