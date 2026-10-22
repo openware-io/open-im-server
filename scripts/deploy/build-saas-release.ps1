@@ -302,7 +302,10 @@ foreach($e in $projects.GetEnumerator()) {
   }
   if(!$p){
     $args=@()
-    if($name -eq 'saas-admin'){$args+=@('--build-arg','VITE_API_BASE_URL=/')}
+    if($name -eq 'saas-admin'){
+      $args+=@('--build-arg','VITE_API_BASE_URL=/')
+      if($env:SAAS_ADMIN_HOTEL_PROTOTYPE -eq '1'){$args+=@('--build-arg','VITE_HOTEL_PROTOTYPE=true')}
+    }
     $image="$registryPrefix/$name`:$tag"
     $imageRevision=Get-LocalImageRevision -image $image -tag $tag
     if($imageRevision -ne $projectRevision) {
