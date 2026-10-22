@@ -327,5 +327,6 @@ P5 业务模块注册表，支持餐饮/健身/零售
 ## 12. 相关
 
 - [业务域版图](DOMAIN_MAP.md)
+- [业界对标评估](ADMIN_WORKBENCH_BENCHMARK.md)
 - [ADR-0013：角色工作台作为平台能力](../20-architecture/adr/0013-role-workbench.md)
 - [酒店实现方案](hotel/HOTEL_IMPLEMENTATION_PLAN.md)

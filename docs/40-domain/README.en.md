@@ -11,6 +11,7 @@
 | [Account and permission model](ACCOUNT_PERMISSION_MODEL.md) | Platform/IM accounts, tenant/store roles and operator permissions |
 | [Domain map](DOMAIN_MAP.en.md) | Core/supporting/generic/edge domains, owners and dependency rules |
 | [Admin role workbench](ADMIN_WORKBENCH.en.md) | Platform/headquarters/store/IM workspaces and role homes |
+| [Admin workbench benchmark](ADMIN_WORKBENCH_BENCHMARK.en.md) | Benchmark against Shopify/Square/Toast/Mews and gaps |
 | [Public support domain blueprint](PLATFORM_DOMAINS.en.md) | Transaction, inventory, user and order concepts with a three-horizon plan |
 | [Billing domain](billing/README.en.md) | Billing/amount due, distinct from checkout/settlement |
 | [Architecture diagrams and business lines](ARCHITECTURE_DIAGRAMS.md) | IM and SaaS lines, domain boundaries and key flows |

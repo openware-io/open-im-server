@@ -160,5 +160,6 @@ Covers platform, headquarters, hotel manager, hotel front desk and KTV manager w
 ## 12. Related
 
 - [Domain map](DOMAIN_MAP.en.md)
+- [Industry benchmark](ADMIN_WORKBENCH_BENCHMARK.en.md)
 - [ADR-0013: role workbench](../20-architecture/adr/0013-role-workbench.md)
 - [Hotel plan](hotel/HOTEL_IMPLEMENTATION_PLAN.en.md)
