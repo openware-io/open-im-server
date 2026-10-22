@@ -10,8 +10,19 @@
 | 端 | 仓库 | 入口 |
 | --- | --- | --- |
 | C 端 | `open-chat-app` | 服务中心 → 酒店（`/services/demo/hotel`） |
-| B 端 Web | `open-saas-admin` | `/admin/tenant/hotel`，开发环境侧栏“酒店管理” |
+| B 端 Web | `open-saas-admin` | `/saas/#/admin/tenant/hotel`，左侧“酒店管理” |
 | B 端移动前台 | `open-chat-app` | `/business/hotel/dashboard`，B 端登录页“酒店前台原型” |
+
+B 端 Web 已按开发发布规范部署到本地 Kind：
+
+```text
+http://127.0.0.1:30080/saas/#/admin/tenant/hotel
+版本：2.4.0-SNAPSHOT
+```
+
+该版本启用 `VITE_HOTEL_PROTOTYPE=true`，因此在后端菜单接入前会显示“酒店管理”入口。接入正式菜单后关闭该标志。
+
+C 端和移动前台是 Flutter 客户端原型，不部署到上述 Web 系统；用 `flutter run` 查看。
 
 全部数据为本地 mock，不调用酒店后端。
 

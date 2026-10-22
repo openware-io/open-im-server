@@ -10,8 +10,19 @@
 | Client | Repository | Entry |
 | --- | --- | --- |
 | C-end | `open-chat-app` | Service Center → Hotel (`/services/demo/hotel`) |
-| B-end web | `open-saas-admin` | `/admin/tenant/hotel`; dev sidebar "Hotel management" |
+| B-end web | `open-saas-admin` | `/saas/#/admin/tenant/hotel`; sidebar "Hotel management" |
 | B-end mobile | `open-chat-app` | `/business/hotel/dashboard`; B-end login "Hotel front desk prototype" |
+
+The B-end web preview is deployed to the local Kind environment:
+
+```text
+http://127.0.0.1:30080/saas/#/admin/tenant/hotel
+Version: 2.4.0-SNAPSHOT
+```
+
+This build sets `VITE_HOTEL_PROTOTYPE=true`, so the "Hotel management" entry is visible until the backend menu is delivered. Turn the flag off afterwards.
+
+The C-end and mobile front desks are Flutter prototypes and are not deployed to that web system; run them with `flutter run`.
 
 All data is local mock; no hotel backend calls.
 
