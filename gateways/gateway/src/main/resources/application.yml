@@ -264,7 +264,7 @@ spring:
       - id: saas-order
         uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
         predicates:
-         - Path=/api/v1/business/orders/**,/api/v1/business/ktv/**,/api/v1/business/reservations/**,/api/v1/business/catalog/**
+         - Path=/api/v1/business/orders/**,/api/v1/business/ktv/**,/api/v1/business/reservations/**,/api/v1/business/catalog/**,/api/v1/admin/hotel/**
         filters:
          - StripPrefix=2
       - id: saas-order-admin-inventory-product
