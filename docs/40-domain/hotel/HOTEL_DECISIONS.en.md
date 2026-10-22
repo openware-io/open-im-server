@@ -21,7 +21,7 @@
 | H-C10 | Currency | Default USD; support USD/CNY; configurable per store |
 | H-C11 | User order list | Cross-group/store unified view, platform read model; see ADR-0009 |
 | H-C12 | OTA sandbox | Not built; contract and internal channel model only |
-| H-C13 | Marketing | Points earn only; no membership levels, points redemption or coupons |
+| H-C13 | Marketing | Points earn + redemption; no membership levels or coupons |
 
 ## OTA and channel manager
 
@@ -56,9 +56,10 @@
 - coupons require issuance, budget, redemption, refunds, reconciliation and anti-abuse;
 - both are marketing-domain capabilities with no implementation today; bundling them turns the hotel MVP into a marketing-domain rewrite.
 
-MVP does only:
+MVP points scope:
 
 - points earn on paid/completed events, idempotent;
+- points redemption through the `common-payment-service` POINT leg and customer redeem/release;
 - a no-op `MarketingBenefitPort` for future coupon/member-price integration.
 
 ## Next

@@ -47,17 +47,32 @@ GET /api/v1/my/orders/{orderType}/{orderId}
 
 ### 1.2 Marketing scope
 
-Only points exist today; membership and coupons are not implemented. MVP does not refactor the marketing domain:
+Only points exist today; membership and coupons are not implemented. MVP does not refactor the marketing domain, but **points redemption is in scope**:
 
 | Capability | MVP |
 | --- | --- |
 | Points earn | yes: on paid/completed event, idempotent |
-| Points redemption | no |
+| Points redemption | yes: reuse the `POINT` leg in `common-payment-service` |
 | Membership levels/benefits | no |
 | Coupon issue/redeem | no |
 | Member/negotiated rates | no |
 
-Quote and payment reserve a `MarketingBenefitPort` with a no-op implementation. Marketing gets its own initiative later; hotel MVP is not a marketing-domain project.
+No new points service:
+
+```text
+quote: customer amount-to-points provides the redeemable cap
+pay: common-payment-service collects with method=POINT
+deduct: customer /internal/customer/points/redeem with idempotency key
+failure: common-payment-service calls /release in reverse order
+success: payment.collect.confirmed triggers points earn
+```
+
+Key semantics:
+
+- the `POINT` leg amount is the **bill amount offset**, not the points count; the count lives in the customer ledger;
+- points redemption does not convert currency; it follows the order currency snapshot;
+- store policy controls `pointsRedeemEnabled` and the maximum redemption ratio;
+- membership and coupons remain out; `MarketingBenefitPort` stays a no-op for later marketing work.
 
 Out of MVP: dynamic yield, chain CRS, complex packages, multi-currency settlement beyond USD/CNY, corporate rates. OTA contract is in MVP; real channel adapters and sandbox are not.
 
@@ -247,9 +262,9 @@ POST /internal/hotels/holds/{holdId}/release
 
 ## 11. Confirmed and remaining decisions
 
-Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA contract only — no live channel and no sandbox. Invoice and guest registration are not connected; fields are reserved. Front desk is Admin Web + mobile (KTV B-end reference). Default currency is USD; USD/CNY supported. C-end orders are unified across group/store via ADR-0009. Marketing is points-earn only; no membership/coupons.
+Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA contract only — no live channel and no sandbox. Invoice and guest registration are not connected; fields are reserved. Front desk is Admin Web + mobile (KTV B-end reference). Default currency is USD; USD/CNY supported. C-end orders are unified across group/store via ADR-0009. Marketing: points earn and redemption via payment POINT leg; no membership/coupons.
 
-Remaining: damage deposit/pre-authorization, points redemption, marketing-domain expansion.
+Remaining: damage deposit/pre-authorization and marketing-domain expansion (membership/coupons).
 
 See [Hotel decisions](HOTEL_DECISIONS.en.md).
 

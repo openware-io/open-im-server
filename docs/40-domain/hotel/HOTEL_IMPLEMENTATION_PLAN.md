@@ -69,17 +69,32 @@ GET /api/v1/my/orders/{orderType}/{orderId}
 
 ### 1.2 营销域范围
 
-当前只有积分，会员/优惠券未实现。MVP 不做营销域重构：
+当前只有积分，会员/优惠券未实现。MVP 不重构营销域，但**积分抵扣要做**：
 
 | 能力 | MVP |
 | --- | --- |
 | 积分赚取 | 做：支付/完成事件触发，幂等 |
-| 积分抵扣 | 不做 |
+| 积分抵扣 | 做：复用 `common-payment-service` 的 `POINT` 分腿 |
 | 会员等级/权益 | 不做 |
 | 优惠券/发券/核销 | 不做 |
 | 会员价/协议价 | 不做 |
 
-报价和支付预留 `MarketingBenefitPort`（默认空实现）；等营销域独立立项后再接，不把酒店 MVP 变成营销域项目。
+积分抵扣不新建积分服务：
+
+```text
+报价：可抵扣金额/积分上限由 customer 域 amount-to-points 提供
+支付：common-payment-service 组合收款，method=POINT
+扣减：customer 内部 /internal/customer/points/redeem，幂等键
+失败：common-payment-service 按相反顺序 /release 归还
+成功：payment.collect.confirmed 触发积分赚取
+```
+
+关键口径：
+
+- `POINT` 分腿的 `amount` 是**抵扣的账单金额**，不是积分数量；积分数量在 customer 账本；
+- 积分抵扣不参与币种换算，跟随订单币种快照；
+- 店铺配置 `pointsRedeemEnabled` 与最大抵扣比例，避免全额积分套利；
+- 会员等级、优惠券仍不做；报价预留 `MarketingBenefitPort` 空实现，营销域独立立项后再接。
 
 ### MVP 明确不做
 
@@ -205,7 +220,7 @@ common-audit-service
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `Hotel` | `tenantId`, `storeId`, `name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
-| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `currency`, `invoiceMode` | 接入模式、支付策略、币种、取消政策；在店铺管理中维护 |
+| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `currency`, `pointsRedeemEnabled`, `pointsMaxRatioBps`, `invoiceMode` | 接入模式、支付策略、币种、取消政策；在店铺管理中维护 |
 | `HotelRoomType` | `hotelId`, `code`, `name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
 | `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
 | `RatePlan` | `roomTypeId`, `code`, `name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
@@ -411,7 +426,7 @@ hotel.checkin.completed
 | 5 | 是否接 OTA/渠道经理？ | OTA **要做规范**：MVP 只交付对外规范与内部渠道模型；真实 OTA、沙箱、渠道经理后续 |
 | 6 | 前台操作端？ | Admin Web + 移动端；移动端参考 KTV B 端 |
 | 7 | 发票/押金/公安登记？ | 发票、公安**暂不接入**，字段预留；押金/预授权仍待确认 |
-| 8 | 会员/积分/优惠券？ | 只做**积分赚取**；会员等级、积分抵扣、优惠券不做 |
+| 8 | 会员/积分/优惠券？ | 积分**赚取 + 抵扣**都做（复用支付 POINT 分腿）；会员等级、优惠券不做 |
 | 9 | 多币种？ | 支持 USD / CNY，默认 USD |
 | 10 | 原型范围？ | C 端已有服务中心酒店流程；B 端原型在 `open-saas-admin` 代码内补建；不另建独立原型项目 |
 

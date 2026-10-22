@@ -67,7 +67,7 @@ G18 API boundaries, G24 port contract, G25 PO containment, G27/G28 Flyway, G32 t
 | --- | --- | --- |
 | C-end orders across group/store | platform capability, not a hotel endpoint | ADR-0009 `proposed`; add `ord_user_order_index`, backfill and reconciliation |
 | OTA not live, no sandbox | contract and internal channel model only | contract first; real adapters later |
-| Membership/coupons | not in hotel MVP | points earn only; marketing is a separate initiative |
+| Membership/coupons | not in hotel MVP | points earn + redemption; membership/coupons are a separate initiative |
 | Currency | default USD, support USD/CNY | `HotelPolicy.currency`, store-configurable |
 | Mobile front desk | in MVP | KTV B-end reference; prototype pending |
 | Invoice/guest registration | not connected | fields reserved; outside MVP acceptance |

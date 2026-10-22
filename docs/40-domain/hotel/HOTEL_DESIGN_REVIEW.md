@@ -138,7 +138,7 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 | --- | --- | --- |
 | C 端订单跨集团/门店 | 平台级能力，不是酒店私有接口 | ADR-0009 `proposed`；补 `ord_user_order_index` 和回填/对账 |
 | OTA 首发不接、沙箱不做 | 只做规范与内部渠道模型 | 契约先行，真实适配器后置 |
-| 会员/优惠券 | 不并入酒店 MVP | 只做积分赚取；营销域单独立项 |
+| 会员/优惠券 | 不并入酒店 MVP | 积分赚取+抵扣；会员/优惠券单独立项 |
 | 币种 | 默认 USD，支持 USD/CNY | `HotelPolicy.currency`，门店可配置 |
 | 移动前台 | 纳入 MVP | 参考 KTV B 端，原型待补 |
 | 发票/公安 | 不接入 | 字段预留，不进入 MVP 验收 |
