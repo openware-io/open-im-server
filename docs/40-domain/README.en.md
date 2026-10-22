@@ -11,6 +11,7 @@
 | [Account and permission model](ACCOUNT_PERMISSION_MODEL.md) | Platform/IM accounts, tenant/store roles and operator permissions |
 | [Domain map](DOMAIN_MAP.en.md) | Core/supporting/generic/edge domains, owners and dependency rules |
 | [Public support domain blueprint](PLATFORM_DOMAINS.en.md) | Transaction, inventory, user and order concepts with a three-horizon plan |
+| [Billing domain](billing/README.en.md) | Billing/amount due, distinct from checkout/settlement |
 | [Architecture diagrams and business lines](ARCHITECTURE_DIAGRAMS.md) | IM and SaaS lines, domain boundaries and key flows |
 | [Conversation types and privacy](CONVERSATION_TYPES_AND_PRIVACY.md) | Private/group/channel/secret chats and data boundaries |
 | [Project facts inventory](PROJECT_FACTS_INVENTORY.md) | Current product and engineering facts |

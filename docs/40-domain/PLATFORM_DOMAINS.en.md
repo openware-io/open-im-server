@@ -33,6 +33,8 @@ tenantId 1 - N store
 | `transaction` | end-to-end trade process | order table |
 | `order` | transaction document/aggregate | payment |
 | `payment` | funds movement/refund | order status |
+| `billing` | charges/bill: lines, discount, tax, deposit offset, amount due | not payment, not checkout |
+| `checkout` | front-desk process orchestrating Billing/Payment/deposit | not a domain service |
 | `settlement` | merchant/channel settlement and reconciliation | payment |
 | `fulfillment` | check-in/session/table/class | order base status |
 
@@ -62,6 +64,7 @@ tenantId 1 - N store
 | Tenant & Store | tenant, store, organization, roles | `platform-tenant-service` | H1 |
 | Customer / Member | profile, points, wallet | `platform-customer-service` | H1 |
 | Order Kernel | header/line/amount/payment/base lifecycle | `platform-order-service` | H1 |
+| Billing / Charging | bill, lines, discount, tax, deposit offset, amount due | `platform-order-service` `domain/billing` (planned) | H1/H2 |
 | Payment | payment/refund/split collection/channel | `common-payment-service` | H1 |
 | Stock | procurement-sales inventory | planned | H1/H2 |
 | Marketing | coupon/campaign/member benefits | `platform-marketing-service` (partial) | H2 |

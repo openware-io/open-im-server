@@ -22,11 +22,12 @@
 | IM Conversation | `core` | IM 产品/技术 | `im-conversation-service` | Identity, Tenant, Audit | Message, IM Admin, C 端 | 会话、成员、权限边界 |
 | IM Message | `core` | IM 产品/技术 | `im-message-service` | Conversation, User, Media, MQ | C 端, IM Admin | 消息、已读、撤回、同步 |
 | IM User / Social | `core` | IM 产品/技术 | `im-user-service` | Identity, Tenant, Media | Conversation, Message, C 端 | 用户资料、关系、状态 |
-| IM Admin | `supporting` | IM 平台 | `im-admin-service` | Message, User, Audit | 运营后台 | 审核、查询、只读投影 |
+| IM Admin | `supporting` | IM 平台 | `im-admin-service` | Message, User, Audit | 运营后台 | 举报审核、版本/配置、`adm_*` 投影、用户删除；HTTP 层是 edge，但拥有领域状态，不是纯 BFF |
 | Hotel Booking | `core` | 酒店产品/技术 | `platform-order-service` `domain/hotel`（规划） | Order Kernel, Payment, Customer, Stock, Audit | C 端, Admin BFF, OTA | 房型、房价、房态、预订、押金 |
 | KTV Operations | `core` | KTV 产品/技术 | `platform-resource-service` KTV 模块 + `platform-order-service` KTV 模块 | Order Kernel, Payment, Customer, Audit | C 端, Admin BFF, B 端 | 包厢时段、开台、结台、计费 |
 | Restaurant / Massage / Gym | `core`（规划） | 各业务产品/技术 | 待建 | Order Kernel, Payment, Customer, Stock, Audit | C 端, Admin BFF | 各自容量/排班/履约，不共享容量表 |
 | Order Kernel | `supporting` | 交易平台 | `platform-order-service` `domain/order` | Payment, Customer, Audit | 所有业务域, C 端订单中心 | 订单头/明细/金额/支付状态/基础生命周期 |
+| Billing / Charging | `supporting`（规划） | 计费平台 | `platform-order-service` `domain/billing`（规划） | Order Kernel, Payment, Customer, Marketing | Hotel, KTV, Restaurant, Gym | 账单、计费行、优惠、税、押金抵扣、应付金额；Checkout 是流程不是域 |
 | Customer / Member | `supporting` | 客户平台 | `platform-customer-service` | Identity, Tenant, Audit | 所有业务域 | 客户档案、积分、钱包、IM 绑定 |
 | Marketing | `supporting` | 营销平台 | `platform-marketing-service` | Customer, Order Kernel, Payment | 业务域, 运营后台 | 优惠券、活动；目前未完整实现 |
 | Identity / IAM | `supporting` | 身份平台 | `platform-identity-service` | Tenant, Audit | 所有服务 | 登录、会话、OAuth/OIDC、权限快照 |
@@ -41,8 +42,24 @@
 | Media | `supporting` | 媒体平台 | `common-media-service` | Tenant, Audit | IM, Hotel, Marketing | 图片/视频/文件、上传会话 |
 | Audit | `supporting` | 平台治理 | `common-audit-service` | Tenant | 所有服务 | 审计日志、操作追踪 |
 | Notification | `supporting` | 通知平台 | `common-sms-service`, `common-mail-service` | Tenant, Audit | 所有业务域 | 短信、邮件、验证码/通知 |
-| Admin BFF | `edge` | 平台前端/接入 | `platform-admin-service` | 各业务域 | 运营后台 | 聚合、协议转换，不拥有领域模型 |
+| SaaS Admin BFF | `edge` | 平台前端/接入 | `platform-admin-service` | 各业务域 | 运营后台 | 纯 BFF：无权威表/Mapper/Flyway，只做聚合、协议转换 |
 | Gateway / WS Access | `generic` | 基础设施 | `gateways/gateway`, `gateways/im-access-ws` | Identity, Tenant | 所有客户端 | 路由、鉴权、长连接接入 |
+
+### 为什么两个 admin 类型不同
+
+```text
+platform-admin-service = SaaS Admin BFF
+  无权威表、无 Mapper/Flyway
+  只做登录入口、菜单、上下文、聚合、旧契约适配
+  -> edge
+
+im-admin-service = IM Admin 域
+  拥有 adm_* 投影、举报审核、版本/配置、用户删除
+  HTTP 层是 edge，但域能力有状态、有规则
+  -> supporting
+```
+
+“后台”是交互形态，不是领域类型；分类看是否拥有领域状态和规则。
 
 ## 3. 依赖规则
 
@@ -68,7 +85,7 @@ Core -X-> 另一个 Core 的内部模型
 
 | 服务 | 承载上下文 |
 | --- | --- |
-| `platform-order-service` | Order Kernel（supporting）+ Hotel Booking（core）+ KTV order modules（core） |
+| `platform-order-service` | Order Kernel（supporting）+ Billing（supporting，规划）+ Hotel Booking（core）+ KTV order modules（core） |
 | `platform-resource-service` | Resource Catalog（supporting）+ KTV Operations（core） |
 | `platform-admin-service` | Admin BFF（edge） |
 | `platform-customer-service` | Customer/Member（supporting） |

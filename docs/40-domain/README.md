@@ -11,6 +11,7 @@
 | [账号与权限模型](ACCOUNT_PERMISSION_MODEL.md) | 平台账号、IM 账号、租户/门店角色和运营权限 |
 | [业务域版图](DOMAIN_MAP.md) | 核心/支撑/通用/边缘域、Owner 与依赖规则 |
 | [公共支撑域蓝图](PLATFORM_DOMAINS.md) | 交易、库存、用户、订单等概念与三阶段演进 |
+| [计费与结账域](billing/README.md) | Billing 账单/计费/应付金额，区别于 Checkout/Settlement |
 | [架构图与业务线](ARCHITECTURE_DIAGRAMS.md) | IM 与 SaaS 两条业务线、域边界和关键链路 |
 | [会话类型与隐私边界](CONVERSATION_TYPES_AND_PRIVACY.md) | 私聊、群聊、频道、私密会话与数据边界 |
 | [项目事实清单](PROJECT_FACTS_INVENTORY.md) | 当前产品/工程事实清单 |

@@ -37,6 +37,8 @@ tenantId 1 ── N store
 | `transaction` | 一次交易过程 | 不是订单表 |
 | `order` | 交易单据/聚合根 | 不是支付 |
 | `payment` | 资金支付/退款 | 不是订单状态 |
+| `billing` | 计费/账单：分项、优惠、税、押金抵扣、应付金额 | 不是支付，也不是结账流程 |
+| `checkout` | 前台结账流程，编排 Billing/Payment/押金 | 不是领域服务 |
 | `settlement` | 商户/渠道结算与对账 | 不是支付 |
 | `fulfillment` | 履约（入住/开台/桌台/课程） | 不是订单基础状态 |
 
@@ -76,6 +78,7 @@ orderId 1 ── 1 fulfillment（按业务扩展）
 | Tenant & Store | 租户、门店、组织、角色 | `platform-tenant-service` | H1 |
 | Customer / Member | 客户档案、积分、钱包 | `platform-customer-service` | H1 |
 | Order Kernel | 订单头/明细/金额/支付/退款/基础状态 | `platform-order-service` | H1 |
+| Billing / Charging | 账单、计费行、优惠、税、押金抵扣、应付金额 | `platform-order-service` `domain/billing`（规划） | H1/H2 |
 | Payment | 支付、退款、组合收款、渠道 | `common-payment-service` | H1 |
 | Stock | 采销库存 | 规划 | H1/H2 |
 | Marketing | 优惠券、活动、会员权益 | `platform-marketing-service`（未完整） | H2 |

@@ -22,11 +22,12 @@
 | IM Conversation | `core` | IM product/tech | `im-conversation-service` | Identity, Tenant, Audit | Message, IM Admin, C-end | conversation, members, permissions |
 | IM Message | `core` | IM product/tech | `im-message-service` | Conversation, User, Media, MQ | C-end, IM Admin | messages, read, recall, sync |
 | IM User / Social | `core` | IM product/tech | `im-user-service` | Identity, Tenant, Media | Conversation, Message, C-end | profile, relations, presence |
-| IM Admin | `supporting` | IM platform | `im-admin-service` | Message, User, Audit | operations console | moderation, read models |
+| IM Admin | `supporting` | IM platform | `im-admin-service` | Message, User, Audit | operations console | reports, release/config, `adm_*` projections, user deletion; HTTP is edge but it owns domain state, not a pure BFF |
 | Hotel Booking | `core` | Hotel product/tech | `platform-order-service` `domain/hotel` (planned) | Order Kernel, Payment, Customer, Stock, Audit | C-end, Admin BFF, OTA | room types, rates, availability, booking, deposit |
 | KTV Operations | `core` | KTV product/tech | `platform-resource-service` KTV modules + `platform-order-service` KTV modules | Order Kernel, Payment, Customer, Audit | C-end, Admin BFF, B-end | room slots, open/close, billing |
 | Restaurant / Massage / Gym | `core` (planned) | each product/tech | TBD | Order Kernel, Payment, Customer, Stock, Audit | C-end, Admin BFF | own capacity/scheduling/fulfillment; no shared capacity tables |
 | Order Kernel | `supporting` | transaction platform | `platform-order-service` `domain/order` | Payment, Customer, Audit | all businesses, C-end order center | header/line/amount/payment/base lifecycle |
+| Billing / Charging | `supporting` (planned) | billing platform | `platform-order-service` `domain/billing` (planned) | Order Kernel, Payment, Customer, Marketing | Hotel, KTV, Restaurant, Gym | bill, lines, discount, tax, deposit offset, amount due; Checkout is a process, not a domain |
 | Customer / Member | `supporting` | customer platform | `platform-customer-service` | Identity, Tenant, Audit | all businesses | profile, points, wallet, IM binding |
 | Marketing | `supporting` | marketing platform | `platform-marketing-service` | Customer, Order Kernel, Payment | businesses, operations | coupons/campaigns; not fully implemented |
 | Identity / IAM | `supporting` | identity platform | `platform-identity-service` | Tenant, Audit | all services | login, session, OAuth/OIDC, permission snapshot |
@@ -41,8 +42,24 @@
 | Media | `supporting` | media platform | `common-media-service` | Tenant, Audit | IM, Hotel, Marketing | images/video/files, upload sessions |
 | Audit | `supporting` | platform governance | `common-audit-service` | Tenant | all services | audit log, tracing |
 | Notification | `supporting` | notification platform | `common-sms-service`, `common-mail-service` | Tenant, Audit | all businesses | SMS, email, verification/notification |
-| Admin BFF | `edge` | web/ingress | `platform-admin-service` | all businesses | operations console | aggregation/translation, no domain model |
+| SaaS Admin BFF | `edge` | web/ingress | `platform-admin-service` | all businesses | operations console | pure BFF: no authoritative tables/Mapper/Flyway; aggregation only |
 | Gateway / WS Access | `generic` | infrastructure | `gateways/gateway`, `gateways/im-access-ws` | Identity, Tenant | all clients | routing, auth, long connection |
+
+### Why the two admin services differ
+
+```text
+platform-admin-service = SaaS Admin BFF
+  no authoritative tables, no Mapper/Flyway
+  login/menu/context/aggregation/legacy adaptation only
+  -> edge
+
+im-admin-service = IM Admin domain
+  owns adm_* projections, reports, release/config, user deletion
+  HTTP is edge, but the domain has state and rules
+  -> supporting
+```
+
+"Admin console" is an interaction form, not a domain type; classification depends on whether it owns domain state/rules.
 
 ## 3. Dependency rules
 
@@ -59,7 +76,7 @@ Core -X-> another Core's internal model
 
 | Service | Contexts |
 | --- | --- |
-| `platform-order-service` | Order Kernel (supporting) + Hotel Booking (core) + KTV order modules (core) |
+| `platform-order-service` | Order Kernel (supporting) + Billing (supporting, planned) + Hotel Booking (core) + KTV order modules (core) |
 | `platform-resource-service` | Resource Catalog (supporting) + KTV Operations (core) |
 | `platform-admin-service` | Admin BFF (edge) |
 | `platform-customer-service` | Customer/Member (supporting) |
