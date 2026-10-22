@@ -41,6 +41,15 @@ Visibility:   STORE | GROUP
 - Entry point is sales-channel configuration, not a domain boundary; orders, inventory and payment stay in the same services.
 - Every query carries `tenantId` + `storeId`/`groupId`; `Visibility` decides the scope.
 
+The current SaaS model already carries the group: `tenantId` is the group/tenant, `storeId` is the hotel store. For phase 1:
+
+```text
+GROUP         = tenant-level hotel catalog + store inventory
+SINGLE_STORE  = store-level hotel catalog + local inventory
+```
+
+No new `groupId`; only add it if a group needs sub-groups.
+
 OTA later becomes another `SalesEntry=OTA` plus channel mapping, not a new domain.
 
 ## 2. Prototype gap

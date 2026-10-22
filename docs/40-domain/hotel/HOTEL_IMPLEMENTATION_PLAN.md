@@ -53,6 +53,15 @@ Visibility：STORE | GROUP
 - 入口是**渠道配置**，不是领域边界；订单、库存、支付仍走同一套服务；
 - 每次查询必须带 `tenantId` + `storeId`/`groupId`，由 `Visibility` 决定可见范围。
 
+现有 SaaS 模型已经能承载集团：`tenantId` 对应集团/租户，`storeId` 对应酒店门店。因此一期：
+
+```text
+GROUP         = tenant 级酒店目录 + 门店库存
+SINGLE_STORE  = store 级酒店目录 + 本店库存
+```
+
+不新增 `groupId`；只有出现“集团下再分子集团”时才扩展层级。
+
 这样不需要为“单店/集团”分叉代码；以后接 OTA 时，OTA 只是新增一个 `SalesEntry=OTA` 和渠道映射。
 
 ## 2. 原型现状与缺口
