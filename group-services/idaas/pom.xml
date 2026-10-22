@@ -11,7 +11,7 @@
   <artifactId>group-idaas</artifactId>
   <version>2.4.0</version>
   <packaging>pom</packaging>
-  <properties><domain.version>2.2.0</domain.version></properties>
+  <properties><domain.version>2.4.0</domain.version></properties>
   <dependencyManagement>
     <dependencies>
       <dependency>

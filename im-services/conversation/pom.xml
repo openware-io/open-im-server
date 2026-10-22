@@ -12,8 +12,8 @@
   <version>2.4.0</version>
   <packaging>pom</packaging>
   <properties>
-    <domain.version>2.2.0</domain.version>
-    <im.user-api.version>2.2.0</im.user-api.version>
+    <domain.version>2.4.0</domain.version>
+    <im.user-api.version>2.4.0</im.user-api.version>
   </properties>
   <dependencyManagement>
     <dependencies>

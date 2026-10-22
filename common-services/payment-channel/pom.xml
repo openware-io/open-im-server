@@ -7,7 +7,7 @@
   <version>2.4.0</version>
   <packaging>pom</packaging>
   <name>Common Payment Channel</name>
-  <properties><domain.version>2.2.0</domain.version></properties>
+  <properties><domain.version>2.4.0</domain.version></properties>
   <dependencyManagement>
     <dependencies>
       <dependency><groupId>io.openware</groupId><artifactId>common-payment-channel-api</artifactId><version>${domain.version}</version></dependency>
