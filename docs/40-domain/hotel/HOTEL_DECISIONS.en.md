@@ -23,6 +23,7 @@
 | H-C12 | OTA sandbox | Not built; contract and internal channel model only |
 | H-C13 | Marketing | Points earn + redemption; no membership levels or coupons |
 | H-C14 | Stay deposit | In MVP; product term "deposit"; pre-authorization is a payment-mode reserve only |
+| H-C15 | Inventory reuse | Reuse the KTV inventory kernel (tenant isolation, concurrency, audit, expiry), but keep KTV time-slot occupancy and hotel daily quota in separate tables, services and APIs |
 
 ## OTA and channel manager
 

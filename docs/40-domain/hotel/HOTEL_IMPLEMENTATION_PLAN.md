@@ -214,6 +214,28 @@ common-audit-service
 - 需要独立数据库/独立 SLA；
 - OTA 渠道同步成为独立子系统。
 
+### 3.1 与 KTV 库存的复用边界
+
+**结论：复用库存内核，不复用库存表。**
+
+| 层 | 复用 | 分开 |
+| --- | --- | --- |
+| 基础设施 | tenant/store 作用域、版本号、事务、审计、Outbox、过期扫描 | — |
+| 资源 | `res_resource` 资源目录、房型/资源状态 | — |
+| 库存语义 | 可用量、保留、释放、冲突控制 | KTV 时段占用 vs 酒店每日配额 |
+| 数据表 | — | `res_occupation`（KTV）与 `res_inventory_calendar` / `res_inventory_hold`（酒店） |
+| 应用服务 | 技术组件 | `KtvInventoryApplicationService` / `HotelInventoryApplicationService` |
+| API / UI | 公共组件 | `/business/ktv/**` 与 `/business/hotel/**`，页面分开 |
+
+原因：
+
+- KTV 是“资源 + 时段”的区间占用；
+- 酒店是“房型 + 日期区间 + 每日可售数量”；
+- 共用一张表会产生大量可空字段、错误唯一键和两套状态机；
+- 共用内核可以复用并发、审计、隔离能力，又不牺牲语义。
+
+详见 [ADR-0010](../../20-architecture/adr/0010-shared-inventory-kernel.md)。
+
 ## 4. 核心模型
 
 ### 资源域（`gv_saas`，`res_*`）
@@ -431,12 +453,16 @@ POST /internal/hotels/holds/{holdId}/release
 
 ## 9. 权限、安全、审计
 
-- 租户/门店隔离：所有查询带 `tenantId`/`storeId`，禁止跨租户；
-- 权限：`hotel.view`、`hotel.manage`、`hotel.inventory.manage`、`hotel.booking.view`、`hotel.booking.checkin`、`hotel.booking.cancel`；
+- 租户/门店隔离：所有查询带 `tenantId`/`storeId`，禁止跨租户、跨门店；
+- 后端权限：以服务端会话解析 tenant/store，不信任前端传入的 tenantId/storeId；校验用户属于该门店；越权返回 403/404；
+- 前端权限：路由、菜单、按钮按 `hotel.inventory.manage` 等权限隐藏，但只做体验，不作为安全边界；
+- API 客户端：门店上下文统一从 `contextStore` 注入，禁止页面硬编码 storeId；
+- 权限码：`hotel.view`、`hotel.manage`、`hotel.inventory.manage`、`hotel.booking.view`、`hotel.booking.checkin`、`hotel.booking.cancel`、`hotel.deposit.manage`；
 - 住客 PII：手机号、证件号加密/脱敏，日志禁止原文；
 - 支付：不落卡号/CVV，只存支付单号；
-- 审计：酒店/房型/房价/库存/订单/入住/退房/退款全链路；
-- 中国合规：入住登记、证件类型、公安上传接口预留（是否接入需确认）。
+- 押金：收取/扣减/退款独立账本，扣减需原因和操作人；
+- 审计：酒店/房型/房价/库存/订单/入住/退房/押金/退款全链路；
+- 中国合规：发票、公安上传接口不在 MVP，字段预留。
 
 ## 10. 可观测性与测试
 

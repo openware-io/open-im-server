@@ -146,6 +146,23 @@ common-audit-service: hotel/rate/inventory/booking audit
 
 Extraction triggers: independent hotel team, inventory QPS/data volume, independent DB/SLA, or OTA sync as a subsystem.
 
+### 3.1 Reuse boundary with KTV inventory
+
+**Decision: reuse the inventory kernel, not the inventory tables.**
+
+| Layer | Reuse | Separate |
+| --- | --- | --- |
+| Infrastructure | tenant/store scope, versioning, transactions, audit, outbox, expiry scan | — |
+| Resource | `res_resource` catalog, room type/status | — |
+| Inventory semantics | availability, hold, release, conflict control | KTV time-slot occupation vs hotel daily quota |
+| Tables | — | `res_occupation` (KTV) vs `res_inventory_calendar` / `res_inventory_hold` (hotel) |
+| Application | technical components | `KtvInventoryApplicationService` / `HotelInventoryApplicationService` |
+| API / UI | shared components | `/business/ktv/**` and `/business/hotel/**`; separate pages |
+
+Reason: KTV sells a resource for a time interval; a hotel sells a room-type quota per night. A shared table would require many nullable fields, wrong unique keys and two state machines. A shared kernel keeps concurrency, audit and isolation without sacrificing semantics.
+
+See [ADR-0010](../../20-architecture/adr/0010-shared-inventory-kernel.md).
+
 ## 4. Core model
 
 Resource (`gv_saas`, `res_*`):
@@ -267,11 +284,15 @@ POST /internal/hotels/holds/{holdId}/release
 
 ## 9. Security and observability
 
-- tenant/store isolation on every query;
-- permissions: `hotel.view`, `hotel.manage`, `hotel.inventory.manage`, `hotel.booking.*`;
+- tenant/store isolation on every query; no cross-tenant or cross-store access;
+- backend authority: resolve tenant/store from the server session; never trust client-supplied IDs; verify store membership; deny with 403/404;
+- frontend: route/menu/button hiding is UX only, not a security boundary;
+- API client: inject store context from `contextStore`; never hard-code `storeId` in pages;
+- permissions: `hotel.view`, `hotel.manage`, `hotel.inventory.manage`, `hotel.booking.view`, `hotel.booking.checkin`, `hotel.booking.cancel`, `hotel.deposit.manage`;
 - guest PII encrypted/masked; no card data stored;
-- audit hotel, rate, inventory, booking, check-in/out and refund;
-- China guest registration interface reserved pending decision;
+- stay deposit has a separate ledger; deductions require reason and operator;
+- audit hotel, rate, inventory, booking, check-in/out, deposit and refund;
+- invoice and China guest-registration interfaces are reserved, not in MVP;
 - metrics: search latency, bookings, inventory conflicts, expired holds, payment lag, overbooking (must be 0).
 
 ## 10. Delivery
