@@ -100,5 +100,34 @@ public class AdminRoleProfileService {
         return List.of("platform.operator");
     }
 
+    /** 平台侧角色模板/工作区档案。 */
+    public List<AdminRoleProfilePo> listProfiles() {
+        return roleProfileMapper.selectList(new LambdaQueryWrapper<AdminRoleProfilePo>()
+                .orderByAsc(AdminRoleProfilePo::getSortNo)
+                .orderByAsc(AdminRoleProfilePo::getId));
+    }
+
+    /** 更新角色模板的工作区/落点；角色权限本身仍由 tenant-service 管理。 */
+    public AdminRoleProfilePo updateProfile(Long id, String workspaceCode, String landingRoute,
+                                            String defaultScope, String defaultBusinessType, Integer sortNo) {
+        AdminRoleProfilePo profile = roleProfileMapper.selectById(id);
+        if (profile == null) {
+            throw new IllegalArgumentException("角色工作台档案不存在: " + id);
+        }
+        if (workspaceCode != null && !List.of("PLATFORM", "HEADQUARTERS", "STORE", "IM").contains(workspaceCode)) {
+            throw new IllegalArgumentException("非法工作区: " + workspaceCode);
+        }
+        if (defaultScope != null && !List.of("PLATFORM", "TENANT", "STORE", "IM").contains(defaultScope)) {
+            throw new IllegalArgumentException("非法数据范围: " + defaultScope);
+        }
+        if (workspaceCode != null) profile.setWorkspaceCode(workspaceCode);
+        if (landingRoute != null && !landingRoute.isBlank()) profile.setLandingRoute(landingRoute);
+        if (defaultScope != null) profile.setDefaultScope(defaultScope);
+        profile.setDefaultBusinessType(defaultBusinessType);
+        if (sortNo != null) profile.setSortNo(sortNo);
+        roleProfileMapper.updateById(profile);
+        return profile;
+    }
+
     public record AdminWorkspace(List<String> roles, List<String> workspaces, String defaultWorkspace, String landing) {}
 }
