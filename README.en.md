@@ -19,7 +19,7 @@ OpenChat combines an IM open platform, multi-tenant SaaS, operations consoles, m
   </tr>
 </table>
 
-> Status: `current` (developing on `develop/2.3.0`; latest stage tag `2.2.1`)  
+> Status: `current` (developing on `develop/2.4.0-hotel`; version `2.4.0-SNAPSHOT`)  
 > Engineering topology and documentation entry: [Documentation center](docs/README.en.md) and [Engineering topology](docs/20-architecture/TOPOLOGY.en.md).
 
 ## One-click deployment (recommended)

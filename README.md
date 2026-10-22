@@ -19,7 +19,7 @@ OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面�
   </tr>
 </table>
 
-> 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
+> 状态：`current`（`develop/2.4.0-hotel` 开发中；版本 `2.4.0-SNAPSHOT`）  
 > 工程级拓扑与文档导航见[文档中心](docs/README.md)和[工程拓扑](docs/20-architecture/TOPOLOGY.zh.md)。
 
 ## 一键部署（推荐）
