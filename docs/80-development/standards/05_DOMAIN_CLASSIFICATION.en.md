@@ -56,7 +56,7 @@ Core may depend on supporting/generic. Supporting must not depend on core. Core-
 
 ## Adding or changing a domain
 
-1. Update [DOMAIN_MAP](../40-domain/DOMAIN_MAP.en.md).
+1. Update [DOMAIN_MAP](../../40-domain/DOMAIN_MAP.en.md).
 2. Record type, owner, implementation module, dependencies and consumers.
 3. A core domain requires an ADR.
 4. Pass G53 `domain-map`.
@@ -96,6 +96,6 @@ G18/G24/G25/G32/G43 continue to enforce code, port, PO, tenant SQL and layout bo
 - [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md)
 - [Gate governance](04_GATE_GOVERNANCE.en.md)
 - [DDD service conventions](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.en.md)
-- [Domain map](../40-domain/DOMAIN_MAP.en.md)
-- [Inventory platform](../40-domain/inventory/README.en.md)
-- [Order platform](../40-domain/order/README.en.md)
+- [Domain map](../../40-domain/DOMAIN_MAP.en.md)
+- [Inventory platform](../../40-domain/inventory/README.en.md)
+- [Order platform](../../40-domain/order/README.en.md)

@@ -30,9 +30,13 @@
 | Customer / Member | `supporting` | 客户平台 | `platform-customer-service` | Identity, Tenant, Audit | 所有业务域 | 客户档案、积分、钱包、IM 绑定 |
 | Marketing | `supporting` | 营销平台 | `platform-marketing-service` | Customer, Order Kernel, Payment | 业务域, 运营后台 | 优惠券、活动；目前未完整实现 |
 | Identity / IAM | `supporting` | 身份平台 | `platform-identity-service` | Tenant, Audit | 所有服务 | 登录、会话、OAuth/OIDC、权限快照 |
+| Platform User | `supporting`（规划） | 身份平台 | `platform-identity-service` + Customer 映射 | Identity, Customer | C 端, Order Kernel | 全局用户身份，跨租户稳定；与 IM User/Customer 区分 |
 | Tenant / Store | `supporting` | 租户平台 | `platform-tenant-service` | Identity, Audit | 所有业务域 | 租户、门店、角色、业务时间 |
 | Resource Catalog | `supporting` | 资源平台 | `platform-resource-service` resource/roomtype | Tenant, Audit | KTV, Hotel（仅物理资源目录） | 资源/房型目录，不含业务容量 |
 | Stock | `supporting`（规划） | 供应链平台 | 待建 | Tenant, Audit | Hotel, KTV, Restaurant, Gym, Retail | 采销库存：SKU、仓库、余额、出入库 |
+| Settlement | `supporting`（规划） | 交易平台 | 待建 | Payment, Order Kernel, Audit | 业务域, 财务 | 商户/OTA/渠道结算与对账 |
+| Pricing / Promotion | `supporting`（规划） | 营销平台 | `platform-marketing-service` | Customer, Order Kernel | 业务域, 运营后台 | 优惠券/活动；基础房价/商品价归业务核心 |
+| Channel Integration | `supporting`（规划） | 渠道平台 | 待建 | Order Kernel, Stock, Audit | Hotel, OTA | OTA/渠道经理适配框架；酒店渠道适配归酒店核心 |
 | Payment | `supporting` | 支付平台 | `common-payment-service` + `common-payment-channel-service` | Customer, Order Kernel, Audit | 所有业务域 | 支付、退款、组合收款、对账 |
 | Media | `supporting` | 媒体平台 | `common-media-service` | Tenant, Audit | IM, Hotel, Marketing | 图片/视频/文件、上传会话 |
 | Audit | `supporting` | 平台治理 | `common-audit-service` | Tenant | 所有服务 | 审计日志、操作追踪 |

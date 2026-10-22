@@ -103,7 +103,7 @@ Core -X-> 另一个 Core 的内部模型
 
 新增或改变分类必须：
 
-1. 更新 [DOMAIN_MAP](../40-domain/DOMAIN_MAP.md)；
+1. 更新 [DOMAIN_MAP](../../40-domain/DOMAIN_MAP.md)；
 2. 说明类型、Owner、实现模块、依赖、消费者；
 3. 标为核心域时新增 ADR；
 4. 通过 G53 `domain-map`；
@@ -124,7 +124,7 @@ Core -X-> 另一个 Core 的内部模型
 Context: Hotel Booking
 Type: core
 Owner: Hotel product + hotel tech lead
-Modules: platform-order-service/domain/hotel
+Modules: &lt;service&gt;/domain/hotel
 Depends on: Order Kernel, Payment, Customer, Stock, Audit
 Consumers: C-end, Admin BFF, OTA
 Why core: 房态、房价、超卖、入住规则形成酒店差异化
@@ -153,6 +153,6 @@ Why core: 房态、房价、超卖、入住规则形成酒店差异化
 - [工程原则](03_ENGINEERING_PRINCIPLES.md)：边界与单一所有权；
 - [门禁治理](04_GATE_GOVERNANCE.md)：G53 的登记和退役；
 - [DDD 服务工程规范](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)：模块/分层；
-- [领域版图](../40-domain/DOMAIN_MAP.md)：实际分类结果；
-- [库存平台域](../40-domain/inventory/README.md)：Stock 支撑域，Capacity 归核心域；
-- [订单平台域](../40-domain/order/README.md)：Order Kernel 支撑域。
+- [领域版图](../../40-domain/DOMAIN_MAP.md)：实际分类结果；
+- [库存平台域](../../40-domain/inventory/README.md)：Stock 支撑域，Capacity 归核心域；
+- [订单平台域](../../40-domain/order/README.md)：Order Kernel 支撑域。

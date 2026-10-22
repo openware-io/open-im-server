@@ -27,7 +27,7 @@ $text = [System.IO.File]::ReadAllText($mapPath, [System.Text.UTF8Encoding]::new(
 $rows = 0
 $coreRows = 0
 foreach ($line in $text -split "`r?`n") {
-  if ($line -notmatch '^\|\s*([^|]+?)\s*\|\s*`?(core|supporting|generic|edge)`?\s*\|') {
+  if ($line -notmatch '^\|\s*([^|]+?)\s*\|\s*`?(core|supporting|generic|edge)`?[^|]*\|') {
     continue
   }
   $rows++

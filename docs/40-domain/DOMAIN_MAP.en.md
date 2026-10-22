@@ -30,9 +30,13 @@
 | Customer / Member | `supporting` | customer platform | `platform-customer-service` | Identity, Tenant, Audit | all businesses | profile, points, wallet, IM binding |
 | Marketing | `supporting` | marketing platform | `platform-marketing-service` | Customer, Order Kernel, Payment | businesses, operations | coupons/campaigns; not fully implemented |
 | Identity / IAM | `supporting` | identity platform | `platform-identity-service` | Tenant, Audit | all services | login, session, OAuth/OIDC, permission snapshot |
+| Platform User | `supporting` (planned) | identity platform | `platform-identity-service` + Customer mapping | Identity, Customer | C-end, Order Kernel | global identity, stable across tenants; distinct from IM user/customer |
 | Tenant / Store | `supporting` | tenant platform | `platform-tenant-service` | Identity, Audit | all businesses | tenant, store, roles, business time |
 | Resource Catalog | `supporting` | resource platform | `platform-resource-service` resource/roomtype | Tenant, Audit | KTV, Hotel (physical catalog only) | resource/room-type catalog, no business capacity |
 | Stock | `supporting` (planned) | supply-chain platform | TBD | Tenant, Audit | Hotel, KTV, Restaurant, Gym, Retail | SKU, warehouse, balance, receipts/issues |
+| Settlement | `supporting` (planned) | transaction platform | TBD | Payment, Order Kernel, Audit | businesses, finance | merchant/OTA/channel settlement and reconciliation |
+| Pricing / Promotion | `supporting` (planned) | marketing platform | `platform-marketing-service` | Customer, Order Kernel | businesses, operations | coupons/campaigns; base rates remain in business cores |
+| Channel Integration | `supporting` (planned) | channel platform | TBD | Order Kernel, Stock, Audit | Hotel, OTA | OTA/channel-manager framework; hotel adapters stay in hotel core |
 | Payment | `supporting` | payment platform | `common-payment-service` + `common-payment-channel-service` | Customer, Order Kernel, Audit | all businesses | payment, refund, split collection, reconciliation |
 | Media | `supporting` | media platform | `common-media-service` | Tenant, Audit | IM, Hotel, Marketing | images/video/files, upload sessions |
 | Audit | `supporting` | platform governance | `common-audit-service` | Tenant | all services | audit log, tracing |
