@@ -15,7 +15,7 @@
 | P2 role templates / store scope | done (basic) | Real role-workbench profiles with workspace/landing/scope editing |
 | P3 onboarding | done (basic) | Data-driven tenant onboarding checklist |
 | P4 entitlement-driven modules | done (basic) | `tnt_business_entitlement` + `/admin/tenant/businesses`; unentitled scopes disabled |
-| P5 action-level permissions | done (basic) | Hotel action codes + `v-permission`; backend business-enable check |
+| P5 action-level permissions | done | Hotel front-desk tasks/check-in/check-out guarded by `hotel.*` permissions |
 | P6 mobile role/task parity | prototype | `/business/role-home` manager/front desk/cashier task home |
 
 ### P4-P6 entry points

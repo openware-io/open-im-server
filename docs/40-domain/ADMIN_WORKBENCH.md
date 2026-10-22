@@ -15,7 +15,7 @@
 | P2 角色模板 / 门店范围 | ✅ 已上线（基础） | 平台“角色工作台”真实档案、工作区/落点/数据范围维护 |
 | P3 onboarding | ✅ 已上线（基础） | 租户总览数据驱动开通清单 |
 | P4 业务开通驱动模块 | ✅ 基础完成 | `tnt_business_entitlement` + `/admin/tenant/businesses`，总览禁用未开通业态 |
-| P5 动作级权限 | ✅ 基础完成 | 酒店动作权限码 + `v-permission` 指令，后端开通接口校验 |
+| P5 动作级权限 | ✅ 已上线 | 酒店前台任务/入住/退房端点，按 `hotel.booking.view`/`hotel.checkin`/`hotel.checkout` 校验 |
 | P6 移动端角色/任务对齐 | ✅ 原型完成 | `/business/role-home` 店长/前台/收银任务工作台 |
 
 ### P4-P6 实现入口
