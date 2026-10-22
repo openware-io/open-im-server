@@ -11,6 +11,7 @@
 | 编号 | 决策 | 状态 | 日期 |
 | --- | --- | --- | --- |
 | 0007 | [`version` 具名例外](0007-version-named-exceptions.md) | withdrawn | 2026-10-18 |
+| 0008 | [酒店域边界与 MVP 归属](0008-hotel-domain-boundary.md) | proposed | 2026-10-22 |
 
 ## 状态说明
 

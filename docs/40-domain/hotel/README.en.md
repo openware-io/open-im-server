@@ -11,7 +11,9 @@
 | Document | Description |
 | --- | --- |
 | [Implementation plan](HOTEL_IMPLEMENTATION_PLAN.en.md) | Scope, domain boundary, model, flows, APIs, inventory concurrency and rollout |
-| [Decisions and open questions](HOTEL_DECISIONS.en.md) | Recommended defaults and product decisions still required |
+| [OTA / channel contract](HOTEL_OTA_INTEGRATION.en.md) | External ARI, booking, cancellation, auth, idempotency and sandbox |
+| [Standards review](HOTEL_DESIGN_REVIEW.en.md) | Pre-coding compliance findings and required actions |
+| [Decisions and open questions](HOTEL_DECISIONS.en.md) | Confirmed decisions, terminology and remaining questions |
 
 ## Current state
 

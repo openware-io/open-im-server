@@ -14,12 +14,22 @@ rate plan + daily rate
 date-range inventory calendar
 search -> quote -> booking -> payment -> confirmation
 cancel / payment timeout / no-show
-check-in -> check-out
+check-in -> check-out (admin web + mobile front desk)
 admin rate and inventory management
+OTA external contract + sandbox verification
 order, payment, audit and permissions
 ```
 
-Out of MVP: OTA/channel manager, dynamic yield, chain CRS, complex packages, multi-currency settlement, corporate rates.
+The mobile front desk follows the KTV B-end workbench:
+
+```text
+today arrivals / in-house / departures
+check-in / assign room
+check-out / move room to cleaning
+booking lookup / room status
+```
+
+Out of MVP: dynamic yield, chain CRS, complex packages, multi-currency settlement, corporate rates. OTA contract and sandbox are in MVP; real OTA launch scope is a business decision.
 
 ## 1.1 Access modes: one hotel domain, two entries
 

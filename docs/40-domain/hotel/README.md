@@ -11,7 +11,9 @@
 | 文档 | 说明 |
 | --- | --- |
 | [实现方案](HOTEL_IMPLEMENTATION_PLAN.md) | 业务范围、领域边界、模型、流程、API、库存并发与迭代计划 |
-| [决策与待确认问题](HOTEL_DECISIONS.md) | 已建议的默认决策、必须产品/业务拍板的问题 |
+| [OTA / 渠道接入规范](HOTEL_OTA_INTEGRATION.md) | 对外 ARI、订单、取消、鉴权、幂等与沙箱契约 |
+| [方案规范审查](HOTEL_DESIGN_REVIEW.md) | 编码前的规范符合性结论与必补项 |
+| [决策与待确认问题](HOTEL_DECISIONS.md) | 已确认决策、术语和剩余问题 |
 
 ## 现状
 

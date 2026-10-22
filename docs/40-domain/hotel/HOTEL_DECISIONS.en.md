@@ -13,14 +13,17 @@
 | H-C02 | Single-store entry | Enter from Leisure; show only that store |
 | H-C03 | Group entry | Enter from OpenChat Service Center; show group hotels/stores |
 | H-C04 | Payment modes | Prepay, pay-at-hotel and deposit; configured in **store management**, never hard-coded |
-| H-C05 | OTA | Not in MVP; reserve channel and external-reference fields |
+| H-C05 | OTA | **Required**; MVP delivers the external contract + sandbox; real OTA launch scope is TBD |
 | H-C06 | Prototype scope | C-end service-center flow exists; build the B-end prototype inside `open-saas-admin` on the 2.4.0 branch, not a separate prototype project |
+| H-C07 | Invoice / guest registration | **Not in MVP**; fields and interfaces reserved for finance/tax and public-security integration |
+| H-C08 | Front-desk client | **Admin Web + mobile**; mobile follows the KTV B-end workbench |
+| H-C09 | Group mapping | `tenantId=group`, `storeId=hotel store`; no `groupId` in phase 1 |
 
 ## OTA and channel manager
 
 - **OTA**: external sales channels such as Ctrip, Meituan, Fliggy or Booking.
 - **Channel manager**: a hub that syncs availability, rates and inventory to multiple OTAs and pulls OTA bookings back into the PMS, e.g. SiteMinder or DerbySoft.
-- Neither is required for MVP; without a channel manager the hotel sells only through OpenChat/owned channels.
+- OTA is required; a channel manager is an optional aggregation layer. MVP defines the contract and sandbox first; real channel scope is a business decision.
 
 ## Recommended defaults
 
@@ -39,18 +42,13 @@
 
 | ID | Question | Options | Impact |
 | --- | --- | --- | --- |
-| H-Q01 | Single property, multi-property or chain? | single / multi-property / chain | central reservation and inventory scope |
-| H-Q02 | Payment model? | prepay / deposit / pay-at-hotel / guarantee | order state machine, refunds, no-show |
-| H-Q03 | OTA/channel manager integration? | none / Ctrip-Meituan / own channels | inventory sync, mapping, oversell policy |
-| H-Q04 | Front-desk client? | admin web / mobile / both | BFF and UI scope |
-| H-Q05 | Invoice, deposit and China guest registration? | yes / no / phase 2 | fields, compliance, finance |
 | H-Q06 | Membership, points and coupons? | none / coupon / full | integration with customer and marketing |
 | H-Q07 | Multi-currency in MVP? | CNY only / multi-currency | pricing and settlement |
-| H-Q08 | Are there prototype screens not shown? | yes / no | avoid modeling from an incomplete prototype |
+| H-Q08 | Damage deposit / pre-authorization in MVP? | yes / no | separate from booking deposit; affects check-in and refunds |
 
 ## Next
 
-1. Answer H-Q01–H-Q08.
-2. Confirm prototype link, recording or hidden screens.
-3. Freeze MVP scope.
+1. Answer H-Q06–H-Q08.
+2. Confirm the OTA launch scope (sandbox / real OTA / channel manager).
+3. Freeze MVP scope and close ADR-0008, OpenAPI, data model, security and test items.
 4. Split S1–S5 tasks and migrations.
