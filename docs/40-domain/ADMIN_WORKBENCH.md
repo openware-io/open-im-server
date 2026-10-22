@@ -14,9 +14,27 @@
 | P1 全部门店汇总 | ✅ 已上线 | 经营总览支持全部门店/酒店/KTV/单店范围 |
 | P2 角色模板 / 门店范围 | ✅ 已上线（基础） | 平台“角色工作台”真实档案、工作区/落点/数据范围维护 |
 | P3 onboarding | ✅ 已上线（基础） | 租户总览数据驱动开通清单 |
-| P4 业务开通驱动模块 | ⏳ 待实现 | 订阅/开通表与模块可见性 |
-| P5 动作级权限 | ⏳ 待实现 | 页面权限已有，动作权限待补 |
-| P6 移动端角色/任务对齐 | ⏳ 待实现 | 移动前台复用角色/任务模型 |
+| P4 业务开通驱动模块 | ✅ 基础完成 | `tnt_business_entitlement` + `/admin/tenant/businesses`，总览禁用未开通业态 |
+| P5 动作级权限 | ✅ 基础完成 | 酒店动作权限码 + `v-permission` 指令，后端开通接口校验 |
+| P6 移动端角色/任务对齐 | ✅ 原型完成 | `/business/role-home` 店长/前台/收银任务工作台 |
+
+### P4-P6 实现入口
+
+```text
+P4
+  GET  /api/v1/admin/tenant/businesses
+  POST /api/v1/admin/tenant/businesses/{businessType}/enable
+  表：tnt_business_entitlement
+
+P5
+  iam_permission：tenant.business.manage / hotel.*
+  前端：v-permission
+  后端：BusinessEntitlementApplicationService 校验 tenant.business.manage
+
+P6
+  Flutter：/business/role-home
+  店长 / 前台 / 收银三种任务首页
+```
 
 ## 1. 问题定义
 

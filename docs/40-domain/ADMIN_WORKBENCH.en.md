@@ -14,9 +14,27 @@
 | P1 all-locations rollup | done | Overview scope: all / hotel / KTV / single store |
 | P2 role templates / store scope | done (basic) | Real role-workbench profiles with workspace/landing/scope editing |
 | P3 onboarding | done (basic) | Data-driven tenant onboarding checklist |
-| P4 entitlement-driven modules | pending | Subscription/business entitlement and module visibility |
-| P5 action-level permissions | pending | Page permissions exist; action permissions pending |
-| P6 mobile role/task parity | pending | Mobile front desk reuses role/task model |
+| P4 entitlement-driven modules | done (basic) | `tnt_business_entitlement` + `/admin/tenant/businesses`; unentitled scopes disabled |
+| P5 action-level permissions | done (basic) | Hotel action codes + `v-permission`; backend business-enable check |
+| P6 mobile role/task parity | prototype | `/business/role-home` manager/front desk/cashier task home |
+
+### P4-P6 entry points
+
+```text
+P4
+  GET  /api/v1/admin/tenant/businesses
+  POST /api/v1/admin/tenant/businesses/{businessType}/enable
+  table: tnt_business_entitlement
+
+P5
+  iam_permission: tenant.business.manage / hotel.*
+  frontend: v-permission
+  backend: tenant.business.manage check in BusinessEntitlementApplicationService
+
+P6
+  Flutter: /business/role-home
+  manager / front desk / cashier task home
+```
 
 ## 1. Problem
 
