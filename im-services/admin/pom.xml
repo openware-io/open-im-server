@@ -8,7 +8,7 @@
     <version>2.0.1</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
-  <artifactId>im-admin</artifactId><version>2.2.0</version>
+  <artifactId>im-admin</artifactId><version>2.4.0</version>
   <packaging>pom</packaging>
   <properties>
     <domain.version>2.2.0</domain.version>
