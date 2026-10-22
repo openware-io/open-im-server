@@ -53,6 +53,22 @@ public class AccountApplicationService {
         return account;
     }
 
+    /** 为已有员工账号绑定可密码登录的标识（内部端点；同一标识已存在则拒绝，避免覆盖凭据）。 */
+    @Transactional
+    public void bindPasswordLogin(Long accountId, String loginType, String loginIdentifier, String credential) {
+        if (accountId == null || accountId <= 0) {
+            throw new IllegalArgumentException("accountId is required");
+        }
+        accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalStateException("Identity account not found: " + accountId))
+                .ensureActive();
+        if (loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier).isPresent()) {
+            throw new IllegalStateException("Login identity already exists: " + loginType + "/" + loginIdentifier);
+        }
+        loginIdentityRepository.save(LoginIdentity.forLogin(accountId, loginType, loginIdentifier,
+                passwordEncoder.encode(credential)));
+    }
+
     /**
      * 按登录标识查/建账号（内部端点，供运营人员开通使用）。
      * 已存在则返回并修正 account_type；不存在则按指定类型创建账号 + 登录标识（credential 为空，IM/第三方无密码）。

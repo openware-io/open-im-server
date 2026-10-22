@@ -7,6 +7,7 @@ import io.openware.platform.identity.api.dto.AuthContextDtos.SelectContextRespon
 import io.openware.platform.identity.application.AuthContextApplicationService;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
+import io.openware.platform.identity.infra.security.AccountTokenResolver;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,10 +23,37 @@ import java.util.List;
 public class AuthContextController {
     private final AuthContextApplicationService service;
     private final SaasUserSessionStore sessionStore;
+    private final AccountTokenResolver accountTokenResolver;
+    private final boolean plainCookie;
 
-    public AuthContextController(AuthContextApplicationService service, SaasUserSessionStore sessionStore) {
+    @org.springframework.beans.factory.annotation.Autowired
+    public AuthContextController(AuthContextApplicationService service, SaasUserSessionStore sessionStore,
+                                 AccountTokenResolver accountTokenResolver,
+                                 @org.springframework.beans.factory.annotation.Value("${saas.cookie.plain:false}") boolean plainCookie) {
         this.service = service;
         this.sessionStore = sessionStore;
+        this.accountTokenResolver = accountTokenResolver;
+        this.plainCookie = plainCookie;
+    }
+
+    /** B 端原生/移动登录：用 identity Access Token 换取服务端 B 端会话 Cookie。 */
+    @PostMapping("/session")
+    public SessionResponse createSession(@RequestParam(value = "appId", required = false) String appId,
+                                         @RequestHeader(value = "Authorization", required = false) String authorization,
+                                         HttpServletResponse response) {
+        Long accountId = accountTokenResolver.resolveAccountId(authorization);
+        String normalizedAppId = appId == null || appId.isBlank() ? "saas-a380-h5" : appId.trim();
+        String sessionId = sessionStore.createSession(accountId, normalizedAppId);
+        boolean backend = normalizedAppId.endsWith("-h5") || normalizedAppId.contains("-b");
+        String cookieName = plainCookie
+                ? (backend ? SaasUserSessionCookie.B_PLAIN : SaasUserSessionCookie.C_PLAIN)
+                : (backend ? SaasUserSessionCookie.B_NAME : SaasUserSessionCookie.C_NAME);
+        if (plainCookie) {
+            SaasUserSessionCookie.setPlain(response, sessionId, cookieName);
+        } else {
+            SaasUserSessionCookie.set(response, sessionId, cookieName);
+        }
+        return new SessionResponse(true, accountId, normalizedAppId);
     }
 
     @GetMapping("/contexts")

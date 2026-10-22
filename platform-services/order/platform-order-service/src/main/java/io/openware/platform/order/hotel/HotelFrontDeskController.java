@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 酒店前台动作接口；动作权限由应用服务校验。 */
 @RestController
-@RequestMapping("/admin/hotel/frontdesk")
+@RequestMapping({"/admin/hotel/frontdesk", "/business/hotel/frontdesk"})
 public class HotelFrontDeskController {
 
     private final HotelFrontDeskApplicationService service;

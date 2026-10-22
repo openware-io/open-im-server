@@ -34,6 +34,11 @@ public class InternalAccountController {
                 accountService.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType()));
     }
 
+    @PostMapping("/{accountId}/login-identity")
+    public void bindLoginIdentity(@PathVariable Long accountId, @RequestBody BindLoginIdentityRequest req) {
+        accountService.bindPasswordLogin(accountId, req.loginType(), req.loginIdentifier(), req.credential());
+    }
+
     /**
      * 按 IM 用户名（{@code im_<id>}）查统一账号落点：账号类型 + 登录标识/OAuth 绑定计数。
      *
@@ -51,4 +56,5 @@ public class InternalAccountController {
      * 账号本体仅在「客户账号 + 孤儿」时才删，员工 / 平台运营账号本体保留（等后台换绑 IM 账号）。
      */
     public record EnsureAccountRequest(String loginType, String loginIdentifier, String accountType) {}
+    public record BindLoginIdentityRequest(String loginType, String loginIdentifier, String credential) {}
 }

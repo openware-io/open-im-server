@@ -75,4 +75,22 @@ public class IdentityDomainClient {
             throw new IllegalStateException("调用 identity 账号服务失败", e);
         }
     }
+
+    /** 为员工账号绑定可密码登录的标识。 */
+    public void bindLoginIdentity(long accountId, String loginType, String loginIdentifier, String credential) {
+        try {
+            String body = objectMapper.writeValueAsString(java.util.Map.of(
+                    "loginType", loginType, "loginIdentifier", loginIdentifier, "credential", credential));
+            identityClient.post()
+                    .uri("/internal/accounts/{accountId}/login-identity", accountId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            throw new IllegalStateException("绑定员工登录标识失败: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new IllegalStateException("绑定员工登录标识失败", e);
+        }
+    }
 }

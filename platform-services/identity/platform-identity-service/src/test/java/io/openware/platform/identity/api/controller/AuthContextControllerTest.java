@@ -2,6 +2,7 @@ package io.openware.platform.identity.api.controller;
 
 import io.openware.platform.identity.application.AuthContextApplicationService;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
+import io.openware.platform.identity.infra.security.AccountTokenResolver;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.Cookie;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -19,7 +20,8 @@ class AuthContextControllerTest {
     private static final String B_APP = "saas-a380-h5";
 
     private AuthContextController controller(SaasUserSessionStore store) {
-        return new AuthContextController(mock(AuthContextApplicationService.class), store);
+        return new AuthContextController(mock(AuthContextApplicationService.class), store,
+                mock(AccountTokenResolver.class), true);
     }
 
     private static SaasUserSessionStore.UserSession session(long accountId, String appId) {

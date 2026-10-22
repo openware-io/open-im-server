@@ -80,6 +80,7 @@ public class StaffAccountApplicationService {
         } catch (DuplicateKeyException exception) {
             throw new ApiException(409, "STAFF_ACCOUNT_EXISTS", "登录账号或 IM 绑定已存在");
         }
+        identity.bindLoginIdentity(account.platformAccountId(), "USERNAME", username, command.password());
         iam.assignUserRole(accountId, command.tenantId(), command.organizationId(), command.storeId(), command.roleId(), command.scopeType());
         return account;
     }
