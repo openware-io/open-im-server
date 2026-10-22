@@ -14,6 +14,7 @@
 | [OTA / 渠道接入规范](HOTEL_OTA_INTEGRATION.md) | 对外 ARI、订单、取消、鉴权、幂等与沙箱契约 |
 | [方案规范审查](HOTEL_DESIGN_REVIEW.md) | 编码前的规范符合性结论与必补项 |
 | [决策与待确认问题](HOTEL_DECISIONS.md) | 已确认决策、术语和剩余问题 |
+| [原型查看指南](HOTEL_PROTOTYPE_GUIDE.md) | C 端、B 端 Web、移动前台的入口与检查项 |
 
 ## 现状
 

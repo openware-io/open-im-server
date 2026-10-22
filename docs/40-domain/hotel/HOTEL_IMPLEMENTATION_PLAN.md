@@ -185,7 +185,7 @@ platform-order-service
   domain/hotel
     Hotel / HotelRoomType / HotelRoom / RatePlan / DailyRate
     HotelInventoryCalendar / HotelInventoryHold
-    Order（公共订单头） / HotelBookingDetail / HotelBookingNight / HotelGuest / StayDeposit
+    Order（公共订单头） / Billing（计费模块） / HotelBookingDetail / HotelBookingNight / HotelGuest / StayDeposit
   application/hotel
   api/hotel
   infra/persistence/hotel
@@ -426,6 +426,35 @@ COLLECTED -> VOID
 ```
 
 扣减（迷你吧、损坏赔偿）必须走 `StayDepositLedger(DEDUCT)`，保留原因、操作人、凭证；退款必须原路优先，现金退款需前台授权。
+
+### 结账与计费（Billing）
+
+酒店结账不另写一套金额计算，接入公共 Billing 支撑域：
+
+```text
+酒店核心产生计费行：
+  房晚（含房价快照）
+  迷你吧
+  损坏赔偿
+  其他消费
+
+Billing：
+  汇总小计、优惠、税/服务费、押金抵扣、已收、应付
+
+Checkout（前台/BFF）：
+  编排 Billing + Payment + StayDeposit
+```
+
+边界：
+
+- 房价/房晚规则归酒店核心；
+- 账单/应付金额归 Billing；
+- 支付/退款归 Payment；
+- 押金账本归酒店核心；
+- Checkout 是流程，不是领域服务；
+- `Bill` 不等于 `Invoice`；发票不接入。
+
+详见 [计费与结账域](../billing/README.md)。
 
 ## 8. API 草案
 

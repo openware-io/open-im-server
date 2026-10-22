@@ -25,6 +25,7 @@
 | H-C14 | Stay deposit | In MVP; product term "deposit"; pre-authorization is a payment-mode reserve only |
 | H-C15 | Inventory boundary | Stock is shared supporting capability; capacity belongs to each business core, with no shared tables/services/models |
 | H-C16 | Order boundary | Shared Order kernel + business extensions; a reservation is an order type, not a separate order system |
+| H-C17 | Checkout calculation | Use the Billing support domain; Checkout is a process, Bill is not Invoice |
 
 ## OTA and channel manager
 

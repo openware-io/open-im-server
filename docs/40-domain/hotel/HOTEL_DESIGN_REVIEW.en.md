@@ -22,7 +22,7 @@ Documentation, architecture boundary/ADR, API contract/versioning/idempotency, d
 | Observability | review required | metric names proposed, not wired to the standard |
 | Testing | incomplete | no concurrency/payment/OTA contract cases |
 | Gates | pending | map G18/G24/G25/G27/G32/G43/G45/G52 |
-| Prototype | partial | C/B web done; mobile front desk not built |
+| Prototype | complete (mock) | C-end, B-end web and mobile front desk done; no backend |
 
 ## 3. Five required items
 
@@ -49,7 +49,7 @@ G18 API boundaries, G24 port contract, G25 PO containment, G27/G28 Flyway, G32 t
 [ ] table list + ER diagram reviewed
 [ ] security/tenant-isolation checklist confirmed
 [ ] concurrency/payment/OTA test cases listed
-[ ] mobile front-desk prototype built (KTV B-end reference)
+[x] mobile front-desk prototype built (KTV B-end reference)
 [ ] invoice/guest registration explicitly out of scope, fields reserved
 ```
 

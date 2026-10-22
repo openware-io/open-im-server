@@ -14,6 +14,7 @@
 | [OTA / channel contract](HOTEL_OTA_INTEGRATION.en.md) | External ARI, booking, cancellation, auth, idempotency and sandbox |
 | [Standards review](HOTEL_DESIGN_REVIEW.en.md) | Pre-coding compliance findings and required actions |
 | [Decisions and open questions](HOTEL_DECISIONS.en.md) | Confirmed decisions, terminology and remaining questions |
+| [Prototype review guide](HOTEL_PROTOTYPE_GUIDE.en.md) | C-end, B-end web and mobile entries and review checklist |
 
 ## Current state
 

@@ -137,7 +137,7 @@ Options:
 platform-order-service
   domain/hotel: Hotel, RoomType, Room, RatePlan, DailyRate,
                 HotelInventoryCalendar, HotelInventoryHold,
-                Order (shared header), HotelBookingDetail, BookingNight, GuestSnapshot, StayDeposit
+                Order (shared header), Billing (module), HotelBookingDetail, BookingNight, GuestSnapshot, StayDeposit
 platform-resource-service: KTV resources/occupation only (no hotel capacity)
 platform-admin-service: hotel, rate, inventory, booking, check-in/out BFF
 common-payment-service: payment, refund, reconciliation
@@ -277,6 +277,35 @@ Store config: `stayDepositRequired`, `stayDepositMode`, `stayDepositMinor`, `sta
 States: `COLLECTED → PARTIALLY_DEDUCTED → REFUNDED`; `COLLECTED → REFUNDED`; `COLLECTED → VOID`.
 
 Deductions (minibar, damage) go through `StayDepositLedger(DEDUCT)` with reason, operator and evidence. Refunds prefer the original channel; cash refunds require front-desk authorization.
+
+### Checkout and Billing
+
+Hotel checkout does not implement a second amount calculator; it uses the shared Billing supporting domain:
+
+```text
+Hotel core produces charge lines:
+  room nights (rate snapshot)
+  minibar
+  damage
+  other consumption
+
+Billing:
+  subtotal, discount, tax/service charge, deposit offset, paid, amount due
+
+Checkout (front desk/BFF):
+  orchestrates Billing + Payment + StayDeposit
+```
+
+Boundaries:
+
+- room night/rate rules stay in the hotel core;
+- bill/amount due belong to Billing;
+- payment/refund belong to Payment;
+- deposit ledger belongs to the hotel core;
+- Checkout is a process, not a domain service;
+- `Bill` is not `Invoice`; invoice is not implemented.
+
+See [Billing domain](../billing/README.en.md).
 
 ## 8. API draft
 
