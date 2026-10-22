@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 平台侧角色工作台模板（工作区/落点/数据范围）。角色权限仍归 tenant-service。 */
 @RestController
-@RequestMapping("/admin/role-profiles")
+@RequestMapping("/admin/iam/role-profiles")
 public class AdminRoleProfileController {
 
     private final AdminRoleProfileService roleProfileService;
