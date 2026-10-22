@@ -91,4 +91,4 @@ pwsh -File open-im-server/scripts/check-engineering-branches.ps1
 
 - [工程规范](ENGINEERING_RULES.md)
 - [门禁治理规范](../standards/04_GATE_GOVERNANCE.md)
-- [酒店业务](../40-domain/hotel/README.md)
+- [酒店业务](../../40-domain/hotel/README.md)

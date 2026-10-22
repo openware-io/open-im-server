@@ -15,9 +15,11 @@
 
 ## Current state
 
-- Prototype: hotel H5 demo under `open-chat-app/web/miniservice/a380`.
-- Covered: hotel list/detail, room package, check-in date, arrival time, room count, guest contact, mock order.
-- Missing: check-out date, guest count, live inventory, price breakdown, payment, cancellation policy, check-in/out, invoice and China guest-registration compliance.
+- C-end prototype: `open-chat-app/lib/screens/mock_venue_flow_screens.dart` (Service Center → Hotel → list/detail/room/booking; now includes check-out date, room count and guest count).
+- B-end prototype: `open-saas-admin/src/views/tenant/hotel.vue`, route `/admin/tenant/hotel` (visible in the dev sidebar).
+- B-end coverage: overview, hotel profile, access mode/sales entries, payment policy, room types/rates, inventory calendar, bookings, check-in/out.
+- Data: local mock only; no backend calls. Replace the data source later without rebuilding the pages.
+- Still missing: live inventory, payment, cancellation/refund, invoice and guest registration, backend BFF/API.
 
 ## Related
 

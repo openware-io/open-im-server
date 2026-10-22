@@ -24,12 +24,36 @@
 
 ### 暂不纳入 MVP
 
-- OTA / 渠道管理器实时同步；
+- OTA / 渠道管理器实时同步（模型预留渠道字段，接口后置）；
 - 动态收益定价、自动调价；
-- 连锁集团中央预订（CRS）；
+- 跨集团中央预订（CRS）；集团内门店共享库存不在此限；
 - 复杂套餐、会议宴会、长租；
 - 多币种结算（先沿用现有币种能力）；
 - 会员等级价、企业协议价（可作为二期）。
+
+### 接入模式：一套酒店域，两种入口
+
+需求同时包含：
+
+```text
+单店：休闲娱乐 -> 酒店 -> 本店房型/库存
+集团：OpenChat 服务中心 -> 酒店 -> 集团内酒店/门店
+```
+
+不按入口复制两套业务，统一为：
+
+```text
+HotelScope：SINGLE_STORE | GROUP
+SalesEntry：SERVICE_CENTER | LEISURE | GROUP_INTERNAL
+Visibility：STORE | GROUP
+```
+
+- **先做集团内酒店**：`HotelScope=GROUP`，从 OpenChat 服务中心进入，集团内门店共享酒店资料、房型和库存视图；
+- 单店后续接入：同一套酒店域，`HotelScope=SINGLE_STORE`，入口改为休闲娱乐，库存只在本店可见；
+- 入口是**渠道配置**，不是领域边界；订单、库存、支付仍走同一套服务；
+- 每次查询必须带 `tenantId` + `storeId`/`groupId`，由 `Visibility` 决定可见范围。
+
+这样不需要为“单店/集团”分叉代码；以后接 OTA 时，OTA 只是新增一个 `SalesEntry=OTA` 和渠道映射。
 
 ## 2. 原型现状与缺口
 
@@ -40,8 +64,9 @@
 | 酒店列表 | 搜索、排序、距离、评分、起价 | 城市/商圈/日期筛选、真实库存与价格 |
 | 酒店详情 | 图片、标签、地址、房型套餐 | 酒店政策、设施、房型设施、取消规则 |
 | 房型套餐 | 房型名、床型、面积、早餐、价格、库存 | 房价计划、每晚价格、税费、库存日历 |
-| 预订表单 | 入住日期、到店时间、房间数、姓名/手机 | 离店日期、住客人数、入住人证件、报价明细 |
+| 预订表单 | 入住日期、到店时间、离店日期、客房数、住客数、姓名/手机 | 真实库存校验、报价明细、支付、取消政策 |
 | 订单 | 本机 mock | 支付、确认、取消、入住/退房、发票 |
+| B 端管理 | `open-saas-admin` 原型：资料、支付策略、房型房价、库存日历、订单、入住/退房 | 真实 BFF/API；发票、公安登记、渠道同步 |
 
 **结论**：原型只覆盖“展示 + 提交表单”，不能直接作为领域模型依据。需要先确认第 11 节的业务决策。
 
@@ -98,6 +123,7 @@ common-audit-service
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `Hotel` | `tenantId`, `storeId`, `name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
+| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `cancelPolicy`, `invoiceMode` | 接入模式、支付策略、取消政策；在店铺管理中维护 |
 | `HotelRoomType` | `hotelId`, `code`, `name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
 | `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
 | `RatePlan` | `roomTypeId`, `code`, `name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
@@ -200,12 +226,30 @@ WHERE tenant_id = :tenantId
 - 支付成功用 `bookingId + paymentId` 幂等，重复回调不重复扣减；
 - 监控 `overbooking_count`，必须为 0；冲突率升高告警。
 
+### 支付策略（店铺配置，不写死）
+
+`HotelPolicy.paymentMode` 支持：
+
+| 模式 | 行为 | 订单初始状态 |
+| --- | --- | --- |
+| `PREPAY` | 下单后全额支付，支付成功确认 | `PENDING_PAYMENT` |
+| `PAY_AT_HOTEL` | 到店支付，先确认并保留库存 | `CONFIRMED`（未收款） |
+| `DEPOSIT` | 支付定金确认，尾款到店/离店结清 | `PENDING_DEPOSIT` → `CONFIRMED` |
+
+店铺管理里配置：
+
+- 支付模式；
+- 定金比例（`depositRatioBps`，如 3000 = 30%）；
+- 取消/未入住政策；
+- 是否支持发票（后续）。
+同一酒店不同门店可以不同；集团默认值可被门店覆盖。
+
 ## 8. API 草案
 
 C 端（经 gateway）：
 
 ```text
-GET  /api/v1/hotels?city=&checkIn=&checkOut=&guests=
+GET  /api/v1/hotels?city=&checkIn=&checkOut=&guests=&entry=service-center|leisure
 GET  /api/v1/hotels/{hotelId}?checkIn=&checkOut=
 GET  /api/v1/hotels/{hotelId}/room-types?checkIn=&checkOut=
 POST /api/v1/hotel-bookings
@@ -218,6 +262,7 @@ POST /api/v1/hotel-bookings/{bookingId}/cancel
 ```text
 POST /api/v1/admin/hotels
 PUT  /api/v1/admin/hotels/{hotelId}
+PUT  /api/v1/admin/hotels/{hotelId}/policy
 POST /api/v1/admin/hotels/{hotelId}/room-types
 PUT  /api/v1/admin/hotels/{hotelId}/inventory
 POST /api/v1/admin/hotel-bookings/{bookingId}/check-in
@@ -265,20 +310,20 @@ hotel.checkin.completed
 - 契约测试：C 端/后台/内部 API；
 - E2E：原型主流程 + 支付成功/失败/取消/退款。
 
-## 11. 必须拍板的问题
+## 11. 已确认与剩余问题
 
-| # | 问题 | 建议默认 |
+| # | 问题 | 结论 |
 | --- | --- | --- |
-| 1 | 单店、连锁还是多门店？ | MVP 支持单酒店多门店，不做集团 CRS |
+| 1 | 单店、连锁还是多门店？ | 三者都要支持；**先做集团内酒店**，同一套酒店域，通过 `HotelScope` / `SalesEntry` 区分入口 |
 | 2 | 库存按房型还是具体房间？ | 按房型卖，入住时分配具体房间 |
-| 3 | 支付模式？ | 全额预付；担保/到店付二期 |
+| 3 | 支付模式？ | **店铺配置**：预付 / 到店付 / 定金；不写死 |
 | 4 | 取消政策？ | 按房价计划配置，默认入住前 24h 免费取消 |
-| 5 | 是否接 OTA/渠道经理？ | MVP 不接，预留渠道字段 |
+| 5 | 是否接 OTA/渠道经理？ | MVP 不接；OTA = 外部销售渠道，渠道经理 = 房态/房价/订单同步中枢；模型预留 `channel` / `externalRef` |
 | 6 | 前台操作端？ | 先 admin Web，移动端二期 |
-| 7 | 发票/押金/公安登记？ | 需要产品确认；建议 MVP 预留字段 |
+| 7 | 发票/押金/公安登记？ | 仍需产品确认；字段和接口先预留 |
 | 8 | 会员/积分/优惠券？ | 复用现有 customer/marketing，MVP 只做优惠券抵扣 |
 | 9 | 多币种？ | 沿用现有币种能力，MVP 默认人民币 |
-| 10 | 原型是否还有隐藏页面？ | 需要原型链接/录屏确认 |
+| 10 | 原型范围？ | C 端已有服务中心酒店流程；B 端原型在 `open-saas-admin` 代码内补建；不另建独立原型项目 |
 
 ## 12. 迭代计划
 

@@ -83,4 +83,4 @@ Checks:
 
 - [Engineering rules](ENGINEERING_RULES.md)
 - [Gate governance](../standards/04_GATE_GOVERNANCE.en.md)
-- [Hotel business](../40-domain/hotel/README.en.md)
+- [Hotel business](../../40-domain/hotel/README.en.md)

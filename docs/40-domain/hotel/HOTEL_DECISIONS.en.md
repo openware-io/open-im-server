@@ -5,6 +5,23 @@
 > Status: `draft` (`develop/2.4.0-hotel`).  
 > Purpose: separate recommended defaults from decisions that product/business must make.
 
+## Confirmed (2026-10-22)
+
+| ID | Decision | Conclusion |
+| --- | --- | --- |
+| H-C01 | Business shape | Support single-store, multi-store and group; build **group-internal first** with one domain and `HotelScope` / `SalesEntry` |
+| H-C02 | Single-store entry | Enter from Leisure; show only that store |
+| H-C03 | Group entry | Enter from OpenChat Service Center; show group hotels/stores |
+| H-C04 | Payment modes | Prepay, pay-at-hotel and deposit; configured in **store management**, never hard-coded |
+| H-C05 | OTA | Not in MVP; reserve channel and external-reference fields |
+| H-C06 | Prototype scope | C-end service-center flow exists; build the B-end prototype inside `open-saas-admin` on the 2.4.0 branch, not a separate prototype project |
+
+## OTA and channel manager
+
+- **OTA**: external sales channels such as Ctrip, Meituan, Fliggy or Booking.
+- **Channel manager**: a hub that syncs availability, rates and inventory to multiple OTAs and pulls OTA bookings back into the PMS, e.g. SiteMinder or DerbySoft.
+- Neither is required for MVP; without a channel manager the hotel sells only through OpenChat/owned channels.
+
 ## Recommended defaults
 
 | ID | Decision | Reason | Status |

@@ -21,6 +21,28 @@ order, payment, audit and permissions
 
 Out of MVP: OTA/channel manager, dynamic yield, chain CRS, complex packages, multi-currency settlement, corporate rates.
 
+## 1.1 Access modes: one hotel domain, two entries
+
+```text
+single store: Leisure -> Hotel -> local room types/inventory
+group:        OpenChat Service Center -> Hotel -> group hotels/stores
+```
+
+Do not fork the business by entry point. Use:
+
+```text
+HotelScope:   SINGLE_STORE | GROUP
+SalesEntry:   SERVICE_CENTER | LEISURE | GROUP_INTERNAL
+Visibility:   STORE | GROUP
+```
+
+- Build **group-internal hotel first**: `HotelScope=GROUP`, entered from OpenChat Service Center, group stores share hotel profiles, room types and inventory views.
+- Add single-store later with the same domain: `HotelScope=SINGLE_STORE`, entered from Leisure, inventory visible only in that store.
+- Entry point is sales-channel configuration, not a domain boundary; orders, inventory and payment stay in the same services.
+- Every query carries `tenantId` + `storeId`/`groupId`; `Visibility` decides the scope.
+
+OTA later becomes another `SalesEntry=OTA` plus channel mapping, not a new domain.
+
 ## 2. Prototype gap
 
 Prototype: `open-chat-app/web/miniservice/a380`.
@@ -30,8 +52,9 @@ Prototype: `open-chat-app/web/miniservice/a380`.
 | Hotel list | search, sort, distance, rating, from-price | city/date filters, live inventory and rates |
 | Hotel detail | images, tags, address, packages | policies, facilities, room amenities, cancellation rules |
 | Room package | room name, bed, area, breakfast, price, stock | rate plan, nightly price, tax, inventory calendar |
-| Booking form | check-in date, arrival time, room count, name/phone | check-out date, guest count, ID data, quote breakdown |
+| Booking form | check-in date, arrival time, check-out date, rooms, guests, name/phone | live inventory, quote breakdown, payment, cancellation policy |
 | Order | local mock | payment, confirmation, cancellation, check-in/out, invoice |
+| B-end admin | `open-saas-admin` prototype: profile, payment policy, room types/rates, calendar, bookings, check-in/out | real BFF/API; invoice, guest registration, channel sync |
 
 ## 3. Domain boundary
 
@@ -119,6 +142,18 @@ WHERE tenant_id = :tenantId
 
 Any failed night rolls back the whole range. Holds expire; payment callback uses `bookingId + paymentId` idempotency. `hotel.overbooking_count` must remain zero.
 
+### Payment policy (store configuration)
+
+`HotelPolicy.paymentMode`:
+
+| Mode | Behavior | Initial booking state |
+| --- | --- | --- |
+| `PREPAY` | full payment before confirmation | `PENDING_PAYMENT` |
+| `PAY_AT_HOTEL` | confirm and hold inventory; pay at desk | `CONFIRMED` (unpaid) |
+| `DEPOSIT` | pay deposit now, balance later | `PENDING_DEPOSIT` → `CONFIRMED` |
+
+Store management configures payment mode, deposit ratio (`depositRatioBps`), cancellation/no-show policy and invoice support. Group defaults may be overridden per store.
+
 ## 8. API draft
 
 ```text
@@ -158,9 +193,13 @@ POST /internal/hotels/holds/{holdId}/release
 | S4 | admin check-in/out and room status |
 | S5 | gray release, monitoring, reconciliation, SOP |
 
-## 11. Open decisions
+## 11. Confirmed and remaining decisions
 
-See [Hotel decisions](HOTEL_DECISIONS.en.md): property shape, payment model, OTA integration, front-desk client, invoice/deposit/guest registration, loyalty, currency and hidden prototype screens.
+Confirmed: single-store, multi-store and group are all required; build group-internal first with the same domain through `HotelScope` / `SalesEntry`. Payment mode is store-configured: prepay, pay-at-hotel and deposit. OTA is deferred, with channel fields reserved. C-end service-center flow exists; the B-end prototype is built inside `open-saas-admin` on the 2.4.0 branch.
+
+Remaining: front-desk client, invoice/deposit/China guest registration, loyalty, currency.
+
+See [Hotel decisions](HOTEL_DECISIONS.en.md).
 
 ## 12. Acceptance
 
