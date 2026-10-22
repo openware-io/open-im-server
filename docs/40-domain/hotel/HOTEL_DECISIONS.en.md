@@ -23,7 +23,7 @@
 | H-C12 | OTA sandbox | Not built; contract and internal channel model only |
 | H-C13 | Marketing | Points earn + redemption; no membership levels or coupons |
 | H-C14 | Stay deposit | In MVP; product term "deposit"; pre-authorization is a payment-mode reserve only |
-| H-C15 | Inventory platform | Inventory is a shared capability: stock + capacity; hotel/KTV/massage/restaurant/gym share the capacity kernel with per-business policies and projections, not per-business code |
+| H-C15 | Inventory boundary | Stock is shared supporting capability; capacity belongs to each business core, with no shared tables/services/models |
 
 ## OTA and channel manager
 

@@ -18,16 +18,15 @@
 ## Decision / 决策
 
 1. MVP **不新建** `platform-hotel-service`。
-2. 酒店目录与库存归 `platform-resource-service`，新增 `domain/hotel` 模块：
-   - `Hotel`、`HotelRoomType`、`HotelRoom`、`RatePlan`、`DailyRate`、`InventoryCalendar`、`InventoryHold`；
-   - 数据使用 `res_*` 前缀，不跨域写表。
-3. 酒店预订订单归 `platform-order-service`，新增 `domain/hotelbooking` 模块：
-   - `HotelBooking`、`HotelBookingNight`、`HotelGuest`；
-   - 数据使用 `ord_*` 前缀，不复用 KTV `Reservation`。
-4. 后台聚合由 `platform-admin-service` 承担；支付、客户、审计复用现有服务。
+2. 酒店核心（目录、房型、房价、酒店容量、预订、押金）打包在 `platform-order-service` 的 `domain/hotel` 模块：
+   - `Hotel`、`HotelRoomType`、`HotelRoom`、`RatePlan`、`DailyRate`、`HotelInventoryCalendar`、`HotelInventoryHold`、`HotelBooking`、`StayDeposit`；
+   - 酒店容量是核心域，不进入 `platform-resource-service`，也不进入 Stock 平台；
+   - 数据使用 `htl_*` / `ord_*` 前缀（最终以数据模型评审为准），不跨域写表。
+3. `platform-resource-service` 继续承载 KTV 资源/占用；不再承载酒店容量。
+4. 后台聚合由 `platform-admin-service` 承担；支付、客户、审计、Stock 复用现有/平台服务。
 5. 满足以下任一条件时，另立 ADR 拆出 `platform-hotel-service`：
    - 酒店团队独立开发/发布；
-   - 酒店库存 QPS 或数据量显著高于 resource 其他业务；
+   - 酒店库存 QPS 或数据量显著高于订单其他业务；
    - 需要独立数据库/SLA；
    - OTA 渠道同步成为独立子系统。
 
@@ -41,9 +40,9 @@
 
 代价与风险：
 
-- `platform-resource-service` 职责变宽，必须用包边界和门禁约束；
-- 酒店与 KTV 共享 resource 表结构，迁移需评估兼容；
-- 若拆分延迟，酒店团队与 resource 团队可能耦合。
+- `platform-order-service` 职责变宽，必须用包边界和门禁约束；
+- 酒店容量与 KTV 占用不再共享表，需要各自维护；
+- 若拆分延迟，酒店团队与订单团队可能耦合。
 
 后续动作：
 
@@ -53,7 +52,8 @@
 
 ## Alternatives / 备选方案
 
-- **全部放入 order**：拒绝。订单域会承担库存和房价，边界失控。
+- **全部放入 resource**：拒绝。酒店容量是酒店核心，不是资源平台能力。
+- **全部放入 order**：本期采用模块化方式，酒店核心打包在 order；不是把库存做成订单子表。
 - **新建 hotel-service**：暂不采纳。MVP 分布式成本高，等触发条件满足再拆。
 
 ## References / 参考

@@ -71,4 +71,4 @@ G18 API boundaries, G24 port contract, G25 PO containment, G27/G28 Flyway, G32 t
 | Currency | default USD, support USD/CNY | `HotelPolicy.currency`, store-configurable |
 | Mobile front desk | in MVP | KTV B-end reference; prototype pending |
 | Invoice/guest registration | not connected | fields reserved; outside MVP acceptance |
-| Inventory platform | shared stock + capacity kernels; per-business policies | ADR-0010 proposed; KTV adapter and cross-store tests pending |
+| Inventory boundary | Stock shared; capacity owned by each business core | ADR-0010/0011 proposed; hotel capacity and cross-store tests pending |

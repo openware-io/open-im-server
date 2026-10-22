@@ -45,7 +45,7 @@ docs/20-architecture/adr/0008-hotel-domain-boundary.md
 至少回答：
 
 - 为什么 MVP 不新建 `platform-hotel-service`；
-- 酒店库存/房价归 `platform-resource-service` 的边界；
+- 酒店容量/房价归酒店核心模块（MVP 打包在 `platform-order-service`）的边界；
 - 酒店预订单归 `platform-order-service` 的边界；
 - 什么条件下拆出独立服务。
 
@@ -66,8 +66,8 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 
 ### R3. 数据模型与迁移评审
 
-- 表前缀：`res_*` / `ord_*`，不跨域建表；
-- 唯一键：库存 `(tenant_id, room_type_id, stay_date)`；外部订单 `(channel_id, external_ref)`；
+- 表前缀：`res_*` / `ord_*` / `htl_*`，酒店容量不进入 Stock 平台；
+- 唯一键：酒店容量 `(tenant_id, store_id, room_type_id, stay_date)`；外部订单 `(channel_id, external_ref)`；
 - 金额：`*_minor` + `currency`，禁止浮点；
 - Flyway 命名/不可回改遵守 G27/G28；
 - 迁移前先出 ER 图和表清单，评审后再写 SQL。
@@ -143,4 +143,4 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 | 币种 | 默认 USD，支持 USD/CNY | `HotelPolicy.currency`，门店可配置 |
 | 移动前台 | 纳入 MVP | 参考 KTV B 端，原型待补 |
 | 发票/公安 | 不接入 | 字段预留，不进入 MVP 验收 |
-| 库存平台 | 公共支撑：stock + capacity，多业态按策略接入 | ADR-0010 proposed；KTV 兼容适配与越权测试待补 |
+| 库存边界 | Stock 公共支撑；Capacity 归业务核心 | ADR-0010/0011 proposed；酒店容量与越权测试待补 |

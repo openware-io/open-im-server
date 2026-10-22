@@ -1,133 +1,125 @@
-# Inventory Platform Domain
+# Inventory Platform Domain (Stock)
 
 [中文](README.md) | [English](README.en.md)
 
-> Status: `draft` (`develop/2.4.0-hotel`).  
-> Position: a supporting/platform domain, not a hotel-private domain and not a shared kernel between business contexts.  
-> Direction: inventory is upstream; hotel, KTV, massage, restaurant and gym are downstream consumers.
+> Status: `draft` (`develop/2.4.0-hotel`).
+> Position: **stock/procurement-sales inventory** as a supporting domain; not a capacity platform.
+> Boundary: Stock is a platform capability; Capacity belongs to each business core domain and must not share tables, models or services.
 
 ## 1. Domain classification
 
 | Type | Examples | Meaning |
 | --- | --- | --- |
-| Core | hotel booking, KTV operations, restaurant table turns | business-differentiating rules |
-| Supporting | inventory, payment, customer, audit | required but not differentiating |
+| Core | hotel booking/availability, KTV operations, restaurant turns, massage scheduling, gym classes | business-differentiating rules, owned per domain |
+| Supporting | stock inventory, payment, customer, audit | shared capabilities |
 | Generic | identity, messaging, files | reusable/purchasable |
 
-Inventory is a supporting domain with two subdomains:
+This document covers **Stock** only. Capacity/availability belongs to the business core domains.
+
+## 2. Why capacity is not shared stock
+
+A hotel cannot "procure rooms" when rooms are sold out. The same applies to KTV rooms, restaurant tables and gym classes.
 
 ```text
-Stock       SKU, warehouse, balance, receipts/issues, count, cost, batch
-Capacity    resource/time/date capacity, hold, occupancy, release
+hotel room inventory = hotel core (rates, availability, oversell, cancellation, check-in)
+KTV room capacity    = KTV core (slots, open/close, service)
+restaurant tables    = restaurant core (dining slots, turns, reservations)
+massage/gym capacity = their own scheduling core
 ```
 
-"Middle platform" may be an organizational label; architecturally this is a shared **supporting platform**, not a place for business rules.
+They share a **pattern** (availability), not a domain model.
 
-## 2. Context map
+Forbidden:
+
+```text
+shared inv_capacity_* tables
+a cross-business capacity service
+inventory platform depending on hotel/KTV
+```
+
+Allowed:
+
+```text
+shared technical libraries: calendar math, hold state machine, optimistic lock, idempotency, test fixtures
+shared UI components: date pickers, capacity cells, status tags
+the same design pattern, not the same model
+```
+
+## 3. Stock responsibilities
+
+```text
+SKU / item
+warehouse / store location
+stock balance
+receipt / issue / count / transfer
+reservation / release
+cost
+batch / expiry
+safety stock
+stock movement
+```
+
+Consumers: hotel minibar/consumables, KTV goods, restaurant ingredients, gym goods, retail.
+
+## 4. Context map
 
 ```text
 Procurement
     │ receipt
     ▼
-Inventory Platform
-  ├─ Stock
-  └─ Capacity
+Stock Platform
     ▲
-    │ reserve / hold / release / availability
+    │ item stock query, reservation, receipt/issue
     │
- Hotel / KTV / Massage / Restaurant / Gym
+Hotel / KTV / Restaurant / Gym / Retail
 ```
 
-- Inventory is upstream/supplier.
-- Business contexts are downstream/customers.
-- Integration uses a published language plus an anti-corruption layer.
-- Inventory does not import hotel/KTV classes and does not depend on them.
-- Business contexts never read or write `inv_*` tables directly.
-- This is not a DDD Shared Kernel; the shared thing is the contract and platform capability, not the business model.
+Stock is upstream; business domains are downstream. Stock does not know hotel/KTV concepts. Business domains never write `inv_stock_*` directly; they use a versioned contract and an ACL.
 
-## 3. Ownership
+## 5. Capacity ownership
 
-Inventory owns:
-
-```text
-inv_stock_item / warehouse / balance / movement / reservation / batch
-inv_capacity_unit / slot / hold
-```
-
-Business domains own:
-
-| Domain | Own model | Inventory usage |
+| Business | Core capacity model | Owner |
 | --- | --- | --- |
-| Hotel | Hotel, RoomType, RatePlan, HotelBooking, StayDeposit | daily room-type capacity, hold/release; minibar/consumables via Stock |
-| KTV | room, session, pricing, service staff | room time-slot capacity; goods via Stock |
-| Massage | therapist/room, service, appointment | therapist/room slots |
-| Restaurant | table/area, menu, turn | table slots; ingredients via Stock |
-| Gym | class/equipment/venue, member | class/venue capacity; goods via Stock |
-| Procurement | supplier, purchase order, receipt | receipt into Stock |
+| Hotel | room-type daily inventory, multi-night hold, room status, room assignment | hotel core module |
+| KTV | room time-slot occupancy, session, open/close | KTV core module |
+| Massage | therapist/room slots, service duration | massage core module |
+| Restaurant | table/area slots, turns | restaurant core module |
+| Gym | class/venue slots, capacity, waitlist | gym core module |
 
-Inventory does not know hotel/KTV concepts. It knows only tenant/store, inventory unit, business type, granularity, slot and quantity.
+Business cores may reuse technical components, never capacity tables.
 
-## 4. Policy vs execution
+## 6. Dependency rules
 
-The platform executes invariants; business domains supply policy parameters:
-
-```text
-CapacityPolicy
-  granularity        DAY / SLOT
-  slotDuration       30m / 60m / 1d
-  rangeMode          SINGLE_SLOT / DATE_RANGE
-  capacitySource     FIXED / CALENDAR
-  allowOverbook      false
-  releaseRule        ON_EXPIRE / ON_CANCEL / MANUAL
-  allocationRule     ROOM_TYPE_THEN_ROOM / RESOURCE_ONLY
-```
-
-The platform guarantees no oversell, idempotent holds, expiry release, version conflict detection, audit and tenant/store isolation. Business domains interpret the data; they do not reimplement these invariants.
-
-## 5. Dependency rules
-
-Allowed: Hotel/KTV/Procurement -> Inventory; Inventory -> Audit/MQ.
+Allowed: Hotel/KTV/Restaurant/Gym/Procurement -> Stock Platform; Stock Platform -> Audit/MQ.
 
 Forbidden:
 
-- Inventory -> Hotel/KTV.
-- Business domains reading/writing `inv_*` tables.
-- `hotel_id` / `room_type_id` / `ktv_room_id` columns inside inventory tables.
-- Copying hold/oversell logic into each business.
+- Stock Platform -> Hotel/KTV.
+- Business core -> another business core.
+- Business domains writing `inv_stock_*` tables.
+- `hotel_id` / `room_type_id` / `ktv_room_id` inside stock tables.
 
-Writes require tenant/store, idempotency key, source document and expected version.
+## 7. Isolation and permissions
 
-## 6. Isolation and permissions
-
-- All inventory rows carry `tenant_id + store_id`.
-- No cross-store query for business pages.
-- Group/tenant read models have separate permissions.
+- All stock rows carry `tenant_id + store_id`.
+- A business only sees its own store inventory.
 - Backend resolves tenant/store from the session; never trusts client IDs.
-- Frontend hides routes/menus/buttons but is not the security boundary.
+- Frontend route/menu/button hiding is UX, not security.
+- Cross-store/cross-tenant access returns 403/404.
+- Group read models use separate permissions.
 
-## 7. Evolution
+## 8. Evolution
 
 ```text
-phase 1: inventory modules inside platform-resource-service
-phase 2: extract platform-inventory-service when multiple businesses depend on it
-phase 3: adapt KTV res_occupation to capacity without a forced migration
+phase 1: stock module (inside platform-resource-service or standalone module)
+phase 2: extract platform-inventory-service
+phase 3: each business capacity evolves in its own core; never moved into Stock
 ```
-
-Phase 1 avoids distributed transactions; the domain boundary is still a platform boundary, not a hotel-private module.
-
-## 8. Anti-patterns
-
-- One universal inventory table.
-- Inventory importing hotel/KTV classes.
-- Business domains writing `inv_*` tables.
-- Per-business copies of oversell/hold logic.
-- Hiding business rules inside a "middle platform".
-- Frontend-only permission checks.
 
 ## 9. Related
 
-- [ADR-0010: inventory as a supporting platform domain](../../20-architecture/adr/0010-shared-inventory-kernel.md)
-- [ADR-0011: inventory context map and dependency rules](../../20-architecture/adr/0011-inventory-context-map.md)
+- [ADR-0010: stock as a supporting domain](../../20-architecture/adr/0010-stock-supporting-domain.md)
+- [ADR-0011: inventory context map](../../20-architecture/adr/0011-inventory-context-map.md)
+- [ADR-0008: hotel domain boundary](../../20-architecture/adr/0008-hotel-domain-boundary.md)
 - [Hotel implementation plan](../hotel/HOTEL_IMPLEMENTATION_PLAN.en.md)
-- [Resource service](../../50-services/platform/platform-resource-service/README.en.md)
 - [DDD service conventions](../../80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.en.md)

@@ -174,25 +174,24 @@ SINGLE_STORE  = store 级酒店目录 + 本店库存
 
 | 方案 | 做法 | 优点 | 风险 |
 | --- | --- | --- | --- |
-| A. 全部塞进 order | 酒店订单、库存、房价都进 `platform-order-service` | 改动最少 | 订单域承担库存/房价，边界失控 |
-| B. 扩展 resource + order | `platform-resource-service` 管酒店/房型/房价/库存；`platform-order-service` 管预订订单 | 复用现有资源、订单、支付、客户；边界清晰 | 需要给 resource 增加酒店子域 |
+| A. 扩展 resource | `platform-resource-service` 管酒店/房型/房价/库存 | 复用资源表 | 酒店容量是核心域，和 KTV 资源平台耦合 |
+| B. 酒店核心模块打包进 order | `platform-order-service` 的 `domain/hotel` 管酒店/房型/房价/容量/预订 | MVP 不跨服务；容量与预订同聚合，边界清晰 | order 服务职责变宽，需要模块边界 |
 | C. 新建 hotel-service | 独立部署、独立库 | 长期隔离最好 | MVP 分布式事务、后台 BFF、运维成本高 |
 
 ### 推荐：B，先模块化，后按触发器拆分
 
 ```text
-platform-resource-service
+platform-order-service
   domain/hotel
-    Hotel / RoomType / Room / RatePlan / CapacitySlot / CapacityHold
+    Hotel / HotelRoomType / HotelRoom / RatePlan / DailyRate
+    HotelInventoryCalendar / HotelInventoryHold
+    HotelBooking / HotelBookingNight / HotelGuest / StayDeposit
   application/hotel
   api/hotel
   infra/persistence/hotel
 
-platform-order-service
-  domain/hotelbooking
-    HotelBooking / BookingNight / GuestSnapshot
-  application/hotelbooking
-  api/hotelbooking
+platform-resource-service
+  KTV 资源 / 占用（现有，不承载酒店容量）
 
 platform-admin-service (BFF)
   酒店资料、房价、库存、订单、入住/退房
@@ -201,7 +200,10 @@ common-payment-service
   支付、退款、对账
 
 platform-customer-service
-  会员、住客档案、积分
+  客户、积分
+
+Stock Platform
+  采销库存（迷你吧/耗材），不承载酒店房间容量
 
 common-audit-service
   酒店/房价/库存/订单审计
@@ -210,63 +212,62 @@ common-audit-service
 拆分触发条件（满足任一再新建 `platform-hotel-service`）：
 
 - 酒店团队独立开发/发布；
-- 酒店库存 QPS 或数据量显著高于 resource 其他业务；
+- 酒店库存 QPS 或数据量显著高于 order 其他业务；
 - 需要独立数据库/独立 SLA；
 - OTA 渠道同步成为独立子系统。
 
-### 3.1 库存是公共支撑能力，不是酒店私有模块
+### 3.1 库存边界：Stock 公共，Capacity 归业务核心
 
-**结论：库存作为平台能力复用；分 stock 与 capacity 两个内核，不按业务复制代码。**
+**结论：采销库存是公共支撑域；容量/房态是酒店核心域，不能共享库存表。**
 
-| 内核 | 适用业务 | 模型 |
+| 类型 | 归属 | 例子 |
 | --- | --- | --- |
-| Stock（采销库存） | 餐饮原料、零售商品、酒店迷你吧、耗材 | SKU、仓库/门店、余额、入库/出库/盘点/调拨、成本、批次/效期 |
-| Capacity（容量库存） | 酒店、KTV、按摩、饭店、健身 | 资源/资源组、时间粒度、容量、可用量、hold、释放 |
-
-Capacity 统一抽象：
+| Stock（采销库存） | 公共支撑平台 | 酒店迷你吧、耗材、KTV 商品、餐饮原料 |
+| Capacity（容量库存） | 各业务核心域 | 酒店房型/房态、KTV 包厢时段、按摩技师时段、饭店桌台、健身课程 |
 
 ```text
-inv_capacity_unit     资源/资源组、业态、容量、时间粒度
-inv_capacity_slot     时间槽、总容量、已售、保留、关房
-inv_capacity_hold     预订/占用期间、数量、过期时间、状态
+酒店房间不足，不能采购房间补库存；
+KTV 包厢、饭店桌台、健身课程同理。
 ```
 
-| 业务 | 粒度 | 资源 | 策略差异 |
-| --- | --- | --- | --- |
-| 酒店 | DAY | 房型 | 多晚、按日库存、入住分配房间 |
-| KTV | SLOT | 包厢 | 时段、开台/结台、服务人员 |
-| 按摩 | SLOT | 技师/房间 | 服务时长、技师技能 |
-| 饭店 | SLOT | 桌台/区域 | 用餐时段、翻台 |
-| 健身 | SLOT | 课程/器械/场地 | 开课容量、候补 |
+所以：
 
-- 现有 KTV `res_occupation` 保留为兼容适配层，MVP 不强制迁移；
-- 酒店直接使用 capacity 内核；
-- 按摩、饭店、健身通过 `CapacityPolicy` 接入，不新建库存代码；
-- 展示层是各业态 Projection：KTV 看板、酒店日历、按摩排班、饭店桌台、健身课表；
-- 不做一个混合所有业态的库存页面。
+- 酒店容量/房态/多晚 hold/超卖规则归酒店核心模块；
+- KTV 容量/时段归 KTV 核心模块；
+- 按摩、饭店、健身各自拥有容量；
+- 业务之间不共享容量表、容量服务、容量模型；
+- 只共享技术模式：日历计算、hold 状态机、乐观锁、幂等、测试夹具；
+- 展示层各自投影：酒店日历、KTV 看板、按摩排班、饭店桌台、健身课表。
 
-详见 [ADR-0010](../../20-architecture/adr/0010-shared-inventory-kernel.md)。
+Stock 平台只提供：
+
+```text
+商品/原料、仓库、余额、入库/出库/盘点/调拨、成本、批次
+```
+
+详见 [ADR-0010](../../20-architecture/adr/0010-stock-supporting-domain.md) 与 [ADR-0011](../../20-architecture/adr/0011-inventory-context-map.md)。
 
 ## 4. 核心模型
 
-### 资源与容量库存（`gv_saas`，`res_*` / `inv_*`）
+### 酒店核心模型（`gv_saas` / `open_saas`，`res_*` / `htl_*`）
 
-酒店资料/房型用 `res_*`；容量库存用 `inv_capacity_*`。
+酒店资料/房型可用 `res_*`；酒店容量 `htl_*` 归酒店核心；Stock 平台用 `inv_stock_*`，与酒店容量无关。
 
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
 | `Hotel` | `tenantId`, `storeId`,
-ame`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
+`name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
 | `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `stayDepositMode`, `stayDepositMinor`, `stayDepositRatioBps`, `cancelPolicy`, `currency`, `pointsRedeemEnabled`, `pointsMaxRatioBps`, `invoiceMode` | 接入模式、支付策略、押金策略、币种、取消政策；在店铺管理中维护 |
 | `HotelRoomType` | `hotelId`, `code`,
-ame`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
+`name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
 | `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
 | `RatePlan` | `roomTypeId`, `code`,
-ame`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
+`name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
 | `DailyRate` | `ratePlanId`, `stayDate`, `priceMinor`, `currency`, `minStay`, `closed` | 每日价格/限制 |
-| `CapacityUnit` | `tenantId`, `storeId`, `businessType`, `unitType`, `unitId`, `granularity`, `capacity` | 容量库存单元；酒店 `unitType=HOTEL_ROOM_TYPE`，KTV `unitType=KTV_ROOM` |
-| `CapacitySlot` | `unitId`, `slotStart`, `slotEnd`, `total`, `sold`, `held`, `stopSell`, `version` | 统一时间槽；酒店按日，KTV/按摩/饭店按时间段 |
-| `CapacityHold` | `bookingId`, `unitId`, `startAt`, `endAt`, `qty`, `expiresAt`, `status` | 统一占库，支持多段/多晚 |
+| `HotelInventoryCalendar` | `tenantId`, `storeId`, `roomTypeId`, `stayDate`, `total`, `sold`, `held`, `stopSell`, `version` | 酒店核心容量，归酒店模块；建议 `htl_inventory_calendar` |
+| `HotelInventoryHold` | `bookingId`, `roomTypeId`, `checkIn`, `checkOut`, `qty`, `expiresAt`, `status` | 酒店多晚 hold，归酒店模块；建议 `htl_inventory_hold` |
+
+酒店容量是核心域，不进入 Stock 平台，也不与 KTV/按摩/饭店共享容量表。表前缀在数据模型评审时最终确认。
 
 金额统一用最小货币单位 `*_minor` + `currency`，遵守现有币种规范。
 
@@ -277,7 +278,7 @@ ame`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
 | `HotelBooking` | `bookingNo`, `tenantId`, `storeId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount`, `status`, `amountMinor`, `currency` | 酒店预订聚合根 |
 | `HotelBookingNight` | `bookingId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
 | `HotelGuest` | `bookingId`,
-ame`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
+`name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
 | `StayDeposit` | `bookingId`, `amountMinor`, `currency`, `mode`, `status`, `collectedAt`, `refundedAt` | 入住押金，独立于订单收入；`mode=COLLECT`（MVP）/`PRE_AUTH`（预留） |
 | `StayDepositLedger` | `depositId`, `entryType`（COLLECT/DEDUCT/REFUND）, `amountMinor`, `reason`, `operatorId`, `idempotencyKey` | 押金收取、扣减、退还流水 |
 | `UserOrderIndex` | `platformUserId`, `tenantId`, `storeId`, `orderType`, `orderId`, `status`, `amountMinor`, `currency` | C 端跨集团/门店订单读模型，见 ADR-0009 |
@@ -317,7 +318,7 @@ CONSUMED -> RELEASED 取消且可退库存（按政策）
 ### 搜索与报价
 
 1. 输入城市/酒店、入住/离店日期、房间数、住客数；
-2. 查询 `CapacitySlot` 可用量（`total - sold - held`）；
+2. 查询 `HotelInventoryCalendar` 可用量（`total - sold - held`）；
 3. 查询 `DailyRate` 计算每晚价格，返回总价、税费、取消政策；
 4. 报价只读，不占库存；下单时才创建 hold。
 
@@ -325,14 +326,14 @@ CONSUMED -> RELEASED 取消且可退库存（按政策）
 
 1. 校验日期、房型、房价计划、库存；
 2. `HotelBooking` 创建为 `PENDING_PAYMENT`；
-3. 同一事务内创建 `CapacityHold`，原子扣减可售量；
+3. 同一事务内创建 `HotelInventoryHold`，原子扣减可售量；
 4. 返回支付参数；库存不足返回 `409 INVENTORY_UNAVAILABLE`。
 
 ### 支付确认
 
 1. 支付回调按 `paymentId` 幂等；
 2. `HotelBooking` 从 `PENDING_PAYMENT` → `CONFIRMED`；
-3. `CapacityHold` → `CONSUMED`，写 `sold`；
+3. `HotelInventoryHold` → `CONSUMED`，写 `sold`；
 4. 发 `hotel.booking.confirmed` 事件，通知客户与酒店。
 
 ### 取消 / no-show
@@ -355,15 +356,15 @@ CONSUMED -> RELEASED 取消且可退库存（按政策）
 
 ## 7. 库存与并发
 
-- 唯一键：`(tenant_id, store_id, unit_id, slot_start)`；
+- 唯一键：`(tenant_id, store_id, room_type_id, stay_date)`；
 - 原子扣减：
 
 ```sql
-UPDATE inv_capacity_slot
+UPDATE htl_inventory_calendar
 SET held = held + :qty, version = version + 1
 WHERE tenant_id = :tenantId
-  AND unit_id = :unitId
-  AND slot_start >= :checkIn AND slot_start < :checkOut
+  AND room_type_id = :roomTypeId
+  AND stay_date >= :checkIn AND stay_date < :checkOut
   AND total - sold - held >= :qty
   AND stop_sell = 0;
 ```
