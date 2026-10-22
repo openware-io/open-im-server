@@ -2,7 +2,7 @@
 
 [中文](HOTEL_IMPLEMENTATION_PLAN.md) | [English](HOTEL_IMPLEMENTATION_PLAN.en.md)
 
-> Status: `draft` (`develop/2.4.0-hotel`).  
+> Status: `draft` (`develop/2.4.0-hotel`).
 > Technical baseline for hotel booking; align boundaries and model before task breakdown.
 
 ## 1. MVP scope
@@ -146,26 +146,43 @@ common-audit-service: hotel/rate/inventory/booking audit
 
 Extraction triggers: independent hotel team, inventory QPS/data volume, independent DB/SLA, or OTA sync as a subsystem.
 
-### 3.1 Reuse boundary with KTV inventory
+### 3.1 Inventory is a shared platform capability
 
-**Decision: reuse the inventory kernel, not the inventory tables.**
+**Decision: inventory is a platform capability; split it into stock and capacity kernels, not per-business code.**
 
-| Layer | Reuse | Separate |
+| Kernel | Business | Model |
 | --- | --- | --- |
-| Infrastructure | tenant/store scope, versioning, transactions, audit, outbox, expiry scan | — |
-| Resource | `res_resource` catalog, room type/status | — |
-| Inventory semantics | availability, hold, release, conflict control | KTV time-slot occupation vs hotel daily quota |
-| Tables | — | `res_occupation` (KTV) vs `res_inventory_calendar` / `res_inventory_hold` (hotel) |
-| Application | technical components | `KtvInventoryApplicationService` / `HotelInventoryApplicationService` |
-| API / UI | shared components | `/business/ktv/**` and `/business/hotel/**`; separate pages |
+| Stock | food ingredients, retail goods, hotel minibar, consumables | SKU, warehouse/store, balance, receipts/issues, count, transfer, cost, batch/expiry |
+| Capacity | hotel, KTV, massage, restaurant, gym | resource/group, time granularity, capacity, availability, hold, release |
 
-Reason: KTV sells a resource for a time interval; a hotel sells a room-type quota per night. A shared table would require many nullable fields, wrong unique keys and two state machines. A shared kernel keeps concurrency, audit and isolation without sacrificing semantics.
+Capacity abstraction:
+
+```text
+inv_capacity_unit     resource/group, business type, capacity, granularity
+inv_capacity_slot     time slot, total, sold, held, stop-sell
+inv_capacity_hold     booking/occupancy period, quantity, expiry, status
+```
+
+| Business | Granularity | Resource | Policy difference |
+| --- | --- | --- | --- |
+| Hotel | DAY | room type | multi-night, daily quota, assign room at check-in |
+| KTV | SLOT | room | time slot, open/close, service staff |
+| Massage | SLOT | therapist/room | service duration, skills |
+| Restaurant | SLOT | table/area | dining slot, turnover |
+| Gym | SLOT | class/equipment/venue | class capacity, waitlist |
+
+- Existing KTV `res_occupation` stays as a compatibility adapter; no forced migration in MVP.
+- Hotel uses the capacity kernel directly.
+- Massage/restaurant/gym onboard via `CapacityPolicy`; no new inventory code.
+- Each business has its own projection (KTV board, hotel calendar, massage schedule, table map, class schedule); no mixed inventory page.
 
 See [ADR-0010](../../20-architecture/adr/0010-shared-inventory-kernel.md).
 
 ## 4. Core model
 
-Resource (`gv_saas`, `res_*`):
+Resources and capacity inventory (`gv_saas`, `res_*` / `inv_*`):
+
+Hotel profile/room types use `res_*`; capacity inventory uses `inv_capacity_*`.
 
 | Model | Key fields |
 | --- | --- |
@@ -174,8 +191,9 @@ Resource (`gv_saas`, `res_*`):
 | `HotelRoom` | room type, room number, floor, status |
 | `RatePlan` | room type, code, name, meal plan, cancel policy, guarantee |
 | `DailyRate` | rate plan, stay date, price minor, currency, min stay, closed |
-| `InventoryCalendar` | room type, stay date, total, sold, held, stop-sell, version |
-| `InventoryHold` | booking, room type, check-in/out, quantity, expiry, status |
+| `CapacityUnit` | tenant, store, business type, unit type/id, granularity, capacity |
+| `CapacitySlot` | unit, slot start/end, total, sold, held, stop-sell, version |
+| `CapacityHold` | booking, unit, start/end, quantity, expiry, status |
 
 Order (`open_saas`, `ord_*`):
 
@@ -207,7 +225,7 @@ RELEASED (expired)
 ## 6. Booking flow
 
 1. Search by city/hotel, dates, rooms and guests.
-2. Check `total - sold - held` in `InventoryCalendar`.
+2. Check `total - sold - held` in `CapacitySlot`.
 3. Quote nightly rates, tax and cancellation policy; no inventory change.
 4. Create booking + inventory hold in one transaction.
 5. Pay; callback is idempotent; confirm booking and consume hold.
@@ -217,14 +235,14 @@ RELEASED (expired)
 
 ## 7. Inventory concurrency
 
-Unique key `(tenant_id, room_type_id, stay_date)`; atomic update:
+Unique key `(tenant_id, store_id, unit_id, slot_start)`; atomic update:
 
 ```sql
-UPDATE res_inventory_calendar
+UPDATE inv_capacity_slot
 SET held = held + :qty, version = version + 1
 WHERE tenant_id = :tenantId
-  AND room_type_id = :roomTypeId
-  AND stay_date BETWEEN :checkIn AND :checkOut - 1
+  AND unit_id = :unitId
+  AND slot_start >= :checkIn AND slot_start < :checkOut
   AND total - sold - held >= :qty
   AND stop_sell = 0;
 ```

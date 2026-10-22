@@ -143,4 +143,4 @@ docs/30-reference/contracts/openapi/hotel-channel-v1.yaml
 | 币种 | 默认 USD，支持 USD/CNY | `HotelPolicy.currency`，门店可配置 |
 | 移动前台 | 纳入 MVP | 参考 KTV B 端，原型待补 |
 | 发票/公安 | 不接入 | 字段预留，不进入 MVP 验收 |
-| 库存复用 | 复用内核，KTV/酒店分表分服务 | ADR-0010 proposed；库存与越权测试待补 |
+| 库存平台 | 公共支撑：stock + capacity，多业态按策略接入 | ADR-0010 proposed；KTV 兼容适配与越权测试待补 |

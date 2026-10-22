@@ -1,77 +1,96 @@
-# ADR 0010：共享库存内核，分离 KTV 与酒店库存策略
+# ADR 0010：库存作为共享平台能力（stock + capacity）
 
 ## Status / 状态
 
-**proposed（提案中，2026-10-22）**。只确定库存底层复用边界，不改变现有 KTV 库存行为。
+**proposed（提案中，2026-10-22）**。本 ADR 确定库存的公共支撑边界；不改变现有 KTV 行为。
 
 ## Context / 背景
 
-KTV 已有资源与占用模型：
+当前 KTV 已有资源与占用模型：
 
 - `res_resource`：包厢/服务人员等资源；
-- `res_occupation`：按 `startAt/endAt` 的时段占用，状态 `HELD/RESERVED/IN_USE/RELEASED/CANCELLED`；
+- `res_occupation`：按 `startAt/endAt` 的时段占用；
 - 占用冲突、超时释放、版本号、审计 Outbox。
 
-酒店需要的是另一种库存语义：
+酒店、按摩、饭店、健身等业务也需要库存能力，但语义不同：
 
-- 按房型 + 入住日期区间的**每日可售数量**；
-- 支持多晚、跨日期、超卖控制、保留房；
-- 入住时才分配具体房间，不是预订时锁定某个物理资源。
+- 酒店：房型 + 日期区间 + 每晚可售数量；
+- KTV：包厢 + 时段；
+- 按摩：技师/房间 + 服务时长；
+- 饭店：桌台 + 用餐时段/翻台；
+- 健身：课程/器械 + 时段容量；
+- 采销：SKU + 仓库 + 入库/出库/盘点/成本。
 
-两者有共同底层能力，但业务聚合不同。
+如果每个业务各自实现一套库存，会出现重复的并发控制、超卖、权限、审计和对账；如果强行用一张“万能库存表”，会出现大量可空字段和错误约束。
 
 ## Decision / 决策
 
-1. **复用库存内核**，继续放在 `platform-resource-service`，MVP 不新建酒店库存服务。
-2. 复用范围：
-   - `tenantId/storeId` 作用域；
-   - 资源目录与房型能力；
-   - 可用量、占用/保留、过期释放等通用概念；
-   - 乐观锁/版本号、唯一键冲突、事务边界；
-   - 审计、Outbox、权限校验、关联 ID。
-3. **不共用同一张库存/占用表**：
-   - KTV 继续使用 `res_occupation` 表达“资源 + 时段”占用；
-   - 酒店新增 `res_hotel_*`、`res_rate_plan`、`res_daily_rate`、`res_inventory_calendar`、`res_inventory_hold`；
-   - 禁止把 `res_occupation` 改成带大量可空字段的“万能表”。
-4. **应用层按业务分离**：
-   - `KtvInventoryApplicationService` 与 `HotelInventoryApplicationService` 各自实现策略；
-   - API 分离：`/business/ktv/**` 与 `/business/hotel/**`；后台同理；
-   - 共享技术组件，不共享业务状态机。
-5. **店铺级隔离**：
-   - 所有库存查询/写入必须带 `tenantId + storeId`；
-   - 不允许跨门店读写；
-   - 集团/租户级只读聚合必须走明确的集团权限和独立读模型，不能复用门店接口。
-6. **前后端双重权限**：
-   - 后端按会话上下文解析 tenant/store，并校验用户在该门店的角色/权限；
-   - 前端按路由、菜单、按钮隐藏，但不能替代后端校验；
-   - 越权请求返回 403/404，不泄露资源是否存在。
+1. **库存是平台级公共支撑能力**，不是酒店私有模块，也不按业务复制代码。
+2. 库存平台分两个内核：
+   - **Stock（采销库存）**：SKU、仓库/门店、库存余额、入库、出库、盘点、调拨、成本、批次/效期、安全库存。
+   - **Capacity（容量库存）**：资源/资源组、时间粒度、容量、可用量、保留、占用、释放、超时。
+3. Capacity 内核用统一抽象承载多业态：
+
+   ```text
+   inv_capacity_unit     资源/资源组、业态、容量、时间粒度
+   inv_capacity_slot     时间槽、总容量、已售、保留、关房
+   inv_capacity_hold     预订/占用期间、数量、过期时间、状态
+   ```
+
+   - 酒店：`granularity=DAY`，unit=房型，slot=入住日，hold 覆盖多晚；
+   - KTV：`granularity=SLOT`，unit=包厢，slot=时段；
+   - 按摩：`granularity=SLOT`，unit=技师/房间，slot=服务时段；
+   - 饭店：`granularity=SLOT`，unit=桌台/区域，slot=用餐时段；
+   - 健身：`granularity=SLOT`，unit=课程/器械/场地，slot=开课时段。
+4. **策略与投影分离**：
+   - `CapacityPolicy` 由各业态配置：时间粒度、时长、最大人数、是否允许跨段、是否可超售、释放规则；
+   - 前台展示是各业态 Projection：KTV 看板、酒店日历、按摩排班、饭店桌台、健身课表；
+   - 不做一个混合所有业态的库存页面。
+5. **现有 KTV `res_occupation` 保留为兼容适配层**：
+   - MVP 不强制迁移 KTV；
+   - 新酒店直接使用 capacity 内核；
+   - 后续可在不影响 KTV 的前提下，把 KTV 适配到同一 capacity 内核；
+   - 不做一次性大迁移。
+6. **不共用一个万能表**：Stock 和 Capacity 分表；Capacity 内部用统一 `inv_capacity_*`，不是每个业态复制一套表。
+7. **租户/门店隔离**：
+   - 所有查询/写入必须带 `tenantId + storeId`；
+   - 禁止跨门店读写；
+   - 集团级只读聚合走独立权限和读模型。
+8. **前后端双重权限**：
+   - 后端从会话解析 tenant/store，校验门店归属；
+   - 前端按权限隐藏路由/菜单/按钮，但不作为安全边界；
+   - API 客户端统一注入上下文，禁止页面硬编码 storeId。
 
 ## Consequences / 后果
 
 正面：
 
-- 复用租户隔离、并发控制、审计、过期释放等成熟能力；
-- KTV 与酒店各自保持清晰语义；
-- 后续新增业态可以复用内核，而不是复制一套。
+- 酒店、按摩、饭店、健身复用 capacity 内核，不再各写库存；
+- 采销库存有独立 stock 内核，不被时段/日期语义污染；
+- 并发、超卖、审计、权限、报表口径统一；
+- 新业态主要通过策略 + 配置接入，而不是复制代码。
 
 代价与风险：
 
-- `platform-resource-service` 模块变多，需要包边界和门禁；
-- 两套库存策略的测试、监控、迁移要分别维护；
-- 共享内核 API 设计不当会导致业务耦合，需要 anti-corruption 层。
+- 平台初期需要设计好 `CapacityPolicy` 抽象，避免过度通用；
+- KTV 兼容适配层会存在一段时间；
+- 多业态共享平台需要清晰的模块边界和更完整的测试矩阵；
+- Stock 与 Capacity 的团队/发布节奏可能不同，必要时可拆成两个服务。
 
 后续动作：
 
-- 抽出 `domain/inventory` 通用接口与 `KtvInventoryPolicy` / `HotelInventoryPolicy`；
-- 增加跨门店越权测试；
-- 用 G18/G24/G25/G32/G43 约束边界；
-- 酒店库存表先评审 ER 和唯一键，再写 Flyway。
+- 抽出 `inventory/stock` 与 `inventory/capacity` 模块；
+- 酒店 MVP 先接 capacity 内核；
+- KTV 保留适配层，后续再评估迁移；
+- 按摩、饭店、健身按 capacity policy 接入，不新建库存代码；
+- 补跨门店越权、超卖、hold 过期和对账测试。
 
 ## Alternatives / 备选方案
 
-- **共用 `res_occupation` 一张表**：拒绝。时段占用与每日配额语义冲突，会产生大量可空字段和错误约束。
-- **新建独立 hotel-service**：暂不采纳。MVP 分布式成本高，等 ADR-0008 的拆分触发条件满足再拆。
-- **复制一套 KTV 库存代码**：拒绝。租户隔离、并发、审计会出现两套实现，长期漂移。
+- **每个业务单独做库存**：拒绝。重复实现并发、权限、审计，超卖口径会分裂。
+- **一张万能库存表**：拒绝。Stock 与 Capacity 语义不同，会产生大量可空字段和错误约束。
+- **只做 Capacity，不做 Stock**：拒绝。采销、餐饮原料、零售商品需要数量/成本/批次库存。
+- **只做 Stock，不做 Capacity**：拒绝。酒店、KTV、按摩、健身卖的是时间/容量，不是 SKU 数量。
 
 ## References / 参考
 
