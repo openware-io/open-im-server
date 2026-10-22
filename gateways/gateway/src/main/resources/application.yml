@@ -230,6 +230,13 @@ spring:
          - Path=/api/v1/admin/tenant/overview
         filters:
          - StripPrefix=2
+      # 角色工作台档案是 platform-admin-service 的平台能力；必须在 /admin/iam/** 泛路由前分流。
+      - id: saas-admin-role-profiles
+        uri: ${PLATFORM_ADMIN_URI:http://localhost:4150}
+        predicates:
+         - Path=/api/v1/admin/iam/role-profiles,/api/v1/admin/iam/role-profiles/**
+        filters:
+         - StripPrefix=2
       - id: saas-tenant
         uri: ${PLATFORM_TENANT_URI:http://localhost:4110}
         predicates:
