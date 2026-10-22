@@ -164,7 +164,8 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
       if (matchesPath(path, prefix)) {
         // 平台级路由（/admin/platform/**、/admin/pricing-plans/**）不要求租户上下文：
         // 它们服务的是平台运营本身；但仍尽量下发可用的签名上下文（见 PLATFORM_CONTEXT）。
-        if (matchesPath(path, "/api/v1/admin/platform") || matchesPath(path, "/api/v1/admin/pricing-plans")) {
+        if (matchesPath(path, "/api/v1/admin/platform") || matchesPath(path, "/api/v1/admin/pricing-plans")
+            || matchesPath(path, "/api/v1/admin/iam/role-profiles")) {
           return Route.PLATFORM_CONTEXT;
         }
         return Route.CONTEXT_BOUND;
