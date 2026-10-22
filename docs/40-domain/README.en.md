@@ -14,7 +14,8 @@
 | [User deletion and data lifecycle](USER_DELETION_AND_DATA_LIFECYCLE.md) | Cancellation, deletion, retention and audit requirements |
 | [Feature topics](features/README.en.md) | Channel, secret chat and secret-group implementation topics |
 | [Hotel business](hotel/README.en.md) | Room types, rates, inventory calendar, booking, check-in/out |
-| [Inventory platform](inventory/README.en.md) | Supporting domain: Stock + Capacity |
+| [Inventory platform](inventory/README.en.md) | Supporting domain: Stock |
+| [Order platform](order/README.en.md) | Shared order transaction kernel + business fulfillment extensions |
 
 ## Related
 

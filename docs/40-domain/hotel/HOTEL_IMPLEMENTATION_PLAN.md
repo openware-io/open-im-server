@@ -185,7 +185,7 @@ platform-order-service
   domain/hotel
     Hotel / HotelRoomType / HotelRoom / RatePlan / DailyRate
     HotelInventoryCalendar / HotelInventoryHold
-    HotelBooking / HotelBookingNight / HotelGuest / StayDeposit
+    Order（公共订单头） / HotelBookingDetail / HotelBookingNight / HotelGuest / StayDeposit
   application/hotel
   api/hotel
   infra/persistence/hotel
@@ -275,17 +275,17 @@ Stock 平台只提供：
 
 | 模型 | 关键字段 | 说明 |
 | --- | --- | --- |
-| `HotelBooking` | `bookingNo`, `tenantId`, `storeId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount`, `status`, `amountMinor`, `currency` | 酒店预订聚合根 |
-| `HotelBookingNight` | `bookingId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
-| `HotelGuest` | `bookingId`,
-`name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
-| `StayDeposit` | `bookingId`, `amountMinor`, `currency`, `mode`, `status`, `collectedAt`, `refundedAt` | 入住押金，独立于订单收入；`mode=COLLECT`（MVP）/`PRE_AUTH`（预留） |
+| `Order` | `orderNo`, `tenantId`, `storeId`, `customerId`, `platformUserId`, `orderType`, `businessType`, `status`, `paymentStatus`, `amountMinor`, `currency` | 公共订单交易内核 `ord_order`，见 ADR-0012 |
+| `HotelBookingDetail` | `orderId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount` | 酒店订单 1:1 扩展 |
+| `HotelBookingNight` | `orderId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
+| `HotelGuest` | `orderId`, `name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
+| `StayDeposit` | `orderId`, `amountMinor`, `currency`, `mode`, `status`, `collectedAt`, `refundedAt` | 入住押金，独立于订单收入；`mode=COLLECT`（MVP）/`PRE_AUTH`（预留） |
 | `StayDepositLedger` | `depositId`, `entryType`（COLLECT/DEDUCT/REFUND）, `amountMinor`, `reason`, `operatorId`, `idempotencyKey` | 押金收取、扣减、退还流水 |
 | `UserOrderIndex` | `platformUserId`, `tenantId`, `storeId`, `orderType`, `orderId`, `status`, `amountMinor`, `currency` | C 端跨集团/门店订单读模型，见 ADR-0009 |
 
-押金不是收入：`StayDeposit` 的收取/退还不得计入 `HotelBooking.amountMinor`，也不得进入订单收入报表；只有实际扣减（如损坏赔偿）才转为收入/应收。
+押金不是收入：`StayDeposit` 的收取/退还不得计入 `Order.amountMinor`，也不得进入订单收入报表；只有实际扣减（如损坏赔偿）才转为收入/应收。
 
-**不复用 KTV `Reservation` 的 slot 语义**：KTV 按时间点/包厢，酒店按“日期区间 + 房型库存”；强行复用会让两边都变形。
+**订单头复用公共 Order 内核，容量不复用**：酒店容量按“日期区间 + 房型库存”实现，KTV `Reservation`/`res_occupation` 保持自有语义，不强行合并。
 
 ## 5. 状态机
 
@@ -325,14 +325,14 @@ CONSUMED -> RELEASED 取消且可退库存（按政策）
 ### 下单
 
 1. 校验日期、房型、房价计划、库存；
-2. `HotelBooking` 创建为 `PENDING_PAYMENT`；
+2. 创建公共 `Order`（`businessType=HOTEL`）+ `HotelBookingDetail`，状态 `PENDING_PAYMENT`；
 3. 同一事务内创建 `HotelInventoryHold`，原子扣减可售量；
 4. 返回支付参数；库存不足返回 `409 INVENTORY_UNAVAILABLE`。
 
 ### 支付确认
 
 1. 支付回调按 `paymentId` 幂等；
-2. `HotelBooking` 从 `PENDING_PAYMENT` → `CONFIRMED`；
+2. `Order` 从 `PENDING_PAYMENT` → `CONFIRMED`，同步 `HotelBookingDetail`；
 3. `HotelInventoryHold` → `CONSUMED`，写 `sold`；
 4. 发 `hotel.booking.confirmed` 事件，通知客户与酒店。
 

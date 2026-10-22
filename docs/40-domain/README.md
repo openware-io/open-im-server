@@ -14,7 +14,8 @@
 | [用户删除与数据生命周期](USER_DELETION_AND_DATA_LIFECYCLE.md) | 注销、删除、保留和审计要求 |
 | [功能专题](features/README.md) | 频道、私密会话、私密群聊等实现专题 |
 | [酒店业务](hotel/README.md) | 房型、房价、库存日历、预订支付与入住退房 |
-| [库存平台域](inventory/README.md) | 公共支撑域：Stock 采销库存 + Capacity 容量库存 |
+| [库存平台域](inventory/README.md) | 公共支撑域：Stock 采销库存 |
+| [订单平台域](order/README.md) | 共享订单交易内核 + 各业务履约扩展 |
 
 ## 相关
 

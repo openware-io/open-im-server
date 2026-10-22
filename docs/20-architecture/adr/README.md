@@ -15,6 +15,7 @@
 | 0009 | [C 端统一订单视图](0009-user-order-index.md) | proposed | 2026-10-22 |
 | 0010 | [采销库存作为公共支撑域](0010-stock-supporting-domain.md) | proposed | 2026-10-22 |
 | 0011 | [库存上下文映射与依赖规则](0011-inventory-context-map.md) | proposed | 2026-10-22 |
+| 0012 | [订单作为共享交易内核](0012-order-kernel.md) | proposed | 2026-10-22 |
 
 ## 状态说明
 

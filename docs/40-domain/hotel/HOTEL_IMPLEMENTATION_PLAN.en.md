@@ -137,7 +137,7 @@ Options:
 platform-order-service
   domain/hotel: Hotel, RoomType, Room, RatePlan, DailyRate,
                 HotelInventoryCalendar, HotelInventoryHold,
-                HotelBooking, BookingNight, GuestSnapshot, StayDeposit
+                Order (shared header), HotelBookingDetail, BookingNight, GuestSnapshot, StayDeposit
 platform-resource-service: KTV resources/occupation only (no hotel capacity)
 platform-admin-service: hotel, rate, inventory, booking, check-in/out BFF
 common-payment-service: payment, refund, reconciliation
@@ -198,16 +198,17 @@ Order (`open_saas`, `ord_*`):
 
 | Model | Key fields |
 | --- | --- |
-| `HotelBooking` | booking no, tenant/store, hotel, room type, rate plan, check-in/out, rooms, guests, status, amount/currency |
-| `HotelBookingNight` | booking, stay date, price, tax, currency |
-| `HotelGuest` | booking, name, phone, ID type, masked ID |
-| `StayDeposit` | booking, amount/currency, mode, status, collected/refunded timestamps |
+| `Order` | order no, tenant/store, customer, platform user, order type/business type, status/payment status, amount/currency |
+| `HotelBookingDetail` | order, hotel, room type, rate plan, check-in/out, rooms, guests |
+| `HotelBookingNight` | order, stay date, price, tax, currency |
+| `HotelGuest` | order, name, phone, ID type, masked ID |
+| `StayDeposit` | order, amount/currency, mode, status, collected/refunded timestamps |
 | `StayDepositLedger` | deposit, entry type (COLLECT/DEDUCT/REFUND), amount, reason, operator, idempotency key |
 | `UserOrderIndex` | platform user, tenant, store, order type/id/no, status, amount/currency |
 
-The stay deposit is a liability, not revenue: collect/refund never enter `HotelBooking.amountMinor` or revenue reports. Only actual deductions become revenue/receivable.
+The stay deposit is a liability, not revenue: collect/refund never enter `Order.amountMinor` or revenue reports. Only actual deductions become revenue/receivable.
 
-Do not reuse KTV `Reservation`; its slot semantics conflict with date-range room inventory.
+The order header uses the shared Order kernel; hotel capacity does not reuse KTV `Reservation`/`res_occupation`.
 
 ## 5. State machine
 
