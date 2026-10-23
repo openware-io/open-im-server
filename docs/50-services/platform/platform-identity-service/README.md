@@ -71,3 +71,8 @@
 - [ADR-0015](../../../20-architecture/adr/0015-identity-federation-tenant-iam.md)
 
 关键增量：`idt_account.account_type` 只保留 `PLATFORM_OPERATOR/USER`；员工/客户由 `tnt_membership.membership_type` 决定；角色绑定改为 membership。
+
+## OAuth 会话应用维度
+
+`/identity/oauth/im/callback` 先解析实际 `appId`（请求值或服务配置），token 交换、OAuth 绑定、SaaS session 与 C/B cookie 全部使用同一个 resolved appId。
+`idt_oauth_link` 按 `(provider, app_id, open_id)` 唯一；IM 当前 openId 全局，C/B 共享同一 SaaS account，角色由会员身份区分。
