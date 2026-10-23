@@ -49,16 +49,24 @@ public class AuthContextApplicationService {
                     }
                     return List.of();
                 }
-                // 运营后台类应用（如 saas-a380-h5 /b/）：审核 = 该 IM 账号是否已在 SaaS 租户后台
-                // 注册为运营人员。注册过 → 返回其运营上下文（角色含 tenant.owner/store.manager/...）；
-                // 未注册 → 空列表 → 前端判定“无权限”并可回退 IM。绝不回退到 consumer 上下文。
-                TenantServiceClient.TenantContext anchor = tenantClient.consumerContext(accountId, appId);
-                if (anchor == null) {
-                    return List.of();
-                }
+                // 运营后台类应用（如 saas-a380-h5 /b/）：审核 = 该账号是否已在 SaaS 租户后台
+                // 注册为运营人员。B 端原生员工没有 consumer 授权锚点，因此不能强制要求 consumerContext；
+                // 有锚点时仍按锚点过滤，避免 H5 跨租户看到无关上下文。
                 List<TenantServiceClient.TenantContext> operatorContexts = tenantClient.contexts(accountId);
                 if (operatorContexts == null || operatorContexts.isEmpty()) {
                     return List.of();
+                }
+                TenantServiceClient.TenantContext anchor = null;
+                try {
+                    anchor = tenantClient.consumerContext(accountId, appId);
+                } catch (Exception ignored) {
+                    // 原生 B 端员工没有 consumer 授权，直接使用 IAM 运营上下文。
+                }
+                if (anchor == null) {
+                    return operatorContexts.stream()
+                            .filter(AuthContextApplicationService::hasOperatorRole)
+                            .map(AuthContextApplicationService::toContextItem)
+                            .toList();
                 }
                 return operatorContexts.stream()
                         .filter(AuthContextApplicationService::hasOperatorRole)
