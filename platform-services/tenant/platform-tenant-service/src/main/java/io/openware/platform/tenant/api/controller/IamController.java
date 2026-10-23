@@ -121,6 +121,11 @@ public class IamController {
         return IamConverter.toView(binding);
     }
 
+    @DeleteMapping("/roles/{roleId}/accounts/{accountId}")
+    public void revokeRoleFromAccount(@PathVariable Long roleId, @PathVariable Long accountId) {
+        authorizationService.revokeRoleFromAccount(roleId, accountId);
+    }
+
     /** 撤销账号在某作用域下的角色绑定（软删，status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {

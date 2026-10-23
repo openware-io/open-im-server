@@ -65,4 +65,9 @@ public class UserRoleRepositoryAdapter implements UserRoleRepository {
   public List<Long> findIdsByAccount(Long accountId) {
     return snapshotMapper.selectUserRoleIds(accountId);
   }
+
+  @Override
+  public boolean revokeByAccountAndRole(Long accountId, Long roleId) {
+    return mapper.revokeByAccountAndRole(accountId, roleId) > 0;
+  }
 }
