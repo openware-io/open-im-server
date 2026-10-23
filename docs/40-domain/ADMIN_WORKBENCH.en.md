@@ -184,13 +184,17 @@ P4 align KTV
 P5 business module registry
 ```
 
-## 11. Prototype
+## 11. Production entries
+
+The prototype route has been removed from the production router.
 
 ```text
-/saas/#/preview/workbench
+Platform roles   /saas/#/admin/iam/roles
+Tenant roles     /saas/#/admin/roles
+Store workspace  /saas/#/store
 ```
 
-Covers platform, headquarters, hotel manager, hotel front desk and KTV manager with local mock data.
+Menus, roles and data scope are determined by the signed-in workspace and IAM permissions.
 
 ## 12. Related
 
