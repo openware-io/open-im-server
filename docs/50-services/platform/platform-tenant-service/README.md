@@ -122,3 +122,8 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 - 权限快照改为 `iam_role_binding -> iam_role -> iam_permission`，平台角色用 ACCOUNT subject。
 - 撤销/scope 调整按 membership 绑定处理。
 - `iam_user_role` 不再由新 API 写入；旧服务方法保留为迁移期兼容，S6 删除。
+
+## IAM 角色列表租户校验
+
+`GET /admin/iam/roles?tenantId=` 只允许平台上下文或当前租户；跨租户返回 403 `TENANT_SCOPE_DENIED`。
+旧 `iam_user_role` 写方法返回 410 `LEGACY_ROLE_WRITE_DISABLED`，新写路径为成员角色绑定。
