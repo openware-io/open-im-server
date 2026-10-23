@@ -15,6 +15,7 @@
 | [身份 API 契约](IDENTITY_API.md) | OAuth 回调、上下文、权限快照、应用入口、错误码 |
 | [落地清单](IDENTITY_ROLLOUT.md) | 迁移、代码结构、应用注册、数据回填、门禁 |
 | [改造硬门禁](IDENTITY_GUARDRAILS.md) | 禁止 mock/假成功/绕过鉴权/跨服务读表 |
+| [验收测试计划](IDENTITY_TEST_PLAN.md) | 浏览器、真机 App、C/B、安全隔离、异常恢复 |
 | [账号权限体系](../ACCOUNT_PERMISSION_MODEL.md) | 历史/现行账号与权限说明；与本文冲突处以本文为准 |
 
 ## 核心结论
