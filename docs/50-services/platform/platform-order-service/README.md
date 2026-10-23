@@ -194,3 +194,16 @@ POST /admin/hotel/frontdesk/bookings/{id}/extend
 
 只对新增夜追加 `sold` 库存、`htl_booking_night`、房费和账单项，不改已住夜。
 `hotel.checkin` 权限校验；新日期必须晚于当前离店日期；库存不足返回 409。
+
+## C 端酒店目录/报价（H5）
+
+```text
+GET  /business/hotel/catalog/hotels
+GET  /business/hotel/catalog/hotels/{id}
+POST /business/hotel/catalog/quotes
+```
+
+- 只读、按租户隔离，不要求门店上下文；
+- 目录返回酒店、房型、房价计划；
+- 报价按入住夜读取库存/每日房价，`available` 与总价同时返回；
+- C 端下单/支付仍待接入。
