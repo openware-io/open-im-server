@@ -43,3 +43,20 @@
 - [服务目录](../README.md)
 - [API 契约](../../../30-reference/contracts/README.md)
 - [数据库迁移标准](../../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.md)
+
+## 酒店主数据（H1）
+
+`domain/hotel` 已提供酒店/房型/房间/房价计划/库存日历接口：
+
+```text
+GET/POST/PUT /admin/hotel/hotels
+GET/POST/PUT /admin/hotel/room-types
+GET/POST/PUT /admin/hotel/rooms
+GET/POST/PUT /admin/hotel/rate-plans
+GET/PUT      /admin/hotel/inventory
+```
+
+写操作分别校验 `hotel.inventory.manage` / `hotel.rate.update`，读取校验 `hotel.booking.view`；
+所有查询强制当前 `storeId`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
+契约见 [hotel-booking-v1.yaml](../../../30-reference/contracts/openapi/hotel-booking-v1.yaml)。
+

@@ -3,7 +3,8 @@ package io.openware.platform.order.hotel;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -29,6 +30,7 @@ public class HotelMasterDataController {
     }
 
     @PostMapping("/hotels")
+    @ResponseStatus(HttpStatus.CREATED)
     public HotelPo createHotel(@RequestBody HotelRequest request) {
         return service.saveHotel(null, request.name(), request.address(), request.timezone(),
                 request.checkInTime(), request.checkOutTime());
@@ -47,6 +49,7 @@ public class HotelMasterDataController {
     }
 
     @PostMapping("/room-types")
+    @ResponseStatus(HttpStatus.CREATED)
     public HotelRoomTypePo createRoomType(@RequestBody RoomTypeRequest request) {
         return service.saveRoomType(null, request.hotelId(), request.code(), request.name(), request.capacity(),
                 request.bedType(), request.areaSqm());
@@ -65,6 +68,7 @@ public class HotelMasterDataController {
     }
 
     @PostMapping("/rooms")
+    @ResponseStatus(HttpStatus.CREATED)
     public HotelRoomPo createRoom(@RequestBody RoomRequest request) {
         return service.saveRoom(null, request.roomTypeId(), request.roomNo(), request.floor());
     }
@@ -81,6 +85,7 @@ public class HotelMasterDataController {
     }
 
     @PostMapping("/rate-plans")
+    @ResponseStatus(HttpStatus.CREATED)
     public HotelRatePlanPo createRatePlan(@RequestBody RatePlanRequest request) {
         return service.saveRatePlan(null, request.hotelId(), request.code(), request.name(),
                 request.basePriceMinor(), request.currency());

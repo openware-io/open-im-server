@@ -58,7 +58,7 @@ public class HotelMasterDataApplicationService {
         po.setCheckInTime(checkInTime == null ? "14:00" : checkInTime);
         po.setCheckOutTime(checkOutTime == null ? "12:00" : checkOutTime);
         po.setStatus("ACTIVE");
-        return write(po, hotelMapper);
+        return persist(po);
     }
 
     public List<HotelRoomTypePo> roomTypes(Long hotelId) {
@@ -90,7 +90,7 @@ public class HotelMasterDataApplicationService {
         po.setBedType(bedType);
         po.setAreaSqm(areaSqm);
         po.setStatus("ACTIVE");
-        return write(po, roomTypeMapper);
+        return persist(po);
     }
 
     public List<HotelRoomPo> rooms(Long roomTypeId) {
@@ -119,7 +119,7 @@ public class HotelMasterDataApplicationService {
         po.setRoomNo(roomNo.trim());
         po.setFloor(floor);
         po.setStatus("ACTIVE");
-        return write(po, roomMapper);
+        return persist(po);
     }
 
     public List<HotelRatePlanPo> ratePlans(Long hotelId) {
@@ -151,7 +151,7 @@ public class HotelMasterDataApplicationService {
         po.setBasePriceMinor(basePriceMinor);
         po.setCurrency(currency == null || currency.isBlank() ? "USD" : currency.toUpperCase());
         po.setStatus("ACTIVE");
-        return write(po, ratePlanMapper);
+        return persist(po);
     }
 
     public List<HotelInventoryPo> inventory(Long roomTypeId, LocalDate from, LocalDate to) {
@@ -205,24 +205,75 @@ public class HotelMasterDataApplicationService {
         return po;
     }
 
-    private <T> T write(T po, com.baomidou.mybatisplus.core.mapper.BaseMapper<T> mapper) {
+    private HotelPo persist(HotelPo po) {
         try {
-            if (po instanceof HotelPo h) {
-                if (h.getId() == null) { h.setCreatedAt(LocalDateTime.now()); h.setUpdatedAt(LocalDateTime.now()); h.setVersion(0); mapper.insert(po); }
-                else { h.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
-            } else if (po instanceof HotelRoomTypePo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
-                else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
-            } else if (po instanceof HotelRoomPo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
-                else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
-            } else if (po instanceof HotelRatePlanPo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
-                else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
+            LocalDateTime now = LocalDateTime.now();
+            if (po.getId() == null) {
+                po.setCreatedAt(now);
+                po.setUpdatedAt(now);
+                po.setVersion(0);
+                hotelMapper.insert(po);
+            } else {
+                po.setUpdatedAt(now);
+                hotelMapper.updateById(po);
             }
             return po;
         } catch (DataIntegrityViolationException exception) {
-            throw new ApiException(409, "HOTEL_DUPLICATE", "酒店主数据编码或名称重复");
+            throw new ApiException(409, "HOTEL_DUPLICATE", "酒店资料已存在");
+        }
+    }
+
+    private HotelRoomTypePo persist(HotelRoomTypePo po) {
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            if (po.getId() == null) {
+                po.setCreatedAt(now);
+                po.setUpdatedAt(now);
+                po.setVersion(0);
+                roomTypeMapper.insert(po);
+            } else {
+                po.setUpdatedAt(now);
+                roomTypeMapper.updateById(po);
+            }
+            return po;
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(409, "ROOM_TYPE_DUPLICATE", "房型编码已存在");
+        }
+    }
+
+    private HotelRoomPo persist(HotelRoomPo po) {
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            if (po.getId() == null) {
+                po.setCreatedAt(now);
+                po.setUpdatedAt(now);
+                po.setVersion(0);
+                roomMapper.insert(po);
+            } else {
+                po.setUpdatedAt(now);
+                roomMapper.updateById(po);
+            }
+            return po;
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(409, "ROOM_DUPLICATE", "房号已存在");
+        }
+    }
+
+    private HotelRatePlanPo persist(HotelRatePlanPo po) {
+        try {
+            LocalDateTime now = LocalDateTime.now();
+            if (po.getId() == null) {
+                po.setCreatedAt(now);
+                po.setUpdatedAt(now);
+                po.setVersion(0);
+                ratePlanMapper.insert(po);
+            } else {
+                po.setUpdatedAt(now);
+                ratePlanMapper.updateById(po);
+            }
+            return po;
+        } catch (DataIntegrityViolationException exception) {
+            throw new ApiException(409, "RATE_PLAN_DUPLICATE", "房价计划编码已存在");
         }
     }
 
