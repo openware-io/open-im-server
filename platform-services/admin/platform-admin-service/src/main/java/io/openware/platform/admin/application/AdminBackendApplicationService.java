@@ -1,28 +1,39 @@
 package io.openware.platform.admin.application;
 
 import io.openware.platform.admin.api.backend.AdminBackend;
-import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
+import java.util.List;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-
 /**
- * SaaS 后台入口列表：只返回 SaaS 自己的后台（平台运营后台 / 租户后台），不含 IM 后台。
- * IM 后台是集团统一门户里与 SaaS 平级的独立入口，不在 SaaS 后台内。
- * 平台运营入口仅向平台管理员和超级管理员开放。
+ * SaaS 后台入口：由 IAM 解析出的 workspace 决定，而不是旧 AdminRole 硬编码。
+ *
+ * <p>平台角色只看到平台运营后台；租户/门店角色只看到租户后台；同一账号确实同时拥有两类
+ * 角色时才同时返回，并必须在入口页显式选择。
  */
 @Service
 public class AdminBackendApplicationService {
 
+    private final AdminRoleProfileService workspaces;
+
+    public AdminBackendApplicationService(AdminRoleProfileService workspaces) {
+        this.workspaces = workspaces;
+    }
+
     public List<AdminBackend> backends() {
         var admin = AdminContextHolder.get();
         if (admin == null) return List.of();
-        List<AdminBackend> backends = List.of(
-                new AdminBackend("platform", "平台运营后台", "/platform", "building"),
-                new AdminBackend("tenant", "租户后台", "/tenant", "shop")
-        );
-        return backends.stream().filter(backend -> !"platform".equals(backend.code())
-                || admin.role() == AdminRole.SUPER_ADMIN || admin.role() == AdminRole.PLATFORM_ADMIN).toList();
+        var resolved = workspaces.resolve(admin.platformAccountId(), admin.role());
+        boolean platform = resolved.workspaces().contains("PLATFORM");
+        boolean tenant = resolved.workspaces().stream()
+                .anyMatch(code -> "HEADQUARTERS".equals(code) || "TENANT".equals(code) || "STORE".equals(code));
+        List<AdminBackend> backends = new java.util.ArrayList<>();
+        if (platform) {
+            backends.add(new AdminBackend("platform", "平台运营后台", "/platform", "building"));
+        }
+        if (tenant) {
+            backends.add(new AdminBackend("tenant", "租户后台", "/tenant", "shop"));
+        }
+        return List.copyOf(backends);
     }
 }
