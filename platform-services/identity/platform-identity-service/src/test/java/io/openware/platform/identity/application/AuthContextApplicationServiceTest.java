@@ -96,7 +96,7 @@ class AuthContextApplicationServiceTest {
   }
 
   @Test
-  void operatorApp_unregisteredOperator_returnsEmptyContexts() {
+  void operatorApp_unregisteredOperator_returnsStaffNotBound() {
     // 未注册运营人员：有 consumer 授权锚点但没有任何运营角色上下文 → 空 → B 端显示无权限
     when(tenantClient.consumerContext(158L, "saas-a380-h5")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-a380-h5:100:100:100", 100L, "A380",
@@ -105,23 +105,23 @@ class AuthContextApplicationServiceTest {
         new TenantServiceClient.TenantContext("100:100:100", 100L, "A380", 100L, "总部", 100L, "首店",
             List.of("CONSUMER"), "CONSUMER")));
 
-    List<ContextItem> result = service.contexts(158L, "saas-a380-h5");
-
-    assertEquals(0, result.size());
+    var exception = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.contexts(158L, "saas-a380-h5"));
+    assertEquals("STAFF_NOT_BOUND", exception.getCode());
     verify(tenantClient).contexts(158L);
   }
 
   @Test
-  void operatorApp_missingAnchor_returnsEmptyContexts() {
+  void operatorApp_missingAnchor_returnsStaffNotBound() {
     when(tenantClient.consumerContext(158L, "saas-a380-h5")).thenReturn(null);
 
-    List<ContextItem> result = service.contexts(158L, "saas-a380-h5");
-
-    assertEquals(0, result.size());
+    var exception = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.contexts(158L, "saas-a380-h5"));
+    assertEquals("STAFF_NOT_BOUND", exception.getCode());
   }
 
   @Test
-  void operatorApp_filtersContextsOutsideAnchorTenantOrStore() {
+  void operatorApp_filtersAllContextsOutsideAnchor_returnsStaffNotBound() {
     when(tenantClient.consumerContext(158L, "saas-a380-h5")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-a380-h5:100:100:100", 100L, "A380",
             100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
@@ -131,9 +131,9 @@ class AuthContextApplicationServiceTest {
         new TenantServiceClient.TenantContext("100:100:999", 100L, "A380", 100L, "总部", 999L, "其它门店",
             List.of("store.manager"), "STORE")));
 
-    List<ContextItem> result = service.contexts(158L, "saas-a380-h5");
-
-    assertEquals(0, result.size());
+    var exception = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.contexts(158L, "saas-a380-h5"));
+    assertEquals("STAFF_NOT_BOUND", exception.getCode());
   }
 
   @Test

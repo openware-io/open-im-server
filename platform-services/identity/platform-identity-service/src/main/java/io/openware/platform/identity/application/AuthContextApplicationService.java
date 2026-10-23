@@ -58,7 +58,7 @@ public class AuthContextApplicationService {
                 // 有锚点时仍按锚点过滤，避免 H5 跨租户看到无关上下文。
                 List<TenantServiceClient.TenantContext> operatorContexts = tenantClient.contexts(accountId);
                 if (operatorContexts == null || operatorContexts.isEmpty()) {
-                    return List.of();
+                    throw staffNotBound();
                 }
                 TenantServiceClient.TenantContext anchor = null;
                 try {
@@ -67,19 +67,27 @@ public class AuthContextApplicationService {
                     // 原生 B 端员工没有 consumer 授权，直接使用 IAM 运营上下文。
                 }
                 if (anchor == null) {
-                    return operatorContexts.stream()
+                    List<ContextItem> items = operatorContexts.stream()
                             .filter(AuthContextApplicationService::hasOperatorRole)
                             .map(AuthContextApplicationService::toContextItem)
                             .toList();
+                    if (items.isEmpty()) {
+                        throw staffNotBound();
+                    }
+                    return items;
                 }
                 final TenantServiceClient.TenantContext anchorContext = anchor;
-                return operatorContexts.stream()
+                List<ContextItem> items = operatorContexts.stream()
                         .filter(AuthContextApplicationService::hasOperatorRole)
                         .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchorContext.tenantId())
                                 && (anchorContext.storeId() == null || ctx.storeId() == null
                                     || ctx.storeId().equals(anchorContext.storeId())))
                         .map(AuthContextApplicationService::toContextItem)
                         .toList();
+                if (items.isEmpty()) {
+                    throw staffNotBound();
+                }
+                return items;
             }
             List<TenantServiceClient.TenantContext> contexts = tenantClient.contexts(accountId);
             return contexts.stream()
@@ -91,6 +99,11 @@ public class AuthContextApplicationService {
             throw new ApiException(HttpStatusCodes.SERVICE_UNAVAILABLE, "IAM_CONTEXT_UNAVAILABLE",
                     "权限上下文服务暂时不可用");
         }
+    }
+
+    private static ApiException staffNotBound() {
+        return new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                "当前账号未绑定为租户员工，请联系租户管理员");
     }
 
     private static boolean hasOperatorRole(TenantServiceClient.TenantContext ctx) {
