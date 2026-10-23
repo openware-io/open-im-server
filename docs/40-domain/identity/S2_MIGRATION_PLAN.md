@@ -142,3 +142,16 @@ iam_user_role 迁移/冻结
 既有 flyway 9 条 + tenant-sql 3 条处理
 S2 仲裁
 ```
+
+### iam_user_role 迁移实测
+
+```text
+临时库 s1_role_migration
+旧 STORE 绑定 account=9 tenant=100 role=7 store=20 version=3
+STAFF membership id=1 authorization_version=4
+迁移结果：
+  subject_type=MEMBERSHIP, subject_id=1, scope=STORE
+  tenant=100, organization=10, store=20, authorization_version=4
+平台绑定 -> subject_type=ACCOUNT
+无 STAFF membership 的旧行进入报告，不静默丢弃
+```

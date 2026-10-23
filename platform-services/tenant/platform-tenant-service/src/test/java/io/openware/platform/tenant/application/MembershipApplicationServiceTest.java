@@ -76,4 +76,16 @@ class MembershipApplicationServiceTest {
 
     assertThrows(ApiException.class, () -> service.changeStatus(7L, "LEFT"));
   }
+
+  @Test
+  void createWithoutTenantContextRejected() {
+    TenantContextHolder.clear();
+    assertThrows(ApiException.class, () -> service.create(9L, 0L, "STAFF", "E001"));
+  }
+
+  @Test
+  void platformContextCannotCreateTenantMembership() {
+    TenantContextHolder.set(new TenantContext(0L, null, null, 1L, 1, List.of(), "PLATFORM"));
+    assertThrows(ApiException.class, () -> service.create(9L, 0L, "STAFF", "E001"));
+  }
 }
