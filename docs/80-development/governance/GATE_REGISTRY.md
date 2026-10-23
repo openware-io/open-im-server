@@ -68,3 +68,7 @@
 | G51 | gate-catalog | validate-gate-catalog.ps1 | blocking | 门禁类别、Owner、阶段与目录覆盖 |
 | G52 | docs-impact | validate-docs-impact.ps1 | blocking | 高风险代码变更必须伴随对应文档变更 |
 | G53 | domain-map | validate-domain-map.ps1 | blocking | 业务域类型、Owner、模块、依赖与服务覆盖 |
+
+## 已批准例外
+
+- [ENGINEERING_DEBT_EXCEPTIONS.md](ENGINEERING_DEBT_EXCEPTIONS.md)：G27 既有的 9 条 hotel/admin 迁移债务，2026-11-15 到期；G32 已清零。

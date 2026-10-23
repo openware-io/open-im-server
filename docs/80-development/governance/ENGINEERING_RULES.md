@@ -280,3 +280,6 @@ common-services/
 
 `scripts/validate/validate-flyway-conventions.ps1` 以本文件作为表前缀注册表的权威来源。
 脚本路径固定为 `docs/80-development/governance/ENGINEERING_RULES.md`；移动本文件时必须同步修改验证器。
+
+- 门禁例外登记见 [ENGINEERING_DEBT_EXCEPTIONS.md](ENGINEERING_DEBT_EXCEPTIONS.md)。
+

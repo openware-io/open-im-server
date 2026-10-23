@@ -116,7 +116,10 @@ public class RoleBindingApplicationService {
   }
 
   public List<Long> listIdsByAccount(Long accountId) {
-    return listByAccount(accountId).stream().map(RoleBinding::id).toList();
+    java.util.ArrayList<Long> ids = new java.util.ArrayList<>(
+        listByAccount(accountId).stream().map(RoleBinding::id).toList());
+    ids.addAll(bindings.findPlatformIdsByAccount(accountId));
+    return ids;
   }
 
   @Transactional
@@ -148,11 +151,17 @@ public class RoleBindingApplicationService {
   }
 
   public Long accountIdForBinding(Long bindingId) {
-    RoleBinding binding = bindings.findById(bindingId)
+    return bindings.findAccountIdByAnyId(bindingId)
         .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在"));
-    return memberships.findById(binding.membershipId())
-        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"))
-        .accountId();
+  }
+
+  @Transactional
+  public void revokeAny(Long bindingId) {
+    Long accountId = accountIdForBinding(bindingId);
+    if (!bindings.revokeAnyById(bindingId)) {
+      throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
+    }
+    snapshots.evict(accountId);
   }
 
   public List<RoleBinding> listByMembership(Long membershipId) {

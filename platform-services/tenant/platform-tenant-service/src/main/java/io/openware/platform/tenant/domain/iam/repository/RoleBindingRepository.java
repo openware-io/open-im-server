@@ -14,5 +14,11 @@ public interface RoleBindingRepository {
 
   List<RoleBinding> findByMembership(Long membershipId);
 
+  List<Long> findPlatformIdsByAccount(Long accountId);
+
+  java.util.Optional<Long> findAccountIdByAnyId(Long bindingId);
+
+  boolean revokeAnyById(Long bindingId);
+
   RoleBinding save(RoleBinding binding);
 }

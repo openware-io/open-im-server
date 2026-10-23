@@ -149,8 +149,7 @@ public class IamController {
     /** 撤销成员角色绑定（软删 status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {
-        roleBindingService.accountIdForBinding(userRoleId);
-        roleBindingService.revoke(userRoleId);
+        roleBindingService.revokeAny(userRoleId);
     }
 
     /** 账号的成员角色绑定 id 列表（供运营人员精确撤销/删除）。 */

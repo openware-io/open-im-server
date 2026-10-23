@@ -50,6 +50,21 @@ public class RoleBindingRepositoryAdapter implements RoleBindingRepository {
   }
 
   @Override
+  public List<Long> findPlatformIdsByAccount(Long accountId) {
+    return mapper.selectPlatformIdsByAccount(accountId);
+  }
+
+  @Override
+  public Optional<Long> findAccountIdByAnyId(Long bindingId) {
+    return Optional.ofNullable(mapper.selectAccountIdByAnyId(bindingId));
+  }
+
+  @Override
+  public boolean revokeAnyById(Long bindingId) {
+    return mapper.revokeAnyById(bindingId) > 0;
+  }
+
+  @Override
   public RoleBinding save(RoleBinding binding) {
     LocalDateTime now = LocalDateTime.now();
     RoleBindingPo po = new RoleBindingPo();

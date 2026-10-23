@@ -1,3 +1,4 @@
+START TRANSACTION;
 -- 迁移 iam_user_role 到 iam_role_binding（S2，幂等）。
 -- 在目标 SaaS 库执行；不自动创建 membership。
 -- 规则：
@@ -8,10 +9,11 @@
 
 INSERT INTO iam_role_binding
   (subject_type, subject_id, role_id, scope_type, tenant_id, organization_id, store_id,
-   authorization_version, status, created_by, created_at, updated_by, updated_at)
+   authorization_version, effective_from, effective_to, status, created_by, created_at, updated_by, updated_at)
 SELECT
   'ACCOUNT', ur.account_id, ur.role_id, ur.scope_type, 0, 0, 0,
-  GREATEST(ur.authorization_version, 1), ur.status, ur.created_by, ur.created_at, ur.updated_by, ur.updated_at
+  GREATEST(ur.authorization_version, 1), ur.effective_from, ur.effective_to,
+  ur.status, ur.created_by, ur.created_at, ur.updated_by, ur.updated_at
 FROM iam_user_role ur
 WHERE ur.scope_type = 'PLATFORM'
   AND ur.status = 'ACTIVE'
@@ -24,12 +26,13 @@ WHERE ur.scope_type = 'PLATFORM'
 
 INSERT INTO iam_role_binding
   (subject_type, subject_id, role_id, scope_type, tenant_id, organization_id, store_id,
-   authorization_version, status, created_by, created_at, updated_by, updated_at)
+   authorization_version, effective_from, effective_to, status, created_by, created_at, updated_by, updated_at)
 SELECT
   'MEMBERSHIP', mem.id, ur.role_id, ur.scope_type, ur.tenant_id,
   CASE WHEN ur.scope_type = 'SELF' THEN 0 ELSE COALESCE(ur.organization_id, 0) END,
   CASE WHEN ur.scope_type = 'SELF' THEN 0 ELSE COALESCE(ur.store_id, 0) END,
   GREATEST(ur.authorization_version, mem.authorization_version, 1),
+  ur.effective_from, ur.effective_to,
   ur.status, ur.created_by, ur.created_at, ur.updated_by, ur.updated_at
 FROM iam_user_role ur
 JOIN tnt_membership mem
@@ -46,6 +49,8 @@ WHERE ur.scope_type IN ('TENANT', 'ORGANIZATION', 'STORE', 'SELF')
       AND b.organization_id = CASE WHEN ur.scope_type = 'SELF' THEN 0 ELSE COALESCE(ur.organization_id, 0) END
       AND b.store_id = CASE WHEN ur.scope_type = 'SELF' THEN 0 ELSE COALESCE(ur.store_id, 0) END
   );
+
+COMMIT;
 
 -- 未迁移报告：非平台旧绑定找不到 STAFF membership
 SELECT ur.id, ur.account_id, ur.tenant_id, ur.role_id, ur.scope_type

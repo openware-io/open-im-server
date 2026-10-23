@@ -128,19 +128,16 @@ class IamControllerScopeTest {
 
     @Test
     void revokeDelegatesToBindingService() {
-        when(roleBindings.accountIdForBinding(5L)).thenReturn(10L);
-
         controller.revokeUserRole(5L);
 
-        verify(roleBindings).accountIdForBinding(5L);
-        verify(roleBindings).revoke(5L);
+        verify(roleBindings).revokeAny(5L);
         verify(snapshots, never()).evictAll();
     }
 
     @Test
     void revokeUnknownBindingIsNotFound() {
-        when(roleBindings.accountIdForBinding(5L))
-                .thenThrow(new ApiException(404, "ROLE_BINDING_NOT_FOUND", "missing"));
+        org.mockito.Mockito.doThrow(new ApiException(404, "ROLE_BINDING_NOT_FOUND", "missing"))
+                .when(roleBindings).revokeAny(5L);
 
         ApiException error = assertThrows(ApiException.class, () -> controller.revokeUserRole(5L));
 

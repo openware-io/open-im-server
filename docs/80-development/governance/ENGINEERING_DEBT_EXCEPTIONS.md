@@ -8,9 +8,12 @@
 
 ```text
 检查：validate-flyway-conventions.ps1
+ADR：ADR-0015 / ADR-0008 酒店域边界
 范围：9 个既有 hotel/admin/tenant 迁移
 原因：CREATE TABLE IF NOT EXISTS / 缺审计列/缺列注释
+负责人：platform-order-service + platform-tenant-service 负责人
 到期：2026-11-15
+补充验证：例外期内新增迁移零违规；tenant-sql 已清零；S5 收口补空库+增量 Flyway
 退出：S5 酒店域收口时按迁移规范重建或补新版本
 ```
 

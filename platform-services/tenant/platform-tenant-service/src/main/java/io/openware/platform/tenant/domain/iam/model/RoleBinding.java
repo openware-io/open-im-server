@@ -17,6 +17,7 @@ public record RoleBinding(
   public static final String SCOPE_TENANT = "TENANT";
   public static final String SCOPE_ORGANIZATION = "ORGANIZATION";
   public static final String SCOPE_STORE = "STORE";
+  public static final String SCOPE_SELF = "SELF";
   public static final String STATUS_ACTIVE = "ACTIVE";
   public static final String STATUS_REVOKED = "REVOKED";
 
@@ -65,6 +66,7 @@ public record RoleBinding(
       case SCOPE_TENANT -> tenantId != null && storeId == null;
       case SCOPE_ORGANIZATION -> tenantId != null && organizationId != null && storeId == null;
       case SCOPE_STORE -> tenantId != null && storeId != null;
+      case SCOPE_SELF -> tenantId != null && organizationId == null && storeId == null;
       default -> false;
     };
   }

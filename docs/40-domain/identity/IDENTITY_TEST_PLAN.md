@@ -273,8 +273,8 @@ E2E 阶段（S1–S6 完成后，不占用 S7 代号）：浏览器 + 真机全�
 | OauthLink legacy 回退 | S4 | 老用户/C→B 测试 |
 | account_type 旧值 | S2 | 迁移 + 代码/测试 |
 | 旧 iam_user_role | S6 | 冻结/迁移报告 |
-| flyway 9 条红灯 | S2 | 正式例外（ADR/负责人/到期/退出条件）或确认无历史库后重建，禁止改已执行迁移 |
-| tenant-sql 3 条红灯 | S2 | 同上 |
+| flyway 9 条红灯 | S5 | GATE-FLYWAY-LEGACY-001 正式例外，2026-11-15 到期；禁止改已执行迁移 |
+| tenant-sql 3 条红灯 | S2 已关闭 | RoleMapper/Membership/IamSnapshot 补 tenant-agnostic 注释 |
 
 ## 10.4 fixture 与真值落盘
 
