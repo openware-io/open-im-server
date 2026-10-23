@@ -208,16 +208,16 @@ public class HotelMasterDataApplicationService {
     private <T> T write(T po, com.baomidou.mybatisplus.core.mapper.BaseMapper<T> mapper) {
         try {
             if (po instanceof HotelPo h) {
-                if (h.getId() == null) { h.setCreatedAt(LocalDateTime.now()); h.setVersion(0); mapper.insert(po); }
+                if (h.getId() == null) { h.setCreatedAt(LocalDateTime.now()); h.setUpdatedAt(LocalDateTime.now()); h.setVersion(0); mapper.insert(po); }
                 else { h.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
             } else if (po instanceof HotelRoomTypePo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
+                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
                 else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
             } else if (po instanceof HotelRoomPo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
+                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
                 else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
             } else if (po instanceof HotelRatePlanPo r) {
-                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
+                if (r.getId() == null) { r.setCreatedAt(LocalDateTime.now()); r.setUpdatedAt(LocalDateTime.now()); r.setVersion(0); mapper.insert(po); }
                 else { r.setUpdatedAt(LocalDateTime.now()); mapper.updateById(po); }
             }
             return po;
