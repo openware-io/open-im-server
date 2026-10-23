@@ -283,6 +283,35 @@ public class IamAuthorizationApplicationService {
         "{\"accountId\":" + accountId + "}"));
   }
 
+  /** 调整已有人员的作用域，不撤销角色；只允许租户作用域内的角色。 */
+  @Transactional
+  public void updateRoleAssignmentScope(Long roleId, Long accountId, Long organizationId, Long storeId,
+                                        String scopeType) {
+    Role role = requireActiveRole(roleId);
+    TenantContext context = TenantContextHolder.get();
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
+    if (!context.platformScope() && role.tenantId() != null && !role.tenantId().equals(context.tenantId())) {
+      throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能操作其他租户的角色");
+    }
+    String effectiveScope = scopeType == null || scopeType.isBlank() ? role.scopeLevel() : scopeType;
+    if (!role.hasScopeLevel(effectiveScope)
+        || !UserRoleBinding.scopeShapeValid(effectiveScope, context.tenantId(), organizationId, storeId)) {
+      throw invalidGrantScope();
+    }
+    boolean updated = userRoleRepository.updateScopeByAccountAndRole(accountId, roleId,
+        organizationId, storeId, effectiveScope);
+    if (!updated) {
+      throw new ApiException(404, "USER_ROLE_NOT_FOUND", "该人员未分配此角色");
+    }
+    permissionSnapshotProvider.evict(accountId);
+    auditClient.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null,
+        "iam.user_role.scope_update", "role", String.valueOf(roleId), role.name(),
+        "role:" + roleId + ":account:" + accountId,
+        "{\"accountId\":" + accountId + ",\"scopeType\":\"" + effectiveScope + "\"}"));
+  }
+
   private Role requireActiveRole(Long roleId) {
     Role role = roleRepository.findById(roleId).orElse(null);
     if (role == null || !role.active()) {

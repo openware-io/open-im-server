@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -126,6 +127,13 @@ public class IamController {
         authorizationService.revokeRoleFromAccount(roleId, accountId);
     }
 
+    @PutMapping("/roles/{roleId}/accounts/{accountId}/scope")
+    public void updateRoleAssignmentScope(@PathVariable Long roleId, @PathVariable Long accountId,
+                                          @RequestBody UpdateRoleScopeRequest request) {
+        authorizationService.updateRoleAssignmentScope(roleId, accountId,
+                request.organizationId(), request.storeId(), request.scopeType());
+    }
+
     /** 撤销账号在某作用域下的角色绑定（软删，status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {
@@ -147,6 +155,8 @@ public class IamController {
     public record MaskingRoleView(Long roleId, String code, String name, boolean piiView) {}
     public record AssignUserRoleRequest(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {}
+
+    public record UpdateRoleScopeRequest(Long organizationId, Long storeId, String scopeType) {}
 
     private TenantContext requireTenantContext() {
         TenantContext context = TenantContextHolder.get();

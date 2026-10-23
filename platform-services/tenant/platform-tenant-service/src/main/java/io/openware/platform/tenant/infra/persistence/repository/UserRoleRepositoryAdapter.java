@@ -70,4 +70,10 @@ public class UserRoleRepositoryAdapter implements UserRoleRepository {
   public boolean revokeByAccountAndRole(Long accountId, Long roleId) {
     return mapper.revokeByAccountAndRole(accountId, roleId) > 0;
   }
+
+  @Override
+  public boolean updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
+                                             String scopeType) {
+    return mapper.updateScopeByAccountAndRole(accountId, roleId, organizationId, storeId, scopeType) > 0;
+  }
 }
