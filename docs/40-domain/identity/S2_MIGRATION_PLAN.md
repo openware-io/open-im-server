@@ -155,3 +155,22 @@ STAFF membership id=1 authorization_version=4
 平台绑定 -> subject_type=ACCOUNT
 无 STAFF membership 的旧行进入报告，不静默丢弃
 ```
+
+## 9. 角色绑定切换结果
+
+```text
+/admin/iam/user-roles -> iam_role_binding（STAFF membership）
+权限快照 SQL -> iam_role_binding + tnt_membership
+撤销/scope -> membership 绑定
+快照查询实测：tenant.store.manage 命中
+tenant 151 PASS
+```
+
+待办：
+
+```text
+旧 IamAuthorizationApplicationService 角色分配方法标记 deprecated/删除
+旧 iam_user_role 写入冻结验证
+门禁红灯处理
+S2 仲裁
+```
