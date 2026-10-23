@@ -66,6 +66,22 @@ POST /api/v1/admin/iam/roles/{id}/permissions
 
 约束：预置角色只读；租户只能创建 `TENANT/STORE` 角色；权限必须满足角色 `scopeLevel` 与权限 `grantableLevels`。
 
+## 工作区配置
+
+```text
+GET /api/v1/admin/tenant/workspace-mode
+PUT /api/v1/admin/tenant/workspace-mode
+```
+
+`storeWorkspaceMode`：
+
+```text
+INDEPENDENT     门店独立工作台（默认）
+TENANT_CONTEXT  门店作为租户后台内的经营上下文
+```
+
+内部端点 `GET /internal/tenant/{tenantId}/workspace-mode` 供后台登录解析 workspace 使用。
+
 ## 状态
 
 - 骨架已落库（E1）：租户 / IAM / 套餐接口已实现（见 `SAAS_PLATFORM_07_EXECUTION.md`）
