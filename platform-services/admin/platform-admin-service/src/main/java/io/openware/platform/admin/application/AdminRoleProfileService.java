@@ -40,16 +40,32 @@ public class AdminRoleProfileService {
         if (profiles.isEmpty()) {
             return new AdminWorkspace(List.of(), List.of("PLATFORM"), "PLATFORM", "/select");
         }
+        List<TenantIamDomainClient.RoleBinding> bindings = roleBindings(platformAccountId);
+        Long tenantId = bindings.stream()
+                .map(TenantIamDomainClient.RoleBinding::tenantId)
+                .filter(id -> id != null && id > 0)
+                .findFirst().orElse(null);
+        String storeMode = tenantIamClient.workspaceMode(tenantId);
         List<String> workspaces = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (AdminRoleProfilePo profile : profiles) {
-            if (seen.add(profile.getWorkspaceCode())) {
-                workspaces.add(profile.getWorkspaceCode());
+            String workspace = effectiveWorkspace(profile.getWorkspaceCode(), storeMode);
+            if (seen.add(workspace)) {
+                workspaces.add(workspace);
             }
         }
         AdminRoleProfilePo primary = profiles.get(0);
-        String landing = landing(primary, roleBindings(platformAccountId));
-        return new AdminWorkspace(roleCodes, workspaces, primary.getWorkspaceCode(), landing);
+        String landing = landing(primary, bindings);
+        return new AdminWorkspace(roleCodes, workspaces,
+                effectiveWorkspace(primary.getWorkspaceCode(), storeMode), landing);
+    }
+
+    /** 门店角色默认进独立 STORE 工作区；租户配置为门店上下文时归入 HEADQUARTERS。 */
+    private static String effectiveWorkspace(String workspace, String storeMode) {
+        if ("STORE".equals(workspace) && "TENANT_CONTEXT".equals(storeMode)) {
+            return "HEADQUARTERS";
+        }
+        return workspace;
     }
 
     private List<String> roleCodes(Long platformAccountId, AdminRole legacyRole) {

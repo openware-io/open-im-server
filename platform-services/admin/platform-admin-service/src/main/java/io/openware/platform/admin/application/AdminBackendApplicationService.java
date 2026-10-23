@@ -26,13 +26,17 @@ public class AdminBackendApplicationService {
         var resolved = workspaces.resolve(admin.platformAccountId(), admin.role());
         boolean platform = resolved.workspaces().contains("PLATFORM");
         boolean tenant = resolved.workspaces().stream()
-                .anyMatch(code -> "HEADQUARTERS".equals(code) || "TENANT".equals(code) || "STORE".equals(code));
+                .anyMatch(code -> "HEADQUARTERS".equals(code) || "TENANT".equals(code));
+        boolean store = resolved.workspaces().contains("STORE");
         List<AdminBackend> backends = new java.util.ArrayList<>();
         if (platform) {
             backends.add(new AdminBackend("platform", "平台运营后台", "/platform", "building"));
         }
         if (tenant) {
             backends.add(new AdminBackend("tenant", "租户后台", "/tenant", "shop"));
+        }
+        if (store) {
+            backends.add(new AdminBackend("store", "门店工作台", "/store", "store"));
         }
         return List.copyOf(backends);
     }

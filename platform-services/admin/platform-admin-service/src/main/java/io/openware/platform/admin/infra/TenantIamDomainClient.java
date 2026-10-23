@@ -38,9 +38,24 @@ public class TenantIamDomainClient {
                 .requestInterceptor(internalAuthInterceptor).build();
     }
 
-    /** 账号可访问的经营上下文列表。 */
-    public List<Context> contexts(Long accountId) {
+    /** 租户门店工作区模式：INDEPENDENT / TENANT_CONTEXT。 */
+    public String workspaceMode(Long tenantId) {
+        if (tenantId == null || tenantId <= 0) return "INDEPENDENT";
         try {
+            String resp = restClient.get()
+                    .uri("/internal/tenant/{tenantId}/workspace-mode", tenantId)
+                    .retrieve().body(String.class);
+            JsonNode node = resp == null ? null : objectMapper.readTree(resp);
+            String mode = node == null ? null : node.path("storeWorkspaceMode").asText(null);
+            return "TENANT_CONTEXT".equals(mode) ? "TENANT_CONTEXT" : "INDEPENDENT";
+        } catch (Exception exception) {
+            // 配置服务不可用时保持默认独立工作区，避免登录被配置读失败阻断。
+            return "INDEPENDENT";
+        }
+    }
+
+    /** 账号可访问的经营上下文列表。 */
+    public List<Context> contexts(Long accountId) {        try {
             String resp = restClient.get()
                     .uri("/internal/iam/account/{accountId}/contexts", accountId)
                     .retrieve()
