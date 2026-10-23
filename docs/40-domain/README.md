@@ -9,6 +9,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [账号与权限模型](ACCOUNT_PERMISSION_MODEL.md) | 平台账号、IM 账号、租户/门店角色和运营权限 |
+| [身份与访问](identity/README.md) | IM/SaaS 身份联邦、租户成员、角色绑定、权益、应用安装 |
 | [业务域版图](DOMAIN_MAP.md) | 核心/支撑/通用/边缘域、Owner 与依赖规则 |
 | [后台角色工作台](ADMIN_WORKBENCH.md) | 平台/总部/门店/IM 工作区与角色首页 |
 | [后台工作台业界对标](ADMIN_WORKBENCH_BENCHMARK.md) | 对标 Shopify/Square/Toast/Mews 等，识别补强项 |

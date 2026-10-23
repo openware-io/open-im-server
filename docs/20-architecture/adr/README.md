@@ -18,6 +18,7 @@
 | 0012 | [订单作为共享交易内核](0012-order-kernel.md) | proposed | 2026-10-22 |
 | 0013 | [角色工作台作为平台能力](0013-role-workbench.md) | proposed | 2026-10-22 |
 | 0014 | [平台、租户、门店工作区与角色治理](0014-workspace-role-model.md) | accepted | 2026-10-23 |
+| 0015 | [IM 与 SaaS 身份联邦、租户成员与授权模型](0015-identity-federation-tenant-iam.md) | accepted | 2026-10-23 |
 
 ## 状态说明
 

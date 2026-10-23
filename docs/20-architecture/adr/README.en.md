@@ -12,6 +12,7 @@
 | --- | --- | --- | --- |
 | 0007 | [`version` named exception](0007-version-named-exceptions.md) | withdrawn | 2026-10-18 |
 | 0014 | [Platform, tenant and store workspaces and role governance](0014-workspace-role-model.md) | accepted | 2026-10-23 |
+| 0015 | [IM and SaaS identity federation, tenant membership and authorization](0015-identity-federation-tenant-iam.md) | accepted | 2026-10-23 |
 
 ## Status values
 

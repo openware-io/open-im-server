@@ -60,3 +60,14 @@
 ## 状态
 
 - 已落库（E1）：注册 / 登录 / 绑定 / 上下文选择已实现；登录与 IM OAuth 绑定签发签名 JWT Access Token，`/auth/contexts` + `/auth/context/select` 改为校验 Bearer Token（不再信任明文 X-Account-Id）
+
+## 目标身份模型
+
+当前服务已提供 SaaS 账号、登录标识、IM OAuth 绑定与 C/B 会话。
+目标模型见：
+
+- [身份与访问模型](../../../40-domain/identity/IDENTITY_ACCESS_MODEL.md)
+- [身份数据模型](../../../40-domain/identity/IDENTITY_SCHEMA.md)
+- [ADR-0015](../../../20-architecture/adr/0015-identity-federation-tenant-iam.md)
+
+关键增量：`idt_account.account_type` 只保留 `PLATFORM_OPERATOR/USER`；员工/客户由 `tnt_membership.membership_type` 决定；角色绑定改为 membership。

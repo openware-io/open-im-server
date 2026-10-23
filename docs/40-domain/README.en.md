@@ -9,6 +9,7 @@
 | Document | Scope |
 | --- | --- |
 | [Account and permission model](ACCOUNT_PERMISSION_MODEL.md) | Platform/IM accounts, tenant/store roles and operator permissions |
+| [Identity and access](identity/README.en.md) | IM/SaaS identity federation, tenant memberships, role bindings, entitlements, app installation |
 | [Domain map](DOMAIN_MAP.en.md) | Core/supporting/generic/edge domains, owners and dependency rules |
 | [Admin role workbench](ADMIN_WORKBENCH.en.md) | Platform/headquarters/store/IM workspaces and role homes |
 | [Admin workbench benchmark](ADMIN_WORKBENCH_BENCHMARK.en.md) | Benchmark against Shopify/Square/Toast/Mews and gaps |

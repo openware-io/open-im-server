@@ -87,3 +87,13 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 ## 状态
 
 - 骨架已落库（E1）：租户 / IAM / 套餐接口已实现（见 `SAAS_PLATFORM_07_EXECUTION.md`）
+
+## 身份与成员模型
+
+租户成员、角色绑定、应用安装和权益的目标模型见：
+
+- [身份与访问模型](../../../40-domain/identity/IDENTITY_ACCESS_MODEL.md)
+- [身份数据模型](../../../40-domain/identity/IDENTITY_SCHEMA.md)
+- [ADR-0015](../../../20-architecture/adr/0015-identity-federation-tenant-iam.md)
+
+当前 `iam_user_role` 为兼容路径；目标使用 `iam_role_binding` 绑定 membership，不再按全局 account 绑定租户/门店角色。
