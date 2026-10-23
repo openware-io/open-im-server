@@ -21,12 +21,12 @@ public interface RoleBindingMapper extends BaseMapper<RoleBindingPo> {
 
   @InterceptorIgnore(tenantLine = "true")
   @Select("SELECT CASE WHEN subject_type = 'ACCOUNT' THEN subject_id "
-      + "ELSE (SELECT account_id FROM tnt_membership WHERE id = subject_id) END "
+      + "ELSE (SELECT account_id FROM tnt_membership /* tenant-agnostic: 绑定主键回查 */ WHERE id = subject_id) END "
       + "FROM iam_role_binding /* tenant-agnostic: 按绑定主键回查账号 */ WHERE id = #{id}")
   Long selectAccountIdByAnyId(@Param("id") Long id);
 
   @InterceptorIgnore(tenantLine = "true")
-  @Update("UPDATE iam_role_binding SET status = 'REVOKED', updated_at = NOW(3) "
-      + "/* tenant-agnostic: 按绑定主键撤销，账号由调用方校验 */ WHERE id = #{id} AND status = 'ACTIVE'")
+  @Update("UPDATE iam_role_binding /* tenant-agnostic: 按绑定主键撤销 */ SET status = 'REVOKED', updated_at = NOW(3) "
+      + "WHERE id = #{id} AND status = 'ACTIVE'")
   int revokeAnyById(@Param("id") Long id);
 }
