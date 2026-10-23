@@ -27,7 +27,7 @@ POST /identity/oauth/im/callback
 ```text
 1. 校验 appId 已注册、clientType 与 app_type 匹配
 2. 调 IM /oauth/token 换 access_token
-3. 调 IM /oauth/userinfo 取 openId/unionId
+3. 调 IM /oauth/userinfo 取 openId
 4. 查 idt_oauth_link(provider=IM, app_id, open_id)
 5. 查 tnt_membership
 6. 签发 SaaS C/B 会话 + audience 正确的 cookie

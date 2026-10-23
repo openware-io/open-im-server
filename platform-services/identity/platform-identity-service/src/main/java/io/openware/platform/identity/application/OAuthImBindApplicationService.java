@@ -141,6 +141,9 @@ public class OAuthImBindApplicationService {
             if (raced == null) {
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
+            if (!raced.accountId().equals(login.accountId())) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 绑定归属不一致");
+            }
             return bindResult(raced.accountId(), openId);
         }
         return bindResult(login.accountId(), openId);

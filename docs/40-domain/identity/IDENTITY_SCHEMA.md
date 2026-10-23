@@ -244,6 +244,7 @@ tnt_app_installation
 ```text
 identity-service:
   V2: idt_oauth_link 增加 app_id，重建唯一键
+  V3: 删除被 (account_id, app_id) 覆盖的 idx_idt_oauth_link_account
 tenant-service:
   V8: tnt_membership
   V9: tnt_staff

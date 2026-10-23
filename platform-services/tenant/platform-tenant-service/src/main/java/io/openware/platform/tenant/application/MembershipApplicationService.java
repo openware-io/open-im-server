@@ -1,0 +1,68 @@
+package io.openware.platform.tenant.application;
+
+import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.membership.Membership;
+import io.openware.platform.tenant.domain.membership.MembershipRepository;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** 租户成员应用服务：创建、查询、状态变更；授权主体为 membership。 */
+@Service
+public class MembershipApplicationService {
+
+  private final MembershipRepository repository;
+
+  public MembershipApplicationService(MembershipRepository repository) {
+    this.repository = repository;
+  }
+
+  @Transactional
+  public Membership create(Long accountId, Long organizationId, String type, String memberNo) {
+    TenantContext context = requireTenant();
+    return createForTenant(context.tenantId(), accountId, organizationId, type, memberNo);
+  }
+
+  @Transactional
+  public Membership createForTenant(Long tenantId, Long accountId, Long organizationId,
+                                    String type, String memberNo) {
+    repository.findByAccountAndTenantAndType(accountId, tenantId, type).ifPresent(existing -> {
+      throw new ApiException(409, "MEMBERSHIP_EXISTS", "该账号在此租户已存在同类型成员身份");
+    });
+    return repository.save(Membership.create(accountId, tenantId, organizationId, type, memberNo));
+  }
+
+  public Membership get(Long id) {
+    return repository.findById(id)
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
+  }
+
+  public List<Membership> list(String type, String status) {
+    TenantContext context = requireTenant();
+    return repository.findByTenant(context.tenantId(), type, status);
+  }
+
+  public List<Membership> listByAccount(Long accountId) {
+    return repository.findAllByAccountId(accountId);
+  }
+
+  @Transactional
+  public Membership changeStatus(Long id, String status) {
+    Membership current = get(id);
+    TenantContext context = requireTenant();
+    if (!current.tenantId().equals(context.tenantId())) {
+      throw new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在");
+    }
+    return repository.save(current.changeStatus(status));
+  }
+
+  private TenantContext requireTenant() {
+    TenantContext context = TenantContextHolder.get();
+    if (context == null || context.platformScope()) {
+      throw new ApiException(401, "SAAS_TENANT_CONTEXT_REQUIRED", "缺少租户上下文");
+    }
+    return context;
+  }
+}
