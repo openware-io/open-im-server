@@ -35,10 +35,11 @@ public class OAuthImBindController {
     /** H5 回调：授权码 + PKCE verifier -> 换 token -> 绑定 -> SaaS accessToken。 */
     @PostMapping("/oauth/im/callback")
     public AuthenticatedResponse callback(@RequestBody CallbackRequest request, HttpServletResponse response) {
+        String resolvedAppId = bindService.resolveAppId(request.appId());
         BindResult result = bindService.bindByCode(request.code(), request.codeVerifier(), request.redirectUri(),
-                request.appId(), request.state(), request.nonce());
-        String sessionId = sessionStore.createSession(result.accountId(), request.appId());
-        String cookieName = cookieNameFor(request.appId());
+                resolvedAppId, request.state(), request.nonce());
+        String sessionId = sessionStore.createSession(result.accountId(), resolvedAppId);
+        String cookieName = cookieNameFor(resolvedAppId);
         if (plainCookie) {
             SaasUserSessionCookie.setPlain(response, sessionId, cookieName);
         } else {

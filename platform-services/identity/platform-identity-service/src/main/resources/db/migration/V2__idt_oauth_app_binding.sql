@@ -1,5 +1,5 @@
--- Domain: identity; applies only to a new database without executed baseline.
--- IM OAuth 是应用级的：同一 provider 下，openId 按 app_id 隔离。
+-- Domain: identity; incremental migration.
+-- IM 当前 openId 是全局 im_<userId>；app_id 是 OAuth client 维度，C/B 共享同一 SaaS account。
 ALTER TABLE `idt_oauth_link`
   ADD COLUMN `app_id` varchar(64) NOT NULL DEFAULT 'legacy'
     COMMENT 'IM开放平台应用ID' AFTER `provider`;

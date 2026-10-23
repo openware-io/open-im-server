@@ -261,7 +261,7 @@ S3：应用安装/权益/服务入口
 S4：OAuth C/B 会话、legacy 回退、code 重放
 S5：酒店门店、C/B 应用、酒店全链路
 S6：旧模型迁移、离职回收、authorization_version
-S7：浏览器 + 真机全量 E2E、异常恢复、回归
+E2E 阶段（S1–S6 完成后，不占用 S7 代号）：浏览器 + 真机全量 E2E、异常恢复、回归
 ```
 
 ## 10.3 与硬门禁待清偿项对账
@@ -273,8 +273,40 @@ S7：浏览器 + 真机全量 E2E、异常恢复、回归
 | OauthLink legacy 回退 | S4 | 老用户/C→B 测试 |
 | account_type 旧值 | S2 | 迁移 + 代码/测试 |
 | 旧 iam_user_role | S6 | 冻结/迁移报告 |
-| flyway 9 条红灯 | S2 | 清零或治理例外 |
-| tenant-sql 3 条红灯 | S2 | 清零或治理例外 |
+| flyway 9 条红灯 | S2 | 正式例外（ADR/负责人/到期/退出条件）或确认无历史库后重建，禁止改已执行迁移 |
+| tenant-sql 3 条红灯 | S2 | 同上 |
+
+## 10.4 fixture 与真值落盘
+
+每个 fixture 必须记录：
+
+```text
+fixture 名称
+创建接口 + 请求体摘要
+X-Request-Id
+租户/门店/员工/客户/房型/库存 ID
+创建时间
+清理方式
+```
+
+数据库真值查询至少覆盖：
+
+```text
+tnt_membership / iam_role_binding
+cst_member.membership_id
+ord_order / payment / refund / folio
+htl_inventory_calendar / htl_inventory_hold
+authorization_version
+```
+
+## 10.5 执行与证据
+
+```text
+执行人：主任务实现者 + 仲裁代理抽检
+证据目录：artifacts/identity-acceptance/<yyyyMMdd>/<CASE-ID>/
+保留期：至少到分支合并后 90 天
+抽检：仲裁代理按目录随机抽 P0/P1，缺证据即 FAIL
+```
 
 
 ## 11. 准入/准出

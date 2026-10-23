@@ -117,6 +117,26 @@ class OAuthImBindApplicationServiceTest {
   }
 
   @Test
+  void bind_reuseLinkRaceFallsBackToExistingLink() {
+    when(imOAuthClient.resolveAppId("saas-a380-c")).thenReturn("saas-a380-c");
+    when(imOAuthClient.fetchUserInfo("im-token"))
+        .thenReturn(new ImOAuthUserInfo("open-4", "nick", "avatar", "phone", "scope"));
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-c", "open-4"))
+        .thenReturn(List.of(),
+            List.of(OauthLink.bind(14L, "IM", "saas-a380-c", "open-4", "scope")));
+    when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-4"))
+        .thenReturn(java.util.Optional.of(LoginIdentity.forLogin(14L, "IM", "open-4", null)));
+    when(oauthLinkRepository.save(any())).thenThrow(
+        new org.springframework.dao.DuplicateKeyException("duplicate"));
+    when(tokenProvider.createAccessToken(14L, "open-4", 0)).thenReturn("signed-jwt-4");
+
+    BindResult result = service.bind("im-token", "saas-a380-c");
+
+    assertEquals(14L, result.accountId());
+    assertEquals("signed-jwt-4", result.accessToken());
+  }
+
+  @Test
   void bind_issuesJwtForNewAccount() {
     when(imOAuthClient.resolveAppId("saas-a380-c")).thenReturn("saas-a380-c");
     when(imOAuthClient.fetchUserInfo("im-token"))

@@ -76,7 +76,7 @@ public class AccountApplicationService {
     /**
      * 按登录标识查/建账号（内部端点，供运营人员开通使用）。
      * 已存在则返回并修正 account_type；不存在则按指定类型创建账号 + 登录标识（credential 为空，IM/第三方无密码）。
-     * IM 的 app 级 oauth_link 由 OAuth 回调按 app_id 写入，本入口不再写 legacy 绑定。
+     * IM 的 app 维度 oauth_link 由 OAuth 回调按 app_id 写入，本入口不再写 legacy 绑定。
      */
     @Transactional
     public IdentityAccount ensureAccount(String loginType, String loginIdentifier, String accountType) {

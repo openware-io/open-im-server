@@ -1,4 +1,4 @@
--- Domain: tenant/IAM; applies only to a new database without executed baseline.
+-- Domain: tenant/IAM; incremental migration.
 CREATE TABLE `tnt_staff` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '员工档案ID',
   `membership_id` bigint unsigned NOT NULL COMMENT '成员身份ID（tnt_membership.id）',

@@ -45,7 +45,7 @@ SaaS 不拥有 IM 消息/关系表
 
 ```text
 im_user.id
-open_id（应用内）
+open_id（当前 IM 全局 im_<userId>；app_id 为 OAuth client 维度）
 ```
 
 ### 3.2 SaaS 账号

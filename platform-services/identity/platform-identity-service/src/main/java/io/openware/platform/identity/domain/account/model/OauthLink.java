@@ -8,7 +8,7 @@ package io.openware.platform.identity.domain.account.model;
  * @param id                绑定主键
  * @param accountId         所属账号
  * @param provider          提供方标识，例如 WECHAT / ALIPAY / IM
- * @param appId             提供方应用标识；IM openId 是应用级的
+ * @param appId             提供方 OAuth client 标识；IM 当前 openId 全局，appId 不改变账号归并
  * @param providerAccountId 提供方侧的用户标识
  * @param scope             授权范围快照
  * @param status            绑定状态
@@ -34,8 +34,10 @@ public record OauthLink(
   /** 新建绑定：初始为可用状态，尚未落库（{@code id} 为空）。 */
   public static OauthLink bind(Long accountId, String provider, String appId, String providerAccountId,
                                String scope) {
-    return new OauthLink(null, accountId, provider, appId == null || appId.isBlank() ? LEGACY_APP_ID : appId,
-        providerAccountId, scope, STATUS_ACTIVE);
+    if (appId == null || appId.isBlank()) {
+      throw new IllegalArgumentException("appId must not be blank");
+    }
+    return new OauthLink(null, accountId, provider, appId, providerAccountId, scope, STATUS_ACTIVE);
   }
 
   /** 绑定是否可用。不可用的绑定不能被任何账号复用。 */

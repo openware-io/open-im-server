@@ -9,7 +9,8 @@ import java.util.Optional;
  *
  * <p>以聚合为单位，方法表达业务意图；不暴露 MyBatis Wrapper、PO、Mapper 或分页类型。
  *
- * <p>按 {@code (provider, providerAccountId)} 查询是绑定流程的权威入口：该组合上的唯一性由数据库约束保证。
+ * <p>按 {@code (provider, appId, providerAccountId)} 查询是绑定流程的权威入口：该组合上的唯一性由数据库约束保证。
+ * <p>IM 当前 openId 全局（{@code im_<userId>}），appId 是 OAuth client 维度；C/B 共享同一 SaaS account。
  */
 public interface OauthLinkRepository {
 

@@ -69,6 +69,11 @@ public class OAuthImBindApplicationService {
     }
 
     /** 授权码换 token 后绑定（H5 客户端无 appSecret，授权码交换由服务端完成）。 */
+    /** 供 Controller 解析会话/cookie 所需的实际 appId。 */
+    public String resolveAppId(String appId) {
+        return imOAuthClient.resolveAppId(appId);
+    }
+
     public BindResult bindByCode(String code, String codeVerifier, String redirectUri, String appId) {
         return bindByCode(code, codeVerifier, redirectUri, appId, null, null);
     }
@@ -108,9 +113,7 @@ public class OAuthImBindApplicationService {
         LoginIdentity existingLogin = loginIdentityRepository
                 .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
         if (existingLogin != null) {
-            oauthLinkRepository.save(OauthLink.bind(
-                    existingLogin.accountId(), PROVIDER_IM, resolvedAppId, openId, info.scope()));
-            return bindResult(existingLogin.accountId(), openId);
+            return reuseLoginAndBind(openId, resolvedAppId, info.scope(), existingLogin);
         }
         try {
             Long accountId = self.createAccountAndBind(openId, info, resolvedAppId);
@@ -121,14 +124,26 @@ public class OAuthImBindApplicationService {
                 LoginIdentity racedLogin = loginIdentityRepository
                         .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
                 if (racedLogin != null) {
-                    oauthLinkRepository.save(OauthLink.bind(
-                            racedLogin.accountId(), PROVIDER_IM, resolvedAppId, openId, info.scope()));
-                    return bindResult(racedLogin.accountId(), openId);
+                    return reuseLoginAndBind(openId, resolvedAppId, info.scope(), racedLogin);
                 }
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
             return bindResult(raced.accountId(), openId);
         }
+    }
+
+    /** 复用已有登录标识时只补 app 维度绑定；并发插入冲突则回读已存在 link。 */
+    private BindResult reuseLoginAndBind(String openId, String appId, String scope, LoginIdentity login) {
+        try {
+            oauthLinkRepository.save(OauthLink.bind(login.accountId(), PROVIDER_IM, appId, openId, scope));
+        } catch (DuplicateKeyException ex) {
+            OauthLink raced = findLink(openId, appId);
+            if (raced == null) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
+            }
+            return bindResult(raced.accountId(), openId);
+        }
+        return bindResult(login.accountId(), openId);
     }
 
     private BindResult bindResult(Long accountId, String openId) {
@@ -158,6 +173,7 @@ public class OAuthImBindApplicationService {
 
     private OauthLink findLink(String openId, String appId) {
         return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
+                .filter(OauthLink::isActive)
                 .findFirst().orElse(null);
     }
 

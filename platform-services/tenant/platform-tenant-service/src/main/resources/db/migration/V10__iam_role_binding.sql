@@ -1,4 +1,4 @@
--- Domain: tenant/IAM; applies only to a new database without executed baseline.
+-- Domain: tenant/IAM; incremental migration.
 CREATE TABLE `iam_role_binding` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '角色绑定ID',
   `subject_type` varchar(16) NOT NULL COMMENT '授权主体类型 ACCOUNT/MEMBERSHIP',

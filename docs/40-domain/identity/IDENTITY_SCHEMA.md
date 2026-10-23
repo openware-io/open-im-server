@@ -36,7 +36,7 @@ ALTER TABLE `idt_account`
 
 ### 2.2 `idt_oauth_link`
 
-现有表缺少应用维度，OpenID 是应用级的。
+现有表缺少 OAuth client 维度。当前 IM openId 是全局 `im_<userId>`，`app_id` 仅记录 OAuth client；C/B 共享同一 SaaS account。
 
 ```sql
 ALTER TABLE `idt_oauth_link`
@@ -53,10 +53,11 @@ ALTER TABLE `idt_oauth_link`
 规则：
 
 ```text
-provider_account_id = 该 app_id 下的 openId
+provider_account_id = 当前 IM 全局 openId（im_<userId>）
+app_id = OAuth client 维度，不改变 openId 全局唯一性
 同一 (provider, app_id, openId) 不能绑定两个 SaaS account
-legacy 只读兼容；新 app 必须写真实 app_id
 已有 login_identity 时，新 app 只新增 oauth_link，不新建 SaaS account
+idt_login_identity 仍按 (login_type, login_identifier) 唯一；同一个人 C/B 共用一个 SaaS account
 解绑只改 status = REVOKED，不物理删除
 ```
 
