@@ -60,3 +60,21 @@ GET/PUT      /admin/hotel/inventory
 所有查询强制当前 `storeId`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
 契约见 [hotel-booking-v1.yaml](../../../30-reference/contracts/openapi/hotel-booking-v1.yaml)。
 
+
+## 酒店报价与预订（H2）
+
+```text
+POST /admin/hotel/quotes
+POST /admin/hotel/bookings
+GET  /admin/hotel/bookings
+POST /admin/hotel/bookings/{id}/confirm
+POST /admin/hotel/bookings/{id}/cancel
+```
+
+- 报价按入住夜逐日读取库存和房价，任一晚不足即不可售；
+- 创建预订使用原子 `UPDATE ... WHERE total-sold-held >= rooms` 扣 hold；
+- 确认：hold → sold；
+- 取消：未确认释放 hold，已确认释放 sold；
+- 同一 `booking_id + stay_date` 只允许一条 hold 记录。
+
+库存并发与状态机见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)。
