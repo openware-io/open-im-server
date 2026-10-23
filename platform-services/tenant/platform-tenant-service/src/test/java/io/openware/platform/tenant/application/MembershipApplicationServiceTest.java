@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
 import io.openware.platform.tenant.domain.membership.Membership;
 import io.openware.platform.tenant.domain.membership.MembershipRepository;
 import java.util.List;
@@ -23,11 +24,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class MembershipApplicationServiceTest {
 
   @Mock private MembershipRepository repository;
+  @Mock private RoleBindingRepository bindings;
+  @Mock private PermissionSnapshotProvider snapshots;
   private MembershipApplicationService service;
 
   @BeforeEach
   void setUp() {
-    service = new MembershipApplicationService(repository);
+    service = new MembershipApplicationService(repository, bindings, snapshots);
     TenantContextHolder.set(new TenantContext(100L, 10L, null, 1L, 1));
   }
 

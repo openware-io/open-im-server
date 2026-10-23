@@ -53,4 +53,10 @@ public record Membership(
     return new Membership(id, accountId, tenantId, organizationId, membershipType, memberNo,
         authorizationVersion + 1, target);
   }
+
+  /** 角色绑定变化时递增授权版本，保证快照版本单调不回退。 */
+  public Membership bumpAuthorizationVersion() {
+    return new Membership(id, accountId, tenantId, organizationId, membershipType, memberNo,
+        authorizationVersion + 1, status);
+  }
 }

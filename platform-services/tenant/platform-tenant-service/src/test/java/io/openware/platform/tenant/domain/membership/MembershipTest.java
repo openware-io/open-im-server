@@ -28,6 +28,15 @@ class MembershipTest {
   }
 
   @Test
+  void bumpAuthorizationVersionIsMonotonic() {
+    Membership bumped = Membership.create(10L, 100L, 0L, "STAFF", "E001")
+        .bumpAuthorizationVersion()
+        .bumpAuthorizationVersion();
+    assertEquals(3, bumped.authorizationVersion());
+    assertEquals("ACTIVE", bumped.status());
+  }
+
+  @Test
   void leftCannotBeReactivated() {
     Membership left = Membership.create(10L, 100L, 0L, "STAFF", "E001").changeStatus("LEFT");
     assertThrows(IllegalStateException.class, () -> left.changeStatus("ACTIVE"));

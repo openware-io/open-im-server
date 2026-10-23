@@ -5,10 +5,12 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
+import io.openware.platform.tenant.domain.iam.repository.OrganizationRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.membership.Membership;
 import io.openware.platform.tenant.domain.membership.MembershipRepository;
+import io.openware.platform.tenant.domain.store.repository.StoreRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +22,22 @@ public class RoleBindingApplicationService {
   private final RoleBindingRepository bindings;
   private final MembershipRepository memberships;
   private final RoleRepository roles;
+  private final StoreRepository stores;
+  private final OrganizationRepository organizations;
+  private final PermissionSnapshotProvider snapshots;
 
   public RoleBindingApplicationService(RoleBindingRepository bindings,
                                        MembershipRepository memberships,
-                                       RoleRepository roles) {
+                                       RoleRepository roles,
+                                       StoreRepository stores,
+                                       OrganizationRepository organizations,
+                                       PermissionSnapshotProvider snapshots) {
     this.bindings = bindings;
     this.memberships = memberships;
     this.roles = roles;
+    this.stores = stores;
+    this.organizations = organizations;
+    this.snapshots = snapshots;
   }
 
   @Transactional
@@ -62,12 +73,23 @@ public class RoleBindingApplicationService {
         && (organizationId == null || organizationId <= 0)) {
       throw new ApiException(400, "ORGANIZATION_SCOPE_REQUIRED", "组织角色必须指定组织");
     }
+    if (organizationId != null && organizationId > 0
+        && !organizations.findTenantId(organizationId).filter(id -> id == context.tenantId()).isPresent()) {
+      throw new ApiException(400, "ORGANIZATION_TENANT_MISMATCH", "组织不属于当前租户");
+    }
+    if (storeId != null && storeId > 0
+        && !stores.findOwnerTenantId(storeId).filter(id -> id == context.tenantId()).isPresent()) {
+      throw new ApiException(400, "STORE_TENANT_MISMATCH", "门店不属于当前租户");
+    }
     if (bindings.findActive(membershipId, roleId, scopeType, context.tenantId(), organizationId, storeId)
         .isPresent()) {
       throw new ApiException(409, "ROLE_BINDING_EXISTS", "该角色绑定已存在");
     }
-    return bindings.save(RoleBinding.create(membershipId, roleId, scopeType,
+    RoleBinding saved = bindings.save(RoleBinding.create(membershipId, roleId, scopeType,
         context.tenantId(), organizationId, storeId));
+    memberships.save(membership.bumpAuthorizationVersion());
+    snapshots.evict(membership.accountId());
+    return saved;
   }
 
   @Transactional
@@ -85,7 +107,10 @@ public class RoleBindingApplicationService {
   }
 
   public List<RoleBinding> listByAccount(Long accountId) {
+    TenantContext context = TenantContextHolder.get();
     return memberships.findAllByAccountId(accountId).stream()
+        .filter(membership -> context == null || context.platformScope()
+            || membership.tenantId().equals(context.tenantId()))
         .flatMap(membership -> bindings.findByMembership(membership.id()).stream())
         .toList();
   }
@@ -104,10 +129,11 @@ public class RoleBindingApplicationService {
         .findFirst()
         .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
     bindings.save(target.revoke());
+    touchMembership(target);
   }
 
   @Transactional
-  public void updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
+  public RoleBinding updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
                                           String scopeType) {
     TenantContext context = requireTenant();
     RoleBinding target = listByAccount(accountId).stream()
@@ -116,7 +142,9 @@ public class RoleBindingApplicationService {
         .filter(binding -> binding.tenantId().equals(context.tenantId()))
         .findFirst()
         .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
-    bindings.save(target.changeScope(scopeType, organizationId, storeId));
+    RoleBinding saved = bindings.save(target.changeScope(scopeType, organizationId, storeId));
+    touchMembership(target);
+    return saved;
   }
 
   public Long accountIdForBinding(Long bindingId) {
@@ -128,6 +156,12 @@ public class RoleBindingApplicationService {
   }
 
   public List<RoleBinding> listByMembership(Long membershipId) {
+    TenantContext context = requireTenant();
+    Membership membership = memberships.findById(membershipId)
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
+    if (!membership.tenantId().equals(context.tenantId())) {
+      throw new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在");
+    }
     return bindings.findByMembership(membershipId);
   }
 
@@ -139,7 +173,16 @@ public class RoleBindingApplicationService {
     if (!binding.tenantId().equals(context.tenantId())) {
       throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
     }
-    return bindings.save(binding.revoke());
+    RoleBinding saved = bindings.save(binding.revoke());
+    touchMembership(binding);
+    return saved;
+  }
+
+  private void touchMembership(RoleBinding binding) {
+    Membership membership = memberships.findById(binding.membershipId())
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
+    memberships.save(membership.bumpAuthorizationVersion());
+    snapshots.evict(membership.accountId());
   }
 
   private TenantContext requireTenant() {

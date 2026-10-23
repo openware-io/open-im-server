@@ -76,6 +76,13 @@ public class IamController {
 
     @GetMapping("/roles")
     public List<RoleView> listRoles(@RequestParam Long tenantId) {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+        }
+        if (!context.platformScope() && !tenantId.equals(context.tenantId())) {
+            throw new ApiException(403, "TENANT_SCOPE_DENIED", "不能查看其他租户的角色");
+        }
         return authorizationService.listRoles(tenantId).stream().map(IamConverter::toView).toList();
     }
 

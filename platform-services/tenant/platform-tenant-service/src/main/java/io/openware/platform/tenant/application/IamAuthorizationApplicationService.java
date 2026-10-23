@@ -225,21 +225,8 @@ public class IamAuthorizationApplicationService {
   @Transactional
   public UserRoleBinding assignUserRole(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {
-    String effectiveScope = scopeType == null || scopeType.isBlank()
-        ? UserRoleBinding.SCOPE_TENANT : scopeType;
-    Role role = roleRepository.findById(roleId).orElse(null);
-    if (role == null || !role.active() || !role.hasScopeLevel(effectiveScope)
-        || !UserRoleBinding.scopeShapeValid(effectiveScope, tenantId, organizationId, storeId)) {
-      throw invalidGrantScope();
-    }
-    UserRoleBinding binding = userRoleRepository.insert(
-        UserRoleBinding.create(accountId, tenantId, organizationId, storeId, roleId, effectiveScope));
-    // iam_user_role 写操作：逐出该账号权限快照缓存
-    permissionSnapshotProvider.evict(accountId);
-    auditClient.recordAsync(AuditClient.AuditRecord.of(tenantId, null, "iam.user_role.assign", "user_role",
-        String.valueOf(binding.id()), null, "user-role:" + binding.id(),
-        "{\"accountId\":" + accountId + ",\"roleId\":" + roleId + "}"));
-    return binding;
+    throw new ApiException(410, "LEGACY_ROLE_WRITE_DISABLED",
+        "旧角色绑定写路径已停用，请使用成员角色绑定接口");
   }
 
   /**
@@ -254,37 +241,15 @@ public class IamAuthorizationApplicationService {
   @Deprecated(since = "2.4.0", forRemoval = true)
   @Transactional
   public Long revokeUserRole(Long userRoleId) {
-    Long accountId = userRoleRepository.findAccountIdById(userRoleId).orElse(null);
-    if (accountId == null) {
-      return null;
-    }
-    userRoleRepository.revoke(userRoleId);
-    permissionSnapshotProvider.evict(accountId);
-    auditClient.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.user_role.revoke", "user_role",
-        String.valueOf(userRoleId), null, "user-role:" + userRoleId,
-        "{\"accountId\":" + accountId + "}"));
-    return accountId;
+    throw new ApiException(410, "LEGACY_ROLE_WRITE_DISABLED",
+        "旧角色绑定写路径已停用，请使用成员角色绑定接口");
   }
 
   /** 从角色页移除某人员：按账号 + 角色撤销，租户只能操作自己范围内的角色。 */
   @Transactional
   public void revokeRoleFromAccount(Long roleId, Long accountId) {
-    Role role = requireActiveRole(roleId);
-    TenantContext context = TenantContextHolder.get();
-    if (context == null) {
-      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
-    }
-    if (!context.platformScope() && role.tenantId() != null && !role.tenantId().equals(context.tenantId())) {
-      throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能操作其他租户的角色");
-    }
-    boolean removed = userRoleRepository.revokeByAccountAndRole(accountId, roleId);
-    if (!removed) {
-      throw new ApiException(404, "USER_ROLE_NOT_FOUND", "该人员未分配此角色");
-    }
-    permissionSnapshotProvider.evict(accountId);
-    auditClient.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.user_role.revoke_from_role", "role",
-        String.valueOf(roleId), role.name(), "role:" + roleId + ":account:" + accountId,
-        "{\"accountId\":" + accountId + "}"));
+    throw new ApiException(410, "LEGACY_ROLE_WRITE_DISABLED",
+        "旧角色绑定写路径已停用，请使用成员角色绑定接口");
   }
 
   /** 调整已有人员的作用域，不撤销角色；只允许租户作用域内的角色。 */
@@ -293,29 +258,8 @@ public class IamAuthorizationApplicationService {
   @Transactional
   public void updateRoleAssignmentScope(Long roleId, Long accountId, Long organizationId, Long storeId,
                                         String scopeType) {
-    Role role = requireActiveRole(roleId);
-    TenantContext context = TenantContextHolder.get();
-    if (context == null) {
-      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
-    }
-    if (!context.platformScope() && role.tenantId() != null && !role.tenantId().equals(context.tenantId())) {
-      throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能操作其他租户的角色");
-    }
-    String effectiveScope = scopeType == null || scopeType.isBlank() ? role.scopeLevel() : scopeType;
-    if (!role.hasScopeLevel(effectiveScope)
-        || !UserRoleBinding.scopeShapeValid(effectiveScope, context.tenantId(), organizationId, storeId)) {
-      throw invalidGrantScope();
-    }
-    boolean updated = userRoleRepository.updateScopeByAccountAndRole(accountId, roleId,
-        organizationId, storeId, effectiveScope);
-    if (!updated) {
-      throw new ApiException(404, "USER_ROLE_NOT_FOUND", "该人员未分配此角色");
-    }
-    permissionSnapshotProvider.evict(accountId);
-    auditClient.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null,
-        "iam.user_role.scope_update", "role", String.valueOf(roleId), role.name(),
-        "role:" + roleId + ":account:" + accountId,
-        "{\"accountId\":" + accountId + ",\"scopeType\":\"" + effectiveScope + "\"}"));
+    throw new ApiException(410, "LEGACY_ROLE_WRITE_DISABLED",
+        "旧角色绑定写路径已停用，请使用成员角色绑定接口");
   }
 
   private Role requireActiveRole(Long roleId) {

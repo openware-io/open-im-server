@@ -3,6 +3,7 @@ package io.openware.platform.tenant.application;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
 import io.openware.platform.tenant.domain.membership.Membership;
 import io.openware.platform.tenant.domain.membership.MembershipRepository;
 import java.util.List;
@@ -14,9 +15,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class MembershipApplicationService {
 
   private final MembershipRepository repository;
+  private final RoleBindingRepository bindings;
+  private final PermissionSnapshotProvider snapshots;
 
-  public MembershipApplicationService(MembershipRepository repository) {
+  public MembershipApplicationService(MembershipRepository repository,
+                                       RoleBindingRepository bindings,
+                                       PermissionSnapshotProvider snapshots) {
     this.repository = repository;
+    this.bindings = bindings;
+    this.snapshots = snapshots;
   }
 
   @Transactional
@@ -31,9 +38,11 @@ public class MembershipApplicationService {
     repository.findByAccountAndTenantAndType(accountId, tenantId, type).ifPresent(existing -> {
       throw new ApiException(409, "MEMBERSHIP_EXISTS", "该账号在此租户已存在同类型成员身份");
     });
-    return repository.save(Membership.create(accountId, tenantId, organizationId, type, memberNo));
+    Membership created = repository.save(
+        Membership.create(accountId, tenantId, organizationId, type, memberNo));
+    snapshots.evict(accountId);
+    return created;
   }
-
   public Membership get(Long id) {
     return repository.findById(id)
         .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
@@ -55,7 +64,14 @@ public class MembershipApplicationService {
     if (!current.tenantId().equals(context.tenantId())) {
       throw new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在");
     }
-    return repository.save(current.changeStatus(status));
+    if (!Membership.STATUS_ACTIVE.equals(status)) {
+      bindings.findByMembership(id).stream()
+          .filter(binding -> binding.active())
+          .forEach(binding -> bindings.save(binding.revoke()));
+    }
+    Membership saved = repository.save(current.changeStatus(status));
+    snapshots.evict(current.accountId());
+    return saved;
   }
 
   private TenantContext requireTenant() {

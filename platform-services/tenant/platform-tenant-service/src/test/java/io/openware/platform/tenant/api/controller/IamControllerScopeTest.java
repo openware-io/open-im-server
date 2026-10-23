@@ -99,6 +99,12 @@ class IamControllerScopeTest {
     }
 
     @Test
+    void listRolesRejectsOtherTenant() {
+        ApiException error = assertThrows(ApiException.class, () -> controller.listRoles(200L));
+        assertEquals("TENANT_SCOPE_DENIED", error.getCode());
+    }
+
+    @Test
     void invalidScopeIsRejectedByBindingService() {
         when(roleBindings.assignByAccount(10L, 100L, null, 101L, 7L, "STORE"))
                 .thenThrow(new ApiException(400, "INVALID_GRANT_SCOPE", "invalid"));
