@@ -38,6 +38,9 @@ public interface IamAuthorizationRepository {
    */
   boolean grantConsumerAuthorization(String appId, Long accountId, String scope);
 
+  /** 撤销消费者应用授权（解绑时调用）；保留审计行。 */
+  boolean revokeConsumerAuthorization(String appId, Long accountId);
+
   /** 脱敏权限管理：预置角色及其可见 PII 状态（跨租户只读）。 */
   List<MaskingRole> findMaskingRoles();
 

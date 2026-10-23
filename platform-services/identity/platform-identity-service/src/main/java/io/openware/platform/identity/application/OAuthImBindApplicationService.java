@@ -192,6 +192,9 @@ public class OAuthImBindApplicationService {
         }
         links.stream().filter(OauthLink::isActive)
             .forEach(link -> oauthLinkRepository.save(link.revoke()));
+        if (!appRegistry.isBackend(appId)) {
+            tenantServiceClient.revokeConsumerAuthorization(accountId, appId);
+        }
     }
 
     private BindResult bindResult(Long accountId, String openId) {

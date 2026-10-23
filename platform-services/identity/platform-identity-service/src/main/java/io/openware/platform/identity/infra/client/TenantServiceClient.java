@@ -57,6 +57,13 @@ public class TenantServiceClient {
                 .retrieve().toBodilessEntity();
     }
 
+    /** C 端解绑：撤销 consumer 授权并逐出权限快照。 */
+    public void revokeConsumerAuthorization(Long accountId, String appId) {
+        restClient.delete().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorization")
+                        .queryParam("accountId", accountId).build(appId))
+                .retrieve().toBodilessEntity();
+    }
+
     /**
      * 账号在某作用域下的权限快照（权限码 + 授权版本）。
      * {@code forceRefresh=true} 用于上下文选择：跳过 tenant 侧缓存，保证刚调整的权限立即生效。

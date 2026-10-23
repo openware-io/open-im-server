@@ -115,3 +115,8 @@ C/B audience（酒店链路）：
 - 身份上下文 token 写入 `clientApp` claim（`saas-c` / `saas-b`）。
 - SDK 验签后写入 `ClientAudienceHolder`。
 - 酒店 `/admin/hotel/**` 要求 `saas-b`，`/business/hotel/catalog/**` 要求 `saas-c`；跨族返回 `403 CLIENT_AUDIENCE_FORBIDDEN`。
+
+S3 解绑权限撤销：
+
+- `DELETE /internal/iam/consumer/{appId}/authorization` 撤销 `tnt_app_user_authorization` 并 `evict(accountId)`。
+- identity C 端 unbind 调用该内部接口；B 端不动 consumer 授权。

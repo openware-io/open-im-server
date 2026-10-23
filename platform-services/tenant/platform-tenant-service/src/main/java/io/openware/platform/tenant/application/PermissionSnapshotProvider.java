@@ -84,6 +84,14 @@ public class PermissionSnapshotProvider {
         }
     }
 
+    public void revokeConsumerAuthorization(String appId, Long accountId) {
+        if (appId == null || appId.isBlank() || accountId == null) {
+            throw new IllegalArgumentException("appId and accountId are required");
+        }
+        authorizationRepository.revokeConsumerAuthorization(appId, accountId);
+        evict(accountId);
+    }
+
     /** 返回账号在某作用域下的权限快照（权限码 + 授权版本）。 */
     public PermissionSnapshot snapshot(Long accountId, Long tenantId, Long organizationId, Long storeId) {
         return snapshot(accountId, tenantId, organizationId, storeId, false);

@@ -59,6 +59,12 @@ public interface IamSnapshotMapper {
     int grantConsumerAuthorization(@Param("appId") String appId, @Param("accountId") Long accountId,
                                   @Param("scope") String scope);
 
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("UPDATE tnt_app_user_authorization /* tenant-agnostic: 按 app+account 撤销授权 */ "
+        + "SET status = 'REVOKED', authorization_version = authorization_version + 1, updated_at = NOW(3) "
+        + "WHERE app_id = #{appId} AND account_id = #{accountId} AND status = 'ACTIVE'")
+    int revokeConsumerAuthorization(@Param("appId") String appId, @Param("accountId") Long accountId);
+
     /** 账号在作用域下的权限码列表（iam_role_binding → iam_role → iam_permission）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""

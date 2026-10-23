@@ -63,6 +63,11 @@ public class InternalIamController {
         provider.grantConsumerAuthorization(appId, accountId, scope);
     }
 
+    @DeleteMapping("/consumer/{appId}/authorization")
+    public void revokeConsumerAuthorization(@PathVariable String appId, @RequestParam Long accountId) {
+        provider.revokeConsumerAuthorization(appId, accountId);
+    }
+
     /** C 端首次授权后幂等建立 CUSTOMER membership；app 的 tenant 由 consumer 授权上下文解析。 */
     @PostMapping("/consumer/{appId}/membership")
     public MembershipController.MembershipView ensureConsumerMembership(

@@ -98,3 +98,6 @@ S3 更新：unbind 端点与 REVOKED→ACTIVE 重绑已完成；identity 49 test
 
 S3 更新：token clientApp claim + 酒店 B/C audience guard 已完成；identity 50、order guard 2 tests。
 
+
+S3 更新：consumer 授权撤销 + 权限快照逐出已完成。
+
