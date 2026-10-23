@@ -172,3 +172,15 @@ POST /admin/hotel/frontdesk/bookings/{id}/refund-requests
 
 调用 payment-service `/business/refund-requests`，写入 `htl_refund`（method=ONLINE, status=PENDING, external_ref=退款申请号）。
 线上退款在支付侧审批/打款前不减少 folio.paid，也不写 `REFUND` 账单项；现金退款仍走 `/refund` 并立即记账。
+
+### 线上退款状态同步
+
+```text
+GET  /admin/hotel/frontdesk/refunds
+POST /admin/hotel/frontdesk/refunds/sync
+```
+
+同步 payment-service 的 `APPROVED/REJECTED/REFUNDED`：
+- `APPROVED` 只更新 `htl_refund`；
+- 只有 `REFUNDED` 才写 `REFUND` 账单项、减少 `folio.paid`；
+- `PENDING` 不会被当成已退款。

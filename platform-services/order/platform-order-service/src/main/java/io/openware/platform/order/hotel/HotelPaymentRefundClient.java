@@ -25,8 +25,36 @@ public class HotelPaymentRefundClient {
                 .requestInterceptor(internalAuthInterceptor).build();
     }
 
-    public String requestRefund(Long orderId, long amountMinor, String reason, Long requestedBy) {
-        TenantContext context = TenantContextHolder.get();
+    /** 查询 payment-service 中同一退款申请的最新状态。 */
+    public RefundState status(String requestId) {
+        String token = TenantContextHolder.tokenOrNull();
+        if (token == null || token.isBlank() || requestId == null) {
+            return null;
+        }
+        try {
+            String response = restClient.get()
+                    .uri("/business/refund-requests")
+                    .header("X-Tenant-Context", token)
+                    .retrieve()
+                    .body(String.class);
+            JsonNode array = objectMapper.readTree(response);
+            if (array != null && array.isArray()) {
+                for (JsonNode node : array) {
+                    if (requestId.equals(node.path("requestId").asText())) {
+                        return new RefundState(node.path("status").asText(),
+                                node.path("providerRefundNo").asText(""));
+                    }
+                }
+            }
+            return null;
+        } catch (Exception exception) {
+            throw new ApiException(502, "PAYMENT_REFUND_UNAVAILABLE", "查询 payment-service 退款状态失败");
+        }
+    }
+
+    public record RefundState(String status, String providerRefundNo) {}
+
+    public String requestRefund(Long orderId, long amountMinor, String reason, Long requestedBy) {        TenantContext context = TenantContextHolder.get();
         String token = TenantContextHolder.tokenOrNull();
         if (context == null || token == null || token.isBlank()) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文，不能提交线上退款");

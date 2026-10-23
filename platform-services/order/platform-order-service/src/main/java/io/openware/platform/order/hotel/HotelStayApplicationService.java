@@ -264,6 +264,63 @@ public class HotelStayApplicationService {
         return refund;
     }
 
+    /** 同步 payment-service 退款审批/打款状态；REFUNDED 才写账本并减少已收。 */
+    @Transactional
+    public List<HotelRefundPo> syncOnlineRefunds() {        PermissionGuard.require("hotel.checkout");
+        TenantContext context = requireStore();
+        List<HotelRefundPo> refunds = refundMapper.selectList(new LambdaQueryWrapper<HotelRefundPo>()
+                .eq(HotelRefundPo::getStoreId, context.storeId())
+                .eq(HotelRefundPo::getMethod, "ONLINE")
+                .in(HotelRefundPo::getStatus, List.of("PENDING", "APPROVED")));
+        for (HotelRefundPo refund : refunds) {
+            HotelPaymentRefundClient.RefundState state = paymentRefundClient.status(refund.getExternalRef());
+            if (state == null || state.status() == null || state.status().isBlank()) {
+                continue;
+            }
+            if ("APPROVED".equals(state.status()) && "PENDING".equals(refund.getStatus())) {
+                refund.setStatus("APPROVED");
+                refund.setUpdatedAt(LocalDateTime.now());
+                refundMapper.updateById(refund);
+                continue;
+            }
+            if ("REJECTED".equals(state.status())) {
+                refund.setStatus("REJECTED");
+                refund.setUpdatedAt(LocalDateTime.now());
+                refundMapper.updateById(refund);
+                continue;
+            }
+            if (!"REFUNDED".equals(state.status())) {
+                continue;
+            }
+            HotelFolioPo folio = folioMapper.selectById(refund.getFolioId());
+            if (folio == null || !"OPEN".equals(folio.getStatus())) {
+                continue;
+            }
+            if (refund.getAmountMinor() > folio.getPaidMinor()) {
+                continue;
+            }
+            addItem(folio, "REFUND", "ONLINE", refund.getExternalRef(), "线上押金退款",
+                    -refund.getAmountMinor());
+            folio.setPaidMinor(folio.getPaidMinor() - refund.getAmountMinor());
+            folio.setUpdatedAt(LocalDateTime.now());
+            folioMapper.updateById(folio);
+            refund.setStatus("REFUNDED");
+            refund.setUpdatedAt(LocalDateTime.now());
+            refundMapper.updateById(refund);
+        }
+        return refundMapper.selectList(new LambdaQueryWrapper<HotelRefundPo>()
+                .eq(HotelRefundPo::getStoreId, context.storeId())
+                .orderByDesc(HotelRefundPo::getId));
+    }
+
+    public List<HotelRefundPo> listOnlineRefunds() {
+        PermissionGuard.require("hotel.booking.view");
+        TenantContext context = requireStore();
+        return refundMapper.selectList(new LambdaQueryWrapper<HotelRefundPo>()
+                .eq(HotelRefundPo::getStoreId, context.storeId())
+                .orderByDesc(HotelRefundPo::getId));
+    }
+
     public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();
         HotelFolioPo folio = folioMapper.selectOne(new LambdaQueryWrapper<HotelFolioPo>()
