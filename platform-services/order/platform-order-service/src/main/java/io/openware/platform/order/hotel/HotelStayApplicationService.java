@@ -20,17 +20,23 @@ public class HotelStayApplicationService {
     private final HotelFolioMapper folioMapper;
     private final HotelFolioItemMapper folioItemMapper;
     private final HotelHousekeepingMapper housekeepingMapper;
+    private final HotelRefundMapper refundMapper;
+    private final HotelPaymentRefundClient paymentRefundClient;
 
     public HotelStayApplicationService(HotelBookingMapper bookingMapper, HotelRoomMapper roomMapper,
                                        HotelStayMapper stayMapper, HotelFolioMapper folioMapper,
                                        HotelFolioItemMapper folioItemMapper,
-                                       HotelHousekeepingMapper housekeepingMapper) {
+                                       HotelHousekeepingMapper housekeepingMapper,
+                                       HotelRefundMapper refundMapper,
+                                       HotelPaymentRefundClient paymentRefundClient) {
         this.bookingMapper = bookingMapper;
         this.roomMapper = roomMapper;
         this.stayMapper = stayMapper;
         this.folioMapper = folioMapper;
         this.folioItemMapper = folioItemMapper;
         this.housekeepingMapper = housekeepingMapper;
+        this.refundMapper = refundMapper;
+        this.paymentRefundClient = paymentRefundClient;
     }
 
     @Transactional
@@ -222,6 +228,40 @@ public class HotelStayApplicationService {
         folio.setUpdatedAt(LocalDateTime.now());
         folioMapper.updateById(folio);
         return folio;
+    }
+
+    /** 线上退款只提交 payment-service 申请，保持 PENDING，不减少已收、不记 REFUND 账单项。 */
+    @Transactional
+    public HotelRefundPo requestOnlineRefund(Long bookingId, Long amountMinor, String reason, Long requestedBy) {
+        PermissionGuard.require("hotel.checkout");
+        TenantContext context = requireStore();
+        HotelBookingPo booking = requireBooking(bookingId, context);
+        HotelFolioPo folio = requireOpenFolio(bookingId, context);
+        if (booking.getOrderId() == null) {
+            throw new ApiException(409, "ORDER_RECEIVABLE_REQUIRED", "预订没有订单应收，不能提交线上退款");
+        }
+        if (amountMinor == null || amountMinor <= 0 || amountMinor > folio.getPaidMinor()) {
+            throw new ApiException(400, "REFUND_AMOUNT_INVALID", "退款金额必须大于 0 且不超过已收");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        HotelRefundPo refund = new HotelRefundPo();
+        refund.setTenantId(context.tenantId());
+        refund.setStoreId(context.storeId());
+        refund.setBookingId(bookingId);
+        refund.setFolioId(folio.getId());
+        refund.setOrderId(booking.getOrderId());
+        refund.setAmountMinor(amountMinor);
+        refund.setCurrency(folio.getCurrency());
+        refund.setMethod("ONLINE");
+        refund.setStatus("PENDING");
+        refund.setReason(reason);
+        refund.setCreatedAt(now);
+        refund.setUpdatedAt(now);
+        refundMapper.insert(refund);
+        refund.setExternalRef(paymentRefundClient.requestRefund(booking.getOrderId(), amountMinor, reason, requestedBy));
+        refund.setUpdatedAt(LocalDateTime.now());
+        refundMapper.updateById(refund);
+        return refund;
     }
 
     public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.booking.view");

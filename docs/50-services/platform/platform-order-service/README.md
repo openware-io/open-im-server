@@ -163,3 +163,12 @@ POST /admin/hotel/frontdesk/bookings/{id}/refund
 - `CASH`：写 `REFUND` 账单项（`method=CASH`）并减少已收，走本地现金账本；
 - `ONLINE`：当前返回 409 `ONLINE_REFUND_NOT_READY`，必须接 payment-service 退款后才能标记成功；
 - 不允许把线上退款记成现金退款。
+
+### 线上退款申请
+
+```text
+POST /admin/hotel/frontdesk/bookings/{id}/refund-requests
+```
+
+调用 payment-service `/business/refund-requests`，写入 `htl_refund`（method=ONLINE, status=PENDING, external_ref=退款申请号）。
+线上退款在支付侧审批/打款前不减少 folio.paid，也不写 `REFUND` 账单项；现金退款仍走 `/refund` 并立即记账。

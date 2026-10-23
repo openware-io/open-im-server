@@ -53,6 +53,11 @@ public class HotelFrontDeskController {
         return stayService.refundDeposit(id, request.amountMinor(), request.note(), request.method());
     }
 
+    @PostMapping("/bookings/{id}/refund-requests")
+    public HotelRefundPo requestOnlineRefund(@PathVariable Long id, @RequestBody RefundRequest request) {
+        return stayService.requestOnlineRefund(id, request.amountMinor(), request.note(), 0L);
+    }
+
     @GetMapping("/bookings/{id}/folio")
     public HotelStayApplicationService.FolioView folio(@PathVariable Long id) {
         return stayService.folio(id);
