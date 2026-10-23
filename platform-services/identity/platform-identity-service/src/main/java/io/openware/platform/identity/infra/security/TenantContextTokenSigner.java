@@ -54,9 +54,17 @@ public class TenantContextTokenSigner {
      */
     public String sign(Long accountId, Long tenantId, Long organizationId, Long storeId,
                        int authorizationVersion, List<String> permissions, String currencyCode) {
+        return sign(accountId, tenantId, organizationId, storeId, authorizationVersion, permissions,
+                currencyCode, null);
+    }
+
+    /** 签发上下文 Token，并写入客户端族 claim（saas-c / saas-b / saas-platform）。 */
+    public String sign(Long accountId, Long tenantId, Long organizationId, Long storeId,
+                       int authorizationVersion, List<String> permissions, String currencyCode,
+                       String clientApp) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + TTL_MS);
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .subject(String.valueOf(accountId))
                 .issuer("open-saas-identity")
                 .audience().add("open-saas-services").and()
@@ -67,8 +75,10 @@ public class TenantContextTokenSigner {
                 .claim("permissions", permissions)
                 .claim("currency", Currency.parse(currencyCode).code())
                 .issuedAt(now)
-                .expiration(expiry)
-                .signWith(secretKey)
-                .compact();
+                .expiration(expiry);
+        if (clientApp != null && !clientApp.isBlank()) {
+            builder.claim("clientApp", clientApp);
+        }
+        return builder.signWith(secretKey).compact();
     }
 }

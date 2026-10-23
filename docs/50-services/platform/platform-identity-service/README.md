@@ -109,3 +109,9 @@ S3 解绑/重绑：
 
 - `SaasUserSessionStore` 维护 `accountId + appId -> sessionIds` 索引。
 - 解绑按 account+app 批量删除会话与 CSRF，再清 cookie。
+
+C/B audience（酒店链路）：
+
+- 身份上下文 token 写入 `clientApp` claim（`saas-c` / `saas-b`）。
+- SDK 验签后写入 `ClientAudienceHolder`。
+- 酒店 `/admin/hotel/**` 要求 `saas-b`，`/business/hotel/catalog/**` 要求 `saas-c`；跨族返回 `403 CLIENT_AUDIENCE_FORBIDDEN`。

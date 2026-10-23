@@ -11,9 +11,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 酒店报价、预订、确认与取消。 */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/admin/hotel")
 public class HotelBookingController {

@@ -152,8 +152,10 @@ public class AuthContextApplicationService {
             // 币种（规范 §3.1）：读目标租户配置（缺省 USD），既写进签名 token 的 currency claim，
             // 也随响应体回给前端作为全局 store 的唯一启动来源。查询失败回退 USD，不影响上下文选择。
             String currencyCode = Currency.parse(tenantClient.tenantCurrencyCode(scope.tenantId())).code();
+            String clientApp = appId == null || appId.isBlank()
+                    ? null : (appRegistry.isBackend(appId) ? "saas-b" : "saas-c");
             String token = tokenSigner.sign(accountId, scope.tenantId(), scope.organizationId(), scope.storeId(),
-                    snapshot.authorizationVersion(), snapshot.permissions(), currencyCode);
+                    snapshot.authorizationVersion(), snapshot.permissions(), currencyCode, clientApp);
             long expiresAt = System.currentTimeMillis() / 1000 + 1800;
             return new SelectContextResponse(token, expiresAt, scope.tenantId(), scope.organizationId(),
                     scope.storeId(), snapshot.authorizationVersion(), snapshot.permissions(), List.of(), currencyCode);

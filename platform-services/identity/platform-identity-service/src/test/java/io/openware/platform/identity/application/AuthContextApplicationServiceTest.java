@@ -158,7 +158,7 @@ class AuthContextApplicationServiceTest {
         100L, 1L, 10L, 1001L, 7, List.of("a", "b"));
     when(tenantClient.permissions(100L, 1L, 10L, 1001L, true)).thenReturn(snapshot);
     when(tenantClient.tenantCurrencyCode(1L)).thenReturn("CNY");
-    when(tokenSigner.sign(100L, 1L, 10L, 1001L, 7, List.of("a", "b"), "CNY")).thenReturn("signed-token");
+    when(tokenSigner.sign(100L, 1L, 10L, 1001L, 7, List.of("a", "b"), "CNY", null)).thenReturn("signed-token");
 
     SelectContextResponse result = service.select(100L, "1:10:1001");
 
@@ -179,7 +179,7 @@ class AuthContextApplicationServiceTest {
     TenantServiceClient.PermissionSnapshot snapshot = new TenantServiceClient.PermissionSnapshot(
         100L, 2L, null, null, 1, List.of("tenant.read"));
     when(tenantClient.permissions(100L, 2L, null, null, true)).thenReturn(snapshot);
-    when(tokenSigner.sign(100L, 2L, null, null, 1, List.of("tenant.read"), "USD")).thenReturn("signed-token");
+    when(tokenSigner.sign(100L, 2L, null, null, 1, List.of("tenant.read"), "USD", null)).thenReturn("signed-token");
 
     SelectContextResponse result = service.select(100L, "2::");
 
@@ -197,7 +197,7 @@ class AuthContextApplicationServiceTest {
         .thenReturn(new TenantServiceClient.PermissionSnapshot(158L, 100L, 100L, 100L, 1,
             List.of("reservation.view", "reservation.create")));
     when(tokenSigner.sign(158L, 100L, 100L, 100L, 1,
-        List.of("reservation.view", "reservation.create"), "USD")).thenReturn("consumer-token");
+        List.of("reservation.view", "reservation.create"), "USD", "saas-c")).thenReturn("consumer-token");
 
     SelectContextResponse result = service.select(158L, "consumer:saas-a380-c:100:100:100", "saas-a380-c");
 

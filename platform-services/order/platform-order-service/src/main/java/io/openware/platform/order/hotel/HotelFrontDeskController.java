@@ -7,9 +7,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 酒店前台：任务、入住分房、押金、账单、退房结算。 */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping({"/admin/hotel/frontdesk", "/business/hotel/frontdesk"})
 public class HotelFrontDeskController {

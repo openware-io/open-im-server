@@ -31,6 +31,15 @@ class TenantContextTokenSignerTest {
   }
 
   @Test
+  void sign_writesClientAppClaim() {
+    String token = signer.sign(100L, 1L, 10L, 1001L, 7, List.of("perm.read"), "CNY", "saas-b");
+
+    Claims claims = Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
+
+    assertEquals("saas-b", claims.get("clientApp", String.class));
+  }
+
+  @Test
   void sign_issuesThirtyMinuteJwtWithScopeClaims() {
     String token = signer.sign(100L, 1L, 10L, 1001L, 7, List.of("perm.read", "perm.write"));
 

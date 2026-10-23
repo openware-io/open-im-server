@@ -5,6 +5,7 @@ import io.openware.common.http.HttpStatusCodes;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +56,6 @@ public class SaasAppRegistry {
     return Arrays.stream((raw == null ? "" : raw).split(","))
         .map(String::trim)
         .filter(value -> !value.isEmpty())
-        .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        .collect(Collectors.toCollection(LinkedHashSet::new));
   }
 }

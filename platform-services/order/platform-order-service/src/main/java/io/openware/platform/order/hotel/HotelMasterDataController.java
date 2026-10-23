@@ -12,9 +12,11 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 酒店主数据 API；权限和门店上下文由应用服务强制校验。 */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/admin/hotel")
 public class HotelMasterDataController {
