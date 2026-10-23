@@ -49,7 +49,7 @@ $firstConstraintPattern = '(?m)^[ \t]*(?:PRIMARY\s+KEY|UNIQUE\s+KEY|KEY|INDEX|CO
 
 # --- registered prefixes ---
 $prefixFilePath = Join-Path $PSScriptRoot 'table-prefixes.txt'
-$rulesPath = Join-Path $root 'docs\ENGINEERING_RULES.md'
+$rulesPath = Join-Path $root 'docs\80-development\governance\ENGINEERING_RULES.md'
 $registered = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($line in [System.IO.File]::ReadAllLines($prefixFilePath, [System.Text.UTF8Encoding]::new($false, $true))) {
   $token = $line.Trim()

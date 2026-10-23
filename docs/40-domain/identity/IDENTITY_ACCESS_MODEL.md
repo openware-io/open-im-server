@@ -19,11 +19,11 @@ CUSTOMER / STAFF 成员身份分离
 
 | 领域 | 服务 | 表 | 说明 |
 | --- | --- | --- | --- |
-| IM 用户 | `im-user-service` | `im_user` | IM 账号 |
-| IM 开放平台 | `im-user-service` | `im_open_app`、`im_user_app_grant` | 应用注册、用户授权 |
+| IM 用户 | `im-user-service` | `user` | IM 账号 |
+| IM 开放平台 | `im-user-service` | `open_application`、`open_application_scope`、`open_user_authorization` | 应用注册、scope、用户授权 |
 | SaaS 账号 | `platform-identity-service` | `idt_account`、`idt_login_identity`、`idt_oauth_link` | SaaS 账号与登录方式 |
 | 租户成员 | `platform-tenant-service` | `tnt_membership`、`tnt_staff` | 员工/客户在租户内的身份 |
-| 客户档案 | `platform-customer-service` | `cst_customer` | 会员/客户资料 |
+| 客户档案 | `platform-customer-service` | `cst_member`（增加 `membership_id`） | 复用现有客户主档 |
 | 角色权限 | `platform-tenant-service` | `iam_role`、`iam_permission`、`iam_role_permission`、`iam_role_binding` | 授权 |
 | 应用安装 | `platform-tenant-service` | `tnt_app_installation` | 租户安装的 SaaS 应用 |
 | 权益 | `platform-tenant-service` | `tnt_entitlement` | 租户购买/开通的业务能力 |
@@ -96,13 +96,16 @@ tnt_staff
   display_name
   status
 
-cst_customer
+cst_member（现有客户主档）
   membership_id
-  customer_no
-  display_name
-  phone_hash
+  account_id
+  member_no
+  phone_cipher
+  phone_digest
   status
 ```
+
+不新建 `cst_customer`；避免两套客户主档。`cst_member` 已承载手机号密文与检索摘要。
 
 - 员工和客户分表；
 - 不把 C 端用户塞进员工表；
@@ -169,9 +172,11 @@ iam_role_binding
   subject_type   ACCOUNT | MEMBERSHIP
   subject_id
   role_id
-  scope_type     PLATFORM | TENANT | STORE
+  scope_type     PLATFORM | TENANT | ORGANIZATION | STORE | SELF
   tenant_id
+  organization_id
   store_id
+  authorization_version
   status
   effective_from
   effective_to
@@ -180,15 +185,17 @@ iam_role_binding
 约束：
 
 ```text
-PLATFORM → subject_type=ACCOUNT, tenant_id=0, store_id=0
-TENANT   → subject_type=MEMBERSHIP, tenant_id>0, store_id=0
-STORE    → subject_type=MEMBERSHIP, tenant_id>0, store_id>0
+PLATFORM     → subject_type=ACCOUNT, tenant_id=0, organization_id=0, store_id=0
+TENANT       → subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
+ORGANIZATION → subject_type=MEMBERSHIP, tenant_id>0, organization_id>0, store_id=0
+STORE        → subject_type=MEMBERSHIP, tenant_id>0, organization_id>=0, store_id>0
+SELF         → subject_type=MEMBERSHIP, tenant_id>0, store_id=0
 ```
 
 唯一键：
 
 ```text
-(subject_type, subject_id, role_id, scope_type, tenant_id, store_id)
+(subject_type, subject_id, role_id, scope_type, tenant_id, organization_id, store_id)
 ```
 
 禁止：
@@ -198,6 +205,15 @@ STORE    → subject_type=MEMBERSHIP, tenant_id>0, store_id>0
 角色绑定的 tenant/store 与角色 scope 不一致
 超出 grantable_levels 的权限授予
 ```
+
+授权版本：
+
+```text
+tnt_membership.authorization_version
+iam_role_binding.authorization_version
+```
+
+角色绑定/成员状态变更时递增，权限快照版本取两者最大值；旧上下文失效。
 
 ### 4.4 权益
 
@@ -223,22 +239,39 @@ tnt_entitlement
 
 ## 5. 应用安装
 
+IM 开放平台已有表，沿用不重复建：
+
 ```text
-im_open_app
+open_application
   app_id
-  app_type      C / B
-  name
-  entry_url
-  scopes
-  redirect_uris
+  app_type
+  app_name
+  callback_url
   status
 
+open_application_scope
+  application_id
+  scope
+
+open_user_authorization
+  application_id
+  user_id
+  open_id
+  scope
+  status
+```
+
+SaaS 租户安装：
+
+```text
 tnt_app_installation
   tenant_id
   app_id
   status
   installed_at
 ```
+
+不新增重复的 IM 应用表；当前 `open_` 前缀属于挂起架构决策，沿用现有表。
 
 服务入口只展示：
 
@@ -303,10 +336,29 @@ OpenChat 运营服务
 
 独立登录与 IM OAuth 是同一个 SaaS 账号的不同登录方式，不是统一账号。
 
+## 6.4 租户拦截器契约
+
+新表在 `PlatformTenantLineHandler` / MyBatis 拦截器中的策略：
+
+| 表 | 策略 |
+| --- | --- |
+| `tnt_membership` | 登录期按 account 跨租户查全部成员：`@InterceptorIgnore` + 显式 `account_id`；租户内列表：显式 `tenant_id` |
+| `tnt_staff` | 租户内表，默认拦截；按 membership 查询必须带 tenant |
+| `iam_role_binding` | 默认拦截；平台绑定 `tenant_id=0` 必须 `@InterceptorIgnore` + 显式 `subject_type/subject_id` |
+| `cst_member` | 租户内表，默认拦截；按 membership 查询必须带 tenant |
+
+要求：
+
+```text
+禁止裸 selectList 依赖上下文猜测租户
+跨租户查询必须显式 account_id + @InterceptorIgnore
+平台行 tenant_id=0 必须显式 scope=PLATFORM
+四组测试：无上下文、租户 A、租户 B、平台
+```
+
 ## 7. 会话
 
 三类会话，cookie/audience 分离：
-
 ```text
 saas_c_session        audience=saas-c
 saas_b_session        audience=saas-b
@@ -442,7 +494,7 @@ infra/persistence
 ```text
 domain/customer/Customer
 application/CustomerApplicationService
-infra/persistence/cst_customer
+infra/persistence/cst_member
 ```
 
 ### 10.4 IM
@@ -484,7 +536,7 @@ B token 调 C API → 403
 ```text
 S0 文档/ADR/DDL 评审
 S1 idt_oauth_link 加 app_id；tnt_membership/tnt_staff
-S2 cst_customer；iam_role_binding
+S2 cst_member.membership_id；iam_role_binding
 S3 应用注册/租户安装/权益
 S4 OAuth C/B session 分离
 S5 酒店/ktv 应用注册

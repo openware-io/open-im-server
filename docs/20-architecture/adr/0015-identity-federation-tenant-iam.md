@@ -28,7 +28,7 @@
 ### 1. 两套账号域，OAuth 联邦
 
 ```text
-IM 账号域：im_user + open_app + user_app_grant
+IM 账号域：user + open_application + open_user_authorization
 SaaS 账号域：idt_account + login_identity + oauth_link
 ```
 
@@ -63,8 +63,9 @@ USER
 ### 3. 角色绑定到成员身份
 
 ```text
-平台角色：subject = ACCOUNT，scope = PLATFORM，tenant_id = 0
+平台角色：subject = ACCOUNT，scope = PLATFORM，tenant_id = 0, organization_id = 0
 租户角色：subject = MEMBERSHIP，scope = TENANT
+组织角色：subject = MEMBERSHIP，scope = ORGANIZATION
 门店角色：subject = MEMBERSHIP，scope = STORE
 ```
 
@@ -85,9 +86,11 @@ saas-hotel-b：STAFF，scope = B
 ### 5. 应用安装与权益
 
 ```text
-im_open_app              IM 应用注册
-tnt_app_installation     SaaS 租户安装应用
-tnt_entitlement          SaaS 租户购买/开通权益
+open_application          IM 应用注册（已有）
+open_application_scope    IM 应用 scope（已有）
+open_user_authorization   IM 用户授权（已有）
+tnt_app_installation      SaaS 租户安装应用（S3）
+tnt_entitlement           SaaS 租户购买/开通权益（S3，先与既有 tnt_business_entitlement 合并口径）
 ```
 
 最终可用：
@@ -145,9 +148,9 @@ C 端未绑定客户：按产品策略创建 customer，必须绑定手机号/�
 
 ```text
 Phase 0：本 ADR + 设计文档 + DDL 评审
-Phase 1：identity 增加 oauth app_id；tenant 增加 membership/staff/binding/entitlement；customer 增加 customer
+Phase 1：identity 增加 oauth app_id；tenant 增加 membership/staff/role_binding；customer 在 cst_member 增加 membership_id
 Phase 2：OAuth code 回调写 membership；C/B session 分离
-Phase 3：应用注册、租户安装、服务入口按安装/权益过滤
+Phase 3：应用注册、租户安装、权益、服务入口按安装/权益过滤
 Phase 4：酒店门店 businessType=HOTEL，迁移测试数据
 Phase 5：冻结 iam_user_role/saa_admin_account 旧路径，切换新绑定
 Phase 6：删除兼容层

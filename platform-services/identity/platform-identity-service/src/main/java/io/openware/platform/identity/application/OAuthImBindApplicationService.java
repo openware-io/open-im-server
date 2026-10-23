@@ -80,26 +80,30 @@ public class OAuthImBindApplicationService {
                     "state 与 nonce 不能为空");
         }
         String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, appId);
-        BindResult result = bind(imAccessToken);
+        BindResult result = bind(imAccessToken, appId);
         tenantServiceClient.grantConsumerAuthorization(result.accountId(), appId, "profile.basic");
         return result;
     }
 
     public BindResult bind(String imAccessToken) {
+        return bind(imAccessToken, "legacy");
+    }
+
+    public BindResult bind(String imAccessToken, String appId) {
         ImOAuthUserInfo info = imOAuthClient.fetchUserInfo(imAccessToken);
         String openId = info.openId();
         if (openId == null || openId.isBlank()) {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "IM_OPEN_ID_MISSING", "IM 用户信息缺少 open_id");
         }
-        OauthLink existing = findLink(openId);
+        OauthLink existing = findLink(openId, appId);
         if (existing != null) {
             return bindResult(existing.accountId(), openId);
         }
         try {
-            Long accountId = self.createAccountAndBind(openId, info);
+            Long accountId = self.createAccountAndBind(openId, info, appId);
             return bindResult(accountId, openId);
         } catch (DuplicateKeyException ex) {
-            OauthLink raced = findLink(openId);
+            OauthLink raced = findLink(openId, appId);
             if (raced == null) {
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
@@ -115,23 +119,25 @@ public class OAuthImBindApplicationService {
 
     @Transactional
     public Long createAccountAndBind(String openId, ImOAuthUserInfo info) {
+        return createAccountAndBind(openId, info, "legacy");
+    }
+
+    @Transactional
+    public Long createAccountAndBind(String openId, ImOAuthUserInfo info, String appId) {
         LocalDateTime now = LocalDateTime.now();
-        // IM OAuth 授权进入的默认是普通用户/潜在消费者（客户类型）；员工须由管理员在后台开通并标记 EMPLOYEE。
-        // 状态与类型由领域工厂固定，审计字段由适配器填充。
         IdentityAccount account = accountRepository.save(IdentityAccount.register());
 
         loginIdentityRepository.save(
                 LoginIdentity.forLogin(account.id(), PROVIDER_IM, openId, null));
         oauthLinkRepository.save(
-                OauthLink.bind(account.id(), PROVIDER_IM, openId, info.scope()));
-        // event_id 为空是既定口径（建表注释：bind 拉取为空），仅事件消费路径才带幂等键。
+                OauthLink.bind(account.id(), PROVIDER_IM, appId, openId, info.scope()));
         profileSyncRecordRepository.save(new ProfileSyncRecord(
                 null, null, account.id(), PROVIDER_IM, toProfileJson(info), now));
         return account.id();
     }
 
-    private OauthLink findLink(String openId) {
-        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, openId).stream()
+    private OauthLink findLink(String openId, String appId) {
+        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
                 .findFirst().orElse(null);
     }
 

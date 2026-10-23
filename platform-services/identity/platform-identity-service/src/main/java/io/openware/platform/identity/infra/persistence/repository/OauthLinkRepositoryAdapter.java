@@ -26,9 +26,10 @@ public class OauthLinkRepositoryAdapter implements OauthLinkRepository {
   }
 
   @Override
-  public Optional<OauthLink> findByProviderAccount(String provider, String providerAccountId) {
+  public Optional<OauthLink> findByProviderAccount(String provider, String appId, String providerAccountId) {
     return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<OauthLinkPo>()
         .eq(OauthLinkPo::getProvider, provider)
+        .eq(OauthLinkPo::getAppId, appId)
         .eq(OauthLinkPo::getProviderAccountId, providerAccountId))).map(this::toDomain);
   }
 
@@ -40,9 +41,10 @@ public class OauthLinkRepositoryAdapter implements OauthLinkRepository {
   }
 
   @Override
-  public List<OauthLink> findAllByProviderAccount(String provider, String providerAccountId) {
+  public List<OauthLink> findAllByProviderAccount(String provider, String appId, String providerAccountId) {
     return mapper.selectList(new LambdaQueryWrapper<OauthLinkPo>()
             .eq(OauthLinkPo::getProvider, provider)
+            .eq(OauthLinkPo::getAppId, appId)
             .eq(OauthLinkPo::getProviderAccountId, providerAccountId))
         .stream().map(this::toDomain).toList();
   }
@@ -54,6 +56,7 @@ public class OauthLinkRepositoryAdapter implements OauthLinkRepository {
     po.setId(link.id());
     po.setAccountId(link.accountId());
     po.setProvider(link.provider());
+    po.setAppId(link.appId());
     po.setProviderAccountId(link.providerAccountId());
     po.setScope(link.scope());
     po.setStatus(link.status());
@@ -75,7 +78,7 @@ public class OauthLinkRepositoryAdapter implements OauthLinkRepository {
     if (po == null) {
       return null;
     }
-    return new OauthLink(po.getId(), po.getAccountId(), po.getProvider(),
+    return new OauthLink(po.getId(), po.getAccountId(), po.getProvider(), po.getAppId(),
         po.getProviderAccountId(), po.getScope(), po.getStatus());
   }
 }

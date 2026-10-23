@@ -57,7 +57,7 @@ class OAuthImBindApplicationServiceTest {
   void bind_issuesJwtForExistingLink() {
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-1", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "open-1"))
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "legacy", "open-1"))
         .thenReturn(List.of(OauthLink.bind(9L, "IM", "open-1", "scope")));
     when(tokenProvider.createAccessToken(9L, "open-1", 0)).thenReturn("signed-jwt");
 
@@ -73,8 +73,8 @@ class OAuthImBindApplicationServiceTest {
   void bind_issuesJwtForNewAccount() {
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-2", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "open-2")).thenReturn(List.of());
-    when(self.createAccountAndBind(eq("open-2"), any(ImOAuthUserInfo.class))).thenReturn(11L);
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "legacy", "open-2")).thenReturn(List.of());
+    when(self.createAccountAndBind(eq("open-2"), any(ImOAuthUserInfo.class), eq("legacy"))).thenReturn(11L);
     when(tokenProvider.createAccessToken(11L, "open-2", 0)).thenReturn("signed-jwt-2");
 
     BindResult result = service.bind("im-token");

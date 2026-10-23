@@ -7,10 +7,12 @@
 
 | 服务 | 迁移 | 变更 |
 | --- | --- | --- |
-| `platform-identity-service` | 下一个 `V*` | `idt_oauth_link` 增加 `app_id/union_id`，唯一键改为 `(provider, app_id, provider_account_id)`；`idt_account.account_type` 收敛为 `PLATFORM_OPERATOR/USER` |
-| `platform-tenant-service` | 下一个 `V*` | 新增 `tnt_membership`、`tnt_staff`、`iam_role_binding`、`tnt_entitlement`、`tnt_app_installation`、`iam_support_grant` |
-| `platform-customer-service` | 下一个 `V*` | 新增 `cst_customer` |
-| `im-user-service` | 下一个 `V*` | 新增 `im_open_app`、`im_user_app_grant` |
+| `platform-identity-service` | `V2` | `idt_oauth_link` 增加 `app_id/union_id`，唯一键改为 `(provider, app_id, provider_account_id)`；`account_type` 收敛放到 S2（同时改代码/测试） |
+| `platform-tenant-service` | `V8`/`V9`/`V10` | `V8 tnt_membership`、`V9 tnt_staff`、`V10 iam_role_binding`；一表一迁移 |
+| `platform-customer-service` | `V2` | `cst_member` 增加 `membership_id` + 唯一键；不新建 `cst_customer` |
+| `platform-tenant-service` | S3 | `tnt_entitlement`、`tnt_app_installation`；权益先与既有 `tnt_business_entitlement` 统一 |
+| `platform-tenant-service` | S4 | `iam_support_grant` |
+| `im-user-service` | 无 | 复用已有 `open_application`、`open_application_scope`、`open_user_authorization`，不重复建应用表 |
 
 每个迁移单独版本、UTF-8、`datetime(3)`、审计字段、表注释、租户索引；不建跨库外键。
 
@@ -60,10 +62,12 @@ infra/persistence/CustomerMapper
 ### IM
 
 ```text
-im-user-service/domain/openplatform/OpenApp
-im-user-service/domain/openplatform/UserAppGrant
+im-user-service/domain/openplatform/OpenApplication
+im-user-service/domain/openplatform/OpenUserAuthorization
 im-user-service/api/controller/OauthController
 ```
+
+沿用已有 `open_application` / `open_application_scope` / `open_user_authorization`，不新增重复表。
 
 依赖方向：
 
@@ -113,7 +117,7 @@ status
 1. 建新表
 2. 回填 idt_oauth_link.app_id = 现有 IM 应用 appId
 3. 由 account + tenant 推导 tnt_membership
-4. 由 account + tenant + store 推导 tnt_staff/cst_customer
+4. 由 account + tenant + store 推导 tnt_staff/cst_member.membership_id
 5. iam_user_role -> iam_role_binding
    - subject_type = MEMBERSHIP
    - subject_id = tnt_membership.id

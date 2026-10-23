@@ -9,9 +9,10 @@
 | 服务 | 表 | 说明 |
 | --- | --- | --- |
 | `platform-identity-service` | `idt_account`、`idt_login_identity`、`idt_oauth_link` | SaaS 账号与登录方式 |
-| `platform-tenant-service` | `tnt_membership`、`tnt_staff`、`iam_role_binding`、`tnt_entitlement`、`tnt_app_installation`、`iam_support_grant` | 租户成员、角色绑定、权益、应用安装、代操作 |
-| `platform-customer-service` | `cst_customer` | 客户档案 |
-| `im-user-service` | `im_open_app`、`im_user_app_grant` | IM 开放平台应用与用户授权 |
+| `platform-tenant-service` | `tnt_membership`、`tnt_staff`、`iam_role_binding` | S1 租户成员与角色绑定 |
+| `platform-tenant-service` | `tnt_entitlement`、`tnt_app_installation`、`iam_support_grant` | S3/S4 目标；`tnt_entitlement` 需先与既有 `tnt_business_entitlement` 合并口径 |
+| `platform-customer-service` | `cst_member`（增加 `membership_id`） | 复用现有客户主档，不建 `cst_customer` |
+| `im-user-service` | `open_application`、`open_application_scope`、`open_user_authorization` | IM 开放平台应用与用户授权 |
 
 跨服务只保存 ID，不建立跨库外键。
 
@@ -25,8 +26,7 @@
 account_type = PLATFORM_OPERATOR | USER
 ```
 
-不再用 `EMPLOYEE/CUSTOMER` 作为全局唯一类型。  
-员工/客户身份由 `tnt_membership.membership_type` 决定。
+S1 **不改** `account_type` 数据与代码，避免现有登录/测试中断；S2 同时改 `IdentityAccount`、测试和回填脚本后执行。
 
 ```sql
 ALTER TABLE `idt_account`
@@ -69,8 +69,10 @@ CREATE TABLE `tnt_membership` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '成员身份ID',
   `account_id` bigint unsigned NOT NULL COMMENT 'SaaS账号ID（idt_account.id，仅标识）',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID',
+  `organization_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '组织ID；0表示未指定',
   `membership_type` varchar(16) NOT NULL COMMENT '成员类型 STAFF/CUSTOMER',
   `member_no` varchar(64) NOT NULL COMMENT '租户内成员编号',
+  `authorization_version` int NOT NULL DEFAULT 1 COMMENT '授权版本；角色/权限变更递增',
   `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/SUSPENDED/LEFT',
   `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
   `created_at` datetime(3) NOT NULL COMMENT '创建时间',
@@ -104,27 +106,19 @@ CREATE TABLE `tnt_staff` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户员工档案';
 ```
 
-### 3.3 `cst_customer`
+### 3.3 `cst_member` 增加 membership 关联
+
+不新建 `cst_customer`；`cst_member` 已是客户主档，保留 `account_id`、`phone_cipher`、`phone_digest`。
 
 ```sql
-CREATE TABLE `cst_customer` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '客户档案ID',
-  `membership_id` bigint unsigned NOT NULL COMMENT '成员身份ID（tnt_membership.id）',
-  `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID',
-  `customer_no` varchar(64) NOT NULL COMMENT '客户编号',
-  `display_name` varchar(128) NULL COMMENT '客户名称',
-  `phone_hash` varchar(128) NULL COMMENT '手机号哈希（PII）',
-  `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/DISABLED',
-  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
-  `created_at` datetime(3) NOT NULL COMMENT '创建时间',
-  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '更新人',
-  `updated_at` datetime(3) NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_cst_customer_membership` (`membership_id`),
-  UNIQUE KEY `uk_cst_customer_tenant_no` (`tenant_id`, `customer_no`),
-  KEY `idx_cst_customer_tenant_phone` (`tenant_id`, `phone_hash`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户客户档案';
+ALTER TABLE `cst_member`
+  ADD COLUMN `membership_id` bigint unsigned NULL
+    COMMENT '租户成员身份ID（tnt_membership.id，仅标识）' AFTER `account_id`,
+  ADD UNIQUE KEY `uk_cst_member_membership` (`membership_id`),
+  ADD KEY `idx_cst_member_tenant_membership` (`tenant_id`, `membership_id`);
 ```
+
+PII 约束：手机号/姓名继续使用 `phone_cipher`/`name_cipher` 加密列 + `phone_digest` 检索摘要，不新增明文列。
 
 ## 4. 角色绑定
 
@@ -134,9 +128,11 @@ CREATE TABLE `iam_role_binding` (
   `subject_type` varchar(16) NOT NULL COMMENT '授权主体类型 ACCOUNT/MEMBERSHIP',
   `subject_id` bigint unsigned NOT NULL COMMENT '主体ID',
   `role_id` bigint unsigned NOT NULL COMMENT '角色ID（iam_role.id）',
-  `scope_type` varchar(16) NOT NULL COMMENT '作用域 PLATFORM/TENANT/STORE',
+  `scope_type` varchar(16) NOT NULL COMMENT '作用域 PLATFORM/TENANT/ORGANIZATION/STORE/SELF',
   `tenant_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '租户ID；平台为0',
+  `organization_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '组织ID；非组织为0',
   `store_id` bigint unsigned NOT NULL DEFAULT 0 COMMENT '门店ID；非门店为0',
+  `authorization_version` int NOT NULL DEFAULT 1 COMMENT '绑定授权版本；变更递增',
   `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/REVOKED',
   `effective_from` datetime(3) NULL COMMENT '生效时间',
   `effective_to` datetime(3) NULL COMMENT '失效时间',
@@ -146,21 +142,24 @@ CREATE TABLE `iam_role_binding` (
   `updated_at` datetime(3) NOT NULL COMMENT '更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_iam_role_binding_subject_role_scope`
-    (`subject_type`, `subject_id`, `role_id`, `scope_type`, `tenant_id`, `store_id`),
+    (`subject_type`, `subject_id`, `role_id`, `scope_type`, `tenant_id`, `organization_id`, `store_id`),
   KEY `idx_iam_role_binding_tenant_scope` (`tenant_id`, `scope_type`, `status`),
-  KEY `idx_iam_role_binding_subject` (`subject_type`, `subject_id`, `status`)
+  KEY `idx_iam_role_binding_subject` (`subject_type`, `subject_id`, `status`),
+  KEY `idx_iam_role_binding_org_scope` (`tenant_id`, `organization_id`, `status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='角色绑定';
 ```
 
 约束（应用层强制，DB 约束辅助）：
 
 ```text
-PLATFORM: subject_type=ACCOUNT, tenant_id=0, store_id=0
-TENANT:   subject_type=MEMBERSHIP, tenant_id>0, store_id=0
-STORE:    subject_type=MEMBERSHIP, tenant_id>0, store_id>0
+PLATFORM:     subject_type=ACCOUNT, tenant_id=0, organization_id=0, store_id=0
+TENANT:       subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
+ORGANIZATION: subject_type=MEMBERSHIP, tenant_id>0, organization_id>0, store_id=0
+STORE:        subject_type=MEMBERSHIP, tenant_id>0, organization_id>=0, store_id>0
+SELF:         subject_type=MEMBERSHIP, tenant_id>0, store_id=0
 ```
 
-## 5. 权益与应用安装
+## 5. 权益与应用安装（S3 目标，S1 不落）
 
 ```sql
 CREATE TABLE `tnt_entitlement` (
@@ -198,7 +197,7 @@ CREATE TABLE `tnt_app_installation` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户应用安装';
 ```
 
-## 6. 平台代操作
+## 6. 平台代操作（S4 目标，S1 不落）
 
 ```sql
 CREATE TABLE `iam_support_grant` (
@@ -221,63 +220,40 @@ CREATE TABLE `iam_support_grant` (
 
 ## 7. IM 开放平台
 
-```sql
-CREATE TABLE `im_open_app` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '应用ID',
-  `app_id` varchar(64) NOT NULL COMMENT '应用唯一编码',
-  `app_type` varchar(16) NOT NULL COMMENT '应用类型 C/B',
-  `name` varchar(128) NOT NULL COMMENT '应用名称',
-  `entry_url` varchar(512) NOT NULL COMMENT 'SaaS 应用入口',
-  `scopes` varchar(512) NOT NULL COMMENT '允许的授权范围，逗号分隔',
-  `redirect_uris` varchar(1024) NOT NULL COMMENT '允许的回调地址，逗号分隔',
-  `status` varchar(24) NOT NULL DEFAULT 'APPROVED' COMMENT '状态 APPROVED/SUSPENDED',
-  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
-  `created_at` datetime(3) NOT NULL COMMENT '创建时间',
-  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '更新人',
-  `updated_at` datetime(3) NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_im_open_app_app_id` (`app_id`),
-  KEY `idx_im_open_app_type_status` (`app_type`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IM开放平台应用';
+IM 已有开放平台表，不重复建：
+
+```text
+open_application
+open_application_scope
+open_user_authorization
 ```
 
-```sql
-CREATE TABLE `im_user_app_grant` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '用户应用授权ID',
-  `im_user_id` bigint unsigned NOT NULL COMMENT 'IM用户ID',
-  `app_id` varchar(64) NOT NULL COMMENT '应用ID',
-  `open_id` varchar(128) NOT NULL COMMENT '应用内用户标识',
-  `scopes` varchar(512) NOT NULL COMMENT '已授权范围',
-  `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/REVOKED',
-  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
-  `created_at` datetime(3) NOT NULL COMMENT '创建时间',
-  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '更新人',
-  `updated_at` datetime(3) NOT NULL COMMENT '更新时间',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_im_user_app_grant_app_open_id` (`app_id`, `open_id`),
-  UNIQUE KEY `uk_im_user_app_grant_user_app` (`im_user_id`, `app_id`),
-  KEY `idx_im_user_app_grant_user_status` (`im_user_id`, `status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='IM用户应用授权';
+SaaS 只新增：
+
+```text
+tnt_app_installation
 ```
+
+如果后续需要多 redirect URI 或结构化 scope，按新 ADR 扩展 `open_application_scope`，不在 SaaS 表里复制 IM 应用注册。
 
 ## 8. 迁移顺序
 
 ```text
 identity-service:
-  Vn: idt_oauth_link 增加 app_id/union_id，重建唯一键
+  V2: idt_oauth_link 增加 app_id/union_id，重建唯一键
 tenant-service:
-  Vn: tnt_membership
-  Vn: tnt_staff
-  Vn: iam_role_binding
-  Vn: tnt_entitlement
-  Vn: tnt_app_installation
-  Vn: iam_support_grant
+  V8: tnt_membership
+  V9: tnt_staff
+  V10: iam_role_binding
 customer-service:
-  Vn: cst_customer
+  V2: cst_member 增加 membership_id + 唯一键（不新建 cst_customer）
 im-user-service:
-  Vn: im_open_app
-  Vn: im_user_app_grant
+  已有 open_application/open_application_scope/open_user_authorization
+  不新增迁移
 ```
+
+S3 再落 `tnt_entitlement` / `tnt_app_installation`，S4 落 `iam_support_grant`；`tnt_entitlement` 先与既有 `tnt_business_entitlement` 统一口径。
+
 
 每个版本一个独立迁移；禁止把多张表塞进一个不可审查脚本（除非同域同批评审通过）。
 
