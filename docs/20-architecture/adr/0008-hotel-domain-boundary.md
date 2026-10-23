@@ -2,7 +2,7 @@
 
 ## Status / 状态
 
-**proposed（提案中，2026-10-22）**。本 ADR 只确定 MVP 的领域边界，不替代酒店实现方案。
+**accepted（已接受，2026-10-23）**。本 ADR 确定酒店核心域归属与 MVP 边界；酒店业务按 `platform-order-service` 的 `domain/hotel` 完整实现，达到触发条件后再拆独立服务。
 
 ## Context / 背景
 

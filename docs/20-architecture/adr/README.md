@@ -11,7 +11,7 @@
 | 编号 | 决策 | 状态 | 日期 |
 | --- | --- | --- | --- |
 | 0007 | [`version` 具名例外](0007-version-named-exceptions.md) | withdrawn | 2026-10-18 |
-| 0008 | [酒店域边界与 MVP 归属](0008-hotel-domain-boundary.md) | proposed | 2026-10-22 |
+| 0008 | [酒店域边界与 MVP 归属](0008-hotel-domain-boundary.md) | accepted | 2026-10-23 |
 | 0009 | [C 端统一订单视图](0009-user-order-index.md) | proposed | 2026-10-22 |
 | 0010 | [采销库存作为公共支撑域](0010-stock-supporting-domain.md) | proposed | 2026-10-22 |
 | 0011 | [库存上下文映射与依赖规则](0011-inventory-context-map.md) | proposed | 2026-10-22 |
