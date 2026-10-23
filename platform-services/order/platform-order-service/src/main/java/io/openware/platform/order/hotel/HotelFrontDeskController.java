@@ -38,6 +38,11 @@ public class HotelFrontDeskController {
         return BookingView.from(stayService.checkOut(id));
     }
 
+    @PostMapping("/bookings/{id}/move-room")
+    public BookingView moveRoom(@PathVariable Long id, @RequestBody MoveRoomRequest request) {
+        return BookingView.from(stayService.moveRoom(id, request.roomId()));
+    }
+
     @PostMapping("/bookings/{id}/deposit")
     public HotelFolioPo collectDeposit(@PathVariable Long id, @RequestBody DepositRequest request) {
         return stayService.collectDeposit(id, request.amountMinor(), request.note());
@@ -49,6 +54,8 @@ public class HotelFrontDeskController {
     }
 
     public record DepositRequest(Long amountMinor, String note) {}
+
+    public record MoveRoomRequest(Long roomId) {}
 
     public record BookingView(Long id, String bookingNo, String guestName, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,

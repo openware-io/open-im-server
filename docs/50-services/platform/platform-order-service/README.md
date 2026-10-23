@@ -119,3 +119,15 @@ POST /admin/hotel/housekeeping/tasks/{id}/complete
 - no-show：仅 `CONFIRMED`/`ARRIVAL` 可标记，释放 held/sold，按夜账单置 `NO_SHOW`；
 - 清扫：`PENDING → IN_PROGRESS → DONE`，完成时房间 `DIRTY → ACTIVE`；
 - 清扫操作校验 `hotel.inventory.manage`。
+
+## 酒店夜审与换房（H4）
+
+```text
+GET  /admin/hotel/night-audit
+POST /admin/hotel/night-audit/run
+POST /admin/hotel/frontdesk/bookings/{id}/move-room
+```
+
+- 夜审按营业日把到离店日期的在住预订转 `DUE_OUT`，固化在住数/待退房数/房费汇总，同一营业日不可重复；
+- 换房只允许在住预订，新房间原子占用，旧房间置 `DIRTY` 并生成清扫任务；
+- 夜审和换房分别校验 `hotel.inventory.manage` / `hotel.checkin`。

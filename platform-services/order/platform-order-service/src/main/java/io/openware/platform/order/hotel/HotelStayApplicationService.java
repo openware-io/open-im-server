@@ -150,8 +150,55 @@ public class HotelStayApplicationService {
         return booking;
     }
 
-    public FolioView folio(Long bookingId) {
-        PermissionGuard.require("hotel.booking.view");
+    /** 换房：新房间原子占用，旧房间置 DIRTY 并生成清扫任务。 */
+    @Transactional
+    public HotelBookingPo moveRoom(Long bookingId, Long newRoomId) {
+        PermissionGuard.require("hotel.checkin");
+        TenantContext context = requireStore();
+        HotelBookingPo booking = requireBooking(bookingId, context);
+        if (!"IN_HOUSE".equals(booking.getStatus())) {
+            throw new ApiException(409, "MOVE_STATE_INVALID", "只有在住预订可以换房");
+        }
+        HotelStayPo stay = stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
+                .eq(HotelStayPo::getBookingId, bookingId)
+                .eq(HotelStayPo::getStatus, "IN_HOUSE"));
+        if (stay == null) {
+            throw new ApiException(409, "STAY_NOT_FOUND", "在住记录不存在");
+        }
+        if (stay.getRoomId().equals(newRoomId)) {
+            return booking;
+        }
+        HotelRoomPo newRoom = roomMapper.selectById(newRoomId);
+        if (newRoom == null || !context.storeId().equals(newRoom.getStoreId())) {
+            throw new ApiException(404, "ROOM_NOT_FOUND", "房间不存在");
+        }
+        if (roomMapper.occupy(newRoomId, context.tenantId(), context.storeId()) == 0) {
+            throw new ApiException(409, "ROOM_UNAVAILABLE", "新房间不可用");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        roomMapper.markDirty(stay.getRoomId(), context.tenantId(), context.storeId());
+        HotelHousekeepingPo task = new HotelHousekeepingPo();
+        task.setTenantId(context.tenantId());
+        task.setStoreId(context.storeId());
+        task.setRoomId(stay.getRoomId());
+        task.setRoomNo(stay.getRoomNo());
+        task.setBookingId(bookingId);
+        task.setStatus("PENDING");
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        housekeepingMapper.insert(task);
+
+        stay.setRoomId(newRoom.getId());
+        stay.setRoomNo(newRoom.getRoomNo());
+        stay.setUpdatedAt(now);
+        stayMapper.updateById(stay);
+        booking.setRoomNo(newRoom.getRoomNo());
+        booking.setUpdatedAt(now);
+        bookingMapper.updateById(booking);
+        return booking;
+    }
+
+    public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();
         HotelFolioPo folio = folioMapper.selectOne(new LambdaQueryWrapper<HotelFolioPo>()
                 .eq(HotelFolioPo::getBookingId, bookingId)
