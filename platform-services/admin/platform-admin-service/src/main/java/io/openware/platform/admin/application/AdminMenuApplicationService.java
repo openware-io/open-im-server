@@ -9,6 +9,7 @@ import io.openware.platform.admin.domain.menu.repository.AdminMenuRepository;
 import io.openware.platform.admin.domain.menu.repository.TenantPaymentGrantRepository;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
+import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
 import org.springframework.stereotype.Service;
 
@@ -71,16 +72,38 @@ public class AdminMenuApplicationService {
         }
         List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
         String menuScope = "TENANT".equals(requested) ? "TENANT" : requested;
+        boolean includeStoreContext = "TENANT".equals(menuScope) && storeContextMode(admin);
         List<AdminMenuItem> scoped = all.stream()
-                .filter(menu -> menuScope.equalsIgnoreCase(menu.scope()))
+                .filter(menu -> menuScope.equalsIgnoreCase(menu.scope())
+                        || (includeStoreContext && "STORE".equalsIgnoreCase(menu.scope())))
                 .filter(menu -> !"PLATFORM".equals(menu.scope())
                         || admin.role() == AdminRole.SUPER_ADMIN || admin.role() == AdminRole.PLATFORM_ADMIN)
                 .toList();
         return "PLATFORM".equals(menuScope) ? scoped : filterByContext(scoped, selectedContext());
     }
 
-    private static String normalizeScope(String scope, List<String> workspaces, AdminRole role) {
-        if (scope != null && !scope.isBlank()) {
+    /**
+     * 门店上下文模式：租户选择 TENANT_CONTEXT 时，门店员工在租户后台内仍需要门店业务菜单。
+     * 只有同时持有 store.* 角色且租户配置为该模式时才合并 STORE 段。
+     */
+    private boolean storeContextMode(AdminContext admin) {
+        try {
+            var bindings = tenantIamClient.roleBindings(admin.platformAccountId());
+            boolean hasStoreRole = bindings.stream()
+                    .filter(binding -> binding.status() == null || "ACTIVE".equalsIgnoreCase(binding.status()))
+                    .anyMatch(binding -> binding.roleCode() != null && binding.roleCode().startsWith("store."));
+            if (!hasStoreRole) return false;
+            Long tenantId = bindings.stream()
+                    .map(TenantIamDomainClient.RoleBinding::tenantId)
+                    .filter(id -> id != null && id > 0)
+                    .findFirst().orElse(null);
+            return "TENANT_CONTEXT".equals(tenantIamClient.workspaceMode(tenantId));
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static String normalizeScope(String scope, List<String> workspaces, AdminRole role) {        if (scope != null && !scope.isBlank()) {
             String value = scope.trim().toUpperCase(java.util.Locale.ROOT);
             return switch (value) {
                 case "PLATFORM" -> "PLATFORM";
