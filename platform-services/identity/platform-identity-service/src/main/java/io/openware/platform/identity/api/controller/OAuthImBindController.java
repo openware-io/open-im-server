@@ -74,7 +74,7 @@ public class OAuthImBindController {
             throw new ApiException(401, "SAAS_SESSION_REQUIRED", "应用与会话不匹配");
         }
         bindService.unbind(session.accountId(), appId);
-        sessionStore.deleteSession(sessionId);
+        sessionStore.deleteSessions(session.accountId(), appId);
         SaasUserSessionCookie.clear(response, appRegistry.cookieName(appId, plainCookie));
     }
 

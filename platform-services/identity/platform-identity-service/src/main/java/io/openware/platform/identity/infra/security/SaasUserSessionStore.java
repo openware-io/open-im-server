@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class SaasUserSessionStore {
   public static final String PREFIX = "saas:user-session:";
+  private static final String ACCOUNT_APP_PREFIX = "saas:user-sessions:";
   private static final String CSRF_PREFIX = "saas:user-csrf:";
   private static final Duration TTL = Duration.ofHours(8);
 
@@ -36,6 +37,11 @@ public class SaasUserSessionStore {
       value.put("accountId", accountId);
       if (appId != null && !appId.isBlank()) value.put("appId", appId);
       redisTemplate.opsForValue().set(PREFIX + sessionId, objectMapper.writeValueAsString(value), TTL);
+      if (appId != null && !appId.isBlank()) {
+        String indexKey = ACCOUNT_APP_PREFIX + accountId + ":" + appId;
+        redisTemplate.opsForSet().add(indexKey, sessionId);
+        redisTemplate.expire(indexKey, TTL);
+      }
       return sessionId;
     } catch (Exception exception) {
       throw new IllegalStateException("Unable to create SaaS user session", exception);
@@ -104,9 +110,31 @@ public class SaasUserSessionStore {
 
   public void deleteSession(String sessionId) {
     if (sessionId != null && !sessionId.isBlank()) {
+      findSession(sessionId).ifPresent(session -> {
+        if (session.appId() != null && !session.appId().isBlank()) {
+          redisTemplate.opsForSet().remove(
+              ACCOUNT_APP_PREFIX + session.accountId() + ":" + session.appId(), sessionId);
+        }
+      });
       redisTemplate.delete(PREFIX + sessionId);
       redisTemplate.delete(CSRF_PREFIX + sessionId);
     }
+  }
+
+  /** 解绑/撤销应用时删除该账号在该 app 下的全部会话。 */
+  public void deleteSessions(long accountId, String appId) {
+    if (appId == null || appId.isBlank()) {
+      return;
+    }
+    String indexKey = ACCOUNT_APP_PREFIX + accountId + ":" + appId;
+    var sessionIds = redisTemplate.opsForSet().members(indexKey);
+    if (sessionIds != null) {
+      for (String sessionId : sessionIds) {
+        redisTemplate.delete(PREFIX + sessionId);
+        redisTemplate.delete(CSRF_PREFIX + sessionId);
+      }
+    }
+    redisTemplate.delete(indexKey);
   }
 
   private Duration remainingTtl(String sessionId) {

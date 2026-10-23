@@ -104,3 +104,8 @@ S3 解绑/重绑：
 - `POST /identity/oauth/im/unbind?app_id=` 解绑当前 app、删除当前会话、清 cookie。
 - 只影响目标 app，不解绑其他应用。
 - 重新授权同 app 时复用 REVOKED link 并置 ACTIVE，避免唯一键 409。
+
+解绑会话撤销：
+
+- `SaasUserSessionStore` 维护 `accountId + appId -> sessionIds` 索引。
+- 解绑按 account+app 批量删除会话与 CSRF，再清 cookie。
