@@ -80,7 +80,7 @@ public class HotelStayApplicationService {
         folio.setUpdatedAt(now);
         folioMapper.insert(folio);
         if (folio.getChargeMinor() > 0) {
-            addItem(folio, "ROOM", "房费", folio.getChargeMinor());
+            addItem(folio, "ROOM", null, null, "房费", folio.getChargeMinor());
         }
 
         booking.setRoomNo(room.getRoomNo());
@@ -98,7 +98,7 @@ public class HotelStayApplicationService {
         if (amountMinor == null || amountMinor <= 0) {
             throw new ApiException(400, "DEPOSIT_AMOUNT_INVALID", "押金金额必须大于 0");
         }
-        addItem(folio, "DEPOSIT", note == null ? "押金" : note, amountMinor);
+        addItem(folio, "DEPOSIT", "CASH", null, note == null ? "押金" : note, amountMinor);
         folio.setPaidMinor(folio.getPaidMinor() + amountMinor);
         folio.setUpdatedAt(LocalDateTime.now());
         folioMapper.updateById(folio);
@@ -199,7 +199,7 @@ public class HotelStayApplicationService {
     }
 
     @Transactional
-    public HotelFolioPo refundDeposit(Long bookingId, Long amountMinor, String reason) {
+    public HotelFolioPo refundDeposit(Long bookingId, Long amountMinor, String reason, String method) {
         PermissionGuard.require("hotel.checkout");
         TenantContext context = requireStore();
         HotelFolioPo folio = requireOpenFolio(bookingId, context);
@@ -209,7 +209,15 @@ public class HotelStayApplicationService {
         if (amountMinor > folio.getPaidMinor()) {
             throw new ApiException(409, "REFUND_EXCEEDS_PAID", "退款金额不能超过已收金额");
         }
-        addItem(folio, "REFUND", reason == null ? "押金退款" : reason, -amountMinor);
+        String refundMethod = method == null || method.isBlank() ? "CASH" : method.toUpperCase();
+        if ("ONLINE".equals(refundMethod)) {
+            throw new ApiException(409, "ONLINE_REFUND_NOT_READY",
+                    "线上退款待接入 payment-service，请走现金退款或等待支付退款接口");
+        }
+        if (!"CASH".equals(refundMethod)) {
+            throw new ApiException(400, "REFUND_METHOD_INVALID", "退款方式只支持 CASH/ONLINE");
+        }
+        addItem(folio, "REFUND", "CASH", null, reason == null ? "现金押金退款" : reason, -amountMinor);
         folio.setPaidMinor(folio.getPaidMinor() - amountMinor);
         folio.setUpdatedAt(LocalDateTime.now());
         folioMapper.updateById(folio);
@@ -230,12 +238,15 @@ public class HotelStayApplicationService {
         return new FolioView(folio, items);
     }
 
-    private void addItem(HotelFolioPo folio, String type, String description, long amountMinor) {
+    private void addItem(HotelFolioPo folio, String type, String method, String reference,
+                         String description, long amountMinor) {
         HotelFolioItemPo item = new HotelFolioItemPo();
         item.setTenantId(folio.getTenantId());
         item.setStoreId(folio.getStoreId());
         item.setFolioId(folio.getId());
         item.setType(type);
+        item.setMethod(method);
+        item.setReference(reference);
         item.setDescription(description);
         item.setAmountMinor(amountMinor);
         item.setCurrency(folio.getCurrency());

@@ -49,8 +49,8 @@ public class HotelFrontDeskController {
     }
 
     @PostMapping("/bookings/{id}/refund")
-    public HotelFolioPo refundDeposit(@PathVariable Long id, @RequestBody DepositRequest request) {
-        return stayService.refundDeposit(id, request.amountMinor(), request.note());
+    public HotelFolioPo refundDeposit(@PathVariable Long id, @RequestBody RefundRequest request) {
+        return stayService.refundDeposit(id, request.amountMinor(), request.note(), request.method());
     }
 
     @GetMapping("/bookings/{id}/folio")
@@ -59,6 +59,8 @@ public class HotelFrontDeskController {
     }
 
     public record DepositRequest(Long amountMinor, String note) {}
+
+    public record RefundRequest(Long amountMinor, String note, String method) {}
 
     public record MoveRoomRequest(Long roomId) {}
 

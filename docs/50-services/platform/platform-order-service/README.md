@@ -152,3 +152,14 @@ POST /admin/hotel/frontdesk/bookings/{id}/refund
 ```
 
 写 `REFUND` 负向账单项并减少已收金额；当前不调用 payment-service 退款，真实资金退款仍待接。
+
+退款方式：
+
+```text
+POST /admin/hotel/frontdesk/bookings/{id}/refund
+{ "amountMinor": 500, "method": "CASH", "note": "现金押金退款" }
+```
+
+- `CASH`：写 `REFUND` 账单项（`method=CASH`）并减少已收，走本地现金账本；
+- `ONLINE`：当前返回 409 `ONLINE_REFUND_NOT_READY`，必须接 payment-service 退款后才能标记成功；
+- 不允许把线上退款记成现金退款。

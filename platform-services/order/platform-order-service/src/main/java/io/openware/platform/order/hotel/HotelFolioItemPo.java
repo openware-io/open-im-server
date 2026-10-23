@@ -15,6 +15,8 @@ public class HotelFolioItemPo {
     private Long storeId;
     private Long folioId;
     private String type;
+    private String method;
+    private String reference;
     private String description;
     private Long amountMinor;
     private String currency;
