@@ -1,6 +1,8 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.IamConverter;
 import io.openware.platform.tenant.api.dto.PermissionView;
 import io.openware.platform.tenant.api.dto.RoleView;
@@ -49,13 +51,25 @@ public class IamController {
 
     @PostMapping("/roles")
     public RoleView createRole(@RequestBody CreateRoleRequest req) {
+        var context = requireTenantContext();
+        if (!"TENANT".equals(req.scopeLevel()) && !"STORE".equals(req.scopeLevel())) {
+            throw new ApiException(400, "ROLE_SCOPE_INVALID", "租户只能创建 TENANT 或 STORE 角色");
+        }
         return IamConverter.toView(authorizationService.createRole(
-                req.tenantId(), req.code(), req.name(), req.roleType()));
+                context.tenantId(), req.code(), req.name(), "TENANT", req.scopeLevel()));
     }
 
     @GetMapping("/roles")
     public List<RoleView> listRoles(@RequestParam Long tenantId) {
         return authorizationService.listRoles(tenantId).stream().map(IamConverter::toView).toList();
+    }
+
+    /** 租户可分配角色：全局预置角色 + 本租户自定义角色，不含平台角色。 */
+    @GetMapping("/roles/assignable")
+    public List<RoleView> listAssignableRoles() {
+        var context = requireTenantContext();
+        return authorizationService.listAssignableRoles(context.tenantId()).stream()
+                .map(IamConverter::toView).toList();
     }
 
     @PostMapping("/roles/{roleId}/permissions")
@@ -98,10 +112,18 @@ public class IamController {
         return authorizationService.listUserRoleIds(accountId);
     }
 
-    public record CreateRoleRequest(Long tenantId, String code, String name, String roleType) {}
+    public record CreateRoleRequest(Long tenantId, String code, String name, String roleType, String scopeLevel) {}
     public record AssignPermissionsRequest(List<Long> permissionIds) {}
     public record TogglePermissionRequest(String permissionCode, boolean granted) {}
     public record MaskingRoleView(Long roleId, String code, String name, boolean piiView) {}
     public record AssignUserRoleRequest(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {}
+
+    private TenantContext requireTenantContext() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null || context.tenantId() <= 0) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+        }
+        return context;
+    }
 }

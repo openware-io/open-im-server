@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.domain.iam.model.Permission;
@@ -22,6 +24,8 @@ import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -40,6 +44,16 @@ class IamControllerScopeTest {
     private final IamAuthorizationApplicationService authorization =
             new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots, audit);
     private final IamController controller = new IamController(authorization);
+
+    @BeforeEach
+    void enterTenantContext() {
+        TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of(), "TENANT", null, null));
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContextHolder.clear();
+    }
 
     @Test
     void storeRoleCannotReceiveTenantOnlyPermission() {

@@ -55,6 +55,16 @@ public class RoleRepositoryAdapter implements RoleRepository {
   }
 
   @Override
+  public List<Role> listAssignableByTenant(Long tenantId) {
+    return mapper.selectList(Wrappers.<RolePo>lambdaQuery()
+            .and(wrapper -> wrapper.isNull(RolePo::getTenantId).or().eq(RolePo::getTenantId, tenantId))
+            .eq(RolePo::getStatus, Role.STATUS_ACTIVE)
+            .ne(RolePo::getScopeLevel, Role.SCOPE_PLATFORM)
+            .orderByAsc(RolePo::getScopeLevel, RolePo::getCode))
+        .stream().map(RoleRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
   public List<MaskingRole> listMaskingRoles() {
     return snapshotMapper.selectMaskingRoles().stream()
         .map(row -> new MaskingRole(row.getRoleId(), row.getCode(), row.getName(),

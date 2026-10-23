@@ -2,6 +2,8 @@ package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.MaskingRole;
 import io.openware.platform.tenant.domain.iam.model.Permission;
 import io.openware.platform.tenant.domain.iam.model.Role;
@@ -82,16 +84,30 @@ public class IamAuthorizationApplicationService {
     return roleRepository.listActiveByTenant(tenantId);
   }
 
+  /** 某租户可分配的角色：全局预置角色 + 租户自定义角色，不含平台角色。 */
+  @Transactional(readOnly = true)
+  public List<Role> listAssignableRoles(Long tenantId) {
+    return roleRepository.listAssignableByTenant(tenantId);
+  }
+
   /** 账号的 iam_user_role 绑定 id 列表。 */
   @Transactional(readOnly = true)
   public List<Long> listUserRoleIds(Long accountId) {
     return userRoleRepository.findIdsByAccount(accountId);
   }
 
-  /** 新建角色并留痕。 */
+  /** 新建租户自定义角色并留痕；scopeLevel 决定该角色只能获得 TENANT 或 STORE 权限。 */
   @Transactional
-  public Role createRole(Long tenantId, String code, String name, String roleType) {
-    Role role = roleRepository.insert(Role.create(tenantId, code, name, roleType));
+  public Role createRole(Long tenantId, String code, String name, String roleType, String scopeLevel) {
+    String normalizedCode = code == null ? "" : code.trim();
+    String normalizedName = name == null ? "" : name.trim();
+    if (!normalizedCode.matches("[a-z][a-z0-9_.-]{2,63}")) {
+      throw new ApiException(400, "ROLE_CODE_INVALID", "角色编码应为小写字母开头，3-64 位");
+    }
+    if (normalizedName.isEmpty() || normalizedName.length() > 64) {
+      throw new ApiException(400, "ROLE_NAME_INVALID", "角色名称不能为空且不超过 64 位");
+    }
+    Role role = roleRepository.insert(Role.create(tenantId, normalizedCode, normalizedName, roleType, scopeLevel));
     auditClient.recordAsync(AuditClient.AuditRecord.builder()
         .tenantId(tenantId)
         .action("iam.role.create")
@@ -99,7 +115,8 @@ public class IamAuthorizationApplicationService {
         .resourceId(String.valueOf(role.id()))
         .resourceName(role.name())
         .idempotencyKey("role:" + role.id())
-        .detailJson("{\"tenantId\":" + tenantId + ",\"roleType\":\"" + role.roleType() + "\"}")
+        .detailJson("{\"tenantId\":" + tenantId + ",\"roleType\":\"" + role.roleType()
+            + "\",\"scopeLevel\":\"" + role.scopeLevel() + "\"}")
         .build());
     return role;
   }
@@ -113,6 +130,7 @@ public class IamAuthorizationApplicationService {
   @Transactional
   public Role assignPermissions(Long roleId, List<Long> permissionIds) {
     Role role = requireActiveRole(roleId);
+    assertTenantCanWriteRole(role);
     List<Long> ids = permissionIds == null ? List.of() : permissionIds;
     if (!ids.isEmpty()) {
       List<Permission> permissions = permissionRepository.findByIds(ids);
@@ -143,6 +161,7 @@ public class IamAuthorizationApplicationService {
     if (role == null || !permission.grantableTo(role.scopeLevel())) {
       throw invalidGrantScope();
     }
+    assertTenantCanWriteRole(role);
     if (granted) {
       roleGrantRepository.grant(roleId, permission.id());
     } else {
@@ -219,6 +238,19 @@ public class IamAuthorizationApplicationService {
       throw new ApiException(404, CODE_ROLE_NOT_FOUND, "角色不存在");
     }
     return role;
+  }
+
+  private void assertTenantCanWriteRole(Role role) {
+    TenantContext context = TenantContextHolder.get();
+    if (context == null || context.tenantId() <= 0) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
+    }
+    if (role.tenantId() == null) {
+      throw new ApiException(403, "PRESET_ROLE_READONLY", "预置角色不可修改，请复制为租户自定义角色");
+    }
+    if (!role.tenantId().equals(context.tenantId())) {
+      throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能修改其他租户的角色");
+    }
   }
 
   private static ApiException invalidGrantScope() {
