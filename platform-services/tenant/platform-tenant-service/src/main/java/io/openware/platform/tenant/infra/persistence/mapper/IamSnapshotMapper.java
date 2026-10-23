@@ -222,11 +222,12 @@ public interface IamSnapshotMapper {
                b.scope_type AS scope_type, t.name AS tenant_name, s.name AS store_name,
                b.status AS status
         FROM iam_role_binding b
-        JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        LEFT JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
         JOIN iam_role r ON r.id = b.role_id
         LEFT JOIN tnt_tenant t ON t.id = b.tenant_id
         LEFT JOIN tnt_store s ON s.id = b.store_id
-        WHERE mem.account_id = #{accountId}
+        WHERE (b.subject_type = 'MEMBERSHIP' AND mem.account_id = #{accountId})
+           OR (b.subject_type = 'ACCOUNT' AND b.subject_id = #{accountId} AND b.scope_type = 'PLATFORM')
         ORDER BY b.id
         """)
     List<IamRoleBindingRow> selectRoleBindings(@Param("accountId") Long accountId);

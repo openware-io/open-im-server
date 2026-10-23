@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.infra.persistence.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.openware.platform.tenant.domain.iam.model.BindingDescriptor;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.RoleBindingMapper;
@@ -60,13 +61,13 @@ public class RoleBindingRepositoryAdapter implements RoleBindingRepository {
   }
 
   @Override
-  public Optional<io.openware.platform.tenant.domain.iam.model.BindingDescriptor> findDescriptor(
+  public Optional<BindingDescriptor> findDescriptor(
       Long bindingId) {
     RoleBindingPo po = mapper.selectDescriptorById(bindingId);
     if (po == null) {
       return Optional.empty();
     }
-    return Optional.of(new io.openware.platform.tenant.domain.iam.model.BindingDescriptor(
+    return Optional.of(new BindingDescriptor(
         po.getId(), po.getSubjectType(), po.getSubjectId(), po.getTenantId(),
         po.getScopeType(), po.getAuthorizationVersion() == null ? 1 : po.getAuthorizationVersion()));
   }

@@ -91,6 +91,26 @@ class RoleBindingApplicationServiceTest {
   }
 
   @Test
+  void updateScopeCannotPromoteStoreToTenant() {
+    when(roles.findById(7L)).thenReturn(Optional.of(
+        new Role(7L, 100L, "store.manager", "店长", "TENANT", "STORE", "hotel", null, "ACTIVE")));
+
+    assertThrows(ApiException.class,
+        () -> service.updateScopeByAccountAndRole(9L, 7L, null, null, "TENANT"));
+  }
+
+  @Test
+  void updateScopeRejectsOtherTenantStore() {
+    when(roles.findById(7L)).thenReturn(Optional.of(
+        new Role(7L, 100L, "store.manager", "店长", "TENANT", "STORE", "hotel", null, "ACTIVE")));
+    when(organizations.findTenantId(10L)).thenReturn(Optional.of(100L));
+    when(stores.findOwnerTenantId(20L)).thenReturn(Optional.of(200L));
+
+    assertThrows(ApiException.class,
+        () -> service.updateScopeByAccountAndRole(9L, 7L, 10L, 20L, "STORE"));
+  }
+
+  @Test
   void platformAssignmentReturnsExplicitClientError() {
     ApiException error = assertThrows(ApiException.class,
         () -> service.assign(5L, 7L, "PLATFORM", null, null));

@@ -158,11 +158,34 @@ public class RoleBindingApplicationService {
       bindings.save(target.revoke());
       touchMembership(target);
     }
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.revoke",
+        "role_binding", String.valueOf(roleId), null, "role-binding-revoke-role:" + roleId,
+        "{\"accountId\":" + accountId + ",\"count\":" + targets.size() + "}"));
   }
   @Transactional
   public RoleBinding updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
                                           String scopeType) {
+    if (scopeType == null || scopeType.isBlank()) {
+      throw new ApiException(400, "ROLE_SCOPE_REQUIRED", "作用域不能为空");
+    }
+    if ("PLATFORM".equals(scopeType)) {
+      throw new ApiException(400, "PLATFORM_BINDING_OUT_OF_SCOPE",
+          "平台角色授予不属于 S2，请走 S3/S4 平台运营入口");
+    }
     TenantContext context = requireTenant();
+    Role role = roles.findById(roleId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
+    if (!role.active() || !scopeType.equals(role.scopeLevel())) {
+      throw new ApiException(400, "ROLE_SCOPE_MISMATCH", "角色作用域与绑定作用域不一致");
+    }
+    if (organizationId != null && organizationId > 0
+        && !organizations.findTenantId(organizationId).filter(id -> id.equals(context.tenantId())).isPresent()) {
+      throw new ApiException(400, "ORGANIZATION_TENANT_MISMATCH", "组织不属于当前租户");
+    }
+    if (storeId != null && storeId > 0
+        && !stores.findOwnerTenantId(storeId).filter(id -> id.equals(context.tenantId())).isPresent()) {
+      throw new ApiException(400, "STORE_TENANT_MISMATCH", "门店不属于当前租户");
+    }
     java.util.List<RoleBinding> targets = listByAccount(accountId).stream()
         .filter(RoleBinding::active)
         .filter(binding -> binding.roleId().equals(roleId))
@@ -175,10 +198,10 @@ public class RoleBindingApplicationService {
     for (RoleBinding target : targets) {
       saved = bindings.save(target.changeScope(scopeType, organizationId, storeId));
       touchMembership(target);
+      audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.scope",
+          "role_binding", String.valueOf(saved.id()), null, "role-binding-scope:" + saved.id(),
+          "{\"scopeType\":\"" + scopeType + "\"}"));
     }
-    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.scope",
-        "role_binding", String.valueOf(saved.id()), null, "role-binding-scope:" + saved.id(),
-        "{\"scopeType\":\"" + scopeType + "\"}"));
     return saved;
   }
 

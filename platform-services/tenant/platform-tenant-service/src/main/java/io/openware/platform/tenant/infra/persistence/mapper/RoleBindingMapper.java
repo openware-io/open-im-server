@@ -31,7 +31,8 @@ public interface RoleBindingMapper extends BaseMapper<RoleBindingPo> {
   Long selectAccountIdByAnyId(@Param("id") Long id);
 
   @InterceptorIgnore(tenantLine = "true")
-  @Update("UPDATE iam_role_binding /* tenant-agnostic: 按绑定主键撤销 */ SET status = 'REVOKED', updated_at = NOW(3) "
+  @Update("UPDATE iam_role_binding /* tenant-agnostic: 按绑定主键撤销 */ "
+      + "SET status = 'REVOKED', authorization_version = authorization_version + 1, updated_at = NOW(3) "
       + "WHERE id = #{id} AND status = 'ACTIVE'")
   int revokeAnyById(@Param("id") Long id);
 }
