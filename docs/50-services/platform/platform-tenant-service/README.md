@@ -115,3 +115,10 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 - `POST /admin/role-bindings/{id}/revoke`
 
 绑定规则：主体必须是 STAFF membership；角色作用域必须与绑定作用域一致；门店/组织 scope 必须带对应 ID；跨租户成员拒绝。
+
+## 角色绑定写读切换（S2）
+
+- `/admin/iam/user-roles` 现在写 `iam_role_binding`，主体为 STAFF membership。
+- 权限快照改为 `iam_role_binding -> iam_role -> iam_permission`，平台角色用 ACCOUNT subject。
+- 撤销/scope 调整按 membership 绑定处理。
+- `iam_user_role` 不再由新 API 写入；旧服务方法保留为迁移期兼容，S6 删除。

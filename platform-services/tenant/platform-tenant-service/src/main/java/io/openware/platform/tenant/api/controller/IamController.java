@@ -8,6 +8,8 @@ import io.openware.platform.tenant.api.dto.PermissionView;
 import io.openware.platform.tenant.api.dto.RoleView;
 import io.openware.platform.tenant.api.dto.UserRoleView;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
+import io.openware.platform.tenant.application.RoleBindingApplicationService;
+import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,9 +33,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/admin/iam")
 public class IamController {
     private final IamAuthorizationApplicationService authorizationService;
+    private final RoleBindingApplicationService roleBindingService;
 
-    public IamController(IamAuthorizationApplicationService authorizationService) {
+    public IamController(IamAuthorizationApplicationService authorizationService,
+                         RoleBindingApplicationService roleBindingService) {
         this.authorizationService = authorizationService;
+        this.roleBindingService = roleBindingService;
     }
 
     /** 权限目录（平台级，无租户上下文也可读）。 */
@@ -114,39 +119,37 @@ public class IamController {
         authorizationService.togglePermission(roleId, req.permissionCode(), req.granted());
     }
 
-    /** 给账号分配角色（租户/组织/门店作用域）。 */
+    /** 给账号分配角色（写 iam_role_binding，主体为 STAFF membership）。 */
     @PostMapping("/user-roles")
     public UserRoleView assignUserRole(@RequestBody AssignUserRoleRequest req) {
-        var binding = authorizationService.assignUserRole(req.accountId(), req.tenantId(),
+        RoleBinding binding = roleBindingService.assignByAccount(req.accountId(), req.tenantId(),
                 req.organizationId(), req.storeId(), req.roleId(), req.scopeType());
-        return IamConverter.toView(binding);
+        return IamConverter.toView(binding, req.accountId());
     }
 
     @DeleteMapping("/roles/{roleId}/accounts/{accountId}")
     public void revokeRoleFromAccount(@PathVariable Long roleId, @PathVariable Long accountId) {
-        authorizationService.revokeRoleFromAccount(roleId, accountId);
+        roleBindingService.revokeByAccountAndRole(accountId, roleId);
     }
 
     @PutMapping("/roles/{roleId}/accounts/{accountId}/scope")
     public void updateRoleAssignmentScope(@PathVariable Long roleId, @PathVariable Long accountId,
                                           @RequestBody UpdateRoleScopeRequest request) {
-        authorizationService.updateRoleAssignmentScope(roleId, accountId,
+        roleBindingService.updateScopeByAccountAndRole(accountId, roleId,
                 request.organizationId(), request.storeId(), request.scopeType());
     }
 
-    /** 撤销账号在某作用域下的角色绑定（软删，status → REVOKED）。 */
+    /** 撤销成员角色绑定（软删 status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {
-        Long accountId = authorizationService.revokeUserRole(userRoleId);
-        if (accountId == null) {
-            throw new ApiException(404, "USER_ROLE_NOT_FOUND", "角色绑定不存在");
-        }
+        roleBindingService.accountIdForBinding(userRoleId);
+        roleBindingService.revoke(userRoleId);
     }
 
-    /** 账号的 iam_user_role 绑定 id 列表（供运营人员列表精确撤销/删除用）。 */
+    /** 账号的成员角色绑定 id 列表（供运营人员精确撤销/删除）。 */
     @GetMapping("/accounts/{accountId}/user-roles")
     public List<Long> listUserRoleIds(@PathVariable Long accountId) {
-        return authorizationService.listUserRoleIds(accountId);
+        return roleBindingService.listIdsByAccount(accountId);
     }
 
     public record CreateRoleRequest(Long tenantId, String code, String name, String roleType, String scopeLevel) {}

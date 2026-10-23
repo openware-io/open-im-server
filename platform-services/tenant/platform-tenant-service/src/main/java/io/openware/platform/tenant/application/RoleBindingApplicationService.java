@@ -70,6 +70,63 @@ public class RoleBindingApplicationService {
         context.tenantId(), organizationId, storeId));
   }
 
+  @Transactional
+  public RoleBinding assignByAccount(Long accountId, Long tenantId, Long organizationId, Long storeId,
+                                     Long roleId, String scopeType) {
+    TenantContext context = requireTenant();
+    Long resolvedTenant = tenantId == null ? context.tenantId() : tenantId;
+    if (!resolvedTenant.equals(context.tenantId())) {
+      throw new ApiException(403, "TENANT_SCOPE_DENIED", "不能操作其他租户的成员");
+    }
+    Membership membership = memberships
+        .findByAccountAndTenantAndType(accountId, resolvedTenant, Membership.TYPE_STAFF)
+        .orElseThrow(() -> new ApiException(404, "STAFF_MEMBERSHIP_NOT_FOUND", "员工成员身份不存在"));
+    return assign(membership.id(), roleId, scopeType, organizationId, storeId);
+  }
+
+  public List<RoleBinding> listByAccount(Long accountId) {
+    return memberships.findAllByAccountId(accountId).stream()
+        .flatMap(membership -> bindings.findByMembership(membership.id()).stream())
+        .toList();
+  }
+
+  public List<Long> listIdsByAccount(Long accountId) {
+    return listByAccount(accountId).stream().map(RoleBinding::id).toList();
+  }
+
+  @Transactional
+  public void revokeByAccountAndRole(Long accountId, Long roleId) {
+    TenantContext context = requireTenant();
+    RoleBinding target = listByAccount(accountId).stream()
+        .filter(RoleBinding::active)
+        .filter(binding -> binding.roleId().equals(roleId))
+        .filter(binding -> binding.tenantId().equals(context.tenantId()))
+        .findFirst()
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
+    bindings.save(target.revoke());
+  }
+
+  @Transactional
+  public void updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
+                                          String scopeType) {
+    TenantContext context = requireTenant();
+    RoleBinding target = listByAccount(accountId).stream()
+        .filter(RoleBinding::active)
+        .filter(binding -> binding.roleId().equals(roleId))
+        .filter(binding -> binding.tenantId().equals(context.tenantId()))
+        .findFirst()
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
+    bindings.save(target.changeScope(scopeType, organizationId, storeId));
+  }
+
+  public Long accountIdForBinding(Long bindingId) {
+    RoleBinding binding = bindings.findById(bindingId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在"));
+    return memberships.findById(binding.membershipId())
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"))
+        .accountId();
+  }
+
   public List<RoleBinding> listByMembership(Long membershipId) {
     return bindings.findByMembership(membershipId);
   }

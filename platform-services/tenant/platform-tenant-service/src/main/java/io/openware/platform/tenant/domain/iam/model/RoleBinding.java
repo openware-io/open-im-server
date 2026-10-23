@@ -48,6 +48,15 @@ public record RoleBinding(
         authorizationVersion + 1, STATUS_REVOKED);
   }
 
+  public RoleBinding changeScope(String newScopeType, Long newOrganizationId, Long newStoreId) {
+    if (!scopeShapeValid(newScopeType, tenantId, newOrganizationId, newStoreId)) {
+      throw new IllegalArgumentException("role binding scope shape invalid");
+    }
+    return new RoleBinding(id, membershipId, roleId, newScopeType, tenantId,
+        newOrganizationId == null ? 0L : newOrganizationId,
+        newStoreId == null ? 0L : newStoreId, authorizationVersion + 1, status);
+  }
+
   public static boolean scopeShapeValid(String scopeType, Long tenantId, Long organizationId, Long storeId) {
     if (scopeType == null) {
       return false;

@@ -15,8 +15,10 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
+import io.openware.platform.tenant.application.RoleBindingApplicationService;
 import io.openware.platform.tenant.domain.iam.model.Permission;
 import io.openware.platform.tenant.domain.iam.model.Role;
+import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
 import io.openware.platform.tenant.domain.iam.repository.PermissionRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
@@ -41,9 +43,10 @@ class IamControllerScopeTest {
     private final UserRoleRepository userRoles = mock(UserRoleRepository.class);
     private final PermissionSnapshotProvider snapshots = mock(PermissionSnapshotProvider.class);
     private final AuditClient audit = mock(AuditClient.class);
+    private final RoleBindingApplicationService roleBindings = mock(RoleBindingApplicationService.class);
     private final IamAuthorizationApplicationService authorization =
             new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots, audit);
-    private final IamController controller = new IamController(authorization);
+    private final IamController controller = new IamController(authorization, roleBindings);
 
     @BeforeEach
     void enterTenantContext() {
@@ -96,8 +99,9 @@ class IamControllerScopeTest {
     }
 
     @Test
-    void tenantRoleCannotBeAssignedToStoreScope() {
-        when(roles.findById(7L)).thenReturn(Optional.of(role(7L, "TENANT")));
+    void invalidScopeIsRejectedByBindingService() {
+        when(roleBindings.assignByAccount(10L, 100L, null, 101L, 7L, "STORE"))
+                .thenThrow(new ApiException(400, "INVALID_GRANT_SCOPE", "invalid"));
 
         ApiException error = assertThrows(ApiException.class, () -> controller.assignUserRole(
                 new IamController.AssignUserRoleRequest(10L, 100L, null, 101L, 7L, "STORE")));
@@ -108,35 +112,34 @@ class IamControllerScopeTest {
 
     @Test
     void storeRoleCanBeAssignedToStoreScope() {
-        when(roles.findById(7L)).thenReturn(Optional.of(role(7L, "STORE")));
-        when(userRoles.insert(any(UserRoleBinding.class))).thenAnswer(i -> i.getArgument(0));
+        when(roleBindings.assignByAccount(10L, 100L, null, 101L, 7L, "STORE"))
+                .thenReturn(new RoleBinding(5L, 1L, 7L, "STORE", 100L, 0L, 101L, 1, "ACTIVE"));
 
         assertDoesNotThrow(() -> controller.assignUserRole(
                 new IamController.AssignUserRoleRequest(10L, 100L, null, 101L, 7L, "STORE")));
-        verify(userRoles).insert(any(UserRoleBinding.class));
+        verify(roleBindings).assignByAccount(10L, 100L, null, 101L, 7L, "STORE");
     }
 
-    /** 撤销只逐出被撤销账号的缓存，不得全量逐出（那会打掉所有账号的快照）。 */
     @Test
-    void revokeEvictsOnlyTheAffectedAccount() {
-        when(userRoles.findAccountIdById(5L)).thenReturn(Optional.of(10L));
-        when(userRoles.revoke(5L)).thenReturn(true);
+    void revokeDelegatesToBindingService() {
+        when(roleBindings.accountIdForBinding(5L)).thenReturn(10L);
 
         controller.revokeUserRole(5L);
 
-        verify(snapshots).evict(10L);
+        verify(roleBindings).accountIdForBinding(5L);
+        verify(roleBindings).revoke(5L);
         verify(snapshots, never()).evictAll();
     }
 
-    /** 绑定不存在必须 404，而不是静默成功。 */
     @Test
     void revokeUnknownBindingIsNotFound() {
-        when(userRoles.findAccountIdById(5L)).thenReturn(Optional.empty());
+        when(roleBindings.accountIdForBinding(5L))
+                .thenThrow(new ApiException(404, "ROLE_BINDING_NOT_FOUND", "missing"));
 
         ApiException error = assertThrows(ApiException.class, () -> controller.revokeUserRole(5L));
 
-        assertEquals("USER_ROLE_NOT_FOUND", error.getCode());
-        verify(userRoles, never()).revoke(any());
+        assertEquals("ROLE_BINDING_NOT_FOUND", error.getCode());
+        verify(roleBindings, never()).revoke(any());
     }
 
     private static Role role(long id, String scope) {
