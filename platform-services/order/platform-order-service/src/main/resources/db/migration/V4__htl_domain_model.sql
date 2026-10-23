@@ -112,7 +112,6 @@ ALTER TABLE `htl_booking`
   ADD COLUMN `nights` int NOT NULL DEFAULT 1 AFTER `rooms`,
   ADD COLUMN `source` varchar(24) NOT NULL DEFAULT 'WEB' AFTER `currency`,
   ADD COLUMN `hold_expires_at` datetime(3) NULL AFTER `source`,
-  ADD COLUMN `version` int NOT NULL DEFAULT 0 AFTER `hold_expires_at`,
   ADD KEY `idx_htl_booking_hotel_dates` (`tenant_id`, `store_id`, `hotel_id`, `check_in_date`, `check_out_date`);
 
 CREATE TABLE IF NOT EXISTS `htl_booking_night` (
