@@ -144,3 +144,11 @@ idempotency   = hotel-booking:{bookingNo}
 ```
 
 支付服务 collect 可以按该 `orderId` 校验应收。酒店侧尚未提供支付页面和回调，支付确认链路仍需下一步接入。
+
+### 押金退款（本地账本）
+
+```text
+POST /admin/hotel/frontdesk/bookings/{id}/refund
+```
+
+写 `REFUND` 负向账单项并减少已收金额；当前不调用 payment-service 退款，真实资金退款仍待接。

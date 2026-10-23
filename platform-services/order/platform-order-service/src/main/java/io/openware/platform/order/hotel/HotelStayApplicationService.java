@@ -198,6 +198,24 @@ public class HotelStayApplicationService {
         return booking;
     }
 
+    @Transactional
+    public HotelFolioPo refundDeposit(Long bookingId, Long amountMinor, String reason) {
+        PermissionGuard.require("hotel.checkout");
+        TenantContext context = requireStore();
+        HotelFolioPo folio = requireOpenFolio(bookingId, context);
+        if (amountMinor == null || amountMinor <= 0) {
+            throw new ApiException(400, "REFUND_AMOUNT_INVALID", "退款金额必须大于 0");
+        }
+        if (amountMinor > folio.getPaidMinor()) {
+            throw new ApiException(409, "REFUND_EXCEEDS_PAID", "退款金额不能超过已收金额");
+        }
+        addItem(folio, "REFUND", reason == null ? "押金退款" : reason, -amountMinor);
+        folio.setPaidMinor(folio.getPaidMinor() - amountMinor);
+        folio.setUpdatedAt(LocalDateTime.now());
+        folioMapper.updateById(folio);
+        return folio;
+    }
+
     public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();
         HotelFolioPo folio = folioMapper.selectOne(new LambdaQueryWrapper<HotelFolioPo>()
