@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.Role;
@@ -25,19 +26,22 @@ public class RoleBindingApplicationService {
   private final StoreRepository stores;
   private final OrganizationRepository organizations;
   private final PermissionSnapshotProvider snapshots;
+  private final AuditClient audit;
 
   public RoleBindingApplicationService(RoleBindingRepository bindings,
                                        MembershipRepository memberships,
                                        RoleRepository roles,
                                        StoreRepository stores,
                                        OrganizationRepository organizations,
-                                       PermissionSnapshotProvider snapshots) {
+                                       PermissionSnapshotProvider snapshots,
+                                       AuditClient audit) {
     this.bindings = bindings;
     this.memberships = memberships;
     this.roles = roles;
     this.stores = stores;
     this.organizations = organizations;
     this.snapshots = snapshots;
+    this.audit = audit;
   }
 
   @Transactional
@@ -89,6 +93,9 @@ public class RoleBindingApplicationService {
         context.tenantId(), organizationId, storeId));
     memberships.save(membership.bumpAuthorizationVersion());
     snapshots.evict(membership.accountId());
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.assign",
+        "role_binding", String.valueOf(saved.id()), null, "role-binding:" + saved.id(),
+        "{\"membershipId\":" + membershipId + ",\"roleId\":" + roleId + "}"));
     return saved;
   }
 
@@ -133,6 +140,9 @@ public class RoleBindingApplicationService {
         .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
     bindings.save(target.revoke());
     touchMembership(target);
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.revoke",
+        "role_binding", String.valueOf(target.id()), null, "role-binding-revoke:" + target.id(),
+        "{\"accountId\":" + accountId + ",\"roleId\":" + roleId + "}"));
   }
 
   @Transactional
@@ -147,6 +157,9 @@ public class RoleBindingApplicationService {
         .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
     RoleBinding saved = bindings.save(target.changeScope(scopeType, organizationId, storeId));
     touchMembership(target);
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.scope",
+        "role_binding", String.valueOf(saved.id()), null, "role-binding-scope:" + saved.id(),
+        "{\"scopeType\":\"" + scopeType + "\"}"));
     return saved;
   }
 
@@ -162,6 +175,9 @@ public class RoleBindingApplicationService {
       throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
     }
     snapshots.evict(accountId);
+    audit.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.role_binding.revoke_any",
+        "role_binding", String.valueOf(bindingId), null, "role-binding-revoke-any:" + bindingId,
+        "{\"accountId\":" + accountId + "}"));
   }
 
   public List<RoleBinding> listByMembership(Long membershipId) {

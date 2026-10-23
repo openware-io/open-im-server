@@ -3,9 +3,11 @@ package io.openware.platform.tenant.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
@@ -26,11 +28,12 @@ class MembershipApplicationServiceTest {
   @Mock private MembershipRepository repository;
   @Mock private RoleBindingRepository bindings;
   @Mock private PermissionSnapshotProvider snapshots;
+  @Mock private AuditClient audit;
   private MembershipApplicationService service;
 
   @BeforeEach
   void setUp() {
-    service = new MembershipApplicationService(repository, bindings, snapshots);
+    service = new MembershipApplicationService(repository, bindings, snapshots, audit);
     TenantContextHolder.set(new TenantContext(100L, 10L, null, 1L, 1));
   }
 
@@ -53,6 +56,7 @@ class MembershipApplicationServiceTest {
     assertEquals(100L, created.tenantId());
     assertEquals(9L, created.accountId());
     assertEquals("E001", created.memberNo());
+    verify(audit).recordAsync(any());
   }
 
   @Test

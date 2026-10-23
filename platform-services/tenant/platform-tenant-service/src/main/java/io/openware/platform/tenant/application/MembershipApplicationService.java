@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.application;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
@@ -17,13 +18,16 @@ public class MembershipApplicationService {
   private final MembershipRepository repository;
   private final RoleBindingRepository bindings;
   private final PermissionSnapshotProvider snapshots;
+  private final AuditClient audit;
 
   public MembershipApplicationService(MembershipRepository repository,
                                        RoleBindingRepository bindings,
-                                       PermissionSnapshotProvider snapshots) {
+                                       PermissionSnapshotProvider snapshots,
+                                       AuditClient audit) {
     this.repository = repository;
     this.bindings = bindings;
     this.snapshots = snapshots;
+    this.audit = audit;
   }
 
   @Transactional
@@ -41,6 +45,9 @@ public class MembershipApplicationService {
     Membership created = repository.save(
         Membership.create(accountId, tenantId, organizationId, type, memberNo));
     snapshots.evict(accountId);
+    audit.recordAsync(AuditClient.AuditRecord.of(tenantId, null, "iam.membership.create", "membership",
+        String.valueOf(created.id()), created.memberNo(), "membership:" + created.id(),
+        "{\"accountId\":" + accountId + ",\"type\":\"" + type + "\"}"));
     return created;
   }
   public Membership get(Long id) {
@@ -71,6 +78,9 @@ public class MembershipApplicationService {
     }
     Membership saved = repository.save(current.changeStatus(status));
     snapshots.evict(current.accountId());
+    audit.recordAsync(AuditClient.AuditRecord.of(current.tenantId(), null, "iam.membership.status",
+        "membership", String.valueOf(id), current.memberNo(), "membership-status:" + id + ":" + status,
+        "{\"accountId\":" + current.accountId() + ",\"status\":\"" + status + "\"}"));
     return saved;
   }
 

@@ -133,3 +133,6 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 - `/admin/iam/accounts/{accountId}/user-roles` 同时返回 membership 绑定和平台 ACCOUNT 绑定 id。
 - `DELETE /admin/iam/user-roles/{id}` 可撤销两类绑定，并按账号逐出权限快照。
 - 旧 `iam_user_role` 写方法统一返回 410；迁移脚本保留生效窗口和 SELF 映射。
+
+新写路径已记录 IAM 审计：membership create/status、role_binding assign/revoke/scope。
+

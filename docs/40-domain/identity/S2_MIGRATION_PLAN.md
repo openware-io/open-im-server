@@ -186,3 +186,19 @@ S2 仲裁
 ## 10. 门禁例外
 
 - [ENGINEERING_DEBT_EXCEPTIONS.md](../../80-development/governance/ENGINEERING_DEBT_EXCEPTIONS.md)
+
+## 11. 最终证据
+
+```text
+identity V3：Successfully applied 1 migration, now at version v3
+identity V4：Successfully applied 1 migration, now at version v4
+tenant V8-V10：10 migrations, version v10
+customer V2：2 migrations, version v2
+```
+
+新写路径审计：
+
+```text
+iam.membership.create / status
+iam.role_binding.assign / revoke / scope / revoke_any
+```

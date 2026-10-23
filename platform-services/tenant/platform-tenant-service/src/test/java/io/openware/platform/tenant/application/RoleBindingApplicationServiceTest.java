@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.Role;
@@ -34,11 +35,12 @@ class RoleBindingApplicationServiceTest {
   @Mock private StoreRepository stores;
   @Mock private OrganizationRepository organizations;
   @Mock private PermissionSnapshotProvider snapshots;
+  @Mock private AuditClient audit;
   private RoleBindingApplicationService service;
 
   @BeforeEach
   void setUp() {
-    service = new RoleBindingApplicationService(bindings, memberships, roles, stores, organizations, snapshots);
+    service = new RoleBindingApplicationService(bindings, memberships, roles, stores, organizations, snapshots, audit);
     TenantContextHolder.set(new TenantContext(100L, 10L, null, 1L, 1));
   }
 
@@ -69,6 +71,7 @@ class RoleBindingApplicationServiceTest {
     assertEquals(20L, binding.storeId());
     verify(snapshots).evict(9L);
     verify(memberships).save(any(Membership.class));
+    verify(audit).recordAsync(any());
   }
 
   @Test
