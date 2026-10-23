@@ -1,0 +1,95 @@
+package io.openware.platform.tenant.application;
+
+import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.iam.model.Role;
+import io.openware.platform.tenant.domain.iam.model.RoleBinding;
+import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
+import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
+import io.openware.platform.tenant.domain.membership.Membership;
+import io.openware.platform.tenant.domain.membership.MembershipRepository;
+import java.util.List;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** 成员角色绑定：只允许 B 端 STAFF 成员，角色 scope 必须与绑定 scope 一致。 */
+@Service
+public class RoleBindingApplicationService {
+
+  private final RoleBindingRepository bindings;
+  private final MembershipRepository memberships;
+  private final RoleRepository roles;
+
+  public RoleBindingApplicationService(RoleBindingRepository bindings,
+                                       MembershipRepository memberships,
+                                       RoleRepository roles) {
+    this.bindings = bindings;
+    this.memberships = memberships;
+    this.roles = roles;
+  }
+
+  @Transactional
+  public RoleBinding assign(Long membershipId, Long roleId, String scopeType,
+                            Long organizationId, Long storeId) {
+    TenantContext context = requireTenant();
+    Membership membership = memberships.findById(membershipId)
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
+    if (!membership.tenantId().equals(context.tenantId())) {
+      throw new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在");
+    }
+    if (!Membership.TYPE_STAFF.equals(membership.membershipType())) {
+      throw new ApiException(400, "STAFF_MEMBERSHIP_REQUIRED", "只有员工成员身份可以绑定后台角色");
+    }
+    if (!membership.active()) {
+      throw new ApiException(400, "MEMBERSHIP_INACTIVE", "成员身份不可用");
+    }
+    Role role = roles.findById(roleId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
+    if (!role.active()) {
+      throw new ApiException(400, "ROLE_INACTIVE", "角色不可用");
+    }
+    if (role.tenantId() != null && !role.tenantId().equals(context.tenantId())) {
+      throw new ApiException(400, "ROLE_TENANT_MISMATCH", "角色不属于当前租户");
+    }
+    if (!scopeType.equals(role.scopeLevel())) {
+      throw new ApiException(400, "ROLE_SCOPE_MISMATCH", "角色作用域与绑定作用域不一致");
+    }
+    if (RoleBinding.SCOPE_STORE.equals(scopeType) && (storeId == null || storeId <= 0)) {
+      throw new ApiException(400, "STORE_SCOPE_REQUIRED", "门店角色必须指定门店");
+    }
+    if (RoleBinding.SCOPE_ORGANIZATION.equals(scopeType)
+        && (organizationId == null || organizationId <= 0)) {
+      throw new ApiException(400, "ORGANIZATION_SCOPE_REQUIRED", "组织角色必须指定组织");
+    }
+    if (bindings.findActive(membershipId, roleId, scopeType, context.tenantId(), organizationId, storeId)
+        .isPresent()) {
+      throw new ApiException(409, "ROLE_BINDING_EXISTS", "该角色绑定已存在");
+    }
+    return bindings.save(RoleBinding.create(membershipId, roleId, scopeType,
+        context.tenantId(), organizationId, storeId));
+  }
+
+  public List<RoleBinding> listByMembership(Long membershipId) {
+    return bindings.findByMembership(membershipId);
+  }
+
+  @Transactional
+  public RoleBinding revoke(Long bindingId) {
+    TenantContext context = requireTenant();
+    RoleBinding binding = bindings.findById(bindingId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在"));
+    if (!binding.tenantId().equals(context.tenantId())) {
+      throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
+    }
+    return bindings.save(binding.revoke());
+  }
+
+  private TenantContext requireTenant() {
+    TenantContext context = TenantContextHolder.get();
+    if (context == null || context.platformScope()) {
+      throw new ApiException(401, "SAAS_TENANT_CONTEXT_REQUIRED", "缺少租户上下文");
+    }
+    return context;
+  }
+}

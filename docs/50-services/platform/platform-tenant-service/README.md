@@ -107,3 +107,11 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 - `GET /internal/iam/memberships/{id}`：成员详情
 
 `tnt_membership` 是角色绑定主体；`iam_role_binding` 必须绑定 membership，不直接绑定全局 account。
+
+## 成员角色绑定 API（S2）
+
+- `GET /admin/memberships/{membershipId}/role-bindings`
+- `POST /admin/memberships/{membershipId}/role-bindings`
+- `POST /admin/role-bindings/{id}/revoke`
+
+绑定规则：主体必须是 STAFF membership；角色作用域必须与绑定作用域一致；门店/组织 scope 必须带对应 ID；跨租户成员拒绝。
