@@ -17,6 +17,7 @@
 | 0011 | [库存上下文映射与依赖规则](0011-inventory-context-map.md) | proposed | 2026-10-22 |
 | 0012 | [订单作为共享交易内核](0012-order-kernel.md) | proposed | 2026-10-22 |
 | 0013 | [角色工作台作为平台能力](0013-role-workbench.md) | proposed | 2026-10-22 |
+| 0014 | [平台、租户、门店工作区与角色治理](0014-workspace-role-model.md) | accepted | 2026-10-23 |
 
 ## 状态说明
 
