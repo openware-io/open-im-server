@@ -18,6 +18,7 @@
 | [Acceptance test plan](IDENTITY_TEST_PLAN.md) | Browser, real-device app, C/B, isolation, failure recovery |
 | [S1 Flyway evidence](S1_FLYWAY_EVIDENCE.md) | Empty and incremental migration record |
 | [S2 migration plan](S2_MIGRATION_PLAN.md) | account_type, customer backfill, legacy role binding migration |
+| [Implementation status](IMPLEMENTATION_STATUS.md) | Real S1–S7 and E2E status |
 | [Account permission model](../ACCOUNT_PERMISSION_MODEL.md) | Historical/current model; this directory wins on conflicts |
 
 ## Core decisions
