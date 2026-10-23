@@ -106,12 +106,20 @@ A. 正式例外：ADR/负责人/到期/退出条件
 B. 确认无历史库：重建基线后清零
 ```
 
+当前：
+
+```text
+tenant-sql 3 条已关闭（补 tenant-agnostic 注释）
+flyway-conventions 9 条登记为 GATE-FLYWAY-LEGACY-001
+  到期 2026-11-15，S5 酒店域收口时关闭
+```
+
 禁止：
 
 ```text
-改已执行迁移
-report-only 绕过
-改 validator 让红灯消失
+扩大例外范围
+改已执行迁移来规避
+report-only 代替例外
 ```
 
 ## 7. S2 准出
@@ -174,3 +182,7 @@ tenant 151 PASS
 门禁红灯处理
 S2 仲裁
 ```
+
+## 10. 门禁例外
+
+- [ENGINEERING_DEBT_EXCEPTIONS.md](../../80-development/governance/ENGINEERING_DEBT_EXCEPTIONS.md)

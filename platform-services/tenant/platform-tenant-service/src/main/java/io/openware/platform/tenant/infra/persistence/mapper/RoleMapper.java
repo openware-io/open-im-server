@@ -15,13 +15,13 @@ public interface RoleMapper extends BaseMapper<RolePo> {
      * 不能被当前租户上下文过滤掉，否则授权校验会误判角色不存在。
      */
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM iam_role WHERE id = #{id}")
+    @Select("SELECT * FROM iam_role /* tenant-agnostic: 主键查询需包含全局预置角色 tenant_id=NULL */ WHERE id = #{id}")
     RolePo selectByIdIgnoringTenant(@Param("id") Long id);
 
     /** 预置角色 tenant_id 为 NULL，租户可分配目录必须同时包含预置角色和本租户自定义角色。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT * FROM iam_role
+        SELECT * FROM iam_role /* tenant-agnostic: 预置 + 当前租户角色目录 */
         WHERE status = 'ACTIVE'
           AND scope_level IN ('TENANT', 'STORE')
           AND (tenant_id IS NULL OR tenant_id = #{tenantId})
@@ -31,7 +31,7 @@ public interface RoleMapper extends BaseMapper<RolePo> {
 
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT * FROM iam_role
+        SELECT * FROM iam_role /* tenant-agnostic: 平台角色目录，tenant_id 为空 */
         WHERE status = 'ACTIVE'
           AND scope_level = 'PLATFORM'
         ORDER BY code
