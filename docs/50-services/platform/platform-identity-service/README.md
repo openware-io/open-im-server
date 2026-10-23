@@ -83,3 +83,10 @@
 - OAuth 回调与 `/auth/session` 先校验 appId；未登记返回 400 `OAUTH_APP_INVALID`。
 - C/B cookie 族由注册表决定，不再用后缀猜测。
 - `/auth/contexts`、`/auth/context/select` 校验会话 appId 与请求 appId 一致。
+
+配置：
+
+```text
+SAAS_APPS_CONSUMER=saas-a380-c,saas-hotel-c,saas-ktv-c
+SAAS_APPS_BACKEND=saas-a380-h5,saas-hotel-b,saas-ktv-b
+```

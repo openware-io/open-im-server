@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import io.openware.platform.identity.api.dto.AuthContextDtos.ContextItem;
 import io.openware.platform.identity.api.dto.AuthContextDtos.SelectContextResponse;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.TenantContextTokenSigner;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -22,7 +23,7 @@ class AuthContextApplicationServiceTest {
   private final TenantServiceClient tenantClient = mock(TenantServiceClient.class);
   private final TenantContextTokenSigner tokenSigner = mock(TenantContextTokenSigner.class);
   private final AuthContextApplicationService service =
-      new AuthContextApplicationService(tenantClient, tokenSigner);
+      new AuthContextApplicationService(tenantClient, tokenSigner, new SaasAppRegistry("saas-a380-c,saas-hotel-c,saas-ktv-c", "saas-a380-h5,saas-hotel-b,saas-ktv-b"));
 
   @Test
   void contexts_mapsTenantContextsWithRolesAndScope() {

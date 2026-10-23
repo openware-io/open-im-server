@@ -6,6 +6,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.TenantContextTokenSigner;
 import org.springframework.stereotype.Service;
 
@@ -21,13 +22,16 @@ import java.util.Objects;
 public class AuthContextApplicationService {
     private final TenantServiceClient tenantClient;
     private final TenantContextTokenSigner tokenSigner;
+    private final SaasAppRegistry appRegistry;
 
     /** 运营后台类应用(B 端)的运营角色集合：租户在 SaaS 后台注册该 IM 账号为运营人员即绑定这些角色之一。 */
     static final List<String> OPERATOR_ROLES = List.of("tenant.owner", "store.manager", "store.cashier", "store.finance");
 
-    public AuthContextApplicationService(TenantServiceClient tenantClient, TenantContextTokenSigner tokenSigner) {
+    public AuthContextApplicationService(TenantServiceClient tenantClient, TenantContextTokenSigner tokenSigner,
+                                         SaasAppRegistry appRegistry) {
         this.tenantClient = tenantClient;
         this.tokenSigner = tokenSigner;
+        this.appRegistry = appRegistry;
     }
 
     /** 返回账号可访问的经营上下文（按 tenant-service 的 iam_user_role 聚合）。 */
@@ -41,7 +45,7 @@ public class AuthContextApplicationService {
         }
         try {
             if (appId != null && !appId.isBlank()) {
-                if (!isOperatorApp(appId)) {
+                if (!appRegistry.isBackend(appId)) {
                     // C 端/消费者应用：任意 IM 账号（未授权先授权）→ consumer 应用授权上下文
                     TenantServiceClient.TenantContext consumer = tenantClient.consumerContext(accountId, appId);
                     if (consumer != null) {
@@ -87,10 +91,6 @@ public class AuthContextApplicationService {
             throw new ApiException(HttpStatusCodes.SERVICE_UNAVAILABLE, "IAM_CONTEXT_UNAVAILABLE",
                     "权限上下文服务暂时不可用");
         }
-    }
-
-    static boolean isOperatorApp(String appId) {
-        return appId != null && (appId.endsWith("-h5") || appId.contains("-b"));
     }
 
     private static boolean hasOperatorRole(TenantServiceClient.TenantContext ctx) {
