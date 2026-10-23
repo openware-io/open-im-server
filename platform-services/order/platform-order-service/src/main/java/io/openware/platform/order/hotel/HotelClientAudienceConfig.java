@@ -11,6 +11,6 @@ public class HotelClientAudienceConfig implements WebMvcConfigurer {
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
     registry.addInterceptor(new HotelClientAudienceInterceptor())
-        .addPathPatterns("/admin/hotel/**", "/business/hotel/catalog/**");
+        .addPathPatterns("/admin/**", "/business/hotel/catalog/**");
   }
 }

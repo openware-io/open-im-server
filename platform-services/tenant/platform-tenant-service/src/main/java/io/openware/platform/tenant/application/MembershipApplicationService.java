@@ -51,14 +51,6 @@ public class MembershipApplicationService {
     return created;
   }
 
-  /** C 端首次应用授权：幂等创建 CUSTOMER membership。 */
-  @Transactional
-  public Membership ensureConsumer(Long tenantId, Long accountId) {
-    return repository.findByAccountAndTenantAndType(accountId, tenantId, Membership.TYPE_CUSTOMER)
-        .orElseGet(() -> createForTenant(tenantId, accountId, 0L, Membership.TYPE_CUSTOMER,
-            "C" + accountId));
-  }
-
   public Membership get(Long id) {
     return repository.findById(id)
         .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));

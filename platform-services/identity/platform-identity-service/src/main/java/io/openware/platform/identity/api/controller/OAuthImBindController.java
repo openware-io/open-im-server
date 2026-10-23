@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,7 +53,7 @@ public class OAuthImBindController {
         } else {
             SaasUserSessionCookie.set(response, sessionId, cookieName);
         }
-        return new AuthenticatedResponse(true);
+        return new AuthenticatedResponse(true, result.accountId(), resolvedAppId);
     }
 
     /** 直接用 im_access_token 绑定（兼容旧入口）。 */
@@ -65,9 +66,13 @@ public class OAuthImBindController {
     /** 解绑当前 app 的 OAuth 绑定并删除该会话；只影响目标 app。 */
     @PostMapping("/oauth/im/unbind")
     public void unbind(@RequestParam("app_id") String appId, HttpServletRequest request,
+                       @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                        HttpServletResponse response) {
         appRegistry.requireType(appId);
         String sessionId = sessionId(request, appId);
+        if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
+            throw new ApiException(403, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
+        }
         SaasUserSessionStore.UserSession session = sessionStore.findSession(sessionId)
             .orElseThrow(() -> new ApiException(401, "SAAS_SESSION_REQUIRED", "登录状态已失效"));
         if (session.appId() != null && !session.appId().equals(appId)) {
@@ -104,6 +109,10 @@ public class OAuthImBindController {
                                   @JsonProperty("nonce") String nonce) {}
     public record BindRequest(@JsonProperty("im_access_token") String imAccessToken) {
     }
-    public record AuthenticatedResponse(boolean authenticated) {}
+    public record AuthenticatedResponse(boolean authenticated, Long accountId, String appId) {
+        public AuthenticatedResponse(boolean authenticated) {
+            this(authenticated, null, null);
+        }
+    }
 
 }

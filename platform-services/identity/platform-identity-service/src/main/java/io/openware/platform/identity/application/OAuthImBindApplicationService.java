@@ -111,7 +111,13 @@ public class OAuthImBindApplicationService {
             }
         } else {
             tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
-            tenantServiceClient.ensureConsumerMembership(result.accountId(), resolvedAppId);
+            boolean customer = tenantServiceClient.memberships(result.accountId()).stream()
+                .anyMatch(membership -> "CUSTOMER".equals(membership.membershipType())
+                    && "ACTIVE".equals(membership.status()));
+            if (!customer) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                    "当前账号未绑定为租户客户");
+            }
         }
         return result;
     }

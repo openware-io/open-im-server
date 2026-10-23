@@ -80,6 +80,25 @@ class OAuthImBindApplicationServiceTest {
   }
 
   @Test
+  void bindByCodeRejectsUnboundCustomer() {
+    when(imOAuthClient.resolveAppId("saas-hotel-c")).thenReturn("saas-hotel-c");
+    when(appRegistry.isBackend("saas-hotel-c")).thenReturn(false);
+    when(imOAuthClient.exchangeCode("code", "verifier", "redirect", "saas-hotel-c")).thenReturn("im-token");
+    when(imOAuthClient.fetchUserInfo("im-token"))
+        .thenReturn(new ImOAuthUserInfo("open-c", "nick", "avatar", "phone", "scope"));
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-hotel-c", "open-c"))
+        .thenReturn(List.of(OauthLink.bind(10L, "IM", "saas-hotel-c", "open-c", "scope")));
+    when(tokenProvider.createAccessToken(10L, "open-c", 0)).thenReturn("signed-jwt");
+    when(tenantServiceClient.memberships(10L)).thenReturn(List.of());
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(
+        io.openware.common.exception.ApiException.class,
+        () -> service.bindByCode("code", "verifier", "redirect", "saas-hotel-c", "state", "nonce"));
+
+    assertEquals("CUSTOMER_NOT_BOUND", error.getCode());
+  }
+
+  @Test
   void bindByCodeRejectsUnboundBackendBeforeSession() {
     when(imOAuthClient.resolveAppId("saas-hotel-b")).thenReturn("saas-hotel-b");
     when(appRegistry.isBackend("saas-hotel-b")).thenReturn(true);

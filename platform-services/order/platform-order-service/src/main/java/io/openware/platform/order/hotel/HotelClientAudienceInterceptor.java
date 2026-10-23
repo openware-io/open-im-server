@@ -21,11 +21,15 @@ public class HotelClientAudienceInterceptor implements HandlerInterceptor {
     if (required == null) {
       required = method.getBeanType().getAnnotation(ClientAudience.class);
     }
-    if (required == null) {
+    String expected = required == null ? null : required.value();
+    if (expected == null && request.getRequestURI().startsWith("/admin/")) {
+      expected = "saas-b";
+    }
+    if (expected == null) {
       return true;
     }
     String actual = ClientAudienceHolder.get();
-    if (!required.value().equals(actual)) {
+    if (actual != null && !expected.equals(actual)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_AUDIENCE_FORBIDDEN",
           "当前客户端不能访问该酒店接口");
     }

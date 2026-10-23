@@ -64,13 +64,6 @@ public class TenantServiceClient {
                 .retrieve().toBodilessEntity();
     }
 
-    /** C 端首次授权后幂等建立 CUSTOMER membership。 */
-    public void ensureConsumerMembership(Long accountId, String appId) {
-        restClient.post().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/membership")
-                        .queryParam("accountId", accountId).build(appId))
-                .retrieve().toBodilessEntity();
-    }
-
     /** C 端解绑：撤销 consumer 授权并逐出权限快照。 */
     public void revokeConsumerAuthorization(Long accountId, String appId) {
         restClient.delete().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorization")

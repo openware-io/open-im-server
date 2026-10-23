@@ -90,7 +90,7 @@ Android 真机未跑
 5. S7 部署、浏览器、真机 E2E
 ```
 
-S3 更新：B 未绑定在 callback 阶段 403；C 首次授权建立 CUSTOMER membership；/auth/session|contexts|select appId 必填。
+S3 更新：B 未绑定在 callback 阶段 403；C 未绑定 CUSTOMER 在 callback 阶段 403 CUSTOMER_NOT_BOUND（S3 不做首登建客户）；/auth/session|contexts|select appId 必填。
 
 
 S3 更新：unbind 端点与 REVOKED→ACTIVE 重绑已完成；identity 49 tests。
@@ -120,4 +120,14 @@ ID：S3-APP-REGISTRY-001
 C 端当前建 tnt_membership，但 cst_member 与 consumerContext 切换留到 S4/S5
 clientApp 强制已覆盖酒店链路，非酒店 B/C API 的全量 audience 矩阵留到 S4
 unbind 尚无独立审计事件
+```
+
+### S3 收紧
+
+```text
+/auth/session|contexts|select|csrf|logout 全部要求 appId
+C 应用未绑定 ACTIVE CUSTOMER membership -> 403 CUSTOMER_NOT_BOUND
+B 应用先校验 ACTIVE STAFF membership，再校验运营角色
+unbind 要求 X-CSRF-Token
+order-service /admin/** 与 tenant-service /admin/** 仅接受 saas-b（无 clientApp 的内部调用兼容）
 ```
