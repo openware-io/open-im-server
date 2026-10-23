@@ -16,7 +16,7 @@
 | P3 onboarding | ✅ 已上线（基础） | 租户总览数据驱动开通清单 |
 | P4 业务开通驱动模块 | ✅ 基础完成 | `tnt_business_entitlement` + `/admin/tenant/businesses`，总览禁用未开通业态 |
 | P5 动作级权限 | ✅ 已上线 | 酒店前台任务/入住/退房端点，按 `hotel.booking.view`/`hotel.checkin`/`hotel.checkout` 校验 |
-| P6 移动端角色/任务对齐 | ⏳ 原型（后台会话） | 已接登录/门店/任务；B 端独立认证与上架待补 |
+| P6 移动端角色/任务对齐 | ✅ 已接入 | identity 员工登录 → B 端会话 → 门店上下文 → 酒店任务 |
 
 ### P4-P6 实现入口
 
@@ -33,6 +33,11 @@ P5
 
 P6
   Flutter：/business/role-home
+  POST /api/v1/identity/login
+  POST /api/v1/auth/session?appId=saas-a380-h5
+  GET  /api/v1/auth/contexts
+  POST /api/v1/auth/context/select
+  GET  /api/v1/business/hotel/frontdesk/tasks
   店长 / 前台 / 收银三种任务首页
 ```
 

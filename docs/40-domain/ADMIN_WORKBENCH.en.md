@@ -16,7 +16,7 @@
 | P3 onboarding | done (basic) | Data-driven tenant onboarding checklist |
 | P4 entitlement-driven modules | done (basic) | `tnt_business_entitlement` + `/admin/tenant/businesses`; unentitled scopes disabled |
 | P5 action-level permissions | done | Hotel front-desk tasks/check-in/check-out guarded by `hotel.*` permissions |
-| P6 mobile role/task parity | prototype (back-office session) | login/store/tasks wired; B-end auth and store release pending |
+| P6 mobile role/task parity | wired | identity employee login → B-end session → store context → hotel tasks |
 
 ### P4-P6 entry points
 
@@ -33,6 +33,11 @@ P5
 
 P6
   Flutter: /business/role-home
+  POST /api/v1/identity/login
+  POST /api/v1/auth/session?appId=saas-a380-h5
+  GET  /api/v1/auth/contexts
+  POST /api/v1/auth/context/select
+  GET  /api/v1/business/hotel/frontdesk/tasks
   manager / front desk / cashier task home
 ```
 
