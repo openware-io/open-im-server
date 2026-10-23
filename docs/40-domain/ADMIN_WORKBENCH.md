@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | P0 角色档案 / 登录落点 / 服务端菜单 | ✅ 已上线 | `iam_role_profile`、login/session 返回 roles/workspaces/landing、前端按角色落点 |
 | P1 全部门店汇总 | ✅ 已上线 | 经营总览支持全部门店/酒店/KTV/单店范围 |
-| P2 角色模板 / 门店范围 | ✅ 已上线（基础） | 平台“角色工作台”真实档案、工作区/落点/数据范围维护 |
+| P2 角色治理 / 门店范围 | ✅ 基础完成 | 平台/租户角色目录、租户自定义角色、权限矩阵；预置角色只读 |
 | P3 onboarding | ✅ 已上线（基础） | 租户总览数据驱动开通清单 |
 | P4 业务开通驱动模块 | ✅ 基础完成 | `tnt_business_entitlement` + `/admin/tenant/businesses`，总览禁用未开通业态 |
 | P5 动作级权限 | ✅ 已上线 | 酒店前台任务/入住/退房端点，按 `hotel.booking.view`/`hotel.checkin`/`hotel.checkout` 校验 |

@@ -53,6 +53,19 @@
 - 缓存不一致：触发授权变更逐出后重查
 - 租户创建失败：核对 Flyway `flyway_schema_history_tenant` 迁移
 
+## 角色与权限接口
+
+```text
+GET  /api/v1/admin/iam/roles/catalog        当前工作区可见角色（平台或租户）
+GET  /api/v1/admin/iam/roles/assignable     租户可分配角色（预置 + 本租户自定义）
+POST /api/v1/admin/iam/roles                创建平台/租户自定义角色
+GET  /api/v1/admin/iam/permissions          权限目录
+GET  /api/v1/admin/iam/roles/{id}/permissions
+POST /api/v1/admin/iam/roles/{id}/permissions
+```
+
+约束：预置角色只读；租户只能创建 `TENANT/STORE` 角色；权限必须满足角色 `scopeLevel` 与权限 `grantableLevels`。
+
 ## 状态
 
 - 骨架已落库（E1）：租户 / IAM / 套餐接口已实现（见 `SAAS_PLATFORM_07_EXECUTION.md`）
