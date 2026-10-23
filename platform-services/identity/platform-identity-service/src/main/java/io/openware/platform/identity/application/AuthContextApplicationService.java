@@ -68,10 +68,12 @@ public class AuthContextApplicationService {
                             .map(AuthContextApplicationService::toContextItem)
                             .toList();
                 }
+                final TenantServiceClient.TenantContext anchorContext = anchor;
                 return operatorContexts.stream()
                         .filter(AuthContextApplicationService::hasOperatorRole)
-                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchor.tenantId())
-                                && (anchor.storeId() == null || ctx.storeId() == null || ctx.storeId().equals(anchor.storeId())))
+                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchorContext.tenantId())
+                                && (anchorContext.storeId() == null || ctx.storeId() == null
+                                    || ctx.storeId().equals(anchorContext.storeId())))
                         .map(AuthContextApplicationService::toContextItem)
                         .toList();
             }
