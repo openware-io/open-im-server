@@ -14,6 +14,7 @@
 | [Identity data model](IDENTITY_SCHEMA.md) | Target DDL, ownership, unique keys, migration order |
 | [Identity API contract](IDENTITY_API.md) | OAuth callback, contexts, permission snapshot, app entries, error codes |
 | [Rollout checklist](IDENTITY_ROLLOUT.md) | Migrations, code structure, app registration, backfill, gates |
+| [Hard guardrails](IDENTITY_GUARDRAILS.md) | No mock data, fake success, auth bypass, or cross-service table reads |
 | [Account permission model](../ACCOUNT_PERMISSION_MODEL.md) | Historical/current model; this directory wins on conflicts |
 
 ## Core decisions

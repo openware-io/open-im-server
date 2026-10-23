@@ -274,3 +274,8 @@ common-services/
 - 临时调试日志如需保留，必须按“日期 + 任务名”落到 `.outputs/logs/debug/`
 - 详细目录约定见 [42 日志输出与诊断规范](../standards/42_LOGGING_AND_OUTPUTS.md)
 - 编码与批量改写规范见 [30 文本编码与批量改写规范](../standards/01_TEXT_ENCODING_AND_BATCH_EDITING.md)
+
+## Flyway 校验器规则文档路径
+
+`scripts/validate/validate-flyway-conventions.ps1` 以本文件作为表前缀注册表的权威来源。
+脚本路径固定为 `docs/80-development/governance/ENGINEERING_RULES.md`；移动本文件时必须同步修改验证器。
