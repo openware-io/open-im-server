@@ -184,3 +184,13 @@ POST /admin/hotel/frontdesk/refunds/sync
 - `APPROVED` 只更新 `htl_refund`；
 - 只有 `REFUNDED` 才写 `REFUND` 账单项、减少 `folio.paid`；
 - `PENDING` 不会被当成已退款。
+
+## 酒店续住
+
+```text
+POST /admin/hotel/frontdesk/bookings/{id}/extend
+{ "newCheckOutDate": "2026-11-01" }
+```
+
+只对新增夜追加 `sold` 库存、`htl_booking_night`、房费和账单项，不改已住夜。
+`hotel.checkin` 权限校验；新日期必须晚于当前离店日期；库存不足返回 409。

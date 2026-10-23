@@ -49,6 +49,18 @@ public interface HotelInventoryMapper extends BaseMapper<HotelInventoryPo> {
     @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_inventory_calendar
+        SET sold = sold + #{rooms}, updated_at = NOW(3)
+        WHERE tenant_id = #{tenantId} AND store_id = #{storeId}
+          AND room_type_id = #{roomTypeId} AND stay_date = #{stayDate}
+          AND total - sold - held >= #{rooms}
+        """)
+    int addSold(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
+                @Param("roomTypeId") Long roomTypeId, @Param("stayDate") LocalDate stayDate,
+                @Param("rooms") int rooms);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("""
+        UPDATE htl_inventory_calendar
         SET sold = sold - #{rooms}, updated_at = NOW(3)
         WHERE tenant_id = #{tenantId} AND store_id = #{storeId}
           AND room_type_id = #{roomTypeId} AND stay_date = #{stayDate}

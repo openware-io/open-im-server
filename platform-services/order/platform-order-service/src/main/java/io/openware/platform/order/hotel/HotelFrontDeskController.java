@@ -38,6 +38,11 @@ public class HotelFrontDeskController {
         return BookingView.from(stayService.checkOut(id));
     }
 
+    @PostMapping("/bookings/{id}/extend")
+    public BookingView extend(@PathVariable Long id, @RequestBody ExtendRequest request) {
+        return BookingView.from(stayService.extendStay(id, request.newCheckOutDate()));
+    }
+
     @PostMapping("/bookings/{id}/move-room")
     public BookingView moveRoom(@PathVariable Long id, @RequestBody MoveRoomRequest request) {
         return BookingView.from(stayService.moveRoom(id, request.roomId()));
@@ -78,6 +83,8 @@ public class HotelFrontDeskController {
     public record RefundRequest(Long amountMinor, String note, String method) {}
 
     public record MoveRoomRequest(Long roomId) {}
+
+    public record ExtendRequest(LocalDate newCheckOutDate) {}
 
     public record BookingView(Long id, String bookingNo, String guestName, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,

@@ -5,6 +5,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -22,13 +23,21 @@ public class HotelStayApplicationService {
     private final HotelHousekeepingMapper housekeepingMapper;
     private final HotelRefundMapper refundMapper;
     private final HotelPaymentRefundClient paymentRefundClient;
+    private final HotelInventoryMapper inventoryMapper;
+    private final HotelRatePlanMapper ratePlanMapper;
+    private final HotelDailyRateMapper dailyRateMapper;
+    private final HotelBookingNightMapper nightMapper;
 
     public HotelStayApplicationService(HotelBookingMapper bookingMapper, HotelRoomMapper roomMapper,
                                        HotelStayMapper stayMapper, HotelFolioMapper folioMapper,
                                        HotelFolioItemMapper folioItemMapper,
                                        HotelHousekeepingMapper housekeepingMapper,
                                        HotelRefundMapper refundMapper,
-                                       HotelPaymentRefundClient paymentRefundClient) {
+                                       HotelPaymentRefundClient paymentRefundClient,
+                                       HotelInventoryMapper inventoryMapper,
+                                       HotelRatePlanMapper ratePlanMapper,
+                                       HotelDailyRateMapper dailyRateMapper,
+                                       HotelBookingNightMapper nightMapper) {
         this.bookingMapper = bookingMapper;
         this.roomMapper = roomMapper;
         this.stayMapper = stayMapper;
@@ -37,6 +46,10 @@ public class HotelStayApplicationService {
         this.housekeepingMapper = housekeepingMapper;
         this.refundMapper = refundMapper;
         this.paymentRefundClient = paymentRefundClient;
+        this.inventoryMapper = inventoryMapper;
+        this.ratePlanMapper = ratePlanMapper;
+        this.dailyRateMapper = dailyRateMapper;
+        this.nightMapper = nightMapper;
     }
 
     @Transactional
@@ -262,6 +275,65 @@ public class HotelStayApplicationService {
         refund.setUpdatedAt(LocalDateTime.now());
         refundMapper.updateById(refund);
         return refund;
+    }
+
+    /** 续住：只对新增夜追加 sold、房费和账单项，不改已住夜。 */
+    @Transactional
+    public HotelBookingPo extendStay(Long bookingId, LocalDate newCheckOutDate) {
+        PermissionGuard.require("hotel.checkin");
+        TenantContext context = requireStore();
+        HotelBookingPo booking = requireBooking(bookingId, context);
+        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
+            throw new ApiException(409, "EXTEND_STATE_INVALID", "只有在住预订可以续住");
+        }
+        if (newCheckOutDate == null || !newCheckOutDate.isAfter(booking.getCheckOutDate())) {
+            throw new ApiException(400, "EXTEND_DATE_INVALID", "续住日期必须晚于当前离店日期");
+        }
+        HotelRatePlanPo ratePlan = ratePlanMapper.selectById(booking.getRatePlanId());
+        if (ratePlan == null || !context.storeId().equals(ratePlan.getStoreId())) {
+            throw new ApiException(409, "RATE_PLAN_NOT_FOUND", "房价计划不存在");
+        }
+        HotelFolioPo folio = requireOpenFolio(bookingId, context);
+        long additional = 0;
+        LocalDateTime now = LocalDateTime.now();
+        for (LocalDate date = booking.getCheckOutDate(); date.isBefore(newCheckOutDate); date = date.plusDays(1)) {
+            long price = dailyPrice(context, booking, ratePlan, date);
+            if (inventoryMapper.addSold(context.tenantId(), context.storeId(), booking.getRoomTypeId(), date,
+                    booking.getRooms()) == 0) {
+                throw new ApiException(409, "INVENTORY_UNAVAILABLE", "续住日期库存不足");
+            }
+            HotelBookingNightPo night = new HotelBookingNightPo();
+            night.setTenantId(context.tenantId());
+            night.setStoreId(context.storeId());
+            night.setBookingId(bookingId);
+            night.setStayDate(date);
+            night.setPriceMinor(price);
+            night.setCurrency(booking.getCurrency());
+            night.setStatus("SOLD");
+            night.setCreatedAt(now);
+            night.setUpdatedAt(now);
+            nightMapper.insert(night);
+            additional = Math.addExact(additional, Math.multiplyExact(price, booking.getRooms()));
+        }
+        booking.setCheckOutDate(newCheckOutDate);
+        booking.setNights((int) java.time.temporal.ChronoUnit.DAYS.between(booking.getCheckInDate(), newCheckOutDate));
+        booking.setAmountMinor(booking.getAmountMinor() + additional);
+        booking.setUpdatedAt(now);
+        bookingMapper.updateById(booking);
+        folio.setChargeMinor(folio.getChargeMinor() + additional);
+        folio.setUpdatedAt(now);
+        folioMapper.updateById(folio);
+        addItem(folio, "ROOM", null, null, "续住房费", additional);
+        return booking;
+    }
+
+    private long dailyPrice(TenantContext context, HotelBookingPo booking, HotelRatePlanPo ratePlan, LocalDate date) {
+        HotelDailyRatePo daily = dailyRateMapper.selectOne(new LambdaQueryWrapper<HotelDailyRatePo>()
+                .eq(HotelDailyRatePo::getStoreId, context.storeId())
+                .eq(HotelDailyRatePo::getRoomTypeId, booking.getRoomTypeId())
+                .eq(HotelDailyRatePo::getRatePlanId, ratePlan.getId())
+                .eq(HotelDailyRatePo::getStayDate, date));
+        return daily == null ? ratePlan.getBasePriceMinor() : daily.getPriceMinor();
     }
 
     /** 同步 payment-service 退款审批/打款状态；REFUNDED 才写账本并减少已收。 */
