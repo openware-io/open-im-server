@@ -20,6 +20,11 @@ public interface RoleBindingMapper extends BaseMapper<RoleBindingPo> {
   List<Long> selectPlatformIdsByAccount(@Param("accountId") Long accountId);
 
   @InterceptorIgnore(tenantLine = "true")
+  @Select("SELECT id, subject_type, subject_id, tenant_id, scope_type, authorization_version "
+      + "FROM iam_role_binding /* tenant-agnostic: 按主键读取安全描述 */ WHERE id = #{id}")
+  RoleBindingPo selectDescriptorById(@Param("id") Long id);
+
+  @InterceptorIgnore(tenantLine = "true")
   @Select("SELECT CASE WHEN subject_type = 'ACCOUNT' THEN subject_id "
       + "ELSE (SELECT account_id FROM tnt_membership /* tenant-agnostic: 绑定主键回查 */ WHERE id = subject_id) END "
       + "FROM iam_role_binding /* tenant-agnostic: 按绑定主键回查账号 */ WHERE id = #{id}")

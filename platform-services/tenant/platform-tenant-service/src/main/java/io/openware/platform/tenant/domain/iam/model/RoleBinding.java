@@ -59,14 +59,16 @@ public record RoleBinding(
   }
 
   public static boolean scopeShapeValid(String scopeType, Long tenantId, Long organizationId, Long storeId) {
-    if (scopeType == null) {
+    if (scopeType == null || tenantId == null || tenantId <= 0) {
       return false;
     }
+    long org = organizationId == null ? 0L : organizationId;
+    long store = storeId == null ? 0L : storeId;
     return switch (scopeType) {
-      case SCOPE_TENANT -> tenantId != null && storeId == null;
-      case SCOPE_ORGANIZATION -> tenantId != null && organizationId != null && storeId == null;
-      case SCOPE_STORE -> tenantId != null && storeId != null;
-      case SCOPE_SELF -> tenantId != null && organizationId == null && storeId == null;
+      case SCOPE_TENANT -> org == 0 && store == 0;
+      case SCOPE_SELF -> org == 0 && store == 0;
+      case SCOPE_ORGANIZATION -> org > 0 && store == 0;
+      case SCOPE_STORE -> org >= 0 && store > 0;
       default -> false;
     };
   }

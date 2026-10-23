@@ -96,7 +96,7 @@ public interface IamSnapshotMapper {
         FROM iam_role_binding b
         LEFT JOIN tnt_membership mem
           ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
-        WHERE b.status = 'ACTIVE'
+        WHERE (b.status = 'ACTIVE' OR b.subject_type = 'ACCOUNT')
           AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
           AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
           AND (

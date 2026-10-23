@@ -60,6 +60,18 @@ public class RoleBindingRepositoryAdapter implements RoleBindingRepository {
   }
 
   @Override
+  public Optional<io.openware.platform.tenant.domain.iam.model.BindingDescriptor> findDescriptor(
+      Long bindingId) {
+    RoleBindingPo po = mapper.selectDescriptorById(bindingId);
+    if (po == null) {
+      return Optional.empty();
+    }
+    return Optional.of(new io.openware.platform.tenant.domain.iam.model.BindingDescriptor(
+        po.getId(), po.getSubjectType(), po.getSubjectId(), po.getTenantId(),
+        po.getScopeType(), po.getAuthorizationVersion() == null ? 1 : po.getAuthorizationVersion()));
+  }
+
+  @Override
   public boolean revokeAnyById(Long bindingId) {
     return mapper.revokeAnyById(bindingId) > 0;
   }

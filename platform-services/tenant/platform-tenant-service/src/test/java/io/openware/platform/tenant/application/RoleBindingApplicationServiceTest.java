@@ -10,6 +10,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.iam.model.BindingDescriptor;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.repository.RoleBindingRepository;
@@ -72,6 +73,52 @@ class RoleBindingApplicationServiceTest {
     verify(snapshots).evict(9L);
     verify(memberships).save(any(Membership.class));
     verify(audit).recordAsync(any());
+  }
+
+  @Test
+  void largeTenantIdStoreOwnershipComparesByValue() {
+    TenantContextHolder.set(new TenantContext(1000L, 10L, null, 1L, 1));
+    when(memberships.findById(5L)).thenReturn(Optional.of(
+        new Membership(5L, 9L, 1000L, 10L, "STAFF", "E001", 1, "ACTIVE")));
+    when(roles.findById(7L)).thenReturn(Optional.of(
+        new Role(7L, 1000L, "store.manager", "店长", "TENANT", "STORE", "hotel", null, "ACTIVE")));
+    when(organizations.findTenantId(10L)).thenReturn(Optional.of(1000L));
+    when(stores.findOwnerTenantId(20L)).thenReturn(Optional.of(1000L));
+    when(bindings.findActive(5L, 7L, "STORE", 1000L, 10L, 20L)).thenReturn(Optional.empty());
+    when(bindings.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+    assertEquals(1000L, service.assign(5L, 7L, "STORE", 10L, 20L).tenantId());
+  }
+
+  @Test
+  void platformAssignmentReturnsExplicitClientError() {
+    ApiException error = assertThrows(ApiException.class,
+        () -> service.assign(5L, 7L, "PLATFORM", null, null));
+    assertEquals("PLATFORM_BINDING_OUT_OF_SCOPE", error.getCode());
+  }
+
+  @Test
+  void revokeAnyRejectsOtherTenantBinding() {
+    when(bindings.findDescriptor(9L)).thenReturn(Optional.of(
+        new BindingDescriptor(9L, "MEMBERSHIP", 1L, 200L, "STORE", 3)));
+
+    assertThrows(ApiException.class, () -> service.revokeAny(9L));
+  }
+
+  @Test
+  void revokeAnyRejectsPlatformBindingFromTenantContext() {
+    when(bindings.findDescriptor(9L)).thenReturn(Optional.of(
+        new BindingDescriptor(9L, "ACCOUNT", 1L, 0L, "PLATFORM", 3)));
+
+    assertThrows(ApiException.class, () -> service.revokeAny(9L));
+  }
+
+  @Test
+  void listIdsTenantContextDoesNotExposePlatformBindings() {
+    when(memberships.findAllByAccountId(9L)).thenReturn(java.util.List.of());
+
+    assertEquals(0, service.listIdsByAccount(9L).size());
+    verify(bindings, org.mockito.Mockito.never()).findPlatformIdsByAccount(9L);
   }
 
   @Test

@@ -40,4 +40,22 @@ class RoleBindingTest {
     assertThrows(IllegalArgumentException.class,
         () -> RoleBinding.create(5L, 7L, "PLATFORM", 100L, null, null));
   }
+
+  @Test
+  void tenantScopeRejectsOrganization() {
+    assertThrows(IllegalArgumentException.class,
+        () -> RoleBinding.create(5L, 7L, "TENANT", 100L, 10L, null));
+  }
+
+  @Test
+  void selfScopeAcceptsZeroOrganizationAndStore() {
+    RoleBinding binding = RoleBinding.create(5L, 7L, "SELF", 100L, 0L, 0L);
+    assertEquals("SELF", binding.scopeType());
+  }
+
+  @Test
+  void storeScopeRejectsZeroStore() {
+    assertThrows(IllegalArgumentException.class,
+        () -> RoleBinding.create(5L, 7L, "STORE", 100L, 0L, 0L));
+  }
 }

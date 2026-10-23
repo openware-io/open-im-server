@@ -4,6 +4,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.domain.iam.model.BindingDescriptor;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.repository.OrganizationRepository;
@@ -47,6 +48,10 @@ public class RoleBindingApplicationService {
   @Transactional
   public RoleBinding assign(Long membershipId, Long roleId, String scopeType,
                             Long organizationId, Long storeId) {
+    if ("PLATFORM".equals(scopeType)) {
+      throw new ApiException(400, "PLATFORM_BINDING_OUT_OF_SCOPE",
+          "平台角色授予不属于 S2，请走 S3/S4 平台运营入口");
+    }
     TenantContext context = requireTenant();
     Membership membership = memberships.findById(membershipId)
         .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
@@ -78,11 +83,11 @@ public class RoleBindingApplicationService {
       throw new ApiException(400, "ORGANIZATION_SCOPE_REQUIRED", "组织角色必须指定组织");
     }
     if (organizationId != null && organizationId > 0
-        && !organizations.findTenantId(organizationId).filter(id -> id == context.tenantId()).isPresent()) {
+        && !organizations.findTenantId(organizationId).filter(id -> id.equals(context.tenantId())).isPresent()) {
       throw new ApiException(400, "ORGANIZATION_TENANT_MISMATCH", "组织不属于当前租户");
     }
     if (storeId != null && storeId > 0
-        && !stores.findOwnerTenantId(storeId).filter(id -> id == context.tenantId()).isPresent()) {
+        && !stores.findOwnerTenantId(storeId).filter(id -> id.equals(context.tenantId())).isPresent()) {
       throw new ApiException(400, "STORE_TENANT_MISMATCH", "门店不属于当前租户");
     }
     if (bindings.findActive(membershipId, roleId, scopeType, context.tenantId(), organizationId, storeId)
@@ -115,48 +120,62 @@ public class RoleBindingApplicationService {
 
   public List<RoleBinding> listByAccount(Long accountId) {
     TenantContext context = TenantContextHolder.get();
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
     return memberships.findAllByAccountId(accountId).stream()
-        .filter(membership -> context == null || context.platformScope()
+        .filter(membership -> context.platformScope()
             || membership.tenantId().equals(context.tenantId()))
         .flatMap(membership -> bindings.findByMembership(membership.id()).stream())
         .toList();
   }
 
   public List<Long> listIdsByAccount(Long accountId) {
+    TenantContext context = TenantContextHolder.get();
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
     java.util.ArrayList<Long> ids = new java.util.ArrayList<>(
         listByAccount(accountId).stream().map(RoleBinding::id).toList());
-    ids.addAll(bindings.findPlatformIdsByAccount(accountId));
+    if (context.platformScope()) {
+      ids.addAll(bindings.findPlatformIdsByAccount(accountId));
+    }
     return ids;
   }
 
   @Transactional
   public void revokeByAccountAndRole(Long accountId, Long roleId) {
     TenantContext context = requireTenant();
-    RoleBinding target = listByAccount(accountId).stream()
+    java.util.List<RoleBinding> targets = listByAccount(accountId).stream()
         .filter(RoleBinding::active)
         .filter(binding -> binding.roleId().equals(roleId))
         .filter(binding -> binding.tenantId().equals(context.tenantId()))
-        .findFirst()
-        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
-    bindings.save(target.revoke());
-    touchMembership(target);
-    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.revoke",
-        "role_binding", String.valueOf(target.id()), null, "role-binding-revoke:" + target.id(),
-        "{\"accountId\":" + accountId + ",\"roleId\":" + roleId + "}"));
+        .toList();
+    if (targets.isEmpty()) {
+      throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在");
+    }
+    for (RoleBinding target : targets) {
+      bindings.save(target.revoke());
+      touchMembership(target);
+    }
   }
-
   @Transactional
   public RoleBinding updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
                                           String scopeType) {
     TenantContext context = requireTenant();
-    RoleBinding target = listByAccount(accountId).stream()
+    java.util.List<RoleBinding> targets = listByAccount(accountId).stream()
         .filter(RoleBinding::active)
         .filter(binding -> binding.roleId().equals(roleId))
         .filter(binding -> binding.tenantId().equals(context.tenantId()))
-        .findFirst()
-        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在"));
-    RoleBinding saved = bindings.save(target.changeScope(scopeType, organizationId, storeId));
-    touchMembership(target);
+        .toList();
+    if (targets.isEmpty()) {
+      throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "成员角色绑定不存在");
+    }
+    RoleBinding saved = null;
+    for (RoleBinding target : targets) {
+      saved = bindings.save(target.changeScope(scopeType, organizationId, storeId));
+      touchMembership(target);
+    }
     audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.scope",
         "role_binding", String.valueOf(saved.id()), null, "role-binding-scope:" + saved.id(),
         "{\"scopeType\":\"" + scopeType + "\"}"));
@@ -170,14 +189,39 @@ public class RoleBindingApplicationService {
 
   @Transactional
   public void revokeAny(Long bindingId) {
-    Long accountId = accountIdForBinding(bindingId);
+    TenantContext context = TenantContextHolder.get();
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
+    BindingDescriptor descriptor = bindings.findDescriptor(bindingId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在"));
+    boolean platformBinding = "ACCOUNT".equals(descriptor.subjectType())
+        || "PLATFORM".equals(descriptor.scopeType());
+    if (platformBinding) {
+      if (!context.platformScope()) {
+        throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
+      }
+    } else if (!context.platformScope() && !descriptor.tenantId().equals(context.tenantId())) {
+      throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
+    }
+    Long accountId = bindings.findAccountIdByAnyId(bindingId)
+        .orElseThrow(() -> new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在"));
     if (!bindings.revokeAnyById(bindingId)) {
       throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "角色绑定不存在");
     }
+    if (!platformBinding) {
+      membershipBump(descriptor.subjectId());
+    }
     snapshots.evict(accountId);
-    audit.recordAsync(AuditClient.AuditRecord.of(null, null, "iam.role_binding.revoke_any",
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.revoke_any",
         "role_binding", String.valueOf(bindingId), null, "role-binding-revoke-any:" + bindingId,
         "{\"accountId\":" + accountId + "}"));
+  }
+
+  private void membershipBump(Long membershipId) {
+    Membership membership = memberships.findById(membershipId)
+        .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));
+    memberships.save(membership.bumpAuthorizationVersion());
   }
 
   public List<RoleBinding> listByMembership(Long membershipId) {
@@ -200,6 +244,9 @@ public class RoleBindingApplicationService {
     }
     RoleBinding saved = bindings.save(binding.revoke());
     touchMembership(binding);
+    audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), null, "iam.role_binding.revoke",
+        "role_binding", String.valueOf(bindingId), null, "role-binding-revoke:" + bindingId,
+        "{\"membershipId\":" + binding.membershipId() + "}"));
     return saved;
   }
 

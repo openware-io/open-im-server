@@ -1,5 +1,6 @@
 package io.openware.platform.tenant.domain.iam.repository;
 
+import io.openware.platform.tenant.domain.iam.model.BindingDescriptor;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +18,8 @@ public interface RoleBindingRepository {
   List<Long> findPlatformIdsByAccount(Long accountId);
 
   java.util.Optional<Long> findAccountIdByAnyId(Long bindingId);
+
+  java.util.Optional<BindingDescriptor> findDescriptor(Long bindingId);
 
   boolean revokeAnyById(Long bindingId);
 
