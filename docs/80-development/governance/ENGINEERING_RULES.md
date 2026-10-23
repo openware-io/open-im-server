@@ -208,6 +208,7 @@ common-services/
 | Console（运营控制台） | 控制台自身数据：后台账号、菜单/导航（**引用权限，不定义权限**） | `cons_` | SaaS | `platform-admin-service` | 二阶段 | `cons_admin_account`、`iam_menu`（菜单仍属 IAM 迭代产物） |
 | Resource | 包厢（首发）、房间、技师等经营资源及占用 | `res_` | SaaS | `platform-resource-service` | 二阶段 | `res_resource`、`res_occupation` |
 | Order | 预约、订单、明细、KTV 履约（首发）/酒店/足浴（后续）。⚠️ **业态（KTV/HOTEL/SPA/RETAIL）是 `business_type` 列，不是域** | `ord_` | SaaS | `platform-order-service` | 历史冻结并扩展 | `ord_reservation`、`ord_order` |
+| Hotel | 酒店房型/房价/库存/预订/入住/账单（`platform-order-service` 内酒店子域） | `htl_` | SaaS | `platform-order-service` | 二阶段 | `htl_hotel`、`htl_room_type`、`htl_booking`、`htl_inventory_calendar` |
 | Payment | 收款、退款、押金、班次、日结（通用支撑域·支付域） | `pay_` | SaaS | `common-payment-service` | 二阶段 | `pay_intent`、`pay_refund` |
 | Customer | 租户客户、会员、积分、储值、权益 | `cst_` | SaaS | `platform-customer-service` | 二阶段 | `cst_customer`、`cst_point_ledger` |
 | Marketing | 活动、优惠券、触达、营销同意 | `mkt_` | SaaS | `platform-marketing-service` | 二阶段 | `mkt_campaign`、`mkt_coupon` |

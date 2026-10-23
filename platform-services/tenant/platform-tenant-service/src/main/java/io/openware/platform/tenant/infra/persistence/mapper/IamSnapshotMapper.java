@@ -234,7 +234,7 @@ public interface IamSnapshotMapper {
     /** 账号的 ACTIVE 角色绑定 id 列表（删除运营人员时逐个撤销用；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT b.id FROM iam_role_binding b
+        SELECT b.id FROM iam_role_binding b /* tenant-agnostic: account_id 经 membership 定位，跨租户撤销 */
         JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
         WHERE mem.account_id = #{accountId} AND b.status = 'ACTIVE'
         """)

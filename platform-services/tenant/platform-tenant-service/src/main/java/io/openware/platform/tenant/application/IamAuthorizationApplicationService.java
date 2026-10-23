@@ -220,6 +220,8 @@ public class IamAuthorizationApplicationService {
    * <p>三重边界：角色必须存在且可用、绑定的作用域类型必须与角色作用域层级一致、
    * 归属字段必须与该作用域自洽（平台级不得挂租户等）。
    */
+  /** @deprecated 新写路径走 RoleBindingApplicationService；保留仅用于迁移期兼容。 */
+  @Deprecated(since = "2.4.0", forRemoval = true)
   @Transactional
   public UserRoleBinding assignUserRole(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {
@@ -248,6 +250,8 @@ public class IamAuthorizationApplicationService {
    *
    * @return 归属账号；绑定不存在时为空，调用方据此返回 404 而不是静默成功
    */
+  /** @deprecated 新写路径走 RoleBindingApplicationService；保留仅用于迁移期兼容。 */
+  @Deprecated(since = "2.4.0", forRemoval = true)
   @Transactional
   public Long revokeUserRole(Long userRoleId) {
     Long accountId = userRoleRepository.findAccountIdById(userRoleId).orElse(null);
@@ -284,6 +288,8 @@ public class IamAuthorizationApplicationService {
   }
 
   /** 调整已有人员的作用域，不撤销角色；只允许租户作用域内的角色。 */
+  /** @deprecated 新写路径走 RoleBindingApplicationService；保留仅用于迁移期兼容。 */
+  @Deprecated(since = "2.4.0", forRemoval = true)
   @Transactional
   public void updateRoleAssignmentScope(Long roleId, Long accountId, Long organizationId, Long storeId,
                                         String scopeType) {
