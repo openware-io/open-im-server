@@ -62,7 +62,11 @@ public class AccountApplicationService {
         accountRepository.findById(accountId)
                 .orElseThrow(() -> new IllegalStateException("Identity account not found: " + accountId))
                 .ensureActive();
-        if (loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier).isPresent()) {
+        var existing = loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier);
+        if (existing.isPresent()) {
+            if (accountId.equals(existing.get().accountId())) {
+                return;
+            }
             throw new IllegalStateException("Login identity already exists: " + loginType + "/" + loginIdentifier);
         }
         loginIdentityRepository.save(LoginIdentity.forLogin(accountId, loginType, loginIdentifier,
