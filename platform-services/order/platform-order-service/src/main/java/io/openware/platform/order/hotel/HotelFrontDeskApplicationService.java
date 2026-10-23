@@ -24,7 +24,7 @@ public class HotelFrontDeskApplicationService {
         TenantContext context = requireStoreContext();
         return mapper.selectList(new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getStoreId, context.storeId())
-                .in(HotelBookingPo::getStatus, List.of("ARRIVAL", "IN_HOUSE", "DUE_OUT"))
+                .in(HotelBookingPo::getStatus, List.of("CONFIRMED", "ARRIVAL", "IN_HOUSE", "DUE_OUT"))
                 .orderByAsc(HotelBookingPo::getCheckInDate)
                 .orderByAsc(HotelBookingPo::getId));
     }
