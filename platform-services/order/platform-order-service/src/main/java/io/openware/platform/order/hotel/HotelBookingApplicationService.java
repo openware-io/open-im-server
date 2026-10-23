@@ -192,6 +192,35 @@ public class HotelBookingApplicationService {
         return booking;
     }
 
+    @Transactional
+    public HotelBookingPo noShow(Long bookingId) {
+        PermissionGuard.require("hotel.booking.create");
+        TenantContext context = requireStore();
+        HotelBookingPo booking = requireBooking(bookingId, context);
+        if (!"CONFIRMED".equals(booking.getStatus()) && !"ARRIVAL".equals(booking.getStatus())) {
+            throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能标记 no-show");
+        }
+        for (HotelInventoryHoldPo hold : holds(bookingId, "HELD")) {
+            inventoryMapper.releaseHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+                    hold.getStayDate(), hold.getRooms());
+            hold.setStatus("RELEASED");
+            hold.setUpdatedAt(LocalDateTime.now());
+            holdMapper.updateById(hold);
+        }
+        for (HotelInventoryHoldPo hold : holds(bookingId, "SOLD")) {
+            inventoryMapper.releaseSold(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+                    hold.getStayDate(), hold.getRooms());
+            hold.setStatus("RELEASED");
+            hold.setUpdatedAt(LocalDateTime.now());
+            holdMapper.updateById(hold);
+        }
+        updateNights(bookingId, "NO_SHOW");
+        booking.setStatus("NO_SHOW");
+        booking.setUpdatedAt(LocalDateTime.now());
+        bookingMapper.updateById(booking);
+        return booking;
+    }
+
     public List<HotelBookingPo> list(String status, LocalDate from, LocalDate to) {
         PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();

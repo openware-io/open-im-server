@@ -106,3 +106,16 @@ POST /admin/hotel/frontdesk/bookings/{id}/checkout
 - 结清后：stay/folio 关闭，房间置 `DIRTY`，创建 `PENDING` 清扫任务。
 
 当前押金/账务是本地账本，尚未接支付网关和真实退款。
+
+## 酒店 no-show 与客房清扫（H3 补充）
+
+```text
+POST /admin/hotel/bookings/{id}/no-show
+GET  /admin/hotel/housekeeping/tasks
+POST /admin/hotel/housekeeping/tasks/{id}/start
+POST /admin/hotel/housekeeping/tasks/{id}/complete
+```
+
+- no-show：仅 `CONFIRMED`/`ARRIVAL` 可标记，释放 held/sold，按夜账单置 `NO_SHOW`；
+- 清扫：`PENDING → IN_PROGRESS → DONE`，完成时房间 `DIRTY → ACTIVE`；
+- 清扫操作校验 `hotel.inventory.manage`。

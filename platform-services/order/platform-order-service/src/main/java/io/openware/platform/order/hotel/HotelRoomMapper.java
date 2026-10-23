@@ -22,4 +22,11 @@ public interface HotelRoomMapper extends BaseMapper<HotelRoomPo> {
         WHERE id = #{id} AND tenant_id = #{tenantId} AND store_id = #{storeId} AND status = 'OCCUPIED'
         """)
     int markDirty(@Param("id") Long id, @Param("tenantId") Long tenantId, @Param("storeId") Long storeId);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("""
+        UPDATE htl_room SET status = 'ACTIVE', updated_at = NOW(3)
+        WHERE id = #{id} AND tenant_id = #{tenantId} AND store_id = #{storeId} AND status = 'DIRTY'
+        """)
+    int markClean(@Param("id") Long id, @Param("tenantId") Long tenantId, @Param("storeId") Long storeId);
 }

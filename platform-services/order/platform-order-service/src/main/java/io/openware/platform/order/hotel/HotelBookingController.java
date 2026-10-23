@@ -56,6 +56,11 @@ public class HotelBookingController {
         return service.cancel(id);
     }
 
+    @PostMapping("/bookings/{id}/no-show")
+    public HotelBookingPo noShow(@PathVariable Long id) {
+        return service.noShow(id);
+    }
+
     public record QuoteRequest(Long roomTypeId, Long ratePlanId, LocalDate checkInDate, LocalDate checkOutDate,
                                Integer rooms) {}
 
