@@ -27,11 +27,13 @@ public class HotelBookingApplicationService {
     private final HotelInventoryHoldMapper holdMapper;
     private final HotelDailyRateMapper dailyRateMapper;
     private final HotelBookingNightMapper nightMapper;
+    private final io.openware.platform.order.application.OrderApplicationService orderApplicationService;
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
                                           HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
-                                          HotelBookingNightMapper nightMapper) {
+                                          HotelBookingNightMapper nightMapper,
+                                          io.openware.platform.order.application.OrderApplicationService orderApplicationService) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
@@ -39,6 +41,7 @@ public class HotelBookingApplicationService {
         this.holdMapper = holdMapper;
         this.dailyRateMapper = dailyRateMapper;
         this.nightMapper = nightMapper;
+        this.orderApplicationService = orderApplicationService;
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -102,6 +105,12 @@ public class HotelBookingApplicationService {
         booking.setCreatedAt(now);
         booking.setUpdatedAt(now);
         bookingMapper.insert(booking);
+
+        booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
+                context.organizationId(), context.storeId(), booking.getBookingNo(),
+                booking.getCurrency(), booking.getAmountMinor()));
+        booking.setUpdatedAt(now);
+        bookingMapper.updateById(booking);
 
         for (NightQuote quoteNight : quote.nights()) {
             if (inventoryMapper.hold(context.tenantId(), context.storeId(), roomTypeId, quoteNight.stayDate(), rooms) == 0) {

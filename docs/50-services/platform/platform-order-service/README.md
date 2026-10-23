@@ -131,3 +131,16 @@ POST /admin/hotel/frontdesk/bookings/{id}/move-room
 - 夜审按营业日把到离店日期的在住预订转 `DUE_OUT`，固化在住数/待退房数/房费汇总，同一营业日不可重复；
 - 换房只允许在住预订，新房间原子占用，旧房间置 `DIRTY` 并生成清扫任务；
 - 夜审和换房分别校验 `hotel.inventory.manage` / `hotel.checkin`。
+
+## 酒店订单应收桥接（H4）
+
+酒店预订创建时生成 `ord_order` 应收并写入 `htl_booking.order_id`：
+
+```text
+business_type = HOTEL
+status        = DRAFT
+total_amount  = 预订总价（最小货币单位）
+idempotency   = hotel-booking:{bookingNo}
+```
+
+支付服务 collect 可以按该 `orderId` 校验应收。酒店侧尚未提供支付页面和回调，支付确认链路仍需下一步接入。

@@ -18,6 +18,7 @@ public class HotelBookingPo {
     private Long hotelId;
     private Long roomTypeId;
     private Long ratePlanId;
+    private Long orderId;
     private String bookingNo;
     private String guestName;
     private String guestPhone;

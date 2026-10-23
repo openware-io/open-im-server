@@ -160,6 +160,38 @@ public class OrderApplicationService {
     return view;
   }
 
+  /**
+   * 酒店预订生成订单应收。酒店预订不是 KTV 开台，不复用 createOrder 的房态/会话逻辑；
+   * 只创建带 total_amount 的 ord_order，供 payment-service collect 校验应收。
+   */
+  @Transactional
+  public Long createHotelReceivable(Long tenantId, Long organizationId, Long storeId, String bookingNo,
+                                    String currencyCode, long totalMinor) {
+    if (tenantId == null || organizationId == null || storeId == null || bookingNo == null || totalMinor <= 0) {
+      throw new ApiException(400, "HOTEL_RECEIVABLE_INVALID", "酒店订单应收参数不完整");
+    }
+    String idempotencyKey = "hotel-booking:" + bookingNo;
+    Order existing = findByIdempotencyKey(tenantId, idempotencyKey);
+    if (existing != null) {
+      return existing.id();
+    }
+    BigDecimal total = BigDecimal.valueOf(totalMinor);
+    Order order = new Order(null, tenantId, organizationId, storeId,
+        dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
+        idempotencyKey, "HOTEL", null, "DRAFT", resolveCurrencyCode(currencyCode),
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, total, BigDecimal.ZERO, BigDecimal.ZERO,
+        null, null, null, null, 0);
+    try {
+      return orderRepository.insert(order, null).id();
+    } catch (DuplicateKeyException duplicate) {
+      Order winner = findByIdempotencyKey(tenantId, idempotencyKey);
+      if (winner == null) {
+        throw duplicate;
+      }
+      return winner.id();
+    }
+  }
+
   /** 确认订单：DRAFT → WAITING_SETTLEMENT（加项完成，进入结算）。 */
   public OrderView confirm(Long id) {
     PermissionGuard.require("order.settle");
