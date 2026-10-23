@@ -91,6 +91,7 @@ spring:
          - StripPrefix=2
       - id: saas-auth-context
         uri: ${PLATFORM_IDENTITY_URI:http://localhost:4100}
+        order: -1
         predicates:
          - Path=/api/v1/auth/contexts,/api/v1/auth/context/select,/api/v1/auth/session,/api/v1/auth/csrf,/api/v1/auth/logout
         filters:
