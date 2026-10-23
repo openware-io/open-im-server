@@ -33,7 +33,7 @@ public class RoleRepositoryAdapter implements RoleRepository {
 
   @Override
   public Optional<Role> findById(Long roleId) {
-    return Optional.ofNullable(mapper.selectById(roleId)).map(RoleRepositoryAdapter::toDomain);
+    return Optional.ofNullable(mapper.selectByIdIgnoringTenant(roleId)).map(RoleRepositoryAdapter::toDomain);
   }
 
   @Override

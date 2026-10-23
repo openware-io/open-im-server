@@ -11,7 +11,6 @@ import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +23,6 @@ import org.springframework.transaction.annotation.Transactional;
  * 这正是应用服务应有的职责边界（standards/10）。
  */
 @Service
-@Slf4j
 public class IamAuthorizationApplicationService {
 
   /** 授权目标作用域非法（越出权限白名单，或作用域与归属字段不自洽）。 */
@@ -179,9 +177,6 @@ public class IamAuthorizationApplicationService {
     String effectiveScope = scopeType == null || scopeType.isBlank()
         ? UserRoleBinding.SCOPE_TENANT : scopeType;
     Role role = roleRepository.findById(roleId).orElse(null);
-    log.warn("assignUserRole probe account={} tenant={} org={} store={} roleId={} scope={} roleScope={} roleActive={}",
-        accountId, tenantId, organizationId, storeId, roleId, effectiveScope,
-        role == null ? null : role.scopeLevel(), role != null && role.active());
     if (role == null || !role.active() || !role.hasScopeLevel(effectiveScope)
         || !UserRoleBinding.scopeShapeValid(effectiveScope, tenantId, organizationId, storeId)) {
       throw invalidGrantScope();
