@@ -28,4 +28,13 @@ public interface RoleMapper extends BaseMapper<RolePo> {
         ORDER BY scope_level, code
         """)
     java.util.List<RolePo> selectAssignableByTenant(@Param("tenantId") Long tenantId);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+        SELECT * FROM iam_role
+        WHERE status = 'ACTIVE'
+          AND scope_level = 'PLATFORM'
+        ORDER BY code
+        """)
+    java.util.List<RolePo> selectPlatformRoles();
 }

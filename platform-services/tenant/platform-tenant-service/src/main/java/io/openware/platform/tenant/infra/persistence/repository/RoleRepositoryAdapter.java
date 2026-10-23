@@ -61,6 +61,12 @@ public class RoleRepositoryAdapter implements RoleRepository {
   }
 
   @Override
+  public List<Role> listPlatformRoles() {
+    return mapper.selectPlatformRoles().stream()
+        .map(RoleRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
   public List<MaskingRole> listMaskingRoles() {
     return snapshotMapper.selectMaskingRoles().stream()
         .map(row -> new MaskingRole(row.getRoleId(), row.getCode(), row.getName(),

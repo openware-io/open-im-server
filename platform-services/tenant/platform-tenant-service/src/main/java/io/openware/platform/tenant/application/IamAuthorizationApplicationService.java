@@ -90,10 +90,40 @@ public class IamAuthorizationApplicationService {
     return roleRepository.listAssignableByTenant(tenantId);
   }
 
+  /** 平台角色目录，仅平台上下文使用。 */
+  @Transactional(readOnly = true)
+  public List<Role> listPlatformRoles() {
+    return roleRepository.listPlatformRoles();
+  }
+
   /** 账号的 iam_user_role 绑定 id 列表。 */
   @Transactional(readOnly = true)
   public List<Long> listUserRoleIds(Long accountId) {
     return userRoleRepository.findIdsByAccount(accountId);
+  }
+
+  /** 新建平台运营角色并留痕。 */
+  @Transactional
+  public Role createPlatformRole(String code, String name) {
+    String normalizedCode = code == null ? "" : code.trim();
+    String normalizedName = name == null ? "" : name.trim();
+    if (!normalizedCode.matches("[a-z][a-z0-9_.-]{2,63}")) {
+      throw new ApiException(400, "ROLE_CODE_INVALID", "角色编码应为小写字母开头，3-64 位");
+    }
+    if (normalizedName.isEmpty() || normalizedName.length() > 64) {
+      throw new ApiException(400, "ROLE_NAME_INVALID", "角色名称不能为空且不超过 64 位");
+    }
+    Role role = roleRepository.insert(Role.createPlatform(normalizedCode, normalizedName));
+    auditClient.recordAsync(AuditClient.AuditRecord.builder()
+        .tenantId(0L)
+        .action("iam.platform_role.create")
+        .resourceType("role")
+        .resourceId(String.valueOf(role.id()))
+        .resourceName(role.name())
+        .idempotencyKey("platform-role:" + role.id())
+        .detailJson("{\"scopeLevel\":\"PLATFORM\"}")
+        .build());
+    return role;
   }
 
   /** 新建租户自定义角色并留痕；scopeLevel 决定该角色只能获得 TENANT 或 STORE 权限。 */
@@ -242,7 +272,16 @@ public class IamAuthorizationApplicationService {
 
   private void assertTenantCanWriteRole(Role role) {
     TenantContext context = TenantContextHolder.get();
-    if (context == null || context.tenantId() <= 0) {
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
+    if (context.platformScope()) {
+      if (role.tenantId() == null && role.hasScopeLevel(Role.SCOPE_PLATFORM)) {
+        return;
+      }
+      throw new ApiException(403, "ROLE_SCOPE_FORBIDDEN", "不能修改租户角色");
+    }
+    if (context.tenantId() <= 0) {
       throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
     }
     if (role.tenantId() == null) {

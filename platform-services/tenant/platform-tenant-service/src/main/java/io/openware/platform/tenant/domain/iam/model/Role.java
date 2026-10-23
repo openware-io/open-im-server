@@ -64,6 +64,11 @@ public record Role(
         scopeLevel, null, null, STATUS_ACTIVE);
   }
 
+  /** 平台运营角色：租户为空，作用域固定 PLATFORM。 */
+  public static Role createPlatform(String code, String name) {
+    return new Role(null, null, code, name, "PLATFORM", SCOPE_PLATFORM, null, null, STATUS_ACTIVE);
+  }
+
   /** 兼容旧调用：仅用于内部预置角色装配，不应用于租户创建接口。 */
   public static Role create(Long tenantId, String code, String name, String roleType) {
     return new Role(null, tenantId, code, name,

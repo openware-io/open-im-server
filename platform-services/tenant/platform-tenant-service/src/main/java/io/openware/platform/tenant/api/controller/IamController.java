@@ -51,7 +51,16 @@ public class IamController {
 
     @PostMapping("/roles")
     public RoleView createRole(@RequestBody CreateRoleRequest req) {
-        var context = requireTenantContext();
+        var context = TenantContextHolder.get();
+        if (context == null) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+        }
+        if (context.platformScope()) {
+            if (!"PLATFORM".equals(req.scopeLevel())) {
+                throw new ApiException(400, "ROLE_SCOPE_INVALID", "平台上下文只能创建 PLATFORM 角色");
+            }
+            return IamConverter.toView(authorizationService.createPlatformRole(req.code(), req.name()));
+        }
         if (!"TENANT".equals(req.scopeLevel()) && !"STORE".equals(req.scopeLevel())) {
             throw new ApiException(400, "ROLE_SCOPE_INVALID", "租户只能创建 TENANT 或 STORE 角色");
         }
@@ -62,6 +71,21 @@ public class IamController {
     @GetMapping("/roles")
     public List<RoleView> listRoles(@RequestParam Long tenantId) {
         return authorizationService.listRoles(tenantId).stream().map(IamConverter::toView).toList();
+    }
+
+    /** 当前上下文可见的角色目录：平台上下文返回平台角色，租户上下文返回可分配角色。 */
+    @GetMapping("/roles/catalog")
+    public List<RoleView> roleCatalog() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+        }
+        List<RoleView> catalog = context.tenantId() > 0
+                ? authorizationService.listAssignableRoles(context.tenantId()).stream()
+                    .map(IamConverter::toView).toList()
+                : authorizationService.listPlatformRoles().stream()
+                    .map(IamConverter::toView).toList();
+        return catalog;
     }
 
     /** 租户可分配角色：全局预置角色 + 本租户自定义角色，不含平台角色。 */
