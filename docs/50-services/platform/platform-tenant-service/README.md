@@ -63,6 +63,7 @@ GET  /api/v1/admin/iam/permissions          权限目录
 GET  /api/v1/admin/iam/roles/{id}/permissions
 POST /api/v1/admin/iam/roles/{id}/permissions
 DELETE /api/v1/admin/iam/roles/{id}/accounts/{accountId}
+PUT    /api/v1/admin/iam/roles/{id}/accounts/{accountId}/scope
 ```
 
 约束：预置角色只读；租户只能创建 `TENANT/STORE` 角色；权限必须满足角色 `scopeLevel` 与权限 `grantableLevels`。
