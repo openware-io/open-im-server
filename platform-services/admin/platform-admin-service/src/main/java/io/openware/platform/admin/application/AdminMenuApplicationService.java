@@ -1,5 +1,6 @@
 package io.openware.platform.admin.application;
 
+import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.platform.admin.api.menu.AdminMenuItem;
 import io.openware.platform.admin.domain.model.AdminRole;
@@ -30,20 +31,41 @@ public class AdminMenuApplicationService {
     private final TenantIamDomainClient tenantIamClient;
     private final AdminTenantContextTokenSigner contextTokens;
     private final AdminMenuRepository menuRepository;
+    private final AdminRoleProfileService roleProfiles;
 
     public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
                                        TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
                                        AdminMenuRepository menuRepository) {
+        this(paymentGrants, tenantIamClient, contextTokens, menuRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
+                                       TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
+                                       AdminMenuRepository menuRepository, AdminRoleProfileService roleProfiles) {
         this.paymentGrants = paymentGrants;
         this.tenantIamClient = tenantIamClient;
         this.contextTokens = contextTokens;
         this.menuRepository = menuRepository;
+        this.roleProfiles = roleProfiles;
     }
 
     public List<AdminMenuItem> menus(String scope) {
-        List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
         var admin = AdminContextHolder.get();
         if (admin == null) return List.of();
+        var resolved = roleProfiles == null
+                ? null : roleProfiles.resolve(admin.platformAccountId(), admin.role());
+        List<String> workspaces = resolved == null || resolved.workspaces() == null
+                ? List.of() : resolved.workspaces();
+        String requested = normalizeScope(scope, workspaces);
+        if (!workspaces.isEmpty()) {
+            boolean allowed = workspaces.contains(requested)
+                    || ("TENANT".equals(requested) && workspaces.contains("HEADQUARTERS"));
+            if (!allowed) {
+                throw new ApiException(403, "WORKSPACE_FORBIDDEN", "当前账号无权访问该工作区");
+            }
+        }
+        List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
         List<AdminMenuItem> scoped = all.stream()
                 .filter(menu -> scope == null || scope.isBlank()
                         || ("TENANT".equalsIgnoreCase(scope)
@@ -55,6 +77,21 @@ public class AdminMenuApplicationService {
         return scoped.stream().anyMatch(menu -> !"PLATFORM".equals(menu.scope()))
                 ? filterByContext(scoped, selectedContext())
                 : scoped;
+    }
+
+    private static String normalizeScope(String scope, List<String> workspaces) {
+        if (scope != null && !scope.isBlank()) {
+            String value = scope.trim().toUpperCase(java.util.Locale.ROOT);
+            return switch (value) {
+                case "PLATFORM" -> "PLATFORM";
+                case "STORE" -> "STORE";
+                case "TENANT", "HEADQUARTERS" -> "TENANT";
+                default -> value;
+            };
+        }
+        if (workspaces.contains("PLATFORM")) return "PLATFORM";
+        if (workspaces.contains("HEADQUARTERS") || workspaces.contains("TENANT")) return "TENANT";
+        return "STORE";
     }
 
     private List<AdminMenuItem> menuTree(List<AdminMenuRow> rows) {
