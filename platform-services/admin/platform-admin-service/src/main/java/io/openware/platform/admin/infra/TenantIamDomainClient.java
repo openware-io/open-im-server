@@ -201,6 +201,7 @@ public class TenantIamDomainClient {
                     "scopeType", scopeType));
             restClient.post()
                     .uri("/admin/iam/user-roles")
+                    .header(TenantContext.HEADER, AdminContextHolder.get().tenantContextToken())
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
