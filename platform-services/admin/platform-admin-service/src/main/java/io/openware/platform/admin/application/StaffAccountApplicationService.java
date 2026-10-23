@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -64,7 +63,7 @@ public class StaffAccountApplicationService {
             if (openId == null || openId.isBlank()) throw new ApiException(404, "IM_ACCOUNT_NOT_FOUND", "IM 账号不存在");
         }
         long accountId = openId == null
-                ? identity.ensureAccount("SAAS_ADMIN", UUID.randomUUID().toString(), "EMPLOYEE")
+                ? identity.ensureAccount("SAAS_ADMIN", username, "EMPLOYEE")
                 : identity.ensureAccount("IM", openId, "EMPLOYEE");
         if (accountId <= 0) throw new IllegalStateException("Identity returned invalid account ID");
         if (accounts.existsByPlatformAccountId(accountId)) {
