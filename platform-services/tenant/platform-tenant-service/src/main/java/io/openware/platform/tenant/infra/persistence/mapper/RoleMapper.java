@@ -17,4 +17,15 @@ public interface RoleMapper extends BaseMapper<RolePo> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM iam_role WHERE id = #{id}")
     RolePo selectByIdIgnoringTenant(@Param("id") Long id);
+
+    /** 预置角色 tenant_id 为 NULL，租户可分配目录必须同时包含预置角色和本租户自定义角色。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+        SELECT * FROM iam_role
+        WHERE status = 'ACTIVE'
+          AND scope_level IN ('TENANT', 'STORE')
+          AND (tenant_id IS NULL OR tenant_id = #{tenantId})
+        ORDER BY scope_level, code
+        """)
+    java.util.List<RolePo> selectAssignableByTenant(@Param("tenantId") Long tenantId);
 }
