@@ -45,7 +45,10 @@ public class AuthContextController {
                                          @RequestHeader(value = "Authorization", required = false) String authorization,
                                          HttpServletResponse response) {
         Long accountId = accountTokenResolver.resolveAccountId(authorization);
-        String normalizedAppId = appId == null || appId.isBlank() ? "saas-a380-h5" : appId.trim();
+        if (appId == null || appId.isBlank()) {
+            throw new ApiException(HttpStatusCodes.BAD_REQUEST, "SAAS_APP_REQUIRED", "appId 不能为空");
+        }
+        String normalizedAppId = appId.trim();
         appRegistry.requireType(normalizedAppId);
         String sessionId = sessionStore.createSession(accountId, normalizedAppId);
         String cookieName = appRegistry.cookieName(normalizedAppId, plainCookie);
@@ -60,6 +63,7 @@ public class AuthContextController {
     @GetMapping("/contexts")
     public ContextsResponse contexts(@RequestParam(value = "appId", required = false) String appId,
                                      HttpServletRequest request) {
+        requireApp(appId);
         SaasUserSessionStore.UserSession userSession = session(request, appId);
         List<ContextItem> items = service.contexts(userSession.accountId(), userSession.appId());
         return new ContextsResponse(items);
@@ -70,6 +74,7 @@ public class AuthContextController {
                                          HttpServletRequest servletRequest,
                                         @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                                         @RequestBody SelectContextRequest request) {
+        requireApp(appId);
         String sessionId = sessionId(servletRequest, appId);
         SaasUserSessionStore.UserSession session = session(servletRequest, appId);        if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
@@ -108,6 +113,12 @@ public class AuthContextController {
         }
         sessionStore.deleteSession(sessionId);
         SaasUserSessionCookie.clear(response, sessionCookieName(request));
+    }
+
+    private static void requireApp(String appId) {
+        if (appId == null || appId.isBlank()) {
+            throw new ApiException(HttpStatusCodes.BAD_REQUEST, "SAAS_APP_REQUIRED", "appId 不能为空");
+        }
     }
 
     private SaasUserSessionStore.UserSession session(HttpServletRequest request, String appId) {

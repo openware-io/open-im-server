@@ -16,6 +16,7 @@ import io.openware.platform.identity.domain.account.repository.OauthLinkReposito
 import io.openware.platform.identity.domain.account.repository.ProfileSyncRecordRepository;
 import io.openware.platform.identity.infra.oauth.ImOAuthClient;
 import io.openware.platform.identity.infra.oauth.ImOAuthUserInfo;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * IM 用户级授权 → SaaS 身份绑定。
@@ -49,6 +51,7 @@ public class OAuthImBindApplicationService {
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
     private final TenantServiceClient tenantServiceClient;
+    private final SaasAppRegistry appRegistry;
 
     public OAuthImBindApplicationService(@Lazy OAuthImBindApplicationService self, ImOAuthClient imOAuthClient,
                                          IdentityAccountRepository accountRepository,
@@ -56,7 +59,8 @@ public class OAuthImBindApplicationService {
                                          OauthLinkRepository oauthLinkRepository,
                                          ProfileSyncRecordRepository profileSyncRecordRepository,
                                          TokenProvider tokenProvider, JwtProperties jwtProperties,
-                                         TenantServiceClient tenantServiceClient) {
+                                         TenantServiceClient tenantServiceClient,
+                                         SaasAppRegistry appRegistry) {
         this.self = self;
         this.imOAuthClient = imOAuthClient;
         this.accountRepository = accountRepository;
@@ -66,6 +70,7 @@ public class OAuthImBindApplicationService {
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
         this.tenantServiceClient = tenantServiceClient;
+        this.appRegistry = appRegistry;
     }
 
     /** 授权码换 token 后绑定（H5 客户端无 appSecret，授权码交换由服务端完成）。 */
@@ -87,7 +92,20 @@ public class OAuthImBindApplicationService {
         String resolvedAppId = imOAuthClient.resolveAppId(appId);
         String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, resolvedAppId);
         BindResult result = bind(imAccessToken, resolvedAppId);
-        tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
+        if (appRegistry.isBackend(resolvedAppId)) {
+            var contexts = tenantServiceClient.contexts(result.accountId());
+            boolean bound = contexts != null && contexts.stream().anyMatch(context ->
+                context.roles() != null && context.roles().stream().anyMatch(
+                    role -> Set.of("tenant.owner", "store.manager", "store.cashier", "store.finance")
+                        .contains(role)));
+            if (!bound) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                    "当前账号未绑定为租户员工，请联系租户管理员");
+            }
+        } else {
+            tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
+            tenantServiceClient.ensureConsumerMembership(result.accountId(), resolvedAppId);
+        }
         return result;
     }
 

@@ -92,3 +92,9 @@ SAAS_APPS_BACKEND=saas-a380-h5,saas-hotel-b,saas-ktv-b
 ```
 
 B 端应用未绑定员工：`/auth/contexts` 返回 `403 STAFF_NOT_BOUND`，不返回空上下文冒充可用。
+
+S3 会话入口要求：
+
+- `/auth/session`、`/auth/contexts`、`/auth/context/select` 的 `appId` 必填，缺失返回 `400 SAAS_APP_REQUIRED`。
+- B 应用 OAuth 回调阶段校验 STAFF 成员；未绑定直接 `403 STAFF_NOT_BOUND`，不创建会话、不种 cookie。
+- C 应用回调授权后通过 tenant 内部接口幂等建立 CUSTOMER membership。

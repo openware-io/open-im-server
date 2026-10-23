@@ -50,6 +50,13 @@ public class TenantServiceClient {
                 .retrieve().toBodilessEntity();
     }
 
+    /** C 端首次授权后幂等建立 CUSTOMER membership。 */
+    public void ensureConsumerMembership(Long accountId, String appId) {
+        restClient.post().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/membership")
+                        .queryParam("accountId", accountId).build(appId))
+                .retrieve().toBodilessEntity();
+    }
+
     /**
      * 账号在某作用域下的权限快照（权限码 + 授权版本）。
      * {@code forceRefresh=true} 用于上下文选择：跳过 tenant 侧缓存，保证刚调整的权限立即生效。

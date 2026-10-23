@@ -1,5 +1,6 @@
 package io.openware.platform.tenant.api.controller;
 
+import io.openware.platform.tenant.application.MembershipApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.domain.authorization.AccountContext;
 import io.openware.platform.tenant.domain.authorization.PermissionSnapshot;
@@ -18,9 +19,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class InternalIamController {
 
     private final PermissionSnapshotProvider provider;
+    private final MembershipApplicationService membershipService;
 
-    public InternalIamController(PermissionSnapshotProvider provider) {
+    public InternalIamController(PermissionSnapshotProvider provider,
+                                 MembershipApplicationService membershipService) {
         this.provider = provider;
+        this.membershipService = membershipService;
     }
 
     /** 账号在某作用域下的权限快照（权限码 + 授权版本）；refresh=true 跳过缓存（上下文选择时用）。 */
@@ -57,6 +61,18 @@ public class InternalIamController {
     public void grantConsumerAuthorization(@PathVariable String appId, @RequestParam Long accountId,
                                            @RequestParam(defaultValue = "profile.basic") String scope) {
         provider.grantConsumerAuthorization(appId, accountId, scope);
+    }
+
+    /** C 端首次授权后幂等建立 CUSTOMER membership；app 的 tenant 由 consumer 授权上下文解析。 */
+    @PostMapping("/consumer/{appId}/membership")
+    public MembershipController.MembershipView ensureConsumerMembership(
+            @PathVariable String appId, @RequestParam Long accountId) {
+        AccountContext context = provider.consumerContext(appId, accountId);
+        if (context == null || context.tenantId() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "consumer authorization required");
+        }
+        return MembershipController.MembershipView.of(
+                membershipService.ensureConsumer(context.tenantId(), accountId));
     }
 
     /** 账号角色绑定视图（角色名 + 作用域 + 门店名，供运营人员列表展示）。 */

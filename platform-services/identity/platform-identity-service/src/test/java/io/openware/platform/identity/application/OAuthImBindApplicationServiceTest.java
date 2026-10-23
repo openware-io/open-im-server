@@ -1,6 +1,7 @@
 package io.openware.platform.identity.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -8,6 +9,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.openware.common.exception.ApiException;
 import io.openware.common.port.TokenProvider;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.platform.identity.application.OAuthImBindApplicationService.BindResult;
@@ -18,6 +20,7 @@ import io.openware.platform.identity.domain.account.repository.LoginIdentityRepo
 import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
 import io.openware.platform.identity.domain.account.repository.ProfileSyncRecordRepository;
 import io.openware.platform.identity.infra.oauth.ImOAuthClient;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.oauth.ImOAuthUserInfo;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
 import java.util.List;
@@ -43,6 +46,7 @@ class OAuthImBindApplicationServiceTest {
   @Mock private ProfileSyncRecordRepository profileSyncRecordRepository;
   @Mock private TokenProvider tokenProvider;
   @Mock private TenantServiceClient tenantServiceClient;
+  @Mock private SaasAppRegistry appRegistry;
 
   private JwtProperties jwtProperties;
   private OAuthImBindApplicationService service;
@@ -53,7 +57,26 @@ class OAuthImBindApplicationServiceTest {
     jwtProperties.setExpirationMs(60000L);
     service = new OAuthImBindApplicationService(self, imOAuthClient, accountRepository,
         loginIdentityRepository, oauthLinkRepository, profileSyncRecordRepository, tokenProvider,
-        jwtProperties, tenantServiceClient);
+        jwtProperties, tenantServiceClient, appRegistry);
+  }
+
+  @Test
+  void bindByCodeRejectsUnboundBackendBeforeSession() {
+    when(imOAuthClient.resolveAppId("saas-hotel-b")).thenReturn("saas-hotel-b");
+    when(appRegistry.isBackend("saas-hotel-b")).thenReturn(true);
+    when(imOAuthClient.exchangeCode("code", "verifier", "redirect", "saas-hotel-b")).thenReturn("im-token");
+    when(imOAuthClient.fetchUserInfo("im-token"))
+        .thenReturn(new ImOAuthUserInfo("open-b", "nick", "avatar", "phone", "scope"));
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-hotel-b", "open-b"))
+        .thenReturn(List.of(OauthLink.bind(9L, "IM", "saas-hotel-b", "open-b", "scope")));
+    when(tokenProvider.createAccessToken(9L, "open-b", 0)).thenReturn("signed-jwt");
+    when(tenantServiceClient.contexts(9L)).thenReturn(List.of());
+
+    var error = org.junit.jupiter.api.Assertions.assertThrows(
+        io.openware.common.exception.ApiException.class,
+        () -> service.bindByCode("code", "verifier", "redirect", "saas-hotel-b", "state", "nonce"));
+
+    assertEquals("STAFF_NOT_BOUND", error.getCode());
   }
 
   @Test

@@ -89,3 +89,6 @@ Android 真机未跑
 4. S6 旧表只读窗口/删除
 5. S7 部署、浏览器、真机 E2E
 ```
+
+S3 更新：B 未绑定在 callback 阶段 403；C 首次授权建立 CUSTOMER membership；/auth/session|contexts|select appId 必填。
+

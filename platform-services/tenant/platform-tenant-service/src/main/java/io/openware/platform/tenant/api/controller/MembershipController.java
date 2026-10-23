@@ -66,7 +66,7 @@ public class MembershipController {
   public record MembershipView(Long id, Long accountId, Long tenantId, Long organizationId,
                                String membershipType, String memberNo,
                                int authorizationVersion, String status) {
-    static MembershipView of(Membership m) {
+    public static MembershipView of(Membership m) {
       return new MembershipView(m.id(), m.accountId(), m.tenantId(), m.organizationId(),
           m.membershipType(), m.memberNo(), m.authorizationVersion(), m.status());
     }
