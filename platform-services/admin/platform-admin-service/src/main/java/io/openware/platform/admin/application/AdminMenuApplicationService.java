@@ -57,7 +57,11 @@ public class AdminMenuApplicationService {
                 ? null : roleProfiles.resolve(admin.platformAccountId(), admin.role());
         List<String> workspaces = resolved == null || resolved.workspaces() == null
                 ? List.of() : resolved.workspaces();
-        String requested = normalizeScope(scope, workspaces);
+        String requested = normalizeScope(scope, workspaces, admin.role());
+        if (scope == null || scope.isBlank()) {
+            // 未显式声明 workspace 时仍要校验已选择的上下文 token，避免坏 token 被静默忽略。
+            selectedContext();
+        }
         if (!workspaces.isEmpty()) {
             boolean allowed = workspaces.contains(requested)
                     || ("TENANT".equals(requested) && workspaces.contains("HEADQUARTERS"));
@@ -66,20 +70,16 @@ public class AdminMenuApplicationService {
             }
         }
         List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
+        String menuScope = "TENANT".equals(requested) ? "TENANT" : requested;
         List<AdminMenuItem> scoped = all.stream()
-                .filter(menu -> scope == null || scope.isBlank()
-                        || ("TENANT".equalsIgnoreCase(scope)
-                            ? ("TENANT".equalsIgnoreCase(menu.scope()) || "STORE".equalsIgnoreCase(menu.scope()))
-                            : scope.equalsIgnoreCase(menu.scope())))
+                .filter(menu -> menuScope.equalsIgnoreCase(menu.scope()))
                 .filter(menu -> !"PLATFORM".equals(menu.scope())
                         || admin.role() == AdminRole.SUPER_ADMIN || admin.role() == AdminRole.PLATFORM_ADMIN)
                 .toList();
-        return scoped.stream().anyMatch(menu -> !"PLATFORM".equals(menu.scope()))
-                ? filterByContext(scoped, selectedContext())
-                : scoped;
+        return "PLATFORM".equals(menuScope) ? scoped : filterByContext(scoped, selectedContext());
     }
 
-    private static String normalizeScope(String scope, List<String> workspaces) {
+    private static String normalizeScope(String scope, List<String> workspaces, AdminRole role) {
         if (scope != null && !scope.isBlank()) {
             String value = scope.trim().toUpperCase(java.util.Locale.ROOT);
             return switch (value) {
@@ -91,7 +91,8 @@ public class AdminMenuApplicationService {
         }
         if (workspaces.contains("PLATFORM")) return "PLATFORM";
         if (workspaces.contains("HEADQUARTERS") || workspaces.contains("TENANT")) return "TENANT";
-        return "STORE";
+        if (workspaces.contains("STORE")) return "STORE";
+        return role == AdminRole.SUPER_ADMIN || role == AdminRole.PLATFORM_ADMIN ? "PLATFORM" : "TENANT";
     }
 
     private List<AdminMenuItem> menuTree(List<AdminMenuRow> rows) {
