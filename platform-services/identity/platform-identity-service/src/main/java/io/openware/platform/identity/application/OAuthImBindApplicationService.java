@@ -93,6 +93,13 @@ public class OAuthImBindApplicationService {
         String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, resolvedAppId);
         BindResult result = bind(imAccessToken, resolvedAppId);
         if (appRegistry.isBackend(resolvedAppId)) {
+            boolean staff = tenantServiceClient.memberships(result.accountId()).stream()
+                .anyMatch(membership -> "STAFF".equals(membership.membershipType())
+                    && "ACTIVE".equals(membership.status()));
+            if (!staff) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                    "当前账号未绑定为租户员工，请联系租户管理员");
+            }
             var contexts = tenantServiceClient.contexts(result.accountId());
             boolean bound = contexts != null && contexts.stream().anyMatch(context ->
                 context.roles() != null && context.roles().stream().anyMatch(

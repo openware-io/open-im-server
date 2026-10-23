@@ -89,6 +89,7 @@ public class AuthContextController {
     @GetMapping("/session")
     public SessionResponse sessionStatus(@RequestParam(value = "appId", required = false) String appId,
                                          HttpServletRequest request) {
+        requireApp(appId);
         return sessionStore.findSession(sessionId(request, appId))
                 .map(session -> new SessionResponse(true, session.accountId(), session.appId()))
                 .orElse(new SessionResponse(false, null, null));
@@ -97,6 +98,7 @@ public class AuthContextController {
     @GetMapping("/csrf")
     public CsrfResponse csrf(@RequestParam(value = "appId", required = false) String appId,
                              HttpServletRequest request, HttpServletResponse response) {
+        requireApp(appId);
         response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         response.setHeader("Pragma", "no-cache");
         return new CsrfResponse(sessionStore.issueCsrfToken(sessionId(request, appId)));
@@ -107,12 +109,14 @@ public class AuthContextController {
                        HttpServletRequest request,
                        @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                        HttpServletResponse response) {
+        requireApp(appId);
+        appRegistry.requireType(appId);
         String sessionId = sessionId(request, appId);
         if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
         }
         sessionStore.deleteSession(sessionId);
-        SaasUserSessionCookie.clear(response, sessionCookieName(request));
+        SaasUserSessionCookie.clear(response, appRegistry.cookieName(appId, plainCookie));
     }
 
     private static void requireApp(String appId) {
@@ -143,20 +147,8 @@ public class AuthContextController {
      * <p>未声明 appId 时保持既有兼容顺序（C 优先，其次任意会话 cookie）。
      */
     private String sessionId(HttpServletRequest request, String appId) {
-        if (request.getCookies() == null) {
+        if (request.getCookies() == null || appId == null || appId.isBlank()) {
             return null;
-        }
-        if (appId == null || appId.isBlank()) {
-            String fallback = null;
-            for (var cookie : request.getCookies()) {
-                if (isCFamily(cookie.getName())) {
-                    return cookie.getValue();
-                }
-                if (fallback == null && isSessionCookieName(cookie.getName())) {
-                    fallback = cookie.getValue();
-                }
-            }
-            return fallback;
         }
         boolean backend = appRegistry.isBackend(appId);
         for (var cookie : request.getCookies()) {
@@ -174,31 +166,6 @@ public class AuthContextController {
 
     private static boolean isCFamily(String name) {
         return SaasUserSessionCookie.C_NAME.equals(name) || SaasUserSessionCookie.C_PLAIN.equals(name);
-    }
-
-    private static String sessionCookieName(HttpServletRequest request) {
-        if (request.getCookies() != null) {
-            for (var cookie : request.getCookies()) {
-                // 优先 B 族（-h5/-b 后端应用），其次 C 族；两组名字都接受。
-                if (SaasUserSessionCookie.B_NAME.equals(cookie.getName())
-                        || SaasUserSessionCookie.B_PLAIN.equals(cookie.getName())) {
-                    return cookie.getName();
-                }
-            }
-            for (var cookie : request.getCookies()) {
-                if (isSessionCookieName(cookie.getName())) {
-                    return cookie.getName();
-                }
-            }
-        }
-        return SaasUserSessionCookie.C_NAME;
-    }
-
-    private static boolean isSessionCookieName(String name) {
-        return SaasUserSessionCookie.C_NAME.equals(name)
-                || SaasUserSessionCookie.B_NAME.equals(name)
-                || SaasUserSessionCookie.C_PLAIN.equals(name)
-                || SaasUserSessionCookie.B_PLAIN.equals(name);
     }
 
     public record SessionResponse(boolean authenticated, Long accountId, String appId) {

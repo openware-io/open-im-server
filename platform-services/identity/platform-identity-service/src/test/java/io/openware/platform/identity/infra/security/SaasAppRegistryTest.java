@@ -18,6 +18,12 @@ class SaasAppRegistryTest {
   }
 
   @Test
+  void sameAppCannotBeBothFamilies() {
+    assertThrows(IllegalStateException.class,
+        () -> new SaasAppRegistry("saas-hotel-c", "saas-hotel-c"));
+  }
+
+  @Test
   void unknownAppRejected() {
     assertThrows(ApiException.class, () -> registry.requireType("saas-unknown"));
     assertThrows(ApiException.class, () -> registry.requireType(null));

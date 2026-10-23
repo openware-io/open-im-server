@@ -101,3 +101,23 @@ S3 更新：token clientApp claim + 酒店 B/C audience guard 已完成；identi
 
 S3 更新：consumer 授权撤销 + 权限快照逐出已完成。
 
+
+## S3 过渡例外：应用注册表
+
+```text
+ID：S3-APP-REGISTRY-001
+现状：saas.apps.consumer/backend 配置桥，非 IM open_application
+已收紧：删除默认列表；空配置拒绝所有 app；同一 app 双登记启动失败
+未覆盖：redirect_uri 白名单、scopes、APPROVED/SUSPENDED 状态由 IM token exchange 兜底
+负责人：platform-identity-service + platform-tenant-service
+到期：2026-12-31
+退出：S4 切 open_application/open_application_scope，补 redirect/scopes/status 校验
+```
+
+## S3 已知边界
+
+```text
+C 端当前建 tnt_membership，但 cst_member 与 consumerContext 切换留到 S4/S5
+clientApp 强制已覆盖酒店链路，非酒店 B/C API 的全量 audience 矩阵留到 S4
+unbind 尚无独立审计事件
+```

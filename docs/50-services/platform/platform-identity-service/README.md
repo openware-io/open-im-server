@@ -120,3 +120,5 @@ S3 解绑权限撤销：
 
 - `DELETE /internal/iam/consumer/{appId}/authorization` 撤销 `tnt_app_user_authorization` 并 `evict(accountId)`。
 - identity C 端 unbind 调用该内部接口；B 端不动 consumer 授权。
+
+SAAS_APPS_* 无默认值；未配置时所有 app 拒绝，C/B 双登记启动失败。

@@ -23,10 +23,15 @@ public class SaasAppRegistry {
   private final Set<String> backends = new LinkedHashSet<>();
 
   public SaasAppRegistry(
-      @Value("${saas.apps.consumer:saas-a380-c,saas-hotel-c,saas-ktv-c}") String consumers,
-      @Value("${saas.apps.backend:saas-a380-h5,saas-hotel-b,saas-ktv-b}") String backends) {
+      @Value("${saas.apps.consumer:}") String consumers,
+      @Value("${saas.apps.backend:}") String backends) {
     this.consumers.addAll(split(consumers));
     this.backends.addAll(split(backends));
+    Set<String> overlap = new LinkedHashSet<>(this.consumers);
+    overlap.retainAll(this.backends);
+    if (!overlap.isEmpty()) {
+      throw new IllegalStateException("SaaS app registered as both C and B: " + overlap);
+    }
   }
 
   public ClientType requireType(String appId) {

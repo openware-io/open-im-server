@@ -30,6 +30,20 @@ public class TenantServiceClient {
         return arr == null ? List.of() : List.of(arr);
     }
 
+    /** 账号的全部 membership（B 端回调必须显式校验 STAFF/ACTIVE）。 */
+    public List<Membership> memberships(Long accountId) {
+        Membership[] arr = restClient.get()
+                .uri("/internal/iam/accounts/{accountId}/memberships", accountId)
+                .retrieve()
+                .body(Membership[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    public record Membership(Long id, Long accountId, Long tenantId, Long organizationId,
+                             String membershipType, String memberNo, int authorizationVersion,
+                             String status) {
+    }
+
     public TenantContext consumerContext(Long accountId, String appId) {
         return restClient.get().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/context")
                         .queryParam("accountId", accountId).build(appId))
