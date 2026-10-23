@@ -15,6 +15,8 @@ V3 删除重复 oauth 索引
 
 ## 2. account_type 收敛
 
+状态：已完成代码、测试、V4、回填脚本；待业务库执行回填。
+
 目标：
 
 ```text
@@ -122,4 +124,21 @@ iam_user_role 迁移/冻结方案执行
 四组租户上下文测试
 空库+增量 Flyway
 仲裁 PASS
+```
+
+## 8. 执行结果
+
+```text
+identity V4 Flyway：Successfully applied 1 migration, now at version v4
+idt_account 数据核对：USER 2 条，account_type default USER
+cst_member 回填：B-1 account_id=9 -> membership_id=1
+```
+
+剩余：
+
+```text
+iam_user_role 迁移/冻结
+四组租户上下文集成测试
+既有 flyway 9 条 + tenant-sql 3 条处理
+S2 仲裁
 ```

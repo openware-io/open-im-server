@@ -63,8 +63,8 @@ public class StaffAccountApplicationService {
             if (openId == null || openId.isBlank()) throw new ApiException(404, "IM_ACCOUNT_NOT_FOUND", "IM 账号不存在");
         }
         long accountId = openId == null
-                ? identity.ensureAccount("SAAS_ADMIN", username, "EMPLOYEE")
-                : identity.ensureAccount("IM", openId, "EMPLOYEE");
+                ? identity.ensureAccount("SAAS_ADMIN", username, "USER")
+                : identity.ensureAccount("IM", openId, "USER");
         if (accountId <= 0) throw new IllegalStateException("Identity returned invalid account ID");
         if (accounts.existsByPlatformAccountId(accountId)) {
             throw new ApiException(409, "STAFF_IM_ALREADY_BOUND", "该 IM 账号已绑定后台账号");
@@ -100,7 +100,7 @@ public class StaffAccountApplicationService {
         if (openId == null || openId.isBlank()) {
             throw new ApiException(404, "IM_ACCOUNT_NOT_FOUND", "IM 账号不存在");
         }
-        long targetAccountId = identity.ensureAccount("IM", openId, "EMPLOYEE");
+        long targetAccountId = identity.ensureAccount("IM", openId, "USER");
         if (targetAccountId <= 0) {
             throw new IllegalStateException("Identity returned invalid account ID");
         }

@@ -26,13 +26,14 @@
 account_type = PLATFORM_OPERATOR | USER
 ```
 
-S1 **不改** `account_type` 数据与代码，避免现有登录/测试中断；S2 同时改 `IdentityAccount`、测试和回填脚本后执行。
+S1 **不改** `account_type` 数据与代码，避免现有登录/测试中断；S2 已用 V4 归一化并同步代码。
 
 ```sql
 ALTER TABLE `idt_account`
   MODIFY COLUMN `account_type` varchar(32) NOT NULL DEFAULT 'USER'
     COMMENT '账号类型 PLATFORM_OPERATOR/USER';
 ```
+
 
 ### 2.2 `idt_oauth_link`
 
@@ -245,6 +246,7 @@ tnt_app_installation
 identity-service:
   V2: idt_oauth_link 增加 app_id，重建唯一键
   V3: 删除被 (account_id, app_id) 覆盖的 idx_idt_oauth_link_account
+  V4: idt_account.account_type 收敛为 USER/PLATFORM_OPERATOR
 tenant-service:
   V8: tnt_membership
   V9: tnt_staff

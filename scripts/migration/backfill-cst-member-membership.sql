@@ -1,7 +1,7 @@
 -- 回填 cst_member.membership_id（S2 迁移脚本，幂等）。
+-- 在目标 SaaS 库执行（脚本不使用 USE，避免误连库）。
 -- 前置：tnt_membership 已按 account_id + tenant_id 建好 CUSTOMER 成员。
 -- 不自动创建 membership；未匹配行保留 NULL，由业务补建后重跑。
-USE open_saas;
 
 UPDATE cst_member m
   JOIN tnt_membership mem

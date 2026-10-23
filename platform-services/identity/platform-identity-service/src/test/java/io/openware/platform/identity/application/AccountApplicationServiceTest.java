@@ -127,10 +127,9 @@ class AccountApplicationServiceTest {
 
     IdentityAccount ensured = service.ensureAccount("IM", "im_71", "EMPLOYEE");
 
-    // 复用 OAuth 绑定已落到的账号，并按入参修正账号类型（领域方法负责迁移，不整体设值）。
+    // 复用 OAuth 绑定已落到的账号；EMPLOYEE 归一化为 USER，不需要写回。
     assertEquals(71L, ensured.id());
-    assertEquals("EMPLOYEE", ensured.accountType());
+    assertEquals(IdentityAccount.TYPE_USER, ensured.accountType());
     verify(accountRepository).findById(71L);
-    verify(accountRepository).save(any(IdentityAccount.class));
   }
 }
