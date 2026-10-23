@@ -16,7 +16,7 @@ public interface MembershipMapper extends BaseMapper<MembershipPo> {
    * 仅允许 identity 内部调用，不暴露公网。
    */
   @InterceptorIgnore(tenantLine = "true")
-  @Select("SELECT * FROM tnt_membership WHERE account_id = #{accountId} AND status = 'ACTIVE' "
-      + "ORDER BY tenant_id, membership_type")
+  @Select("SELECT * FROM tnt_membership /* tenant-agnostic: 登录期按显式 account_id 跨租户查询 */ "
+      + "WHERE account_id = #{accountId} AND status = 'ACTIVE' ORDER BY tenant_id, membership_type")
   List<MembershipPo> selectActiveByAccountId(@Param("accountId") Long accountId);
 }
