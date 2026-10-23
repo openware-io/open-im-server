@@ -19,7 +19,7 @@ htl_booking               预订头
 htl_booking_night         按夜价格与状态
 htl_stay                  在住记录（入住/退房）
 htl_folio                 账单头
-htl_folio_item            账单项
+htl_folio_item            账单项（ROOM/DEPOSIT/REFUND，退款必须带 method=CASH|ONLINE）
 htl_housekeeping_task     客房清扫任务
 ```
 
