@@ -99,6 +99,19 @@ public class HotelMasterDataController {
                 request.basePriceMinor(), request.currency());
     }
 
+    @GetMapping("/daily-rates")
+    public List<HotelDailyRatePo> dailyRates(@RequestParam Long roomTypeId, @RequestParam Long ratePlanId,
+                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return service.dailyRates(roomTypeId, ratePlanId, from, to);
+    }
+
+    @PutMapping("/daily-rates")
+    public HotelDailyRatePo setDailyRate(@RequestBody DailyRateRequest request) {
+        return service.setDailyRate(request.roomTypeId(), request.ratePlanId(), request.stayDate(),
+                request.priceMinor(), request.currency());
+    }
+
     @GetMapping("/inventory")
     public List<HotelInventoryPo> inventory(@RequestParam Long roomTypeId,
                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -121,4 +134,7 @@ public class HotelMasterDataController {
     public record RatePlanRequest(Long hotelId, String code, String name, Long basePriceMinor, String currency) {}
 
     public record InventoryRequest(Long roomTypeId, LocalDate stayDate, Integer total) {}
+
+    public record DailyRateRequest(Long roomTypeId, Long ratePlanId, LocalDate stayDate, Long priceMinor,
+                                   String currency) {}
 }

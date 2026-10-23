@@ -25,15 +25,20 @@ public class HotelBookingApplicationService {
     private final HotelRatePlanMapper ratePlanMapper;
     private final HotelInventoryMapper inventoryMapper;
     private final HotelInventoryHoldMapper holdMapper;
+    private final HotelDailyRateMapper dailyRateMapper;
+    private final HotelBookingNightMapper nightMapper;
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
-                                          HotelInventoryHoldMapper holdMapper) {
+                                          HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
+                                          HotelBookingNightMapper nightMapper) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
         this.inventoryMapper = inventoryMapper;
         this.holdMapper = holdMapper;
+        this.dailyRateMapper = dailyRateMapper;
+        this.nightMapper = nightMapper;
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -50,7 +55,7 @@ public class HotelBookingApplicationService {
             int dayAvailable = inventory == null ? 0
                     : Math.max(0, inventory.getTotal() - inventory.getSold() - inventory.getHeld());
             available = Math.min(available, dayAvailable);
-            long price = ratePlan.getBasePriceMinor();
+            long price = dailyPrice(context, roomTypeId, ratePlan, date);
             nights.add(new NightQuote(date, price, dayAvailable));
             total = Math.addExact(total, Math.multiplyExact(price, rooms));
         }
@@ -98,8 +103,8 @@ public class HotelBookingApplicationService {
         booking.setUpdatedAt(now);
         bookingMapper.insert(booking);
 
-        for (NightQuote night : quote.nights()) {
-            if (inventoryMapper.hold(context.tenantId(), context.storeId(), roomTypeId, night.stayDate(), rooms) == 0) {
+        for (NightQuote quoteNight : quote.nights()) {
+            if (inventoryMapper.hold(context.tenantId(), context.storeId(), roomTypeId, quoteNight.stayDate(), rooms) == 0) {
                 throw new ApiException(409, "INVENTORY_UNAVAILABLE", "库存已被其他预订占用，请重新报价");
             }
             HotelInventoryHoldPo hold = new HotelInventoryHoldPo();
@@ -107,13 +112,25 @@ public class HotelBookingApplicationService {
             hold.setStoreId(context.storeId());
             hold.setBookingId(booking.getId());
             hold.setRoomTypeId(roomTypeId);
-            hold.setStayDate(night.stayDate());
+            hold.setStayDate(quoteNight.stayDate());
             hold.setRooms(rooms);
             hold.setStatus("HELD");
             hold.setExpiresAt(booking.getHoldExpiresAt());
             hold.setCreatedAt(now);
             hold.setUpdatedAt(now);
             holdMapper.insert(hold);
+
+            HotelBookingNightPo bookingNight = new HotelBookingNightPo();
+            bookingNight.setTenantId(context.tenantId());
+            bookingNight.setStoreId(context.storeId());
+            bookingNight.setBookingId(booking.getId());
+            bookingNight.setStayDate(quoteNight.stayDate());
+            bookingNight.setPriceMinor(quoteNight.priceMinor());
+            bookingNight.setCurrency(booking.getCurrency());
+            bookingNight.setStatus("HELD");
+            bookingNight.setCreatedAt(now);
+            bookingNight.setUpdatedAt(now);
+            nightMapper.insert(bookingNight);
         }
         return booking;
     }
@@ -139,6 +156,7 @@ public class HotelBookingApplicationService {
             hold.setUpdatedAt(LocalDateTime.now());
             holdMapper.updateById(hold);
         }
+        updateNights(bookingId, "SOLD");
         booking.setStatus("CONFIRMED");
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);
@@ -167,6 +185,7 @@ public class HotelBookingApplicationService {
             hold.setUpdatedAt(LocalDateTime.now());
             holdMapper.updateById(hold);
         }
+        updateNights(bookingId, "CANCELLED");
         booking.setStatus("CANCELLED");
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);
@@ -191,8 +210,39 @@ public class HotelBookingApplicationService {
                 .eq(HotelInventoryHoldPo::getStatus, status));
     }
 
-    private HotelInventoryPo inventory(TenantContext context, Long roomTypeId, LocalDate date) {
-        return inventoryMapper.selectOne(new LambdaQueryWrapper<HotelInventoryPo>()
+    /** 每日房价优先，未配置时回退房价计划基础价。 */
+    private long dailyPrice(TenantContext context, Long roomTypeId, HotelRatePlanPo ratePlan, LocalDate date) {
+        HotelDailyRatePo daily = dailyRateMapper.selectOne(new LambdaQueryWrapper<HotelDailyRatePo>()
+                .eq(HotelDailyRatePo::getStoreId, context.storeId())
+                .eq(HotelDailyRatePo::getRoomTypeId, roomTypeId)
+                .eq(HotelDailyRatePo::getRatePlanId, ratePlan.getId())
+                .eq(HotelDailyRatePo::getStayDate, date));
+        return daily == null ? ratePlan.getBasePriceMinor() : daily.getPriceMinor();
+    }
+
+    private void updateNights(Long bookingId, String status) {
+        for (HotelBookingNightPo night : nightMapper.selectList(new LambdaQueryWrapper<HotelBookingNightPo>()
+                .eq(HotelBookingNightPo::getBookingId, bookingId))) {
+            night.setStatus(status);
+            night.setUpdatedAt(LocalDateTime.now());
+            nightMapper.updateById(night);
+        }
+    }
+
+    /** 未支付 hold 到期释放；调度跨租户，逐条按 hold 自身 tenant/store 释放。 */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60_000L)
+    @Transactional
+    public void expireHolds() {
+        for (HotelInventoryHoldPo hold : holdMapper.selectExpired()) {
+            if (holdMapper.releaseExpired(hold.getId()) > 0) {
+                inventoryMapper.releaseHeld(hold.getTenantId(), hold.getStoreId(), hold.getRoomTypeId(),
+                        hold.getStayDate(), hold.getRooms());
+                bookingMapper.cancelPending(hold.getBookingId());
+            }
+        }
+    }
+
+    private HotelInventoryPo inventory(TenantContext context, Long roomTypeId, LocalDate date) {        return inventoryMapper.selectOne(new LambdaQueryWrapper<HotelInventoryPo>()
                 .eq(HotelInventoryPo::getStoreId, context.storeId())
                 .eq(HotelInventoryPo::getRoomTypeId, roomTypeId)
                 .eq(HotelInventoryPo::getStayDate, date));

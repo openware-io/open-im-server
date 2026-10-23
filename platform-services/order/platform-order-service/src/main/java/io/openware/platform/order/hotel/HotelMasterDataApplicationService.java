@@ -22,15 +22,17 @@ public class HotelMasterDataApplicationService {
     private final HotelRoomMapper roomMapper;
     private final HotelRatePlanMapper ratePlanMapper;
     private final HotelInventoryMapper inventoryMapper;
+    private final HotelDailyRateMapper dailyRateMapper;
 
     public HotelMasterDataApplicationService(HotelMapper hotelMapper, HotelRoomTypeMapper roomTypeMapper,
                                              HotelRoomMapper roomMapper, HotelRatePlanMapper ratePlanMapper,
-                                             HotelInventoryMapper inventoryMapper) {
+                                             HotelInventoryMapper inventoryMapper, HotelDailyRateMapper dailyRateMapper) {
         this.hotelMapper = hotelMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.roomMapper = roomMapper;
         this.ratePlanMapper = ratePlanMapper;
         this.inventoryMapper = inventoryMapper;
+        this.dailyRateMapper = dailyRateMapper;
     }
 
     public List<HotelPo> hotels() {
@@ -205,8 +207,59 @@ public class HotelMasterDataApplicationService {
         return po;
     }
 
-    private HotelPo persist(HotelPo po) {
-        try {
+    public List<HotelDailyRatePo> dailyRates(Long roomTypeId, Long ratePlanId, LocalDate from, LocalDate to) {
+        PermissionGuard.require("hotel.booking.view");
+        TenantContext context = requireStore();
+        if (roomTypeId == null || ratePlanId == null || from == null || to == null || !to.isAfter(from)) {
+            throw new ApiException(400, "DAILY_RATE_RANGE_INVALID", "房型、房价计划和日期范围不能为空");
+        }
+        requireRoomType(roomTypeId, context);
+        requireRatePlan(ratePlanId, context);
+        return dailyRateMapper.selectList(new LambdaQueryWrapper<HotelDailyRatePo>()
+                .eq(HotelDailyRatePo::getStoreId, context.storeId())
+                .eq(HotelDailyRatePo::getRoomTypeId, roomTypeId)
+                .eq(HotelDailyRatePo::getRatePlanId, ratePlanId)
+                .ge(HotelDailyRatePo::getStayDate, from)
+                .lt(HotelDailyRatePo::getStayDate, to)
+                .orderByAsc(HotelDailyRatePo::getStayDate));
+    }
+
+    @Transactional
+    public HotelDailyRatePo setDailyRate(Long roomTypeId, Long ratePlanId, LocalDate stayDate,
+                                         Long priceMinor, String currency) {
+        PermissionGuard.require("hotel.rate.update");
+        TenantContext context = requireStore();
+        if (roomTypeId == null || ratePlanId == null || stayDate == null || priceMinor == null || priceMinor < 0) {
+            throw new ApiException(400, "DAILY_RATE_FIELDS_INVALID", "房型、房价计划、日期和价格不能为空");
+        }
+        HotelRoomTypePo roomType = requireRoomType(roomTypeId, context);
+        HotelRatePlanPo ratePlan = requireRatePlan(ratePlanId, context);
+        if (!roomType.getHotelId().equals(ratePlan.getHotelId())) {
+            throw new ApiException(409, "RATE_PLAN_HOTEL_MISMATCH", "房价计划不属于该酒店");
+        }
+        HotelDailyRatePo po = dailyRateMapper.selectOne(new LambdaQueryWrapper<HotelDailyRatePo>()
+                .eq(HotelDailyRatePo::getStoreId, context.storeId())
+                .eq(HotelDailyRatePo::getRoomTypeId, roomTypeId)
+                .eq(HotelDailyRatePo::getRatePlanId, ratePlanId)
+                .eq(HotelDailyRatePo::getStayDate, stayDate));
+        LocalDateTime now = LocalDateTime.now();
+        if (po == null) {
+            po = new HotelDailyRatePo();
+            po.setTenantId(context.tenantId());
+            po.setStoreId(context.storeId());
+            po.setRoomTypeId(roomTypeId);
+            po.setRatePlanId(ratePlanId);
+            po.setStayDate(stayDate);
+            po.setCreatedAt(now);
+        }
+        po.setPriceMinor(priceMinor);
+        po.setCurrency(currency == null || currency.isBlank() ? ratePlan.getCurrency() : currency.toUpperCase());
+        po.setUpdatedAt(now);
+        if (po.getId() == null) dailyRateMapper.insert(po); else dailyRateMapper.updateById(po);
+        return po;
+    }
+
+    private HotelPo persist(HotelPo po) {        try {
             LocalDateTime now = LocalDateTime.now();
             if (po.getId() == null) {
                 po.setCreatedAt(now);

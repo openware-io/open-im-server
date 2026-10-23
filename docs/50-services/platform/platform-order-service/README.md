@@ -78,3 +78,15 @@ POST /admin/hotel/bookings/{id}/cancel
 - 同一 `booking_id + stay_date` 只允许一条 hold 记录。
 
 库存并发与状态机见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)。
+
+## 酒店每日房价与 hold 过期（H2 补充）
+
+```text
+GET /admin/hotel/daily-rates
+PUT /admin/hotel/daily-rates
+```
+
+报价优先读取 `htl_daily_rate`，没有配置时回退房价计划基础价。
+
+未支付 `PENDING_PAYMENT` 预订的 hold 到期后，由订单服务定时任务释放库存并把预订置为 `CANCELLED`；
+`htl_booking_night` 按夜记录价格，确认置 `SOLD`，取消置 `CANCELLED`。
