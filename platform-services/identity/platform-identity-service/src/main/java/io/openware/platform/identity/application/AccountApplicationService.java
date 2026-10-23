@@ -76,7 +76,7 @@ public class AccountApplicationService {
     /**
      * 按登录标识查/建账号（内部端点，供运营人员开通使用）。
      * 已存在则返回并修正 account_type；不存在则按指定类型创建账号 + 登录标识（credential 为空，IM/第三方无密码）。
-     * IM 类型额外写入 oauth_link（provider=IM, provider_account_id=open_id），使 OAuth 绑定按 open_id 命中同一账号。
+     * IM 的 app 级 oauth_link 由 OAuth 回调按 app_id 写入，本入口不再写 legacy 绑定。
      */
     @Transactional
     public IdentityAccount ensureAccount(String loginType, String loginIdentifier, String accountType) {
@@ -107,24 +107,11 @@ public class AccountApplicationService {
             if (account.hasDifferentAccountType(accountType)) {
                 account = accountRepository.save(account.changeAccountType(accountType));
             }
-            ensureImOauthLink(loginType, loginIdentifier, accountId);
             return account;
         }
         IdentityAccount account = accountRepository.save(IdentityAccount.ofType(accountType));
         loginIdentityRepository.save(LoginIdentity.forLogin(account.id(), loginType, loginIdentifier, null));
-        ensureImOauthLink(loginType, loginIdentifier, account.id());
         return account;
-    }
-
-    /** IM 账号补写 OAuth 绑定（幂等）：确保 /oauth 授权回调按 open_id 命中本账号而非另建新账号。 */
-    private void ensureImOauthLink(String loginType, String loginIdentifier, Long accountId) {
-        if (!IM_LOGIN_TYPE.equals(loginType) || accountId == null) {
-            return;
-        }
-        if (oauthLinkRepository.findByProviderAccount(IM_OAUTH_PROVIDER, loginIdentifier).isPresent()) {
-            return;
-        }
-        oauthLinkRepository.save(OauthLink.bind(accountId, IM_OAUTH_PROVIDER, loginIdentifier, null));
     }
 
     public LoginResult login(String loginType, String loginIdentifier, String credential) {

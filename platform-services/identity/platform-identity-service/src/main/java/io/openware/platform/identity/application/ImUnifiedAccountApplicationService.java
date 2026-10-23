@@ -40,7 +40,7 @@ public class ImUnifiedAccountApplicationService {
     Long accountId = identities.get(0).accountId();
     IdentityAccount account = accountId == null ? null : accountRepository.findById(accountId).orElse(null);
     return new ImAccountView(true, accountId, account == null ? null : account.accountType(),
-        identities.size(), countImOauthLinks(username));
+        identities.size(), countImOauthLinks(accountId));
   }
 
   private List<LoginIdentity> imIdentities(String username) {
@@ -50,11 +50,11 @@ public class ImUnifiedAccountApplicationService {
     return loginIdentityRepository.findAllByLoginIdentifier(IM_LOGIN_TYPE, username.trim());
   }
 
-  private long countImOauthLinks(String username) {
-    if (username == null || username.isBlank()) {
+  private long countImOauthLinks(Long accountId) {
+    if (accountId == null) {
       return 0;
     }
-    return oauthLinkRepository.findAllByProviderAccount(IM_LOGIN_TYPE, username.trim()).size();
+    return oauthLinkRepository.findByAccountId(accountId).size();
   }
 
   /**

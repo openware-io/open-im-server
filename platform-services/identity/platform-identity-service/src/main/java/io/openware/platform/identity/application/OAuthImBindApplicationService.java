@@ -79,32 +79,52 @@ public class OAuthImBindApplicationService {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "OIDC_TRANSACTION_INVALID",
                     "state 与 nonce 不能为空");
         }
-        String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, appId);
-        BindResult result = bind(imAccessToken, appId);
-        tenantServiceClient.grantConsumerAuthorization(result.accountId(), appId, "profile.basic");
+        String resolvedAppId = imOAuthClient.resolveAppId(appId);
+        String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, resolvedAppId);
+        BindResult result = bind(imAccessToken, resolvedAppId);
+        tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
         return result;
     }
 
     public BindResult bind(String imAccessToken) {
-        return bind(imAccessToken, "legacy");
+        return bindResolved(imAccessToken, imOAuthClient.resolveAppId(null));
     }
 
     public BindResult bind(String imAccessToken, String appId) {
+        return bindResolved(imAccessToken, imOAuthClient.resolveAppId(appId));
+    }
+
+    private BindResult bindResolved(String imAccessToken, String resolvedAppId) {
         ImOAuthUserInfo info = imOAuthClient.fetchUserInfo(imAccessToken);
         String openId = info.openId();
         if (openId == null || openId.isBlank()) {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "IM_OPEN_ID_MISSING", "IM 用户信息缺少 open_id");
         }
-        OauthLink existing = findLink(openId, appId);
+        OauthLink existing = findLink(openId, resolvedAppId);
         if (existing != null) {
             return bindResult(existing.accountId(), openId);
         }
+        // 老用户/跨应用：已有 IM 登录标识时复用同一 SaaS 账号，只新增 app 维度绑定。
+        LoginIdentity existingLogin = loginIdentityRepository
+                .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
+        if (existingLogin != null) {
+            oauthLinkRepository.save(OauthLink.bind(
+                    existingLogin.accountId(), PROVIDER_IM, resolvedAppId, openId, info.scope()));
+            return bindResult(existingLogin.accountId(), openId);
+        }
         try {
-            Long accountId = self.createAccountAndBind(openId, info, appId);
+            Long accountId = self.createAccountAndBind(openId, info, resolvedAppId);
             return bindResult(accountId, openId);
         } catch (DuplicateKeyException ex) {
-            OauthLink raced = findLink(openId, appId);
+            OauthLink raced = findLink(openId, resolvedAppId);
             if (raced == null) {
+                LoginIdentity racedLogin = loginIdentityRepository
+                        .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
+                if (racedLogin != null) {
+                    oauthLinkRepository.save(OauthLink.bind(
+                            racedLogin.accountId(), PROVIDER_IM, resolvedAppId, openId, info.scope()));
+                    return bindResult(racedLogin.accountId(), openId);
+                }
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
             return bindResult(raced.accountId(), openId);
@@ -119,7 +139,7 @@ public class OAuthImBindApplicationService {
 
     @Transactional
     public Long createAccountAndBind(String openId, ImOAuthUserInfo info) {
-        return createAccountAndBind(openId, info, "legacy");
+        return createAccountAndBind(openId, info, imOAuthClient.resolveAppId(null));
     }
 
     @Transactional

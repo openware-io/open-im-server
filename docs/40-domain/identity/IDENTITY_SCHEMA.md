@@ -41,9 +41,7 @@ ALTER TABLE `idt_account`
 ```sql
 ALTER TABLE `idt_oauth_link`
   ADD COLUMN `app_id` varchar(64) NOT NULL DEFAULT 'legacy'
-    COMMENT 'IM 开放平台应用ID' AFTER `provider`,
-  ADD COLUMN `union_id` varchar(128) NULL
-    COMMENT 'IM UnionID（同一开放平台主体）' AFTER `provider_account_id`;
+    COMMENT 'IM 开放平台应用ID' AFTER `provider`;
 
 ALTER TABLE `idt_oauth_link`
   DROP INDEX `uk_idt_oauth_link_provider_account`,
@@ -56,7 +54,9 @@ ALTER TABLE `idt_oauth_link`
 
 ```text
 provider_account_id = 该 app_id 下的 openId
-同一 openId 不能绑定两个 SaaS account
+同一 (provider, app_id, openId) 不能绑定两个 SaaS account
+legacy 只读兼容；新 app 必须写真实 app_id
+已有 login_identity 时，新 app 只新增 oauth_link，不新建 SaaS account
 解绑只改 status = REVOKED，不物理删除
 ```
 
@@ -85,6 +85,8 @@ CREATE TABLE `tnt_membership` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='租户成员身份';
 ```
 
+`organization_id` 是成员的主组织/默认组织，不参与唯一键；同一员工在多个组织任职由 `iam_role_binding.organization_id` 表达，不重复建 membership。
+
 ### 3.2 `tnt_staff`
 
 ```sql
@@ -93,7 +95,7 @@ CREATE TABLE `tnt_staff` (
   `membership_id` bigint unsigned NOT NULL COMMENT '成员身份ID（tnt_membership.id）',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID',
   `employee_no` varchar(64) NOT NULL COMMENT '员工编号',
-  `display_name` varchar(128) NOT NULL COMMENT '员工姓名',
+  `display_name_cipher` varchar(255) NOT NULL COMMENT '员工姓名密文（PII，AES-256-GCM）',
   `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/LEFT',
   `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
   `created_at` datetime(3) NOT NULL COMMENT '创建时间',
@@ -156,7 +158,7 @@ PLATFORM:     subject_type=ACCOUNT, tenant_id=0, organization_id=0, store_id=0
 TENANT:       subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
 ORGANIZATION: subject_type=MEMBERSHIP, tenant_id>0, organization_id>0, store_id=0
 STORE:        subject_type=MEMBERSHIP, tenant_id>0, organization_id>=0, store_id>0
-SELF:         subject_type=MEMBERSHIP, tenant_id>0, store_id=0
+SELF:         subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
 ```
 
 ## 5. 权益与应用安装（S3 目标，S1 不落）
@@ -240,7 +242,7 @@ tnt_app_installation
 
 ```text
 identity-service:
-  V2: idt_oauth_link 增加 app_id/union_id，重建唯一键
+  V2: idt_oauth_link 增加 app_id，重建唯一键
 tenant-service:
   V8: tnt_membership
   V9: tnt_staff

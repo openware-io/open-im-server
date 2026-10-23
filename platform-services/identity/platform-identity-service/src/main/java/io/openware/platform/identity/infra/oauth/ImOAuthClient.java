@@ -26,9 +26,14 @@ public class ImOAuthClient {
         this.appSecret = properties.getAppSecret();
     }
 
+    /** 解析实际使用的 IM 应用 ID；调用方不传时回退到服务配置。 */
+    public String resolveAppId(String appId) {
+        return appId == null || appId.isBlank() ? this.appId : appId;
+    }
+
     /** 授权码换 im_access_token（appId 由调用方传入，C/B 共用 appSecret + PKCE verifier）。 */
     public String exchangeCode(String code, String codeVerifier, String redirectUri, String appId) {
-        String resolvedAppId = appId == null || appId.isBlank() ? this.appId : appId;
+        String resolvedAppId = resolveAppId(appId);
         try {
             var form = new LinkedMultiValueMap<String, String>();
             form.add("grant_type", "authorization_code");

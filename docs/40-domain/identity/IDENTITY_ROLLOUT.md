@@ -7,7 +7,7 @@
 
 | 服务 | 迁移 | 变更 |
 | --- | --- | --- |
-| `platform-identity-service` | `V2` | `idt_oauth_link` 增加 `app_id/union_id`，唯一键改为 `(provider, app_id, provider_account_id)`；`account_type` 收敛放到 S2（同时改代码/测试） |
+| `platform-identity-service` | `V2` | `idt_oauth_link` 增加 `app_id`，唯一键改为 `(provider, app_id, provider_account_id)`；`account_type` 收敛放到 S2（同时改代码/测试） |
 | `platform-tenant-service` | `V8`/`V9`/`V10` | `V8 tnt_membership`、`V9 tnt_staff`、`V10 iam_role_binding`；一表一迁移 |
 | `platform-customer-service` | `V2` | `cst_member` 增加 `membership_id` + 唯一键；不新建 `cst_customer` |
 | `platform-tenant-service` | S3 | `tnt_entitlement`、`tnt_app_installation`；权益先与既有 `tnt_business_entitlement` 统一 |

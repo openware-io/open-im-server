@@ -46,7 +46,6 @@ SaaS 不拥有 IM 消息/关系表
 ```text
 im_user.id
 open_id（应用内）
-union_id（同一开放平台主体，可选）
 ```
 
 ### 3.2 SaaS 账号
@@ -93,7 +92,7 @@ tnt_membership
 tnt_staff
   membership_id
   employee_no
-  display_name
+  display_name_cipher
   status
 
 cst_member（现有客户主档）
@@ -189,7 +188,7 @@ PLATFORM     → subject_type=ACCOUNT, tenant_id=0, organization_id=0, store_id=
 TENANT       → subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
 ORGANIZATION → subject_type=MEMBERSHIP, tenant_id>0, organization_id>0, store_id=0
 STORE        → subject_type=MEMBERSHIP, tenant_id>0, organization_id>=0, store_id>0
-SELF         → subject_type=MEMBERSHIP, tenant_id>0, store_id=0
+SELF         → subject_type=MEMBERSHIP, tenant_id>0, organization_id=0, store_id=0
 ```
 
 唯一键：

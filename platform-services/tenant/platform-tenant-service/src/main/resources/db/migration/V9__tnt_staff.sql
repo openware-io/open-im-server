@@ -4,7 +4,7 @@ CREATE TABLE `tnt_staff` (
   `membership_id` bigint unsigned NOT NULL COMMENT '成员身份ID（tnt_membership.id）',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID',
   `employee_no` varchar(64) NOT NULL COMMENT '员工编号',
-  `display_name` varchar(128) NOT NULL COMMENT '员工姓名',
+  `display_name_cipher` varchar(255) NOT NULL COMMENT '员工姓名密文（PII，AES-256-GCM）',
   `status` varchar(24) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态 ACTIVE/LEFT',
   `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
   `created_at` datetime(3) NOT NULL COMMENT '创建时间',
