@@ -1,5 +1,6 @@
 package io.openware.platform.order.hotel;
 
+import com.baomidou.mybatisplus.annotation.InterceptorIgnore;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import java.time.LocalDate;
 import org.apache.ibatis.annotations.Mapper;
@@ -9,6 +10,7 @@ import org.apache.ibatis.annotations.Update;
 @Mapper
 public interface HotelInventoryMapper extends BaseMapper<HotelInventoryPo> {
 
+    @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_inventory_calendar
         SET held = held + #{rooms}, updated_at = NOW(3)
@@ -20,6 +22,7 @@ public interface HotelInventoryMapper extends BaseMapper<HotelInventoryPo> {
              @Param("roomTypeId") Long roomTypeId, @Param("stayDate") LocalDate stayDate,
              @Param("rooms") int rooms);
 
+    @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_inventory_calendar
         SET held = held - #{rooms}, updated_at = NOW(3)
@@ -31,6 +34,7 @@ public interface HotelInventoryMapper extends BaseMapper<HotelInventoryPo> {
                     @Param("roomTypeId") Long roomTypeId, @Param("stayDate") LocalDate stayDate,
                     @Param("rooms") int rooms);
 
+    @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_inventory_calendar
         SET held = held - #{rooms}, sold = sold + #{rooms}, updated_at = NOW(3)
@@ -42,6 +46,7 @@ public interface HotelInventoryMapper extends BaseMapper<HotelInventoryPo> {
                     @Param("roomTypeId") Long roomTypeId, @Param("stayDate") LocalDate stayDate,
                     @Param("rooms") int rooms);
 
+    @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_inventory_calendar
         SET sold = sold - #{rooms}, updated_at = NOW(3)

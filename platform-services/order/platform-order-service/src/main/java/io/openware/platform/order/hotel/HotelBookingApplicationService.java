@@ -237,6 +237,7 @@ public class HotelBookingApplicationService {
             if (holdMapper.releaseExpired(hold.getId()) > 0) {
                 inventoryMapper.releaseHeld(hold.getTenantId(), hold.getStoreId(), hold.getRoomTypeId(),
                         hold.getStayDate(), hold.getRooms());
+                nightMapper.cancelHeldNights(hold.getBookingId());
                 bookingMapper.cancelPending(hold.getBookingId());
             }
         }
