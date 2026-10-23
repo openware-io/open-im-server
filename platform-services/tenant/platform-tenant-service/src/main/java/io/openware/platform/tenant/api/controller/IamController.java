@@ -80,10 +80,10 @@ public class IamController {
         if (context == null) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
         }
-        List<RoleView> catalog = context.tenantId() > 0
-                ? authorizationService.listAssignableRoles(context.tenantId()).stream()
+        List<RoleView> catalog = context.platformScope()
+                ? authorizationService.listPlatformRoles().stream()
                     .map(IamConverter::toView).toList()
-                : authorizationService.listPlatformRoles().stream()
+                : authorizationService.listAssignableRoles(context.tenantId()).stream()
                     .map(IamConverter::toView).toList();
         return catalog;
     }
