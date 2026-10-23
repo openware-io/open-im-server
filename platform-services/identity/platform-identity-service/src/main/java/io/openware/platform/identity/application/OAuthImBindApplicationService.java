@@ -152,6 +152,21 @@ public class OAuthImBindApplicationService {
 
     /** 复用已有登录标识时只补 app 维度绑定；并发插入冲突则回读已存在 link。 */
     private BindResult reuseLoginAndBind(String openId, String appId, String scope, LoginIdentity login) {
+        OauthLink any = findAnyLink(openId, appId);
+        if (any != null) {
+            if (!any.accountId().equals(login.accountId())) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 绑定归属不一致");
+            }
+            try {
+                return bindResult(oauthLinkRepository.save(any.activate(scope)).accountId(), openId);
+            } catch (DuplicateKeyException ex) {
+                OauthLink raced = findLink(openId, appId);
+                if (raced == null || !raced.accountId().equals(login.accountId())) {
+                    throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
+                }
+                return bindResult(raced.accountId(), openId);
+            }
+        }
         try {
             oauthLinkRepository.save(OauthLink.bind(login.accountId(), PROVIDER_IM, appId, openId, scope));
         } catch (DuplicateKeyException ex) {
@@ -165,6 +180,18 @@ public class OAuthImBindApplicationService {
             return bindResult(raced.accountId(), openId);
         }
         return bindResult(login.accountId(), openId);
+    }
+
+    @Transactional
+    public void unbind(Long accountId, String appId) {
+        var links = oauthLinkRepository.findByAccountId(accountId).stream()
+            .filter(link -> PROVIDER_IM.equals(link.provider()) && appId.equals(link.appId()))
+            .toList();
+        if (links.isEmpty()) {
+            throw new ApiException(HttpStatusCodes.NOT_FOUND, "OAUTH_LINK_NOT_FOUND", "OAuth 绑定不存在");
+        }
+        links.stream().filter(OauthLink::isActive)
+            .forEach(link -> oauthLinkRepository.save(link.revoke()));
     }
 
     private BindResult bindResult(Long accountId, String openId) {
@@ -195,6 +222,11 @@ public class OAuthImBindApplicationService {
     private OauthLink findLink(String openId, String appId) {
         return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
                 .filter(OauthLink::isActive)
+                .findFirst().orElse(null);
+    }
+
+    private OauthLink findAnyLink(String openId, String appId) {
+        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
                 .findFirst().orElse(null);
     }
 

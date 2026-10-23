@@ -45,6 +45,17 @@ public record OauthLink(
     return STATUS_ACTIVE.equals(status);
   }
 
+  /** 解绑：保留行与审计，允许后续同 app 重新绑定。 */
+  public OauthLink revoke() {
+    return new OauthLink(id, accountId, provider, appId, providerAccountId, scope, "REVOKED");
+  }
+
+  /** 重新绑定：复用 REVOKED 行，避免唯一键冲突。 */
+  public OauthLink activate(String newScope) {
+    return new OauthLink(id, accountId, provider, appId, providerAccountId,
+        newScope == null ? scope : newScope, STATUS_ACTIVE);
+  }
+
   /**
    * 绑定是否归属给定账号。
    *

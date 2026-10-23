@@ -8,11 +8,13 @@ import io.openware.common.http.HttpStatusCodes;
 import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -58,6 +60,40 @@ public class OAuthImBindController {
     public AuthenticatedResponse bind(@RequestBody BindRequest request, HttpServletResponse response) {
         throw new ApiException(HttpStatusCodes.GONE, "LEGACY_BIND_DISABLED",
                 "旧版直接绑定入口已停用，请改用 OIDC 授权码回调");
+    }
+
+    /** 解绑当前 app 的 OAuth 绑定并删除该会话；只影响目标 app。 */
+    @PostMapping("/oauth/im/unbind")
+    public void unbind(@RequestParam("app_id") String appId, HttpServletRequest request,
+                       HttpServletResponse response) {
+        appRegistry.requireType(appId);
+        String sessionId = sessionId(request, appId);
+        SaasUserSessionStore.UserSession session = sessionStore.findSession(sessionId)
+            .orElseThrow(() -> new ApiException(401, "SAAS_SESSION_REQUIRED", "登录状态已失效"));
+        if (session.appId() != null && !session.appId().equals(appId)) {
+            throw new ApiException(401, "SAAS_SESSION_REQUIRED", "应用与会话不匹配");
+        }
+        bindService.unbind(session.accountId(), appId);
+        sessionStore.deleteSession(sessionId);
+        SaasUserSessionCookie.clear(response, appRegistry.cookieName(appId, plainCookie));
+    }
+
+    private String sessionId(HttpServletRequest request, String appId) {
+        if (request.getCookies() == null) {
+            return null;
+        }
+        boolean backend = appRegistry.isBackend(appId);
+        for (var cookie : request.getCookies()) {
+            boolean match = backend
+                ? SaasUserSessionCookie.B_NAME.equals(cookie.getName())
+                    || SaasUserSessionCookie.B_PLAIN.equals(cookie.getName())
+                : SaasUserSessionCookie.C_NAME.equals(cookie.getName())
+                    || SaasUserSessionCookie.C_PLAIN.equals(cookie.getName());
+            if (match) {
+                return cookie.getValue();
+            }
+        }
+        return null;
     }
 
     public record CallbackRequest(@JsonProperty("code") String code,

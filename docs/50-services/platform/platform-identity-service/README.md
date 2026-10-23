@@ -98,3 +98,9 @@ S3 会话入口要求：
 - `/auth/session`、`/auth/contexts`、`/auth/context/select` 的 `appId` 必填，缺失返回 `400 SAAS_APP_REQUIRED`。
 - B 应用 OAuth 回调阶段校验 STAFF 成员；未绑定直接 `403 STAFF_NOT_BOUND`，不创建会话、不种 cookie。
 - C 应用回调授权后通过 tenant 内部接口幂等建立 CUSTOMER membership。
+
+S3 解绑/重绑：
+
+- `POST /identity/oauth/im/unbind?app_id=` 解绑当前 app、删除当前会话、清 cookie。
+- 只影响目标 app，不解绑其他应用。
+- 重新授权同 app 时复用 REVOKED link 并置 ACTIVE，避免唯一键 409。

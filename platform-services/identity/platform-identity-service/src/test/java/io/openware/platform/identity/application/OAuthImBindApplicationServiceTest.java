@@ -61,6 +61,25 @@ class OAuthImBindApplicationServiceTest {
   }
 
   @Test
+  void bind_reusesRevokedLink() {
+    when(imOAuthClient.resolveAppId("saas-hotel-c")).thenReturn("saas-hotel-c");
+    when(imOAuthClient.fetchUserInfo("im-token"))
+        .thenReturn(new ImOAuthUserInfo("open-r", "nick", "avatar", "phone", "scope"));
+    OauthLink revoked = OauthLink.bind(21L, "IM", "saas-hotel-c", "open-r", "scope").revoke();
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-hotel-c", "open-r"))
+        .thenReturn(List.of(revoked));
+    when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-r"))
+        .thenReturn(java.util.Optional.of(LoginIdentity.forLogin(21L, "IM", "open-r", null)));
+    when(oauthLinkRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    when(tokenProvider.createAccessToken(21L, "open-r", 0)).thenReturn("signed-jwt-r");
+
+    BindResult result = service.bind("im-token", "saas-hotel-c");
+
+    assertEquals(21L, result.accountId());
+    verify(oauthLinkRepository).save(argThat(OauthLink::isActive));
+  }
+
+  @Test
   void bindByCodeRejectsUnboundBackendBeforeSession() {
     when(imOAuthClient.resolveAppId("saas-hotel-b")).thenReturn("saas-hotel-b");
     when(appRegistry.isBackend("saas-hotel-b")).thenReturn(true);

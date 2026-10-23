@@ -92,3 +92,6 @@ Android 真机未跑
 
 S3 更新：B 未绑定在 callback 阶段 403；C 首次授权建立 CUSTOMER membership；/auth/session|contexts|select appId 必填。
 
+
+S3 更新：unbind 端点与 REVOKED→ACTIVE 重绑已完成；identity 49 tests。
+
