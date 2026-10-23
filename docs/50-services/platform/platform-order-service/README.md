@@ -90,3 +90,19 @@ PUT /admin/hotel/daily-rates
 
 未支付 `PENDING_PAYMENT` 预订的 hold 到期后，由订单服务定时任务释放库存并把预订置为 `CANCELLED`；
 `htl_booking_night` 按夜记录价格，确认置 `SOLD`，取消置 `CANCELLED`。
+
+## 酒店入住与账务（H3）
+
+```text
+POST /admin/hotel/frontdesk/bookings/{id}/checkin
+POST /admin/hotel/frontdesk/bookings/{id}/deposit
+GET  /admin/hotel/frontdesk/bookings/{id}/folio
+POST /admin/hotel/frontdesk/bookings/{id}/checkout
+```
+
+- 入住：从房型下选择 `ACTIVE` 物理房间，原子占用，创建 stay/folio 和房费账单项；
+- 押金：写 `DEPOSIT` 账单项，累加已收；
+- 退房：账单未结清返回 409，不允许退房；
+- 结清后：stay/folio 关闭，房间置 `DIRTY`，创建 `PENDING` 清扫任务。
+
+当前押金/账务是本地账本，尚未接支付网关和真实退款。
