@@ -8,6 +8,7 @@ import io.openware.platform.identity.application.AuthContextApplicationService;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.platform.identity.infra.security.AccountTokenResolver;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,15 +25,17 @@ public class AuthContextController {
     private final AuthContextApplicationService service;
     private final SaasUserSessionStore sessionStore;
     private final AccountTokenResolver accountTokenResolver;
+    private final SaasAppRegistry appRegistry;
     private final boolean plainCookie;
 
     @org.springframework.beans.factory.annotation.Autowired
     public AuthContextController(AuthContextApplicationService service, SaasUserSessionStore sessionStore,
-                                 AccountTokenResolver accountTokenResolver,
+                                 AccountTokenResolver accountTokenResolver, SaasAppRegistry appRegistry,
                                  @org.springframework.beans.factory.annotation.Value("${saas.cookie.plain:false}") boolean plainCookie) {
         this.service = service;
         this.sessionStore = sessionStore;
         this.accountTokenResolver = accountTokenResolver;
+        this.appRegistry = appRegistry;
         this.plainCookie = plainCookie;
     }
 
@@ -43,11 +46,9 @@ public class AuthContextController {
                                          HttpServletResponse response) {
         Long accountId = accountTokenResolver.resolveAccountId(authorization);
         String normalizedAppId = appId == null || appId.isBlank() ? "saas-a380-h5" : appId.trim();
+        appRegistry.requireType(normalizedAppId);
         String sessionId = sessionStore.createSession(accountId, normalizedAppId);
-        boolean backend = normalizedAppId.endsWith("-h5") || normalizedAppId.contains("-b");
-        String cookieName = plainCookie
-                ? (backend ? SaasUserSessionCookie.B_PLAIN : SaasUserSessionCookie.C_PLAIN)
-                : (backend ? SaasUserSessionCookie.B_NAME : SaasUserSessionCookie.C_NAME);
+        String cookieName = appRegistry.cookieName(normalizedAppId, plainCookie);
         if (plainCookie) {
             SaasUserSessionCookie.setPlain(response, sessionId, cookieName);
         } else {
@@ -70,8 +71,7 @@ public class AuthContextController {
                                         @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                                         @RequestBody SelectContextRequest request) {
         String sessionId = sessionId(servletRequest, appId);
-        SaasUserSessionStore.UserSession session = session(servletRequest, appId);
-        if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
+        SaasUserSessionStore.UserSession session = session(servletRequest, appId);        if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
         }
         SelectContextResponse selected = service.select(session.accountId(), request.contextId(), session.appId());
@@ -111,8 +111,14 @@ public class AuthContextController {
     }
 
     private SaasUserSessionStore.UserSession session(HttpServletRequest request, String appId) {
-        return sessionStore.findSession(sessionId(request, appId)).orElseThrow(() ->
-                new ApiException(HttpStatusCodes.UNAUTHORIZED, "SAAS_SESSION_REQUIRED", "登录状态已失效，请重新登录"));
+        SaasUserSessionStore.UserSession session = sessionStore.findSession(sessionId(request, appId))
+                .orElseThrow(() -> new ApiException(HttpStatusCodes.UNAUTHORIZED, "SAAS_SESSION_REQUIRED",
+                        "登录状态已失效，请重新登录"));
+        if (appId != null && !appId.isBlank()
+                && session.appId() != null && !session.appId().equals(appId)) {
+            throw new ApiException(HttpStatusCodes.UNAUTHORIZED, "SAAS_SESSION_REQUIRED", "应用与会话不匹配");
+        }
+        return session;
     }
 
     /**
@@ -125,7 +131,7 @@ public class AuthContextController {
      *
      * <p>未声明 appId 时保持既有兼容顺序（C 优先，其次任意会话 cookie）。
      */
-    private static String sessionId(HttpServletRequest request, String appId) {
+    private String sessionId(HttpServletRequest request, String appId) {
         if (request.getCookies() == null) {
             return null;
         }
@@ -141,7 +147,7 @@ public class AuthContextController {
             }
             return fallback;
         }
-        boolean backend = isBackendApp(appId);
+        boolean backend = appRegistry.isBackend(appId);
         for (var cookie : request.getCookies()) {
             boolean matches = backend ? isBFamily(cookie.getName()) : isCFamily(cookie.getName());
             if (matches) {
@@ -149,11 +155,6 @@ public class AuthContextController {
             }
         }
         return null;
-    }
-
-    /** B 端应用族判定：`*-h5` 或含 `-b`（与网关、OAuth 回调同一规则）。 */
-    private static boolean isBackendApp(String appId) {
-        return appId.endsWith("-h5") || appId.contains("-b");
     }
 
     private static boolean isBFamily(String name) {

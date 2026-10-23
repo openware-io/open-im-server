@@ -5,6 +5,7 @@ import io.openware.platform.identity.application.OAuthImBindApplicationService;
 import io.openware.platform.identity.application.OAuthImBindApplicationService.BindResult;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,23 +24,27 @@ import org.springframework.web.bind.annotation.RestController;
 public class OAuthImBindController {
     private final OAuthImBindApplicationService bindService;
     private final SaasUserSessionStore sessionStore;
+    private final SaasAppRegistry appRegistry;
     /** true → plain-http 环境：种无前缀非 Secure cookie(saas_c_session)；false(默认)→ __Host-+Secure。 */
     @Value("${saas.cookie.plain:false}")
     private boolean plainCookie;
 
-    public OAuthImBindController(OAuthImBindApplicationService bindService, SaasUserSessionStore sessionStore) {
+    public OAuthImBindController(OAuthImBindApplicationService bindService, SaasUserSessionStore sessionStore,
+                                 SaasAppRegistry appRegistry) {
         this.bindService = bindService;
         this.sessionStore = sessionStore;
+        this.appRegistry = appRegistry;
     }
 
     /** H5 回调：授权码 + PKCE verifier -> 换 token -> 绑定 -> SaaS accessToken。 */
     @PostMapping("/oauth/im/callback")
     public AuthenticatedResponse callback(@RequestBody CallbackRequest request, HttpServletResponse response) {
         String resolvedAppId = bindService.resolveAppId(request.appId());
+        appRegistry.requireType(resolvedAppId);
         BindResult result = bindService.bindByCode(request.code(), request.codeVerifier(), request.redirectUri(),
                 resolvedAppId, request.state(), request.nonce());
         String sessionId = sessionStore.createSession(result.accountId(), resolvedAppId);
-        String cookieName = cookieNameFor(resolvedAppId);
+        String cookieName = appRegistry.cookieName(resolvedAppId, plainCookie);
         if (plainCookie) {
             SaasUserSessionCookie.setPlain(response, sessionId, cookieName);
         } else {
@@ -65,11 +70,4 @@ public class OAuthImBindController {
     }
     public record AuthenticatedResponse(boolean authenticated) {}
 
-    private String cookieNameFor(String appId) {
-        boolean backendFamily = appId != null && (appId.endsWith("-h5") || appId.contains("-b"));
-        if (plainCookie) {
-            return backendFamily ? SaasUserSessionCookie.B_PLAIN : SaasUserSessionCookie.C_PLAIN;
-        }
-        return backendFamily ? SaasUserSessionCookie.B_NAME : SaasUserSessionCookie.C_NAME;
-    }
 }

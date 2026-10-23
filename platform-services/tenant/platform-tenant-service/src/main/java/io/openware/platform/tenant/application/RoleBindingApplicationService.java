@@ -178,6 +178,9 @@ public class RoleBindingApplicationService {
     if (!role.active() || !scopeType.equals(role.scopeLevel())) {
       throw new ApiException(400, "ROLE_SCOPE_MISMATCH", "角色作用域与绑定作用域不一致");
     }
+    if (role.tenantId() != null && !role.tenantId().equals(context.tenantId())) {
+      throw new ApiException(400, "ROLE_TENANT_MISMATCH", "角色不属于当前租户");
+    }
     if (organizationId != null && organizationId > 0
         && !organizations.findTenantId(organizationId).filter(id -> id.equals(context.tenantId())).isPresent()) {
       throw new ApiException(400, "ORGANIZATION_TENANT_MISMATCH", "组织不属于当前租户");

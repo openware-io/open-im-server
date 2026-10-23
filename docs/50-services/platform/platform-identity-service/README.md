@@ -76,3 +76,10 @@
 
 `/identity/oauth/im/callback` 先解析实际 `appId`（请求值或服务配置），token 交换、OAuth 绑定、SaaS session 与 C/B cookie 全部使用同一个 resolved appId。
 `idt_oauth_link` 按 `(provider, app_id, open_id)` 唯一；IM 当前 openId 全局，C/B 共享同一 SaaS account，角色由会员身份区分。
+
+## OAuth 应用注册与会话族
+
+- `saas.apps.consumer` / `saas.apps.backend` 显式登记 C/B 应用。
+- OAuth 回调与 `/auth/session` 先校验 appId；未登记返回 400 `OAUTH_APP_INVALID`。
+- C/B cookie 族由注册表决定，不再用后缀猜测。
+- `/auth/contexts`、`/auth/context/select` 校验会话 appId 与请求 appId 一致。
