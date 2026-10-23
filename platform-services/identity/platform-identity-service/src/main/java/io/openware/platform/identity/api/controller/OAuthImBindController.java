@@ -5,6 +5,7 @@ import io.openware.platform.identity.application.OAuthImBindApplicationService;
 import io.openware.platform.identity.application.OAuthImBindApplicationService.BindResult;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
+import io.openware.platform.identity.infra.client.TenantServiceClient;
 import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
@@ -28,15 +29,17 @@ public class OAuthImBindController {
     private final OAuthImBindApplicationService bindService;
     private final SaasUserSessionStore sessionStore;
     private final SaasAppRegistry appRegistry;
+    private final TenantServiceClient tenantClient;
     /** true → plain-http 环境：种无前缀非 Secure cookie(saas_c_session)；false(默认)→ __Host-+Secure。 */
     @Value("${saas.cookie.plain:false}")
     private boolean plainCookie;
 
     public OAuthImBindController(OAuthImBindApplicationService bindService, SaasUserSessionStore sessionStore,
-                                 SaasAppRegistry appRegistry) {
+                                 SaasAppRegistry appRegistry, TenantServiceClient tenantClient) {
         this.bindService = bindService;
         this.sessionStore = sessionStore;
         this.appRegistry = appRegistry;
+        this.tenantClient = tenantClient;
     }
 
     /** H5 回调：授权码 + PKCE verifier -> 换 token -> 绑定 -> SaaS accessToken。 */
@@ -53,7 +56,14 @@ public class OAuthImBindController {
         } else {
             SaasUserSessionCookie.set(response, sessionId, cookieName);
         }
-        return new AuthenticatedResponse(true, result.accountId(), resolvedAppId);
+        var memberships = tenantClient.memberships(result.accountId());
+        String expectedType = appRegistry.isBackend(resolvedAppId) ? "STAFF" : "CUSTOMER";
+        var membership = memberships.stream()
+            .filter(item -> expectedType.equals(item.membershipType()) && "ACTIVE".equals(item.status()))
+            .findFirst().orElse(null);
+        return new AuthenticatedResponse(true, result.accountId(), resolvedAppId,
+            membership == null ? null : membership.id(),
+            membership == null ? null : membership.tenantId());
     }
 
     /** 直接用 im_access_token 绑定（兼容旧入口）。 */
@@ -109,9 +119,10 @@ public class OAuthImBindController {
                                   @JsonProperty("nonce") String nonce) {}
     public record BindRequest(@JsonProperty("im_access_token") String imAccessToken) {
     }
-    public record AuthenticatedResponse(boolean authenticated, Long accountId, String appId) {
+    public record AuthenticatedResponse(boolean authenticated, Long accountId, String appId,
+                                        Long membershipId, Long tenantId) {
         public AuthenticatedResponse(boolean authenticated) {
-            this(authenticated, null, null);
+            this(authenticated, null, null, null, null);
         }
     }
 

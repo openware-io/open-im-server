@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.common.port.TokenProvider;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.platform.identity.application.OAuthImBindApplicationService.BindResult;
@@ -47,6 +48,7 @@ class OAuthImBindApplicationServiceTest {
   @Mock private TokenProvider tokenProvider;
   @Mock private TenantServiceClient tenantServiceClient;
   @Mock private SaasAppRegistry appRegistry;
+  @Mock private AuditClient audit;
 
   private JwtProperties jwtProperties;
   private OAuthImBindApplicationService service;
@@ -57,7 +59,7 @@ class OAuthImBindApplicationServiceTest {
     jwtProperties.setExpirationMs(60000L);
     service = new OAuthImBindApplicationService(self, imOAuthClient, accountRepository,
         loginIdentityRepository, oauthLinkRepository, profileSyncRecordRepository, tokenProvider,
-        jwtProperties, tenantServiceClient, appRegistry);
+        jwtProperties, tenantServiceClient, appRegistry, audit);
   }
 
   @Test

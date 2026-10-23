@@ -122,3 +122,14 @@ S3 解绑权限撤销：
 - identity C 端 unbind 调用该内部接口；B 端不动 consumer 授权。
 
 SAAS_APPS_* 无默认值；未配置时所有 app 拒绝，C/B 双登记启动失败。
+
+回调响应新增（向后兼容）：
+
+```text
+accountId
+appId
+membershipId
+tenantId
+```
+
+B 取 ACTIVE STAFF，C 取 ACTIVE CUSTOMER；未绑定在回调阶段 403，不建 session。

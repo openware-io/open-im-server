@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.common.port.TokenProvider;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.platform.identity.domain.account.model.IdentityAccount;
 import io.openware.platform.identity.domain.account.model.LoginIdentity;
@@ -52,6 +53,7 @@ public class OAuthImBindApplicationService {
     private final JwtProperties jwtProperties;
     private final TenantServiceClient tenantServiceClient;
     private final SaasAppRegistry appRegistry;
+    private final AuditClient audit;
 
     public OAuthImBindApplicationService(@Lazy OAuthImBindApplicationService self, ImOAuthClient imOAuthClient,
                                          IdentityAccountRepository accountRepository,
@@ -60,7 +62,7 @@ public class OAuthImBindApplicationService {
                                          ProfileSyncRecordRepository profileSyncRecordRepository,
                                          TokenProvider tokenProvider, JwtProperties jwtProperties,
                                          TenantServiceClient tenantServiceClient,
-                                         SaasAppRegistry appRegistry) {
+                                         SaasAppRegistry appRegistry, AuditClient audit) {
         this.self = self;
         this.imOAuthClient = imOAuthClient;
         this.accountRepository = accountRepository;
@@ -71,6 +73,7 @@ public class OAuthImBindApplicationService {
         this.jwtProperties = jwtProperties;
         this.tenantServiceClient = tenantServiceClient;
         this.appRegistry = appRegistry;
+        this.audit = audit;
     }
 
     /** 授权码换 token 后绑定（H5 客户端无 appSecret，授权码交换由服务端完成）。 */
@@ -208,6 +211,9 @@ public class OAuthImBindApplicationService {
         if (!appRegistry.isBackend(appId)) {
             tenantServiceClient.revokeConsumerAuthorization(accountId, appId);
         }
+        audit.recordAsync(AuditClient.AuditRecord.of(null, accountId, "iam.oauth.unbind", "oauth_link",
+            appId, null, "oauth-unbind:" + accountId + ":" + appId,
+            "{\"accountId\":" + accountId + ",\"appId\":\"" + appId + "\"}"));
     }
 
     private BindResult bindResult(Long accountId, String openId) {
