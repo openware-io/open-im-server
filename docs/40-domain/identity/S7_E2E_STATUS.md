@@ -831,3 +831,5 @@ sec-013-cross-store-refund*.har
 sec-014-correct-store-refund-*.har
 sec-013-014-db.txt
 ```
+
+注：order18 的 `pay_collect.store_id=100` / `ord_order.store_id=102` 是跨店修复前的历史数据，保留为负例，不作为“正确门店收款”的正例；修复后以 SEC-011/012 的 store100 404 / store102 200 为准。
