@@ -623,3 +623,38 @@ evidence/s7-b-checkin.png
 “办理退房” UI 点击未产生退房请求
 booking 仍 IN_HOUSE
 ```
+
+## 8. B 前台退房闭环（2026-10-24）
+
+发现真实账务缺口：
+
+```text
+C 订单已 pay 89900
+酒店 folio paid=0
+checkout -> 409 OUTSTANDING_BALANCE
+```
+
+修复：
+
+```text
+HotelStayApplicationService.checkOut
+if folio.paid < charge:
+  booking.orderId 的 ord_order.paid >= charge
+  -> 写 PAYMENT / ORDER_PREPAID 抵扣项
+  -> folio.paid = charge
+```
+
+真实 UI：
+
+```text
+点击“办理退房”
+-> booking 2114013936307535874 CHECKED_OUT
+-> room 0801 DIRTY
+-> 在住 0
+```
+
+截图：
+
+```text
+evidence/s7-b-checkout.png
+```
