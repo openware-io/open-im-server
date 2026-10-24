@@ -54,6 +54,10 @@ public class AuthContextController {
         }
         String normalizedAppId = appId.trim();
         appRegistry.requireType(normalizedAppId);
+        if (service.contexts(accountId, normalizedAppId).isEmpty()) {
+            throw new ApiException(HttpStatusCodes.FORBIDDEN, "MEMBERSHIP_INACTIVE",
+                    "账号在该应用下没有有效成员身份");
+        }
         String sessionId = sessionStore.createSession(accountId, normalizedAppId);
         String cookieName = appRegistry.cookieName(normalizedAppId, plainCookie);
         if (plainCookie) {
