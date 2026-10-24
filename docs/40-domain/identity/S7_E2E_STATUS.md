@@ -696,3 +696,28 @@ due_out_count=1
 ```text
 evidence/s7-b-night-audit.png
 ```
+
+## 10. C H5 取消预订（2026-10-24）
+
+新增：
+
+```text
+POST /business/hotel/bookings/{id}/cancel
+ownership: 只能取消本人 booking
+H5: PENDING_PAYMENT 订单显示“取消预订”
+```
+
+真实：
+
+```text
+HTL1792861923013715 PENDING_PAYMENT
+点击取消 -> CANCELLED
+```
+
+截图：
+
+```text
+evidence/s7-c-cancel.png
+```
+
+C 在线退款仍 deferred；线下退款由 B 前台处理。

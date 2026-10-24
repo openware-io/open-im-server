@@ -14,6 +14,7 @@
 | BROWSER-B 夜审 | PASS | `evidence/s7-b-night-audit.png`、htl_night_audit |
 | BROWSER-C 真实酒店目录 | PASS | `evidence/s7-c-home.png` |
 | BROWSER-C 真实预订 | PASS | `evidence/s7-c-real-booking.png`、`s7-c-my-orders.png` |
+| BROWSER-C 取消预订 | PASS | `evidence/s7-c-cancel.png`、booking CANCELLED |
 | APP-011 Android 真实下单 | PASS | `evidence/s7-android-booking.png` |
 | APP-013 Android 我的订单 | PASS | `evidence/s7-android-orders.png` |
 | Android 真实酒店/报价 | PASS | `evidence/s7-android-real-hotel.png`、`s7-android-real-quote.png` |
