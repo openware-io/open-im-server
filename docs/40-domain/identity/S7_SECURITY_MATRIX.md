@@ -118,3 +118,12 @@ S7 cash-only：仍不能 PASS
 
 - `S7_REQUEST_EVIDENCE.md`
 - `evidence/s7-trace/`
+
+管理面 admin 自身 filter 回归：
+
+```text
+ACTIVE   -> 200
+DISABLED -> 401
+RESTORED -> 200
+X-Request-Id 401: e1868ba33d16d1c81c5c06711609f139
+```
