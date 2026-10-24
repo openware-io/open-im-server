@@ -106,6 +106,7 @@ class RefundApplicationServiceTest {
   @Test
   void requestRefund_snapshotsOrderCurrencyAsOriginalCurrency() {
     OrderBillingRepository orderBillingRepository = mock(OrderBillingRepository.class);
+    when(orderBillingRepository.findStoreId(1L, 9L)).thenReturn(java.util.Optional.of(77L));
     when(orderBillingRepository.findCurrencyCode(1L, 9L)).thenReturn(java.util.Optional.of("CNY"));
     RefundApplicationService serviceWithBilling =
         new RefundApplicationService(refundRepository, auditClient, orderBillingRepository);

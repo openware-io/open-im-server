@@ -70,6 +70,7 @@ public class RefundApplicationService {
                                    Long requestedBy) {
         try {
             TenantContext context = TenantContextHolder.get();
+            requireOrderStore(tenantId, storeId, orderId);
             // 币种快照（16_CURRENCY_CONVENTIONS §5/§6.3）：退款必须退**原币种**，与申请金额同事务落库。
             String currencyCode = resolveRefundCurrency(tenantId, orderId);
             String requestId = UUID.randomUUID().toString();
@@ -118,6 +119,7 @@ public class RefundApplicationService {
         try {
             Persisted<Refund> row = requireRefund(refundId);
             Refund refund = row.aggregate();
+            requireRefundStore(refund);
             requireStatus(refund, STATUS_PENDING, "approve");
             if (approvedAmount == null || approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalStateException("REFUND_AMOUNT_INVALID");
@@ -160,6 +162,7 @@ public class RefundApplicationService {
         try {
             Persisted<Refund> row = requireRefund(refundId);
             Refund refund = row.aggregate();
+            requireRefundStore(refund);
             requireStatus(refund, STATUS_PENDING, "reject");
             Refund rejected = withStatus(refund, STATUS_REJECTED, refund.approvedAmount(), rejectedBy, null);
             Persisted<Refund> rejectedRow = transactionGuarded(rejected, STATUS_PENDING, "reject");
@@ -186,6 +189,7 @@ public class RefundApplicationService {
         try {
             Persisted<Refund> row = requireRefund(refundId);
             Refund refund = row.aggregate();
+            requireRefundStore(refund);
             requireStatus(refund, STATUS_APPROVED, "refund");
             if (paymentRuleService != null) {
                 PaymentRuleApplicationService.RefundRuleView rule = paymentRuleService.resolveRefund(
@@ -228,6 +232,31 @@ public class RefundApplicationService {
      * <p>受影响 0 行 = 状态已被他人改变。这里报 {@code REFUND_STATE_INVALID} 而不是冲突码：
      * 对调用方而言语义相同（这次迁移没生效、钱没退出去），而错误里的状态说明更有助于排查。
      */
+
+    private void requireOrderStore(Long tenantId, Long storeId, Long orderId) {
+        if (orderBillingRepository == null) {
+            return;
+        }
+        Long orderStore = orderBillingRepository.findStoreId(tenantId, orderId)
+                .orElseThrow(() -> new ApiException(404, "ORDER_NOT_FOUND", "订单不属于当前门店"));
+        if (storeId == null || !storeId.equals(orderStore)) {
+            throw new ApiException(404, "ORDER_NOT_FOUND", "订单不属于当前门店");
+        }
+    }
+
+    private void requireRefundStore(Refund refund) {
+        TenantContext context = TenantContextHolder.get();
+        if (context != null && context.storeId() != null
+                && !context.storeId().equals(refund.storeId())) {
+            throw new ApiException(404, "REFUND_NOT_FOUND", "退款单不属于当前门店");
+        }
+        if (orderBillingRepository != null && refund.orderId() != null) {
+            Long orderStore = orderBillingRepository.findStoreId(refund.tenantId(), refund.orderId()).orElse(null);
+            if (orderStore == null || !orderStore.equals(refund.storeId())) {
+                throw new ApiException(404, "REFUND_NOT_FOUND", "退款单与订单门店不一致");
+            }
+        }
+    }
     private Persisted<Refund> transactionGuarded(Refund target, String expectedStatus, String action) {
         return refundRepository.updateStatusGuarded(target, expectedStatus, LocalDateTime.now())
                 .orElseThrow(() -> new IllegalStateException(
