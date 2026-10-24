@@ -100,7 +100,6 @@ admin   200 -> 401（admin 自身 filter）
 仍未覆盖：
 
 ```text
-platform-identity-service 自身 filter
 gateway 集中校验
 ```
 
@@ -110,7 +109,7 @@ gateway 集中校验
 SEC-001..010：均有真实 API 结果
 SEC-007/010：本轮已补
 SEC-008/009：order/payment/tenant/admin 自身通过
-identity/gateway 自身仍缺
+identity 已覆盖；gateway 自身仍缺
 S7 cash-only：仍不能 PASS
 ```
 

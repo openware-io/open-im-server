@@ -197,3 +197,28 @@ bookedByAccountId=112 -> S** / 138****0003
 X-Request-Id: b376dae7-8bec-433a-9c3b-f53109a59ca5
 evidence/s7-trace/sec-010-nopii.*
 ```
+
+## 11. identity 会话签发
+
+真实：
+
+```text
+POST /api/v1/auth/session?appId=saas-a380-h5
+ACTIVE   -> 200
+DISABLED -> 403 STAFF_NOT_BOUND
+```
+
+实现：
+
+```text
+AuthContextController.createSession
+-> service.contexts(accountId, appId)
+-> 空上下文拒绝签发
+```
+
+证据：
+
+```text
+evidence/s7-trace/identity-session-disabled.headers
+evidence/s7-trace/identity-session-disabled.body
+```
