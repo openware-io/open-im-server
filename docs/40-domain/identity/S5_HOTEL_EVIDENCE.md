@@ -116,3 +116,60 @@ Android 真机
 ```
 
 本证据不能作为 S5 完成或 E2E 通过。
+
+## 6. 前台/夜审/房态真实证据（2026-10-24）
+
+入住：
+
+```text
+POST /admin/hotel/frontdesk/bookings/2113819252491505665/checkin
+-> 200 status=IN_HOUSE roomNo=0801
+```
+
+收款：
+
+```text
+POST /api/v1/business/orders/8/collect
+{"currencyCode":"CNY","payable":179800,"payments":[{"method":"CASH","amount":179800}]}
+-> 200 remainingAmount=0 collected CASH 179800
+```
+
+押金/账单：
+
+```text
+POST .../deposit {"amountMinor":179800}
+-> 200 folio paidMinor=179800 chargeMinor=179800
+```
+
+退房：
+
+```text
+POST .../checkout
+-> 200 status=CHECKED_OUT roomNo=0801
+```
+
+夜审：
+
+```text
+POST /admin/hotel/night-audit/run {"businessDate":"2026-11-01"}
+-> 200 status=COMPLETED dueOutCount=1 inHouseCount=1 roomChargeMinor=179800
+```
+
+清扫：
+
+```text
+GET  /admin/hotel/housekeeping/tasks
+-> task id=2 PENDING room 0801
+POST .../tasks/2/start   -> 200 IN_PROGRESS
+POST .../tasks/2/complete -> 200 DONE
+```
+
+## 7. 仍未完成
+
+```text
+C 端在线支付（当前由 B 前台现金收款）
+现金/在线退款真实链路
+浏览器 B Web / C H5 页面
+Android 真机
+S5 仲裁
+```
