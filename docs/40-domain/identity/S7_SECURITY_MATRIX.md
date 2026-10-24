@@ -72,7 +72,6 @@ authorization_version + 1 -> 401
 仍未接入同一校验：
 
 ```text
-platform-tenant-service
 platform-admin-service
 platform-identity-service
 gateway 集中校验
