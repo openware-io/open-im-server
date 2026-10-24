@@ -658,3 +658,41 @@ if folio.paid < charge:
 ```text
 evidence/s7-b-checkout.png
 ```
+
+## 9. B 客房清扫 / 夜审 UI（2026-10-24）
+
+### 清扫
+
+```text
+点击“开始清扫” -> htl_housekeeping_task IN_PROGRESS
+点击“完成清扫” -> DONE
+room 0801 DIRTY -> ACTIVE
+```
+
+截图：
+
+```text
+evidence/s7-b-housekeeping.png
+```
+
+### 夜审
+
+```text
+点击“夜审” -> 输入营业日 -> 确定
+-> toast 夜审完成
+-> htl_night_audit 新增记录
+```
+
+真实：
+
+```text
+business_date=2026-11-01
+in_house_count=1
+due_out_count=1
+```
+
+截图：
+
+```text
+evidence/s7-b-night-audit.png
+```
