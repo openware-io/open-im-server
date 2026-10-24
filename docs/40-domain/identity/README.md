@@ -48,3 +48,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 | [S7 在线支付绕过项](S7_ONLINE_PAYMENT_DEFERRAL.md) | deferred；cash-only 条件验收，生产前硬门禁 |
 | [S7 工程规范审计](S7_ENGINEERING_COMPLIANCE_AUDIT.md) | 门禁/基线失败/未完成规范项 |
 | [S7 安全隔离矩阵](S7_SECURITY_MATRIX.md) | SEC-001..010；SEC-008/009 未通过 |
+| [S7 请求证据](S7_REQUEST_EVIDENCE.md) | X-Request-Id 200/401、trace 目录 |

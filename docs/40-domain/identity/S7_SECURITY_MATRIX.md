@@ -15,7 +15,7 @@
 | C→B audience | C token -> B admin hotel | 403 CLIENT_AUDIENCE_FORBIDDEN | API |
 | B→C audience | B token -> C catalog | 403 CLIENT_AUDIENCE_FORBIDDEN | API |
 
-## 2. SEC-008/009：旧 token 失效（order/payment/tenant 已修复）
+## 2. SEC-008/009：旧 token 失效
 
 修复前真实失败：
 
@@ -23,13 +23,6 @@
 B token -> /admin/hotel/bookings = 200
 tnt_membership id=1 status=DISABLED
 同一个旧 B token -> /admin/hotel/bookings = 200
-```
-
-根因：
-
-```text
-TenantContextFilter 只校验 JWT 签名/issuer/audience
-未校验 membership 当前状态与 authorization_version
 ```
 
 修复：
@@ -40,44 +33,33 @@ order/payment/tenant 增加 TenantAuthorizationStateFilter
 token.authorizationVersion < 当前版本 或 当前版本=0 -> 401
 ```
 
-真实回归（order）：
+真实回归：
 
 ```text
-ACTIVE   -> 200
-DISABLED -> 401
-RESTORED -> 200
+order   ACTIVE 200 / DISABLED 401 / RESTORED 200
+payment PAY_ACTIVE 200 / PAY_DISABLED 401
+tenant  TENANT_ACTIVE 200 / TENANT_DISABLED 401
+version +1 -> 401 / 恢复 -> 200
 ```
 
-真实回归（tenant）：
+管理面：
 
 ```text
-TENANT_ACTIVE   -> 200
-TENANT_DISABLED -> 401
+admin hotel 200
+成员 DISABLED 后同一 admin session -> 401
+X-Request-Id 200: bc72c597667e6f93690012f61eb9c971
+X-Request-Id 401: e7b54efcd581228793fdef3f570deff4
 ```
 
-真实回归（payment）：
+说明：admin BFF 自身未加 filter；管理面由下游 order/tenant 校验拒绝。
+
+仍未接入：
 
 ```text
-PAY_ACTIVE   -> 200
-PAY_DISABLED -> 401
-```
-
-SEC-009 版本：
-
-```text
-authorization_version + 1 -> 401
-恢复                       -> 200
-```
-
-仍未接入同一校验：
-
-```text
-platform-admin-service
+platform-admin-service 自身 filter
 platform-identity-service
 gateway 集中校验
 ```
-
-因此 SEC-008/009 对 order/payment/tenant 通过；admin/identity/gateway 仍是缺口。
 
 ## 3. 其他
 
@@ -100,6 +82,12 @@ V17 给 store.manager / store.cashier 授权
 
 ```text
 SEC 矩阵：部分通过
-SEC-008/009：order/payment/tenant 通过；admin/identity/gateway 未覆盖
+SEC-008/009：order/payment/tenant + admin 下游通过
+admin/identity/gateway 自身未覆盖
 S7 cash-only：仍不能 PASS
 ```
+
+请求证据：
+
+- `S7_REQUEST_EVIDENCE.md`
+- `evidence/s7-trace/`
