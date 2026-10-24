@@ -82,3 +82,36 @@ ord_order 15: DRAFT / paid=0
 evidence/s7-trace/err-001-payment-down.headers
 evidence/s7-trace/err-001-payment-down.body
 ```
+
+## 5. HAR
+
+```text
+docs/40-domain/identity/evidence/s7-trace/admin-hotel-bookings.har
+```
+
+采集方式：
+
+```text
+Chrome DevTools Protocol Network.enable
+Network.responseReceived / loadingFinished / getResponseBody
+管理会话 cookie 注入
+GET /api/v1/admin/hotel/bookings
+```
+
+结果：
+
+```text
+status 200
+content-type application/json
+body 包含 HTL1792855990895433 等真实订单
+```
+
+HAR 中的 cookie 值已脱敏为 `<redacted>`。
+
+## 6. 仍缺
+
+```text
+完整 trace zip
+C 端浏览器 HAR
+Android logcat
+```
