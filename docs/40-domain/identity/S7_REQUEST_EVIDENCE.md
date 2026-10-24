@@ -64,7 +64,7 @@ evidence/s7-trace/admin-hotel-bookings-disabled.body
 没有 trace/span 导出
 ```
 
-完整 HAR 与 trace 仍需后续补。
+管理面 HAR 与 Android logcat 已补；C 端浏览器 HAR 与 trace zip 仍缺。
 
 ## 4. ERR-001 HTTP 500
 
@@ -114,4 +114,28 @@ HAR 中的 cookie 值已脱敏为 `<redacted>`。
 完整 trace zip
 C 端浏览器 HAR
 Android logcat
+```
+
+## 7. Android logcat
+
+```text
+docs/40-domain/identity/evidence/s7-trace/android-hotel.log
+```
+
+采集：
+
+```text
+adb logcat -c
+monkey 启动 io.openware.openchat
+进入 服务 -> 酒店 -> A380 Hotel
+adb logcat -d -v time
+```
+
+包含真实：
+
+```text
+[Lifecycle] App resumed
+[WS DEBUG] SEND/RECEIVE heartbeat
+[API DEBUG] GET http://192.168.3.35:30080/api/v1/messages/sync
+START io.openware.openchat
 ```
