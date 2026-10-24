@@ -85,6 +85,10 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
         // 下面每个分支都返回 Mono<Void>（转发/拒绝都不会 emit 元素），而 switchIfEmpty 只看
         // 「完成时有没有元素」——于是**成功转发之后**也会命中「缺少会话」分支，把已经代理成功的
         // 响应再改写成 401（历史上平台级路由看似 401 却又能拿到数据的根因）。
+        .onErrorResume(error -> {
+          log.warn("SaaS session lookup failed: path={}, cause={}", path, error.getMessage());
+          return Mono.empty();
+        })
         .defaultIfEmpty("")
         .flatMap(raw -> {
           if (raw.isEmpty()) {
@@ -102,8 +106,7 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
           }
           return contextToken(raw).map(token -> forward(exchange, chain, token))
               .orElseGet(() -> reject(exchange, "SAAS_CONTEXT_REQUIRED"));
-        })
-        .onErrorResume(error -> reject(exchange, "SAAS_SESSION_UNAVAILABLE"));
+        });
   }
 
   /** B 端应用族判定（与 identity 服务同一规则）：`*-h5` 或含 `-b`。 */
