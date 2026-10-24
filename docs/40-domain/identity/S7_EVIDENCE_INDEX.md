@@ -8,6 +8,7 @@
 | 用例 | 结果 | 证据 |
 | --- | --- | --- |
 | BROWSER-B 登录/门店/酒店前台 | PASS | `evidence/s7-b-hotel.png`、`s7-b-hotel-ui.png` |
+| BROWSER-B 办理入住 | PASS | `evidence/s7-b-checkin.png`、booking IN_HOUSE |
 | BROWSER-C 真实酒店目录 | PASS | `evidence/s7-c-home.png` |
 | BROWSER-C 真实预订 | PASS | `evidence/s7-c-real-booking.png`、`s7-c-my-orders.png` |
 | APP-011 Android 真实下单 | PASS | `evidence/s7-android-booking.png` |

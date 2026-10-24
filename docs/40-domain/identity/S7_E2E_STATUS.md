@@ -584,3 +584,42 @@ evidence/s7-b-hotel-ui.png
 点击“办理入住”后返回“酒店预订不存在”
 （预订日期 2026-10-27，非当日；未完成 UI 动作闭环）
 ```
+
+## 7. B 前台入住闭环（2026-10-24）
+
+发现真实前端问题：
+
+```text
+Long 2114013936307535874 在浏览器 JS 中变成 2114013936307536000
+-> /bookings/2114013936307536000/checkin -> 404
+```
+
+修复：
+
+```text
+HotelFrontDeskController.BookingView.id
+@JsonFormat(shape = STRING)
+```
+
+部署后 UI：
+
+```text
+点击“办理入住”
+-> booking 2114013936307535874 IN_HOUSE
+-> room 0801 OCCUPIED
+-> htl_stay 生成
+-> 页面显示 在住 1
+```
+
+截图：
+
+```text
+evidence/s7-b-checkin.png
+```
+
+未完成：
+
+```text
+“办理退房” UI 点击未产生退房请求
+booking 仍 IN_HOUSE
+```
