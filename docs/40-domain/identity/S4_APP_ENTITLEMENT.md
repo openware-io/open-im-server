@@ -54,3 +54,56 @@ GET    /auth/apps?appId=        C/B 服务入口
 服务入口前端接入
 安装/权益真实 API 证据
 ```
+
+## 真实 API 证据（2026-10-24）
+
+```text
+POST /admin/apps {"appId":"saas-hotel-c","clientType":"C"}
+-> 200 {"id":1,"tenantId":100,"appId":"saas-hotel-c","clientType":"C","status":"ACTIVE"}
+
+GET /admin/apps
+-> 200 [{"id":1,"tenantId":100,"appId":"saas-hotel-c","clientType":"C","status":"ACTIVE"}]
+
+GET /admin/entitlements
+-> 200 [{"featureCode":"HOTEL","status":"ACTIVE","source":"MANUAL"},
+        {"featureCode":"KTV","status":"ACTIVE","source":"STORE_DERIVED"}]
+
+GET /auth/apps?appId=saas-a380-c（真实 C OAuth 会话）
+-> 200 {"items":[{"appId":"saas-hotel-c","clientType":"C","featureCode":"HOTEL"}]}
+```
+
+部署：tenant V11 已应用，`tnt_app_installation` 存在；identity `/auth/apps` 已部署。
+
+注意：gateway `/api/v1/auth/apps` 路由已加入 `application.yml`，但 gateway 镜像尚需重新部署后经 30080 验证。
+
+## 卸载与审计（2026-10-24）
+
+```text
+DELETE /admin/apps/saas-hotel-c -> 200
+GET /admin/apps -> [{"appId":"saas-hotel-c","status":"UNINSTALLED"}]
+GET /auth/apps?appId=saas-a380-c -> {"items":[]}
+open_audit.audit_log:
+  iam.app.install   app_installation SUCCESS
+  iam.app.uninstall app_installation SUCCESS
+```
+
+## 网关
+
+```text
+GET http://127.0.0.1:30080/api/v1/auth/apps?appId=saas-a380-c
+-> 200 {"items":[{"appId":"saas-hotel-c","clientType":"C","featureCode":"HOTEL"}]}
+```
+
+gateway 镜像已重新部署，`/api/v1/auth/apps` 路由生效。
+
+## 权益开通（2026-10-24）
+
+```text
+POST /admin/entitlements {"featureCode":"HOTEL2","status":"ACTIVE"}
+-> 200
+
+GET /admin/entitlements
+-> HOTEL ACTIVE, HOTEL2 ACTIVE, KTV STORE_DERIVED
+```
+
+审计动作：`iam.entitlement.grant`。

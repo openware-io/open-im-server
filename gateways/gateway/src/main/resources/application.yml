@@ -93,7 +93,7 @@ spring:
         uri: ${PLATFORM_IDENTITY_URI:http://localhost:4100}
         order: -1
         predicates:
-         - Path=/api/v1/auth/contexts,/api/v1/auth/context/select,/api/v1/auth/session,/api/v1/auth/csrf,/api/v1/auth/logout
+         - Path=/api/v1/auth/contexts,/api/v1/auth/context/select,/api/v1/auth/session,/api/v1/auth/csrf,/api/v1/auth/logout,/api/v1/auth/apps
         filters:
          - StripPrefix=2
       - id: api-auth

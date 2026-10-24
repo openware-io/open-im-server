@@ -1,6 +1,5 @@
 package io.openware.platform.tenant.infra.persistence.repository;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.platform.tenant.domain.app.model.AppInstallation;
 import io.openware.platform.tenant.domain.app.repository.AppInstallationRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.AppInstallationMapper;
@@ -22,17 +21,12 @@ public class AppInstallationRepositoryAdapter implements AppInstallationReposito
 
   @Override
   public Optional<AppInstallation> findByTenantAndApp(Long tenantId, String appId) {
-    return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<AppInstallationPo>()
-        .eq(AppInstallationPo::getTenantId, tenantId)
-        .eq(AppInstallationPo::getAppId, appId))).map(this::toDomain);
+    return Optional.ofNullable(mapper.selectByTenantAndApp(tenantId, appId)).map(this::toDomain);
   }
 
   @Override
   public List<AppInstallation> findByTenant(Long tenantId) {
-    return mapper.selectList(new LambdaQueryWrapper<AppInstallationPo>()
-            .eq(AppInstallationPo::getTenantId, tenantId)
-            .orderByAsc(AppInstallationPo::getId))
-        .stream().map(this::toDomain).toList();
+    return mapper.selectByTenant(tenantId).stream().map(this::toDomain).toList();
   }
 
   @Override

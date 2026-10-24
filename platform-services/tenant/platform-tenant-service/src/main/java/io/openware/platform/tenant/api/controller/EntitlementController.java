@@ -5,6 +5,8 @@ import io.openware.platform.tenant.application.EntitlementApplicationService.Ent
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,6 +24,14 @@ public class EntitlementController {
   @GetMapping("/admin/entitlements")
   public List<EntitlementView> list() {
     return service.list();
+  }
+
+  @PostMapping("/admin/entitlements")
+  public void grant(@RequestBody GrantRequest request) {
+    service.grant(request.featureCode(), request.status());
+  }
+
+  public record GrantRequest(String featureCode, String status) {
   }
 
   @GetMapping("/internal/iam/tenants/{tenantId}/entitlements")

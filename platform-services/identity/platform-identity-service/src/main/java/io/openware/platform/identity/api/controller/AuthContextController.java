@@ -100,7 +100,8 @@ public class AuthContextController {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
         }
         SelectContextResponse selected = service.select(session.accountId(), request.contextId(), session.appId());
-        sessionStore.setActiveContext(sessionId, selected.tenantContextToken());
+        sessionStore.setActiveContext(sessionId, selected.tenantContextToken(),
+            selected.tenantId(), null);
         return new ContextSelectedResponse(true, selected.expiresAt(), selected.tenantId(),
                 selected.organizationId(), selected.storeId(), selected.authorizationVersion(), selected.permissions(),
                 selected.currencyCode());

@@ -83,6 +83,10 @@ public class SaasUserSessionStore {
   }
 
   public void setActiveContext(String sessionId, String tenantContextToken) {
+    setActiveContext(sessionId, tenantContextToken, null, null);
+  }
+
+  public void setActiveContext(String sessionId, String tenantContextToken, Long tenantId, String scopeType) {
     if (tenantContextToken == null || tenantContextToken.isBlank()) {
       throw new IllegalArgumentException("tenant context token is required");
     }
@@ -91,6 +95,11 @@ public class SaasUserSessionStore {
         var value = objectMapper.createObjectNode();
         value.put("accountId", session.accountId());
         if (session.appId() != null && !session.appId().isBlank()) value.put("appId", session.appId());
+        if (session.membershipId() != null) value.put("membershipId", session.membershipId());
+        Long effectiveTenant = tenantId != null ? tenantId : session.tenantId();
+        if (effectiveTenant != null) value.put("tenantId", effectiveTenant);
+        String effectiveScope = scopeType != null ? scopeType : session.scopeType();
+        if (effectiveScope != null && !effectiveScope.isBlank()) value.put("scopeType", effectiveScope);
         value.put("tenantContextToken", tenantContextToken);
         Duration remaining = remainingTtl(sessionId);
         value.put("expiresAt", System.currentTimeMillis() + remaining.toMillis());

@@ -150,3 +150,12 @@ order /business/** B 前端 controller 加 @ClientAudience("saas-b")
 C membership 必须匹配 consumerContext 的 app tenant
 真实 OAuth C/B 回调、Redis session、token clientApp、C↔B 403 已取证
 ```
+
+S4 更新：tnt_app_installation、安装/权益 API、/auth/apps 已实现；真实安装与入口返回 200。
+
+
+S4 更新：网关 /auth/apps、真实安装/卸载/审计、入口空列表已验证。
+
+
+S4 更新：权益写入口 POST /admin/entitlements 已真实开通 HOTEL2。
+

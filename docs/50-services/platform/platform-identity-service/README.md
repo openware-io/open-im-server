@@ -143,3 +143,6 @@ B 取 ACTIVE STAFF，C 取 ACTIVE CUSTOMER；未绑定在回调阶段 403，不�
 Referer 使用精确 origin+path 白名单；带会话无 Referer fail-closed。
 
 C 权限来源定稿：consumer app scope 为权限，CUSTOMER membership 为租户身份门禁。
+
+服务入口：GET /auth/apps?appId=，返回已安装 ∩ 权益 ∩ 客户端族。
+
