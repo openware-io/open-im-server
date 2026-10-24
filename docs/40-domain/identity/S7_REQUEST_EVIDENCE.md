@@ -64,7 +64,7 @@ evidence/s7-trace/admin-hotel-bookings-disabled.body
 没有 trace/span 导出
 ```
 
-管理面 HAR 与 Android logcat 已补；C 端 HAR 已补；trace zip 仍缺。
+管理面 HAR 与 Android logcat 已补；C 端 HAR 与 trace JSON 已补。
 
 ## 4. ERR-001 HTTP 500
 
@@ -161,4 +161,25 @@ GET /api/v1/business/hotel/bookings               -> 200
 先通过 /auth/context/select 刷新 C 会话中的 tenantContextToken
 再以 CDP Network 事件抓取响应体
 HAR 中 cookie 已脱敏
+```
+
+## 9. C 端 trace
+
+```text
+docs/40-domain/identity/evidence/s7-trace/c-hotel-trace.json
+```
+
+采集：
+
+```text
+CDP Tracing.start categories=devtools.timeline,blink.user_timing,loading
+Page.navigate /business/hotel/catalog/hotels
+Tracing.end / Tracing.dataCollected
+```
+
+结果：
+
+```text
+20 个 trace events
+包含 C 端 c-hotel.har 同一次导航的 timeline
 ```
