@@ -1,5 +1,7 @@
 package io.openware.platform.order.hotel;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -88,7 +90,8 @@ public class HotelFrontDeskController {
 
     public record ExtendRequest(LocalDate newCheckOutDate) {}
 
-    public record BookingView(Long id, String bookingNo, String guestName, String roomType, String roomNo,
+    public record BookingView(@JsonSerialize(using = ToStringSerializer.class) Long id,
+                              String bookingNo, String guestName, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,
                               Long amountMinor, String currency) {
         static BookingView from(HotelBookingPo po) {
