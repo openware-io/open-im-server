@@ -45,6 +45,21 @@ public class HotelCustomerBookingController {
         request.guestName(), request.guestPhone(), request.note(), context.accountId());
   }
 
+  @PostMapping("/bookings/{id}/cancel")
+  public HotelBookingPo cancel(
+      @org.springframework.web.bind.annotation.PathVariable Long id) {
+    var context = TenantContextHolder.get();
+    if (context == null || context.accountId() <= 0) {
+      throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
+    }
+    boolean owned = service.listByAccount(null, null, null, context.accountId()).stream()
+        .anyMatch(booking -> id.equals(booking.getId()));
+    if (!owned) {
+      throw new ApiException(404, "HOTEL_BOOKING_NOT_FOUND", "酒店预订不存在");
+    }
+    return service.cancel(id);
+  }
+
   @GetMapping("/bookings")
   public List<HotelBookingPo> list(
       @RequestParam(required = false) String status,
