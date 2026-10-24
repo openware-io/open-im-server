@@ -222,3 +222,29 @@ AuthContextController.createSession
 evidence/s7-trace/identity-session-disabled.headers
 evidence/s7-trace/identity-session-disabled.body
 ```
+
+## 12. gateway 集中校验
+
+真实：
+
+```text
+B admin hotel 200
+C hotel catalog 200
+成员 DISABLED 后 B admin -> 401 AUTHORIZATION_STALE
+```
+
+证据：
+
+```text
+evidence/s7-trace/gateway-authz-disabled.headers
+evidence/s7-trace/gateway-authz-disabled.body
+```
+
+实现：
+
+```text
+GatewayAuthorizationStateFilter
+只对 saas-b / saas-admin / *-h5
+token.authorizationVersion < tenant 快照 -> 401
+C 不拦截，仍由 order 校验
+```
