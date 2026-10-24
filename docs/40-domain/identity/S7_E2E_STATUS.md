@@ -302,3 +302,46 @@ sum(refunded)=30000
 新增：`approveRefund` 校验 `approvedAmount <= order.paidOrZero()`。
 
 部署：`common-payment-service:2.4.0-SNAPSHOT`（此前 deployment 仍是 2.2.0，已切 2.4.0）。
+
+## 15. 隔离矩阵（2026-10-24）
+
+```text
+C token -> GET /admin/hotel/bookings
+-> 403 CLIENT_AUDIENCE_FORBIDDEN
+
+B token -> GET /business/hotel/catalog/hotels
+-> 403 CLIENT_AUDIENCE_FORBIDDEN
+
+无 token -> /admin/hotel/bookings
+-> 403 PERMISSION_DENIED
+
+篡改 C token -> 401 Unauthorized
+
+B store 100 token -> confirm store 102 booking
+-> 404 HOTEL_BOOKING_NOT_FOUND
+```
+
+## 16. 退款账实
+
+```text
+order 11 paid 89900
+refund 2/3/4 各 10000 REFUNDED
+order paid/refundable 59900
+sum(refunded)=30000
+89900-30000=59900
+
+refund 6 60000 approve -> 422 REFUND_EXCEEDS_PAID
+```
+
+## 17. 在线支付外部依赖
+
+```text
+pay_channel_config:
+ALIPAY enabled=0
+WECHAT enabled=0
+STRIPE enabled=0
+pay_channel_provider 无记录
+```
+
+没有可用真实在线商户；C 在线支付/在线退款无法在本地产生真实渠道流水。
+当前只完成 CASH 收款 + 线下退款登记（PENDING→APPROVED→REFUNDED）与订单回冲。
