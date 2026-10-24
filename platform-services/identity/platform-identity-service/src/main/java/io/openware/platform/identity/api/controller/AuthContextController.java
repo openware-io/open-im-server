@@ -64,7 +64,7 @@ public class AuthContextController {
     public ContextsResponse contexts(@RequestParam(value = "appId", required = false) String appId,
                                      HttpServletRequest request) {
         requireApp(appId);
-        appRegistry.requireReferer(appId, request.getHeader("Referer"));
+        appRegistry.requireReferer(appId, request.getHeader("Referer"), hasSessionCookie(request, appId));
         SaasUserSessionStore.UserSession userSession = session(request, appId);
         List<ContextItem> items = service.contexts(userSession.accountId(), userSession.appId());
         return new ContextsResponse(items);
@@ -76,7 +76,7 @@ public class AuthContextController {
                                         @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                                         @RequestBody SelectContextRequest request) {
         requireApp(appId);
-        appRegistry.requireReferer(appId, servletRequest.getHeader("Referer"));
+        appRegistry.requireReferer(appId, servletRequest.getHeader("Referer"), hasSessionCookie(servletRequest, appId));
         String sessionId = sessionId(servletRequest, appId);
         SaasUserSessionStore.UserSession session = session(servletRequest, appId);        if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CSRF_TOKEN_INVALID", "CSRF 令牌缺失或已过期");
@@ -92,7 +92,7 @@ public class AuthContextController {
     public SessionResponse sessionStatus(@RequestParam(value = "appId", required = false) String appId,
                                          HttpServletRequest request) {
         requireApp(appId);
-        appRegistry.requireReferer(appId, request.getHeader("Referer"));
+        appRegistry.requireReferer(appId, request.getHeader("Referer"), hasSessionCookie(request, appId));
         return sessionStore.findSession(sessionId(request, appId))
                 .map(session -> new SessionResponse(true, session.accountId(), session.appId()))
                 .orElse(new SessionResponse(false, null, null));
@@ -102,7 +102,7 @@ public class AuthContextController {
     public CsrfResponse csrf(@RequestParam(value = "appId", required = false) String appId,
                              HttpServletRequest request, HttpServletResponse response) {
         requireApp(appId);
-        appRegistry.requireReferer(appId, request.getHeader("Referer"));
+        appRegistry.requireReferer(appId, request.getHeader("Referer"), hasSessionCookie(request, appId));
         response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         response.setHeader("Pragma", "no-cache");
         return new CsrfResponse(sessionStore.issueCsrfToken(sessionId(request, appId)));
@@ -114,7 +114,7 @@ public class AuthContextController {
                        @RequestHeader(value = "X-CSRF-Token", required = false) String csrfToken,
                        HttpServletResponse response) {
         requireApp(appId);
-        appRegistry.requireReferer(appId, request.getHeader("Referer"));
+        appRegistry.requireReferer(appId, request.getHeader("Referer"), hasSessionCookie(request, appId));
         appRegistry.requireType(appId);
         String sessionId = sessionId(request, appId);
         if (!sessionStore.isCsrfTokenValid(sessionId, csrfToken)) {
@@ -122,6 +122,19 @@ public class AuthContextController {
         }
         sessionStore.deleteSession(sessionId);
         SaasUserSessionCookie.clear(response, appRegistry.cookieName(appId, plainCookie));
+    }
+
+    private boolean hasSessionCookie(HttpServletRequest request, String appId) {
+        if (request.getCookies() == null) {
+            return false;
+        }
+        boolean backend = appRegistry.isBackend(appId);
+        for (var cookie : request.getCookies()) {
+            if (backend ? isBFamily(cookie.getName()) : isCFamily(cookie.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void requireApp(String appId) {

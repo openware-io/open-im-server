@@ -139,3 +139,5 @@ B 取 ACTIVE STAFF，C 取 ACTIVE CUSTOMER；未绑定在回调阶段 403，不�
 - OAuth 回调创建 session 时写入 `membershipId`、`tenantId`、`membershipType`。
 - 回调响应同步返回 `accountId/appId/membershipId/tenantId`。
 - C context 以 ACTIVE CUSTOMER membership 为前置门禁。
+
+Referer 使用精确 origin+path 白名单；带会话无 Referer fail-closed。

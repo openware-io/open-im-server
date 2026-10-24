@@ -2,6 +2,7 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.infrastructure.tenant.ClientAudience;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
@@ -40,6 +41,7 @@ import java.util.List;
  *       前端直接按本地时钟渲染，不要再做 UTC 转换（列注释此前误写为 UTC，基线重建时已纠正）。</li>
  * </ul>
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/reservations")
 public class ReservationController {

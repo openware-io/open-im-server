@@ -207,3 +207,9 @@ POST /business/hotel/catalog/quotes
 - 目录返回酒店、房型、房价计划；
 - 报价按入住夜读取库存/每日房价，`available` 与总价同时返回；
 - C 端下单/支付仍待接入。
+
+## C/B audience
+
+- order /admin/** 与 B 前台 /business/reservations|orders|ktv/** 要求 saas-b。
+- /business/hotel/catalog/** 要求 saas-c。
+- 有 TenantContext 但缺 clientApp 的用户 token 拒绝。

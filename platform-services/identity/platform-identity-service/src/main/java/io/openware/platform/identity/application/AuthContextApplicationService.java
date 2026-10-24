@@ -46,13 +46,14 @@ public class AuthContextApplicationService {
         try {
             if (appId != null && !appId.isBlank()) {
                 if (!appRegistry.isBackend(appId)) {
-                    requireCustomer(accountId);
-                    // C 端/消费者应用：任意 IM 账号（未授权先授权）→ consumer 应用授权上下文
+                    // C 端：consumer 授权给出 app 租户；该租户下必须有 ACTIVE CUSTOMER membership。
                     TenantServiceClient.TenantContext consumer = tenantClient.consumerContext(accountId, appId);
-                    if (consumer != null) {
-                        return List.of(toContextItem(consumer));
+                    if (consumer == null || consumer.tenantId() == null) {
+                        throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                            "当前账号未绑定为租户客户");
                     }
-                    return List.of();
+                    requireCustomer(accountId, consumer.tenantId());
+                    return List.of(toContextItem(consumer));
                 }
                 // 运营后台类应用（如 saas-a380-h5 /b/）：审核 = 该账号是否已在 SaaS 租户后台
                 // 注册为运营人员。B 端原生员工没有 consumer 授权锚点，因此不能强制要求 consumerContext；
@@ -102,10 +103,11 @@ public class AuthContextApplicationService {
         }
     }
 
-    private void requireCustomer(Long accountId) {
-        boolean customer = tenantClient.memberships(accountId).stream()
+    private void requireCustomer(Long accountId, Long tenantId) {
+        boolean customer = tenantId != null && tenantClient.memberships(accountId).stream()
             .anyMatch(membership -> "CUSTOMER".equals(membership.membershipType())
-                && "ACTIVE".equals(membership.status()));
+                && "ACTIVE".equals(membership.status())
+                && tenantId.equals(membership.tenantId()));
         if (!customer) {
             throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
                 "当前账号未绑定为租户客户");
@@ -148,7 +150,7 @@ public class AuthContextApplicationService {
         }
         try {
             if (contextId.startsWith("consumer:")) {
-                requireCustomer(accountId);
+                requireCustomer(accountId, scope.tenantId());
             }
             TenantServiceClient.PermissionSnapshot snapshot = contextId.startsWith("consumer:")
                     ? (appId == null ? null : tenantClient.consumerPermissions(accountId, appId, contextId))

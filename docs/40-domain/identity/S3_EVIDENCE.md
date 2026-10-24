@@ -82,14 +82,15 @@ resource_id=saas-a380-c
 result=SUCCESS
 ```
 
-## 8. 未覆盖
+## 8. 仍未覆盖
 
 ```text
-真实 IM OAuth code 回调（当前环境无可用测试 IM 授权码）
-CUSTOMER membership + cst_member 首登建客户
-非酒店全量 API audience 矩阵
+CUSTOMER membership + cst_member 首登建客户（S5）
 Android 真机
+原始 X-Request-Id/HAR（当前为 curl 输出与 DB/Redis 核对）
 ```
+
+真实 IM OAuth code 回调已由第 10 节覆盖；本节不再声明“未覆盖真实 OAuth”。
 
 本证据不替代 S4–S7；S3 仍未签字。
 
@@ -161,3 +162,29 @@ B token -> order /business/hotel/catalog/hotels -> 403 CLIENT_AUDIENCE_FORBIDDEN
 ## 13. 真实回调修复
 
 真实 OAuth 回调暴露 `idt_profile_sync_record` 缺少 created_at/updated_at 写入，导致 500；已补审计列写入后回调 200。
+
+## 14. Referer fail-closed（2026-10-24）
+
+```text
+带 B cookie + 无 Referer，请求 appId=saas-a380-h5
+-> 403 CLIENT_ORIGIN_REQUIRED
+
+带 B cookie + Referer=https://evil/saas/
+-> 403 CLIENT_ORIGIN_FORBIDDEN
+
+带 C+B cookie + Referer=http://127.0.0.1:30080/a380/，请求 B appId
+-> 403 CLIENT_ORIGIN_FORBIDDEN
+
+带 B cookie + Referer=http://127.0.0.1:30080/saas/
+-> 200 authenticated=true
+```
+
+## 15. order `/business/**` B audience
+
+```text
+ReservationController / OrderController / OrderBillController / OrderItemController
+PendingApprovalController / OrderVoidApprovalController / KtvServerController / KtvPricingController
+均标注 @ClientAudience("saas-b")
+```
+
+C token 调 `/business/orders` 不能通过 audience；单测 `HotelClientAudienceInterceptorTest` 覆盖跨族 403。

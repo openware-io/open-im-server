@@ -140,3 +140,13 @@ OAuth 回调 session 写入 membershipId/tenantId/membershipType
 admin-service /admin/**、customer-service /business/** 增加 clientApp 门禁
 S3-APP-REGISTRY-001 已登记 ENGINEERING_DEBT_EXCEPTIONS / GATE_REGISTRY
 ```
+
+S3 复判修复（第二批）：
+
+```text
+Referer 改为精确 origin+path 白名单；带会话无 Referer -> 403 CLIENT_ORIGIN_REQUIRED
+双 cookie 下 C 页面传 B appId -> 403 CLIENT_ORIGIN_FORBIDDEN
+order /business/** B 前端 controller 加 @ClientAudience("saas-b")
+C membership 必须匹配 consumerContext 的 app tenant
+真实 OAuth C/B 回调、Redis session、token clientApp、C↔B 403 已取证
+```

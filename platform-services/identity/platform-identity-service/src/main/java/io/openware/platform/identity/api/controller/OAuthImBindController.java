@@ -50,8 +50,15 @@ public class OAuthImBindController {
         BindResult result = bindService.bindByCode(request.code(), request.codeVerifier(), request.redirectUri(),
                 resolvedAppId, request.state(), request.nonce());
         String expectedType = appRegistry.isBackend(resolvedAppId) ? "STAFF" : "CUSTOMER";
+        Long expectedTenant = null;
+        if (!appRegistry.isBackend(resolvedAppId)) {
+            var consumer = tenantClient.consumerContext(result.accountId(), resolvedAppId);
+            expectedTenant = consumer == null ? null : consumer.tenantId();
+        }
+        final Long tenantFilter = expectedTenant;
         var membership = tenantClient.memberships(result.accountId()).stream()
             .filter(item -> expectedType.equals(item.membershipType()) && "ACTIVE".equals(item.status()))
+            .filter(item -> tenantFilter == null || tenantFilter.equals(item.tenantId()))
             .findFirst().orElse(null);
         String sessionId = sessionStore.createSession(result.accountId(), resolvedAppId,
             membership == null ? null : membership.id(),

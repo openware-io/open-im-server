@@ -8,10 +8,12 @@ import io.openware.platform.order.application.OrderVoidApprovalApplicationServic
 import io.openware.platform.order.domain.order.model.OrderVoidApproval;
 import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.Persisted;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /** v1 订单作废申请/审批 API；真实订单写入仍由 Order 域应用服务执行。 */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/orders/void-approvals")
 public class OrderVoidApprovalController {

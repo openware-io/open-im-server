@@ -25,12 +25,16 @@ class SaasAppRegistryTest {
 
   @Test
   void refererFamilyIsEnforced() {
-    registry.requireReferer("saas-hotel-c", "http://localhost/a380/");
-    registry.requireReferer("saas-hotel-b", "http://localhost/saas/");
+    registry.requireReferer("saas-hotel-c", "http://127.0.0.1:30080/a380/", false);
+    registry.requireReferer("saas-hotel-b", "http://127.0.0.1:30080/saas/", false);
     assertThrows(ApiException.class,
-        () -> registry.requireReferer("saas-hotel-b", "http://localhost/a380/"));
+        () -> registry.requireReferer("saas-hotel-b", "http://127.0.0.1:30080/a380/", false));
     assertThrows(ApiException.class,
-        () -> registry.requireReferer("saas-hotel-c", "http://localhost/saas/"));
+        () -> registry.requireReferer("saas-hotel-c", "http://127.0.0.1:30080/saas/", false));
+    assertThrows(ApiException.class,
+        () -> registry.requireReferer("saas-hotel-b", "https://evil/saas/", false));
+    assertThrows(ApiException.class,
+        () -> registry.requireReferer("saas-hotel-b", null, true));
   }
 
   @Test

@@ -3,14 +3,19 @@ package io.openware.platform.order.api.controller;
 import io.openware.platform.order.api.dto.KtvServerSessionView;
 import io.openware.platform.order.application.KtvServerSessionApplicationService;
 import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.PathVariable;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.PostMapping;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 服务人员点单结束/取消（点单入口在 {@link OrderController#orderServer}，路径 /business/orders/{id}/servers）。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/ktv/servers")
 public class KtvServerController {

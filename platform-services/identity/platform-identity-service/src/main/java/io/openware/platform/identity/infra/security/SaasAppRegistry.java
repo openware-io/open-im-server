@@ -2,6 +2,7 @@ package io.openware.platform.identity.infra.security;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
+import java.net.URI;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -29,8 +30,8 @@ public class SaasAppRegistry {
   public SaasAppRegistry(
       @Value("${saas.apps.consumer:}") String consumers,
       @Value("${saas.apps.backend:}") String backends,
-      @Value("${saas.apps.consumer-referers:/a380/,/c/}") String consumerReferers,
-      @Value("${saas.apps.backend-referers:/saas/,/b/}") String backendReferers) {
+      @Value("${saas.apps.consumer-referers:http://127.0.0.1:30080/a380/,http://localhost:30080/a380/,http://192.168.3.35:30080/a380/}") String consumerReferers,
+      @Value("${saas.apps.backend-referers:http://127.0.0.1:30080/saas/,http://localhost:30080/saas/,http://192.168.3.35:30080/saas/,http://127.0.0.1:30080/b/,http://localhost:30080/b/,http://192.168.3.35:30080/b/}") String backendReferers) {
     this.consumers.addAll(split(consumers));
     this.backends.addAll(split(backends));
     this.consumerReferers.addAll(split(consumerReferers));
@@ -43,17 +44,39 @@ public class SaasAppRegistry {
   }
 
   public SaasAppRegistry(String consumers, String backends) {
-    this(consumers, backends, "/a380/,/c/", "/saas/,/b/");
+    this(consumers, backends,
+        "http://127.0.0.1:30080/a380/,http://localhost:30080/a380/",
+        "http://127.0.0.1:30080/saas/,http://localhost:30080/saas/,http://127.0.0.1:30080/b/,http://localhost:30080/b/");
   }
 
-  /** 浏览器请求的 Referer 路径必须属于声明的客户端族；无 Referer 的非浏览器调用不拦截。 */
-  public void requireReferer(String appId, String referer) {
+  /** 浏览器请求的 Referer 必须是精确 origin+path 白名单；带会话但无 Referer 时 fail-closed。 */
+  public void requireReferer(String appId, String referer, boolean hasSessionCookie) {
     if (referer == null || referer.isBlank()) {
+      if (hasSessionCookie) {
+        throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_ORIGIN_REQUIRED",
+            "缺少请求来源");
+      }
       return;
     }
     boolean backend = requireType(appId) == ClientType.B;
-    boolean allowed = (backend ? backendReferers : consumerReferers).stream()
-        .anyMatch(referer::contains);
+    URI actual;
+    try {
+      actual = URI.create(referer);
+    } catch (IllegalArgumentException exception) {
+      throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_ORIGIN_FORBIDDEN", "请求来源非法");
+    }
+    boolean allowed = (backend ? backendReferers : consumerReferers).stream().anyMatch(prefix -> {
+      try {
+        URI expected = URI.create(prefix);
+        return actual.getScheme() != null && actual.getScheme().equalsIgnoreCase(expected.getScheme())
+            && actual.getHost() != null && actual.getHost().equalsIgnoreCase(expected.getHost())
+            && actual.getPort() == expected.getPort()
+            && actual.getPath() != null && actual.getPath().startsWith(expected.getPath());
+      // degradation: malformed configured prefix is ignored; it cannot authorize a request
+      } catch (IllegalArgumentException ignored) {
+        return false;
+      }
+    });
     if (!allowed) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_ORIGIN_FORBIDDEN",
           "请求来源与客户端族不一致");

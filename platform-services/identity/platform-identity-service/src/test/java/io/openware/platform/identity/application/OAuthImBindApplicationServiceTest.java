@@ -91,6 +91,9 @@ class OAuthImBindApplicationServiceTest {
     when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-hotel-c", "open-c"))
         .thenReturn(List.of(OauthLink.bind(10L, "IM", "saas-hotel-c", "open-c", "scope")));
     when(tokenProvider.createAccessToken(10L, "open-c", 0)).thenReturn("signed-jwt");
+    when(tenantServiceClient.consumerContext(10L, "saas-hotel-c")).thenReturn(
+        new TenantServiceClient.TenantContext("consumer:saas-hotel-c:100:100:100", 100L, "A380",
+            100L, "HQ", 100L, "Store", List.of("CONSUMER"), "CONSUMER"));
     when(tenantServiceClient.memberships(10L)).thenReturn(List.of());
 
     var error = org.junit.jupiter.api.Assertions.assertThrows(

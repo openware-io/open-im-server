@@ -17,6 +17,7 @@ import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
 import io.openware.platform.order.domain.order.model.Order;
 import java.util.List;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
  * {@link KtvServerSessionApplicationService}；取消/作废委托
  * {@link OrderCancellationApplicationService}。本类只做协议转换与端点权限守卫。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business")
 public class OrderController {
