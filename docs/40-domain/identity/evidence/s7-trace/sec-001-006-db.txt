@@ -26,7 +26,7 @@ SELECT authorization_version FROM tnt_membership WHERE id = 1;
 SEC-005 C/B cookie 混用后无 B 会话
 ==================================
 请求：
-POST /api/v1/auth/session?appId=saas-a380-h5
+GET /api/v1/auth/session?appId=saas-a380-h5
 Referer: http://127.0.0.1:30080/a380/
 Cookie: saas_c_session=6362706ba13d4405913644f9de5befa2
 

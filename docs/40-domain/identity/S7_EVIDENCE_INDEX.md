@@ -12,6 +12,7 @@
 | BROWSER-B 办理退房 | PASS | `evidence/s7-b-checkout.png`、booking CHECKED_OUT / room DIRTY |
 | BROWSER-B 客房清扫 | PASS | `evidence/s7-b-housekeeping.png`、task DONE / room ACTIVE |
 | BROWSER-B 夜审 | PASS | `evidence/s7-b-night-audit.png`、htl_night_audit |
+| BROWSER-B 退款审批/登记 | PASS | `evidence/s7-b-refund-ui.png`、refund REFUNDED / order paid 回冲 |
 | BROWSER-C 真实酒店目录 | PASS | `evidence/s7-c-home.png` |
 | BROWSER-C 真实预订 | PASS | `evidence/s7-c-real-booking.png`、`s7-c-my-orders.png` |
 | BROWSER-C 取消预订 | PASS | `evidence/s7-c-cancel.png`、booking CANCELLED |

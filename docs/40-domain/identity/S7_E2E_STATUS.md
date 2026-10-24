@@ -721,3 +721,22 @@ evidence/s7-c-cancel.png
 ```
 
 C 在线退款仍 deferred；线下退款由 B 前台处理。
+
+## 11. B 退款 UI（2026-10-24）
+
+真实：
+
+```text
+pay_refund 9  10000 PENDING
+退款处理 -> 批准 -> APPROVED
+登记退款 -> REFUNDED
+ord_order 13 paid 89900 -> 79900
+```
+
+截图：
+
+```text
+evidence/s7-b-refund-ui.png
+```
+
+说明：线上退款仍 deferred；本次为线下退款登记。

@@ -8,7 +8,7 @@
 | ID | 用例 | 结果 | 证据 |
 | --- | --- | --- | --- |
 | SEC-001 | 跨租户/门店 booking 访问 | 404 | `evidence/s7-trace/sec-001-cross-store.har`；X-Request-Id e8e60c8e-598e-4eec-907d-0412247b9eff；DB store102 |
-| SEC-002 | 跨门店资源 | 404 | `evidence/s7-trace/sec-002-cross-store.har`；DB store102 |
+| SEC-002 | 跨门店资源 | 404 | `evidence/s7-trace/sec-002-cross-store.har`；X-Request-Id 202cf173-f6ee-4893-815c-bdd11278df6f；DB store102 |
 | SEC-003 | 客户端篡改 token | 401 | `evidence/s7-trace/sec-003-tampered.har`；X-Request-Id 9a62a017-6af5-4612-a439-947e455bfec9 |
 | SEC-004 | 客户端篡改 permissions | 401 | `evidence/s7-trace/sec-004-perm.har`；X-Request-Id e90d1392-3984-4f3d-9cb0-7ea63f55f7ff |
 | SEC-005 | C/B cookie 混用 | 403 CLIENT_ORIGIN_FORBIDDEN | `evidence/s7-trace/sec-005-cookie.har`；X-Request-Id ad36d833937d8428e8600ca53a55287f |
