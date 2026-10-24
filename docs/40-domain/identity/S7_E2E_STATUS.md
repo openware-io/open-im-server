@@ -33,7 +33,7 @@ GET /api/v1/admin/contexts -> {"items":[]}
 已改为 identity account `101`，重新登录返回 `platformAccountId=101`；
 浏览器完整上下文选择尚未复测。
 
-## 2. 未通过项
+## 2. 未通过项（历史过程，当前见 CONDITIONAL PASS）
 
 ```text
 B Web 租户上下文选择 / 酒店页面
@@ -98,7 +98,7 @@ POST /api/v1/admin/context/select {"contextId":"100:100:102"} -> 200
 docs/40-domain/identity/evidence/s7-b-hotel.png
 ```
 
-## 6. C H5 当前阻塞
+## 6. C H5 当前阻塞（历史过程）
 
 ```text
 Chrome 直接导航 /a380/ 无 Referer -> gateway unauthorized
@@ -106,7 +106,7 @@ Chrome 直接导航 /a380/ 无 Referer -> gateway unauthorized
 H5 仍跳 /oauth/authorize；需继续定位 session 检查
 ```
 
-## 7. Android 当前阻塞
+## 7. Android 当前阻塞（历史过程）
 
 ```text
 APK 安装/启动成功
@@ -115,7 +115,7 @@ APK 安装/启动成功
 设备被误触到系统搜索
 ```
 
-S7 仍未通过。
+（历史记录）S7 当时未通过；当前见 CONDITIONAL PASS。
 
 ## 8. Android 真机登录成功（2026-10-24）
 
