@@ -269,3 +269,36 @@ GET /admin/hotel/bookings
 ```
 
 C token 有 hotel.booking.view，但 audience 为 saas-c，B 端点仍拒绝。
+
+## 14. B 退款账务联动（2026-10-24）
+
+问题：退款置 REFUNDED 后 `ord_order.paid_amount/refundable_amount` 未回冲。
+
+修复：
+
+```text
+OrderBillingRepository.markRefunded
+-> UPDATE ord_order
+   paid_amount = GREATEST(0, paid_amount - refund)
+   refundable_amount = GREATEST(0, refundable_amount - refund)
+RefundApplicationService.markRefunded 调用并失败回滚
+```
+
+真实：
+
+```text
+order 11 paid 89900
+refund 2 10000 REFUNDED
+refund 3 10000 REFUNDED
+refund 4 10000 REFUNDED
+refund 5 60000 APPROVED（修复前，已置 REJECTED）
+refund 6 60000 审批 -> 422 REFUND_EXCEEDS_PAID
+
+order 11 paid/refundable = 59900
+sum(refunded)=30000
+89900 - 30000 = 59900
+```
+
+新增：`approveRefund` 校验 `approvedAmount <= order.paidOrZero()`。
+
+部署：`common-payment-service:2.4.0-SNAPSHOT`（此前 deployment 仍是 2.2.0，已切 2.4.0）。

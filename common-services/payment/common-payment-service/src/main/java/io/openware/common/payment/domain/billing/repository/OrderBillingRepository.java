@@ -64,4 +64,8 @@ public interface OrderBillingRepository {
    * 就去锁住订单主行——那会让退款申请与收款互相阻塞。订单不存在时返回空（调用方按缺省币种处理）。
    */
   Optional<String> findCurrencyCode(Long tenantId, Long orderId);
+
+  /** 退款落账：回冲订单已收与可退金额；金额不得小于 0。 */
+  boolean markRefunded(Long tenantId, Long orderId, BigDecimal refundAmount);
+
 }

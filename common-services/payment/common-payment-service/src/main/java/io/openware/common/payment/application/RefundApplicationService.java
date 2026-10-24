@@ -125,6 +125,12 @@ public class RefundApplicationService {
             if (refund.requestedAmount() != null && approvedAmount.compareTo(refund.requestedAmount()) > 0) {
                 throw new IllegalStateException("REFUND_AMOUNT_EXCEEDS_REQUEST");
             }
+            if (orderBillingRepository != null && refund.orderId() != null) {
+                var order = orderBillingRepository.findForUpdate(refund.tenantId(), refund.orderId()).orElse(null);
+                if (order != null && approvedAmount.compareTo(order.paidOrZero()) > 0) {
+                    throw new ApiException(422, "REFUND_EXCEEDS_PAID", "退款金额超过订单可退金额");
+                }
+            }
             Refund approved = withStatus(refund, STATUS_APPROVED, approvedAmount, approvedBy, null);
             Persisted<Refund> approvedRow =
                     transactionGuarded(approved, STATUS_PENDING, "approve");
@@ -189,6 +195,12 @@ public class RefundApplicationService {
             Refund refunded = withStatus(refund, STATUS_REFUNDED, refund.approvedAmount(), refund.approvedBy(),
                     providerRefundNo);
             Persisted<Refund> refundedRow = transactionGuarded(refunded, STATUS_APPROVED, "refund");
+            if (orderBillingRepository != null && refund.orderId() != null
+                    && refund.approvedAmount() != null) {
+                if (!orderBillingRepository.markRefunded(refund.tenantId(), refund.orderId(), refund.approvedAmount())) {
+                    throw new IllegalStateException("REFUND_ORDER_UPDATE_FAILED");
+                }
+            }
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(refund.tenantId())
                     .operatorId(operatorId)

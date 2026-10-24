@@ -64,4 +64,18 @@ public interface OrderBillingMapper {
                  @Param("expectedPaidAmount") BigDecimal expectedPaidAmount,
                  @Param("newPaidAmount") BigDecimal newPaidAmount,
                  @Param("totalAmount") BigDecimal totalAmount);
+
+    /** 退款落账：回冲已收与可退，金额不为负。 */
+    @Update("""
+            UPDATE ord_order
+               SET paid_amount = GREATEST(0, paid_amount - #{refundAmount}),
+                   refundable_amount = GREATEST(0, refundable_amount - #{refundAmount}),
+                   updated_at = CURRENT_TIMESTAMP(3)
+             WHERE tenant_id = #{tenantId} AND id = #{orderId}
+               AND status NOT IN ('CANCELLED', 'VOIDED')
+            """)
+    int markRefunded(@Param("tenantId") Long tenantId,
+                     @Param("orderId") Long orderId,
+                     @Param("refundAmount") BigDecimal refundAmount);
+
 }

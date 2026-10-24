@@ -52,6 +52,11 @@ public class OrderBillingRepositoryAdapter implements OrderBillingRepository {
         : Optional.of(currencyCode);
   }
 
+  @Override
+  public boolean markRefunded(Long tenantId, Long orderId, BigDecimal refundAmount) {
+    return mapper.markRefunded(tenantId, orderId, refundAmount) == 1;
+  }
+
   private static OrderReceivable toDomain(OrderBillingPo po) {
     return new OrderReceivable(po.getId(), po.getStatus(), po.getTotalAmount(), po.getPaidAmount(),
         po.getCurrencyCode());
