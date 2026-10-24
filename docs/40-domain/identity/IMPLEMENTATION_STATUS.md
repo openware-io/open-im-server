@@ -48,3 +48,6 @@ B. 产品/财务/安全签署 cash-only 范围变更，S7 条件通过并保留�
 ```
 
 在 A/B 之前继续可执行项：Android 全 C 流、ERR-001/002、HAR/logcat/trace 证据。
+
+S7 更新：Android 真实下单/我的订单已过；本地 E2E seed 可复现。
+

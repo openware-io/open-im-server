@@ -446,3 +446,59 @@ approved_amount=60000
 ```
 
 说明：这是 transport/服务不可用级别证据，未覆盖 HTTP 5xx 包装与网关超时页面。
+
+## 22. Android 真实下单/我的订单（2026-10-24）
+
+真机操作：
+
+```text
+服务 -> 酒店 -> A380 Hotel
+Deluxe King
+2026-10-25 ~ 2026-10-26
+实时报价 ¥899.00
+入住人 AndroidGuest / 13800000014
+提交预订
+-> HTL1792855990895433
+-> PENDING_PAYMENT
+```
+
+我的订单：
+
+```text
+HTL1792855990895433 PENDING_PAYMENT
+HTL1792855592481956 PENDING_PAYMENT
+HTL1792855173541441 CONFIRMED
+HTL1792816675868789 CANCELLED
+...
+```
+
+截图：
+
+```text
+docs/40-domain/identity/evidence/s7-android-booking.png
+docs/40-domain/identity/evidence/s7-android-orders.png
+```
+
+APP-011 / APP-013 已过；APP-012 在线支付仍 deferred。
+
+## 23. 可复现 seed
+
+```text
+scripts/migration/s7-local-e2e-seed.sql
+```
+
+幂等覆盖：
+
+```text
+cons_admin_account platform_account_id=101
+STAFF/CUSTOMER membership account101
+cst_member account101
+store 102/100 owner bindings
+未来 14 天房态
+```
+
+连续执行两次计数不变：
+
+```text
+store=1 staff=1 customer=1 inventory=18
+```
