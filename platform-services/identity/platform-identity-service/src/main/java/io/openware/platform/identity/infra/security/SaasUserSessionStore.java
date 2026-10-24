@@ -31,11 +31,19 @@ public class SaasUserSessionStore {
   }
 
   public String createSession(long accountId, String appId) {
+    return createSession(accountId, appId, null, null, null);
+  }
+
+  public String createSession(long accountId, String appId, Long membershipId, Long tenantId,
+                              String scopeType) {
     String sessionId = newSessionId();
     try {
       var value = objectMapper.createObjectNode();
       value.put("accountId", accountId);
       if (appId != null && !appId.isBlank()) value.put("appId", appId);
+      if (membershipId != null) value.put("membershipId", membershipId);
+      if (tenantId != null) value.put("tenantId", tenantId);
+      if (scopeType != null && !scopeType.isBlank()) value.put("scopeType", scopeType);
       redisTemplate.opsForValue().set(PREFIX + sessionId, objectMapper.writeValueAsString(value), TTL);
       if (appId != null && !appId.isBlank()) {
         String indexKey = ACCOUNT_APP_PREFIX + accountId + ":" + appId;
@@ -64,7 +72,10 @@ public class SaasUserSessionStore {
       }
       String contextToken = value.path("tenantContextToken").asText(null);
       String appId = value.path("appId").asText(null);
-      return Optional.of(new UserSession(accountId, contextToken, appId));
+      Long membershipId = value.has("membershipId") ? value.path("membershipId").asLong() : null;
+      Long tenantId = value.has("tenantId") ? value.path("tenantId").asLong() : null;
+      String scopeType = value.path("scopeType").asText(null);
+      return Optional.of(new UserSession(accountId, contextToken, appId, membershipId, tenantId, scopeType));
     // degradation: unusable stored session means no principal (fail-closed)
     } catch (Exception exception) {
       return Optional.empty();
@@ -146,9 +157,14 @@ public class SaasUserSessionStore {
     return UUID.randomUUID().toString().replace("-", "");
   }
 
-  public record UserSession(long accountId, String tenantContextToken, String appId) {
+  public record UserSession(long accountId, String tenantContextToken, String appId,
+                            Long membershipId, Long tenantId, String scopeType) {
+    public UserSession(long accountId, String tenantContextToken, String appId) {
+      this(accountId, tenantContextToken, appId, null, null, null);
+    }
+
     public UserSession(long accountId, String tenantContextToken) {
-      this(accountId, tenantContextToken, null);
+      this(accountId, tenantContextToken, null, null, null, null);
     }
   }
         }

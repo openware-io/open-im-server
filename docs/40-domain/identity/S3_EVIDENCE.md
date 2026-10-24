@@ -92,3 +92,10 @@ Android 真机
 ```
 
 本证据不替代 S4–S7；S3 仍未签字。
+
+## 9. C membership 门禁（2026-10-24）
+
+`	ext
+无 CUSTOMER membership -> 403 CUSTOMER_NOT_BOUND
+插入 ACTIVE CUSTOMER membership -> /auth/contexts 200 consumer:saas-a380-c:100:100:100
+`

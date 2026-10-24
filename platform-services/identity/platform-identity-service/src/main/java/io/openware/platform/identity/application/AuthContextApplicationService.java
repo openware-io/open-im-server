@@ -46,6 +46,7 @@ public class AuthContextApplicationService {
         try {
             if (appId != null && !appId.isBlank()) {
                 if (!appRegistry.isBackend(appId)) {
+                    requireCustomer(accountId);
                     // C 端/消费者应用：任意 IM 账号（未授权先授权）→ consumer 应用授权上下文
                     TenantServiceClient.TenantContext consumer = tenantClient.consumerContext(accountId, appId);
                     if (consumer != null) {
@@ -101,6 +102,16 @@ public class AuthContextApplicationService {
         }
     }
 
+    private void requireCustomer(Long accountId) {
+        boolean customer = tenantClient.memberships(accountId).stream()
+            .anyMatch(membership -> "CUSTOMER".equals(membership.membershipType())
+                && "ACTIVE".equals(membership.status()));
+        if (!customer) {
+            throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                "当前账号未绑定为租户客户");
+        }
+    }
+
     private static ApiException staffNotBound() {
         return new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
                 "当前账号未绑定为租户员工，请联系租户管理员");
@@ -136,6 +147,9 @@ public class AuthContextApplicationService {
                     "contextId 格式非法，应为 tenantId:organizationId:storeId");
         }
         try {
+            if (contextId.startsWith("consumer:")) {
+                requireCustomer(accountId);
+            }
             TenantServiceClient.PermissionSnapshot snapshot = contextId.startsWith("consumer:")
                     ? (appId == null ? null : tenantClient.consumerPermissions(accountId, appId, contextId))
                     // 选择/切换上下文时强制刷新权限快照：刚调整的角色权限立即生效

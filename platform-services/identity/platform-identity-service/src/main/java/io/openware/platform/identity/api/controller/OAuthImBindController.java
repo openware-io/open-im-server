@@ -49,18 +49,20 @@ public class OAuthImBindController {
         appRegistry.requireType(resolvedAppId);
         BindResult result = bindService.bindByCode(request.code(), request.codeVerifier(), request.redirectUri(),
                 resolvedAppId, request.state(), request.nonce());
-        String sessionId = sessionStore.createSession(result.accountId(), resolvedAppId);
+        String expectedType = appRegistry.isBackend(resolvedAppId) ? "STAFF" : "CUSTOMER";
+        var membership = tenantClient.memberships(result.accountId()).stream()
+            .filter(item -> expectedType.equals(item.membershipType()) && "ACTIVE".equals(item.status()))
+            .findFirst().orElse(null);
+        String sessionId = sessionStore.createSession(result.accountId(), resolvedAppId,
+            membership == null ? null : membership.id(),
+            membership == null ? null : membership.tenantId(),
+            membership == null ? null : membership.membershipType());
         String cookieName = appRegistry.cookieName(resolvedAppId, plainCookie);
         if (plainCookie) {
             SaasUserSessionCookie.setPlain(response, sessionId, cookieName);
         } else {
             SaasUserSessionCookie.set(response, sessionId, cookieName);
         }
-        var memberships = tenantClient.memberships(result.accountId());
-        String expectedType = appRegistry.isBackend(resolvedAppId) ? "STAFF" : "CUSTOMER";
-        var membership = memberships.stream()
-            .filter(item -> expectedType.equals(item.membershipType()) && "ACTIVE".equals(item.status()))
-            .findFirst().orElse(null);
         return new AuthenticatedResponse(true, result.accountId(), resolvedAppId,
             membership == null ? null : membership.id(),
             membership == null ? null : membership.tenantId());

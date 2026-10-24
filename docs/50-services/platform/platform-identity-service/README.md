@@ -133,3 +133,9 @@ tenantId
 ```
 
 B 取 ACTIVE STAFF，C 取 ACTIVE CUSTOMER；未绑定在回调阶段 403，不建 session。
+
+回调会话上下文：
+
+- OAuth 回调创建 session 时写入 `membershipId`、`tenantId`、`membershipType`。
+- 回调响应同步返回 `accountId/appId/membershipId/tenantId`。
+- C context 以 ACTIVE CUSTOMER membership 为前置门禁。

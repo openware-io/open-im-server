@@ -62,3 +62,16 @@ validate-flyway-conventions.ps1 PASS
 
 - [S2 迁移与冻结计划](../../40-domain/identity/S2_MIGRATION_PLAN.md)
 - [身份与授权硬门禁](../../40-domain/identity/IDENTITY_GUARDRAILS.md)
+
+## S3-APP-REGISTRY-001
+
+```text
+检查：S3 应用注册表
+现状：saas.apps.consumer/backend 配置桥，非 IM open_application
+已收紧：无默认列表；空配置拒绝所有 app；C/B 双登记启动失败
+未覆盖：redirect_uri 白名单、scopes、APPROVED/SUSPENDED 状态；当前由 IM token exchange 兜底
+负责人：platform-identity-service + platform-tenant-service 负责人
+到期：2026-12-31
+补充验证：S4 切换 open_application 后补 redirect/scopes/status 测试；期间新增 app 必须显式配置并过 C/B 冲突检查
+退出：S4 完成 open_application 注册表接入
+```

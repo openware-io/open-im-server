@@ -50,6 +50,7 @@ class AuthContextApplicationServiceTest {
 
   @Test
   void contexts_returnsRegisteredConsumerContextWhenOperatorContextsAreEmpty() {
+    stubCustomer(158L);
     when(tenantClient.contexts(158L)).thenReturn(List.of());
     when(tenantClient.consumerContext(158L, "saas-a380-c")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-a380-c:100:100:100", 100L, "A380",
@@ -63,6 +64,7 @@ class AuthContextApplicationServiceTest {
 
   @Test
   void contexts_prefersRegisteredConsumerContextOverOperatorContexts() {
+    stubCustomer(158L);
     when(tenantClient.contexts(158L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("2::", 2L, "Operations", null, null, null, null,
             List.of("TENANT_ADMIN"), "TENANT")));
@@ -136,6 +138,11 @@ class AuthContextApplicationServiceTest {
     assertEquals("STAFF_NOT_BOUND", exception.getCode());
   }
 
+  private void stubCustomer(long accountId) {
+    when(tenantClient.memberships(accountId)).thenReturn(List.of(
+        new TenantServiceClient.Membership(1L, accountId, 100L, 100L, "CUSTOMER", "C1", 1, "ACTIVE")));
+  }
+
   @Test
   void contexts_raisesServiceUnavailableWhenTenantUnavailable() {
     when(tenantClient.contexts(100L)).thenThrow(new IllegalStateException("tenant down"));
@@ -193,6 +200,7 @@ class AuthContextApplicationServiceTest {
 
   @Test
   void select_signsRegisteredConsumerContext() {
+    stubCustomer(158L);
     when(tenantClient.consumerPermissions(158L, "saas-a380-c", "consumer:saas-a380-c:100:100:100"))
         .thenReturn(new TenantServiceClient.PermissionSnapshot(158L, 100L, 100L, 100L, 1,
             List.of("reservation.view", "reservation.create")));

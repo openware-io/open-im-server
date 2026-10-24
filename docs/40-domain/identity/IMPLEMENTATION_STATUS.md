@@ -131,3 +131,12 @@ B 应用先校验 ACTIVE STAFF membership，再校验运营角色
 unbind 要求 X-CSRF-Token
 order-service /admin/** 与 tenant-service /admin/** 仅接受 saas-b（无 clientApp 的内部调用兼容）
 ```
+
+S3 复判修复：
+
+```text
+C context 增加 ACTIVE CUSTOMER membership 前置校验；无 membership -> 403 CUSTOMER_NOT_BOUND
+OAuth 回调 session 写入 membershipId/tenantId/membershipType
+admin-service /admin/**、customer-service /business/** 增加 clientApp 门禁
+S3-APP-REGISTRY-001 已登记 ENGINEERING_DEBT_EXCEPTIONS / GATE_REGISTRY
+```
