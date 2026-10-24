@@ -771,3 +771,34 @@ Android 我的酒店订单: CONFIRMED
 ```text
 evidence/s7-android-cash-loop.png
 ```
+
+## 13. 跨门店收款修复（2026-10-24）
+
+发现：
+
+```text
+B store100 token 收款 order21（store102）曾返回 200
+pay_collect.store_id=100 / ord_order.store_id=102
+```
+
+修复：
+
+```text
+OrderBillingRepository.findStoreId
+CollectApplicationService: order.store_id != context.store_id -> 404
+```
+
+回归：
+
+```text
+store100 -> order21 404 ORDER_NOT_FOUND
+store102 -> order21 200
+order21 store102 DRAFT -> COMPLETED
+```
+
+证据：
+
+```text
+evidence/s7-trace/sec-011-cross-store-pay.*
+evidence/s7-trace/sec-012-correct-store-pay.*
+```

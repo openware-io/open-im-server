@@ -17,6 +17,8 @@
 | SEC-008 | 成员禁用旧 token | 401 | order/payment/tenant 200/401/200；admin 200->401 |
 | SEC-009 | 授权版本变化 | 401 | version+1 -> 401，恢复 -> 200 |
 | SEC-010 | PII 未授权 | 掩码 | 无 member.pii.view 的 B token：S** / 138****0003；本人订单保留完整 |
+| SEC-011 | 跨门店收款 | 404 ORDER_NOT_FOUND | `evidence/s7-trace/sec-011-cross-store-pay.har`；X-Request-Id c16f1f65-0a35-4653-a5fc-7b11404b1b63；order21 DRAFT |
+| SEC-012 | 正确门店收款 | 200 | `evidence/s7-trace/sec-012-correct-store-pay.har`；X-Request-Id 1d815037-e190-4d85-b8b2-659e95c70c55 |
 
 ## 2. SEC-007 过期 token
 
