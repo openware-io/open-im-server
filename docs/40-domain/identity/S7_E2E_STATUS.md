@@ -63,3 +63,57 @@ Chrome 无 Playwright driver，使用 CDP 手工驱动
 ```
 
 本文件不能作为 S7 通过证据。
+
+## 5. B Web 酒店页面已通（2026-10-24）
+
+修复：
+
+```text
+cons_admin_account.platform_account_id 100 -> 101
+新增 MEMBERSHIP 1 role tenant.owner STORE 100/100/102
+```
+
+BFF 上下文：
+
+```text
+GET /api/v1/admin/contexts
+-> 100:100:102 A380 Hotel HOTEL
+-> 100:0:0 tenant
+POST /api/v1/admin/context/select {"contextId":"100:100:102"} -> 200
+```
+
+酒店页面：
+
+```text
+/saas/#/admin/tenant/hotel
+-> 酒店前台
+-> 待入住1/已确认/今日到店
+-> 待退房2
+-> 任务总数3
+-> 真实预订 HTL1792744369554696 / HTL1792747275893930
+```
+
+截图：
+
+```text
+docs/40-domain/identity/evidence/s7-b-hotel.png
+```
+
+## 6. C H5 当前阻塞
+
+```text
+Chrome 直接导航 /a380/ 无 Referer -> gateway unauthorized
+加 Network.setExtraHTTPHeaders Referer=/a380/ 后 HTML 加载
+H5 仍跳 /oauth/authorize；需继续定位 session 检查
+```
+
+## 7. Android 当前阻塞
+
+```text
+APK 安装/启动成功
+登录页控件已定位
+密码输入未写入 -> 登录提示“请输入用户名和密码”
+设备被误触到系统搜索
+```
+
+S7 仍未通过。

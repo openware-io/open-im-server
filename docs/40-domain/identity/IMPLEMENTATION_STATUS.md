@@ -177,3 +177,6 @@ S5 修复：htl_booking 账号归属 + C 本人订单隔离；酒店迁移脚本
 
 S6 修复：平台角色目标账号校验 PLATFORM_OPERATOR/ACTIVE/无租户 membership；旧脚本改 archive/iam_role_binding。
 
+
+S7 更新：B Web 酒店前台真实数据已通（截图）；C H5 Referer/session 与 Android 密码输入仍阻塞。
+
