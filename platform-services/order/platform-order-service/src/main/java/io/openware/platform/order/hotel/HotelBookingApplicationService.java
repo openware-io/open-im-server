@@ -66,6 +66,7 @@ public class HotelBookingApplicationService {
                 LocalDateTime.now().plusMinutes(HOLD_MINUTES));
     }
 
+    @Transactional
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note) {
         return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note, null);

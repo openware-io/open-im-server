@@ -255,3 +255,11 @@ owner：platform-order-service + common-payment-service
 入口：C 收银台 / 在线退款申请
 风险：当前 C 订单由 B 前台现金收款，不等于 C 在线支付完成
 ```
+
+## 11. B/C 下单事务（2026-10-24）
+
+`	ext
+8 参 B 入口 @Transactional
+9 参 C 入口 @Transactional（Controller 直接调用代理）
+HotelBookingTransactionTest 1 PASS
+`
