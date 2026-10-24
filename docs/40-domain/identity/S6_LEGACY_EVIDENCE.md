@@ -86,3 +86,35 @@ identity 57 PASS
 B createBooking 行为级失败回滚集成测试（S7 前）
 S6 仲裁
 ```
+
+## 5. 平台角色目标账号校验（2026-10-24）
+
+新增 identity 内部账号查询 + tenant 校验：
+
+```text
+account_type = PLATFORM_OPERATOR
+status = ACTIVE
+无 ACTIVE 租户 membership
+```
+
+真实：
+
+```text
+POST {accountId:113, roleId:1}
+-> 403 PLATFORM_OPERATOR_REQUIRED
+
+POST {accountId:1, roleId:1}
+（account_type=PLATFORM_OPERATOR, 无租户 membership）
+-> 200 {"id":3}
+
+DELETE /3 -> 200
+```
+
+说明：113 是 B 端 STAFF，已拒绝；此前误授的 binding 2 已 REVOKED。
+
+旧脚本：
+
+```text
+backfill-account-type.sql -> iam_role_binding
+migrate-iam-user-role.sql -> iam_user_role_archive
+```

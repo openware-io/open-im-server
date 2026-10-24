@@ -4,7 +4,7 @@ USE open_saas;
 
 -- 1) 平台运营：持有 PLATFORM 作用域角色的账号
 UPDATE idt_account a
-  JOIN iam_user_role r ON r.account_id = a.id AND r.scope_type = 'PLATFORM' AND r.status = 'ACTIVE'
+  JOIN iam_role_binding r ON r.subject_type = 'ACCOUNT' AND r.subject_id = a.id AND r.scope_type = 'PLATFORM' AND r.status = 'ACTIVE'
   SET a.account_type = 'PLATFORM_OPERATOR';
 
 -- 2) 其余账号统一为 USER（包括原 EMPLOYEE/CUSTOMER）

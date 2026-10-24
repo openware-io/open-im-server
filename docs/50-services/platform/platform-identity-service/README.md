@@ -149,3 +149,6 @@ C 权限来源定稿：consumer app scope 为权限，CUSTOMER membership 为租
 
 /auth/apps 过滤当前用户 app grant；未授权应用不返回。
 
+
+S6：GET /internal/identity/accounts/{id} 返回 accountType/status，供 tenant 平台角色授予校验。
+

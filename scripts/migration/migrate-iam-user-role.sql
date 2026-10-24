@@ -14,7 +14,7 @@ SELECT
   'ACCOUNT', ur.account_id, ur.role_id, ur.scope_type, 0, 0, 0,
   GREATEST(ur.authorization_version, 1), ur.effective_from, ur.effective_to,
   ur.status, ur.created_by, ur.created_at, ur.updated_by, ur.updated_at
-FROM iam_user_role ur
+FROM iam_user_role_archive ur
 WHERE ur.scope_type = 'PLATFORM'
   AND ur.status = 'ACTIVE'
   AND NOT EXISTS (
@@ -34,7 +34,7 @@ SELECT
   GREATEST(ur.authorization_version, mem.authorization_version, 1),
   ur.effective_from, ur.effective_to,
   ur.status, ur.created_by, ur.created_at, ur.updated_by, ur.updated_at
-FROM iam_user_role ur
+FROM iam_user_role_archive ur
 JOIN tnt_membership mem
   ON mem.account_id = ur.account_id
  AND mem.tenant_id = ur.tenant_id
@@ -54,7 +54,7 @@ COMMIT;
 
 -- 未迁移报告：非平台旧绑定找不到 STAFF membership
 SELECT ur.id, ur.account_id, ur.tenant_id, ur.role_id, ur.scope_type
-FROM iam_user_role ur
+FROM iam_user_role_archive ur
 LEFT JOIN tnt_membership mem
   ON mem.account_id = ur.account_id
  AND mem.tenant_id = ur.tenant_id

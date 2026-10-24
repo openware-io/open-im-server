@@ -6,6 +6,8 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
+import io.openware.platform.tenant.domain.membership.MembershipRepository;
+import io.openware.platform.tenant.infrastructure.client.IdentityAccountClient;
 import io.openware.platform.tenant.infra.persistence.mapper.RoleBindingMapper;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -19,12 +21,17 @@ public class PlatformRoleBindingApplicationService {
 
   private final RoleBindingMapper mapper;
   private final RoleRepository roles;
+  private final MembershipRepository memberships;
+  private final IdentityAccountClient accounts;
   private final AuditClient audit;
 
   public PlatformRoleBindingApplicationService(RoleBindingMapper mapper, RoleRepository roles,
-                                               AuditClient audit) {
+                                               MembershipRepository memberships,
+                                               IdentityAccountClient accounts, AuditClient audit) {
     this.mapper = mapper;
     this.roles = roles;
+    this.memberships = memberships;
+    this.accounts = accounts;
     this.audit = audit;
   }
 
@@ -33,6 +40,18 @@ public class PlatformRoleBindingApplicationService {
     TenantContext context = requirePlatform();
     if (context.permissions() == null || !context.permissions().contains(PERMISSION)) {
       throw new ApiException(403, "PERMISSION_DENIED", "缺少平台角色授予权限");
+    }
+    IdentityAccountClient.AccountInfo account = accounts.get(accountId);
+    if (!"ACTIVE".equals(account.status())
+        || !"PLATFORM_OPERATOR".equals(account.accountType())) {
+      throw new ApiException(403, "PLATFORM_OPERATOR_REQUIRED",
+          "只有 ACTIVE 平台运营账号可以获得平台角色");
+    }
+    boolean hasTenantMembership = memberships.findAllByAccountId(accountId).stream()
+        .anyMatch(membership -> "ACTIVE".equals(membership.status()));
+    if (hasTenantMembership) {
+      throw new ApiException(403, "PLATFORM_ACCOUNT_HAS_MEMBERSHIP",
+          "仍有租户成员身份的账号不能获得平台角色");
     }
     Role role = roles.findById(roleId)
         .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
