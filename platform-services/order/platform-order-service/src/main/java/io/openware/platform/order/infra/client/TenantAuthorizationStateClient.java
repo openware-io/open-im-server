@@ -32,7 +32,7 @@ public class TenantAuthorizationStateClient {
                         .queryParam("tenantId", tenantId)
                         .queryParam("organizationId", organizationId == null ? 0L : organizationId)
                         .queryParam("storeId", storeId == null ? 0L : storeId)
-                        .queryParam("refresh", false)
+                        .queryParam("refresh", true)
                         .build(accountId))
                 .retrieve().body(Snapshot.class);
         int version = snapshot == null ? 0 : snapshot.authorizationVersion();
