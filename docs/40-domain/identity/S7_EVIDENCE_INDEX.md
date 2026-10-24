@@ -19,6 +19,7 @@
 | APP-011 Android 真实下单 | PASS | `evidence/s7-android-booking.png` |
 | APP-013 Android 我的订单 | PASS | `evidence/s7-android-orders.png` |
 | Android 真实酒店/报价 | PASS | `evidence/s7-android-real-hotel.png`、`s7-android-real-quote.png` |
+| Android 同单现金闭环 | PASS | `evidence/s7-android-cash-loop.png`、order18 paid / booking CONFIRMED |
 | Android 演示图 | 负例 | `evidence/negative/s7-android-hotel-demo.png` |
 
 ## 2. 安全

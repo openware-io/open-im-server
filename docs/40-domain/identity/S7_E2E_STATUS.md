@@ -740,3 +740,34 @@ evidence/s7-b-refund-ui.png
 ```
 
 说明：线上退款仍 deferred；本次为线下退款登记。
+
+## 12. Android 同单现金闭环（2026-10-24）
+
+真机：
+
+```text
+A380 Hotel / 10-26 ~ 10-27 / ¥899
+HTL1792863984834312
+PENDING_PAYMENT
+```
+
+B 收款 UI：
+
+```text
+发起收款 订单 18 / 现金 ¥899
+-> 收款成功：现金 ¥899.00
+```
+
+结果：
+
+```text
+ord_order 18: COMPLETED / paid 89900
+htl_booking: CONFIRMED
+Android 我的酒店订单: CONFIRMED
+```
+
+截图：
+
+```text
+evidence/s7-android-cash-loop.png
+```
