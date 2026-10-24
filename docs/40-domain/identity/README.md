@@ -41,3 +41,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 - [平台身份服务](../../50-services/platform/platform-identity-service/README.md)
 - [平台租户服务](../../50-services/platform/platform-tenant-service/README.md)
 | [S4 应用安装与权益](S4_APP_ENTITLEMENT.md) | 安装、权益、服务入口 |
+| [S5 酒店门店与 C/B 应用](S5_HOTEL_EVIDENCE.md) | HOTEL 门店、C 预订、B 前台确认 |

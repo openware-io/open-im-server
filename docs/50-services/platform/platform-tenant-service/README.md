@@ -139,3 +139,6 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 
 S4：/admin/apps 安装/卸载，/admin/entitlements 只读，/admin/platform/entitlements 平台开通。
 
+
+S4/S5 内部：/internal/iam/accounts/{accountId}/app-grants?tenantId=，/internal/iam/tenants/{tenantId}/apps。
+

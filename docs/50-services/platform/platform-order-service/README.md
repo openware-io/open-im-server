@@ -215,3 +215,5 @@ POST /business/hotel/catalog/quotes
 - 有 TenantContext 但缺 clientApp 的用户 token 拒绝。
 
 Catalog 写端点（POST/PUT/DELETE /business/catalog/items）要求 saas-b audience；列表保持 C/B 共享。
+
+C 端酒店：/business/hotel quotes|bookings 仅 saas-c；HOTEL 门店 store_id=102。
