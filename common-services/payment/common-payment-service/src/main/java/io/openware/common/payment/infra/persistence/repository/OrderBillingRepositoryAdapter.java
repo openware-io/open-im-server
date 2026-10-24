@@ -46,6 +46,11 @@ public class OrderBillingRepositoryAdapter implements OrderBillingRepository {
   }
 
   @Override
+  public Optional<Long> findStoreId(Long tenantId, Long orderId) {
+    return Optional.ofNullable(mapper.selectStoreId(tenantId, orderId));
+  }
+
+  @Override
   public Optional<String> findCurrencyCode(Long tenantId, Long orderId) {
     String currencyCode = mapper.selectCurrencyCode(tenantId, orderId);
     return currencyCode == null || currencyCode.isBlank() ? Optional.empty()

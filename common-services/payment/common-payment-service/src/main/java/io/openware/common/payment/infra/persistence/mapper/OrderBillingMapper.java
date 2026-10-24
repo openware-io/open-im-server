@@ -28,6 +28,13 @@ public interface OrderBillingMapper {
      * 只读、无锁；订单不存在返回 null，调用方按「未知 → 缺省当时租户币种」处理。
      */
     @Select("""
+            SELECT o.store_id
+              FROM ord_order o
+             WHERE o.tenant_id = #{tenantId} AND o.id = #{orderId}
+            """)
+    Long selectStoreId(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId);
+
+    @Select("""
             SELECT o.currency_code
               FROM ord_order o
              WHERE o.tenant_id = #{tenantId} AND o.id = #{orderId}

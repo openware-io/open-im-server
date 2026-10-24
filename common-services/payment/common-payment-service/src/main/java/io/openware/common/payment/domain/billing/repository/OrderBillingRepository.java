@@ -42,6 +42,9 @@ public interface OrderBillingRepository {
    * @param newPaid      落账后的已收金额
    * @param totalAmount  应收总额（判定是否足额完成）
    */
+  /** 读取订单所属门店，用于收款/退款的门店范围校验。 */
+  Optional<Long> findStoreId(Long tenantId, Long orderId);
+
   boolean markPaid(Long tenantId, Long orderId, BigDecimal expectedPaid, BigDecimal newPaid,
                    BigDecimal totalAmount);
 
