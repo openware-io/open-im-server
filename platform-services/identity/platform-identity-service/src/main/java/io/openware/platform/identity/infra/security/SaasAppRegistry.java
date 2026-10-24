@@ -6,6 +6,7 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -21,12 +22,19 @@ public class SaasAppRegistry {
 
   private final Set<String> consumers = new LinkedHashSet<>();
   private final Set<String> backends = new LinkedHashSet<>();
+  private final Set<String> consumerReferers = new LinkedHashSet<>();
+  private final Set<String> backendReferers = new LinkedHashSet<>();
 
+  @Autowired
   public SaasAppRegistry(
       @Value("${saas.apps.consumer:}") String consumers,
-      @Value("${saas.apps.backend:}") String backends) {
+      @Value("${saas.apps.backend:}") String backends,
+      @Value("${saas.apps.consumer-referers:/a380/,/c/}") String consumerReferers,
+      @Value("${saas.apps.backend-referers:/saas/,/b/}") String backendReferers) {
     this.consumers.addAll(split(consumers));
     this.backends.addAll(split(backends));
+    this.consumerReferers.addAll(split(consumerReferers));
+    this.backendReferers.addAll(split(backendReferers));
     Set<String> overlap = new LinkedHashSet<>(this.consumers);
     overlap.retainAll(this.backends);
     if (!overlap.isEmpty()) {
@@ -34,6 +42,23 @@ public class SaasAppRegistry {
     }
   }
 
+  public SaasAppRegistry(String consumers, String backends) {
+    this(consumers, backends, "/a380/,/c/", "/saas/,/b/");
+  }
+
+  /** 浏览器请求的 Referer 路径必须属于声明的客户端族；无 Referer 的非浏览器调用不拦截。 */
+  public void requireReferer(String appId, String referer) {
+    if (referer == null || referer.isBlank()) {
+      return;
+    }
+    boolean backend = requireType(appId) == ClientType.B;
+    boolean allowed = (backend ? backendReferers : consumerReferers).stream()
+        .anyMatch(referer::contains);
+    if (!allowed) {
+      throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_ORIGIN_FORBIDDEN",
+          "请求来源与客户端族不一致");
+    }
+  }
   public ClientType requireType(String appId) {
     String normalized = appId == null ? "" : appId.trim();
     if (consumers.contains(normalized)) {

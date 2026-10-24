@@ -18,4 +18,8 @@ public class ProfileSyncRecordPo {
     private String provider;
     private String profileJson;
     private LocalDateTime occurredAt;
+    private Long createdBy;
+    private LocalDateTime createdAt;
+    private Long updatedBy;
+    private LocalDateTime updatedAt;
 }

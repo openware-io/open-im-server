@@ -69,7 +69,7 @@ public class AdminTenantContextTokenSigner {
                      String businessType, String timezone) {
     Date now = new Date();
     return Jwts.builder().subject(String.valueOf(accountId)).issuer("open-saas-identity")
-        .audience().add("open-saas-services").and().claim("tenantId", tenantId)
+        .audience().add("open-saas-services").and().claim("clientApp", "saas-b").claim("tenantId", tenantId)
         .claim("organizationId", organizationId).claim("storeId", storeId)
         .claim("authorizationVersion", authorizationVersion).claim("permissions", permissions)
         .claim("scopeType", scopeType)
@@ -99,7 +99,7 @@ public class AdminTenantContextTokenSigner {
         ? Duration.ofMinutes(30).toMillis()
         : ttl.toMillis();
     return Jwts.builder().subject(String.valueOf(accountId)).issuer("open-saas-identity")
-        .audience().add("open-saas-services").and()
+        .audience().add("open-saas-services").and().claim("clientApp", "saas-b")
         .claim("tenantId", 0L)
         .claim("authorizationVersion", 0)
         .claim("permissions", List.of())

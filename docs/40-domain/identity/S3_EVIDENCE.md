@@ -99,3 +99,65 @@ Android 真机
 无 CUSTOMER membership -> 403 CUSTOMER_NOT_BOUND
 插入 ACTIVE CUSTOMER membership -> /auth/contexts 200 consumer:saas-a380-c:100:100:100
 `
+
+## 10. 真实 OAuth 回调（2026-10-24）
+
+C：
+
+```text
+POST /oauth/authorize (saas-a380-c, PKCE)
+-> /oauth/consent/approve
+-> POST /api/v1/identity/oauth/im/callback
+-> 200 Set-Cookie saas_c_session
+```
+
+```text
+GET /auth/session?appId=saas-a380-c -> accountId=112, appId=saas-a380-c
+GET /auth/contexts -> consumer:saas-a380-c:100:100:100
+Redis session: {"accountId":112,"appId":"saas-a380-c","membershipId":3,"tenantId":100,"scopeType":"CUSTOMER"}
+C context token: clientApp=saas-c, tenantId=100, storeId=100, permissions=2
+```
+
+B 未绑定：
+
+```text
+POST /api/v1/identity/oauth/im/callback (saas-a380-h5)
+-> 403 STAFF_NOT_BOUND，无 Set-Cookie
+```
+
+B 绑定 STAFF 后：
+
+```text
+-> 200 {"authenticated":true,"accountId":113,"appId":"saas-a380-h5","membershipId":4,"tenantId":100}
+GET /auth/contexts -> 100:0:0 roles=[tenant.owner]
+B context token: clientApp=saas-b, tenantId=100, permissions=47
+```
+
+## 11. 双 cookie 越族
+
+同时携带 C+B cookie，C 页面传 B appId：
+
+```text
+Cookie: saas_c_session=...; saas_b_session=...
+Referer: http://127.0.0.1:30080/a380/
+GET /auth/session?appId=saas-a380-h5
+-> 403 CLIENT_ORIGIN_FORBIDDEN
+```
+
+B 页面同一请求：
+
+```text
+Referer: http://127.0.0.1:30080/saas/
+-> 200 authenticated=true appId=saas-a380-h5
+```
+
+## 12. C/B token 调用矩阵
+
+```text
+C token -> order /admin/hotel/bookings -> 403 CLIENT_AUDIENCE_FORBIDDEN
+B token -> order /business/hotel/catalog/hotels -> 403 CLIENT_AUDIENCE_FORBIDDEN
+```
+
+## 13. 真实回调修复
+
+真实 OAuth 回调暴露 `idt_profile_sync_record` 缺少 created_at/updated_at 写入，导致 500；已补审计列写入后回调 200。

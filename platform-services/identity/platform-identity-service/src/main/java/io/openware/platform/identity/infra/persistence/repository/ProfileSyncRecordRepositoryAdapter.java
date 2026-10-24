@@ -5,6 +5,7 @@ import io.openware.platform.identity.domain.account.model.ProfileSyncRecord;
 import io.openware.platform.identity.domain.account.repository.ProfileSyncRecordRepository;
 import io.openware.platform.identity.infra.persistence.mapper.ProfileSyncRecordMapper;
 import io.openware.platform.identity.infra.persistence.po.ProfileSyncRecordPo;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -45,9 +46,16 @@ public class ProfileSyncRecordRepositoryAdapter implements ProfileSyncRecordRepo
     po.setProvider(record.provider());
     po.setProfileJson(record.profileJson());
     po.setOccurredAt(record.occurredAt());
+    LocalDateTime now = LocalDateTime.now();
     if (po.getId() == null) {
+      po.setCreatedBy(0L);
+      po.setCreatedAt(now);
+      po.setUpdatedBy(0L);
+      po.setUpdatedAt(now);
       mapper.insert(po);
     } else {
+      po.setUpdatedBy(0L);
+      po.setUpdatedAt(now);
       mapper.updateById(po);
     }
     return toDomain(po);

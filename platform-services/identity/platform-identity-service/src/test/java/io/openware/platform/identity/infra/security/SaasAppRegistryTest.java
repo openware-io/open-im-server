@@ -24,6 +24,16 @@ class SaasAppRegistryTest {
   }
 
   @Test
+  void refererFamilyIsEnforced() {
+    registry.requireReferer("saas-hotel-c", "http://localhost/a380/");
+    registry.requireReferer("saas-hotel-b", "http://localhost/saas/");
+    assertThrows(ApiException.class,
+        () -> registry.requireReferer("saas-hotel-b", "http://localhost/a380/"));
+    assertThrows(ApiException.class,
+        () -> registry.requireReferer("saas-hotel-c", "http://localhost/saas/"));
+  }
+
+  @Test
   void unknownAppRejected() {
     assertThrows(ApiException.class, () -> registry.requireType("saas-unknown"));
     assertThrows(ApiException.class, () -> registry.requireType(null));
