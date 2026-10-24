@@ -127,7 +127,9 @@ public class RefundApplicationService {
             }
             if (orderBillingRepository != null && refund.orderId() != null) {
                 var order = orderBillingRepository.findForUpdate(refund.tenantId(), refund.orderId()).orElse(null);
-                if (order != null && approvedAmount.compareTo(order.paidOrZero()) > 0) {
+                java.math.BigDecimal reserved = refundRepository.sumActiveAmount(refund.tenantId(),
+                        refund.orderId(), refund.id());
+                if (order != null && approvedAmount.add(reserved).compareTo(order.paidOrZero()) > 0) {
                     throw new ApiException(422, "REFUND_EXCEEDS_PAID", "退款金额超过订单可退金额");
                 }
             }

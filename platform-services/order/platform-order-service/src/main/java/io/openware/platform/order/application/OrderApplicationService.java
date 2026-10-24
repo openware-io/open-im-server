@@ -167,6 +167,14 @@ public class OrderApplicationService {
   @Transactional
   public Long createHotelReceivable(Long tenantId, Long organizationId, Long storeId, String bookingNo,
                                     String currencyCode, long totalMinor) {
+    return createHotelReceivable(tenantId, organizationId, storeId, bookingNo, currencyCode,
+        totalMinor, null);
+  }
+
+  /** 酒店应收：C 端下单时带 customerId，支付归属校验不再依赖人工补写。 */
+  @Transactional
+  public Long createHotelReceivable(Long tenantId, Long organizationId, Long storeId, String bookingNo,
+                                    String currencyCode, long totalMinor, Long customerId) {
     if (tenantId == null || organizationId == null || storeId == null || bookingNo == null || totalMinor <= 0) {
       throw new ApiException(400, "HOTEL_RECEIVABLE_INVALID", "酒店订单应收参数不完整");
     }
@@ -178,7 +186,7 @@ public class OrderApplicationService {
     BigDecimal total = BigDecimal.valueOf(totalMinor);
     Order order = new Order(null, tenantId, organizationId, storeId,
         dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
-        idempotencyKey, "HOTEL", null, "DRAFT", resolveCurrencyCode(currencyCode),
+        idempotencyKey, "HOTEL", customerId, "DRAFT", resolveCurrencyCode(currencyCode),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, total, BigDecimal.ZERO, BigDecimal.ZERO,
         null, null, null, null, 0);
     try {

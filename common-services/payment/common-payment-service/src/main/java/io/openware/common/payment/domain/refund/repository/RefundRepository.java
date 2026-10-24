@@ -37,4 +37,7 @@ public interface RefundRepository {
    */
   Optional<Persisted<Refund>> updateStatusGuarded(Refund refund, String expectedStatus,
                                                   java.time.LocalDateTime occurredAt);
+
+  /** 同订单仍在 PENDING/APPROVED 的退款金额（含已批准未退），用于并发可退上限。 */
+  java.math.BigDecimal sumActiveAmount(Long tenantId, Long orderId, Long excludeRefundId);
 }

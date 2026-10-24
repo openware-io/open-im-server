@@ -50,7 +50,19 @@ public interface RefundMapper extends BaseMapper<RefundPo> {
   List<RefundCurrencyAggregate> sumRefundedByCurrency(@Param("tenantId") Long tenantId,
       @Param("storeId") Long storeId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-  /** 已退款按币种合计行（{@code refund_amount} 为最小货币单位整数）。 */
+
+  @Select("""
+          SELECT COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN COALESCE(approved_amount, requested_amount)
+                                   ELSE requested_amount END), 0)
+            FROM pay_refund
+           WHERE tenant_id = #{tenantId} AND order_id = #{orderId}
+             AND status IN ('PENDING', 'APPROVED')
+             AND id <> #{excludeRefundId}
+          """)
+  BigDecimal sumActiveAmount(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId,
+                             @Param("excludeRefundId") Long excludeRefundId);
+
+  /** 已退款按币种合计行（refund_amount 为最小货币单位整数）。 */
   @Getter
   @Setter
   class RefundCurrencyAggregate {

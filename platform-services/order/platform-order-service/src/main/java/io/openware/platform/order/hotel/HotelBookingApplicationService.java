@@ -5,6 +5,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -28,12 +29,14 @@ public class HotelBookingApplicationService {
     private final HotelDailyRateMapper dailyRateMapper;
     private final HotelBookingNightMapper nightMapper;
     private final io.openware.platform.order.application.OrderApplicationService orderApplicationService;
+    private final MemberLookupProvider memberLookupProvider;
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
                                           HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
                                           HotelBookingNightMapper nightMapper,
-                                          io.openware.platform.order.application.OrderApplicationService orderApplicationService) {
+                                          io.openware.platform.order.application.OrderApplicationService orderApplicationService,
+                                          MemberLookupProvider memberLookupProvider) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
@@ -42,6 +45,7 @@ public class HotelBookingApplicationService {
         this.dailyRateMapper = dailyRateMapper;
         this.nightMapper = nightMapper;
         this.orderApplicationService = orderApplicationService;
+        this.memberLookupProvider = memberLookupProvider;
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -113,9 +117,11 @@ public class HotelBookingApplicationService {
         booking.setUpdatedAt(now);
         bookingMapper.insert(booking);
 
+        Long customerId = bookedByAccountId == null ? null
+                : memberLookupProvider.findMemberId(context.tenantId(), bookedByAccountId).orElse(null);
         booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
                 context.organizationId(), context.storeId(), booking.getBookingNo(),
-                booking.getCurrency(), booking.getAmountMinor()));
+                booking.getCurrency(), booking.getAmountMinor(), customerId));
         booking.setBookedByAccountId(bookedByAccountId);
         booking.setUpdatedAt(now);
         bookingMapper.updateById(booking);

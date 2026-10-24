@@ -80,6 +80,11 @@ public class RefundRepositoryAdapter implements RefundRepository {
         : Optional.empty();
   }
 
+  @Override
+  public java.math.BigDecimal sumActiveAmount(Long tenantId, Long orderId, Long excludeRefundId) {
+    return mapper.sumActiveAmount(tenantId, orderId, excludeRefundId);
+  }
+
   private static RefundPo toPo(Refund refund) {
     RefundPo po = new RefundPo();
     po.setId(refund.id());
