@@ -52,11 +52,10 @@ public interface RefundMapper extends BaseMapper<RefundPo> {
 
 
   @Select("""
-          SELECT COALESCE(SUM(CASE WHEN status = 'APPROVED' THEN COALESCE(approved_amount, requested_amount)
-                                   ELSE requested_amount END), 0)
+          SELECT COALESCE(SUM(COALESCE(approved_amount, requested_amount)), 0)
             FROM pay_refund
            WHERE tenant_id = #{tenantId} AND order_id = #{orderId}
-             AND status IN ('PENDING', 'APPROVED')
+             AND status = 'APPROVED'
              AND id <> #{excludeRefundId}
           """)
   BigDecimal sumActiveAmount(@Param("tenantId") Long tenantId, @Param("orderId") Long orderId,
