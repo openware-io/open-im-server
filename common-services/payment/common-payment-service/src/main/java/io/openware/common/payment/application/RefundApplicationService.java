@@ -246,6 +246,9 @@ public class RefundApplicationService {
 
     private void requireRefundStore(Refund refund) {
         TenantContext context = TenantContextHolder.get();
+        if (context == null && orderBillingRepository != null) {
+            throw new ApiException(404, "REFUND_NOT_FOUND", "缺少门店上下文");
+        }
         if (context != null && !context.platformScope()) {
             if (context.storeId() == null || !context.storeId().equals(refund.storeId())) {
                 throw new ApiException(404, "REFUND_NOT_FOUND", "退款单不属于当前门店");
