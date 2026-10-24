@@ -802,3 +802,32 @@ order21 store102 DRAFT -> COMPLETED
 evidence/s7-trace/sec-011-cross-store-pay.*
 evidence/s7-trace/sec-012-correct-store-pay.*
 ```
+
+## 14. 跨门店退款修复（2026-10-24）
+
+修复：
+
+```text
+requestRefund: order.store_id 必须等于 context.store_id
+approve/reject/mark: refund.store_id 必须等于当前门店
+order.store_id 必须等于 refund.store_id
+缺失/null fail-closed
+```
+
+真实：
+
+```text
+store100 request order21 -> 404 ORDER_NOT_FOUND
+store100 approve refund10 -> 404 REFUND_NOT_FOUND
+store100 mark refund10 -> 404 REFUND_NOT_FOUND
+store102 approve/mark -> 200
+order21 paid 89900 -> 79900
+```
+
+证据：
+
+```text
+sec-013-cross-store-refund*.har
+sec-014-correct-store-refund-*.har
+sec-013-014-db.txt
+```

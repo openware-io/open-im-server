@@ -19,6 +19,8 @@
 | SEC-010 | PII 未授权 | 掩码 | 无 member.pii.view 的 B token：S** / 138****0003；本人订单保留完整 |
 | SEC-011 | 跨门店收款 | 404 ORDER_NOT_FOUND | `evidence/s7-trace/sec-011-cross-store-pay.har`；X-Request-Id c16f1f65-0a35-4653-a5fc-7b11404b1b63；order21 DRAFT |
 | SEC-012 | 正确门店收款 | 200 | `evidence/s7-trace/sec-012-correct-store-pay.har`；X-Request-Id 1d815037-e190-4d85-b8b2-659e95c70c55 |
+| SEC-013 | 跨门店退款 request/approve/mark | 404 | `sec-013-cross-store-refund*.har`；requestId 275307d1... / cf14224e... / 723cdd58...；refund10 仅 store102 |
+| SEC-014 | 正确门店退款 | 200 | `sec-014-correct-store-refund-*.har`；requestId a9c4a494... / 03723ec9...；order21 paid 79900 |
 
 ## 2. SEC-007 过期 token
 

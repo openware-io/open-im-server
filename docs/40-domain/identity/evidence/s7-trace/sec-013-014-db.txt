@@ -1,0 +1,26 @@
+SEC-013 跨门店退款 / SEC-014 正确门店退款
+=========================================
+
+订单：
+SELECT id, store_id, status, paid_amount FROM ord_order WHERE id = 21;
+id  store_id  status      paid_amount
+21  102       COMPLETED   79900.000000
+
+退款单：
+SELECT id, order_id, store_id, status, approved_amount FROM pay_refund WHERE order_id = 21;
+id  order_id  store_id  status    approved_amount
+10  21        102       REFUNDED  10000.000000
+
+跨店尝试（store100）：
+POST /business/refund-requests        -> 404 ORDER_NOT_FOUND
+POST /admin/refund-requests/10/approve -> 404 REFUND_NOT_FOUND
+POST /admin/refund-requests/10/refund  -> 404 REFUND_NOT_FOUND
+
+正确门店（store102）：
+POST /admin/refund-requests/10/approve -> 200 APPROVED
+POST /admin/refund-requests/10/refund  -> 200 REFUNDED
+
+结果：
+order21 paid 89900 -> 79900
+refund10 只有 store102 可操作
+store100 对 order21 无退款单副作用
