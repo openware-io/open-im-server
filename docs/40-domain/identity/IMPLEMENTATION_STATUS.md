@@ -180,3 +180,6 @@ S6 修复：平台角色目标账号校验 PLATFORM_OPERATOR/ACTIVE/无租户 me
 
 S7 更新：B Web 酒店前台真实数据已通（截图）；C H5 Referer/session 与 Android 密码输入仍阻塞。
 
+
+S7 更新：Android 真机登录成功；C H5/Android 酒店页仍为演示数据，需接真实 API。
+

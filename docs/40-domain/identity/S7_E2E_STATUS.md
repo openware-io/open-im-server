@@ -117,3 +117,46 @@ APK 安装/启动成功
 ```
 
 S7 仍未通过。
+
+## 8. Android 真机登录成功（2026-10-24）
+
+APK 重建：
+
+```text
+--dart-define=OPEN_API_BASE=http://192.168.3.35:30080
+--dart-define=OPEN_WS_URI=ws://192.168.3.35:30080/ws/im/v1
+```
+
+安装/登录：
+
+```text
+adb install -r app-debug.apk -> Success
+登录 s3c001937 -> 消息页
+服务 -> 酒店 -> WebView
+```
+
+酒店 WebView 仍显示演示数据：
+
+```text
+OpenChat酒店中心店
+OpenChat酒店机场店
+OpenChat酒店会展店
+```
+
+不是 A380 Hotel / 真实 API；S7 C 端酒店断言不成立。
+
+截图：
+
+```text
+docs/40-domain/identity/evidence/s7-android-hotel-demo.png
+```
+
+## 9. C H5 入口已通但酒店页为演示
+
+```text
+/a380/ 首页加载
+contextId=consumer:saas-a380-c:100:100:102
+酒店页 -> OpenChat酒店中心店（演示）
+```
+
+需要把 C 端酒店页接到真实 `/business/hotel` API 才能过 S7。
