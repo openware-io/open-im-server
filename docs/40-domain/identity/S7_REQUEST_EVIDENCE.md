@@ -64,7 +64,7 @@ evidence/s7-trace/admin-hotel-bookings-disabled.body
 没有 trace/span 导出
 ```
 
-管理面 HAR 与 Android logcat 已补；C 端浏览器 HAR 与 trace zip 仍缺。
+管理面 HAR 与 Android logcat 已补；C 端 HAR 已补；trace zip 仍缺。
 
 ## 4. ERR-001 HTTP 500
 
@@ -138,4 +138,27 @@ adb logcat -d -v time
 [WS DEBUG] SEND/RECEIVE heartbeat
 [API DEBUG] GET http://192.168.3.35:30080/api/v1/messages/sync
 START io.openware.openchat
+```
+
+## 8. C 端 HAR
+
+```text
+docs/40-domain/identity/evidence/s7-trace/c-hotel.har
+```
+
+采集：
+
+```text
+Cookie: saas_c_session=<redacted>
+GET /api/v1/business/hotel/catalog/hotels         -> 200
+GET /api/v1/business/hotel/catalog/hotels/1       -> 200
+GET /api/v1/business/hotel/bookings               -> 200
+```
+
+说明：
+
+```text
+先通过 /auth/context/select 刷新 C 会话中的 tenantContextToken
+再以 CDP Network 事件抓取响应体
+HAR 中 cookie 已脱敏
 ```
