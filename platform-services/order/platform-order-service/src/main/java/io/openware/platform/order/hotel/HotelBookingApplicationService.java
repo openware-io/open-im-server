@@ -253,7 +253,9 @@ public class HotelBookingApplicationService {
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
         if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);
         if (to != null) query.lt(HotelBookingPo::getCheckOutDate, to);
-        return bookingMapper.selectList(query);
+        List<HotelBookingPo> rows = bookingMapper.selectList(query);
+        maskGuestPii(rows, context);
+        return rows;
     }
 
     public List<HotelBookingPo> listByAccount(String status, LocalDate from, LocalDate to, Long accountId) {
@@ -269,9 +271,42 @@ public class HotelBookingApplicationService {
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
         if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);
         if (to != null) query.lt(HotelBookingPo::getCheckOutDate, to);
-        return bookingMapper.selectList(query);
+        List<HotelBookingPo> rows = bookingMapper.selectList(query);
+        maskGuestPii(rows, context);
+        return rows;
     }
 
+
+    /** B 端无 member.pii.view 时掩码住客姓名/手机号；C 本人订单保持完整。 */
+    private static void maskGuestPii(List<HotelBookingPo> rows, TenantContext context) {
+        boolean canViewPii = context.permissions() != null
+                && context.permissions().contains("member.pii.view");
+        if (canViewPii || rows == null) {
+            return;
+        }
+        for (HotelBookingPo row : rows) {
+            if (row.getBookedByAccountId() != null
+                    && row.getBookedByAccountId() == context.accountId()) {
+                continue;
+            }
+            row.setGuestName(maskName(row.getGuestName()));
+            row.setGuestPhone(maskPhone(row.getGuestPhone()));
+        }
+    }
+
+    private static String maskName(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        return name.charAt(0) + "**";
+    }
+
+    private static String maskPhone(String phone) {
+        if (phone == null || phone.length() < 7) {
+            return phone;
+        }
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
     private List<HotelInventoryHoldPo> holds(Long bookingId, String status) {
         return holdMapper.selectList(new LambdaQueryWrapper<HotelInventoryHoldPo>()
                 .eq(HotelInventoryHoldPo::getBookingId, bookingId)
