@@ -280,6 +280,20 @@ class RefundApplicationServiceTest {
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
   }
 
+  @Test
+  void approveRefund_rejectsNullStoreContext() {
+    Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
+    io.openware.infrastructure.tenant.TenantContextHolder.set(
+        new io.openware.infrastructure.tenant.TenantContext(1L, 1L, null, 0L, 0));
+    try {
+      assertThrows(io.openware.common.exception.ApiException.class,
+          () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
+    } finally {
+      io.openware.infrastructure.tenant.TenantContextHolder.clear();
+    }
+  }
+
   private static Persisted<Refund> persisted(Refund refund) {
     return new Persisted<>(refund, new AuditSnapshot(null, null));
   }

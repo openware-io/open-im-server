@@ -66,6 +66,7 @@ class CollectApplicationServiceTest {
     when(paymentMethodService.isTenantAllowed(anyLong(), any(), any())).thenReturn(true);
     // 默认「无账单可校验」，与原先 selectForUpdate 返回 null 等价。
     when(orderBillingRepository.findForUpdate(anyLong(), anyLong())).thenReturn(Optional.empty());
+    when(orderBillingRepository.findStoreId(anyLong(), anyLong())).thenReturn(Optional.of(2L));
     // 端口替身默认行为：新增回填主键、状态写入成功。
     // 端口方法本身返回聚合/布尔，不桩设会得到 null/false，从而把成功路径变成失败路径。
     when(payCollectRepository.insert(any(PayCollect.class)))

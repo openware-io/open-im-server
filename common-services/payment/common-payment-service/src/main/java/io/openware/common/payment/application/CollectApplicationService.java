@@ -149,7 +149,7 @@ public class CollectApplicationService {
         if (billing != null) {
             java.util.Optional<Long> storeLookup = orderBillingRepository.findStoreId(tenantId, orderId);
             Long orderStoreId = storeLookup == null ? null : storeLookup.orElse(null);
-            if (orderStoreId != null && storeId != null && !orderStoreId.equals(storeId)) {
+            if (orderStoreId == null || storeId == null || !orderStoreId.equals(storeId)) {
                 throw new ApiException(404, "ORDER_NOT_FOUND", "订单不属于当前门店");
             }
             billTotal = billing.totalOrZero();
