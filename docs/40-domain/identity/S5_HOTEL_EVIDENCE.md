@@ -173,3 +173,30 @@ C 端在线支付（当前由 B 前台现金收款）
 Android 真机
 S5 仲裁
 ```
+
+## 8. 现金退款真实证据（2026-10-24）
+
+第二笔 C 预订：
+
+```text
+booking id=2113821115177717762
+orderId=9
+-> B confirm 200
+-> B checkin 200
+-> deposit 179800 -> folio paid 179800
+-> cash refund 10000 -> folio paid 169800
+```
+
+退款后直接退房：
+
+```text
+409 OUTSTANDING_BALANCE
+```
+
+补收 20000 后：
+
+```text
+-> 200 CHECKED_OUT
+```
+
+说明：退款减少 folio 已收，账单仍有应收时退房被正确拦截；补收后余额为 0 才允许退房。
