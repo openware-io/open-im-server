@@ -232,6 +232,9 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
         headers.set(TENANT_CONTEXT, contextToken);
       }
     }).build();
+    if (contextToken != null) {
+      exchange.getAttributes().put("tenantContextToken", contextToken);
+    }
     return chain.filter(exchange.mutate().request(request).build());
   }
 
