@@ -856,3 +856,35 @@ approveRefund_rejectsNullStoreContext
 ```
 
 说明：platform scope 是显式例外；普通 B token 无门店上下文一律拒绝。
+
+## 16. B 收款 UI / context null 硬化（2026-10-24）
+
+B 收款 UI：
+
+```text
+发起收款 订单22 / 现金 ¥899 -> 收款成功
+ord_order 22 store102 COMPLETED paid 89900
+pay_collect 22 store102 CONFIRMED
+```
+
+截图：
+
+```text
+evidence/s7-b-collect-ui.png
+evidence/s7-b-collect-success.png
+```
+
+context null：
+
+```text
+requireRefundStore: context == null && orderBillingRepository != null -> 404
+```
+
+状态：
+
+```text
+S7 cash-only E2E: CONDITIONAL PASS
+发布 P1: ACK/ACR/回滚、正式 APK 未完成
+C 在线支付/退款: deferred
+完整 S7: 不成立
+```

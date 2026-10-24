@@ -116,7 +116,7 @@ SEC-001..010：均有 HAR/headers/DB 证据
 SEC-007/010：本轮已补
 SEC-008/009：order/payment/tenant/admin/identity/gateway 通过
 全部服务与 gateway 已覆盖
-S7 cash-only：仍不能 PASS
+S7 cash-only E2E：CONDITIONAL PASS（发布 P1/在线 deferred）
 ```
 
 请求索引：
