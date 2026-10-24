@@ -95,9 +95,12 @@ order   ACTIVE 200 / DISABLED 401 / RESTORED 200
 payment PAY_ACTIVE 200 / PAY_DISABLED 401
 tenant  TENANT_ACTIVE 200 / TENANT_DISABLED 401
 admin   200 -> 401（admin 自身 filter）
+admin   200 -> 401（admin 自身 filter）
+identity 200 / 403
+gateway 200 / 401 AUTHORIZATION_STALE
 ```
 
-仍未覆盖：
+全链路覆盖：
 
 ```text
 ```
