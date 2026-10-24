@@ -528,3 +528,28 @@ HotelBookingPiiTest PASS
 张三 -> 张**
 13800000014 -> 138****0014
 ```
+
+## 25. ERR HTTP 5xx（2026-10-24）
+
+payment 缩容 0，管理会话经 gateway 收款：
+
+```text
+POST /api/v1/business/orders/15/collect
+-> HTTP/1.1 500 Internal Server Error
+requestId=e82cb6db-7
+ord_order 15: DRAFT / paid=0
+```
+
+证据：
+
+```text
+evidence/s7-trace/err-001-payment-down.headers
+evidence/s7-trace/err-001-payment-down.body
+```
+
+gateway 修正：
+
+```text
+旧：下游不可用被 onErrorResume 误映射为 401 SAAS_SESSION_UNAVAILABLE
+新：只捕获 Redis 会话读取错误；下游异常保留 5xx
+```

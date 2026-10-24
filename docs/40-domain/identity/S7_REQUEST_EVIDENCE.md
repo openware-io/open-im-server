@@ -65,3 +65,20 @@ evidence/s7-trace/admin-hotel-bookings-disabled.body
 ```
 
 完整 HAR 与 trace 仍需后续补。
+
+## 4. ERR-001 HTTP 500
+
+```text
+POST /api/v1/business/orders/15/collect
+payment replicas=0
+HTTP/1.1 500 Internal Server Error
+body.requestId=e82cb6db-7
+ord_order 15: DRAFT / paid=0
+```
+
+原始：
+
+```text
+evidence/s7-trace/err-001-payment-down.headers
+evidence/s7-trace/err-001-payment-down.body
+```
