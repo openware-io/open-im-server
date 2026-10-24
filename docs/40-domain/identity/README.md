@@ -52,3 +52,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 | [S7 证据索引](S7_EVIDENCE_INDEX.md) | 用例 -> 截图/HAR/trace/DB |
 | [负例证据](evidence/negative/README.md) | demo 截图移入负例 |
 | [S7 发布门禁](S7_RELEASE_GATE.md) | ACK/ACR/回滚、正式 APK、在线通道前置条件 |
+| [S7 交接归档](S7_HANDOFF.md) | 条件签字、证据、外部前置、禁止事项 |

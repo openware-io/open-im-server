@@ -1,0 +1,77 @@
+# S7 交接归档
+
+> 2026-10-24
+> 分支：`develop/2.4.0-hotel`
+> 当前结论：S7 cash-only E2E CONDITIONAL PASS；完整 S7 不成立
+
+## 1. 阶段状态
+
+```text
+S1–S6：PASS
+S7 cash-only E2E：CONDITIONAL PASS
+发布 P1：ACK/ACR/回滚、正式 APK 未完成
+C 在线支付/退款：deferred
+完整 S7：不成立
+```
+
+## 2. 已验证能力
+
+```text
+SEC-001..014：HAR/headers/DB
+跨店收款：SEC-011 404 / SEC-012 200
+跨店退款：SEC-013 404 / SEC-014 200
+null-scope / context==null：fail-closed
+B 前台：入住/退房/清扫/夜审/续住/账单
+B Web：退款 UI、收款 UI
+C H5：下单/我的订单/取消
+Android：同单现金闭环
+manifest + k8s-scoped 发布
+```
+
+## 3. 关键证据
+
+```text
+docs/40-domain/identity/S7_E2E_STATUS.md
+docs/40-domain/identity/S7_SECURITY_MATRIX.md
+docs/40-domain/identity/S7_REQUEST_EVIDENCE.md
+docs/40-domain/identity/S7_EVIDENCE_INDEX.md
+docs/40-domain/identity/S7_RELEASE_GATE.md
+docs/40-domain/identity/evidence/
+```
+
+## 4. 运行态
+
+```text
+Kind: open-im-local
+gateway/admin/identity/order/payment/tenant: 2.4.0-SNAPSHOT
+H5: 2.4.0-SNAPSHOT
+URL: http://127.0.0.1:30080
+```
+
+## 5. 未完成外部前置
+
+```text
+ACK kubeconfig + ACR push credentials
+生产域名/证书
+正式 Android keystore + release buildNumber
+ALIPAY/WECHAT/STRIPE 测试商户 + pay_channel_provider
+```
+
+## 6. 下一阶段
+
+```text
+1. 提供 ACK/ACR 凭据 -> 生产发布 + digest 校验
+2. 生产回滚演练
+3. 正式签名 APK + 核心 C 流
+4. 在线支付/退款 P0（或再次正式签 scope change）
+5. 仲裁复核完整 S7
+```
+
+## 7. 禁止事项
+
+```text
+禁止手工 kubectl set image / 手工 tag
+禁止用 Kind 结果冒充 ACK 生产发布
+禁止 debug APK 冒充正式签名包
+禁止 mock 在线支付成功
+```
