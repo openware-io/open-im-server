@@ -2,7 +2,7 @@
 
 > 分支：`develop/2.4.0-hotel`
 > 更新时间：2026-10-24
-> 结论：S1–S6 已签字 PASS；S7 未通过/阻塞（在线支付通道缺失）。
+> 结论：S1–S6 已签字 PASS；S7 按 cash-only 继续，在线支付/退款单列 deferred。
 
 ## 阶段状态
 
@@ -14,7 +14,7 @@
 | S4 应用安装 / 权益 / 入口 | PASS | 仲裁 `09c0923f`；V11/V12、安装/权益、`/auth/apps` |
 | S5 酒店门店 / C/B 应用 | PASS | 仲裁 `b3247ddd`；HOTEL 102、C 预订、B 前台/现金退款/夜审/房态 |
 | S6 旧模型迁移 / 冻结 | PASS | 仲裁 `b721efc7`；`iam_user_role` 归档、平台角色授予 + PLATFORM_OPERATOR 校验 |
-| S7 测试 / 部署 / 门禁 | 未通过/阻塞 | 真实 B/C/Android、隔离、退款账实已过；在线支付通道缺失 |
+| S7 测试 / 部署 / 门禁 | 进行中（cash-only） | 在线支付/退款 deferred；其余 P0/P1 继续 |
 
 ## 浏览器 / 真机
 
@@ -25,7 +25,7 @@
 | Android 真机 | 部分通过 | 登录成功；真实 A380 Hotel、Deluxe King、¥899 报价；自动下单/支付未完成 |
 | 隔离 | PASS | C→B 403、B→C 403、篡改 401、跨门店 404 |
 | 现金退款账实 | PASS | 89900→59900，sum(refund)=30000；超退 422 |
-| 在线支付/退款 | 阻塞 | ALIPAY/WECHAT/STRIPE enabled=0；无 provider/商户密钥 |
+| 在线支付/退款 | deferred | 用户批准绕过；生产前硬门禁，见 S7_ONLINE_PAYMENT_DEFERRAL.md |
 
 ## 关键证据
 
