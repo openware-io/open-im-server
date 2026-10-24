@@ -15,7 +15,7 @@
 | C→B audience | C token -> B admin hotel | 403 CLIENT_AUDIENCE_FORBIDDEN | API |
 | B→C audience | B token -> C catalog | 403 CLIENT_AUDIENCE_FORBIDDEN | API |
 
-## 2. SEC-008/009：旧 token 失效（order/payment 已修复）
+## 2. SEC-008/009：旧 token 失效（order/payment/tenant 已修复）
 
 修复前真实失败：
 
@@ -35,7 +35,7 @@ TenantContextFilter 只校验 JWT 签名/issuer/audience
 修复：
 
 ```text
-order/payment 增加 TenantAuthorizationStateFilter
+order/payment/tenant 增加 TenantAuthorizationStateFilter
 每 5s 刷新 tenant 权限快照
 token.authorizationVersion < 当前版本 或 当前版本=0 -> 401
 ```
@@ -46,6 +46,13 @@ token.authorizationVersion < 当前版本 或 当前版本=0 -> 401
 ACTIVE   -> 200
 DISABLED -> 401
 RESTORED -> 200
+```
+
+真实回归（tenant）：
+
+```text
+TENANT_ACTIVE   -> 200
+TENANT_DISABLED -> 401
 ```
 
 真实回归（payment）：
@@ -71,7 +78,7 @@ platform-identity-service
 gateway 集中校验
 ```
 
-因此 SEC-008/009 只对酒店订单/支付链路通过，IAM 管理面仍是缺口。
+因此 SEC-008/009 对 order/payment/tenant 通过；admin/identity/gateway 仍是缺口。
 
 ## 3. 其他
 
@@ -94,6 +101,6 @@ V17 给 store.manager / store.cashier 授权
 
 ```text
 SEC 矩阵：部分通过
-SEC-008/009：order/payment 通过，tenant/admin/identity 未覆盖
+SEC-008/009：order/payment/tenant 通过；admin/identity/gateway 未覆盖
 S7 cash-only：仍不能 PASS
 ```
