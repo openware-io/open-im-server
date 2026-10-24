@@ -1,4 +1,51 @@
-﻿id	store_id	status
-2114013936307535874	102	CHECKED_OUT
-platform_bindings_113
-1
+SEC-001 / SEC-002 跨门店只读结果
+=================================
+-- 目标 booking 属于 store 102
+SELECT id, store_id, status FROM htl_booking WHERE id = 2114013936307535874;
+id                  store_id  status
+2114013936307535874  102       CHECKED_OUT
+
+-- store 100 没有酒店预订
+SELECT COUNT(*) FROM htl_booking WHERE store_id = 100;
+0
+
+-- store 102 有 20 条酒店预订
+SELECT COUNT(*) FROM htl_booking WHERE store_id = 102;
+20
+
+SEC-003 / SEC-004 篡改 token 后无新会话
+=======================================
+-- 两次请求均为 401，响应无 Set-Cookie
+SEC-003 Set-Cookie count: 0
+SEC-004 Set-Cookie count: 0
+
+-- 账号授权版本未被篡改请求改变
+SELECT authorization_version FROM tnt_membership WHERE id = 1;
+2
+
+SEC-005 C/B cookie 混用后无 B 会话
+==================================
+请求：
+POST /api/v1/auth/session?appId=saas-a380-h5
+Referer: http://127.0.0.1:30080/a380/
+Cookie: saas_c_session=6362706ba13d4405913644f9de5befa2
+
+响应：
+HTTP/1.1 403 Forbidden
+X-Request-Id: ad36d833937d8428e8600ca53a55287f
+无 Set-Cookie
+
+Redis 会话：
+saas:user-session:6362706ba13d4405913644f9de5befa2 appId=saas-a380-c
+saas:user-session:1427816535e045e8b7146b1aed4b61dd appId=saas-a380-c
+
+没有 appId=saas-a380-h5 的会话。
+
+SEC-006 平台角色未新增
+=====================
+SELECT id, subject_id, role_id, status FROM iam_role_binding
+ WHERE subject_id = 113 AND role_id = 1;
+id  subject_id  role_id  status
+2   113         1        REVOKED
+
+请求结果 403 PLATFORM_OPERATOR_REQUIRED；没有新增 ACTIVE 绑定。

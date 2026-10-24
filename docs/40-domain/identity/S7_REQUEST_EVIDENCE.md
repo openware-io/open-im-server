@@ -263,9 +263,9 @@ DB           sec-001-006-db.txt
 requestId：
 
 ```text
-SEC-001 07113a87-77d9-49c3-8dcd-373a5842c1f5
+SEC-001 e8e60c8e-598e-4eec-907d-0412247b9eff
 SEC-003 9a62a017-6af5-4612-a439-947e455bfec9
 SEC-004 e90d1392-3984-4f3d-9cb0-7ea63f55f7ff
-SEC-005 响应无 X-Request-Id；补充 B endpoint 76e87590692d3c9a0c2bd88d6d49e58f
+SEC-005 ad36d833937d8428e8600ca53a55287f
 SEC-006 f51a1a4b-6650-40e8-95c5-7af2c7e903cf
 ```

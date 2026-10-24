@@ -7,11 +7,11 @@
 
 | ID | 用例 | 结果 | 证据 |
 | --- | --- | --- | --- |
-| SEC-001 | 跨租户/门店 booking 访问 | 404 | `evidence/s7-trace/sec-001-cross-store.har`；X-Request-Id 07113a87-77d9-49c3-8dcd-373a5842c1f5；DB store102 |
+| SEC-001 | 跨租户/门店 booking 访问 | 404 | `evidence/s7-trace/sec-001-cross-store.har`；X-Request-Id e8e60c8e-598e-4eec-907d-0412247b9eff；DB store102 |
 | SEC-002 | 跨门店资源 | 404 | `evidence/s7-trace/sec-002-cross-store.har`；DB store102 |
 | SEC-003 | 客户端篡改 token | 401 | `evidence/s7-trace/sec-003-tampered.har`；X-Request-Id 9a62a017-6af5-4612-a439-947e455bfec9 |
 | SEC-004 | 客户端篡改 permissions | 401 | `evidence/s7-trace/sec-004-perm.har`；X-Request-Id e90d1392-3984-4f3d-9cb0-7ea63f55f7ff |
-| SEC-005 | C/B cookie 混用 | 403 CLIENT_ORIGIN_FORBIDDEN | `evidence/s7-trace/sec-005-cookie.har`；补充 B endpoint requestId 76e87590692d3c9a0c2bd88d6d49e58f |
+| SEC-005 | C/B cookie 混用 | 403 CLIENT_ORIGIN_FORBIDDEN | `evidence/s7-trace/sec-005-cookie.har`；X-Request-Id ad36d833937d8428e8600ca53a55287f |
 | SEC-006 | 平台角色授予 STAFF | 403 PLATFORM_OPERATOR_REQUIRED | `evidence/s7-trace/sec-006-platform.har`；X-Request-Id f51a1a4b-6650-40e8-95c5-7af2c7e903cf |
 | SEC-007 | token 过期 | 401 | 直连 order，过期签名 JWT，X-Request-Id 1e86b77a-4b7c-424a-8d98-d26ea6387910 |
 | SEC-008 | 成员禁用旧 token | 401 | order/payment/tenant 200/401/200；admin 200->401 |
