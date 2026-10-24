@@ -14,14 +14,17 @@ public class ServiceEntryApplicationService {
     this.tenantClient = tenantClient;
   }
 
-  public List<ServiceEntry> entries(Long tenantId, String clientType) {
+  public List<ServiceEntry> entries(Long accountId, Long tenantId, String clientType) {
     var entitlements = tenantClient.entitlements(tenantId).stream()
         .filter(item -> "ACTIVE".equals(item.status()))
         .map(TenantServiceClient.Entitlement::featureCode)
         .toList();
+    var authorized = "C".equals(clientType)
+        ? tenantClient.authorizedApps(accountId) : List.<String>of();
     return tenantClient.installedApps(tenantId).stream()
         .filter(app -> "ACTIVE".equals(app.status()))
         .filter(app -> clientType.equals(app.clientType()))
+        .filter(app -> !"C".equals(clientType) || authorized.contains(app.appId()))
         .filter(app -> featureFor(app.appId()) == null || entitlements.contains(featureFor(app.appId())))
         .map(app -> new ServiceEntry(app.appId(), app.clientType(), featureFor(app.appId())))
         .toList();

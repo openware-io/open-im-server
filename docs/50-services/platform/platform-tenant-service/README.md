@@ -136,3 +136,6 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 
 新写路径已记录 IAM 审计：membership create/status、role_binding assign/revoke/scope。
 
+
+S4：/admin/apps 安装/卸载，/admin/entitlements 只读，/admin/platform/entitlements 平台开通。
+

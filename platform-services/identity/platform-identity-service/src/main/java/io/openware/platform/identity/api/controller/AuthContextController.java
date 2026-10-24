@@ -85,7 +85,7 @@ public class AuthContextController {
                 "请先选择租户上下文");
         }
         String clientType = appRegistry.isBackend(appId) ? "B" : "C";
-        return new AppsResponse(entries.entries(session.tenantId(), clientType));
+        return new AppsResponse(entries.entries(session.accountId(), session.tenantId(), clientType));
     }
 
     @PostMapping("/context/select")

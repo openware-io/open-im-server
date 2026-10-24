@@ -60,6 +60,14 @@ public class TenantServiceClient {
         return arr == null ? List.of() : List.of(arr);
     }
 
+    /** 当前用户已授权的应用 appId。 */
+    public List<String> authorizedApps(Long accountId) {
+        String[] arr = restClient.get()
+                .uri("/internal/iam/accounts/{accountId}/app-grants", accountId)
+                .retrieve().body(String[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
     public record InstalledApp(Long id, Long tenantId, String appId, String clientType, String status) {
     }
 

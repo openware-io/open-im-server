@@ -20,12 +20,24 @@ class ServiceEntryApplicationServiceTest {
         new TenantServiceClient.InstalledApp(2L, 100L, "saas-ktv-c", "C", "ACTIVE")));
     when(tenantClient.entitlements(100L)).thenReturn(List.of(
         new TenantServiceClient.Entitlement("HOTEL", "ACTIVE", "MANUAL")));
+    when(tenantClient.authorizedApps(7L)).thenReturn(List.of("saas-hotel-c"));
 
-    var entries = service.entries(100L, "C");
+    var entries = service.entries(7L, 100L, "C");
 
     assertEquals(1, entries.size());
     assertEquals("saas-hotel-c", entries.get(0).appId());
     assertEquals("HOTEL", entries.get(0).featureCode());
+  }
+
+  @Test
+  void installedButNotAuthorizedAppIsHidden() {
+    when(tenantClient.installedApps(100L)).thenReturn(List.of(
+        new TenantServiceClient.InstalledApp(1L, 100L, "saas-hotel-c", "C", "ACTIVE")));
+    when(tenantClient.entitlements(100L)).thenReturn(List.of(
+        new TenantServiceClient.Entitlement("HOTEL", "ACTIVE", "MANUAL")));
+    when(tenantClient.authorizedApps(7L)).thenReturn(List.of());
+
+    assertEquals(0, service.entries(7L, 100L, "C").size());
   }
 
   @Test
@@ -34,6 +46,6 @@ class ServiceEntryApplicationServiceTest {
         new TenantServiceClient.InstalledApp(1L, 100L, "saas-hotel-b", "B", "ACTIVE")));
     when(tenantClient.entitlements(100L)).thenReturn(List.of());
 
-    assertEquals(0, service.entries(100L, "C").size());
+    assertEquals(0, service.entries(7L, 100L, "C").size());
   }
 }

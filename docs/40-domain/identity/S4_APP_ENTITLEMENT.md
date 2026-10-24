@@ -107,3 +107,51 @@ GET /admin/entitlements
 ```
 
 审计动作：`iam.entitlement.grant`。
+
+## S4 仲裁修复（2026-10-24）
+
+```text
+/auth/apps 增加当前用户 app grant 过滤（C 端）；未授权不返回
+安装经 identity /internal/identity/apps/{appId} 校验注册表与 clientType
+权益改为平台 /admin/platform/entitlements；租户侧只读
+S3-APP-REGISTRY-001 延续为 S4-APP-REGISTRY-CONTINUE-001（S5 关闭）
+```
+
+## 用户授权过滤（2026-10-24）
+
+安装 `saas-hotel-c` 且权益 HOTEL ACTIVE，但当前 C 用户没有 app grant：
+
+```text
+GET /auth/apps?appId=saas-a380-c -> {"items":[]}
+```
+
+写入 `tnt_app_user_authorization(account_id=112, app_id=saas-hotel-c, status=ACTIVE)`：
+
+```text
+GET /auth/apps -> [{"appId":"saas-hotel-c","clientType":"C","featureCode":"HOTEL"}]
+```
+
+授权改为 REVOKED：
+
+```text
+GET /auth/apps -> {"items":[]}
+```
+
+## 安装目录校验（2026-10-24）
+
+```text
+POST /admin/apps {"appId":"evil-app","clientType":"C"}
+-> 400 APP_NOT_AVAILABLE
+
+POST /admin/apps {"appId":"saas-hotel-c","clientType":"B"}
+-> 400 APP_CLIENT_TYPE_MISMATCH（单测覆盖）
+```
+
+## 权益权限（2026-10-24）
+
+```text
+租户 POST /admin/entitlements 已移除；租户侧只读
+平台 POST /admin/platform/entitlements
+  需要 PLATFORM 上下文 + platform.tenant.entitlement.manage
+租户自助 grant -> 403 ENTITLEMENT_PLATFORM_ONLY（单测覆盖）
+```

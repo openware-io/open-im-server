@@ -26,12 +26,12 @@ public class EntitlementController {
     return service.list();
   }
 
-  @PostMapping("/admin/entitlements")
-  public void grant(@RequestBody GrantRequest request) {
-    service.grant(request.featureCode(), request.status());
+  @PostMapping("/admin/platform/entitlements")
+  public void grantPlatform(@RequestBody PlatformGrantRequest request) {
+    service.grantPlatform(request.tenantId(), request.featureCode(), request.status(), request.source());
   }
 
-  public record GrantRequest(String featureCode, String status) {
+  public record PlatformGrantRequest(Long tenantId, String featureCode, String status, String source) {
   }
 
   @GetMapping("/internal/iam/tenants/{tenantId}/entitlements")

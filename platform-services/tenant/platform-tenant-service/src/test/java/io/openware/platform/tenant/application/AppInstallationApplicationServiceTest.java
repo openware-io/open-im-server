@@ -12,6 +12,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.app.model.AppInstallation;
 import io.openware.platform.tenant.domain.app.repository.AppInstallationRepository;
+import io.openware.platform.tenant.infrastructure.client.IdentityAppCatalogClient;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -27,11 +28,12 @@ class AppInstallationApplicationServiceTest {
 
   @Mock private AppInstallationRepository repository;
   @Mock private AuditClient audit;
+  @Mock private IdentityAppCatalogClient catalog;
   private AppInstallationApplicationService service;
 
   @BeforeEach
   void setUp() {
-    service = new AppInstallationApplicationService(repository, audit);
+    service = new AppInstallationApplicationService(repository, audit, catalog);
     TenantContextHolder.set(new TenantContext(100L, 0L, 0L, 7L, 1,
         List.of("tenant.tenant.manage"), "TENANT", null, null));
   }
@@ -43,6 +45,7 @@ class AppInstallationApplicationServiceTest {
 
   @Test
   void installCreatesActiveInstallation() {
+    when(catalog.get("saas-hotel-c")).thenReturn(new IdentityAppCatalogClient.AppInfo("saas-hotel-c", "C", "ACTIVE"));
     when(repository.findByTenantAndApp(100L, "saas-hotel-c")).thenReturn(Optional.empty());
     when(repository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -51,6 +54,14 @@ class AppInstallationApplicationServiceTest {
     assertEquals("ACTIVE", installed.status());
     assertEquals("C", installed.clientType());
     verify(audit).recordAsync(any());
+  }
+
+  @Test
+  void installRejectsClientTypeMismatch() {
+    when(catalog.get("saas-hotel-c"))
+        .thenReturn(new IdentityAppCatalogClient.AppInfo("saas-hotel-c", "C", "ACTIVE"));
+
+    assertThrows(ApiException.class, () -> service.install("saas-hotel-c", "B"));
   }
 
   @Test

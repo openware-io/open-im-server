@@ -10,6 +10,8 @@ public class TenantAudienceConfig implements WebMvcConfigurer {
 
   @Override
   public void addInterceptors(InterceptorRegistry registry) {
-    registry.addInterceptor(new TenantAdminAudienceInterceptor()).addPathPatterns("/admin/**");
+    registry.addInterceptor(new TenantAdminAudienceInterceptor())
+        .addPathPatterns("/admin/**")
+        .excludePathPatterns("/admin/platform/**");
   }
 }

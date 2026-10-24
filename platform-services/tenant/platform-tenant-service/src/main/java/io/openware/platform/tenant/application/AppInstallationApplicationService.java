@@ -5,6 +5,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.tenant.infrastructure.client.IdentityAppCatalogClient;
 import io.openware.platform.tenant.domain.app.model.AppInstallation;
 import io.openware.platform.tenant.domain.app.repository.AppInstallationRepository;
 import java.util.List;
@@ -17,10 +18,13 @@ public class AppInstallationApplicationService {
 
   private final AppInstallationRepository repository;
   private final AuditClient audit;
+  private final IdentityAppCatalogClient catalog;
 
-  public AppInstallationApplicationService(AppInstallationRepository repository, AuditClient audit) {
+  public AppInstallationApplicationService(AppInstallationRepository repository, AuditClient audit,
+                                           IdentityAppCatalogClient catalog) {
     this.repository = repository;
     this.audit = audit;
+    this.catalog = catalog;
   }
 
   public List<AppInstallation> list() {
@@ -42,6 +46,12 @@ public class AppInstallationApplicationService {
       throw new ApiException(400, "APP_ID_REQUIRED", "appId 不能为空");
     }
     String normalized = appId.trim();
+    var registered = catalog.get(normalized);
+    String effectiveClientType = clientType == null || clientType.isBlank()
+        ? registered.clientType() : clientType.toUpperCase();
+    if (!registered.clientType().equals(effectiveClientType)) {
+      throw new ApiException(400, "APP_CLIENT_TYPE_MISMATCH", "应用客户端族与注册表不一致");
+    }
     AppInstallation existing = repository.findByTenantAndApp(context.tenantId(), normalized).orElse(null);
     AppInstallation saved;
     if (existing != null) {
@@ -49,10 +59,10 @@ public class AppInstallationApplicationService {
         return existing;
       }
       saved = repository.save(new AppInstallation(existing.id(), existing.tenantId(), existing.appId(),
-          clientType == null ? existing.clientType() : clientType,
+          effectiveClientType,
           AppInstallation.STATUS_ACTIVE, context.accountId(), existing.installedAt()));
     } else {
-      saved = repository.save(AppInstallation.install(context.tenantId(), normalized, clientType,
+      saved = repository.save(AppInstallation.install(context.tenantId(), normalized, effectiveClientType,
           context.accountId()));
     }
     audit.recordAsync(AuditClient.AuditRecord.of(context.tenantId(), context.accountId(),

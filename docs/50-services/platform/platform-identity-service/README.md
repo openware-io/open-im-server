@@ -146,3 +146,6 @@ C 权限来源定稿：consumer app scope 为权限，CUSTOMER membership 为租
 
 服务入口：GET /auth/apps?appId=，返回已安装 ∩ 权益 ∩ 客户端族。
 
+
+/auth/apps 过滤当前用户 app grant；未授权应用不返回。
+

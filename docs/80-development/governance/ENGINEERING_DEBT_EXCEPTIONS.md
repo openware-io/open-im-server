@@ -75,3 +75,15 @@ validate-flyway-conventions.ps1 PASS
 补充验证：S4 切换 open_application 后补 redirect/scopes/status 测试；期间新增 app 必须显式配置并过 C/B 冲突检查
 退出：S4 完成 open_application 注册表接入
 ```
+
+## S4-APP-REGISTRY-CONTINUE-001
+
+```text
+检查：S4 应用目录
+现状：identity 仍用 saas.apps.* 配置桥；tenant 安装通过 /internal/identity/apps/{appId} 校验注册表与 clientType
+原因：IM open_application 尚未提供 SaaS 侧统一只读目录接口
+负责人：platform-identity-service + platform-tenant-service 负责人
+到期：2026-12-31
+补充验证：安装未注册 app 400；clientType 不匹配 400；新增 app 必须显式配置并过 C/B 冲突检查
+退出：S5 接 open_application/app_type/status/scopes/redirect，删除配置桥默认
+```
