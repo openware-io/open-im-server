@@ -345,3 +345,16 @@ pay_channel_provider 无记录
 
 没有可用真实在线商户；C 在线支付/在线退款无法在本地产生真实渠道流水。
 当前只完成 CASH 收款 + 线下退款登记（PENDING→APPROVED→REFUNDED）与订单回冲。
+
+## 18. 预订 hold 过期（异常用例）
+
+C 预订 HTL1792814765239386 创建于 12:05，hold 15 分钟。
+B 在 12:31 调 confirm：
+
+```text
+POST /admin/hotel/bookings/2113844451563585538/confirm
+-> 409 BOOKING_STATE_INVALID 当前预订不能确认
+```
+
+说明：hold 过期后不允许确认，符合预期；在线支付必须在 hold 窗口内完成并触发确认。
+当前 C 收款由 B 手工补收，未在 hold 窗口内确认，因此该单保持 PENDING_PAYMENT。
