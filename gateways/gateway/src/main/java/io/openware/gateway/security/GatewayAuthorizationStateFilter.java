@@ -25,9 +25,8 @@ public class GatewayAuthorizationStateFilter implements GlobalFilter, Ordered {
     private final WebClient tenantClient;
 
     public GatewayAuthorizationStateFilter(
-            WebClient.Builder builder,
             @Value("${app.tenant-service.base-url:http://platform-tenant-service:4110}") String baseUrl) {
-        this.tenantClient = builder.baseUrl(baseUrl).build();
+        this.tenantClient = WebClient.create(baseUrl);
     }
 
     @Override
