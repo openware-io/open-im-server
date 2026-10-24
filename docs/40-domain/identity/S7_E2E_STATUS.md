@@ -833,3 +833,26 @@ sec-013-014-db.txt
 ```
 
 注：order18 的 `pay_collect.store_id=100` / `ord_order.store_id=102` 是跨店修复前的历史数据，保留为负例，不作为“正确门店收款”的正例；修复后以 SEC-011/012 的 store100 404 / store102 200 为准。
+
+## 15. null-scope fail-closed（2026-10-24）
+
+修复：
+
+```text
+CollectApplicationService:
+  orderStoreId == null || storeId == null || !equals -> 404
+
+RefundApplicationService.requireRefundStore:
+  context 非 PLATFORM 且 storeId == null -> 404
+  context.storeId != refund.storeId -> 404
+  order.storeId != refund.storeId -> 404
+```
+
+单测：
+
+```text
+payment 149 tests PASS
+approveRefund_rejectsNullStoreContext
+```
+
+说明：platform scope 是显式例外；普通 B token 无门店上下文一律拒绝。
