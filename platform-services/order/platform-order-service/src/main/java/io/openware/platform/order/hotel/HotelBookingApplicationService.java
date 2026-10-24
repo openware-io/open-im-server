@@ -66,9 +66,15 @@ public class HotelBookingApplicationService {
                 LocalDateTime.now().plusMinutes(HOLD_MINUTES));
     }
 
-    @Transactional
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note) {
+        return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note, null);
+    }
+
+    @Transactional
+    public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
+                                        int rooms, String guestName, String guestPhone, String note,
+                                        Long bookedByAccountId) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         if (guestName == null || guestName.isBlank() || guestPhone == null || guestPhone.isBlank()) {
@@ -109,6 +115,7 @@ public class HotelBookingApplicationService {
         booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
                 context.organizationId(), context.storeId(), booking.getBookingNo(),
                 booking.getCurrency(), booking.getAmountMinor()));
+        booking.setBookedByAccountId(bookedByAccountId);
         booking.setUpdatedAt(now);
         bookingMapper.updateById(booking);
 
@@ -235,6 +242,22 @@ public class HotelBookingApplicationService {
         TenantContext context = requireStore();
         LambdaQueryWrapper<HotelBookingPo> query = new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getStoreId, context.storeId())
+                .orderByDesc(HotelBookingPo::getId);
+        if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
+        if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);
+        if (to != null) query.lt(HotelBookingPo::getCheckOutDate, to);
+        return bookingMapper.selectList(query);
+    }
+
+    public List<HotelBookingPo> listByAccount(String status, LocalDate from, LocalDate to, Long accountId) {
+        PermissionGuard.require("hotel.booking.view");
+        TenantContext context = requireStore();
+        if (accountId == null || accountId <= 0) {
+            throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
+        }
+        LambdaQueryWrapper<HotelBookingPo> query = new LambdaQueryWrapper<HotelBookingPo>()
+                .eq(HotelBookingPo::getStoreId, context.storeId())
+                .eq(HotelBookingPo::getBookedByAccountId, accountId)
                 .orderByDesc(HotelBookingPo::getId);
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
         if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);

@@ -200,3 +200,58 @@ orderId=9
 ```
 
 说明：退款减少 folio 已收，账单仍有应收时退房被正确拦截；补收后余额为 0 才允许退房。
+
+## 9. C 订单归属隔离（2026-10-24）
+
+V14：
+
+```text
+htl_booking.booked_by_account_id
+index (store_id, booked_by_account_id)
+```
+
+C 下单写入 `accountId=112`：
+
+```text
+booking id=2113822455492558850 booked_by_account_id=112
+```
+
+C 我的订单：
+
+```text
+GET /business/hotel/bookings
+-> 仅 id=2113822455492558850（guestName/guestPhone 仅本人）
+```
+
+B 前台：
+
+```text
+GET /admin/hotel/bookings
+-> 整店可见
+```
+
+迁移脚本：
+
+```text
+scripts/migration/s5-hotel-store-migration.sql
+幂等创建 store + 更新 htl_* + 行数校验
+```
+
+## 10. S5 准出边界
+
+S5 后端准出：
+
+```text
+酒店 C 预订
+B 确认/入住/现金收款/押金/现金退款/退房/夜审/清扫
+C 本人订单隔离
+```
+
+明确 defer：
+
+```text
+C 在线支付、在线退款 -> S7 E2E 前补
+owner：platform-order-service + common-payment-service
+入口：C 收银台 / 在线退款申请
+风险：当前 C 订单由 B 前台现金收款，不等于 C 在线支付完成
+```

@@ -1,6 +1,8 @@
 package io.openware.platform.order.hotel;
 
+import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.ClientAudience;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,9 +36,13 @@ public class HotelCustomerBookingController {
   @PostMapping("/bookings")
   @ResponseStatus(HttpStatus.CREATED)
   public HotelBookingPo create(@RequestBody BookingRequest request) {
+    var context = TenantContextHolder.get();
+    if (context == null || context.accountId() <= 0) {
+      throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
+    }
     return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
         request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
-        request.guestName(), request.guestPhone(), request.note());
+        request.guestName(), request.guestPhone(), request.note(), context.accountId());
   }
 
   @GetMapping("/bookings")
@@ -44,7 +50,11 @@ public class HotelCustomerBookingController {
       @RequestParam(required = false) String status,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-    return service.list(status, from, to);
+    var context = TenantContextHolder.get();
+    if (context == null || context.accountId() <= 0) {
+      throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
+    }
+    return service.listByAccount(status, from, to, context.accountId());
   }
 
   public record QuoteRequest(Long roomTypeId, Long ratePlanId, LocalDate checkInDate,
