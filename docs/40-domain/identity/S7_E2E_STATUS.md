@@ -358,3 +358,66 @@ POST /admin/hotel/bookings/2113844451563585538/confirm
 
 说明：hold 过期后不允许确认，符合预期；在线支付必须在 hold 窗口内完成并触发确认。
 当前 C 收款由 B 手工补收，未在 hold 窗口内确认，因此该单保持 PENDING_PAYMENT。
+
+## 19. P0 修复（2026-10-24 晚）
+
+### C 下单自动绑定 customer_id
+
+```text
+HotelBookingApplicationService -> MemberLookupProvider
+-> createHotelReceivable(..., customerId)
+
+booking HTL1792855173541441
+booking id=2114013936307535874
+order_id=13
+customer_id=1（自动写入，无手工 SQL）
+```
+
+### 支付后自动确认预订
+
+```text
+HotelBookingPaymentReconciler
+@Scheduled 60s
+JOIN ord_order status=COMPLETED AND paid_amount>=total_amount
+-> htl_booking PENDING_PAYMENT -> CONFIRMED
+-> holds HELD -> SOLD
+```
+
+真实：
+
+```text
+order 13 paid 89900 COMPLETED
+booking 2114013936307535874 -> CONFIRMED
+```
+
+### 并发退款保护
+
+```text
+approveRefund:
+approvedAmount + 同订单其他 APPROVED 金额 <= order.paid
+```
+
+真实：
+
+```text
+refund 7 60000 -> APPROVED 200
+refund 8 60000 -> 422 REFUND_EXCEEDS_PAID
+```
+
+### 部署
+
+```text
+build-saas-release -> s7-p0-manifest / s7-refund-manifest
+k8s-scoped -> EXIT=0
+```
+
+## 20. 仍待完成
+
+```text
+Android 全 C 流（下单/支付/订单）
+ERR-001/002 真实故障注入
+SEC 全矩阵
+HAR/logcat/trace
+生产 ACK
+数据 seed/migration
+```
