@@ -44,3 +44,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 | [S5 酒店门店与 C/B 应用](S5_HOTEL_EVIDENCE.md) | HOTEL 门店、C 预订、B 前台确认 |
 | [S6 旧模型与平台角色](S6_LEGACY_EVIDENCE.md) | iam_user_role 归档、平台角色授予 |
 | [S7 E2E 执行状态](S7_E2E_STATUS.md) | 浏览器/真机进行中，未通过 |
+| [S7 版本与部署纠正](S7_DEPLOYMENT_CORRECTION.md) | manifest 部署纠正、2.4.0 版本来源、S7 阻塞方案 |
