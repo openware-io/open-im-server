@@ -160,3 +160,67 @@ contextId=consumer:saas-a380-c:100:100:102
 ```
 
 需要把 C 端酒店页接到真实 `/business/hotel` API 才能过 S7。
+
+## 10. C 端酒店已接真实 API（2026-10-24）
+
+H5 新增真实酒店页：
+
+```text
+c-end/hotel-real.js
+/service/hotel -> GET /business/hotel/catalog/hotels
+real-hotel/{id} -> GET /business/hotel/catalog/hotels/{id}
+POST /business/hotel/quotes
+POST /business/hotel/bookings
+```
+
+浏览器 C 真实下单：
+
+```text
+A380 Hotel
+Deluxe King
+2026-10-25 ~ 2026-10-26
+实时报价 ¥899.00
+提交预订 -> HTL1792814765239386
+status=PENDING_PAYMENT
+```
+
+DB：
+
+```text
+htl_booking id=2113844451563585538
+booking_no=HTL1792814765239386
+store_id=102
+booked_by_account_id=101
+order_id=11
+ord_order total_amount=89900 DRAFT
+```
+
+截图：
+
+```text
+docs/40-domain/identity/evidence/s7-c-real-booking.png
+```
+
+Android 真机同样加载真实酒店：
+
+```text
+A380 Hotel / Deluxe King / 查询实时价格 ¥899.00
+```
+
+截图：
+
+```text
+s7-android-real-hotel.png
+s7-android-real-quote.png
+```
+
+Android WebView 原生日期/输入控件仍妨碍自动提交，但页面和 API 已真实。
+
+## 11. H5 Referrer 修复
+
+```text
+open-saas-mobile/nginx.conf
+Referrer-Policy: no-referrer -> same-origin
+```
+
+重建镜像 `ghcr.io/openware-io/saas-mobile:2.4.0-s7` 并部署。

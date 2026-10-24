@@ -183,3 +183,6 @@ S7 更新：B Web 酒店前台真实数据已通（截图）；C H5 Referer/sess
 
 S7 更新：Android 真机登录成功；C H5/Android 酒店页仍为演示数据，需接真实 API。
 
+
+S7 更新：C H5 真实酒店目录/报价/下单已通（HTL1792814765239386）；Android 真实目录/报价已通。
+
