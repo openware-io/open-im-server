@@ -20,11 +20,15 @@ public class ServiceEntryApplicationService {
         .map(TenantServiceClient.Entitlement::featureCode)
         .toList();
     var authorized = "C".equals(clientType)
-        ? tenantClient.authorizedApps(accountId) : List.<String>of();
+        ? tenantClient.authorizedApps(accountId, tenantId) : List.<String>of();
+    boolean staff = "B".equals(clientType) && tenantClient.memberships(accountId).stream()
+        .anyMatch(membership -> "STAFF".equals(membership.membershipType())
+            && "ACTIVE".equals(membership.status()) && tenantId.equals(membership.tenantId()));
     return tenantClient.installedApps(tenantId).stream()
         .filter(app -> "ACTIVE".equals(app.status()))
         .filter(app -> clientType.equals(app.clientType()))
         .filter(app -> !"C".equals(clientType) || authorized.contains(app.appId()))
+        .filter(app -> !"B".equals(clientType) || staff)
         .filter(app -> featureFor(app.appId()) == null || entitlements.contains(featureFor(app.appId())))
         .map(app -> new ServiceEntry(app.appId(), app.clientType(), featureFor(app.appId())))
         .toList();

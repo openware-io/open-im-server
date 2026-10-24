@@ -61,9 +61,10 @@ public class TenantServiceClient {
     }
 
     /** 当前用户已授权的应用 appId。 */
-    public List<String> authorizedApps(Long accountId) {
+    public List<String> authorizedApps(Long accountId, Long tenantId) {
         String[] arr = restClient.get()
-                .uri("/internal/iam/accounts/{accountId}/app-grants", accountId)
+                .uri(uriBuilder -> uriBuilder.path("/internal/iam/accounts/{accountId}/app-grants")
+                        .queryParam("tenantId", tenantId).build(accountId))
                 .retrieve().body(String[].class);
         return arr == null ? List.of() : List.of(arr);
     }

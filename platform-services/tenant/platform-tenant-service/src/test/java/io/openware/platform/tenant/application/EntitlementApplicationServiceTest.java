@@ -42,9 +42,9 @@ class EntitlementApplicationServiceTest {
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of("platform.tenant.entitlement.manage"), "PLATFORM", null, null));
 
-    service.grantPlatform(100L, "HOTEL2", "ACTIVE", "MANUAL");
+    service.grantPlatform(100L, "HOTEL2", "ACTIVE", "SUBSCRIPTION");
 
-    verify(mapper).upsert(100L, "HOTEL2", "ACTIVE");
+    verify(mapper).upsert(100L, "HOTEL2", "ACTIVE", "SUBSCRIPTION");
     verify(audit).recordAsync(any());
   }
 
@@ -53,6 +53,15 @@ class EntitlementApplicationServiceTest {
     EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of("platform.tenant.view"), "PLATFORM", null, null));
+
+    assertThrows(ApiException.class, () -> service.grantPlatform(100L, "HOTEL2", "ACTIVE", "MANUAL"));
+  }
+
+  @Test
+  void platformWithEmptyPermissionsFailsClosed() {
+    EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
+    TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
+        List.of(), "PLATFORM", null, null));
 
     assertThrows(ApiException.class, () -> service.grantPlatform(100L, "HOTEL2", "ACTIVE", "MANUAL"));
   }

@@ -25,9 +25,9 @@ public interface EntitlementMapper {
   @Insert("""
       INSERT INTO tnt_business_entitlement
         (tenant_id, business_type, status, source, effective_from, created_at, updated_at)
-      VALUES (#{tenantId}, #{featureCode}, #{status}, 'MANUAL', NOW(3), NOW(3), NOW(3))
-      ON DUPLICATE KEY UPDATE status = VALUES(status), source = 'MANUAL', updated_at = NOW(3)
+      VALUES (#{tenantId}, #{featureCode}, #{status}, #{source}, NOW(3), NOW(3), NOW(3))
+      ON DUPLICATE KEY UPDATE status = VALUES(status), source = VALUES(source), updated_at = NOW(3)
       """)
   int upsert(@Param("tenantId") Long tenantId, @Param("featureCode") String featureCode,
-             @Param("status") String status);
+             @Param("status") String status, @Param("source") String source);
 }

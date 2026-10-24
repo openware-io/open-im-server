@@ -14,7 +14,8 @@ public interface AppGrantMapper {
   @Select("""
       SELECT app_id
       FROM tnt_app_user_authorization
-      WHERE account_id = #{accountId} AND status = 'ACTIVE'
+      WHERE account_id = #{accountId} AND tenant_id = #{tenantId} AND status = 'ACTIVE'
       """)
-  List<String> selectAuthorizedApps(@Param("accountId") Long accountId);
+  List<String> selectAuthorizedApps(@Param("accountId") Long accountId,
+                                    @Param("tenantId") Long tenantId);
 }

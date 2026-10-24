@@ -20,7 +20,7 @@ class ServiceEntryApplicationServiceTest {
         new TenantServiceClient.InstalledApp(2L, 100L, "saas-ktv-c", "C", "ACTIVE")));
     when(tenantClient.entitlements(100L)).thenReturn(List.of(
         new TenantServiceClient.Entitlement("HOTEL", "ACTIVE", "MANUAL")));
-    when(tenantClient.authorizedApps(7L)).thenReturn(List.of("saas-hotel-c"));
+    when(tenantClient.authorizedApps(7L, 100L)).thenReturn(List.of("saas-hotel-c"));
 
     var entries = service.entries(7L, 100L, "C");
 
@@ -35,9 +35,24 @@ class ServiceEntryApplicationServiceTest {
         new TenantServiceClient.InstalledApp(1L, 100L, "saas-hotel-c", "C", "ACTIVE")));
     when(tenantClient.entitlements(100L)).thenReturn(List.of(
         new TenantServiceClient.Entitlement("HOTEL", "ACTIVE", "MANUAL")));
-    when(tenantClient.authorizedApps(7L)).thenReturn(List.of());
+    when(tenantClient.authorizedApps(7L, 100L)).thenReturn(List.of());
 
     assertEquals(0, service.entries(7L, 100L, "C").size());
+  }
+
+  @Test
+  void backendRequiresActiveStaffMembership() {
+    when(tenantClient.installedApps(100L)).thenReturn(List.of(
+        new TenantServiceClient.InstalledApp(1L, 100L, "saas-hotel-b", "B", "ACTIVE")));
+    when(tenantClient.entitlements(100L)).thenReturn(List.of(
+        new TenantServiceClient.Entitlement("HOTEL", "ACTIVE", "MANUAL")));
+    when(tenantClient.memberships(7L)).thenReturn(List.of());
+
+    assertEquals(0, service.entries(7L, 100L, "B").size());
+
+    when(tenantClient.memberships(7L)).thenReturn(List.of(
+        new TenantServiceClient.Membership(4L, 7L, 100L, 0L, "STAFF", "E1", 1, "ACTIVE")));
+    assertEquals(1, service.entries(7L, 100L, "B").size());
   }
 
   @Test

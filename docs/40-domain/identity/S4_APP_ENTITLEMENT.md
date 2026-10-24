@@ -155,3 +155,33 @@ POST /admin/apps {"appId":"saas-hotel-c","clientType":"B"}
   需要 PLATFORM 上下文 + platform.tenant.entitlement.manage
 租户自助 grant -> 403 ENTITLEMENT_PLATFORM_ONLY（单测覆盖）
 ```
+
+## 平台权益真实证据（2026-10-24）
+
+平台 `admin` 登录后，平台上下文 token 含 `platform.tenant.entitlement.manage`：
+
+```text
+POST /admin/platform/entitlements
+{"tenantId":100,"featureCode":"HOTEL3","status":"ACTIVE","source":"SUBSCRIPTION"}
+-> 200
+```
+
+DB：
+
+```text
+tnt_business_entitlement: HOTEL3 ACTIVE SUBSCRIPTION
+```
+
+租户 token 调用同一端点：
+
+```text
+-> 403 PLATFORM_CONTEXT_REQUIRED
+```
+
+审计：
+
+```text
+iam.entitlement.grant resource_id=HOTEL3
+```
+
+V12 已 seed 权限并授予 `platform.operator`。

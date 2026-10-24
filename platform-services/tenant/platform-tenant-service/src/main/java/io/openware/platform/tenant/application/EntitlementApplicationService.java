@@ -46,8 +46,8 @@ public class EntitlementApplicationService {
     if (context == null || !context.platformScope()) {
       throw new ApiException(403, "PLATFORM_CONTEXT_REQUIRED", "需要平台上下文");
     }
-    if (context.permissions() != null && !context.permissions().isEmpty()
-        && !context.permissions().contains("platform.tenant.entitlement.manage")) {
+    if (context.permissions() == null
+        || !context.permissions().contains("platform.tenant.entitlement.manage")) {
       throw new ApiException(403, "PERMISSION_DENIED", "缺少平台权益开通权限");
     }
     if (tenantId == null || tenantId <= 0) {
@@ -64,7 +64,7 @@ public class EntitlementApplicationService {
     if (!List.of("MANUAL", "SUBSCRIPTION").contains(normalizedSource)) {
       throw new ApiException(400, "ENTITLEMENT_SOURCE_INVALID", "权益来源非法");
     }
-    mapper.upsert(tenantId, featureCode.trim().toUpperCase(), normalizedStatus);
+    mapper.upsert(tenantId, featureCode.trim().toUpperCase(), normalizedStatus, normalizedSource);
     audit.recordAsync(AuditClient.AuditRecord.of(tenantId, context.accountId(),
         "iam.entitlement.grant", "business_entitlement", featureCode, null,
         "entitlement:" + tenantId + ":" + featureCode,

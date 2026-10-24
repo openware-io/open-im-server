@@ -162,3 +162,6 @@ S4 更新：权益写入口 POST /admin/entitlements 已真实开通 HOTEL2。
 
 S4 更新：用户授权过滤、安装目录校验、平台权益入口已补。
 
+
+S4 更新：平台权益真实 HTTP 200（HOTEL3/SUBSCRIPTION）+ 租户 403；V12 权限 seed。
+
