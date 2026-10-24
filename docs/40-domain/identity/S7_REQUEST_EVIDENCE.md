@@ -248,3 +248,24 @@ GatewayAuthorizationStateFilter
 token.authorizationVersion < tenant 快照 -> 401
 C 不拦截，仍由 order 校验
 ```
+
+## 12. SEC-001..006 逐条 HAR
+
+```text
+SEC-001/002  sec-001-cross-store.har / sec-002-cross-store.har  404
+SEC-003      sec-003-tampered.har                                401
+SEC-004      sec-004-perm.har                                    401
+SEC-005      sec-005-cookie.har                                  403
+SEC-006      sec-006-platform.har                                403
+DB           sec-001-006-db.txt
+```
+
+requestId：
+
+```text
+SEC-001 07113a87-77d9-49c3-8dcd-373a5842c1f5
+SEC-003 9a62a017-6af5-4612-a439-947e455bfec9
+SEC-004 e90d1392-3984-4f3d-9cb0-7ea63f55f7ff
+SEC-005 响应无 X-Request-Id；补充 B endpoint 76e87590692d3c9a0c2bd88d6d49e58f
+SEC-006 f51a1a4b-6650-40e8-95c5-7af2c7e903cf
+```

@@ -1,0 +1,4 @@
+﻿id	store_id	status
+2114013936307535874	102	CHECKED_OUT
+platform_bindings_113
+1
