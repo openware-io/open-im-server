@@ -55,7 +55,7 @@ public class PlatformRoleBindingApplicationService {
     }
     Role role = roles.findById(roleId)
         .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
-    if (!role.active() || !Role.SCOPE_PLATFORM.equals(role.scopeLevel())) {
+    if (!role.active() || !Role.SCOPE_PLATFORM.equals(role.scopeLevel()) || role.tenantId() != null) {
       throw new ApiException(400, "PLATFORM_ROLE_REQUIRED", "只能授予平台级角色");
     }
     Long existing = mapper.selectPlatformId(accountId, roleId);
@@ -86,7 +86,10 @@ public class PlatformRoleBindingApplicationService {
   }
 
   public List<Long> list(Long accountId) {
-    requirePlatform();
+    TenantContext context = requirePlatform();
+    if (context.permissions() == null || !context.permissions().contains(PERMISSION)) {
+      throw new ApiException(403, "PERMISSION_DENIED", "missing platform role permission");
+    }
     return mapper.selectPlatformIdsByAccount(accountId);
   }
 

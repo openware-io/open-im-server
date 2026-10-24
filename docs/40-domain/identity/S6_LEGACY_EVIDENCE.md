@@ -118,3 +118,6 @@ DELETE /3 -> 200
 backfill-account-type.sql -> iam_role_binding
 migrate-iam-user-role.sql -> iam_user_role_archive
 ```
+
+> 注：§2 的 account 113 -> id=2 是历史误授记录，已 REVOKED；现行规则见 §5，113 已 403。
+
