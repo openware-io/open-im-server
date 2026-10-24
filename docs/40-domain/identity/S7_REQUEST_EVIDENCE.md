@@ -183,3 +183,17 @@ Tracing.end / Tracing.dataCollected
 20 个 trace events
 包含 C 端 c-hotel.har 同一次导航的 timeline
 ```
+
+## 10. SEC-007 / SEC-010
+
+```text
+SEC-007 过期 token 直连 order -> 401
+X-Request-Id: 1e86b77a-4b7c-424a-8d98-d26ea6387910
+evidence/s7-trace/sec-007-expired.*
+
+SEC-010 无 member.pii.view 的 B token -> 200
+bookedByAccountId=112 -> S** / 138****0003
+本人 101 -> 明文
+X-Request-Id: b376dae7-8bec-433a-9c3b-f53109a59ca5
+evidence/s7-trace/sec-010-nopii.*
+```

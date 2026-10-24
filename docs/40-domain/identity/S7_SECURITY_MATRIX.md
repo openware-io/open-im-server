@@ -94,7 +94,7 @@ order/payment/tenant TenantAuthorizationStateFilter
 order   ACTIVE 200 / DISABLED 401 / RESTORED 200
 payment PAY_ACTIVE 200 / PAY_DISABLED 401
 tenant  TENANT_ACTIVE 200 / TENANT_DISABLED 401
-admin   200 -> 401（下游拒绝）
+admin   200 -> 401（admin 自身 filter）
 ```
 
 仍未覆盖：
