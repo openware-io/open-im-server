@@ -1,54 +1,31 @@
 package io.openware.platform.tenant.infra.persistence.repository;
 
+import io.openware.common.exception.ApiException;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.IamSnapshotMapper;
-import io.openware.platform.tenant.infra.persistence.mapper.UserRoleMapper;
-import io.openware.platform.tenant.infra.persistence.po.UserRolePo;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
 
 /**
- * {@link UserRoleRepository} 的持久化适配器。
+ * 旧 iam_user_role 仓库冻结适配器。
  *
- * <p>查询与撤销复用 {@link IamSnapshotMapper} 的专用语句：它们是授权快照装配的同一批查询，
- * 复制一份 Wrapper 会让"同一事实两处口径"再次出现。
- *
- * <p>审计字段由本层填充（{@code created_at}/{@code updated_at} 为 NOT NULL 无默认值）。
+ * <p>读写已全部切到 iam_role_binding；旧表已由 V16 归档为 iam_user_role_archive。
+ * 保留该 Bean 仅为兼容旧服务构造签名，任何旧写入口直接 410。
  */
 @Repository
 public class UserRoleRepositoryAdapter implements UserRoleRepository {
 
-  private final UserRoleMapper mapper;
   private final IamSnapshotMapper snapshotMapper;
 
-  public UserRoleRepositoryAdapter(UserRoleMapper mapper, IamSnapshotMapper snapshotMapper) {
-    this.mapper = mapper;
+  public UserRoleRepositoryAdapter(IamSnapshotMapper snapshotMapper) {
     this.snapshotMapper = snapshotMapper;
   }
 
   @Override
   public UserRoleBinding insert(UserRoleBinding binding) {
-    LocalDateTime now = LocalDateTime.now();
-    UserRolePo po = new UserRolePo();
-    po.setAccountId(binding.accountId());
-    po.setTenantId(binding.tenantId());
-    po.setOrganizationId(binding.organizationId());
-    po.setStoreId(binding.storeId());
-    po.setRoleId(binding.roleId());
-    po.setScopeType(binding.scopeType());
-    po.setEffectiveFrom(binding.effectiveFrom());
-    po.setEffectiveTo(binding.effectiveTo());
-    po.setStatus(binding.status());
-    po.setAuthorizationVersion(binding.authorizationVersion());
-    po.setCreatedAt(now);
-    po.setUpdatedAt(now);
-    mapper.insert(po);
-    return new UserRoleBinding(po.getId(), po.getAccountId(), po.getTenantId(), po.getOrganizationId(),
-        po.getStoreId(), po.getRoleId(), po.getScopeType(), po.getEffectiveFrom(), po.getEffectiveTo(),
-        po.getStatus(), po.getAuthorizationVersion());
+    throw legacyWrite();
   }
 
   @Override
@@ -68,12 +45,17 @@ public class UserRoleRepositoryAdapter implements UserRoleRepository {
 
   @Override
   public boolean revokeByAccountAndRole(Long accountId, Long roleId) {
-    return mapper.revokeByAccountAndRole(accountId, roleId) > 0;
+    throw legacyWrite();
   }
 
   @Override
   public boolean updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
                                              String scopeType) {
-    return mapper.updateScopeByAccountAndRole(accountId, roleId, organizationId, storeId, scopeType) > 0;
+    throw legacyWrite();
+  }
+
+  private static ApiException legacyWrite() {
+    return new ApiException(410, "LEGACY_ROLE_WRITE_DISABLED",
+        "旧 iam_user_role 写入口已停用，请使用 iam_role_binding");
   }
 }

@@ -13,7 +13,7 @@
 | S3 OAuth C/B 会话 | 进行中 | 应用注册表、C/B cookie、STAFF_NOT_BOUND；尚未仲裁 |
 | S4 应用安装/权益/入口 | 进行中 | `tnt_app_installation`、安装/权益 API、`/auth/apps` |
 | S5 酒店门店/C/B 应用 | 进行中 | HOTEL 门店 102、C 预订 201、B 确认 200 |
-| S6 旧模型迁移/冻结 | 部分 | 旧写 410；`iam_user_role` 只读窗口/删除未完成 |
+| S6 旧模型迁移/冻结 | 进行中 | iam_user_role 已归档；平台角色授予/撤销已真实跑通 |
 | S7 测试/部署/门禁 | 未开始 | — |
 | 浏览器 E2E | 未准入 | 依赖 S1–S6 |
 | 真机 E2E | 未准入 | 依赖 S1–S6、APK、真机可达 30080 |

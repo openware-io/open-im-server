@@ -142,3 +142,6 @@ S4：/admin/apps 安装/卸载，/admin/entitlements 只读，/admin/platform/en
 
 S4/S5 内部：/internal/iam/accounts/{accountId}/app-grants?tenantId=，/internal/iam/tenants/{tenantId}/apps。
 
+
+S6：/admin/iam/platform/role-bindings 平台 ACCOUNT 角色授予/撤销；旧 iam_user_role 已归档，旧写 410。
+
