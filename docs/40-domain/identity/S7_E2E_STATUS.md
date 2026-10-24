@@ -1,8 +1,7 @@
 # S7 E2E 执行状态
-
-> 环境：Kind `open-im-local`、Chrome 155、Xiaomi MI 9（adb `c4c90621`）
+> 环境：Kind open-im-local、Chrome 155、Xiaomi MI 9（adb c4c90621）
 > 时间：2026-10-24
-> 状态：未通过/阻塞（在线支付通道缺失）
+> 状态：进行中（cash-only；在线支付/退款 deferred）
 
 ## 1. 已确认
 
@@ -501,4 +500,31 @@ store 102/100 owner bindings
 
 ```text
 store=1 staff=1 customer=1 inventory=18
+```
+
+## 24. SEC-010 PII 脱敏（2026-10-24）
+
+实现：
+
+```text
+HotelBookingApplicationService.list/listByAccount
+无 member.pii.view 时：
+  guestName -> 首字 + **
+  guestPhone -> 前3 + **** + 后4
+C 本人订单（booked_by_account_id == context.accountId）保持完整
+```
+
+V17：
+
+```text
+store.manager / store.cashier 授予 member.pii.view
+无此权限角色仍掩码
+```
+
+单测：
+
+```text
+HotelBookingPiiTest PASS
+张三 -> 张**
+13800000014 -> 138****0014
 ```
