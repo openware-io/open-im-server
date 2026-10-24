@@ -421,3 +421,28 @@ HAR/logcat/trace
 生产 ACK
 数据 seed/migration
 ```
+
+## 21. ERR-001/002 transport 级证据（2026-10-24）
+
+payment 缩容到 0：
+
+```text
+POST :29145/business/orders/14/collect
+-> 000 / Empty reply from server
+
+ord_order 14:
+status=DRAFT
+paid_amount=0
+total_amount=89900
+```
+
+退款服务不可用：
+
+```text
+pay_refund 7:
+status=APPROVED
+approved_amount=60000
+未被错误置为 REFUNDED
+```
+
+说明：这是 transport/服务不可用级别证据，未覆盖 HTTP 5xx 包装与网关超时页面。

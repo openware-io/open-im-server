@@ -46,3 +46,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 | [S7 E2E 执行状态](S7_E2E_STATUS.md) | 浏览器/真机进行中，未通过 |
 | [S7 版本与部署纠正](S7_DEPLOYMENT_CORRECTION.md) | manifest 部署纠正、2.4.0 版本来源、S7 阻塞方案 |
 | [S7 在线支付绕过项](S7_ONLINE_PAYMENT_DEFERRAL.md) | deferred；cash-only 条件验收，生产前硬门禁 |
+| [S7 工程规范审计](S7_ENGINEERING_COMPLIANCE_AUDIT.md) | 门禁/基线失败/未完成规范项 |
