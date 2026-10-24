@@ -224,3 +224,48 @@ Referrer-Policy: no-referrer -> same-origin
 ```
 
 重建镜像 `ghcr.io/openware-io/saas-mobile:2.4.0-s7` 并部署。
+
+## 12. C 我的订单与支付（2026-10-24）
+
+真实我的订单：
+
+```text
+GET /business/hotel/bookings
+-> 仅 HTL1792814765239386
+   Deluxe King / 2026-10-25 ~ 2026-10-26 / ¥899.00 / PENDING_PAYMENT
+```
+
+截图：
+
+```text
+docs/40-domain/identity/evidence/s7-c-my-orders.png
+```
+
+C 会话收款：
+
+```text
+POST /business/orders/11/collect
+{"currencyCode":"CNY","payable":89900,"payments":[{"method":"CASH","amount":89900}]}
+Idempotency-Key: S7-C-PAY-11
+-> 200 remainingAmount=0
+```
+
+DB：
+
+```text
+ord_order id=11 status=COMPLETED total=89900 paid=89900 customer_id=1
+pay_collect id=5 order_id=11 state=CONFIRMED idempotency_key=S7-C-PAY-11
+```
+
+说明：支付方式为 CASH，不是在线商户；在线支付/在线退款仍未完成。
+
+## 13. C→B 隔离
+
+C 会话 token 调 B 接口：
+
+```text
+GET /admin/hotel/bookings
+-> 403 PERMISSION_DENIED 缺少权限 hotel.booking.view
+```
+
+C token 有 hotel.booking.view，但 audience 为 saas-c，B 端点仍拒绝。
