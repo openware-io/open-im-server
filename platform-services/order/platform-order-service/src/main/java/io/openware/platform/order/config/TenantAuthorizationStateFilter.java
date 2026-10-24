@@ -37,7 +37,7 @@ public class TenantAuthorizationStateFilter extends OncePerRequestFilter {
         try {
             int current = stateClient.authorizationVersion(context.accountId(), context.tenantId(),
                     context.organizationId(), context.storeId());
-            log.info("authz check account={} app={} tokenVersion={} current={}", context.accountId(),
+            log.debug("authz check account={} app={} tokenVersion={} current={}", context.accountId(),
                     ClientAudienceHolder.get(), context.authorizationVersion(), current);
             if (current <= 0 || context.authorizationVersion() < current) {
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authorization version stale");
