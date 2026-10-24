@@ -213,3 +213,5 @@ POST /business/hotel/catalog/quotes
 - order /admin/** 与 B 前台 /business/reservations|orders|ktv/** 要求 saas-b。
 - /business/hotel/catalog/** 要求 saas-c。
 - 有 TenantContext 但缺 clientApp 的用户 token 拒绝。
+
+Catalog 写端点（POST/PUT/DELETE /business/catalog/items）要求 saas-b audience；列表保持 C/B 共享。

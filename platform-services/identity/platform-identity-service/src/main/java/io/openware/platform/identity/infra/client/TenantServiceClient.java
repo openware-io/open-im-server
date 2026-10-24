@@ -44,6 +44,28 @@ public class TenantServiceClient {
                              String status) {
     }
 
+    /** 租户已安装应用。 */
+    public List<InstalledApp> installedApps(Long tenantId) {
+        InstalledApp[] arr = restClient.get()
+                .uri("/internal/iam/tenants/{tenantId}/apps", tenantId)
+                .retrieve().body(InstalledApp[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    /** 租户已开通权益（businessType 作为 featureCode）。 */
+    public List<Entitlement> entitlements(Long tenantId) {
+        Entitlement[] arr = restClient.get()
+                .uri("/internal/iam/tenants/{tenantId}/entitlements", tenantId)
+                .retrieve().body(Entitlement[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    public record InstalledApp(Long id, Long tenantId, String appId, String clientType, String status) {
+    }
+
+    public record Entitlement(String featureCode, String status, String source) {
+    }
+
     public TenantContext consumerContext(Long accountId, String appId) {
         return restClient.get().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/context")
                         .queryParam("accountId", accountId).build(appId))

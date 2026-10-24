@@ -2,6 +2,7 @@ package io.openware.platform.identity.api.controller;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.identity.application.AuthContextApplicationService;
+import io.openware.platform.identity.application.ServiceEntryApplicationService;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.AccountTokenResolver;
 import io.openware.platform.identity.infra.security.SaasAppRegistry;
@@ -24,7 +25,7 @@ class AuthContextControllerTest {
 
     private AuthContextController controller(SaasUserSessionStore store) {
         return new AuthContextController(mock(AuthContextApplicationService.class), store,
-                mock(AccountTokenResolver.class), new SaasAppRegistry("saas-a380-c,saas-hotel-c,saas-ktv-c", "saas-a380-h5,saas-hotel-b,saas-ktv-b"), true);
+                mock(AccountTokenResolver.class), new SaasAppRegistry("saas-a380-c,saas-hotel-c,saas-ktv-c", "saas-a380-h5,saas-hotel-b,saas-ktv-b"), mock(ServiceEntryApplicationService.class), true);
     }
 
     private static SaasUserSessionStore.UserSession session(long accountId, String appId) {

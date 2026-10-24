@@ -5,6 +5,7 @@ import io.openware.platform.identity.api.dto.AuthContextDtos.ContextsResponse;
 import io.openware.platform.identity.api.dto.AuthContextDtos.SelectContextRequest;
 import io.openware.platform.identity.api.dto.AuthContextDtos.SelectContextResponse;
 import io.openware.platform.identity.application.AuthContextApplicationService;
+import io.openware.platform.identity.application.ServiceEntryApplicationService;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.platform.identity.infra.security.AccountTokenResolver;
@@ -23,6 +24,7 @@ import java.util.List;
 @RequestMapping("/auth")
 public class AuthContextController {
     private final AuthContextApplicationService service;
+    private final ServiceEntryApplicationService entries;
     private final SaasUserSessionStore sessionStore;
     private final AccountTokenResolver accountTokenResolver;
     private final SaasAppRegistry appRegistry;
@@ -31,11 +33,13 @@ public class AuthContextController {
     @org.springframework.beans.factory.annotation.Autowired
     public AuthContextController(AuthContextApplicationService service, SaasUserSessionStore sessionStore,
                                  AccountTokenResolver accountTokenResolver, SaasAppRegistry appRegistry,
+                                 ServiceEntryApplicationService entries,
                                  @org.springframework.beans.factory.annotation.Value("${saas.cookie.plain:false}") boolean plainCookie) {
         this.service = service;
         this.sessionStore = sessionStore;
         this.accountTokenResolver = accountTokenResolver;
         this.appRegistry = appRegistry;
+        this.entries = entries;
         this.plainCookie = plainCookie;
     }
 
@@ -68,6 +72,20 @@ public class AuthContextController {
         SaasUserSessionStore.UserSession userSession = session(request, appId);
         List<ContextItem> items = service.contexts(userSession.accountId(), userSession.appId());
         return new ContextsResponse(items);
+    }
+
+    @GetMapping("/apps")
+    public AppsResponse apps(@RequestParam(value = "appId", required = false) String appId,
+                             HttpServletRequest request) {
+        requireApp(appId);
+        appRegistry.requireReferer(appId, request.getHeader("Referer"), hasSessionCookie(request, appId));
+        SaasUserSessionStore.UserSession session = session(request, appId);
+        if (session.tenantId() == null) {
+            throw new ApiException(HttpStatusCodes.BAD_REQUEST, "TENANT_CONTEXT_REQUIRED",
+                "请先选择租户上下文");
+        }
+        String clientType = appRegistry.isBackend(appId) ? "B" : "C";
+        return new AppsResponse(entries.entries(session.tenantId(), clientType));
     }
 
     @PostMapping("/context/select")
@@ -192,6 +210,7 @@ public class AuthContextController {
         }
     }
     public record CsrfResponse(String csrfToken) {}
+    public record AppsResponse(List<ServiceEntryApplicationService.ServiceEntry> items) {}
     /** {@code currencyCode} 与 JWT claim {@code currency} 同源同值（规范 §3.1/§3.2）。 */
     public record ContextSelectedResponse(boolean selected, long expiresAt, Long tenantId, Long organizationId,
                                           Long storeId, int authorizationVersion, List<String> permissions,

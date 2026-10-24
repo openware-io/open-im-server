@@ -549,3 +549,15 @@ S7 删除旧兼容层
 - [身份数据模型](IDENTITY_SCHEMA.md)
 - [账号权限体系](../ACCOUNT_PERMISSION_MODEL.md)
 - [工作区角色模型](../../20-architecture/adr/0014-workspace-role-model.md)
+
+### 4.5 C 端权限来源（S3 定稿）
+
+```text
+C 权限 = tnt_app_user_authorization 的 consumer app scope
+C 身份门禁 = 该 app 所属租户下 ACTIVE CUSTOMER membership
+membership 只决定“能否进入该租户 C 应用”，不直接映射角色权限
+```
+
+后续若改为 membership 角色驱动 C 权限，必须另行评审并升级 S3 契约；当前不混用。
+
+C membership LEFT/SUSPENDED 后，现有 C token 最多 30 分钟失效；S4 把 membership version 纳入 C token/session 校验。

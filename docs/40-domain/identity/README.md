@@ -40,3 +40,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 - [业务域版图](../DOMAIN_MAP.md)
 - [平台身份服务](../../50-services/platform/platform-identity-service/README.md)
 - [平台租户服务](../../50-services/platform/platform-tenant-service/README.md)
+| [S4 应用安装与权益](S4_APP_ENTITLEMENT.md) | 安装、权益、服务入口 |

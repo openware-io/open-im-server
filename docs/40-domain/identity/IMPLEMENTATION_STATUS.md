@@ -11,7 +11,7 @@
 | S1 数据库与领域模型 | PASS | `S1_FLYWAY_EVIDENCE.md`；identity 44 / tenant 131 / customer 228 |
 | S2 membership/role_binding | PASS | 仲裁 `c278cc96`；tenant 165；FQCN 0 新增 |
 | S3 OAuth C/B 会话 | 进行中 | 应用注册表、C/B cookie、STAFF_NOT_BOUND；尚未仲裁 |
-| S4 应用安装/权益/入口 | 未开始 | — |
+| S4 应用安装/权益/入口 | 进行中 | `tnt_app_installation`、安装/权益 API、`/auth/apps` |
 | S5 酒店门店/C/B 应用 | 未开始 | — |
 | S6 旧模型迁移/冻结 | 部分 | 旧写 410；`iam_user_role` 只读窗口/删除未完成 |
 | S7 测试/部署/门禁 | 未开始 | — |
