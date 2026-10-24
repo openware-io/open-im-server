@@ -19,6 +19,7 @@
 | [S1 Flyway evidence](S1_FLYWAY_EVIDENCE.md) | Empty and incremental migration record |
 | [S2 migration plan](S2_MIGRATION_PLAN.md) | account_type, customer backfill, legacy role binding migration |
 | [Implementation status](IMPLEMENTATION_STATUS.md) | Real S1–S7 and E2E status |
+| [S3 evidence](S3_EVIDENCE.md) | appId, C/B isolation, unbind, audit evidence |
 | [Account permission model](../ACCOUNT_PERMISSION_MODEL.md) | Historical/current model; this directory wins on conflicts |
 
 ## Core decisions

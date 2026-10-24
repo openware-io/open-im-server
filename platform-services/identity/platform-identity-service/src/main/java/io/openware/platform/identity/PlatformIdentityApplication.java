@@ -1,5 +1,6 @@
 package io.openware.platform.identity;
 
+import io.openware.infrastructure.audit.AuditClientConfig;
 import io.openware.infrastructure.mq.MqInfrastructureConfig;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.infrastructure.security.JwtTokenProvider;
@@ -12,6 +13,7 @@ import org.springframework.context.annotation.Import;
 
 @SpringBootApplication
 @Import({JwtProperties.class, JwtTokenProvider.class, MqInfrastructureConfig.class,
+    AuditClientConfig.class,
     InternalServiceAuthenticationProperties.class, InternalServiceAuthentication.class,
     InternalServiceAuthenticationInterceptor.class})
 public class PlatformIdentityApplication {

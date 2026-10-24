@@ -19,6 +19,7 @@
 | [S1 Flyway 证据](S1_FLYWAY_EVIDENCE.md) | 空库/增量迁移记录 |
 | [S2 迁移与冻结计划](S2_MIGRATION_PLAN.md) | account_type、客户回填、旧角色绑定迁移 |
 | [实施状态](IMPLEMENTATION_STATUS.md) | S1–S7 与 E2E 当前真实状态 |
+| [S3 会话证据](S3_EVIDENCE.md) | appId、C/B 隔离、unbind、审计真实证据 |
 | [账号权限体系](../ACCOUNT_PERMISSION_MODEL.md) | 历史/现行账号与权限说明；与本文冲突处以本文为准 |
 
 ## 核心结论
