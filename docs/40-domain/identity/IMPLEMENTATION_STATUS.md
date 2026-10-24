@@ -2,7 +2,8 @@
 
 > 分支：`develop/2.4.0-hotel`
 > 更新时间：2026-10-24
-> 结论：S1–S6 已签字 PASS；S7 按 cash-only 继续，在线支付/退款单列 deferred。
+> 结论：S1–S6 PASS；S7 cash-only E2E **CONDITIONAL PASS**；
+> 发布 P1 与在线支付/退款 deferred 未完成，完整 S7 不成立。
 
 ## 阶段状态
 
@@ -14,40 +15,45 @@
 | S4 应用安装 / 权益 / 入口 | PASS | 仲裁 `09c0923f`；V11/V12、安装/权益、`/auth/apps` |
 | S5 酒店门店 / C/B 应用 | PASS | 仲裁 `b3247ddd`；HOTEL 102、C 预订、B 前台/现金退款/夜审/房态 |
 | S6 旧模型迁移 / 冻结 | PASS | 仲裁 `b721efc7`；`iam_user_role` 归档、平台角色授予 + PLATFORM_OPERATOR 校验 |
-| S7 测试 / 部署 / 门禁 | 进行中（cash-only） | 绑定/自动确认/退款/Android 已过；SEC-008/009 order/payment/tenant 已修 |
+| S7 cash-only E2E | **CONDITIONAL PASS** | SEC-001..014、B 前台全动作、C 取消、Android 同单现金闭环、B 退款/收款 UI |
+
+## 发布门禁 / deferred
+
+| 项 | 状态 | 说明 |
+| --- | --- | --- |
+| 发布 P1：ACK / ACR / 回滚 | 未完成 | 完成前禁止生产发布 |
+| 发布 P1：正式签名 APK | 未完成 | 当前 debug APK + 本地 IP |
+| C 在线支付 / 在线退款 | deferred | `S7_ONLINE_PAYMENT_DEFERRAL.md`；生产前硬门禁 |
+| 完整 S7 | 不成立 | 在线通道与发布 P1 完成后另签 |
 
 ## 浏览器 / 真机
 
 | 范围 | 状态 | 说明 |
 | --- | --- | --- |
-| 浏览器 B Web | 部分通过 | a380-admin 登录、A380 Hotel 门店、酒店前台真实任务 |
-| 浏览器 C H5 | 部分通过 | 真实目录/房型/报价/下单/我的订单；在线支付未完成 |
-| Android 真机 | 部分通过 | 登录成功；真实 A380 Hotel、Deluxe King、¥899 报价；自动下单/支付未完成 |
+| 浏览器 B Web | PASS（cash-only） | 登录、门店、酒店前台入住/退房/清扫/夜审/续住/账单、退款/收款 UI |
+| 浏览器 C H5 | PASS（cash-only） | 真实目录/报价/下单/我的订单/取消 |
+| Android 真机 | PASS（cash-only） | 真实下单 -> B 收款 -> 我的订单 CONFIRMED |
 | 隔离 | PASS | C→B 403、B→C 403、篡改 401、跨门店 404 |
-| 现金退款账实 | PASS | 89900→59900，sum(refund)=30000；超退 422 |
-| 在线支付/退款 | deferred | 用户批准绕过；生产前硬门禁，见 S7_ONLINE_PAYMENT_DEFERRAL.md |
+| 跨店收款 | PASS | SEC-011 404 / SEC-012 200 |
+| 跨店退款 | PASS | SEC-013 404 / SEC-014 200 |
+| 现金退款账实 | PASS | 回冲、超退 422、并发保护 |
 
 ## 关键证据
 
-- `docs/40-domain/identity/S3_EVIDENCE.md`
-- `docs/40-domain/identity/S4_APP_ENTITLEMENT.md`
-- `docs/40-domain/identity/S5_HOTEL_EVIDENCE.md`
-- `docs/40-domain/identity/S6_LEGACY_EVIDENCE.md`
-- `docs/40-domain/identity/S7_E2E_STATUS.md`
-- `docs/40-domain/identity/S7_DEPLOYMENT_CORRECTION.md`
+- `S7_E2E_STATUS.md`
+- `S7_SECURITY_MATRIX.md`
+- `S7_REQUEST_EVIDENCE.md`
+- `S7_EVIDENCE_INDEX.md`
+- `S7_DEPLOYMENT_CORRECTION.md`
+- `S7_ONLINE_PAYMENT_DEFERRAL.md`
 
-## S7 阻塞与方案
-
-仲裁结论：`S7 FAIL（BLOCKED by external online payment channel）`。
-
-方案二选一：
+## 签字口径
 
 ```text
-A. 提供真实测试商户配置，完成 C 在线支付 / B/C 在线退款 / 回调 / 对账
-B. 产品/财务/安全签署 cash-only 范围变更，S7 条件通过并保留生产前硬门禁
+S7 cash-only E2E：CONDITIONAL PASS
+P0：SEC-001..014 全部闭合
+E2E P1：B 退款 UI、Android 同单现金闭环、null-scope、B 收款 UI 已闭合
+发布 P1：ACK/ACR/回滚、正式签名 APK —— 未完成，禁止生产发布
+Deferred：C 在线支付/退款 —— 生产前硬门禁
+完整 S7：不成立
 ```
-
-在 A/B 之前继续可执行项：Android 全 C 流、ERR-001/002、HAR/logcat/trace 证据。
-
-S7 更新：Android 真实下单/我的订单已过；本地 E2E seed 可复现。
-
