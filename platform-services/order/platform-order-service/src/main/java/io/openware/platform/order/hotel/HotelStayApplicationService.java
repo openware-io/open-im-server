@@ -140,7 +140,15 @@ public class HotelStayApplicationService {
         }
         HotelFolioPo folio = requireOpenFolio(bookingId, context);
         if (folio.getPaidMinor() < folio.getChargeMinor()) {
-            throw new ApiException(409, "OUTSTANDING_BALANCE", "账单未结清，不能退房");
+            long prepaid = booking.getOrderId() == null ? 0L
+                    : java.util.Optional.ofNullable(
+                            bookingMapper.selectOrderPaidAmount(booking.getOrderId())).orElse(0L);
+            if (prepaid < folio.getChargeMinor()) {
+                throw new ApiException(409, "OUTSTANDING_BALANCE", "账单未结清，不能退房");
+            }
+            addItem(folio, "PAYMENT", "ORDER_PREPAID", String.valueOf(booking.getOrderId()),
+                    "订单预付抵扣", -prepaid);
+            folio.setPaidMinor(folio.getChargeMinor());
         }
         LocalDateTime now = LocalDateTime.now();
         stay.setStatus("CHECKED_OUT");

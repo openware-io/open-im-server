@@ -39,4 +39,8 @@ public interface HotelBookingMapper extends BaseMapper<HotelBookingPo> {
     @InterceptorIgnore(tenantLine = "true")
     @Select("SELECT * FROM htl_booking WHERE id = #{id}")
     HotelBookingPo selectByIdIgnoreTenant(@Param("id") Long id);
+
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT COALESCE(paid_amount, 0) FROM ord_order WHERE id = #{orderId}")
+    Long selectOrderPaidAmount(@Param("orderId") Long orderId);
 }
