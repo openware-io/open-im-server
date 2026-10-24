@@ -14,7 +14,7 @@
 | S4 应用安装 / 权益 / 入口 | PASS | 仲裁 `09c0923f`；V11/V12、安装/权益、`/auth/apps` |
 | S5 酒店门店 / C/B 应用 | PASS | 仲裁 `b3247ddd`；HOTEL 102、C 预订、B 前台/现金退款/夜审/房态 |
 | S6 旧模型迁移 / 冻结 | PASS | 仲裁 `b721efc7`；`iam_user_role` 归档、平台角色授予 + PLATFORM_OPERATOR 校验 |
-| S7 测试 / 部署 / 门禁 | 进行中（cash-only） | 在线支付 deferred；P0 绑定/自动确认/并发退款已过 |
+| S7 测试 / 部署 / 门禁 | 进行中（cash-only） | 绑定/自动确认/退款/Android 已过；SEC-008/009 失败 |
 
 ## 浏览器 / 真机
 
