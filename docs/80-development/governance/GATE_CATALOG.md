@@ -104,7 +104,7 @@
 | G38 | observability-correlation | quality | quality | integration | [可观测性](../standards/40_OBSERVABILITY_CONVENTIONS.md) |
 | G39 | verify-inventory | quality | quality | docs | [E2E 规范](../standards/43_E2E_TESTING_CONVENTIONS.md) |
 | G41 | observability-metrics | quality | quality | static | [可观测性](../standards/40_OBSERVABILITY_CONVENTIONS.md) |
-| G54 | frontend-ui-standard | quality | frontend | static | [前端 UI 风格](../standards/32_FRONTEND_UI_STYLE.md) |
+| G54 | frontend-ui-standard | quality | quality | static | [前端 UI 风格](../standards/32_FRONTEND_UI_STYLE.md) |
 
 ## 媒体
 
