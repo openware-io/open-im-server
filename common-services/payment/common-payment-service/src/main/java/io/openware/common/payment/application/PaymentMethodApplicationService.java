@@ -94,11 +94,11 @@ public class PaymentMethodApplicationService {
             // 只改授权开关：用户偏好保持原值（见 withSwitches 的说明）。
             Persisted<TenantPaymentMethod> saved = persist(current.aggregate().withSwitches(granted, null));
             // 授权结果决定该租户能否收款，属资金相关配置：此前成功/失败都没有留痕。
-            recordMethodAudit("payment-method.grant", "支付方式授权", tenantId, method,
+            recordMethodAudit("payment.method.grant", "支付方式授权", tenantId, method,
                     "\"granted\":" + granted);
             return TenantPaymentMethodDto.from(saved);
         } catch (RuntimeException failure) {
-            recordMethodFailure("payment-method.grant", tenantId, method, failure);
+            recordMethodFailure("payment.method.grant", tenantId, method, failure);
             throw failure;
         }
     }
@@ -113,11 +113,11 @@ public class PaymentMethodApplicationService {
             Persisted<TenantPaymentMethod> saved = persist(current.aggregate().withSwitches(
                     current.aggregate().authorized(), enabled));
             // 关闭某方式会让它在 C 端支付列表消失，直接影响成单：必须可回溯。
-            recordMethodAudit("payment-method.user_enabled", "支付方式用户开关", tenantId, method,
+            recordMethodAudit("payment.method.user_enabled", "支付方式用户开关", tenantId, method,
                     "\"userEnabled\":" + enabled);
             return TenantPaymentMethodDto.from(saved);
         } catch (RuntimeException failure) {
-            recordMethodFailure("payment-method.user_enabled", tenantId, method, failure);
+            recordMethodFailure("payment.method.user_enabled", tenantId, method, failure);
             throw failure;
         }
     }

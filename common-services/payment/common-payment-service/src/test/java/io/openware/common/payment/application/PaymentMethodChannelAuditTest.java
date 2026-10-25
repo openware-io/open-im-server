@@ -59,7 +59,7 @@ class PaymentMethodChannelAuditTest {
     methodService.setGrant(TENANT_ID, "WALLET", true);
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-method.grant", record.action());
+    assertEquals("payment.method.grant", record.action());
     assertEquals("支付方式授权", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
     assertEquals("tnt_payment_method", record.resourceType());
@@ -74,7 +74,7 @@ class PaymentMethodChannelAuditTest {
     assertThrows(IllegalStateException.class, () -> methodService.setGrant(TENANT_ID, "WALLET", true));
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-method.grant", record.action());
+    assertEquals("payment.method.grant", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IllegalStateException", record.errorCode());
     assertNull(record.idempotencyKey());
@@ -87,7 +87,7 @@ class PaymentMethodChannelAuditTest {
     methodService.setUserEnabled(TENANT_ID, "POINT", false);
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-method.user_enabled", record.action());
+    assertEquals("payment.method.user_enabled", record.action());
     assertEquals("支付方式用户开关", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
   }
@@ -100,7 +100,7 @@ class PaymentMethodChannelAuditTest {
     assertThrows(IllegalStateException.class, () -> methodService.setUserEnabled(TENANT_ID, "POINT", false));
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-method.user_enabled", record.action());
+    assertEquals("payment.method.user_enabled", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IllegalStateException", record.errorCode());
   }
@@ -126,7 +126,7 @@ class PaymentMethodChannelAuditTest {
     channelService.setEnabled(TENANT_ID, STORE_ID, "ALIPAY", true, "merchant-001");
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-channel.toggle", record.action());
+    assertEquals("payment.channel.toggle", record.action());
     assertEquals("支付渠道开通/关闭", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
     assertEquals("pay_channel_config", record.resourceType());
@@ -143,7 +143,7 @@ class PaymentMethodChannelAuditTest {
         () -> channelService.setEnabled(TENANT_ID, STORE_ID, "ALIPAY", true, "merchant-001"));
 
     AuditClient.AuditRecord record = capturedAudit();
-    assertEquals("payment-channel.toggle", record.action());
+    assertEquals("payment.channel.toggle", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
     assertEquals("IllegalStateException", record.errorCode());
     assertNull(record.idempotencyKey());
