@@ -39,6 +39,10 @@ public class MembershipApplicationService {
   @Transactional
   public Membership createForTenant(Long tenantId, Long accountId, Long organizationId,
                                     String type, String memberNo) {
+    // 内部开通接口没有 HTTP 租户上下文；临时放入目标租户，满足 MyBatis 租户拦截器。
+    TenantContext previous = TenantContextHolder.get();
+    TenantContextHolder.set(new TenantContext(tenantId, organizationId, null, 0L, 0, List.of(), "TENANT"));
+    try {
     repository.findByAccountAndTenantAndType(accountId, tenantId, type).ifPresent(existing -> {
       throw new ApiException(409, "MEMBERSHIP_EXISTS", "该账号在此租户已存在同类型成员身份");
     });
@@ -49,6 +53,13 @@ public class MembershipApplicationService {
         String.valueOf(created.id()), created.memberNo(), "membership:" + created.id(),
         "{\"accountId\":" + accountId + ",\"type\":\"" + type + "\"}"));
     return created;
+    } finally {
+      if (previous == null) {
+        TenantContextHolder.clear();
+      } else {
+        TenantContextHolder.set(previous);
+      }
+    }
   }
 
   public Membership get(Long id) {
