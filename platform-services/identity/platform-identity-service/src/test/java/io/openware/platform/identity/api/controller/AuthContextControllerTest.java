@@ -38,7 +38,7 @@ class AuthContextControllerTest {
         when(sessionStore.issueCsrfToken("session-1")).thenReturn("csrf-1");
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setCookies(new Cookie(SaasUserSessionCookie.C_PLAIN, "session-1"));
-        request.addHeader("Referer", "http://127.0.0.1:30080/a380/");
+        request.addHeader("Referer", "http://127.0.0.1:30080/c/");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         controller(sessionStore).csrf(C_APP, request, response);
@@ -54,7 +54,7 @@ class AuthContextControllerTest {
                 java.util.Optional.of(session(157L, C_APP)));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setCookies(new Cookie(SaasUserSessionCookie.C_PLAIN, "session-plain"));
-        request.addHeader("Referer", "http://127.0.0.1:30080/a380/");
+        request.addHeader("Referer", "http://127.0.0.1:30080/c/");
 
         AuthContextController.SessionResponse response = controller(sessionStore).sessionStatus(C_APP, request);
 
