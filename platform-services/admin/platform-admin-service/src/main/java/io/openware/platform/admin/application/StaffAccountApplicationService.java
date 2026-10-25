@@ -80,6 +80,7 @@ public class StaffAccountApplicationService {
         if (accounts.existsByPlatformAccountId(accountId)) {
             throw new ApiException(409, "STAFF_IM_ALREADY_BOUND", "该 IM 账号已绑定后台账号");
         }
+        iam.ensureStaffMembership(accountId, command.tenantId(), command.organizationId());
         // 状态、默认角色与展示名回退规则由领域工厂给定；审计字段由适配器填充。
         ConsAdminAccount account = ConsAdminAccount.provision(username, passwords.encode(command.password()),
                 command.displayName() == null || command.displayName().isBlank() ? username : command.displayName().trim(),
