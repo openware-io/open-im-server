@@ -3,7 +3,7 @@
 > 分支：`develop/2.4.0-hotel`
 > 更新时间：2026-10-24
 > 结论：S1–S6 PASS；S7 cash-only E2E **CONDITIONAL PASS**；
-> 发布 P1 与在线支付/退款 deferred 未完成，完整 S7 不成立。
+> 本地发布/回滚完成；在线支付/退款 deferred，完整 S7 不成立。
 
 ## 阶段状态
 
@@ -23,9 +23,9 @@
 | --- | --- | --- |
 | 本地发布 | PASS | Kind manifest 7 服务 Ready、health 200 |
 | 本地回滚 | 后端 + 前端 PASS | 后端 6ba32869 -> f89f1074；前端 02646a7/5938186 -> a24e1e4/a7dd575 |
-| Android 测试 APK | 待验证 | 测试包 + 本地 API，不做正式签名 |
+| Android 测试 APK | PASS | 2.4.0+6 真机预订 + B 收款闭环 |
 | C 在线支付 / 在线退款 | deferred | `S7_ONLINE_PAYMENT_DEFERRAL.md`；生产前硬门禁 |
-| 完整 S7 | 不成立 | 在线通道与发布 P1 完成后另签 |
+| 完整 S7 | 不成立 | 在线支付/退款完成后另签 |
 
 ## 浏览器 / 真机
 
