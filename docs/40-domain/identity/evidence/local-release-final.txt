@@ -28,12 +28,16 @@ Android test package:
   services -> hotel -> list/detail -> real quote 899.00
   -> fill guest -> submit -> booking success
   booking: HTL1792899679182719
-  order: 24, store 102, DRAFT, paid 0
+  order: 24, store 102
+  B collect cash 899.00 -> order COMPLETED paid 89900, booking CONFIRMED
+  C/Android my orders: O202610250002 已完成 899.00
   duplicate native/H5 header fixed; final screenshots:
     android-hotel-final.png
     android-hotel-detail.png
     android-hotel-quote.png
     android-hotel-booking-success.png
+    b-collect-order24.png
+    android-order24-confirmed.png
 
 Exception gates:
   validate-exception-handling.ps1 PASS

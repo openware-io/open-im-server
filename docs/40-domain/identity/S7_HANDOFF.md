@@ -120,3 +120,13 @@ booking: HTL1792899679182719 / order24 store102 DRAFT
 回滚: 未验证（本地 SNAPSHOT 覆盖旧 tag，rollout history 只有当前 revision）
 证据: evidence/local-release-final.txt / android-hotel-final.png
 ```
+B 收款闭环（2026-10-25）:
+
+```text
+order24 store102 DRAFT -> B 收款现金 ¥899.00
+ord_order24 COMPLETED paid 89900
+pay_collect24 store102 CONFIRMED
+htl_booking HTL1792899679182719 CONFIRMED
+C/Android 我的消费 O202610250002 已完成
+证据: b-collect-order24.png / android-order24-confirmed.png
+```
