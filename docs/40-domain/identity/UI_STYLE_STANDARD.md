@@ -95,3 +95,18 @@ C 订单状态使用 tag-row
 C 端不再请求 /admin/tenant/config
 浏览器 console 无 401/403/JS error
 ```
+
+## 4. 本轮落地
+
+```text
+B saas-admin:
+  .metric-grid/.metric-card 提升到 global.css
+  酒店页指标卡与 KTV/门店页一致
+  控制台 0 错误（hotel-b-ui-standard.png）
+
+C saas-mobile:
+  hotel-cover / hotel-detail-head / tag-row
+  列表、详情、订单状态统一
+  配置改走 /api/v1/business/tenant/config
+  控制台 0 错误（hotel-c-ui-standard.png / hotel-c-detail-standard.png）
+```
