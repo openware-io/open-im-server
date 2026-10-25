@@ -87,3 +87,10 @@ validate-flyway-conventions.ps1 PASS
 补充验证：安装未注册 app 400；clientType 不匹配 400；新增 app 必须显式配置并过 C/B 冲突检查
 退出：S5 接 open_application/app_type/status/scopes/redirect，删除配置桥默认
 ```
+
+## GATE-FLYWAY-LEGACY-001 执行说明
+
+2026-10-25：`validate-flyway-conventions.ps1` 已读取
+`scripts/validate/flyway-legacy-files.txt`，对上述 9 个已应用迁移执行文件级例外，
+并校验到期日与 stale 条目；新增迁移不在例外范围。
+
