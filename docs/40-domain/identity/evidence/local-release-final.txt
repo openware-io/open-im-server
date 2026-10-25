@@ -1,0 +1,43 @@
+Local release validation (2026-10-25)
+=====================================
+
+Scope: local Kind open-im-local only. ACR/ACK removed from this release path.
+
+Manifest: .outputs/releases/s7-local-final.json
+Build identity: development.20261025T031935Z.137c2a7b
+Targets: gateway, platform-identity-service, platform-tenant-service,
+         platform-order-service, common-payment-service,
+         platform-admin-service, saas-admin
+
+Deployment:
+  k8s-scoped.ps1 applied the manifest
+  all seven deployments Ready=1
+  replica sets replaced, no CrashLoop
+
+Smoke:
+  GET /actuator/health -> 200
+  B pages console (ktv/config, tenant/hotel, tenant/payments) -> no 4xx/5xx/JS errors
+  C pages console (service/hotel, real-hotel/1, my-orders) -> no 4xx/5xx/JS errors
+  C config endpoint (browser with X-Saas-App) -> works
+
+Android test package:
+  build/app/outputs/flutter-apk/app-debug.apk
+  version 2.4.0+6
+  debug/test signed only; no production signing
+  installed on MI 9 c4c90621
+  services -> hotel -> list/detail -> real quote ¥899.00
+  duplicate native/H5 header fixed; final screenshot android-hotel-final.png
+
+Exception gates:
+  validate-exception-handling.ps1 PASS
+  validate-java-exception-logging.ps1 PASS
+  validate-java-silent-catch.ps1 PASS
+  validate-java-logging-conventions.ps1 PASS
+  validate-controller-mapping-integrity.ps1 PASS (563 mappings)
+  validate-controller-repository-boundary.ps1 report-only (remaining legacy controllers)
+  validate-text-encoding.ps1 baseline archive mojibake remains (not introduced by this change)
+
+Not done:
+  genuine rollback to previous image version: local SNAPSHOT tag overwrite means the
+  previous image is not retained under an immutable tag; Kubernetes rollout history
+  only keeps the current revision. Do not claim rollback PASS.

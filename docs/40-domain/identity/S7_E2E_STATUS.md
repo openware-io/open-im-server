@@ -1,7 +1,7 @@
 # S7 E2E 执行状态
 > 环境：Kind open-im-local、Chrome 155、Xiaomi MI 9（adb c4c90621）
 > 时间：2026-10-24
-> 状态：CONDITIONAL PASS（cash-only；本地发布/测试 APK 验证中；在线支付/退款 deferred）
+> 状态：CONDITIONAL PASS（cash-only；本地发布 PASS（回滚未验证）；测试 APK 真机入口/详情/报价 PASS；在线支付/退款 deferred）
 
 ## 1. 已确认
 

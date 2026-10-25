@@ -103,3 +103,18 @@ C 390x844：酒店封面卡/tag-row 正常，无横向溢出
 本地测试包只用于真机验证，不做正式签名
 正式签名包不在本轮范围
 ```
+
+## 9. 本地发布与真机验证（2026-10-25）
+
+```text
+manifest: .outputs/releases/s7-local-final.json
+build: development.20261025T031935Z.137c2a7b
+targets: gateway/identity/tenant/order/payment/admin/saas-admin
+result: 7 deployments Ready=1, health 200
+B/C console: 0 business 4xx/5xx/JS error
+Android: MI 9 测试 APK 2.4.0+6, 服务->酒店->列表/详情/实时报价 ¥899.00
+重复标题栏: 已修（服务 H5 隐藏原生 app bar）
+异常门禁: exception/silent-catch/logging/controller-mapping PASS
+回滚: 未验证（本地 SNAPSHOT 覆盖旧 tag，rollout history 只有当前 revision）
+证据: evidence/local-release-final.txt / android-hotel-final.png
+```
