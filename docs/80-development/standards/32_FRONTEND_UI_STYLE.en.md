@@ -111,3 +111,37 @@ scripts/validate/validate-frontend-ui-standard.ps1
 
 Checks B-side `admin-page/admin-card/metric-grid`, C-side tokens/`hotel-cover`/`tag-row`,
 and forbids C from calling `/api/v1/admin/tenant/config`. Registered in `invoke-engineering-validation.ps1`.
+
+## 10. Compatibility baseline and component constraints
+
+```text
+Measured baseline: Xiaomi MI 9, Android 11, WebView 83.0.4103.106
+Supported baseline: Chrome / WebView >= 83
+```
+
+Shared semantic tokens are mandatory for B/C: brand, surface, text, border, danger,
+radius, shadow, space, font, z-index.
+
+B maps them to Element Plus (`--el-color-primary`, `--el-border-radius-base`);
+C maps them to its own CSS variables. Pages must not hard-code primary colors,
+radii or shadows.
+
+WebView 83 prohibitions:
+
+```text
+flex gap without margin fallback
+aspect-ratio without fallback
+inset shorthand
+:is() / :where() / color-mix() / dvh
+backdrop-filter without solid fallback
+```
+
+`html.compat-webview83` is added by feature detection and provides margin,
+fixed-height and solid-background fallbacks.
+
+Mobile overlays use a bottom sheet for select/date/time and a product dialog for
+confirmation. `window.confirm` is forbidden in C. B keeps Element Plus dialogs
+and popovers with the same tokens.
+
+Gates: UI standard validation, compatibility scanning, and visual regression at
+360x800, 393x851 and 412x915.

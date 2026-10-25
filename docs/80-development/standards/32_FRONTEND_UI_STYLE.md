@@ -139,3 +139,76 @@ scripts/validate/validate-frontend-ui-standard.ps1
 - [DDD 服务工程规范](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)：页面只消费已定义的服务契约
 - [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md)：UI 验收与真实链路证据
 - 前端实现：open-saas-admin/src/styles/global.css（外部仓库，不在本文档树内）
+
+## 10. 兼容基线与组件约束
+
+### 10.1 实测基线
+
+```text
+小米 9：Android 11 / WebView 83.0.4103.106
+支持基线：Chrome / WebView >= 83
+```
+
+### 10.2 共享 token
+
+```text
+B/C 必须使用同一组语义 token：
+  brand.primary / brand.primaryDark
+  surface / text / textMuted / border / danger
+  radius.sm / radius.md / radius.lg / radius.sheet
+  shadow.card / shadow.popup
+  space.1..8
+  font.family / font.size
+  zIndex.sheet / modal / toast
+```
+
+B 端映射 Element Plus：
+
+```css
+--el-color-primary: var(--brand-primary);
+--el-border-radius-base: var(--radius-md);
+```
+
+C 端映射自有 CSS 变量：
+
+```css
+--primary: var(--brand-primary);
+--radius: var(--radius-lg);
+```
+
+页面不得再写死主色、圆角、阴影。
+
+### 10.3 WebView 83 禁用项
+
+```text
+禁止：flex gap（用 margin 兜底）
+禁止：aspect-ratio 无兜底
+禁止：inset 简写（写 top/right/bottom/left）
+禁止：:is() / :where() / color-mix() / dvh
+backdrop-filter 必须有纯色兜底
+```
+
+兼容类：
+
+```text
+html.compat-webview83
+```
+
+由前端检测 `CSS.supports('aspect-ratio','1 / 1')` 添加，CSS 在兼容类下使用 margin、固定高度和纯色背景兜底。
+
+### 10.4 弹层与表单
+
+```text
+C 端选择/日期/时间 -> 底部 sheet
+C 端确认 -> 产品 dialog，禁止 window.confirm
+B 端桌面 -> Element Plus dialog / popover
+B/C 的标题、按钮、圆角、遮罩必须使用同一 token
+```
+
+### 10.5 门禁
+
+```text
+validate-frontend-ui-standard.ps1 继续检查 B/C 类名与禁用接口
+新增兼容扫描：flex gap / aspect-ratio / inset / :is / :where / color-mix / dvh
+视觉回归：360x800、393x851（小米 9）、412x915
+```
