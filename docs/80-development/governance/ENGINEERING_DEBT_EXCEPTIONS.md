@@ -94,3 +94,12 @@ validate-flyway-conventions.ps1 PASS
 `scripts/validate/flyway-legacy-files.txt`，对上述 9 个已应用迁移执行文件级例外，
 并校验到期日与 stale 条目；新增迁移不在例外范围。
 
+## GATE-REPO-HYGIENE-LOCAL-WORKSPACE-001
+
+`	ext
+检查：validate-repository-hygiene.ps1
+范围：开发机工作区根目录 .outputs / .vscode / artifacts
+原因：这些是本机生成或编辑器目录，不属于仓库内容
+约束：CI 工作区仍只允许仓库目录；本例外仅覆盖本地开发根目录
+到期：2026-12-31
+`
