@@ -60,3 +60,22 @@ Android device login attempt (new /c APK):
   logcat: "The request connection took longer than 0:00:15.000000 and it was aborted."
   Device can ping 192.168.3.35, but the API connect from the device times out.
   Therefore the post-login /c WebView path is still not verified on device.
+
+Final path/runtime check:
+  GET /c/    200
+  GET /b/    200
+  GET /saas/ 200
+  saas-mobile, saas-admin, platform-identity-service all Ready=1
+  adm_miniapp_service_item /a380/% count = 0
+  user_oidc_redirect_uri /a380/% count = 0
+
+Android real device:
+  MI 9 / Android 11 / WebView 83
+  /c/#/service/hotel -> /c/#/real-hotel/1
+  #booking-picker.show = true
+  Evidence: android-c-path-2026-10-25.txt and android-c-hotel*.png
+
+Full gates after path change:
+  Engineering validation passed for scope Full
+  54 gates PASS
+  Maven clean verify PASS
