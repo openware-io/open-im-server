@@ -79,3 +79,12 @@ Full gates after path change:
   Engineering validation passed for scope Full
   54 gates PASS
   Maven clean verify PASS
+
+Tenant owner bootstrap (2026-10-25):
+  POST /api/v1/admin/staff/bootstrap-owner with platform session -> 200
+  Created login bootcheck -> TENANT_ADMIN, roles [tenant.owner],
+    landing /admin/tenant/overview
+  Test account and membership cleaned after verification.
+  Platform tenant create dialog now requires initial owner
+    username / password / display name.
+  Full engineering validation after bootstrap changes: PASS
