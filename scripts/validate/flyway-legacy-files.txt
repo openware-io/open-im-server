@@ -1,0 +1,12 @@
+# GATE-FLYWAY-LEGACY-001: applied migrations that predate the current DDL rules.
+# Format: path|expires
+# Do not add new files. Exit when the 9 migrations are rebuilt or superseded.
+platform-services/admin/platform-admin-service/src/main/resources/db/migration/V2__iam_role_profile.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V3__htl_booking_frontdesk.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V4__htl_domain_model.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V5__htl_inventory_hold.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V6__htl_stay_folio_housekeeping.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V7__htl_night_audit.sql|2026-11-15
+platform-services/order/platform-order-service/src/main/resources/db/migration/V10__htl_refund.sql|2026-11-15
+platform-services/tenant/platform-tenant-service/src/main/resources/db/migration/V3__tnt_business_entitlement.sql|2026-11-15
+platform-services/tenant/platform-tenant-service/src/main/resources/db/migration/V7__tnt_workspace_config.sql|2026-11-15

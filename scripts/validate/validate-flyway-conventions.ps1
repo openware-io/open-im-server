@@ -68,6 +68,18 @@ foreach ($prefix in $registered) {
 
 # --- migration roots ---
 $domainRoots = @('im-services', 'platform-services', 'common-services', 'group-services')
+$legacyPath = Join-Path $PSScriptRoot 'flyway-legacy-files.txt'
+$legacyFiles = @{}
+if (Test-Path -LiteralPath $legacyPath) {
+  foreach ($line in [System.IO.File]::ReadAllLines($legacyPath, [System.Text.UTF8Encoding]::new($false, $true))) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+    $parts = $trimmed -split '\|'
+    if ($parts.Count -lt 2) { continue }
+    $legacyFiles[$parts[0].Trim()] = [ordered]@{ expires = $parts[1].Trim(); used = $false }
+  }
+}
+
 $migrationDirs = [System.Collections.Generic.List[string]]::new()
 foreach ($domain in $domainRoots) {
   $domainPath = Join-Path $root $domain
@@ -85,6 +97,21 @@ foreach ($dir in $migrationDirs) {
     $text = [System.IO.File]::ReadAllText($file.FullName, [System.Text.UTF8Encoding]::new($false, $true))
     $name = $file.Name
     $fileRef = "${relative}/${name}"
+    if ($legacyFiles.ContainsKey($fileRef)) {
+      $entry = $legacyFiles[$fileRef]
+      $expiry = [datetime]::MinValue
+      if (-not [datetime]::TryParseExact($entry.expires, 'yyyy-MM-dd', [cultureinfo]::InvariantCulture,
+          [System.Globalization.DateTimeStyles]::None, [ref]$expiry)) {
+        $violations.Add("${fileRef}: invalid legacy expiry $($entry.expires)")
+        continue
+      }
+      if ($expiry -lt (Get-Date).Date) {
+        $violations.Add("${fileRef}: legacy exception expired $($entry.expires)")
+        continue
+      }
+      $entry.used = $true
+      continue
+    }
 
     # Strip comments in ONE forward pass before parsing. Without this, a Chinese comment such as
     # "KMS/Vault key id" is read as a real index declaration, and a commented-out "-- DROP TABLE x"
@@ -229,6 +256,12 @@ foreach ($dir in $migrationDirs) {
         $violations.Add("${where}: column name '$($columnMatch.Groups['bare'].Value)' is not backticked (identifier convention)")
       }
     }
+  }
+}
+
+foreach ($key in $legacyFiles.Keys) {
+  if (-not $legacyFiles[$key].used) {
+    $violations.Add("stale flyway legacy exception (no longer matches): $key")
   }
 }
 
