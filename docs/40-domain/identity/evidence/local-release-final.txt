@@ -25,8 +25,15 @@ Android test package:
   version 2.4.0+6
   debug/test signed only; no production signing
   installed on MI 9 c4c90621
-  services -> hotel -> list/detail -> real quote ¥899.00
-  duplicate native/H5 header fixed; final screenshot android-hotel-final.png
+  services -> hotel -> list/detail -> real quote 899.00
+  -> fill guest -> submit -> booking success
+  booking: HTL1792899679182719
+  order: 24, store 102, DRAFT, paid 0
+  duplicate native/H5 header fixed; final screenshots:
+    android-hotel-final.png
+    android-hotel-detail.png
+    android-hotel-quote.png
+    android-hotel-booking-success.png
 
 Exception gates:
   validate-exception-handling.ps1 PASS
