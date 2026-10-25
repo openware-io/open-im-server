@@ -82,6 +82,23 @@ STORE：门店级店长/收银/财务
 
 门店不是独立账号体系，而是 `iam_role_binding.scope_type=STORE + store_id`。
 
+## 2.1 租户后台开通客户 C 登录
+
+租户后台“新建客户”支持填写可选 **C 端密码**：
+
+```text
+电话 + C 端密码
+-> POST /api/v1/admin/customers/c-login
+-> idt_account / idt_login_identity(PHONE)
+-> tnt_membership(CUSTOMER)
+-> tnt_app_user_authorization(saas-a380-c)
+-> 再 POST /api/v1/business/members 建档并写 accountId
+```
+
+这样客户可以直接到 `/c/` 用手机号 + 密码登录，不需要先走 IM OAuth。
+
+未填密码时仍按旧流程只建客户档案，不创建 C 登录账号。
+
 ## 3. C 端客户
 
 `/c/` 在没有 IM Bridge、也没有 SaaS 会话时显示独立登录页：
@@ -151,7 +168,8 @@ P0 新增租户时创建初始管理员
 
 P1 C 端独立登录/注册
    已完成：手机号/邮箱 + 密码登录页
-   未完成：C 端注册、验证码登录
+   已完成：租户后台新建客户时开通 C 登录
+   未完成：C 端公开注册、验证码登录
    登录后选择 CUSTOMER membership
    再进入 /c/
 
