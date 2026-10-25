@@ -1,0 +1,47 @@
+Tenant code vs URL path test (2026-10-25)
+=========================================
+
+Question:
+  Is the /a380/ path dynamic from the tenant code?
+
+Test:
+  Before: open_saas.tnt_tenant id=100 tenant_code=a380
+    GET http://127.0.0.1:30080/a380/ -> 200
+  Controlled change:
+    UPDATE open_saas.tnt_tenant SET tenant_code='s929' WHERE id=100;
+    GET http://127.0.0.1:30080/a380/ -> 200
+    C #/service/hotel -> console []
+    C #/my -> console []
+    B /api/v1/admin/platform/tenants -> tenantCode s929
+  Restore:
+    tenant_code=a380
+
+Conclusion:
+  /a380/ is NOT dynamic. It is a fixed deployment path, independent of
+  tnt_tenant.tenant_code.
+
+Hardcoded a380 locations found:
+  k8s/local/ingress.yaml: /a380 -> saas-mobile
+  k8s/local/saas.yaml: readinessProbe /a380/index.html
+  open-saas-mobile/c-end/oauth.js: APP_ID = 'saas-a380-c'
+  platform-identity-service: dev-session allowlist saas-a380-c,saas-a380-h5
+  platform-identity-service SaasAppRegistry: consumer referers /a380/
+  scripts/deploy/sync-oidc-client-registry.ps1: redirect URIs /a380/
+  Android service links / service entry: /a380/
+
+Registry inconsistency:
+  open_im.open_application contains saas-a380-c, saas-a380-h5, saas-ktv.
+  open_saas.tnt_app_installation for tenant 100 contains
+  saas-hotel-b and saas-hotel-c.
+  The C page still hardcodes saas-a380-c, which is not the installed
+  hotel C app. App identity and tenant installation are not aligned.
+
+Assessment:
+  - Path does not identify tenant; tenant comes from signed session
+    (tenantId), which is the correct security source.
+  - But using a tenant/demo brand literal in the path and appId is not a
+    scalable multi-tenant URL/app principle.
+  - Recommended: one stable channel path (/c/, /b/) or tenant subdomain;
+    resolve tenant from session; keep /a380/ as a legacy alias.
+  - App ID should identify the client application, not a tenant; tenant
+    binding stays in tnt_app_installation.
