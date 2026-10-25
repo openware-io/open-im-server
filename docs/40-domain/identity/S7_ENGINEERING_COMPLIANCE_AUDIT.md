@@ -45,8 +45,12 @@ validate-java-fully-qualified-names
   PASS：本轮修复 FQCN 引用
 
 validate-service-api-boundaries
-  5 条既有 application 分层基线（3 个 controller 已修）
-  5 个 application 服务仍直接依赖 mapper/po
+  PASS：application 已迁移 repository 端口
+
+validate-service-layout
+  4 条既有 top-level package 基线
+  infrastructure：platform-admin/customer/tenant
+  hotel：platform-order
 
 validate-flyway-conventions
   9 条历史迁移例外，已登记 GATE-FLYWAY-LEGACY-001，到期 2026-11-15

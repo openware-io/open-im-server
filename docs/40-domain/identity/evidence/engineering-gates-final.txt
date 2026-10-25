@@ -23,16 +23,18 @@ PASS before the blocking gate:
   secret-exposure
   security-and-flyway-configuration
 
-Blocking gate:
-  service-api-boundaries: 5 pending
-    application -> mapper/po:
-      AdminRoleProfileService
-      BusinessEntitlementApplicationService
-      EntitlementApplicationService
-      PlatformRoleBindingApplicationService
-      TenantWorkspaceConfigApplicationService
-  These are existing layering violations, not introduced by the S7 cash-only work.
-  Three controllers were already refactored off PO in this round.
+Blocking gate after refactor:
+  service-layout: 4 pending
+    unexpected top-level package 'infrastructure':
+      platform-admin-service
+      platform-customer-service
+      platform-tenant-service
+    unexpected top-level package 'hotel':
+      platform-order-service
+  These are existing bounded packages, not introduced by the S7 cash-only work.
+
+Service API boundaries:
+  PASS after migrating application services to repository ports.
 
 Report-only:
   controller-repository-boundary: 1 pending (InternalAppGrantController)

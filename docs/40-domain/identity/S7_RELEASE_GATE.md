@@ -42,7 +42,8 @@ Android 测试 APK 真机预订 + B 收款：PASS
 本地 Kind 使用测试 APK；正式签名 APK 不在本次本地范围
 其他业务页 action 级全量不属于 S7 酒店 cash-only，另列 P2
 text-encoding PASS（损坏历史归档按原字节隔离并记录 SHA-256）
-service-api-boundaries 仍有 5 条既有 application 分层基线（3 个 controller 已修）
+service-api-boundaries PASS
+service-layout 仍有 4 条既有 top-level package 基线（infrastructure x3、hotel x1）
 详见 evidence/engineering-gates-final.txt
 ```
 
