@@ -85,6 +85,7 @@ Flyway is owned per service that owns its MySQL schema, including `im-user-servi
 
 ## 5. Constraints
 
+- Business applications are not tenant-bound; SaaS paths are entry points only and the tenant comes from the session, see [SaaS path and tenant routing standard](SAAS_PATH_STANDARD.en.md);
 - Gateway does cross-cutting work only, never business orchestration;
 - All external REST paths keep the `/api` prefix;
 - `im-access-ws` never treats local-memory presence as the final fact; cross-instance coordination must use Redis;

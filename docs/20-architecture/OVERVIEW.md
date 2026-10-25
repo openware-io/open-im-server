@@ -85,6 +85,7 @@ Flyway 由持有本域 MySQL 表结构的服务分别维护迁移脚本，包括
 
 ## 5. 关键约束
 
+- 业务应用不绑定租户；SaaS 路径只做入口，租户由会话解析，见 [SaaS 路径与租户路由标准](SAAS_PATH_STANDARD.md)；
 - Gateway 只做横切，不做业务编排；
 - 所有外部 REST 路径统一保留 `/api` 前缀；
 - `im-access-ws` 不把单机内存在线状态作为最终事实，跨实例协同必须依赖 Redis；
