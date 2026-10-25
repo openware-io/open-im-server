@@ -1,6 +1,10 @@
+> Status: historical
+> Archived: 2026-10-19
+> Superseded-by:
+> Original-location: docs/audit-2026-09-17-exceptions-and-i18n.md
+
 # Archived audit (encoding quarantine)
 
-> Status: historical
 > Original bytes preserved: audit-2026-09-17-exceptions-and-i18n.md.corrupted
 > SHA256: 9cf7fb14e281cb2ff52a0b77fd4be252b19b7738b3c36b2f7d6972be0c4351c6
 
