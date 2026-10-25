@@ -111,3 +111,20 @@ Android API http://192.168.3.35:30080
 - C 端酒店、场馆、机票、打车表单均使用产品底部 picker，原生日期/时间/下拉已清零。
 - C 测试：24 files / 168 tests PASS。
 - Flutter 测试仍受本机 tester 端口 2985 连接失败影响，未记为 PASS。
+
+### Android 真机 `/c` 验证（2026-10-25）
+
+小米 9 / Android 11 / WebView 83 实测通过：
+
+```text
+登录 s3c001937
+服务 -> 酒店
+WebView: /c/#/service/hotel
+WebView: /c/#/real-hotel/1
+入住日期 -> 产品底部 picker（#booking-picker.show）
+```
+
+测试包通过 `adb reverse tcp:30080` + `OPEN_API_BASE=http://127.0.0.1:30080` 绕过
+设备到宿主机的 LAN TCP 隔离；C 路径代码与正式包一致。
+
+证据：`docs/40-domain/identity/evidence/android-c-path-2026-10-25.txt`。
