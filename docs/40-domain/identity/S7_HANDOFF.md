@@ -10,7 +10,7 @@
 ```text
 S1–S6：PASS
 S7 cash-only E2E：CONDITIONAL PASS
-本地发布/回滚：进行中
+本地发布：PASS；gateway 回滚：PASS（全服务未重复）
 Android 测试 APK：待真机验证
 C 在线支付/退款：deferred
 完整 S7：不成立
@@ -108,6 +108,7 @@ C 390x844：酒店封面卡/tag-row 正常，无横向溢出
 
 ```text
 manifest: .outputs/releases/s7-local-final.json
+ gateway restore: s7-rollback-restore.json
 build: development.20261025T031935Z.137c2a7b
 targets: gateway/identity/tenant/order/payment/admin/saas-admin
 result: 7 deployments Ready=1, health 200
@@ -117,7 +118,7 @@ booking: HTL1792899679182719 / order24 store102 DRAFT
 证据: android-hotel-booking-success.png
 重复标题栏: 已修（服务 H5 隐藏原生 app bar）
 异常门禁: exception/silent-catch/logging/controller-mapping PASS
-回滚: 未验证（本地 SNAPSHOT 覆盖旧 tag，rollout history 只有当前 revision）
+回滚: gateway 真实回滚 PASS（6ba32869 -> 7cff0c41）；全服务回滚未重复
 证据: evidence/local-release-final.txt / android-hotel-final.png
 ```
 B 收款闭环（2026-10-25）:

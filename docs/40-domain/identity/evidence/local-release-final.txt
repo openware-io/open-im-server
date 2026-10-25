@@ -3,7 +3,7 @@ Local release validation (2026-10-25)
 
 Scope: local Kind open-im-local only. ACR/ACK removed from this release path.
 
-Manifest: .outputs/releases/s7-local-final.json
+Manifest: .outputs/releases/s7-local-final.json (gateway restored via s7-rollback-restore.json)
 Build identity: development.20261025T031935Z.137c2a7b
 Targets: gateway, platform-identity-service, platform-tenant-service,
          platform-order-service, common-payment-service,
@@ -48,7 +48,8 @@ Exception gates:
   validate-controller-repository-boundary.ps1 report-only (remaining legacy controllers)
   validate-text-encoding.ps1 baseline archive mojibake remains (not introduced by this change)
 
-Not done:
-  genuine rollback to previous image version: local SNAPSHOT tag overwrite means the
-  previous image is not retained under an immutable tag; Kubernetes rollout history
-  only keeps the current revision. Do not claim rollback PASS.
+Rollback:
+  gateway rollback drill PASS (see local-rollback-gateway.txt)
+  old revision 6ba32869 image 19798b14 deployed, health 200
+  current 7cff0c41 image 4f58d212 restored, health 200
+  full all-service rollback not yet repeated; only gateway is proven.
