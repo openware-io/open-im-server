@@ -1,0 +1,41 @@
+Engineering gates (2026-10-25)
+==============================
+
+Full sequential run: scripts/validate/invoke-engineering-validation.ps1 -Scope Full
+
+PASS before the blocking gate:
+  text-encoding (corrupt historical archive quarantined with SHA-256)
+  powershell-utf8-safety
+  powershell-ascii-only
+  java-comment-quality
+  java-deprecated-api-usage
+  java-exception-logging
+  java-logging-conventions
+  java-silent-catch
+  java-fully-qualified-names
+  exception-handling
+  maven-version-ownership
+  persistence-dependency-boundaries
+  currency-literals
+  rocketmq-contracts
+  mq-registry (72 resources)
+  mq-semantics
+  secret-exposure
+  security-and-flyway-configuration
+
+Blocking gate:
+  service-api-boundaries: 6 pending
+    controller -> persistence: InternalAppGrantController
+    application -> mapper/po:
+      AdminRoleProfileService
+      BusinessEntitlementApplicationService
+      EntitlementApplicationService
+      PlatformRoleBindingApplicationService
+      TenantWorkspaceConfigApplicationService
+  These are existing layering violations, not introduced by the S7 cash-only work.
+  Two controllers were already refactored off PO in this round.
+
+Report-only:
+  controller-repository-boundary: 1 pending (InternalAppGrantController)
+
+Later gates after service-api-boundaries were not reached in the sequential run.

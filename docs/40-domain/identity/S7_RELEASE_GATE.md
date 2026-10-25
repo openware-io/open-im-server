@@ -41,7 +41,9 @@ Android 测试 APK 真机预订 + B 收款：PASS
 ```text
 本地 Kind 使用测试 APK；正式签名 APK 不在本次本地范围
 其他业务页 action 级全量不属于 S7 酒店 cash-only，另列 P2
-text-encoding 历史归档 mojibake 为基线，未修复、未当 PASS
+text-encoding PASS（损坏历史归档按原字节隔离并记录 SHA-256）
+service-api-boundaries 仍有 6 条既有分层基线（2 个 controller 已修，5 个 application + 1 个 controller 待迁移）
+详见 evidence/engineering-gates-final.txt
 ```
 
 ## 4. 禁止

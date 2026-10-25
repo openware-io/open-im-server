@@ -131,3 +131,12 @@ htl_booking HTL1792899679182719 CONFIRMED
 C/Android 我的消费 O202610250002 已完成
 证据: b-collect-order24.png / android-order24-confirmed.png
 ```
+
+工程门禁（2026-10-25）:
+
+```text
+text-encoding / deprecated / exception / logging / silent-catch / FQCN / MQ PASS
+service-api-boundaries: 6 条既有分层基线（非本轮新增）
+controller-repository-boundary: 1 条 report-only
+证据: evidence/engineering-gates-final.txt
+```
