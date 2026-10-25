@@ -88,3 +88,12 @@ Tenant owner bootstrap (2026-10-25):
   Platform tenant create dialog now requires initial owner
     username / password / display name.
   Full engineering validation after bootstrap changes: PASS
+
+C standalone login (2026-10-25):
+  /c/ no-session path renders #c-login-form (phone/email + password).
+  POST /api/v1/identity/login -> 200
+  POST /api/v1/auth/session?appId=saas-a380-c -> 200
+  GET /api/v1/auth/contexts -> CUSTOMER context -> /c/ renders.
+  Wrong credential now shows 账号或密码错误，请重试.
+  Test CUSTOMER account/membership/app authorization cleaned after verification.
+  C tests: 26 files / 172 tests PASS.
