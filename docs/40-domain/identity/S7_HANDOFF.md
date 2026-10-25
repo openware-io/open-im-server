@@ -86,3 +86,12 @@ C 配置：/api/v1/business/tenant/config（不再 403）
 验证：B/C 控制台 0 error；B 696 tests PASS
 证据：hotel-b-ui-standard.png / hotel-c-ui-standard.png / hotel-c-detail-standard.png
 ```
+
+UI 质量门禁（2026-10-25）：
+
+```text
+B admin: 51 files / 696 tests PASS
+C mobile: 23 files / 167 tests PASS
+UI validator: scripts/validate/validate-frontend-ui-standard.ps1 PASS
+C 详情报价：¥899.00（统一 money 口径）
+```
