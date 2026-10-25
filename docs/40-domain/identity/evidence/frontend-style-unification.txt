@@ -32,7 +32,7 @@ C hotel booking:
     c-hotel-picker-sheet.png\n    c-venue-picker-form.png\n    c-venue-picker-sheet.png\n    c-travel-picker-form.png\n    c-taxi-picker-form.png\n    c-venue-picker-sheet.png
 
 Verification:
-  C tests: 24 files / 168 tests PASS
+  C tests: 24 files / 170 tests PASS
   B tests: 51 files / 696 tests PASS
   B #/admin/platform/tenants console []
   B #/admin/iam/roles console []
@@ -43,3 +43,8 @@ Remaining:
   C 端 app.js / hotel-real.js no longer contain native date/time/select/
   window.confirm; hotel, venue and travel forms all use the product picker.
   A regression test (native-controls.test.js) enforces this.
+
+Hotel order UX:
+  order cards use hotel-order-card, status pills, two-column dates and compact cancel button
+  cancel confirmation uses product modal
+  hotel list keeps a cache and shows it with a toast if a back-navigation refresh fails

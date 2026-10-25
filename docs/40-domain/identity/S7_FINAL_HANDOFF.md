@@ -128,3 +128,11 @@ WebView: /c/#/real-hotel/1
 设备到宿主机的 LAN TCP 隔离；C 路径代码与正式包一致。
 
 证据：`docs/40-domain/identity/evidence/android-c-path-2026-10-25.txt`。
+
+### 酒店订单与返回修复（2026-10-25）
+
+- 酒店订单改为独立 `hotel-order-card`，状态中文化，取消按钮不再落入 `venue-card` 双列网格。
+- 取消确认使用产品 modal。
+- 酒店列表缓存上次成功结果；返回/刷新失败时显示缓存并提示，不再直接显示“酒店加载失败”。
+- 酒店列表“订单”入口改为 `my-hotel-orders`。
+- 证据：`c-hotel-orders-before.png`、`c-hotel-orders-after.png`、`c-hotel-cancel-confirm.png`、`c-hotel-back-cache.png`。
