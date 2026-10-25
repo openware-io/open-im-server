@@ -244,6 +244,12 @@ spring:
          - Path=/api/v1/admin/platform/**,/api/v1/admin/tenant/**,/api/v1/admin/iam/**,/api/v1/admin/tenant/config,/api/v1/admin/pricing-plans/**
         filters:
          - StripPrefix=2
+      - id: saas-business-tenant-config
+        uri: ${PLATFORM_TENANT_URI:http://localhost:4110}
+        predicates:
+         - Path=/api/v1/business/tenant/config
+        filters:
+         - StripPrefix=2
       - id: saas-resource
         uri: ${PLATFORM_RESOURCE_URI:http://localhost:4120}
         predicates:

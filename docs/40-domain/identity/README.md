@@ -53,3 +53,4 @@ CUSTOMER 与 STAFF 是租户成员身份，不是账号全局类型
 | [负例证据](evidence/negative/README.md) | demo 截图移入负例 |
 | [S7 发布门禁](S7_RELEASE_GATE.md) | ACK/ACR/回滚、正式 APK、在线通道前置条件 |
 | [S7 交接归档](S7_HANDOFF.md) | 条件签字、证据、外部前置、禁止事项 |
+| [酒店 B/C UI 风格标准](UI_STYLE_STANDARD.md) | 对齐 KTV 的 B/C 设计基线 |
