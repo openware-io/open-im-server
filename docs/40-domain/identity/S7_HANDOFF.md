@@ -1,4 +1,6 @@
-# S7 交接归档
+# S7 交接
+
+> 压缩交接入口：[S7_FINAL_HANDOFF.md](S7_FINAL_HANDOFF.md)归档
 
 > 2026-10-25
 > 分支：`develop/2.4.0-hotel`
