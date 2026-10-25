@@ -29,7 +29,7 @@ C hotel booking:
   Values remain on the same hidden input ids, so quote/book code is unchanged.
   Screenshots:
     c-hotel-picker-form-final.png
-    c-hotel-picker-sheet.png
+    c-hotel-picker-sheet.png\n    c-venue-picker-form.png\n    c-venue-picker-sheet.png
 
 Verification:
   C tests: 23 files / 167 tests PASS
@@ -40,5 +40,6 @@ Verification:
   C /c/#/real-hotel/1 date sheet opens custom bottom sheet
 
 Remaining:
-  C travel and KTV venue forms still contain native date/time/select inputs.
-  Those are the next batch; the hotel path now proves the component pattern.
+  C travel forms still contain native date/datetime/select inputs.
+  Hotel and KTV venue forms now use the product picker.
+  Travel is the next batch; the hotel/venue paths prove the component pattern.
