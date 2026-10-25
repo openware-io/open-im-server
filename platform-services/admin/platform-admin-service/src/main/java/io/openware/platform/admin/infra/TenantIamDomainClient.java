@@ -261,7 +261,7 @@ public class TenantIamDomainClient {
                     "tenantId", tenantId,
                     "organizationId", organizationId == null ? "" : String.valueOf(organizationId),
                     "membershipType", "STAFF",
-                    "memberNo", ""));
+                    "memberNo", "M" + accountId));
             restClient.post()
                     .uri("/internal/iam/accounts/{accountId}/memberships", accountId)
                     .contentType(MediaType.APPLICATION_JSON)
