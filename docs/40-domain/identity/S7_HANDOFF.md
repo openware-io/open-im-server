@@ -135,8 +135,9 @@ C/Android 我的消费 O202610250002 已完成
 工程门禁（2026-10-25）:
 
 ```text
-text-encoding / deprecated / exception / logging / silent-catch / FQCN / MQ PASS
-service-api-boundaries: 6 条既有分层基线（非本轮新增）
-controller-repository-boundary: 1 条 report-only
+全量工程门禁 PASS：54 gates + Maven clean verify
+既有例外：GATE-FLYWAY-LEGACY-001（9 个已应用迁移，2026-11-15）
+service-layout 4 个既有包（2026-12-31）
+无 report-only 降级
 证据: evidence/engineering-gates-final.txt
 ```
