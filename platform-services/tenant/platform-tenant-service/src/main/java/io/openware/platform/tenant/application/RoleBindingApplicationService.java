@@ -118,6 +118,21 @@ public class RoleBindingApplicationService {
     return assign(membership.id(), roleId, scopeType, organizationId, storeId);
   }
 
+  /**
+   * 内部引导：平台为新租户创建首个员工管理员时，按显式 tenantId 绑定角色。
+   *
+   * <p>只允许 service-to-service 的内部端点调用；不读取请求租户上下文，因此不会
+   * 把平台 tenantId=0 当成目标租户。普通运营人员新增仍走 {@link #assignByAccount}。
+   */
+  @Transactional
+  public RoleBinding assignForBootstrap(Long accountId, Long tenantId, Long roleId, String scopeType,
+                                        Long organizationId, Long storeId) {
+    Membership membership = memberships
+        .findByAccountAndTenantAndType(accountId, tenantId, Membership.TYPE_STAFF)
+        .orElseThrow(() -> new ApiException(404, "STAFF_MEMBERSHIP_NOT_FOUND", "员工成员身份不存在"));
+    return assign(membership.id(), roleId, scopeType, organizationId, storeId);
+  }
+
   public List<RoleBinding> listByAccount(Long accountId) {
     TenantContext context = TenantContextHolder.get();
     if (context == null) {

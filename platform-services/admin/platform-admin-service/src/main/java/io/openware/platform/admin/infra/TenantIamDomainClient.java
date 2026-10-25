@@ -233,6 +233,27 @@ public class TenantIamDomainClient {
         }
     }
 
+    /** 平台引导租户管理员：走 tenant-service 内部 IAM，显式 tenantId，不依赖平台上下文。 */
+    public void assignPlatformBootstrapRole(Long accountId, Long tenantId, Long roleId, String scopeType,
+                                             Long organizationId, Long storeId) {
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "tenantId", tenantId,
+                    "roleId", roleId,
+                    "scopeType", scopeType,
+                    "organizationId", organizationId == null ? "" : String.valueOf(organizationId),
+                    "storeId", storeId == null ? "" : String.valueOf(storeId)));
+            restClient.post()
+                    .uri("/internal/iam/account/{accountId}/roles", accountId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("调用 tenant 内部 IAM 分配租户管理员角色失败", e);
+        }
+    }
+
     private Long nullableLong(JsonNode node, String field) {
         return node.hasNonNull(field) ? node.get(field).asLong() : null;
     }
