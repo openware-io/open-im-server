@@ -14,7 +14,6 @@ import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,7 +31,6 @@ public class AuthContextController {
     private final SaasAppRegistry appRegistry;
     private final boolean plainCookie;
 
-    @Autowired
     public AuthContextController(AuthContextApplicationService service, SaasUserSessionStore sessionStore,
                                  AccountTokenResolver accountTokenResolver, SaasAppRegistry appRegistry,
                                  ServiceEntryApplicationService entries,

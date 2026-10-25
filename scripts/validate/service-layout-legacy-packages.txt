@@ -1,0 +1,6 @@
+# Legacy top-level packages: service|package|expires|reason
+# These are existing bounded packages. New code must use the standard DDD layers.
+platform-admin-service|infrastructure|2026-12-31|existing infra layer name used by admin
+platform-customer-service|infrastructure|2026-12-31|existing infra layer name used by customer
+platform-tenant-service|infrastructure|2026-12-31|existing infra layer name used by tenant
+platform-order-service|hotel|2026-12-31|hotel bounded-context vertical
