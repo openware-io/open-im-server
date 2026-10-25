@@ -3,7 +3,6 @@ package io.openware.platform.admin.api.controller;
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.application.AdminRoleProfileService;
 import io.openware.platform.admin.domain.model.AdminRole;
-import io.openware.platform.admin.infra.persistence.po.AdminRoleProfilePo;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,16 +24,16 @@ public class AdminRoleProfileController {
     }
 
     @GetMapping
-    public List<RoleProfileView> list() {
+    public List<AdminRoleProfileService.RoleProfileView> list() {
         requirePlatformOperator();
-        return roleProfileService.listProfiles().stream().map(RoleProfileView::from).toList();
+        return roleProfileService.listProfiles();
     }
 
     @PutMapping("/{id}")
-    public RoleProfileView update(@PathVariable Long id, @RequestBody UpdateRoleProfileRequest request) {
+    public AdminRoleProfileService.RoleProfileView update(@PathVariable Long id, @RequestBody UpdateRoleProfileRequest request) {
         requirePlatformOperator();
-        return RoleProfileView.from(roleProfileService.updateProfile(id, request.workspaceCode(),
-                request.landingRoute(), request.defaultScope(), request.defaultBusinessType(), request.sortNo()));
+        return roleProfileService.updateProfile(id, request.workspaceCode(),
+                request.landingRoute(), request.defaultScope(), request.defaultBusinessType(), request.sortNo());
     }
 
     private void requirePlatformOperator() {
@@ -47,13 +46,4 @@ public class AdminRoleProfileController {
     public record UpdateRoleProfileRequest(String workspaceCode, String landingRoute, String defaultScope,
                                            String defaultBusinessType, Integer sortNo) {}
 
-    public record RoleProfileView(Long id, String roleCode, String workspaceCode, String landingRoute,
-                                  String defaultScope, String defaultBusinessType, String navProfile,
-                                  Integer sortNo, String status) {
-        static RoleProfileView from(AdminRoleProfilePo po) {
-            return new RoleProfileView(po.getId(), po.getRoleCode(), po.getWorkspaceCode(), po.getLandingRoute(),
-                    po.getDefaultScope(), po.getDefaultBusinessType(), po.getNavProfile(), po.getSortNo(),
-                    po.getStatus());
-        }
-    }
 }

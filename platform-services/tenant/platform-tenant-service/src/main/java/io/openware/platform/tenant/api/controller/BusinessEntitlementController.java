@@ -1,7 +1,6 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.platform.tenant.application.BusinessEntitlementApplicationService;
-import io.openware.platform.tenant.infra.persistence.po.BusinessEntitlementPo;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,18 +20,13 @@ public class BusinessEntitlementController {
     }
 
     @GetMapping
-    public List<BusinessEntitlementView> list() {
-        return service.list().stream().map(BusinessEntitlementView::from).toList();
+    public List<BusinessEntitlementApplicationService.BusinessEntitlementView> list() {
+        return service.list();
     }
 
     @PostMapping("/{businessType}/enable")
-    public BusinessEntitlementView enable(@PathVariable String businessType) {
-        return BusinessEntitlementView.from(service.enable(businessType));
+    public BusinessEntitlementApplicationService.BusinessEntitlementView enable(@PathVariable String businessType) {
+        return service.enable(businessType);
     }
 
-    public record BusinessEntitlementView(Long id, String businessType, String status, String source) {
-        static BusinessEntitlementView from(BusinessEntitlementPo po) {
-            return new BusinessEntitlementView(po.getId(), po.getBusinessType(), po.getStatus(), po.getSource());
-        }
-    }
 }

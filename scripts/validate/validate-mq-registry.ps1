@@ -1,12 +1,12 @@
 # RocketMQ ledger validator (G-09).
 #
-# standards/12: implemented resources have exactly one source of truth, the MQ ledger (docs/mq/REGISTRY.md);
+# standards/12: implemented resources have exactly one source of truth, the MQ ledger (docs/30-reference/mq/REGISTRY.md);
 # topics and producer/consumer groups must be defined as protocol-mq constants, and business services may
 # only reference those constants instead of declaring duplicate literals.
 # Nothing compared the ledger with the code, so 34 live resources were missing from the ledger.
 #
 # Checks:
-#   1. every resource constant in sdk/protocol-mq appears in docs/mq/REGISTRY.md
+#   1. every resource constant in sdk/protocol-mq appears in docs/30-reference/mq/REGISTRY.md
 #   2. every resource name listed in the ledger exists as a protocol-mq constant (drift the other way)
 #   3. no producer/consumer group literal is declared outside protocol-mq (config files included)
 #
@@ -24,7 +24,7 @@ $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $worklistPath = Join-Path $root '.outputs\quality\mq-registry-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
 
-$registryPath = Join-Path $root 'docs\mq\REGISTRY.md'
+$registryPath = Join-Path $root 'docs\30-reference\mq\REGISTRY.md'
 if (-not (Test-Path -LiteralPath $registryPath -PathType Leaf)) { throw "MQ ledger not found: $registryPath" }
 $registry = [System.IO.File]::ReadAllText($registryPath, [System.Text.UTF8Encoding]::new($false, $true))
 $registryNames = [System.Collections.Generic.HashSet[string]]::new()
@@ -44,7 +44,7 @@ try {
       $value = $match.Groups['value'].Value
       [void]$codeResources.Add($value)
       if (-not $registryNames.Contains($value)) {
-        $violations.Add("resource not registered in docs/mq/REGISTRY.md: $value ($relativePath)")
+        $violations.Add("resource not registered in docs/30-reference/mq/REGISTRY.md: $value ($relativePath)")
       }
     }
   }

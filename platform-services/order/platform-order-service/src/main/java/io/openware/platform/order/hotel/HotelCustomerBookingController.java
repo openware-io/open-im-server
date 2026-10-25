@@ -8,6 +8,7 @@ import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,7 +48,7 @@ public class HotelCustomerBookingController {
 
   @PostMapping("/bookings/{id}/cancel")
   public HotelBookingPo cancel(
-      @org.springframework.web.bind.annotation.PathVariable Long id) {
+      @PathVariable Long id) {
     var context = TenantContextHolder.get();
     if (context == null || context.accountId() <= 0) {
       throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");

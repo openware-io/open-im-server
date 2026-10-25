@@ -21,8 +21,7 @@ public record IdentityAccount(Long id, String status, String accountType) {
   /** 平台运营账号；没有租户成员身份。 */
   public static final String TYPE_PLATFORM_OPERATOR = "PLATFORM_OPERATOR";
 
-  /** @deprecated 旧值仅用于历史数据归一化，不再写入。 */
-  @Deprecated
+  /** 旧值仅用于历史数据归一化，不再写入。 */
   public static final String TYPE_CUSTOMER = TYPE_USER;
 
   /**

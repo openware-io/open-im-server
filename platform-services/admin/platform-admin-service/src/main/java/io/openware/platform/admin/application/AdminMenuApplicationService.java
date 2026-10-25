@@ -11,6 +11,7 @@ import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -40,7 +41,7 @@ public class AdminMenuApplicationService {
         this(paymentGrants, tenantIamClient, contextTokens, menuRepository, null);
     }
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
                                        TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
                                        AdminMenuRepository menuRepository, AdminRoleProfileService roleProfiles) {

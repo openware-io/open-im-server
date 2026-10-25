@@ -7,6 +7,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -324,7 +325,7 @@ public class HotelStayApplicationService {
             additional = Math.addExact(additional, Math.multiplyExact(price, booking.getRooms()));
         }
         booking.setCheckOutDate(newCheckOutDate);
-        booking.setNights((int) java.time.temporal.ChronoUnit.DAYS.between(booking.getCheckInDate(), newCheckOutDate));
+        booking.setNights((int) ChronoUnit.DAYS.between(booking.getCheckInDate(), newCheckOutDate));
         booking.setAmountMinor(booking.getAmountMinor() + additional);
         booking.setUpdatedAt(now);
         bookingMapper.updateById(booking);

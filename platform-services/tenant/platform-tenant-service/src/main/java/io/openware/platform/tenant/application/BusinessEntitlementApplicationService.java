@@ -27,16 +27,17 @@ public class BusinessEntitlementApplicationService {
         this.mapper = mapper;
     }
 
-    public List<BusinessEntitlementPo> list() {
+    public List<BusinessEntitlementView> list() {
         TenantContext context = requireContext(PERMISSION_VIEW);
         return mapper.selectList(new LambdaQueryWrapper<BusinessEntitlementPo>()
                 .eq(BusinessEntitlementPo::getTenantId, context.tenantId())
                 .eq(BusinessEntitlementPo::getStatus, "ACTIVE")
-                .orderByAsc(BusinessEntitlementPo::getBusinessType));
+                .orderByAsc(BusinessEntitlementPo::getBusinessType)).stream()
+                .map(BusinessEntitlementApplicationService::toView).toList();
     }
 
     @Transactional
-    public BusinessEntitlementPo enable(String businessType) {
+    public BusinessEntitlementView enable(String businessType) {
         TenantContext context = requireContext(PERMISSION_MANAGE);
         String type = businessType == null ? "" : businessType.trim().toUpperCase();
         if (type.isBlank()) {
@@ -59,7 +60,7 @@ public class BusinessEntitlementApplicationService {
             created.setUpdatedBy(context.accountId());
             created.setUpdatedAt(now);
             mapper.insert(created);
-            return created;
+            return toView(created);
         }
         existing.setStatus("ACTIVE");
         existing.setSource("MANUAL");
@@ -67,7 +68,14 @@ public class BusinessEntitlementApplicationService {
         existing.setUpdatedBy(context.accountId());
         existing.setUpdatedAt(now);
         mapper.updateById(existing);
-        return existing;
+        return toView(existing);
+    }
+
+    private static BusinessEntitlementView toView(BusinessEntitlementPo po) {
+        return new BusinessEntitlementView(po.getId(), po.getBusinessType(), po.getStatus(), po.getSource());
+    }
+
+    public record BusinessEntitlementView(Long id, String businessType, String status, String source) {
     }
 
     private TenantContext requireContext(String permission) {

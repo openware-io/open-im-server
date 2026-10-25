@@ -7,6 +7,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -40,7 +41,7 @@ public class HotelMasterDataController {
     }
 
     @PutMapping("/hotels/{id}")
-    public HotelPo updateHotel(@org.springframework.web.bind.annotation.PathVariable Long id,
+    public HotelPo updateHotel(@PathVariable Long id,
                                @RequestBody HotelRequest request) {
         return service.saveHotel(id, request.name(), request.address(), request.timezone(),
                 request.checkInTime(), request.checkOutTime());
@@ -59,7 +60,7 @@ public class HotelMasterDataController {
     }
 
     @PutMapping("/room-types/{id}")
-    public HotelRoomTypePo updateRoomType(@org.springframework.web.bind.annotation.PathVariable Long id,
+    public HotelRoomTypePo updateRoomType(@PathVariable Long id,
                                           @RequestBody RoomTypeRequest request) {
         return service.saveRoomType(id, request.hotelId(), request.code(), request.name(), request.capacity(),
                 request.bedType(), request.areaSqm());
@@ -77,7 +78,7 @@ public class HotelMasterDataController {
     }
 
     @PutMapping("/rooms/{id}")
-    public HotelRoomPo updateRoom(@org.springframework.web.bind.annotation.PathVariable Long id,
+    public HotelRoomPo updateRoom(@PathVariable Long id,
                                   @RequestBody RoomRequest request) {
         return service.saveRoom(id, request.roomTypeId(), request.roomNo(), request.floor());
     }
@@ -95,7 +96,7 @@ public class HotelMasterDataController {
     }
 
     @PutMapping("/rate-plans/{id}")
-    public HotelRatePlanPo updateRatePlan(@org.springframework.web.bind.annotation.PathVariable Long id,
+    public HotelRatePlanPo updateRatePlan(@PathVariable Long id,
                                           @RequestBody RatePlanRequest request) {
         return service.saveRatePlan(id, request.hotelId(), request.code(), request.name(),
                 request.basePriceMinor(), request.currency());

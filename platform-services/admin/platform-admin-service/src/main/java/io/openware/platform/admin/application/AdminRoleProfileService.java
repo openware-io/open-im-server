@@ -117,15 +117,15 @@ public class AdminRoleProfileService {
     }
 
     /** 平台侧角色模板/工作区档案。 */
-    public List<AdminRoleProfilePo> listProfiles() {
+    public List<RoleProfileView> listProfiles() {
         return roleProfileMapper.selectList(new LambdaQueryWrapper<AdminRoleProfilePo>()
                 .orderByAsc(AdminRoleProfilePo::getSortNo)
-                .orderByAsc(AdminRoleProfilePo::getId));
+                .orderByAsc(AdminRoleProfilePo::getId)).stream().map(AdminRoleProfileService::toView).toList();
     }
 
     /** 更新角色模板的工作区/落点；角色权限本身仍由 tenant-service 管理。 */
-    public AdminRoleProfilePo updateProfile(Long id, String workspaceCode, String landingRoute,
-                                            String defaultScope, String defaultBusinessType, Integer sortNo) {
+    public RoleProfileView updateProfile(Long id, String workspaceCode, String landingRoute,
+                                         String defaultScope, String defaultBusinessType, Integer sortNo) {
         AdminRoleProfilePo profile = roleProfileMapper.selectById(id);
         if (profile == null) {
             throw new IllegalArgumentException("角色工作台档案不存在: " + id);
@@ -142,7 +142,17 @@ public class AdminRoleProfileService {
         profile.setDefaultBusinessType(defaultBusinessType);
         if (sortNo != null) profile.setSortNo(sortNo);
         roleProfileMapper.updateById(profile);
-        return profile;
+        return toView(profile);
+    }
+
+    private static RoleProfileView toView(AdminRoleProfilePo po) {
+        return new RoleProfileView(po.getId(), po.getRoleCode(), po.getWorkspaceCode(), po.getLandingRoute(),
+                po.getDefaultScope(), po.getDefaultBusinessType(), po.getNavProfile(), po.getSortNo(), po.getStatus());
+    }
+
+    public record RoleProfileView(Long id, String roleCode, String workspaceCode, String landingRoute,
+                                  String defaultScope, String defaultBusinessType, String navProfile,
+                                  Integer sortNo, String status) {
     }
 
     public record AdminWorkspace(List<String> roles, List<String> workspaces, String defaultWorkspace, String landing) {}

@@ -5,6 +5,8 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.application.OrderApplicationService;
+import org.springframework.scheduling.annotation.Scheduled;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -28,14 +30,14 @@ public class HotelBookingApplicationService {
     private final HotelInventoryHoldMapper holdMapper;
     private final HotelDailyRateMapper dailyRateMapper;
     private final HotelBookingNightMapper nightMapper;
-    private final io.openware.platform.order.application.OrderApplicationService orderApplicationService;
+    private final OrderApplicationService orderApplicationService;
     private final MemberLookupProvider memberLookupProvider;
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
                                           HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
                                           HotelBookingNightMapper nightMapper,
-                                          io.openware.platform.order.application.OrderApplicationService orderApplicationService,
+                                          OrderApplicationService orderApplicationService,
                                           MemberLookupProvider memberLookupProvider) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
@@ -333,7 +335,7 @@ public class HotelBookingApplicationService {
     }
 
     /** 未支付 hold 到期释放；调度跨租户，逐条按 hold 自身 tenant/store 释放。 */
-    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 60_000L)
+    @Scheduled(fixedDelay = 60_000L)
     @Transactional
     public void expireHolds() {
         for (HotelInventoryHoldPo hold : holdMapper.selectExpired()) {

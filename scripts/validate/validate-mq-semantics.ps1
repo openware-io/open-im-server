@@ -18,12 +18,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$registryPath = Join-Path $root 'docs\mq\REGISTRY.md'
+$registryPath = Join-Path $root 'docs\30-reference\mq\REGISTRY.md'
 $worklistPath = Join-Path $root '.outputs\quality\mq-semantics-worklist.txt'
 $violations = [System.Collections.Generic.List[string]]::new()
 
 if (-not (Test-Path -LiteralPath $registryPath -PathType Leaf)) {
-  Write-Error 'MQ ledger is missing: docs/mq/REGISTRY.md'
+  Write-Error 'MQ ledger is missing: docs/30-reference/mq/REGISTRY.md'
   exit 1
 }
 
