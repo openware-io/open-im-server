@@ -53,4 +53,5 @@ Rollback:
   old backend 6ba32869: six services Ready=1, health 200
   current f89f1074: six services Ready=1, health 200
   gateway drill also PASS (local-rollback-gateway.txt)
-  frontend images not rolled back in this drill.
+  frontend B/C rollback also PASS (see local-rollback-frontend.txt)
+  old admin 02646a7 / mobile 5938186; restore admin a24e1e4 / mobile a7dd575

@@ -1,0 +1,27 @@
+Frontend rollback drill (local Kind)
+====================================
+
+Scope: saas-admin (B) and saas-mobile (C).
+
+Old images:
+  saas-admin source commit 02646a7
+  saas-mobile source commit 5938186
+  manifest .outputs/releases/s7-rollback-frontend.json
+  build identity development.20261025T041529Z.8d60964c
+  saas-admin digest sha256:132f37da34a9c301c7609b16172eb4aa558f3aee4863fba2bda2d44eabd2db57
+  saas-mobile digest sha256:a894000cbea2c46e432014b2f9e5cca1ec177df683a31fce89ce62da1e5f4323
+  rollout: saas-admin/saas-mobile Ready=1
+  B/C entry pages: HTTP 200
+
+Current restore:
+  saas-admin source commit a24e1e4
+  saas-mobile source commit a7dd575
+  manifest .outputs/releases/s7-rollback-frontend-restore.json
+  build identity development.20261025T041641Z.8d60964c
+  saas-admin digest sha256:2d17ad293e39b6ed8ac28caf98aaf511395715acdb0c277bc46873c37fa143c2
+  saas-mobile digest sha256:fd2ba31458a56a5a2002d116d5039edbade50791dafa67bf75d1c69fd1284893
+  rollout: Ready=1
+  B pages (ktv/config, tenant/hotel): no console errors
+  C page (service/hotel): no console errors
+
+This validates frontend deploy -> rollback -> restore for B/C.
