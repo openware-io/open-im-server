@@ -81,7 +81,18 @@ STORE：门店级店长/收银/财务
 
 ## 3. C 端客户
 
-当前没有独立 C 端登录页。
+`/c/` 在没有 IM Bridge、也没有 SaaS 会话时显示独立登录页：
+
+```text
+手机号/邮箱 + 密码
+-> POST /api/v1/identity/login
+-> POST /api/v1/auth/session?appId=saas-a380-c
+-> POST /api/v1/auth/context/select
+-> /c/
+```
+
+账号必须已有 CUSTOMER membership，并已授权 C 应用；否则登录会提示
+“该账号还没有 C 端身份”。首次客户绑定仍从 OpenChat 完成。
 
 入口：
 
@@ -111,7 +122,6 @@ Android IM WebView
 没有：
 
 ```text
-C 端手机号/密码登录页
 C 端注册页
 C 端验证码登录
 ```
@@ -137,7 +147,8 @@ P0 新增租户时创建初始管理员
    首次登录强制改密尚未实现（P0.1）
 
 P1 C 端独立登录/注册
-   手机号/密码或验证码
+   已完成：手机号/邮箱 + 密码登录页
+   未完成：C 端注册、验证码登录
    登录后选择 CUSTOMER membership
    再进入 /c/
 
