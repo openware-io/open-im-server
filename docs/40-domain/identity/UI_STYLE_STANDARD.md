@@ -111,3 +111,11 @@ C saas-mobile:
   配置改走 /api/v1/business/tenant/config
   控制台 0 错误（hotel-c-ui-standard.png / hotel-c-detail-standard.png）
 ```
+
+## 5. 响应式验收
+
+```text
+B 1440x900：4 列指标卡 + 标准 admin-card/表格
+C 390x844：venue-card 封面卡 + tag-row 不溢出
+证据：hotel-b-ui-desktop.png / hotel-c-ui-mobile.png
+```

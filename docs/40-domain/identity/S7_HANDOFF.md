@@ -103,3 +103,11 @@ UI 真实下单：HTL1792892676796144 / order23 store102 DRAFT
 页面显示：预订成功 / PENDING_PAYMENT / ¥899.00
 证据：hotel-c-ui-booking.png
 ```
+
+响应式（2026-10-25）：
+
+```text
+B 1440x900：4 列指标卡，表格正常
+C 390x844：酒店封面卡/tag-row 正常，无横向溢出
+证据：hotel-b-ui-desktop.png / hotel-c-ui-mobile.png
+```
