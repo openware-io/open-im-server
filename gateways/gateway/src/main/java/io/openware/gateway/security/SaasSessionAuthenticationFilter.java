@@ -43,7 +43,7 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
       "/api/v1/admin/pricing-plans", "/api/v1/admin/resources", "/api/v1/admin/refund-requests",
       "/api/v1/admin/daily-closings", "/api/v1/admin/reconciliations", "/api/v1/admin/payment-channels",
       "/api/v1/admin/payment-methods", "/api/v1/admin/ktv", "/api/v1/admin/reservations",
-      "/api/v1/admin/staff", "/api/v1/admin/reports", "/api/v1/admin/wallets",
+      "/api/v1/admin/staff", "/api/v1/admin/customers", "/api/v1/admin/reports", "/api/v1/admin/wallets",
       "/api/v1/admin/audits", "/api/v1/admin/channels", "/api/v1/admin/inventory",
       "/api/v1/admin/products", "/api/v1/admin/orders", "/api/v1/admin/hotel", "/api/v1/admin/media"
   };
