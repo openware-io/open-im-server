@@ -260,6 +260,29 @@ class SaasSessionAuthenticationFilterTest {
         .isEqualTo("signed-platform-context");
   }
   @Test
+  void tenantOwnerBootstrapForwardsPlatformContext() {
+    ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
+    when(redis.opsForValue()).thenReturn(values);
+    when(values.get("saas-admin:session:admin-session")).thenReturn(Mono.just(
+        "{\"accountId\":1,\"role\":\"PLATFORM_ADMIN\",\"platformContextToken\":\"signed-platform-context\"}"));
+    SaasSessionAuthenticationFilter filter = new SaasSessionAuthenticationFilter(redis);
+    AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+    MockServerWebExchange exchange = MockServerWebExchange.from(
+        MockServerHttpRequest.post("/api/v1/admin/staff/bootstrap-owner")
+            .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
+
+    filter.filter(exchange, requestExchange -> {
+      forwarded.set(requestExchange.getRequest());
+      return Mono.empty();
+    }).block();
+
+    assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context"))
+        .isEqualTo("signed-platform-context");
+  }
+
+  @Test
   void platformRoutePrefersSelectedTenantContextOverPresetPlatformContext() {
     ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
     @SuppressWarnings("unchecked")
