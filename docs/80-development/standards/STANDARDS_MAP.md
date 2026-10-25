@@ -43,6 +43,7 @@
 | 24 | [币种规范](24_CURRENCY_CONVENTIONS.md) | L1 | domain | G13, G34, G35 | active |
 | 30 | [客户端发布与版本治理规范](30_CLIENT_RELEASE_GOVERNANCE.md) | L1 | delivery | 人工发布检查 | active + manual |
 | 31 | [客户端发布操作规范](31_CLIENT_RELEASE_SKILL.md) | L2 | delivery | 人工发布检查 | active + manual |
+| 32 | [前端 UI 风格标准](32_FRONTEND_UI_STYLE.md) | L2 | delivery | validate-frontend-ui-standard.ps1 | active |
 | 40 | [可观测性规范](40_OBSERVABILITY_CONVENTIONS.md) | L1 | quality | G37, G38, G41 | active |
 | 41 | [Java 日志规范](41_JAVA_LOGGING_CONVENTIONS.md) | L2 | quality | G06, G07, G08, G37 | active |
 | 42 | [日志输出与诊断规范](42_LOGGING_AND_OUTPUTS.md) | L2 | quality | G07, G37 | active |

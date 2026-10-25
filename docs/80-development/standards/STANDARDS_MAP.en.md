@@ -43,6 +43,7 @@ Numbers are a **classification index**, not a dependency graph. Dependencies are
 | 24 | [Currency conventions](24_CURRENCY_CONVENTIONS.en.md) | L1 | domain | G13, G34, G35 | active |
 | 30 | [Client release governance](30_CLIENT_RELEASE_GOVERNANCE.en.md) | L1 | delivery | manual release check | active + manual |
 | 31 | [Client release operations](31_CLIENT_RELEASE_SKILL.en.md) | L2 | delivery | manual release check | active + manual |
+| 32 | [Frontend UI style](32_FRONTEND_UI_STYLE.en.md) | L2 | delivery | validate-frontend-ui-standard.ps1 | active |
 | 40 | [Observability](40_OBSERVABILITY_CONVENTIONS.en.md) | L1 | quality | G37, G38, G41 | active |
 | 41 | [Java logging](41_JAVA_LOGGING_CONVENTIONS.en.md) | L2 | quality | G06, G07, G08, G37 | active |
 | 42 | [Logging outputs](42_LOGGING_AND_OUTPUTS.en.md) | L2 | quality | G07, G37 | active |

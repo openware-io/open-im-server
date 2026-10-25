@@ -25,6 +25,11 @@
 - `/auth/contexts`（GET 上下文列表）
 - `/auth/context/select`（POST 上下文选择）
 
+## 实现说明（2026-10-25）
+
+`AuthContextController` 保持单构造器注入，移除多余的 `@Autowired`；`@Value` 仍用于
+`saas.cookie.plain` 配置。该改动不改变任何 URL、请求或响应契约。
+
 ## 依赖
 
 - MySQL：库 `gv_saas`，Flyway history 表 `flyway_schema_history_identity`
