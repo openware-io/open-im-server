@@ -1,0 +1,19 @@
+Android release artifact (open-source unsigned build)
+====================================================
+
+Built: 2026-10-25 10:34 +08:00
+Tool: open-chat-app/tools/release.ps1 -ReuseCurrentVersion -SigningPolicy AllowUnsigned -SkipPublish
+Flutter: flutter build apk --release --dart-define=APP_ENV=prod
+
+path: open-chat-app/build/app/outputs/flutter-apk/app-release.apk
+version: 2.4.0+6
+sizeBytes: 175334996
+sha256: 230580bb0d9fae9c9adb35763e8668bd8e023feaa57179bba1a171f584f37364
+signing: unsigned
+installable: false
+releaseRecord: none (SkipPublish; unsigned must not enter production channel)
+
+Notes:
+- No android/key.properties and no operator release keystore found in the workspace.
+- Debug APK remains only for development/device E2E; it is not a formal release.
+- Formal release requires operator keystore + android/key.properties and release.ps1 with RequireRelease.

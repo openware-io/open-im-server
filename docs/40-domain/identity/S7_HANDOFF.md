@@ -111,3 +111,26 @@ B 1440x900：4 列指标卡，表格正常
 C 390x844：酒店封面卡/tag-row 正常，无横向溢出
 证据：hotel-b-ui-desktop.png / hotel-c-ui-mobile.png
 ```
+
+## 9. ACK/ACR/Android 实况（2026-10-25）
+
+```text
+ACK kubeconfig: C:\Users\Administrator\.kube\ack-dev-conn.yaml
+context: 209277982874572694-c8629a647dce749afbec6d16972bc6ec7
+namespace: im-business
+TCP 47.98.170.15:6443 可连接
+TLS ClientHello 后 0 字节 EOF；kubectl get ns 超时
+=> 集群 API 当前不可用，未执行 ACK 发布
+
+ACR: crpi-2xbf44rg544imbew.cn-hangzhou.personal.cr.aliyuncs.com
+docker login -> unauthorized: authentication required
+Docker Desktop ACR 凭据过期；未推送镜像
+
+Android:
+app-release.apk 2.4.0+6
+size 175334996
+sha256 230580bb0d9fae9c9adb35763e8668bd8e023feaa57179bba1a171f584f37364
+signing unsigned / installable=false
+```
+
+在线支付：`S7_ONLINE_PAYMENT_DEFERRAL.md` 已记录用户明确 defer，不再索要凭据。
