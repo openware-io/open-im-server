@@ -97,3 +97,9 @@ C standalone login (2026-10-25):
   Wrong credential now shows 账号或密码错误，请重试.
   Test CUSTOMER account/membership/app authorization cleaned after verification.
   C tests: 26 files / 172 tests PASS.
+
+C login no-session path (2026-10-25):
+  Blocked /api/v1/dev/saas/session and cleared cookies.
+  /c/ showed the standalone login page within 3 seconds.
+  Previously the page stayed blank ~6 seconds waiting for a non-existent IM Bridge.
+  Evidence: c-login-auto.png.
