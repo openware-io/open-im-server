@@ -15,9 +15,19 @@
 禁止业务页各自定义主色、圆角、阴影
 ```
 
-## 2. B 端标准
+## 2. 术语与前置假设
 
-### 2.1 页面骨架
+```text
+design token：颜色、间距、圆角、阴影的单一来源
+B 端：SaaS 管理后台 open-saas-admin
+C 端：H5 用户端 open-saas-mobile/c-end
+业务页：酒店、KTV、酒吧等具体业态页面
+前置假设：页面已有租户/门店上下文，不重复实现登录与授权
+```
+
+## 3. B 端标准
+
+### 3.1 页面骨架
 
 ```text
 根节点 class="admin-page"
@@ -28,7 +38,7 @@
 表格 Element Plus el-table border stripe
 ```
 
-### 2.2 组件规则
+### 3.2 组件规则
 
 ```text
 主操作 el-button type="primary"
@@ -39,7 +49,7 @@
 禁止自定义主色/圆角/阴影
 ```
 
-### 2.3 指标卡
+### 3.3 指标卡
 
 ```text
 桌面 4 列；<=640px 2 列；<=420px 1 列
@@ -47,9 +57,9 @@
 卡片与 admin-card 同圆角、同阴影
 ```
 
-## 3. C 端标准
+## 4. C 端标准
 
-### 3.1 Design tokens
+### 4.1 Design tokens
 
 ```text
 --primary #13b981   --primary-dark #079668
@@ -59,7 +69,7 @@
 --danger #ff654e    --radius 18px
 ```
 
-### 3.2 组件
+### 4.2 组件
 
 ```text
 page-head       固定页头：返回 / 标题 / 右侧动作
@@ -71,7 +81,7 @@ tag-row         标签胶囊
 status-*        状态胶囊
 ```
 
-### 3.3 业务规则
+### 4.3 业务规则
 
 ```text
 列表用 venue-card
@@ -82,7 +92,19 @@ status-*        状态胶囊
 禁止新增与 tokens 冲突的局部色值
 ```
 
-## 4. 验收
+## 5. 模板示例
+
+```html
+<section class="page">
+  <header class="page-head"><h1>酒店管理</h1></header>
+  <div class="metric-grid">
+    <article class="metric-card"><span>今日入住</span><strong>12</strong></article>
+  </div>
+  <div class="hotel-cover">...</div>
+</section>
+```
+
+## 6. 验收
 
 ```text
 B 页面无自定义主色/圆角/阴影
@@ -92,7 +114,7 @@ C 控制台无 401/403/JS error
 同一业务动作在 B/C 的文案和状态色一致
 ```
 
-## 5. 参考实现
+## 7. 参考实现
 
 ```text
 open-saas-admin/src/styles/global.css
@@ -103,7 +125,7 @@ open-saas-mobile/c-end/app.js
 open-saas-mobile/c-end/hotel-real.js
 ```
 
-## 6. 自动校验
+## 8. 自动校验
 
 ```text
 scripts/validate/validate-frontend-ui-standard.ps1
@@ -111,3 +133,9 @@ scripts/validate/validate-frontend-ui-standard.ps1
 
 检查 B 端 `admin-page/admin-card/metric-grid`、C 端 tokens/`hotel-cover`/`tag-row`，
 并禁止 C 端调用 `/api/v1/admin/tenant/config`。已注册到 `invoke-engineering-validation.ps1`。
+
+## 9. 与其他规范的关系
+
+- [DDD 服务工程规范](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)：页面只消费已定义的服务契约
+- [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md)：UI 验收与真实链路证据
+- [前端实现](../../../open-saas-admin/src/styles/global.css)：B/C 共享 token 的实现位置
