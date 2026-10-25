@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -268,7 +269,7 @@ public class TenantIamDomainClient {
                     .body(body)
                     .retrieve()
                     .body(String.class);
-        } catch (org.springframework.web.client.RestClientResponseException e) {
+        } catch (RestClientResponseException e) {
             if (e.getStatusCode().value() == 409) return;
             throw new IllegalStateException("调用 tenant 内部 IAM 创建员工成员身份失败", e);
         } catch (Exception e) {
