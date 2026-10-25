@@ -95,3 +95,11 @@ C mobile: 23 files / 167 tests PASS
 UI validator: scripts/validate/validate-frontend-ui-standard.ps1 PASS
 C 详情报价：¥899.00（统一 money 口径）
 ```
+
+C 端改版回归（2026-10-25）：
+
+```text
+UI 真实下单：HTL1792892676796144 / order23 store102 DRAFT
+页面显示：预订成功 / PENDING_PAYMENT / ¥899.00
+证据：hotel-c-ui-booking.png
+```
