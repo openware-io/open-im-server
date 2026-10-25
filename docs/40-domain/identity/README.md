@@ -11,6 +11,7 @@
 | 文档 | 说明 |
 | --- | --- |
 | [身份与访问模型](IDENTITY_ACCESS_MODEL.md) | 主体、成员身份、角色、权限、权益、OAuth、会话、工程结构 |
+| [租户/门店/C 端账号与登录现状](TENANT_ONBOARDING.md) | 新增租户、租户/门店登录、C 端登录缺口与整改顺序 |
 | [身份数据模型](IDENTITY_SCHEMA.md) | 目标 DDL、表归属、唯一键、迁移顺序 |
 | [身份 API 契约](IDENTITY_API.md) | OAuth 回调、上下文、权限快照、应用入口、错误码 |
 | [落地清单](IDENTITY_ROLLOUT.md) | 迁移、代码结构、应用注册、数据回填、门禁 |
