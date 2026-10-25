@@ -1,7 +1,7 @@
 # S7 E2E 执行状态
 > 环境：Kind open-im-local、Chrome 155、Xiaomi MI 9（adb c4c90621）
 > 时间：2026-10-24
-> 状态：CONDITIONAL PASS（cash-only；发布 P1 ACK/APK 未完成；在线支付/退款 deferred）
+> 状态：CONDITIONAL PASS（cash-only；本地发布/测试 APK 验证中；在线支付/退款 deferred）
 
 ## 1. 已确认
 
@@ -417,7 +417,7 @@ Android 全 C 流（下单/支付/订单）
 ERR-001/002 真实故障注入
 SEC 全矩阵
 HAR/logcat/trace
-生产 ACK
+本地 Kind 发布
 数据 seed/migration
 ```
 
@@ -884,7 +884,7 @@ requireRefundStore: context == null && orderBillingRepository != null -> 404
 
 ```text
 S7 cash-only E2E: CONDITIONAL PASS
-发布 P1: ACK/ACR/回滚、正式 APK 未完成
+本地发布/回滚、测试 APK 真机验证进行中
 C 在线支付/退款: deferred
 完整 S7: 不成立
 ```

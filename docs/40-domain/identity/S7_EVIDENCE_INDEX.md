@@ -63,8 +63,8 @@
 
 ```text
 B/C 浏览器前台全动作 HAR/截图
-ACK/ACR/回滚
-正式签名 APK
+本地发布/回滚
+测试 APK 真机验证
 SEC-001..006 逐条 HAR 附件
 ERR 5xx 页面级截图
 在线支付/退款 deferred

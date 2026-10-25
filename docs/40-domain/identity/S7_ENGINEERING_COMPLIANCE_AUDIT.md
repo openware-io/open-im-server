@@ -73,9 +73,9 @@ order 11 customer_id
 
 ```text
 仅 Kind 离线 manifest
-未推送 ACR / 未校验 registry digest
-未做 ACK 生产发布
-未做回滚演练
+本地 Kind manifest 发布
+本地回滚演练
+测试 APK 真机验证
 ```
 
 ### 客户端

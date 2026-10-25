@@ -21,8 +21,8 @@
 
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
-| 发布 P1：ACK / ACR / 回滚 | 未完成 | 完成前禁止生产发布 |
-| 发布 P1：正式签名 APK | 未完成 | 当前 debug APK + 本地 IP |
+| 本地发布 / 回滚 | 进行中 | Kind manifest 发布与回滚演练 |
+| Android 测试 APK | 待验证 | 测试包 + 本地 API，不做正式签名 |
 | C 在线支付 / 在线退款 | deferred | `S7_ONLINE_PAYMENT_DEFERRAL.md`；生产前硬门禁 |
 | 完整 S7 | 不成立 | 在线通道与发布 P1 完成后另签 |
 
@@ -53,7 +53,7 @@
 S7 cash-only E2E：CONDITIONAL PASS
 P0：SEC-001..014 全部闭合
 E2E P1：B 退款 UI、Android 同单现金闭环、null-scope、B 收款 UI 已闭合
-发布 P1：ACK/ACR/回滚、正式签名 APK —— 未完成，禁止生产发布
+本地发布/回滚、测试 APK 真机验证 —— 进行中
 Deferred：C 在线支付/退款 —— 生产前硬门禁
 完整 S7：不成立
 ```
