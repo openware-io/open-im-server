@@ -206,6 +206,13 @@ public class TenantIamDomainClient {
     /** 给账号分配角色（租户/门店作用域），转发 tenant-service 的 /admin/iam/user-roles。 */
     public void assignUserRole(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                Long roleId, String scopeType) {
+        assignUserRole(accountId, tenantId, organizationId, storeId, roleId, scopeType,
+                AdminContextHolder.get() == null ? null : AdminContextHolder.get().tenantContextToken());
+    }
+
+    /** 平台引导租户管理员时使用显式签发的租户上下文 token，而不是平台作用域 token。 */
+    public void assignUserRole(Long accountId, Long tenantId, Long organizationId, Long storeId,
+                               Long roleId, String scopeType, String tenantContextToken) {
         try {
             String body = objectMapper.writeValueAsString(Map.of(
                     "accountId", accountId,
@@ -216,7 +223,7 @@ public class TenantIamDomainClient {
                     "scopeType", scopeType));
             restClient.post()
                     .uri("/admin/iam/user-roles")
-                    .header(TenantContext.HEADER, AdminContextHolder.get().tenantContextToken())
+                    .header(TenantContext.HEADER, tenantContextToken)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()

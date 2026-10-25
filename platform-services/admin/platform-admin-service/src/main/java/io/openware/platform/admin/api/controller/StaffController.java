@@ -66,9 +66,11 @@ public class StaffController {
                 .filter(role -> "tenant.owner".equals(role.code()))
                 .findFirst()
                 .orElseThrow(() -> new ApiException(500, "TENANT_OWNER_ROLE_MISSING", "缺少 tenant.owner 预置角色"));
+        String tenantContextToken = contextTokens.sign(admin.accountId(), req.tenantId(), null, null, 0,
+                java.util.List.of(), "TENANT");
         return accountView(staffAccounts.create(new StaffAccountApplicationService.CreateCommand(
                 req.username(), req.password(), null, req.displayName(), ownerRole.roleId(),
-                "TENANT", req.tenantId(), null, null)));
+                "TENANT", req.tenantId(), null, null), tenantContextToken));
     }
 
     /** 新增运营人员：把 IM 账号开通为员工并绑定角色。 */

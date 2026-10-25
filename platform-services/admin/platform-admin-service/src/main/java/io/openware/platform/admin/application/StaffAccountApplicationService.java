@@ -43,6 +43,12 @@ public class StaffAccountApplicationService {
 
     @Transactional
     public ConsAdminAccount create(CreateCommand command) {
+        return create(command, null);
+    }
+
+    /** 平台引导租户管理员时传入显式租户上下文 token；普通运营人员创建传 null。 */
+    @Transactional
+    public ConsAdminAccount create(CreateCommand command, String tenantContextToken) {
         String username = command.username() == null ? "" : command.username().trim();
         if (!username.matches("[A-Za-z0-9][A-Za-z0-9_.-]{2,63}")) {
             throw new ApiException(400, "STAFF_USERNAME_INVALID", "登录账号应为 3–64 位字母、数字、下划线、点或短横线");
@@ -80,7 +86,7 @@ public class StaffAccountApplicationService {
             throw new ApiException(409, "STAFF_ACCOUNT_EXISTS", "登录账号或 IM 绑定已存在");
         }
         identity.bindLoginIdentity(account.platformAccountId(), "USERNAME", username, command.password());
-        iam.assignUserRole(accountId, command.tenantId(), command.organizationId(), command.storeId(), command.roleId(), command.scopeType());
+        iam.assignUserRole(accountId, command.tenantId(), command.organizationId(), command.storeId(), command.roleId(), command.scopeType(), tenantContextToken);
         return account;
     }
 

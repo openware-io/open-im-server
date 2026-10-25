@@ -66,6 +66,7 @@ public final class AuditActionResolver {
         RULES.put("POST /admin/auth/logout", "auth.logout");
         RULES.put("POST /admin/auth/password", "auth.password.change");
         RULES.put("POST /admin/context/select", "context.select");
+        RULES.put("POST /admin/staff/bootstrap-owner", "staff.owner.bootstrap");
         RULES.put("POST /admin/staff", "staff.create");
         RULES.put("PATCH /admin/staff/{id}", "staff.update");
         RULES.put("PATCH /admin/staff/{id}/status", "staff.update");
