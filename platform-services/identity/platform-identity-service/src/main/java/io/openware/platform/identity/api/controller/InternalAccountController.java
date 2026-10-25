@@ -38,6 +38,12 @@ public class InternalAccountController {
     return new AccountInfo(account.id(), account.accountType(), account.status());
   }
 
+  /** 内部：设置/重设 C 端登录密码（运营开通使用）。 */
+  @PostMapping("/{accountId}/password")
+  public void resetPassword(@PathVariable Long accountId, @RequestBody BindLoginIdentityRequest req) {
+    accounts.resetPassword(accountId, req.loginType(), req.loginIdentifier(), req.credential());
+  }
+
   /** 内部：为已有账号绑定可密码登录的标识。 */
   @PostMapping("/{accountId}/login-identity")
   public void bindLoginIdentity(@PathVariable Long accountId, @RequestBody BindLoginIdentityRequest req) {

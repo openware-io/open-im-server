@@ -83,6 +83,29 @@ public class AccountApplicationService {
                 passwordEncoder.encode(credential)));
     }
 
+    /** 内部开通：设置/重设 C 端手机号或邮箱密码。 */
+    @Transactional
+    public void resetPassword(Long accountId, String loginType, String loginIdentifier, String credential) {
+        if (accountId == null || accountId <= 0) {
+            throw new IllegalArgumentException("accountId is required");
+        }
+        accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalStateException("Identity account not found: " + accountId))
+                .ensureActive();
+        LoginIdentity existing = loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier)
+                .orElse(null);
+        String encoded = passwordEncoder.encode(credential);
+        if (existing != null) {
+            if (!accountId.equals(existing.accountId())) {
+                throw new IllegalStateException("Login identity already exists: " + loginType + "/" + loginIdentifier);
+            }
+            loginIdentityRepository.save(new LoginIdentity(existing.id(), accountId, loginType,
+                    loginIdentifier, encoded, LoginIdentity.STATUS_ACTIVE));
+            return;
+        }
+        loginIdentityRepository.save(LoginIdentity.forLogin(accountId, loginType, loginIdentifier, encoded));
+    }
+
     /**
      * 按登录标识查/建账号（内部端点，供运营人员开通使用）。
      * 已存在则返回并修正 account_type；不存在则按指定类型创建账号 + 登录标识（credential 为空，IM/第三方无密码）。

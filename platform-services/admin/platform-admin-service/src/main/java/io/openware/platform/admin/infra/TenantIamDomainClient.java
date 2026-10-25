@@ -234,6 +234,44 @@ public class TenantIamDomainClient {
         }
     }
 
+    /** 内部：按显式 tenantId 确保指定类型 membership（STAFF/CUSTOMER）。 */
+    public void ensureMembership(Long accountId, Long tenantId, String membershipType, Long organizationId,
+                                  String memberNo) {
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "tenantId", tenantId,
+                    "organizationId", organizationId == null ? "" : String.valueOf(organizationId),
+                    "membershipType", membershipType,
+                    "memberNo", memberNo));
+            restClient.post()
+                    .uri("/internal/iam/accounts/{accountId}/memberships", accountId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            if (e.getStatusCode().value() == 409) return;
+            throw new IllegalStateException("调用 tenant 内部 IAM 创建成员身份失败", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("调用 tenant 内部 IAM 创建成员身份失败", e);
+        }
+    }
+
+    /** 内部：为账号授予 C 应用 consumer 权限。 */
+    public void grantConsumerAuthorization(Long accountId, String appId, String scope) {
+        try {
+            restClient.post()
+                    .uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorizations")
+                            .queryParam("accountId", accountId)
+                            .queryParam("scope", scope == null ? "profile.basic" : scope)
+                            .build(appId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (Exception e) {
+            throw new IllegalStateException("调用 tenant 内部 IAM 授权 C 应用失败", e);
+        }
+    }
+
     /** 平台引导租户管理员：走 tenant-service 内部 IAM，显式 tenantId，不依赖平台上下文。 */
     public void assignPlatformBootstrapRole(Long accountId, Long tenantId, Long roleId, String scopeType,
                                              Long organizationId, Long storeId) {

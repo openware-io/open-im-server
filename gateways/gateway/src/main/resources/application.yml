@@ -289,7 +289,7 @@ spring:
       - id: saas-admin
         uri: ${PLATFORM_ADMIN_URI:http://localhost:4150}
         predicates:
-         - Path=/api/v1/admin/menus/**,/api/v1/admin/backends/**,/api/v1/admin/auth/sso,/api/v1/admin/auth/login,/api/v1/admin/auth/session,/api/v1/admin/auth/logout,/api/v1/admin/auth/csrf,/api/v1/admin/auth/password,/api/v1/admin/contexts,/api/v1/admin/context/select,/api/v1/admin/ktv/**,/api/v1/admin/reservations/**,/api/v1/admin/staff/**,/api/v1/admin/media/**
+         - Path=/api/v1/admin/menus/**,/api/v1/admin/backends/**,/api/v1/admin/auth/sso,/api/v1/admin/auth/login,/api/v1/admin/auth/session,/api/v1/admin/auth/logout,/api/v1/admin/auth/csrf,/api/v1/admin/auth/password,/api/v1/admin/contexts,/api/v1/admin/context/select,/api/v1/admin/ktv/**,/api/v1/admin/reservations/**,/api/v1/admin/staff/**,/api/v1/admin/customers/**,/api/v1/admin/media/**
         filters:
          - StripPrefix=2
       - id: saas-reports

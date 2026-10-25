@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import java.util.Map;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 
 /**
@@ -59,7 +60,7 @@ public class IdentityDomainClient {
     /** 按登录标识查/建账号，返回 accountId。 */
     public long ensureAccount(String loginType, String loginIdentifier, String accountType) {
         try {
-            String body = objectMapper.writeValueAsString(java.util.Map.of(
+            String body = objectMapper.writeValueAsString(Map.of(
                     "loginType", loginType, "loginIdentifier", loginIdentifier, "accountType", accountType));
             String resp = identityClient.post()
                     .uri("/internal/identity/accounts/ensure")
@@ -76,10 +77,28 @@ public class IdentityDomainClient {
         }
     }
 
+    /** 内部：为账号设置/重设 C 端密码（仅内部开通使用）。 */
+    public void setPassword(long accountId, String loginType, String loginIdentifier, String credential) {
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "loginType", loginType, "loginIdentifier", loginIdentifier, "credential", credential));
+            identityClient.post()
+                    .uri("/internal/identity/accounts/{accountId}/password", accountId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientResponseException e) {
+            throw new IllegalStateException("设置 C 端登录密码失败: " + e.getResponseBodyAsString(), e);
+        } catch (Exception e) {
+            throw new IllegalStateException("设置 C 端登录密码失败", e);
+        }
+    }
+
     /** 为员工账号绑定可密码登录的标识。 */
     public void bindLoginIdentity(long accountId, String loginType, String loginIdentifier, String credential) {
         try {
-            String body = objectMapper.writeValueAsString(java.util.Map.of(
+            String body = objectMapper.writeValueAsString(Map.of(
                     "loginType", loginType, "loginIdentifier", loginIdentifier, "credential", credential));
             identityClient.post()
                     .uri("/internal/identity/accounts/{accountId}/login-identity", accountId)
