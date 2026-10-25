@@ -8,7 +8,7 @@ Baseline measured on MI 9:
 Shared brand tokens:
   C: --primary #13b981, --primary-dark #079668
   B: --brand-primary #13b981, --brand-primary-dark #079668
-  B Element Plus mapping:
+  B Element Plus:
     --el-color-primary #13b981
     --el-color-primary-dark-2 #079668
     --el-border-radius-base 10px
@@ -16,26 +16,29 @@ Shared brand tokens:
   B/C font stack includes Roboto / Helvetica Neue / Arial
 
 Compatibility (WebView 83):
-  html.compat-webview83 is added when aspect-ratio is unsupported
+  html.compat-webview83 added when aspect-ratio is unsupported
   inset:0 replaced with top/right/bottom/left
   flex gap fallback margins for main C layouts
   aspect-ratio image fallback heights
   backdrop-filter page head fallback
   native window.confirm replaced by product showConfirm
 
+C hotel booking:
+  room type, rate plan, check-in, check-out and room count now use the
+  product bottom sheet (#booking-picker), not native select/date.
+  Values remain on the same hidden input ids, so quote/book code is unchanged.
+  Screenshots:
+    c-hotel-picker-form-final.png
+    c-hotel-picker-sheet.png
+
 Verification:
   C tests: 23 files / 167 tests PASS
   B tests: 51 files / 696 tests PASS
   B #/admin/platform/tenants console []
   B #/admin/iam/roles console []
-  C /c/#/service/hotel console []
-  Screenshots:
-    b-login-final.png
-    b-platform-final.png
-    c-hotel-token-v2.png
-    c-hotel-webview83-compat.png
+  C /c/#/real-hotel/1 console []
+  C /c/#/real-hotel/1 date sheet opens custom bottom sheet
 
 Remaining:
-  C hotel/travel/venue forms still contain native date/time/select inputs.
-  The design-system picker layer is the next batch; current change fixes the
-  compatibility and token baseline first.
+  C travel and KTV venue forms still contain native date/time/select inputs.
+  Those are the next batch; the hotel path now proves the component pattern.
