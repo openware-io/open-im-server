@@ -1,12 +1,9 @@
 package io.openware.platform.tenant.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.tenant.infra.persistence.mapper.BusinessEntitlementMapper;
-import io.openware.platform.tenant.infra.persistence.po.BusinessEntitlementPo;
-import java.time.LocalDateTime;
+import io.openware.platform.tenant.domain.entitlement.repository.BusinessEntitlementRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,19 +18,17 @@ public class BusinessEntitlementApplicationService {
     private static final String PERMISSION_VIEW = "tenant.overview.view";
     private static final String PERMISSION_MANAGE = "tenant.business.manage";
 
-    private final BusinessEntitlementMapper mapper;
+    private final BusinessEntitlementRepository repository;
 
-    public BusinessEntitlementApplicationService(BusinessEntitlementMapper mapper) {
-        this.mapper = mapper;
+    public BusinessEntitlementApplicationService(BusinessEntitlementRepository repository) {
+        this.repository = repository;
     }
 
     public List<BusinessEntitlementView> list() {
         TenantContext context = requireContext(PERMISSION_VIEW);
-        return mapper.selectList(new LambdaQueryWrapper<BusinessEntitlementPo>()
-                .eq(BusinessEntitlementPo::getTenantId, context.tenantId())
-                .eq(BusinessEntitlementPo::getStatus, "ACTIVE")
-                .orderByAsc(BusinessEntitlementPo::getBusinessType)).stream()
-                .map(BusinessEntitlementApplicationService::toView).toList();
+        return repository.findActive(context.tenantId()).stream()
+                .map(row -> new BusinessEntitlementView(row.id(), row.businessType(), row.status(), row.source()))
+                .toList();
     }
 
     @Transactional
@@ -43,39 +38,12 @@ public class BusinessEntitlementApplicationService {
         if (type.isBlank()) {
             throw new ApiException(400, "BUSINESS_TYPE_REQUIRED", "业态编码不能为空");
         }
-        BusinessEntitlementPo existing = mapper.selectOne(new LambdaQueryWrapper<BusinessEntitlementPo>()
-                .eq(BusinessEntitlementPo::getTenantId, context.tenantId())
-                .eq(BusinessEntitlementPo::getBusinessType, type)
-                .last("LIMIT 1"));
-        LocalDateTime now = LocalDateTime.now();
-        if (existing == null) {
-            BusinessEntitlementPo created = new BusinessEntitlementPo();
-            created.setTenantId(context.tenantId());
-            created.setBusinessType(type);
-            created.setStatus("ACTIVE");
-            created.setSource("MANUAL");
-            created.setEffectiveFrom(now);
-            created.setCreatedBy(context.accountId());
-            created.setCreatedAt(now);
-            created.setUpdatedBy(context.accountId());
-            created.setUpdatedAt(now);
-            mapper.insert(created);
-            return toView(created);
+        repository.activate(context.tenantId(), type, context.accountId());
+        BusinessEntitlementRepository.BusinessEntitlement saved = repository.find(context.tenantId(), type);
+        if (saved == null) {
+            throw new ApiException(500, "ENTITLEMENT_WRITE_FAILED", "业态开通后读取失败");
         }
-        existing.setStatus("ACTIVE");
-        existing.setSource("MANUAL");
-        existing.setEffectiveFrom(now);
-        existing.setUpdatedBy(context.accountId());
-        existing.setUpdatedAt(now);
-        mapper.updateById(existing);
-        return toView(existing);
-    }
-
-    private static BusinessEntitlementView toView(BusinessEntitlementPo po) {
-        return new BusinessEntitlementView(po.getId(), po.getBusinessType(), po.getStatus(), po.getSource());
-    }
-
-    public record BusinessEntitlementView(Long id, String businessType, String status, String source) {
+        return new BusinessEntitlementView(saved.id(), saved.businessType(), saved.status(), saved.source());
     }
 
     private TenantContext requireContext(String permission) {
@@ -87,5 +55,8 @@ public class BusinessEntitlementApplicationService {
             throw new ApiException(403, "PERMISSION_DENIED", "缺少权限: " + permission);
         }
         return context;
+    }
+
+    public record BusinessEntitlementView(Long id, String businessType, String status, String source) {
     }
 }

@@ -1,10 +1,8 @@
 package io.openware.platform.admin.application;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.openware.platform.admin.domain.model.AdminRole;
+import io.openware.platform.admin.domain.role.repository.AdminRoleProfileRepository;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
-import io.openware.platform.admin.infra.persistence.mapper.AdminRoleProfileMapper;
-import io.openware.platform.admin.infra.persistence.po.AdminRoleProfilePo;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,22 +20,22 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class AdminRoleProfileService {
 
-    private final AdminRoleProfileMapper roleProfileMapper;
+    private final AdminRoleProfileRepository profiles;
     private final TenantIamDomainClient tenantIamClient;
 
-    public AdminRoleProfileService(AdminRoleProfileMapper roleProfileMapper,
+    public AdminRoleProfileService(AdminRoleProfileRepository profiles,
                                    TenantIamDomainClient tenantIamClient) {
-        this.roleProfileMapper = roleProfileMapper;
+        this.profiles = profiles;
         this.tenantIamClient = tenantIamClient;
     }
 
     public AdminWorkspace resolve(Long platformAccountId, AdminRole legacyRole) {
         List<String> roleCodes = roleCodes(platformAccountId, legacyRole);
-        List<AdminRoleProfilePo> profiles = profiles(roleCodes);
-        if (profiles.isEmpty()) {
-            profiles = profiles(fallbackRoleCodes(legacyRole));
+        List<AdminRoleProfileRepository.RoleProfile> rows = profiles.findByRoleCodes(roleCodes);
+        if (rows.isEmpty()) {
+            rows = profiles.findByRoleCodes(fallbackRoleCodes(legacyRole));
         }
-        if (profiles.isEmpty()) {
+        if (rows.isEmpty()) {
             return new AdminWorkspace(List.of(), List.of("PLATFORM"), "PLATFORM", "/select");
         }
         List<TenantIamDomainClient.RoleBinding> bindings = roleBindings(platformAccountId);
@@ -48,16 +46,16 @@ public class AdminRoleProfileService {
         String storeMode = tenantIamClient.workspaceMode(tenantId);
         List<String> workspaces = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
-        for (AdminRoleProfilePo profile : profiles) {
-            String workspace = effectiveWorkspace(profile.getWorkspaceCode(), storeMode);
+        for (AdminRoleProfileRepository.RoleProfile profile : rows) {
+            String workspace = effectiveWorkspace(profile.workspaceCode(), storeMode);
             if (seen.add(workspace)) {
                 workspaces.add(workspace);
             }
         }
-        AdminRoleProfilePo primary = profiles.get(0);
+        AdminRoleProfileRepository.RoleProfile primary = rows.get(0);
         String landing = landing(primary, bindings);
         return new AdminWorkspace(roleCodes, workspaces,
-                effectiveWorkspace(primary.getWorkspaceCode(), storeMode), landing);
+                effectiveWorkspace(primary.workspaceCode(), storeMode), landing);
     }
 
     /** 门店角色默认进独立 STORE 工作区；租户配置为门店上下文时归入 HEADQUARTERS。 */
@@ -90,17 +88,9 @@ public class AdminRoleProfileService {
         }
     }
 
-    private List<AdminRoleProfilePo> profiles(List<String> roleCodes) {
-        if (roleCodes.isEmpty()) return List.of();
-        return roleProfileMapper.selectList(new LambdaQueryWrapper<AdminRoleProfilePo>()
-                .in(AdminRoleProfilePo::getRoleCode, roleCodes)
-                .eq(AdminRoleProfilePo::getStatus, "ACTIVE")
-                .orderByAsc(AdminRoleProfilePo::getSortNo)
-                .orderByAsc(AdminRoleProfilePo::getId));
-    }
-
-    private String landing(AdminRoleProfilePo primary, List<TenantIamDomainClient.RoleBinding> bindings) {
-        String route = primary.getLandingRoute();
+    private String landing(AdminRoleProfileRepository.RoleProfile primary,
+                           List<TenantIamDomainClient.RoleBinding> bindings) {
+        String route = primary.landingRoute();
         if (route == null || route.isBlank()) return "/select";
         if (!route.contains("{storeId}")) return route;
         Long storeId = bindings.stream()
@@ -118,15 +108,13 @@ public class AdminRoleProfileService {
 
     /** 平台侧角色模板/工作区档案。 */
     public List<RoleProfileView> listProfiles() {
-        return roleProfileMapper.selectList(new LambdaQueryWrapper<AdminRoleProfilePo>()
-                .orderByAsc(AdminRoleProfilePo::getSortNo)
-                .orderByAsc(AdminRoleProfilePo::getId)).stream().map(AdminRoleProfileService::toView).toList();
+        return profiles.findAll().stream().map(AdminRoleProfileService::toView).toList();
     }
 
     /** 更新角色模板的工作区/落点；角色权限本身仍由 tenant-service 管理。 */
     public RoleProfileView updateProfile(Long id, String workspaceCode, String landingRoute,
                                          String defaultScope, String defaultBusinessType, Integer sortNo) {
-        AdminRoleProfilePo profile = roleProfileMapper.selectById(id);
+        AdminRoleProfileRepository.RoleProfile profile = profiles.findById(id);
         if (profile == null) {
             throw new IllegalArgumentException("角色工作台档案不存在: " + id);
         }
@@ -136,18 +124,21 @@ public class AdminRoleProfileService {
         if (defaultScope != null && !List.of("PLATFORM", "TENANT", "STORE", "IM").contains(defaultScope)) {
             throw new IllegalArgumentException("非法数据范围: " + defaultScope);
         }
-        if (workspaceCode != null) profile.setWorkspaceCode(workspaceCode);
-        if (landingRoute != null && !landingRoute.isBlank()) profile.setLandingRoute(landingRoute);
-        if (defaultScope != null) profile.setDefaultScope(defaultScope);
-        profile.setDefaultBusinessType(defaultBusinessType);
-        if (sortNo != null) profile.setSortNo(sortNo);
-        roleProfileMapper.updateById(profile);
-        return toView(profile);
+        AdminRoleProfileRepository.RoleProfile updated = new AdminRoleProfileRepository.RoleProfile(
+                profile.id(), profile.roleCode(),
+                workspaceCode == null ? profile.workspaceCode() : workspaceCode,
+                landingRoute == null || landingRoute.isBlank() ? profile.landingRoute() : landingRoute,
+                defaultScope == null ? profile.defaultScope() : defaultScope,
+                defaultBusinessType, profile.navProfile(),
+                sortNo == null ? profile.sortNo() : sortNo, profile.status());
+        profiles.update(updated);
+        return toView(updated);
     }
 
-    private static RoleProfileView toView(AdminRoleProfilePo po) {
-        return new RoleProfileView(po.getId(), po.getRoleCode(), po.getWorkspaceCode(), po.getLandingRoute(),
-                po.getDefaultScope(), po.getDefaultBusinessType(), po.getNavProfile(), po.getSortNo(), po.getStatus());
+    private static RoleProfileView toView(AdminRoleProfileRepository.RoleProfile profile) {
+        return new RoleProfileView(profile.id(), profile.roleCode(), profile.workspaceCode(), profile.landingRoute(),
+                profile.defaultScope(), profile.defaultBusinessType(), profile.navProfile(),
+                profile.sortNo(), profile.status());
     }
 
     public record RoleProfileView(Long id, String roleCode, String workspaceCode, String landingRoute,

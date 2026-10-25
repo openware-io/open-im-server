@@ -4,9 +4,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.tenant.infra.persistence.mapper.TenantWorkspaceConfigMapper;
-import io.openware.platform.tenant.infra.persistence.po.TenantWorkspaceConfigPo;
-import java.time.LocalDateTime;
+import io.openware.platform.tenant.domain.tenant.repository.TenantWorkspaceConfigRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,10 +17,10 @@ public class TenantWorkspaceConfigApplicationService {
     public static final String MODE_TENANT_CONTEXT = "TENANT_CONTEXT";
     private static final List<String> MODES = List.of(MODE_INDEPENDENT, MODE_TENANT_CONTEXT);
 
-    private final TenantWorkspaceConfigMapper mapper;
+    private final TenantWorkspaceConfigRepository repository;
 
-    public TenantWorkspaceConfigApplicationService(TenantWorkspaceConfigMapper mapper) {
-        this.mapper = mapper;
+    public TenantWorkspaceConfigApplicationService(TenantWorkspaceConfigRepository repository) {
+        this.repository = repository;
     }
 
     @Transactional(readOnly = true)
@@ -32,9 +30,8 @@ public class TenantWorkspaceConfigApplicationService {
 
     @Transactional(readOnly = true)
     public String get(long tenantId) {
-        TenantWorkspaceConfigPo po = mapper.selectByTenantIgnoringTenant(tenantId);
-        return po == null || po.getStoreWorkspaceMode() == null
-                ? MODE_INDEPENDENT : po.getStoreWorkspaceMode();
+        String mode = repository.findStoreWorkspaceMode(tenantId);
+        return mode == null ? MODE_INDEPENDENT : mode;
     }
 
     @Transactional
@@ -45,23 +42,7 @@ public class TenantWorkspaceConfigApplicationService {
             throw new ApiException(400, "WORKSPACE_MODE_INVALID",
                     "门店工作区模式只能是 INDEPENDENT 或 TENANT_CONTEXT");
         }
-        TenantWorkspaceConfigPo existing = mapper.selectByTenantIgnoringTenant(context.tenantId());
-        LocalDateTime now = LocalDateTime.now();
-        if (existing == null) {
-            TenantWorkspaceConfigPo po = new TenantWorkspaceConfigPo();
-            po.setTenantId(context.tenantId());
-            po.setStoreWorkspaceMode(mode);
-            po.setCreatedBy(context.accountId());
-            po.setCreatedAt(now);
-            po.setUpdatedBy(context.accountId());
-            po.setUpdatedAt(now);
-            mapper.insert(po);
-        } else {
-            existing.setStoreWorkspaceMode(mode);
-            existing.setUpdatedBy(context.accountId());
-            existing.setUpdatedAt(now);
-            mapper.updateById(existing);
-        }
+        repository.saveStoreWorkspaceMode(context.tenantId(), mode, context.accountId());
         return mode;
     }
 

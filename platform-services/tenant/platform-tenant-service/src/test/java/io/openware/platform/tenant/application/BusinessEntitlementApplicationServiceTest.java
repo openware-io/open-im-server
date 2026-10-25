@@ -8,8 +8,7 @@ import static org.mockito.Mockito.when;
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.tenant.infra.persistence.mapper.BusinessEntitlementMapper;
-import io.openware.platform.tenant.infra.persistence.po.BusinessEntitlementPo;
+import io.openware.platform.tenant.domain.entitlement.repository.BusinessEntitlementRepository;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,13 +21,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BusinessEntitlementApplicationServiceTest {
 
     @Mock
-    private BusinessEntitlementMapper mapper;
+    private BusinessEntitlementRepository repository;
 
     private BusinessEntitlementApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new BusinessEntitlementApplicationService(mapper);
+        service = new BusinessEntitlementApplicationService(repository);
     }
 
     @AfterEach
@@ -40,9 +39,9 @@ class BusinessEntitlementApplicationServiceTest {
     void listRequiresTenantScopeAndViewPermission() {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1,
                 List.of("tenant.overview.view"), "TENANT", null, null));
-        BusinessEntitlementPo hotel = new BusinessEntitlementPo();
-        hotel.setBusinessType("HOTEL");
-        when(mapper.selectList(any())).thenReturn(List.of(hotel));
+        BusinessEntitlementRepository.BusinessEntitlement hotel =
+                new BusinessEntitlementRepository.BusinessEntitlement(1L, "HOTEL", "ACTIVE", "MANUAL");
+        when(repository.findActive(100L)).thenReturn(List.of(hotel));
 
         assertThat(service.list()).extracting(BusinessEntitlementApplicationService.BusinessEntitlementView::businessType).containsExactly("HOTEL");
     }
@@ -62,7 +61,8 @@ class BusinessEntitlementApplicationServiceTest {
     void enableUsesActionPermission() {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1,
                 List.of("tenant.business.manage"), "TENANT", null, null));
-        when(mapper.selectOne(any())).thenReturn(null);
+        when(repository.find(100L, "HOTEL"))
+                .thenReturn(new BusinessEntitlementRepository.BusinessEntitlement(2L, "HOTEL", "ACTIVE", "MANUAL"));
 
         BusinessEntitlementApplicationService.BusinessEntitlementView created = service.enable("hotel");
 

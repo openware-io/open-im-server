@@ -5,10 +5,10 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.domain.iam.model.Role;
+import io.openware.platform.tenant.domain.iam.repository.PlatformRoleBindingRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.membership.MembershipRepository;
 import io.openware.platform.tenant.infrastructure.client.IdentityAccountClient;
-import io.openware.platform.tenant.infra.persistence.mapper.RoleBindingMapper;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,16 +19,16 @@ public class PlatformRoleBindingApplicationService {
 
   private static final String PERMISSION = "platform.iam.role.manage";
 
-  private final RoleBindingMapper mapper;
+  private final PlatformRoleBindingRepository bindings;
   private final RoleRepository roles;
   private final MembershipRepository memberships;
   private final IdentityAccountClient accounts;
   private final AuditClient audit;
 
-  public PlatformRoleBindingApplicationService(RoleBindingMapper mapper, RoleRepository roles,
+  public PlatformRoleBindingApplicationService(PlatformRoleBindingRepository bindings, RoleRepository roles,
                                                MembershipRepository memberships,
                                                IdentityAccountClient accounts, AuditClient audit) {
-    this.mapper = mapper;
+    this.bindings = bindings;
     this.roles = roles;
     this.memberships = memberships;
     this.accounts = accounts;
@@ -58,12 +58,12 @@ public class PlatformRoleBindingApplicationService {
     if (!role.active() || !Role.SCOPE_PLATFORM.equals(role.scopeLevel()) || role.tenantId() != null) {
       throw new ApiException(400, "PLATFORM_ROLE_REQUIRED", "只能授予平台级角色");
     }
-    Long existing = mapper.selectPlatformId(accountId, roleId);
+    Long existing = bindings.findPlatformId(accountId, roleId);
     if (existing != null) {
       return existing;
     }
-    mapper.insertPlatform(accountId, roleId);
-    Long id = mapper.selectPlatformId(accountId, roleId);
+    bindings.insertPlatform(accountId, roleId);
+    Long id = bindings.findPlatformId(accountId, roleId);
     audit.recordAsync(AuditClient.AuditRecord.of(0L, context.accountId(),
         "iam.platform_role.assign", "iam_role_binding", String.valueOf(id), null,
         "platform-role:" + accountId + ":" + roleId,
@@ -77,7 +77,7 @@ public class PlatformRoleBindingApplicationService {
     if (context.permissions() == null || !context.permissions().contains(PERMISSION)) {
       throw new ApiException(403, "PERMISSION_DENIED", "缺少平台角色授予权限");
     }
-    if (mapper.revokePlatform(bindingId) == 0) {
+    if (!bindings.revokePlatform(bindingId)) {
       throw new ApiException(404, "ROLE_BINDING_NOT_FOUND", "平台角色绑定不存在");
     }
     audit.recordAsync(AuditClient.AuditRecord.of(0L, context.accountId(),
@@ -90,7 +90,7 @@ public class PlatformRoleBindingApplicationService {
     if (context.permissions() == null || !context.permissions().contains(PERMISSION)) {
       throw new ApiException(403, "PERMISSION_DENIED", "missing platform role permission");
     }
-    return mapper.selectPlatformIdsByAccount(accountId);
+    return bindings.findPlatformIdsByAccount(accountId);
   }
 
   private static TenantContext requirePlatform() {

@@ -14,7 +14,7 @@ import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.membership.MembershipRepository;
 import io.openware.platform.tenant.infrastructure.client.IdentityAccountClient;
-import io.openware.platform.tenant.infra.persistence.mapper.RoleBindingMapper;
+import io.openware.platform.tenant.domain.iam.repository.PlatformRoleBindingRepository;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -27,7 +27,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class PlatformRoleBindingApplicationServiceTest {
 
-  @Mock private RoleBindingMapper mapper;
+  @Mock private PlatformRoleBindingRepository bindings;
   @Mock private RoleRepository roles;
   @Mock private MembershipRepository memberships;
   @Mock private IdentityAccountClient accounts;
@@ -36,7 +36,7 @@ class PlatformRoleBindingApplicationServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new PlatformRoleBindingApplicationService(mapper, roles, memberships, accounts, audit);
+    service = new PlatformRoleBindingApplicationService(bindings, roles, memberships, accounts, audit);
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of("platform.iam.role.manage"), "PLATFORM", null, null));
   }
@@ -53,10 +53,10 @@ class PlatformRoleBindingApplicationServiceTest {
     when(roles.findById(5L)).thenReturn(Optional.of(
         new Role(5L, null, "platform.operator", "平台运营", "PLATFORM", "PLATFORM",
             "core", null, "ACTIVE")));
-    when(mapper.selectPlatformId(900L, 5L)).thenReturn(null, 11L);
+    when(bindings.findPlatformId(900L, 5L)).thenReturn(null, 11L);
 
     assertEquals(11L, service.assign(900L, 5L));
-    verify(mapper).insertPlatform(900L, 5L);
+    verify(bindings).insertPlatform(900L, 5L);
     verify(audit).recordAsync(any());
   }
 

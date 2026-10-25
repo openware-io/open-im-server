@@ -8,7 +8,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.tenant.infra.persistence.mapper.EntitlementMapper;
+import io.openware.platform.tenant.domain.entitlement.repository.EntitlementRepository;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class EntitlementApplicationServiceTest {
 
-  @Mock private EntitlementMapper mapper;
+  @Mock private EntitlementRepository repository;
   @Mock private AuditClient audit;
 
   @AfterEach
@@ -29,7 +29,7 @@ class EntitlementApplicationServiceTest {
 
   @Test
   void tenantCannotGrantCommercialEntitlement() {
-    EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
+    EntitlementApplicationService service = new EntitlementApplicationService(repository, audit);
     TenantContextHolder.set(new TenantContext(100L, 0L, 0L, 7L, 1,
         List.of("tenant.business.manage"), "TENANT", null, null));
 
@@ -38,19 +38,19 @@ class EntitlementApplicationServiceTest {
 
   @Test
   void platformGrantSucceeds() {
-    EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
+    EntitlementApplicationService service = new EntitlementApplicationService(repository, audit);
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of("platform.tenant.entitlement.manage"), "PLATFORM", null, null));
 
     service.grantPlatform(100L, "HOTEL2", "ACTIVE", "SUBSCRIPTION");
 
-    verify(mapper).upsert(100L, "HOTEL2", "ACTIVE", "SUBSCRIPTION");
+    verify(repository).upsert(100L, "HOTEL2", "ACTIVE", "SUBSCRIPTION");
     verify(audit).recordAsync(any());
   }
 
   @Test
   void platformWithoutPermissionFails() {
-    EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
+    EntitlementApplicationService service = new EntitlementApplicationService(repository, audit);
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of("platform.tenant.view"), "PLATFORM", null, null));
 
@@ -59,7 +59,7 @@ class EntitlementApplicationServiceTest {
 
   @Test
   void platformWithEmptyPermissionsFailsClosed() {
-    EntitlementApplicationService service = new EntitlementApplicationService(mapper, audit);
+    EntitlementApplicationService service = new EntitlementApplicationService(repository, audit);
     TenantContextHolder.set(new TenantContext(0L, 0L, 0L, 1L, 1,
         List.of(), "PLATFORM", null, null));
 

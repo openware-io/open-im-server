@@ -4,7 +4,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
-import io.openware.platform.tenant.infra.persistence.mapper.EntitlementMapper;
+import io.openware.platform.tenant.domain.entitlement.repository.EntitlementRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +12,11 @@ import org.springframework.stereotype.Service;
 @Service
 public class EntitlementApplicationService {
 
-  private final EntitlementMapper mapper;
+  private final EntitlementRepository repository;
   private final AuditClient audit;
 
-  public EntitlementApplicationService(EntitlementMapper mapper, AuditClient audit) {
-    this.mapper = mapper;
+  public EntitlementApplicationService(EntitlementRepository repository, AuditClient audit) {
+    this.repository = repository;
     this.audit = audit;
   }
 
@@ -32,8 +32,8 @@ public class EntitlementApplicationService {
     if (tenantId == null || tenantId <= 0) {
       throw new ApiException(400, "TENANT_REQUIRED", "tenantId 不能为空");
     }
-    return mapper.selectActive(tenantId).stream()
-        .map(row -> new EntitlementView(row.getBusinessType(), row.getStatus(), row.getSource()))
+    return repository.findActive(tenantId).stream()
+        .map(row -> new EntitlementView(row.featureCode(), row.status(), row.source()))
         .toList();
   }
 
@@ -64,7 +64,7 @@ public class EntitlementApplicationService {
     if (!List.of("MANUAL", "SUBSCRIPTION").contains(normalizedSource)) {
       throw new ApiException(400, "ENTITLEMENT_SOURCE_INVALID", "权益来源非法");
     }
-    mapper.upsert(tenantId, featureCode.trim().toUpperCase(), normalizedStatus, normalizedSource);
+    repository.upsert(tenantId, featureCode.trim().toUpperCase(), normalizedStatus, normalizedSource);
     audit.recordAsync(AuditClient.AuditRecord.of(tenantId, context.accountId(),
         "iam.entitlement.grant", "business_entitlement", featureCode, null,
         "entitlement:" + tenantId + ":" + featureCode,
