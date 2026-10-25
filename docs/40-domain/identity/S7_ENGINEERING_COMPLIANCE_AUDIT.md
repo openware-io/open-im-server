@@ -39,14 +39,15 @@ validate-maven-version-ownership
 
 ```text
 validate-text-encoding
-  docs/99-archive/audits/2026-09-17/audit-2026-09-17-exceptions-and-i18n.md:6
-  Possible UTF8-GBK mojibake
+  PASS：损坏的历史归档按原字节隔离为 .corrupted，SHA-256 记录在 Markdown 索引
 
 validate-java-fully-qualified-names
-  platform-admin AdminMenuApplicationService:43 -> org.springframework...Autowired
+  PASS：本轮修复 FQCN 引用
 
 validate-service-api-boundaries
-  platform-admin AdminRoleProfileController depends on persistence implementation
+  6 条既有分层基线：
+  InternalAppGrantController 1 条 controller -> persistence
+  5 个 application 服务仍直接依赖 mapper/po
 
 validate-flyway-conventions
   9 条历史迁移例外，已登记 GATE-FLYWAY-LEGACY-001，到期 2026-11-15
