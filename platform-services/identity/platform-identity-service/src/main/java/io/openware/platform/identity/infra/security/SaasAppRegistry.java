@@ -30,7 +30,7 @@ public class SaasAppRegistry {
   public SaasAppRegistry(
       @Value("${saas.apps.consumer:}") String consumers,
       @Value("${saas.apps.backend:}") String backends,
-      @Value("${saas.apps.consumer-referers:http://127.0.0.1:30080/a380/,http://localhost:30080/a380/,http://192.168.3.35:30080/a380/}") String consumerReferers,
+      @Value("${saas.apps.consumer-referers:http://127.0.0.1:30080/a380/,http://localhost:30080/a380/,http://192.168.3.35:30080/a380/,http://127.0.0.1:30080/c/,http://localhost:30080/c/,http://192.168.3.35:30080/c/}") String consumerReferers,
       @Value("${saas.apps.backend-referers:http://127.0.0.1:30080/saas/,http://localhost:30080/saas/,http://192.168.3.35:30080/saas/,http://127.0.0.1:30080/b/,http://localhost:30080/b/,http://192.168.3.35:30080/b/}") String backendReferers) {
     this.consumers.addAll(split(consumers));
     this.backends.addAll(split(backends));
@@ -45,7 +45,7 @@ public class SaasAppRegistry {
 
   public SaasAppRegistry(String consumers, String backends) {
     this(consumers, backends,
-        "http://127.0.0.1:30080/a380/,http://localhost:30080/a380/",
+        "http://127.0.0.1:30080/a380/,http://localhost:30080/a380/,http://127.0.0.1:30080/c/,http://localhost:30080/c/",
         "http://127.0.0.1:30080/saas/,http://localhost:30080/saas/,http://127.0.0.1:30080/b/,http://localhost:30080/b/");
   }
 
