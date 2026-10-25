@@ -60,6 +60,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | --- | --- | --- |
 | 30 | [Client release governance](30_CLIENT_RELEASE_GOVERNANCE.en.md) | Version/build numbers, channels and rollout |
 | 31 | [Client release operations](31_CLIENT_RELEASE_SKILL.en.md) | Release steps, artifacts, verification and rollback |
+| 32 | [Frontend UI style standard](32_FRONTEND_UI_STYLE.en.md) | B/C design tokens, cards, tags, metrics and acceptance |
 
 ## 40–49 Quality, observability and testing
 

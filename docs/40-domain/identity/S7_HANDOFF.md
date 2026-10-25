@@ -75,3 +75,14 @@ ALIPAY/WECHAT/STRIPE 测试商户 + pay_channel_provider
 禁止 debug APK 冒充正式签名包
 禁止 mock 在线支付成功
 ```
+
+## 8. UI 风格标准与酒店页修复（2026-10-25）
+
+```text
+正式标准：docs/80-development/standards/32_FRONTEND_UI_STYLE.md
+B：metric-grid/metric-card 提升 global.css，酒店 4 列指标卡
+C：hotel-cover/detail-head/tag-row，订单状态 tag-row
+C 配置：/api/v1/business/tenant/config（不再 403）
+验证：B/C 控制台 0 error；B 696 tests PASS
+证据：hotel-b-ui-standard.png / hotel-c-ui-standard.png / hotel-c-detail-standard.png
+```

@@ -60,6 +60,7 @@
 | --- | --- | --- |
 | 30 | [客户端发布与版本治理规范](30_CLIENT_RELEASE_GOVERNANCE.md) | 版本号、构建号、渠道、灰度 |
 | 31 | [客户端发布操作规范](31_CLIENT_RELEASE_SKILL.md) | 发布步骤、制品、验证和回滚 |
+| 32 | [前端 UI 风格标准](32_FRONTEND_UI_STYLE.md) | B/C design tokens、卡片、标签、指标和验收 |
 
 ## 40–49 质量、可观测性与测试
 

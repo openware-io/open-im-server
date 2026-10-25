@@ -1,6 +1,7 @@
 # 酒店 B/C 前端 UI 风格标准
 
 > 2026-10-24
+> 正式标准：[32_FRONTEND_UI_STYLE.md](../../80-development/standards/32_FRONTEND_UI_STYLE.md)
 > 基线：KTV B 端 `open-saas-admin` / C 端 `open-saas-mobile`
 > 适用：酒店 B 端前台、C 端酒店目录/详情/订单
 
