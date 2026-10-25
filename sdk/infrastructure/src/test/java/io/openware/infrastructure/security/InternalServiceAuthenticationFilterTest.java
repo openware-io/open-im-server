@@ -65,9 +65,9 @@ class InternalServiceAuthenticationFilterTest {
   @Test
   void shouldAuthenticateSignedIamRequest() throws Exception {
     MockHttpServletRequest request = new MockHttpServletRequest(HttpMethod.GET.name(),
-        "/internal/iam/consumer/saas-a380-h5/context");
+        "/internal/iam/consumer/saas-b/context");
     request.setQueryString("accountId=158");
-    sign(request, URI.create("/internal/iam/consumer/saas-a380-h5/context?accountId=158"),
+    sign(request, URI.create("/internal/iam/consumer/saas-b/context?accountId=158"),
         System.currentTimeMillis());
 
     filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());

@@ -13,8 +13,8 @@
 | SaaS C 端 H5 | `http://<LAN-IP>:30080/a380/` | `https://miniservice.dev.example.com/a380/` | 生产域名/a380/ |
 | SaaS B 端 H5 | `http://<LAN-IP>:30080/b/` | `https://miniservice.dev.example.com/b/` | 生产域名/b/ |
 | Provider issuer | `http://<LAN-IP>:30080` | `https://api.dev.example.com` | 生产域名 |
-| `saas-a380-c.callback_url` | `http://<LAN-IP>:30080/a380/` | `https://miniservice.dev.example.com/a380/` | 生产对应 |
-| `saas-a380-h5.callback_url` | `http://<LAN-IP>:30080/b/` | `https://miniservice.dev.example.com/b/` | 生产对应 |
+| `saas-c.callback_url` | `http://<LAN-IP>:30080/a380/` | `https://miniservice.dev.example.com/a380/` | 生产对应 |
+| `saas-b.callback_url` | `http://<LAN-IP>:30080/b/` | `https://miniservice.dev.example.com/b/` | 生产对应 |
 
 说明：Kind 使用局域网地址作为兼容表主回调，同时在 `user_oidc_redirect_uri` 精确登记局域网、`127.0.0.1` 与 `localhost` 回调，使真机和本机浏览器可并行验证。**Kind 的正确基线就是本地值，不是 ACK 域名**；ACK-dev/生产库仅登记各自 HTTPS 域名。
 
@@ -26,4 +26,4 @@
   3. 种子脚本在部署中回读注册表；发现跨环境值即失败。
 
 ## 记录
-- Kind 库被修改行：`open_application(app_id='saas-a380-c')` callback_url → 本地回环（用于 USB 联调验证），属 Kind 环境正确配置；ACK/生产库未触碰。
+- Kind 库被修改行：`open_application(app_id='saas-c')` callback_url → 本地回环（用于 USB 联调验证），属 Kind 环境正确配置；ACK/生产库未触碰。

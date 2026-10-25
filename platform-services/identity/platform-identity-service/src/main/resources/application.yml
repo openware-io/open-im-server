@@ -49,7 +49,7 @@ saas:
   # 本地/局域网调试放权（见 DevSaasSessionController）：默认关闭，仅本地 Kind 清单开启。
   dev-session:
     enabled: ${SAAS_DEV_SESSION_ENABLED:false}
-    allowed-app-ids: ${SAAS_DEV_SESSION_ALLOWED_APP_IDS:saas-a380-c,saas-a380-h5}
+    allowed-app-ids: ${SAAS_DEV_SESSION_ALLOWED_APP_IDS:saas-c,saas-b}
     consumer-account-id: ${SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID:0}
     operator-account-id: ${SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID:0}
 mybatis-plus:

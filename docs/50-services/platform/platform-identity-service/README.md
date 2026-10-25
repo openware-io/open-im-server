@@ -92,8 +92,8 @@
 配置：
 
 ```text
-SAAS_APPS_CONSUMER=saas-a380-c,saas-hotel-c,saas-ktv-c
-SAAS_APPS_BACKEND=saas-a380-h5,saas-hotel-b,saas-ktv-b
+SAAS_APPS_CONSUMER=saas-c,saas-hotel-c,saas-ktv-c
+SAAS_APPS_BACKEND=saas-b,saas-hotel-b,saas-ktv-b
 ```
 
 B 端应用未绑定员工：`/auth/contexts` 返回 `403 STAFF_NOT_BOUND`，不返回空上下文冒充可用。

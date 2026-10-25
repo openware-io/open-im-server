@@ -20,12 +20,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AuthContextControllerTest {
-    private static final String C_APP = "saas-a380-c";
-    private static final String B_APP = "saas-a380-h5";
+    private static final String C_APP = "saas-c";
+    private static final String B_APP = "saas-b";
 
     private AuthContextController controller(SaasUserSessionStore store) {
         return new AuthContextController(mock(AuthContextApplicationService.class), store,
-                mock(AccountTokenResolver.class), new SaasAppRegistry("saas-a380-c,saas-hotel-c,saas-ktv-c", "saas-a380-h5,saas-hotel-b,saas-ktv-b"), mock(ServiceEntryApplicationService.class), true);
+                mock(AccountTokenResolver.class), new SaasAppRegistry("saas-c,saas-hotel-c,saas-ktv-c", "saas-b,saas-hotel-b,saas-ktv-b"), mock(ServiceEntryApplicationService.class), true);
     }
 
     private static SaasUserSessionStore.UserSession session(long accountId, String appId) {

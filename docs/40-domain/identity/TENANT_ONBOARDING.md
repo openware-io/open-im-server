@@ -91,7 +91,7 @@ STORE：门店级店长/收银/财务
 -> POST /api/v1/admin/customers/c-login
 -> idt_account / idt_login_identity(PHONE)
 -> tnt_membership(CUSTOMER)
--> tnt_app_user_authorization(saas-a380-c)
+-> tnt_app_user_authorization(saas-c)
 -> 再 POST /api/v1/business/members 建档并写 accountId
 ```
 
@@ -106,7 +106,7 @@ STORE：门店级店长/收银/财务
 ```text
 手机号/邮箱 + 密码
 -> POST /api/v1/identity/login
--> POST /api/v1/auth/session?appId=saas-a380-c
+-> POST /api/v1/auth/session?appId=saas-c
 -> POST /api/v1/auth/context/select
 -> /c/
 ```

@@ -126,11 +126,11 @@ class OAuthImBindApplicationServiceTest {
 
   @Test
   void bind_issuesJwtForExistingLink() {
-    when(imOAuthClient.resolveAppId(null)).thenReturn("saas-a380-c");
+    when(imOAuthClient.resolveAppId(null)).thenReturn("saas-c");
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-1", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-c", "open-1"))
-        .thenReturn(List.of(OauthLink.bind(9L, "IM", "saas-a380-c", "open-1", "scope")));
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-c", "open-1"))
+        .thenReturn(List.of(OauthLink.bind(9L, "IM", "saas-c", "open-1", "scope")));
     when(tokenProvider.createAccessToken(9L, "open-1", 0)).thenReturn("signed-jwt");
 
     BindResult result = service.bind("im-token");
@@ -143,62 +143,62 @@ class OAuthImBindApplicationServiceTest {
 
   @Test
   void bind_reusesLoginIdentityForNewApp() {
-    when(imOAuthClient.resolveAppId("saas-a380-h5")).thenReturn("saas-a380-h5");
+    when(imOAuthClient.resolveAppId("saas-b")).thenReturn("saas-b");
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-1", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-h5", "open-1"))
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-b", "open-1"))
         .thenReturn(List.of());
     when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-1"))
         .thenReturn(java.util.Optional.of(LoginIdentity.forLogin(9L, "IM", "open-1", null)));
     when(tokenProvider.createAccessToken(9L, "open-1", 0)).thenReturn("signed-jwt");
 
-    BindResult result = service.bind("im-token", "saas-a380-h5");
+    BindResult result = service.bind("im-token", "saas-b");
 
     assertEquals(9L, result.accountId());
     verify(oauthLinkRepository).save(argThat(link ->
         link.accountId().equals(9L)
-            && "saas-a380-h5".equals(link.appId())
+            && "saas-b".equals(link.appId())
             && "open-1".equals(link.providerAccountId())));
   }
 
   @Test
   void bind_concurrentDuplicateFallsBackToLoginIdentity() {
-    when(imOAuthClient.resolveAppId("saas-a380-c")).thenReturn("saas-a380-c");
+    when(imOAuthClient.resolveAppId("saas-c")).thenReturn("saas-c");
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-3", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-c", "open-3"))
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-c", "open-3"))
         .thenReturn(List.of());
     when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-3"))
         .thenReturn(java.util.Optional.empty(),
             java.util.Optional.of(LoginIdentity.forLogin(13L, "IM", "open-3", null)));
-    when(self.createAccountAndBind(eq("open-3"), any(ImOAuthUserInfo.class), eq("saas-a380-c")))
+    when(self.createAccountAndBind(eq("open-3"), any(ImOAuthUserInfo.class), eq("saas-c")))
         .thenThrow(new org.springframework.dao.DuplicateKeyException("duplicate"));
     when(tokenProvider.createAccessToken(13L, "open-3", 0)).thenReturn("signed-jwt-3");
 
-    BindResult result = service.bind("im-token", "saas-a380-c");
+    BindResult result = service.bind("im-token", "saas-c");
 
     assertEquals(13L, result.accountId());
     verify(oauthLinkRepository).save(argThat(link ->
         link.accountId().equals(13L)
-            && "saas-a380-c".equals(link.appId())
+            && "saas-c".equals(link.appId())
             && "open-3".equals(link.providerAccountId())));
   }
 
   @Test
   void bind_reuseLinkRaceFallsBackToExistingLink() {
-    when(imOAuthClient.resolveAppId("saas-a380-c")).thenReturn("saas-a380-c");
+    when(imOAuthClient.resolveAppId("saas-c")).thenReturn("saas-c");
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-4", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-c", "open-4"))
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-c", "open-4"))
         .thenReturn(List.of(),
-            List.of(OauthLink.bind(14L, "IM", "saas-a380-c", "open-4", "scope")));
+            List.of(OauthLink.bind(14L, "IM", "saas-c", "open-4", "scope")));
     when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-4"))
         .thenReturn(java.util.Optional.of(LoginIdentity.forLogin(14L, "IM", "open-4", null)));
     when(oauthLinkRepository.save(any())).thenThrow(
         new org.springframework.dao.DuplicateKeyException("duplicate"));
     when(tokenProvider.createAccessToken(14L, "open-4", 0)).thenReturn("signed-jwt-4");
 
-    BindResult result = service.bind("im-token", "saas-a380-c");
+    BindResult result = service.bind("im-token", "saas-c");
 
     assertEquals(14L, result.accountId());
     assertEquals("signed-jwt-4", result.accessToken());
@@ -206,17 +206,17 @@ class OAuthImBindApplicationServiceTest {
 
   @Test
   void bind_issuesJwtForNewAccount() {
-    when(imOAuthClient.resolveAppId("saas-a380-c")).thenReturn("saas-a380-c");
+    when(imOAuthClient.resolveAppId("saas-c")).thenReturn("saas-c");
     when(imOAuthClient.fetchUserInfo("im-token"))
         .thenReturn(new ImOAuthUserInfo("open-2", "nick", "avatar", "phone", "scope"));
-    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-a380-c", "open-2")).thenReturn(List.of());
+    when(oauthLinkRepository.findAllByProviderAccount("IM", "saas-c", "open-2")).thenReturn(List.of());
     when(loginIdentityRepository.findActiveByLoginIdentifier("IM", "open-2"))
         .thenReturn(java.util.Optional.empty());
-    when(self.createAccountAndBind(eq("open-2"), any(ImOAuthUserInfo.class), eq("saas-a380-c")))
+    when(self.createAccountAndBind(eq("open-2"), any(ImOAuthUserInfo.class), eq("saas-c")))
         .thenReturn(11L);
     when(tokenProvider.createAccessToken(11L, "open-2", 0)).thenReturn("signed-jwt-2");
 
-    BindResult result = service.bind("im-token", "saas-a380-c");
+    BindResult result = service.bind("im-token", "saas-c");
 
     assertEquals(11L, result.accountId());
     assertEquals("signed-jwt-2", result.accessToken());

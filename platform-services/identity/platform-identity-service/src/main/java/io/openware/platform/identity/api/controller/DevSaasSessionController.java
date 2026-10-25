@@ -52,7 +52,7 @@ public class DevSaasSessionController {
 
     public DevSaasSessionController(SaasUserSessionStore sessionStore, TenantServiceClient tenantServiceClient,
                                     @Value("${saas.cookie.plain:false}") boolean plainCookie,
-                                    @Value("${saas.dev-session.allowed-app-ids:saas-a380-c,saas-a380-h5}") String allowedAppIds,
+                                    @Value("${saas.dev-session.allowed-app-ids:saas-c,saas-b}") String allowedAppIds,
                                     @Value("${saas.dev-session.consumer-account-id:0}") long consumerAccountId,
                                     @Value("${saas.dev-session.operator-account-id:0}") long operatorAccountId) {
         this.sessionStore = sessionStore;
@@ -64,7 +64,7 @@ public class DevSaasSessionController {
         this.operatorAccountId = operatorAccountId;
     }
 
-    /** 建立调试会话：{@code POST /api/v1/dev/saas/session?appId=saas-a380-c|saas-a380-h5}。 */
+    /** 建立调试会话：{@code POST /api/v1/dev/saas/session?appId=saas-c|saas-b}。 */
     @PostMapping("/session")
     public DevSessionResponse create(@RequestParam(required = false) String appId,
                                      HttpServletRequest request, HttpServletResponse response) {

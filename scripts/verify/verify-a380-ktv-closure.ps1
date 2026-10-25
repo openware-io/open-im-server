@@ -35,11 +35,11 @@ function Challenge([string]$verifier) { $sha = [Security.Cryptography.SHA256]::C
 function Location([string[]]$headers) { (($headers | Where-Object { $_ -match '^location:' } | Select-Object -First 1) -replace '^location:\s*','') }
 function Code([string]$redirect) {
   $verifier = "ktv-$script:suffix"; $state = "state-$script:suffix"; $nonce = "nonce-$script:suffix"
-  $query = "appId=saas-a380-c&client_id=saas-a380-c&response_type=code&redirect_uri=$(Esc $redirect)&scope=profile.basic&code_challenge=$(Esc (Challenge $verifier))&code_challenge_method=S256&state=$state&nonce=$nonce"
+  $query = "appId=saas-c&client_id=saas-c&response_type=code&redirect_uri=$(Esc $redirect)&scope=profile.basic&code_challenge=$(Esc (Challenge $verifier))&code_challenge_method=S256&state=$state&nonce=$nonce"
   $auth = & curl.exe -sS -D - -o NUL --write-out 'HTTP_STATUS:%{http_code}' --max-redirs 0 -H "Authorization: Bearer $script:imToken" "$Gateway/oauth/authorize?$query"
   $authorizeLocation = Location $auth; if (!$authorizeLocation) { $status = ($auth | Where-Object { $_ -like 'HTTP_STATUS:*' } | Select-Object -Last 1); throw "OAuth authorize did not return a redirect ($status)." }
   $requestId = [Uri]::UnescapeDataString(([regex]::Match($authorizeLocation,'request_id=([^&]+)').Groups[1].Value)); if (!$requestId) { throw 'OAuth authorize did not reach consent.' }
-  $approved = & curl.exe -sS -D - -o NUL --write-out 'HTTP_STATUS:%{http_code}' --max-redirs 0 -X POST -H "Authorization: Bearer $script:imToken" "$Gateway/oauth/consent/approve?request_id=$(Esc $requestId)&appId=saas-a380-c&client_id=saas-a380-c&scope=profile.basic"
+  $approved = & curl.exe -sS -D - -o NUL --write-out 'HTTP_STATUS:%{http_code}' --max-redirs 0 -X POST -H "Authorization: Bearer $script:imToken" "$Gateway/oauth/consent/approve?request_id=$(Esc $requestId)&appId=saas-c&client_id=saas-c&scope=profile.basic"
   $approvedLocation = Location $approved; if (!$approvedLocation) { $status = ($approved | Where-Object { $_ -like 'HTTP_STATUS:*' } | Select-Object -Last 1); throw "OAuth consent approval did not return a redirect ($status)." }
   $code = [Uri]::UnescapeDataString(([regex]::Match($approvedLocation,'code=([^&]+)').Groups[1].Value)); if (!$code) { throw 'OAuth consent did not issue code.' }
   @{ code=$code; verifier=$verifier; state=$state; nonce=$nonce }
@@ -81,7 +81,7 @@ $registration = Json 'POST' '/api/v1/auth/register' @{username=$username;passwor
 $script:imToken = $registration.access_token; if (!$script:imToken) { throw 'Disposable IM registration failed.' }
 try {
   $grant = Code "$H5Base/a380/"
-  $callback = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/identity/oauth/im/callback" -ContentType 'application/json' -Body (@{code=$grant.code;code_verifier=$grant.verifier;redirect_uri="$H5Base/a380/";app_id='saas-a380-c';appId='saas-a380-c';state=$grant.state;nonce=$grant.nonce}|ConvertTo-Json)
+  $callback = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/identity/oauth/im/callback" -ContentType 'application/json' -Body (@{code=$grant.code;code_verifier=$grant.verifier;redirect_uri="$H5Base/a380/";app_id='saas-c';appId='saas-c';state=$grant.state;nonce=$grant.nonce}|ConvertTo-Json)
   $cCookie = @($callback.BaseResponse.Headers.GetValues('Set-Cookie') | ForEach-Object { ($_ -split ';')[0] } |
     Where-Object { $_ -match '^(__Host-)?saas_[bc]_session=' } | Select-Object -First 1)[0]
   if ($cCookie -notmatch '^(__Host-)?saas_[bc]_session=') { throw "OAuth callback did not return a SaaS session cookie. status=$($callback.StatusCode) body=$($callback.Content)" }

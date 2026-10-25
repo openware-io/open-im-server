@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 class SaasAppRegistryTest {
 
   private final SaasAppRegistry registry = new SaasAppRegistry(
-      "saas-a380-c,saas-hotel-c", "saas-a380-h5,saas-hotel-b");
+      "saas-c,saas-hotel-c", "saas-b,saas-hotel-b");
 
   @Test
   void consumerAndBackendAreExplicit() {

@@ -92,7 +92,7 @@ Examples:
 
 ```text
 Preferred: saas-c, saas-b, saas-hotel-c
-Avoid:     saas-a380-c, saas-s929-c
+Avoid:     saas-c, saas-s929-c
 ```
 
 Tenant availability is decided by:
@@ -101,7 +101,7 @@ Tenant availability is decided by:
 tnt_app_installation + tenantId + application registry
 ```
 
-The legacy `saas-a380-c` / `saas-a380-h5` IDs remain for compatibility and should be migrated later.
+The legacy `saas-c` / `saas-b` IDs remain for compatibility and should be migrated later.
 
 ## 6. Migration order
 

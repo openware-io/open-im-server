@@ -34,7 +34,7 @@ P5
 P6
   Flutter: /business/role-home
   POST /api/v1/identity/login
-  POST /api/v1/auth/session?appId=saas-a380-h5
+  POST /api/v1/auth/session?appId=saas-b
   GET  /api/v1/auth/contexts
   POST /api/v1/auth/context/select
   GET  /api/v1/business/hotel/frontdesk/tasks

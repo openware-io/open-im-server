@@ -90,7 +90,7 @@ appId 标识客户端应用，不标识租户。
 
 ```text
 推荐：saas-c、saas-b、saas-hotel-c
-不推荐：saas-a380-c、saas-s929-c
+不推荐：saas-c、saas-s929-c
 ```
 
 租户是否可用由：
@@ -101,7 +101,7 @@ tnt_app_installation + tenantId + 应用注册表
 
 决定。
 
-历史 `saas-a380-c` / `saas-a380-h5` 保留兼容，后续迁移到客户端应用 ID。
+历史 `saas-c` / `saas-b` 保留兼容，后续迁移到客户端应用 ID。
 
 ## 6. 迁移顺序
 

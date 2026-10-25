@@ -107,7 +107,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.get("/api/v1/admin/tenant/stores")
-            .header("X-Saas-App", "saas-a380-h5")
+            .header("X-Saas-App", "saas-b")
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "b-end-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
 
@@ -355,7 +355,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.post("/api/v1/business/reservations/29/confirm")
-            .header("X-Saas-App", "saas-a380-h5")
+            .header("X-Saas-App", "saas-b")
             .cookie(new org.springframework.http.HttpCookie("saas_c_session", "consumer-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "backend-session"))
             .build());
@@ -408,7 +408,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.post("/api/v1/business/reservations")
-            .header("X-Saas-App", "saas-a380-c")
+            .header("X-Saas-App", "saas-c")
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "backend-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_c_session", "consumer-session"))
             .build());

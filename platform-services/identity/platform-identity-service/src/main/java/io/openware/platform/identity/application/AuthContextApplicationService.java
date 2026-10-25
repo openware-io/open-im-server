@@ -55,7 +55,7 @@ public class AuthContextApplicationService {
                     requireCustomer(accountId, consumer.tenantId());
                     return List.of(toContextItem(consumer));
                 }
-                // 运营后台类应用（如 saas-a380-h5 /b/）：审核 = 该账号是否已在 SaaS 租户后台
+                // 运营后台类应用（如 saas-b /b/）：审核 = 该账号是否已在 SaaS 租户后台
                 // 注册为运营人员。B 端原生员工没有 consumer 授权锚点，因此不能强制要求 consumerContext；
                 // 有锚点时仍按锚点过滤，避免 H5 跨租户看到无关上下文。
                 List<TenantServiceClient.TenantContext> operatorContexts = tenantClient.contexts(accountId);

@@ -99,20 +99,20 @@ $bUris = @($bUris | Select-Object -Unique)
 
 $sql = @"
 UPDATE open_application SET callback_url = CASE app_id
-  WHEN 'saas-a380-c' THEN $(SqlLiteral $cUris[0])
-  WHEN 'saas-a380-h5' THEN $(SqlLiteral $bUris[0])
+  WHEN 'saas-c' THEN $(SqlLiteral $cUris[0])
+  WHEN 'saas-b' THEN $(SqlLiteral $bUris[0])
 END
-WHERE app_id IN ('saas-a380-c', 'saas-a380-h5');
-DELETE FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5');
-INSERT INTO user_oidc_redirect_uri (client_id, redirect_uri) VALUES $(Values 'saas-a380-c' $cUris),$(Values 'saas-a380-h5' $bUris);
+WHERE app_id IN ('saas-c', 'saas-b');
+DELETE FROM user_oidc_redirect_uri WHERE client_id IN ('saas-c', 'saas-b');
+INSERT INTO user_oidc_redirect_uri (client_id, redirect_uri) VALUES $(Values 'saas-c' $cUris),$(Values 'saas-b' $bUris);
 "@
 Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, 'open_im', '-e', $sql) | Out-Null
 
-$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'open_im', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5') ORDER BY client_id, redirect_uri;")
+$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'open_im', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-c', 'saas-b') ORDER BY client_id, redirect_uri;")
 $actual = @($registered | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 $expected = @(
-  $cUris | ForEach-Object { "saas-a380-c`t$_" }
-  $bUris | ForEach-Object { "saas-a380-h5`t$_" }
+  $cUris | ForEach-Object { "saas-c`t$_" }
+  $bUris | ForEach-Object { "saas-b`t$_" }
 ) | Sort-Object
 if ((@($actual | Sort-Object) -join "`n") -ne ($expected -join "`n")) {
   throw "OIDC redirect registry mismatch for ${Environment}. expected=$($expected -join ', ') actual=$($actual -join ', ')"

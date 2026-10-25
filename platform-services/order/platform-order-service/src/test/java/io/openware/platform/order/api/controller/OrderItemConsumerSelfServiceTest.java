@@ -60,7 +60,7 @@ class OrderItemConsumerSelfServiceTest {
     private static final Long MEMBER_ID = 777L;
     private static final Long OTHER_MEMBER_ID = 888L;
     private static final Long CATALOG_ITEM_ID = 10L;
-    /** V14 种子给 saas-a380-c 的全部权限：消费者会话在订单域没有任何商户权限码。 */
+    /** V14 种子给 saas-c 的全部权限：消费者会话在订单域没有任何商户权限码。 */
     private static final List<String> CONSUMER_PERMISSIONS =
             List.of("reservation.view", "reservation.create");
 

@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 /** 租户后台开通客户时，同步创建 C 端 SaaS 登录账号。 */
 @Service
 public class CustomerLoginProvisioningService {
-    private static final String C_APP_ID = "saas-a380-c";
+    private static final String C_APP_ID = "saas-c";
     private static final String C_SCOPE = "profile.basic";
 
     private final IdentityDomainClient identity;
