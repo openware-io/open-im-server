@@ -1,6 +1,6 @@
 # 租户/门店/C 端账号与登录现状
 
-> 状态：`current implementation + gaps`（2026-10-25）
+> 状态：`P0 implemented; C standalone login still gap`（2026-10-25）
 > 关联：`IDENTITY_ACCESS_MODEL.md` §6、§6.3
 
 ## 1. 平台新增租户
@@ -20,24 +20,27 @@ defaultLocale
 defaultTimezone
 ```
 
-落库：
+平台创建成功后，同一流程继续创建初始管理员：
 
 ```text
 tnt_tenant
-```
-
-当前**不创建**：
-
-```text
-idt_account
-idt_login_identity
-tnt_membership
+idt_account / idt_login_identity
+tnt_membership(STAFF)
 tnt_staff
-iam_role_binding
+iam_role_binding(tenant.owner)
 cons_admin_account
 ```
 
-因此新租户没有初始管理员，无法登录租户后台。
+接口：
+
+```text
+POST /api/v1/admin/platform/tenants
+POST /api/v1/admin/staff/bootstrap-owner
+```
+
+`bootstrap-owner` 只允许平台运营调用，按显式 tenantId 创建首个
+`tenant.owner`，不依赖平台上下文。失败时前端明确提示“租户已创建、
+管理员创建失败”，用相同租户编码重试即可。
 
 ## 2. 已有租户新增账号
 
@@ -130,10 +133,8 @@ C 端独立登录属于设计内能力，当前界面尚未落地。
 
 ```text
 P0 新增租户时创建初始管理员
-   平台表单增加 username/password/displayName
-   创建 identity + membership + tenant.owner + BFF account
-   首次登录强制改密
-   任一步失败要回滚或明确提示，不能留下空租户
+   已实现：表单字段、bootstrap-owner、identity/membership/tenant.owner/BFF
+   首次登录强制改密尚未实现（P0.1）
 
 P1 C 端独立登录/注册
    手机号/密码或验证码
