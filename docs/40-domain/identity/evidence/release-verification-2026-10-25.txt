@@ -53,3 +53,10 @@ Flutter test failure diagnosis:
   This is a local test-harness/loopback failure, not a Dart compile error.
   All targeted suites fail at suite loading, before any test body runs.
   No PASS is claimed for flutter test.
+
+Android device login attempt (new /c APK):
+  adb input filled s3c001937 / password, checked consent, tapped login.
+  Button changed to 登录中..., then UI showed 网络错误.
+  logcat: "The request connection took longer than 0:00:15.000000 and it was aborted."
+  Device can ping 192.168.3.35, but the API connect from the device times out.
+  Therefore the post-login /c WebView path is still not verified on device.
