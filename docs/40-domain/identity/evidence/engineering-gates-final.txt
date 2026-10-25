@@ -24,8 +24,7 @@ PASS before the blocking gate:
   security-and-flyway-configuration
 
 Blocking gate:
-  service-api-boundaries: 6 pending
-    controller -> persistence: InternalAppGrantController
+  service-api-boundaries: 5 pending
     application -> mapper/po:
       AdminRoleProfileService
       BusinessEntitlementApplicationService
@@ -33,7 +32,7 @@ Blocking gate:
       PlatformRoleBindingApplicationService
       TenantWorkspaceConfigApplicationService
   These are existing layering violations, not introduced by the S7 cash-only work.
-  Two controllers were already refactored off PO in this round.
+  Three controllers were already refactored off PO in this round.
 
 Report-only:
   controller-repository-boundary: 1 pending (InternalAppGrantController)

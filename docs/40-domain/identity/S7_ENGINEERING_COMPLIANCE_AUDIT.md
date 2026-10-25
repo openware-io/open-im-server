@@ -45,8 +45,7 @@ validate-java-fully-qualified-names
   PASS：本轮修复 FQCN 引用
 
 validate-service-api-boundaries
-  6 条既有分层基线：
-  InternalAppGrantController 1 条 controller -> persistence
+  5 条既有 application 分层基线（3 个 controller 已修）
   5 个 application 服务仍直接依赖 mapper/po
 
 validate-flyway-conventions
