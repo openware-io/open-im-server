@@ -29,10 +29,10 @@ C hotel booking:
   Values remain on the same hidden input ids, so quote/book code is unchanged.
   Screenshots:
     c-hotel-picker-form-final.png
-    c-hotel-picker-sheet.png\n    c-venue-picker-form.png\n    c-venue-picker-sheet.png
+    c-hotel-picker-sheet.png\n    c-venue-picker-form.png\n    c-venue-picker-sheet.png\n    c-travel-picker-form.png\n    c-taxi-picker-form.png\n    c-venue-picker-sheet.png
 
 Verification:
-  C tests: 23 files / 167 tests PASS
+  C tests: 24 files / 168 tests PASS
   B tests: 51 files / 696 tests PASS
   B #/admin/platform/tenants console []
   B #/admin/iam/roles console []
@@ -40,6 +40,6 @@ Verification:
   C /c/#/real-hotel/1 date sheet opens custom bottom sheet
 
 Remaining:
-  C travel forms still contain native date/datetime/select inputs.
-  Hotel and KTV venue forms now use the product picker.
-  Travel is the next batch; the hotel/venue paths prove the component pattern.
+  C 端 app.js / hotel-real.js no longer contain native date/time/select/
+  window.confirm; hotel, venue and travel forms all use the product picker.
+  A regression test (native-controls.test.js) enforces this.
