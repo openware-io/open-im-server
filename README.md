@@ -253,6 +253,7 @@ im-saas 文档
 - [24 币种规范](docs/80-development/standards/24_CURRENCY_CONVENTIONS.md)
 - [30 客户端发布与版本治理规范](docs/80-development/standards/30_CLIENT_RELEASE_GOVERNANCE.md)
 - [31 客户端发布操作规范](docs/80-development/standards/31_CLIENT_RELEASE_SKILL.md)
+- [32 前端 UI 风格标准](docs/80-development/standards/32_FRONTEND_UI_STYLE.md)
 - [40 可观测性规范](docs/80-development/standards/40_OBSERVABILITY_CONVENTIONS.md)
 - [41 Java 日志规范](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
