@@ -5,6 +5,8 @@ import io.openware.platform.tenant.api.converter.TenantConverter;
 import io.openware.platform.tenant.api.dto.TenantView;
 import io.openware.platform.tenant.application.TenantApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -51,5 +53,12 @@ public class TenantController {
                 req.tenantCode(), req.name(), req.defaultLocale(), req.defaultTimezone()));
     }
 
-    public record CreateTenantRequest(String tenantCode, String name, String defaultLocale, String defaultTimezone) {}
+    @PatchMapping("/{id}/status")
+  public TenantView changeStatus(@PathVariable Long id, @RequestBody ChangeStatusRequest req) {
+    return TenantConverter.toView(tenantService.changeStatus(id, req.status()));
+  }
+
+  public record ChangeStatusRequest(String status) {}
+
+  public record CreateTenantRequest(String tenantCode, String name, String defaultLocale, String defaultTimezone) {}
 }
