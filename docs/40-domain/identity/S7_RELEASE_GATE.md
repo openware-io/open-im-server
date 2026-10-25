@@ -43,7 +43,8 @@ Android 测试 APK 真机预订 + B 收款：PASS
 其他业务页 action 级全量不属于 S7 酒店 cash-only，另列 P2
 text-encoding PASS（损坏历史归档按原字节隔离并记录 SHA-256）
 service-api-boundaries PASS
-service-layout 仍有 4 条既有 top-level package 基线（infrastructure x3、hotel x1）
+service-layout PASS（4 条既有包例外，到期 2026-12-31）
+flyway-conventions 仍有 1 条已应用迁移基线（V2 IF NOT EXISTS）
 详见 evidence/engineering-gates-final.txt
 ```
 

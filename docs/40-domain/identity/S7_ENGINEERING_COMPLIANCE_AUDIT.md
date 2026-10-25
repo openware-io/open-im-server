@@ -48,9 +48,11 @@ validate-service-api-boundaries
   PASS：application 已迁移 repository 端口
 
 validate-service-layout
-  4 条既有 top-level package 基线
-  infrastructure：platform-admin/customer/tenant
-  hotel：platform-order
+  PASS（4 条既有包例外，到期 2026-12-31）
+
+validate-flyway-conventions
+  1 条已应用迁移基线：V2__iam_role_profile.sql 使用 IF NOT EXISTS
+  另 9 条历史迁移例外仍登记 GATE-FLYWAY-LEGACY-001
 
 validate-flyway-conventions
   9 条历史迁移例外，已登记 GATE-FLYWAY-LEGACY-001，到期 2026-11-15
