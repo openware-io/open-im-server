@@ -107,6 +107,9 @@ spec:
             - { name: SAAS_DEV_SESSION_ENABLED, value: 'true' }
             - { name: SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID, value: '101' }
             - { name: SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID, value: '100' }
+            - { name: SAAS_DEV_SESSION_ALLOWED_APP_IDS, value: 'saas-c,saas-b' }
+            - { name: SAAS_APPS_CONSUMER, value: 'saas-c,saas-hotel-c,saas-ktv-c' }
+            - { name: SAAS_APPS_BACKEND, value: 'saas-b,saas-hotel-b,saas-ktv-b' }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             # 本地 Kind 走 http(含真机 adb reverse 的 127.0.0.1):Android WebView 会丢弃 http 下 __Host-+Secure
