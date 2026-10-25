@@ -1,22 +1,21 @@
 package io.openware.platform.order.hotel;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.time.LocalDateTime;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /** 已支付酒店预订对账：ord_order 已 COMPLETED 时补确认 htl_booking。 */
 @Component
+@Slf4j
 public class HotelBookingPaymentReconciler {
-
-    private static final Logger log = LoggerFactory.getLogger(HotelBookingPaymentReconciler.class);
 
     private final HotelBookingMapper bookingMapper;
     private final HotelInventoryHoldMapper holdMapper;

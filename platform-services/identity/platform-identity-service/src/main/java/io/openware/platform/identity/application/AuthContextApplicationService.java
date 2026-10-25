@@ -65,8 +65,8 @@ public class AuthContextApplicationService {
                 TenantServiceClient.TenantContext anchor = null;
                 try {
                     anchor = tenantClient.consumerContext(accountId, appId);
+                // degradation: native B staff has no consumer authorization
                 } catch (Exception ignored) {
-                    // 原生 B 端员工没有 consumer 授权，直接使用 IAM 运营上下文。
                 }
                 if (anchor == null) {
                     List<ContextItem> items = operatorContexts.stream()

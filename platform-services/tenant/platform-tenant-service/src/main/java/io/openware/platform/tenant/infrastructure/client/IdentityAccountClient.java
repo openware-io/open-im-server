@@ -24,7 +24,6 @@ public class IdentityAccountClient {
         throw new ApiException(404, "ACCOUNT_NOT_FOUND", "账号不存在");
       }
       return info;
-    // degradation: identity unavailable must fail closed for platform role grants
     } catch (ApiException exception) {
       throw exception;
     } catch (RuntimeException exception) {

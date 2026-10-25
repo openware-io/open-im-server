@@ -1,5 +1,7 @@
 package io.openware.platform.tenant.config;
 
+import lombok.extern.slf4j.Slf4j;
+
 import io.openware.infrastructure.tenant.ClientAudienceHolder;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -13,6 +15,7 @@ import java.io.IOException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /** tenant 管理面旧 token 失效：token 授权版本必须等于当前快照版本。 */
+@Slf4j
 public class TenantAuthorizationStateFilter extends OncePerRequestFilter {
 
     private final PermissionSnapshotProvider provider;
@@ -39,6 +42,7 @@ public class TenantAuthorizationStateFilter extends OncePerRequestFilter {
                 return;
             }
         } catch (RuntimeException exception) {
+            log.warn("authorization state invalid for request {}", request.getRequestURI(), exception);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authorization state invalid");
             return;
         }

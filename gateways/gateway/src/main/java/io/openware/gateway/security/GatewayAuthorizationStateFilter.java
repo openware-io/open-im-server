@@ -1,5 +1,7 @@
 package io.openware.gateway.security;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -18,8 +20,8 @@ import reactor.core.publisher.Mono;
 
 /** 集中校验 B/管理面 tenantContextToken 的授权版本，避免只依赖下游服务。 */
 @Component
+@Slf4j
 public class GatewayAuthorizationStateFilter implements GlobalFilter, Ordered {
-
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final WebClient tenantClient;
@@ -44,6 +46,7 @@ public class GatewayAuthorizationStateFilter implements GlobalFilter, Ordered {
         try {
             claims = MAPPER.readTree(Base64.getUrlDecoder().decode(token.split("\\.")[1]));
         } catch (Exception invalid) {
+            log.warn("malformed tenant context token", invalid);
             return unauthorized(exchange);
         }
         String clientApp = claims.path("clientApp").asText("");

@@ -1,5 +1,7 @@
 package io.openware.platform.admin.infra.security;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.platform.admin.infra.client.AdminAuthorizationStateClient;
@@ -12,8 +14,8 @@ import java.util.Base64;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /** admin 会话内 tenantContextToken 的授权版本校验；平台作用域跳过。 */
+@Slf4j
 public class AdminAuthorizationStateFilter extends OncePerRequestFilter {
-
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final AdminAuthorizationStateClient stateClient;
@@ -55,6 +57,7 @@ public class AdminAuthorizationStateFilter extends OncePerRequestFilter {
                 return;
             }
         } catch (RuntimeException | IOException invalid) {
+            log.warn("authorization state invalid for request {}", request.getRequestURI(), invalid);
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Authorization state invalid");
             return;
         }

@@ -42,6 +42,16 @@ public class AccountApplicationService {
         this.jwtProperties = jwtProperties;
     }
 
+    /** 内部账号只读视图：供 tenant/admin 在平台角色授予前校验账号类型与状态。 */
+    public AccountView findAccountView(Long accountId) {
+        return accountRepository.findById(accountId)
+                .map(account -> new AccountView(account.id(), account.accountType(), account.status()))
+                .orElse(null);
+    }
+
+    public record AccountView(Long id, String accountType, String status) {
+    }
+
     @Transactional
     public IdentityAccount register(String loginType, String loginIdentifier, String credential) {
         // 状态与类型由领域工厂固定（注册的不变量），凭据编码属基础设施细节，故留在应用层完成后再传入领域。

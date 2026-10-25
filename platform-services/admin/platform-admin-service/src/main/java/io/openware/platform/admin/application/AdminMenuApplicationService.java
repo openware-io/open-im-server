@@ -98,6 +98,7 @@ public class AdminMenuApplicationService {
                     .filter(id -> id != null && id > 0)
                     .findFirst().orElse(null);
             return "TENANT_CONTEXT".equals(tenantIamClient.workspaceMode(tenantId));
+        // degradation: workspace probe unavailable; deny platform workspace
         } catch (RuntimeException exception) {
             return false;
         }

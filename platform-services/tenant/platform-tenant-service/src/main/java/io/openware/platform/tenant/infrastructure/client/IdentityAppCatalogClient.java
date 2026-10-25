@@ -24,7 +24,6 @@ public class IdentityAppCatalogClient {
         throw new ApiException(400, "APP_NOT_AVAILABLE", "应用未注册或不可用");
       }
       return info;
-    // degradation: registry unavailable must not allow an unverified installation
     } catch (ApiException exception) {
       throw exception;
     } catch (RuntimeException exception) {

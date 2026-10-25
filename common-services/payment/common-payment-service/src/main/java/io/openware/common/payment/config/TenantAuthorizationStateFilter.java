@@ -1,5 +1,7 @@
 package io.openware.common.payment.config;
 
+import lombok.extern.slf4j.Slf4j;
+
 import io.openware.infrastructure.tenant.ClientAudienceHolder;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -15,9 +17,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * B 端旧 token 失效校验：token 的 authorizationVersion 必须等于当前账号/门店快照版本。
  * 成员禁用、角色撤销后快照版本变化，旧 token 立即 401。
  */
+@Slf4j
 public class TenantAuthorizationStateFilter extends OncePerRequestFilter {
-
-    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TenantAuthorizationStateFilter.class);
 
     private final TenantAuthorizationStateClient stateClient;
 
@@ -44,6 +45,8 @@ public class TenantAuthorizationStateFilter extends OncePerRequestFilter {
                 return;
             }
         } catch (RuntimeException unavailable) {
+            log.warn("authorization state unavailable account={} tenant={} store={}",
+                    context.accountId(), context.tenantId(), context.storeId(), unavailable);
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "Authorization state unavailable");
             return;

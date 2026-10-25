@@ -48,8 +48,8 @@ public class TenantIamDomainClient {
             JsonNode node = resp == null ? null : objectMapper.readTree(resp);
             String mode = node == null ? null : node.path("storeWorkspaceMode").asText(null);
             return "TENANT_CONTEXT".equals(mode) ? "TENANT_CONTEXT" : "INDEPENDENT";
+        // degradation: config service unavailable; keep independent workspace default
         } catch (Exception exception) {
-            // 配置服务不可用时保持默认独立工作区，避免登录被配置读失败阻断。
             return "INDEPENDENT";
         }
     }
