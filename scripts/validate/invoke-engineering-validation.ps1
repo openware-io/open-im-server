@@ -91,6 +91,7 @@ $validators = @(
   @{ Name = 'flyway-immutability'; Arguments = @() },
   @{ Name = 'documentation-links'; Arguments = @() },
   @{ Name = 'documentation-governance'; Arguments = @() },
+  @{ Name = 'frontend-ui-standard'; Arguments = @() },
   @{ Name = 'standards-governance'; Arguments = @() },
   @{ Name = 'repository-hygiene'; Arguments = @() },
   @{ Name = 'tenant-sql'; Arguments = @() },

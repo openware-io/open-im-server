@@ -102,3 +102,12 @@ open-saas-mobile/c-end/styles.css
 open-saas-mobile/c-end/app.js
 open-saas-mobile/c-end/hotel-real.js
 ```
+
+## 6. 自动校验
+
+```text
+scripts/validate/validate-frontend-ui-standard.ps1
+```
+
+检查 B 端 `admin-page/admin-card/metric-grid`、C 端 tokens/`hotel-cover`/`tag-row`，
+并禁止 C 端调用 `/api/v1/admin/tenant/config`。已注册到 `invoke-engineering-validation.ps1`。

@@ -102,3 +102,12 @@ open-saas-mobile/c-end/styles.css
 open-saas-mobile/c-end/app.js
 open-saas-mobile/c-end/hotel-real.js
 ```
+
+## 6. Enforcement
+
+```text
+scripts/validate/validate-frontend-ui-standard.ps1
+```
+
+Checks B-side `admin-page/admin-card/metric-grid`, C-side tokens/`hotel-cover`/`tag-row`,
+and forbids C from calling `/api/v1/admin/tenant/config`. Registered in `invoke-engineering-validation.ps1`.
