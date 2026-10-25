@@ -39,22 +39,12 @@ C 端：SaaS session -> tenantId
 B 端：Admin session -> selected context -> tenantId
 ```
 
-## 3. 兼容路径
+## 3. 旧路径
 
-```text
-/a380/      历史 C 端品牌入口，保留为兼容别名
-```
+`/a380/` 已移除，不再保留兼容别名。
 
-要求：
-
-```text
-/a380/ 与 /c/ 指向同一个 saas-mobile 产物
-OIDC redirect_uri 同时登记 /c/ 与 /a380/
-旧 APK、旧二维码、旧书签继续可用
-新入口、新链接、新文档统一使用 /c/
-```
-
-`/a380/` 不得成为新租户的路径模板。
+旧书签、旧二维码、旧 APK 必须迁移到 `/c/`。
+网关不再注册 `/a380/`，C 产物也不再复制 `/a380/` 目录。
 
 ## 4. 租户品牌隔离
 
@@ -116,24 +106,24 @@ tnt_app_installation + tenantId + 应用注册表
 ## 6. 迁移顺序
 
 ```text
-1. 新增 /c/ Ingress，保留 /a380/
-2. OIDC 同时登记 /c/ 和 /a380/
-3. C 端 appId 改为可配置，默认兼容旧值
-4. Android/IM 服务入口改 /c/
-5. 观察两个入口访问量
-6. 旧入口清零后，/a380/ 做 GET 兼容跳转
-7. 清理 appId 中的租户/品牌字面量
+1. C 端只保留 /c/ 入口
+2. OIDC 只登记 /c/ redirect
+3. Android / IM 服务入口改 /c/
+4. 更新数据库中的服务链接与 callback URL
+5. 移除网关、静态产物和文档中的 /a380/
+6. 验证 /c/，旧链接不再可用
 ```
 
 ## 7. 验收
 
 ```text
 GET /c/                  200
-GET /a380/               200
+GET /a380/               不再作为 C 端入口
 C /c/#/service/hotel     console []
-C /a380/#/service/hotel  console []
+C /c/#/real-hotel/1      console []
 OIDC redirect /c/        已登记
-OIDC redirect /a380/     保留
+OIDC redirect /a380/     已移除
 租户改名                  不影响 /c/
 新增租户                  不新增 Ingress / OAuth client
 ```
+

@@ -473,7 +473,7 @@ spec:
           image: __APP_IMAGE_SAAS_MOBILE__
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 80 } ]
-          readinessProbe: { httpGet: { path: /a380/index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+          readinessProbe: { httpGet: { path: /index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -59,7 +59,6 @@ spec:
     - http:
         paths:
           - { path: /c(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }
-          - { path: /a380(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: saas-mobile, port: { number: 80 } } } }
           - { path: /website(/|$)(.*), pathType: ImplementationSpecific, backend: { service: { name: open-website, port: { number: 80 } } } }
 ---
 apiVersion: networking.k8s.io/v1

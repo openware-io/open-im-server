@@ -40,22 +40,13 @@ C: SaaS session -> tenantId
 B: Admin session -> selected context -> tenantId
 ```
 
-## 3. Legacy path
+## 3. Removed legacy path
 
-```text
-/a380/      legacy C-side brand entry, kept as a compatibility alias
-```
+`/a380/` has been removed. It is not kept as a compatibility alias.
 
-Requirements:
-
-```text
-/a380/ and /c/ serve the same saas-mobile artifact
-OIDC redirect_uri registers both /c/ and /a380/
-Old APKs, QR codes and bookmarks keep working
-New links and docs use /c/
-```
-
-`/a380/` must not become the path template for new tenants.
+Old bookmarks, QR codes and APKs must move to `/c/`.
+The gateway no longer registers `/a380/`, and the C artifact no longer copies
+its files under `/a380/`.
 
 ## 4. Tenant branding
 
@@ -115,24 +106,24 @@ The legacy `saas-a380-c` / `saas-a380-h5` IDs remain for compatibility and shoul
 ## 6. Migration order
 
 ```text
-1. Add /c/ Ingress, keep /a380/
-2. Register both /c/ and /a380/ OIDC redirect URIs
-3. Make the C appId configurable, defaulting to the legacy value
-4. Point Android/IM service entries to /c/
-5. Observe traffic on both entries
-6. After old traffic reaches zero, redirect /a380/ GET to /c/
-7. Remove tenant/brand literals from appIds
+1. Serve the C app only at /c/
+2. Register only /c/ OIDC redirect URIs
+3. Point Android/IM service entries to /c/
+4. Update DB service links and callback URLs
+5. Remove /a380/ from gateway, static copy and docs
+6. Verify /c/ and fail old links
 ```
 
 ## 7. Acceptance
 
 ```text
 GET /c/                  200
-GET /a380/               200
+GET /a380/               not served as the C app
 C /c/#/service/hotel     console []
-C /a380/#/service/hotel  console []
+C /c/#/real-hotel/1      console []
 OIDC redirect /c/        registered
-OIDC redirect /a380/     retained
-Renaming a tenant         does not change /c/
-Adding a tenant           adds no Ingress or OAuth client
+OIDC redirect /a380/     removed
+Renaming a tenant        does not change /c/
+Adding a tenant          adds no Ingress or OAuth client
 ```
+

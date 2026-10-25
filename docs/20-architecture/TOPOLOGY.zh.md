@@ -78,7 +78,7 @@ L5 数据与消息基础设施
 | `open-chat-desktop` | Electron 安装包 | L0 | 桌面客户端 |
 | `open-saas-admin` | `saas-admin` | L0 | SaaS 运营后台 |
 | `open-chat-admin` | `pc-admin` | L0 | IM 管理后台 |
-| `open-saas-mobile` | `saas-mobile` | L0 | `/a380/` C 端、`/b/` B 端 H5 |
+| `open-saas-mobile` | `saas-mobile` | L0 | `/c/` C 端、`/b/` B 端 H5 |
 | `open-website` | `open-website` | L0 | 官网、下载与协议页 |
 | `open-im-server` | `gateway` | L1 | REST 网关 |
 | `open-im-server` | `im-access-ws` | L1 | WebSocket 接入 |
@@ -120,7 +120,7 @@ open-chat-app / open-chat-desktop / H5
 ```text
 OpenChat App 服务板块
   → im-admin-service 的 /miniapp/services（服务目录）
-  → /a380/ 或 /b/
+  → /c/ 或 /b/
   → saas-mobile（Nginx）
   → OAuth / identity 会话
   → SaaS 业务页面

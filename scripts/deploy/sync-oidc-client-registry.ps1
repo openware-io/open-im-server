@@ -63,7 +63,7 @@ if (!$credentialPayload) { throw "Secret $DatabaseSecret does not contain $RootD
 $mysqlAuthArgument = '-p' + [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($credentialPayload))
 $target = Get-MySqlTarget
 $origin = $baseUri.GetLeftPart([UriPartial]::Authority)
-$cUris = @("$origin/a380/", "$origin/c/")
+$cUris = @("$origin/c/")
 $bUris = @("$origin/b/")
 foreach ($additionalOrigin in $AdditionalH5Origins) {
   try { $additionalUri = [Uri]$additionalOrigin } catch { throw "AdditionalH5Origins contains an invalid URI: $additionalOrigin" }
@@ -71,7 +71,7 @@ foreach ($additionalOrigin in $AdditionalH5Origins) {
     throw "AdditionalH5Origins entry must be a $($baseUri.Scheme) origin without a path, query or fragment: $additionalOrigin"
   }
   $additionalAuthority = $additionalUri.GetLeftPart([UriPartial]::Authority)
-  $cUris += @("$additionalAuthority/a380/", "$additionalAuthority/c/")
+  $cUris += "$additionalAuthority/c/"
   $bUris += "$additionalAuthority/b/"
 }
 foreach ($additionalOrigin in $AdditionalViteCOrigins) {
@@ -91,7 +91,7 @@ foreach ($additionalOrigin in $AdditionalViteBOrigins) {
   $bUris += "$additionalAuthority/index.b.html"
 }
 if ($Environment -eq 'kind') {
-  $cUris += @('http://127.0.0.1:30080/a380/', 'http://localhost:30080/a380/', 'http://127.0.0.1:30080/c/', 'http://localhost:30080/c/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
+  $cUris += @('http://127.0.0.1:30080/c/', 'http://localhost:30080/c/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
   $bUris += @('http://127.0.0.1:30080/b/', 'http://localhost:30080/b/', 'http://127.0.0.1:5176/index.b.html', 'http://localhost:5176/index.b.html')
 }
 $cUris = @($cUris | Select-Object -Unique)

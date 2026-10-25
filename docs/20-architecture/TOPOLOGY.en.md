@@ -78,7 +78,7 @@ L5 Data and messaging
 | `open-chat-desktop` | Electron package | L0 | Desktop client |
 | `open-saas-admin` | `saas-admin` | L0 | SaaS operations console |
 | `open-chat-admin` | `pc-admin` | L0 | IM admin console |
-| `open-saas-mobile` | `saas-mobile` | L0 | `/a380/` C-end and `/b/` B-end H5 |
+| `open-saas-mobile` | `saas-mobile` | L0 | `/c/` C-end and `/b/` B-end H5 |
 | `open-website` | `open-website` | L0 | Marketing site, downloads and legal pages |
 | `open-im-server` | `gateway` | L1 | REST gateway |
 | `open-im-server` | `im-access-ws` | L1 | WebSocket access |
@@ -120,7 +120,7 @@ Client
 ```text
 OpenChat App service board
   → im-admin-service /miniapp/services (catalog)
-  → /a380/ or /b/
+  → /c/ or /b/
   → saas-mobile (Nginx)
   → OAuth / identity session
   → SaaS business page
