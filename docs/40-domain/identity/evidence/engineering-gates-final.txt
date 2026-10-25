@@ -1,43 +1,36 @@
 Engineering gates (2026-10-25)
 ==============================
 
-Full sequential run: scripts/validate/invoke-engineering-validation.ps1 -Scope Full
+Command: scripts/validate/invoke-engineering-validation.ps1 -Scope Full
+Result: Engineering validation passed for scope Full.
+Maven: BUILD SUCCESS (clean verify)
 
-PASS before the blocking gate:
-  text-encoding (corrupt historical archive quarantined with SHA-256)
-  powershell-utf8-safety
-  powershell-ascii-only
-  java-comment-quality
-  java-deprecated-api-usage
-  java-exception-logging
-  java-logging-conventions
-  java-silent-catch
-  java-fully-qualified-names
-  exception-handling
-  maven-version-ownership
-  persistence-dependency-boundaries
-  currency-literals
-  rocketmq-contracts
-  mq-registry (72 resources)
-  mq-semantics
-  secret-exposure
-  security-and-flyway-configuration
+54 gates passed, including:
+  text-encoding, powershell-utf8-safety, powershell-ascii-only
+  java-comment-quality, java-deprecated-api-usage
+  java-exception-logging, java-logging-conventions, java-silent-catch
+  java-fully-qualified-names, exception-handling
+  maven-version-ownership, persistence-dependency-boundaries
+  currency-literals, rocketmq-contracts, mq-registry, mq-semantics
+  secret-exposure, security-and-flyway-configuration
+  service-api-boundaries, service-layout
+  controller-repository-boundary, controller-mapping-integrity
+  autowired-constructor, architecture-decisions
+  standards-catalog, standards-map, documentation-reachability
+  gate-catalog, docs-impact, domain-map
+  controller-transaction-boundary, domain-model-purity
+  audit-fields, reserved-identifiers, port-contract, po-containment
+  service-dependency-graph, flyway-conventions, flyway-immutability
+  documentation-links, documentation-governance
+  frontend-ui-standard, standards-governance, repository-hygiene
+  tenant-sql, gate-registry, currency-symbols, currency-defaults
+  media-boundaries, media-url, observability-redaction
+  observability-correlation, observability-metrics, verify-inventory
+  maven-full
 
-Service API boundaries:
-  PASS after migrating application services to repository ports.
+Registered legacy exceptions used by the gates:
+  GATE-FLYWAY-LEGACY-001: 9 already-applied migrations (expires 2026-11-15)
+  service-layout: 4 legacy packages (expires 2026-12-31)
+  repository-hygiene: local workspace dirs (.outputs/.vscode/artifacts)
 
-Service layout:
-  PASS with 4 documented legacy package exceptions (expire 2026-12-31).
-
-Blocking gate:
-  flyway-conventions
-    platform-services/admin/platform-admin-service/src/main/resources/db/migration/V2__iam_role_profile.sql
-    CREATE TABLE IF NOT EXISTS is forbidden
-  V2 is an already-applied migration; editing it would break Flyway checksums.
-  It needs a registered legacy exception or an explicit repair plan.
-
-Later gates after flyway-conventions were not reached in the sequential run.
-Report-only:
-  controller-repository-boundary: 1 pending (InternalAppGrantController)
-
-Later gates after service-api-boundaries were not reached in the sequential run.
+No gate was downgraded to report-only for this run.

@@ -51,8 +51,8 @@ validate-service-layout
   PASS（4 条既有包例外，到期 2026-12-31）
 
 validate-flyway-conventions
-  1 条已应用迁移基线：V2__iam_role_profile.sql 使用 IF NOT EXISTS
-  另 9 条历史迁移例外仍登记 GATE-FLYWAY-LEGACY-001
+  PASS：9 个已应用迁移由 GATE-FLYWAY-LEGACY-001 文件级例外覆盖，2026-11-15 到期
+  validate-flyway-conventions 新增迁移仍为零违规
 
 validate-flyway-conventions
   9 条历史迁移例外，已登记 GATE-FLYWAY-LEGACY-001，到期 2026-11-15

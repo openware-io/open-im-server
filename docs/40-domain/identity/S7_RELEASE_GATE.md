@@ -34,6 +34,7 @@ ACR、ACK、云生产发布不在本项目范围，相关配置不参与验证�
 B/C/SaaS 后台真实页面无 4xx/5xx/JS error：PASS
 Android 测试 APK 真机预订 + B 收款：PASS
 异常处理门禁：PASS
+全量工程门禁（54 gates + Maven full）：PASS
 ```
 
 ## 3.1 范围说明
@@ -44,7 +45,7 @@ Android 测试 APK 真机预订 + B 收款：PASS
 text-encoding PASS（损坏历史归档按原字节隔离并记录 SHA-256）
 service-api-boundaries PASS
 service-layout PASS（4 条既有包例外，到期 2026-12-31）
-flyway-conventions 仍有 1 条已应用迁移基线（V2 IF NOT EXISTS）
+flyway-conventions PASS（GATE-FLYWAY-LEGACY-001 登记的 9 个已应用迁移例外）
 详见 evidence/engineering-gates-final.txt
 ```
 
