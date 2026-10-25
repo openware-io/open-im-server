@@ -44,7 +44,7 @@ class BusinessEntitlementApplicationServiceTest {
         hotel.setBusinessType("HOTEL");
         when(mapper.selectList(any())).thenReturn(List.of(hotel));
 
-        assertThat(service.list()).extracting(BusinessEntitlementPo::getBusinessType).containsExactly("HOTEL");
+        assertThat(service.list()).extracting(BusinessEntitlementApplicationService.BusinessEntitlementView::businessType).containsExactly("HOTEL");
     }
 
     @Test
@@ -64,9 +64,9 @@ class BusinessEntitlementApplicationServiceTest {
                 List.of("tenant.business.manage"), "TENANT", null, null));
         when(mapper.selectOne(any())).thenReturn(null);
 
-        BusinessEntitlementPo created = service.enable("hotel");
+        BusinessEntitlementApplicationService.BusinessEntitlementView created = service.enable("hotel");
 
-        assertThat(created.getBusinessType()).isEqualTo("HOTEL");
-        assertThat(created.getTenantId()).isEqualTo(100L);
+        assertThat(created.businessType()).isEqualTo("HOTEL");
+        assertThat(created.status()).isEqualTo("ACTIVE");
     }
 }

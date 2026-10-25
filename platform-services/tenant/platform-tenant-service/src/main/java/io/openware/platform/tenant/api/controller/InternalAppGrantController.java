@@ -1,6 +1,6 @@
 package io.openware.platform.tenant.api.controller;
 
-import io.openware.platform.tenant.infra.persistence.mapper.AppGrantMapper;
+import io.openware.platform.tenant.application.AppGrantApplicationService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,14 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/internal/iam")
 public class InternalAppGrantController {
 
-  private final AppGrantMapper mapper;
+  private final AppGrantApplicationService service;
 
-  public InternalAppGrantController(AppGrantMapper mapper) {
-    this.mapper = mapper;
+  public InternalAppGrantController(AppGrantApplicationService service) {
+    this.service = service;
   }
 
   @GetMapping("/accounts/{accountId}/app-grants")
   public List<String> grants(@PathVariable Long accountId, @RequestParam Long tenantId) {
-    return mapper.selectAuthorizedApps(accountId, tenantId);
+    return service.authorizedApps(accountId, tenantId);
   }
 }
