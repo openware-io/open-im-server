@@ -44,7 +44,7 @@ public class IdentityDomainClient {
     public boolean imIdentityExists(String imLoginIdentifier) {
         try {
             String resp = identityClient.get()
-                    .uri("/internal/accounts/im/{username}", imLoginIdentifier)
+                    .uri("/internal/identity/accounts/im/{username}", imLoginIdentifier)
                     .retrieve()
                     .body(String.class);
             JsonNode node = resp == null ? null : objectMapper.readTree(resp);
@@ -62,7 +62,7 @@ public class IdentityDomainClient {
             String body = objectMapper.writeValueAsString(java.util.Map.of(
                     "loginType", loginType, "loginIdentifier", loginIdentifier, "accountType", accountType));
             String resp = identityClient.post()
-                    .uri("/internal/accounts/ensure")
+                    .uri("/internal/identity/accounts/ensure")
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
@@ -82,7 +82,7 @@ public class IdentityDomainClient {
             String body = objectMapper.writeValueAsString(java.util.Map.of(
                     "loginType", loginType, "loginIdentifier", loginIdentifier, "credential", credential));
             identityClient.post()
-                    .uri("/internal/accounts/{accountId}/login-identity", accountId)
+                    .uri("/internal/identity/accounts/{accountId}/login-identity", accountId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
