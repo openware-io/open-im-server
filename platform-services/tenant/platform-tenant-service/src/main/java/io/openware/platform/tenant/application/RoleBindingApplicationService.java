@@ -127,14 +127,14 @@ public class RoleBindingApplicationService {
   @Transactional
   public RoleBinding assignForBootstrap(Long accountId, Long tenantId, Long roleId, String scopeType,
                                         Long organizationId, Long storeId) {
-    Membership membership = memberships
-        .findByAccountAndTenantAndType(accountId, tenantId, Membership.TYPE_STAFF)
-        .orElseThrow(() -> new ApiException(404, "STAFF_MEMBERSHIP_NOT_FOUND", "员工成员身份不存在"));
     // assign() 仍复用普通授权的全部校验/审计；内部引导没有 HTTP 租户上下文，
     // 这里只临时放入目标 tenantId（不含任何平台权限），结束后恢复。
     TenantContext previous = TenantContextHolder.get();
     TenantContextHolder.set(new TenantContext(tenantId, null, null, 0L, 0, List.of(), "TENANT"));
     try {
+      Membership membership = memberships
+          .findByAccountAndTenantAndType(accountId, tenantId, Membership.TYPE_STAFF)
+          .orElseThrow(() -> new ApiException(404, "STAFF_MEMBERSHIP_NOT_FOUND", "员工成员身份不存在"));
       return assign(membership.id(), roleId, scopeType, organizationId, storeId);
     } finally {
       if (previous == null) {
