@@ -20,6 +20,9 @@ defaultLocale
 defaultTimezone
 ```
 
+新租户初始状态为 `PENDING`；平台管理员启用后，租户管理员才能正常登录。
+平台租户列表提供启用/停用操作（`PATCH /api/v1/admin/platform/tenants/{id}/status`）。
+
 平台创建成功后，同一流程继续创建初始管理员：
 
 ```text
@@ -40,7 +43,7 @@ POST /api/v1/admin/staff/bootstrap-owner
 
 `bootstrap-owner` 只允许平台运营调用，按显式 tenantId 创建首个
 `tenant.owner`，不依赖平台上下文。失败时前端明确提示“租户已创建、
-管理员创建失败”，用相同租户编码重试即可。
+管理员创建失败”，用相同租户编码重试即可；随后在租户列表点“启用”。
 
 ## 2. 已有租户新增账号
 
