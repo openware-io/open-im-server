@@ -1,0 +1,30 @@
+B platform backend 401 fix (2026-10-25)
+======================================
+
+Symptom:
+  admin -> 平台运营后台 -> 角色/权限 / 支付方式
+  页面提示“请先选择租户/门店上下文”，接口 401 SAAS_CONTEXT_REQUIRED
+
+Root cause:
+  Gateway classified /api/v1/admin/iam/** and /api/v1/admin/payment-methods/**
+  as CONTEXT_BOUND, so it required tenantContextToken.
+  A platform-only admin session has platformContextToken (tenantId=0,
+  scopeType=PLATFORM), not tenantContextToken.
+
+Fix:
+  Those two prefixes now use Route.PLATFORM_CONTEXT, which prefers a selected
+  tenant context and otherwise forwards the preset platform context token.
+  Added gateway regression test:
+  platformIamRouteForwardsPresetPlatformContextWhenNoTenantContextSelected
+
+Verification:
+  /api/v1/admin/iam/roles/catalog -> 200, platform roles returned
+  /api/v1/admin/payment-methods/grants?tenantId=100 -> 200, []
+  B #/admin/iam/roles -> console []
+  B #/admin/platform/payment-methods -> console []
+  gateway tests: 18 PASS
+  gateway Ready=1
+
+Accounts:
+  admin / Admin@123       -> SUPER_ADMIN, platform backend
+  a380-admin / Admin@123  -> TENANT_ADMIN, tenant backend
