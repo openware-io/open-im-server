@@ -1,0 +1,38 @@
+Backend rollback drill (local Kind)
+===================================
+
+Scope: gateway, identity, tenant, order, payment, admin.
+Procedure: build previous commit 6ba32869 -> deploy old manifest -> verify ->
+           build current commit f89f1074 -> deploy current manifest -> verify.
+
+Old manifest: .outputs/releases/s7-rollback-backend.json
+Old build identity: development.20261025T040253Z.6ba32869
+Old image digests:
+  gateway                    sha256:b66e13e82f46dba5a41bb74fa8166290c44a7cb302ba3452a24fed980f9b529c
+  platform-identity-service  sha256:66bdf3eb110397b7807a0831bb97dac6a1483ca9e09c64119f6cc6d1ef55a1e8
+  platform-tenant-service    sha256:cefc9542501de7bf3ec2e8d9749596b2c923a0f83f7d8771920b9dd90af76115
+  platform-order-service     sha256:c723d6a9c621e59b0f5691f639f51ea4ea11e3cf6ab7161bd90a18076759e1bc
+  common-payment-service     sha256:b57b5aec72f8b145c5680a143195e8fb04251d84f0d357e832c21aa83e7bb90b
+  platform-admin-service     sha256:ce8be971d22a36137391e2f0011307a4f23f629493a5cab9689f10a736533d25
+
+Old rollout:
+  all six deployments Ready=1
+  /actuator/health -> 200
+
+Current restore manifest: .outputs/releases/s7-rollback-backend-restore.json
+Current build identity: development.20261025T040749Z.f89f1074
+Current image digests:
+  gateway                    sha256:11d5d85a1e981227cee0e9787ec42bb8ba8f1dd26557383b7d6e7f3d0ee89b0a
+  platform-identity-service  sha256:cbfcdda7fcf0e8b30596cd7fd7ad0e478f02fb4bc92ae8f314616aac27382f44
+  platform-tenant-service    sha256:5bc5f6d4fc96e0830e12c739f94b8f933e79a9982ade65b12e96fdcef18e7b7a
+  platform-order-service     sha256:4cb44fcf6db291c8125f3d2d1635ced26294a2e9a80492a3037f562feabef3b8
+  common-payment-service     sha256:d553b62486bb0510cbb8dca00d542bc02b5f751b73778c6c277a07d7394c1389
+  platform-admin-service     sha256:b3e41fc0b69eb55602d7cd9078861b150c443612c6632e35326b8336eab99c14
+
+Restore rollout:
+  all six deployments Ready=1
+  /actuator/health -> 200
+  B pages (tenant/hotel, ktv/config) console -> no errors
+
+This validates backend all-service deploy -> rollback -> restore in local Kind.
+Frontend images were not rolled back in this drill.

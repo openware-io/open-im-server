@@ -22,7 +22,7 @@
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
 | 本地发布 | PASS | Kind manifest 7 服务 Ready、health 200 |
-| 本地回滚 | gateway PASS | 6ba32869 -> 7cff0c41；全服务未重复 |
+| 本地回滚 | 后端全服务 PASS | 6ba32869 -> f89f1074；前端未回滚 |
 | Android 测试 APK | 待验证 | 测试包 + 本地 API，不做正式签名 |
 | C 在线支付 / 在线退款 | deferred | `S7_ONLINE_PAYMENT_DEFERRAL.md`；生产前硬门禁 |
 | 完整 S7 | 不成立 | 在线通道与发布 P1 完成后另签 |
@@ -54,7 +54,7 @@
 S7 cash-only E2E：CONDITIONAL PASS
 P0：SEC-001..014 全部闭合
 E2E P1：B 退款 UI、Android 同单现金闭环、null-scope、B 收款 UI 已闭合
-本地发布/回滚、测试 APK 真机验证 —— 进行中
+本地发布、后端全服务回滚、测试 APK 真机验证 —— PASS；前端回滚未做
 Deferred：C 在线支付/退款 —— 生产前硬门禁
 完整 S7：不成立
 ```

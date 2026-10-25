@@ -49,7 +49,8 @@ Exception gates:
   validate-text-encoding.ps1 baseline archive mojibake remains (not introduced by this change)
 
 Rollback:
-  gateway rollback drill PASS (see local-rollback-gateway.txt)
-  old revision 6ba32869 image 19798b14 deployed, health 200
-  current 7cff0c41 image 4f58d212 restored, health 200
-  full all-service rollback not yet repeated; only gateway is proven.
+  backend all-service rollback PASS (see local-rollback-backend.txt)
+  old backend 6ba32869: six services Ready=1, health 200
+  current f89f1074: six services Ready=1, health 200
+  gateway drill also PASS (local-rollback-gateway.txt)
+  frontend images not rolled back in this drill.

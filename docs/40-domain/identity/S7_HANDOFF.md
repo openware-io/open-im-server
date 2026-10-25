@@ -10,7 +10,7 @@
 ```text
 S1–S6：PASS
 S7 cash-only E2E：CONDITIONAL PASS
-本地发布：PASS；gateway 回滚：PASS（全服务未重复）
+本地发布：PASS；后端全服务回滚：PASS（前端未回滚）
 Android 测试 APK：待真机验证
 C 在线支付/退款：deferred
 完整 S7：不成立
@@ -118,7 +118,7 @@ booking: HTL1792899679182719 / order24 store102 DRAFT
 证据: android-hotel-booking-success.png
 重复标题栏: 已修（服务 H5 隐藏原生 app bar）
 异常门禁: exception/silent-catch/logging/controller-mapping PASS
-回滚: gateway 真实回滚 PASS（6ba32869 -> 7cff0c41）；全服务回滚未重复
+回滚: 后端全服务 PASS（6ba32869 -> f89f1074）；前端回滚未做
 证据: evidence/local-release-final.txt / android-hotel-final.png
 ```
 B 收款闭环（2026-10-25）:
