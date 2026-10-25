@@ -106,6 +106,7 @@ public class PaymentMethodApplicationService {
     /** 租户：是否向用户开放（默认开）。 */
     @Transactional
     public TenantPaymentMethodDto setUserEnabled(Long tenantId, String method, boolean enabled) {
+        requireTenantScope(tenantId, false);
         validateMethod(method);
         try {
             Persisted<TenantPaymentMethod> current = upsert(tenantId, method);
@@ -224,6 +225,27 @@ public class PaymentMethodApplicationService {
     /** 写入开关列并返回落库后的聚合。 */
     private Persisted<TenantPaymentMethod> persist(TenantPaymentMethod config) {
         return paymentMethodRepository.updateSwitches(config, LocalDateTime.now());
+    }
+
+    /**
+     * 平台授权/租户开关的显式租户边界。
+     *
+     * <p>`tnt_payment_method` 的仓储查询已经显式带 tenant_id；平台上下文 tenantId=0，
+     * 不能再用 TenantLineInterceptor 的 0 去过滤，否则会读空并触发唯一键冲突。
+     * 因此这里补上应用层边界：平台可授权任意租户；租户只能操作自己的 tenantId。
+     */
+    private void requireTenantScope(Long tenantId, boolean platformOnly) {
+        TenantContext ctx = TenantContextHolder.get();
+        if (ctx == null) return;
+        if (platformOnly) {
+            if (!ctx.platformScope()) {
+                throw new ApiException(403, "CONTEXT_FORBIDDEN", "仅平台运营可授权支付方式");
+            }
+            return;
+        }
+        if (!ctx.platformScope() && ctx.tenantId() != tenantId) {
+            throw new ApiException(403, "CONTEXT_FORBIDDEN", "不能操作其他租户的支付方式");
+        }
     }
 
     private void validateMethod(String method) {
