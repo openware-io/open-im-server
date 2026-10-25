@@ -1,7 +1,7 @@
 # S7 E2E 执行状态
 > 环境：Kind open-im-local、Chrome 155、Xiaomi MI 9（adb c4c90621）
-> 时间：2026-10-24
-> 状态：CONDITIONAL PASS（cash-only；本地发布 PASS（回滚未验证）；测试 APK 真机入口/详情/报价 PASS；在线支付/退款 deferred）
+> 时间：2026-10-25
+> 状态：CONDITIONAL PASS（cash-only；本地发布/回滚 PASS；Android 测试 APK 真机预订+收款 PASS；在线支付/退款 deferred）
 
 ## 1. 已确认
 
@@ -884,7 +884,8 @@ requireRefundStore: context == null && orderBillingRepository != null -> 404
 
 ```text
 S7 cash-only E2E: CONDITIONAL PASS
-本地发布/回滚、测试 APK 真机验证进行中
+本地发布/回滚：PASS（后端+前端）
+测试 APK 真机：PASS（HTL1792899679182719 / order24）
 C 在线支付/退款: deferred
 完整 S7: 不成立
 ```

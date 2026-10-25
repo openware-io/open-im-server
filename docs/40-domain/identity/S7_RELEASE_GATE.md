@@ -26,14 +26,22 @@ ACR、ACK、云生产发布不在本项目范围，相关配置不参与验证�
 6. 回滚到上一 manifest 后 Pod Ready、核心 E2E 仍通过
 ```
 
-## 3. 当前待验证
+## 3. 本轮验证结果
 
 ```text
-本地全量 manifest 重新发布
-本地回滚演练
-B/C/SaaS 后台真实页面无 4xx/5xx/JS error
-Android 测试 APK 真机验证
-异常处理门禁
+本地全量 manifest 发布：PASS
+本地后端 + 前端回滚：PASS
+B/C/SaaS 后台真实页面无 4xx/5xx/JS error：PASS
+Android 测试 APK 真机预订 + B 收款：PASS
+异常处理门禁：PASS
+```
+
+## 3.1 范围说明
+
+```text
+本地 Kind 使用测试 APK；正式签名 APK 不在本次本地范围
+其他业务页 action 级全量不属于 S7 酒店 cash-only，另列 P2
+text-encoding 历史归档 mojibake 为基线，未修复、未当 PASS
 ```
 
 ## 4. 禁止
