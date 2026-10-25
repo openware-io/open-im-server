@@ -1,0 +1,40 @@
+Release verification (2026-10-25)
+=================================
+
+Path model:
+  /saas/  B admin
+  /b/     B mobile
+  /c/     C consumer (only canonical C entry)
+  /a380/  removed from C routing/static artifact/OIDC/DB links
+
+Runtime:
+  GET /c/ -> 200
+  saas-mobile container has no /usr/share/nginx/html/a380
+  GET /a380/ is no longer the C app (falls to the unified portal fallback)
+  Ingress open-im-mobile-apps only lists /c and /website
+
+C:
+  npm test: 23 files / 167 tests PASS
+  /c/#/service/hotel console []
+  /c/#/real-hotel/1 console []
+  hotel date field opens custom bottom sheet (#booking-picker)
+
+B:
+  npm test: 51 files / 696 tests PASS
+  #/admin/platform/tenants console []
+  #/admin/iam/roles console []
+
+Gates:
+  documentation-links PASS
+  documentation-governance PASS
+  frontend-ui-standard PASS
+  service-api-boundaries PASS
+  standards-governance PASS
+  text-encoding PASS
+  docs-impact PASS
+
+Android:
+  lib path references updated /a380 -> /c
+  flutter targeted tests could not load suites in this environment
+  (Connection closed before test suite loaded); not claimed as PASS.
+  Old APK must be replaced because /a380 is no longer served as C.
