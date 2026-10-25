@@ -254,6 +254,28 @@ public class TenantIamDomainClient {
         }
     }
 
+    /** 内部：按显式 tenantId 确保 STAFF membership；已存在时视为成功。 */
+    public void ensureStaffMembership(Long accountId, Long tenantId, Long organizationId) {
+        try {
+            String body = objectMapper.writeValueAsString(Map.of(
+                    "tenantId", tenantId,
+                    "organizationId", organizationId == null ? "" : String.valueOf(organizationId),
+                    "membershipType", "STAFF",
+                    "memberNo", ""));
+            restClient.post()
+                    .uri("/internal/iam/accounts/{accountId}/memberships", accountId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+        } catch (org.springframework.web.client.RestClientResponseException e) {
+            if (e.getStatusCode().value() == 409) return;
+            throw new IllegalStateException("调用 tenant 内部 IAM 创建员工成员身份失败", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("调用 tenant 内部 IAM 创建员工成员身份失败", e);
+        }
+    }
+
     private Long nullableLong(JsonNode node, String field) {
         return node.hasNonNull(field) ? node.get(field).asLong() : null;
     }

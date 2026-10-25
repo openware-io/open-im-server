@@ -51,6 +51,17 @@ public class MembershipController {
     return service.listByAccount(accountId).stream().map(MembershipView::of).toList();
   }
 
+  /** 内部：按显式 tenantId 确保 STAFF membership 存在（平台开通首个管理员/运营人员）。 */
+  @PostMapping("/internal/iam/accounts/{accountId}/memberships")
+  public MembershipView ensureMembership(@PathVariable Long accountId,
+                                         @RequestBody EnsureMembershipRequest request) {
+    return MembershipView.of(service.createForTenant(request.tenantId(), accountId,
+        request.organizationId(), request.membershipType(), request.memberNo()));
+  }
+
+  public record EnsureMembershipRequest(Long tenantId, Long organizationId,
+                                        String membershipType, String memberNo) {}
+
   @GetMapping("/internal/iam/memberships/{id}")
   public MembershipView get(@PathVariable Long id) {
     return MembershipView.of(service.get(id));
