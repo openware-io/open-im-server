@@ -138,4 +138,4 @@ scripts/validate/validate-frontend-ui-standard.ps1
 
 - [DDD 服务工程规范](10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)：页面只消费已定义的服务契约
 - [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md)：UI 验收与真实链路证据
-- [前端实现](../../../open-saas-admin/src/styles/global.css)：B/C 共享 token 的实现位置
+- 前端实现：open-saas-admin/src/styles/global.css（外部仓库，不在本文档树内）
