@@ -83,6 +83,7 @@ docs/
 | 文档 | 关系 |
 | --- | --- |
 | [本地部署](60-deployment/LOCAL.md) | 三种本地方式的统一入口 |
+| [SaaS 部署品牌约定](60-deployment/SAAS_BRANDING_DEPLOYMENT.md) | OpenChat=IM，SaaS 租户/酒店/钱包命名 |
 | [部署索引](60-deployment/README.md) | 部署、ACK、客户端发布与环境配置 |
 | [Docker Compose](60-deployment/DOCKER.md) | 日常联调 |
 | [Kubernetes 清单](../k8s/README.md) | Kind / ACK 资源与镜像 |
