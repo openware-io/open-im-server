@@ -160,12 +160,18 @@ public class HotelBookingApplicationService {
         return booking;
     }
 
+    /** 定金收款后确认预订；支付动作由支付接口完成，本方法只推进酒店状态机。 */
+    @Transactional
+    public HotelBookingPo confirmDeposit(Long bookingId) {
+        return confirm(bookingId);
+    }
+
     @Transactional
     public HotelBookingPo confirm(Long bookingId) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"PENDING_PAYMENT".equals(booking.getStatus())) {
+        if (!"PENDING_PAYMENT".equals(booking.getStatus()) && !"PENDING_DEPOSIT".equals(booking.getStatus())) {
             throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能确认");
         }
         if (booking.getHoldExpiresAt() != null && booking.getHoldExpiresAt().isBefore(LocalDateTime.now())) {

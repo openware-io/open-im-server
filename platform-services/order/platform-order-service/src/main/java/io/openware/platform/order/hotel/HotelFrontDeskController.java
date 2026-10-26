@@ -20,11 +20,14 @@ public class HotelFrontDeskController {
 
     private final HotelFrontDeskApplicationService service;
     private final HotelStayApplicationService stayService;
+    private final HotelBookingApplicationService bookingService;
 
     public HotelFrontDeskController(HotelFrontDeskApplicationService service,
-                                    HotelStayApplicationService stayService) {
+                                    HotelStayApplicationService stayService,
+                                    HotelBookingApplicationService bookingService) {
         this.service = service;
         this.stayService = stayService;
+        this.bookingService = bookingService;
     }
 
     @GetMapping("/tasks")
@@ -35,6 +38,11 @@ public class HotelFrontDeskController {
     @PostMapping("/bookings/{id}/checkin")
     public BookingView checkIn(@PathVariable Long id, @RequestParam(required = false) Long roomId) {
         return BookingView.from(stayService.checkIn(id, roomId));
+    }
+
+    @PostMapping("/bookings/{id}/confirm-deposit")
+    public BookingView confirmDeposit(@PathVariable Long id) {
+        return BookingView.from(bookingService.confirmDeposit(id));
     }
 
     @PostMapping("/bookings/{id}/checkout")
