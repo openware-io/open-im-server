@@ -14,9 +14,9 @@ This audit is a review of conformance, not a claim that every UI path has full c
 
 ## Findings
 
-### P0 - `/a380/` still returns 200
+### P0 - `/a380/` returned 200 (FIXED)
 
-Evidence:
+Original evidence:
 
 ```text
 curl -I http://127.0.0.1:30080/a380/
@@ -25,14 +25,23 @@ Content-Type: text/html
 ```
 
 Cause: `open-im-portal` ingress has `path: /` to the unified portal SPA; the
-portal's fallback serves its `index.html` for `/a380/`. The mobile ingress itself
-only registers `/c/` and `/b/`; removing the mobile route did not remove the
-portal fallback.
+portal's fallback served `index.html` for `/a380/`. The mobile ingress only
+registered `/c/` and `/b/`; removing the mobile route did not remove the portal
+fallback.
 
-Status: NOT COMPLIANT with `SAAS_PATH_STANDARD.md` ("/a380/ 已移除").
-Remediation: add an explicit 404 route/backend for `/a380` or make the portal
-return 404 for that prefix. A server-snippet annotation is disabled by the
-ingress controller, so it cannot be used.
+Fix: added an explicit `saas-not-found` nginx backend and registered
+`/a380(/|$)(.*)` on `open-im-mobile-apps` before `/c/`.
+
+Verified:
+
+```text
+/a380/ -> 404
+/c/    -> 200
+/b/    -> 200
+/saas/ -> 200
+```
+
+Status: COMPLIANT with `SAAS_PATH_STANDARD.md`.
 
 ### P1 - SaaS/IM naming boundary still leaks
 
@@ -193,7 +202,7 @@ as current naming.
 | Full gate / Maven | PASS |
 | C/B test suites | PASS |
 | `/c/` `/b/` `/saas/` runtime | PASS |
-| `/a380/` removal | FAIL (200 via portal fallback) |
+| `/a380/` removal | PASS (404 via explicit not-found backend) |
 | Tenant data branding | PASS (saas-demo/SaaS) |
 | SaaS/IM separation in all UI | PARTIAL |
 | A380 internal namespace | FAIL / not migrated |
