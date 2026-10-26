@@ -55,46 +55,38 @@ admin: tenant-admin / 租户管理员
 wallet: SaaS 币
 ```
 
-Still mixed in current runtime code/assets:
+Cleaned in this pass:
 
 ```text
-c-end/app.js: OpenChat hotel/bar mock names, OpenChat member label
-c-end/data.js: OpenChat hotel mock data
-c-end/login brand: OpenChat + 生活服务
-c-end auth-errors: OpenChat service wording
-B docs/remote-dev-integration.md: OpenChat 租户运营 wording
+C business mock data: SaaS hotel/bar/KTV/member names
+C login brand: SaaS 生活服务
+C title: SaaS 生活服务
+C internal namespace: Saas*
+C storage keys: saas-orders / saas-cart
+B remote-dev docs: SaaS 租户运营
 ```
 
-The IM login button and IM app itself are correctly OpenChat. The remaining
-SaaS business pages/data should say SaaS or a neutral business name.
+The IM login button and IM app itself remain OpenChat by design.
 
-Status: PARTIAL.
+Status: PASS for current SaaS runtime; IM-only strings remain correct.
 
 ### P1 - A380 internal names and assets remain
 
-Counts in current working trees:
+Counts after this pass:
 
 ```text
-open-saas-mobile: 184 A380 lines
-open-chat-app:    75 A380 lines
-open-saas-admin:  12 A380 lines
-open-im-server:  223 non-historical A380 references (including frozen migrations and tests)
+open-saas-mobile: 0 A380 lines
+open-chat-app:    75 A380 lines (Android l10n key, comments, legacy web prototype, tests)
+open-saas-admin:  12 A380 lines (prototype/docs/comments/test fixtures)
+open-im-server:   223 references (mostly frozen migrations, historical evidence, tests)
 ```
 
-Main current-code remnants:
+C active code is clean. Android and B still have non-runtime but active-looking
+A380 names (l10n key `servicesWalletA380Coin`, `web/miniservice/a380`, comments
+and test fixtures). Frozen migrations and historical evidence must remain
+immutable and should be labeled historical.
 
-```text
-A380ApiErrors, A380DateTime, A380PageLoad, A380Picker,
-A380BusinessHours, A380HotelBookings, A380ReservationRoom
-localStorage: a380-orders, a380-cart
-Android l10n key: servicesWalletA380Coin
-web/miniservice/a380 legacy prototype
-```
-
-Frozen migrations and historical evidence are intentionally immutable; they
-should be labeled as historical, not treated as current targets.
-
-Status: NOT CLEAN, but mixed severity: internal namespace > docs history.
+Status: PARTIAL; C PASS, Android/B/Main history NOT CLEAN.
 
 ### P1 - Admin hotel booking customer association is not a finished business flow
 
@@ -204,8 +196,8 @@ as current naming.
 | `/c/` `/b/` `/saas/` runtime | PASS |
 | `/a380/` removal | PASS (404 via explicit not-found backend) |
 | Tenant data branding | PASS (saas-demo/SaaS) |
-| SaaS/IM separation in all UI | PARTIAL |
-| A380 internal namespace | FAIL / not migrated |
+| SaaS/IM separation in all UI | PASS (runtime); IM login stays OpenChat |
+| A380 internal namespace | C PASS; Android/B/Main partially remain |
 | Platform tenant authz | PASS |
 | All platform authz | NOT FULLY VERIFIED |
 | Hotel booking customer link | PARTIAL |
