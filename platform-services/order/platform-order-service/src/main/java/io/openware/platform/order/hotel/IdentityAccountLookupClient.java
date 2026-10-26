@@ -30,6 +30,7 @@ public class IdentityAccountLookupClient {
                     .retrieve().body(Long.class);
             return accountId == null ? Optional.empty() : Optional.of(accountId);
         } catch (RestClientResponseException e) {
+            log.debug("按手机号解析 SaaS 账号返回 {}，按未关联处理", e.getStatusCode().value());
             return Optional.empty();
         } catch (RuntimeException e) {
             log.warn("按手机号解析 SaaS 账号失败，按未关联处理: {}", e.getMessage());
