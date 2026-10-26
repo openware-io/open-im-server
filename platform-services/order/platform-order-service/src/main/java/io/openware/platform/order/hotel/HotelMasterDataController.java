@@ -36,14 +36,14 @@ public class HotelMasterDataController {
     @PostMapping("/hotels")
     @ResponseStatus(HttpStatus.CREATED)
     public HotelPo createHotel(@RequestBody HotelRequest request) {
-        return service.saveHotel(null, request.name(), request.address(), request.timezone(),
+        return service.saveHotel(null, request.name(), request.address(), request.coverImageUrl(), request.timezone(),
                 request.checkInTime(), request.checkOutTime());
     }
 
     @PutMapping("/hotels/{id}")
     public HotelPo updateHotel(@PathVariable Long id,
                                @RequestBody HotelRequest request) {
-        return service.saveHotel(id, request.name(), request.address(), request.timezone(),
+        return service.saveHotel(id, request.name(), request.address(), request.coverImageUrl(), request.timezone(),
                 request.checkInTime(), request.checkOutTime());
     }
 
@@ -127,7 +127,7 @@ public class HotelMasterDataController {
         return service.setInventory(request.roomTypeId(), request.stayDate(), request.total());
     }
 
-    public record HotelRequest(String name, String address, String timezone, String checkInTime, String checkOutTime) {}
+    public record HotelRequest(String name, String address, String coverImageUrl, String timezone, String checkInTime, String checkOutTime) {}
 
     public record RoomTypeRequest(Long hotelId, String code, String name, Integer capacity, String bedType,
                                   BigDecimal areaSqm) {}

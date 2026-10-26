@@ -44,7 +44,7 @@ public class HotelMasterDataApplicationService {
     }
 
     @Transactional
-    public HotelPo saveHotel(Long id, String name, String address, String timezone,
+    public HotelPo saveHotel(Long id, String name, String address, String coverImageUrl, String timezone,
                              String checkInTime, String checkOutTime) {
         PermissionGuard.require("hotel.inventory.manage");
         TenantContext context = requireStore();
@@ -56,6 +56,7 @@ public class HotelMasterDataApplicationService {
         po.setStoreId(context.storeId());
         po.setName(name.trim());
         po.setAddress(address);
+        po.setCoverImageUrl(coverImageUrl);
         po.setTimezone(timezone == null || timezone.isBlank() ? "Asia/Shanghai" : timezone);
         po.setCheckInTime(checkInTime == null ? "14:00" : checkInTime);
         po.setCheckOutTime(checkOutTime == null ? "12:00" : checkOutTime);

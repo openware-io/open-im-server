@@ -15,6 +15,7 @@ public class HotelPo {
     private Long storeId;
     private String name;
     private String address;
+    private String coverImageUrl;
     private String timezone;
     private String checkInTime;
     private String checkOutTime;

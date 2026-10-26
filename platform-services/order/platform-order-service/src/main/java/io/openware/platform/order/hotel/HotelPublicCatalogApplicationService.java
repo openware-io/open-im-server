@@ -39,7 +39,7 @@ public class HotelPublicCatalogApplicationService {
                         .orderByAsc(HotelPo::getId))
                 .stream()
                 .map(hotel -> new HotelSummary(hotel.getId(), hotel.getStoreId(), hotel.getName(),
-                        hotel.getAddress(), hotel.getTimezone()))
+                        hotel.getAddress(), hotel.getCoverImageUrl(), hotel.getTimezone()))
                 .toList();
     }
 
@@ -66,7 +66,8 @@ public class HotelPublicCatalogApplicationService {
                         plan.getBasePriceMinor(), plan.getCurrency()))
                 .toList();
         return new HotelDetail(hotel.getId(), hotel.getStoreId(), hotel.getName(), hotel.getAddress(),
-                hotel.getTimezone(), hotel.getCheckInTime(), hotel.getCheckOutTime(), roomTypes, ratePlans);
+                hotel.getCoverImageUrl(), hotel.getTimezone(), hotel.getCheckInTime(), hotel.getCheckOutTime(),
+                roomTypes, ratePlans);
     }
 
     public PublicQuote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -119,16 +120,16 @@ public class HotelPublicCatalogApplicationService {
         return context;
     }
 
-    public record HotelSummary(Long id, Long storeId, String name, String address, String timezone) {}
+    public record HotelSummary(Long id, Long storeId, String name, String address, String coverImageUrl, String timezone) {}
 
     public record RoomTypeView(Long id, String code, String name, Integer capacity, String bedType,
                                java.math.BigDecimal areaSqm) {}
 
     public record RatePlanView(Long id, String code, String name, Long basePriceMinor, String currency) {}
 
-    public record HotelDetail(Long id, Long storeId, String name, String address, String timezone,
-                              String checkInTime, String checkOutTime, List<RoomTypeView> roomTypes,
-                              List<RatePlanView> ratePlans) {}
+    public record HotelDetail(Long id, Long storeId, String name, String address, String coverImageUrl,
+                              String timezone, String checkInTime, String checkOutTime,
+                              List<RoomTypeView> roomTypes, List<RatePlanView> ratePlans) {}
 
     public record NightPrice(LocalDate stayDate, long priceMinor, int available) {}
 
