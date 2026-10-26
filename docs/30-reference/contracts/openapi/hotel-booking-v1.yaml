@@ -21,6 +21,47 @@ tags:
   - name: Bookings
   - name: FrontDesk
 paths:
+  /admin/hotel/policy:
+    get:
+      tags: [Hotel]
+      operationId: getHotelPolicy
+      parameters:
+        - name: hotelId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Hotel policy; defaults are returned when not persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotelPolicy'
+    put:
+      tags: [Hotel]
+      operationId: saveHotelPolicy
+      parameters:
+        - name: hotelId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HotelPolicyUpsert'
+      responses:
+        '200':
+          description: Saved hotel policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotelPolicy'
   /admin/hotel/hotels:
     get:
       tags: [Hotel]
@@ -440,6 +481,37 @@ components:
         timezone: { type: string }
         checkInTime: { type: string, example: '14:00' }
         checkOutTime: { type: string, example: '12:00' }
+    HotelPolicy:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        hotelId: { type: integer, format: int64 }
+        accessMode: { type: string, enum: [SINGLE_STORE, GROUP] }
+        entryPoints: { type: string }
+        paymentMode: { type: string, enum: [PREPAY, PAY_AT_HOTEL, DEPOSIT] }
+        depositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        stayDepositRequired: { type: boolean }
+        stayDepositMode: { type: string, enum: [COLLECT, PRE_AUTH] }
+        stayDepositMinor: { type: integer, format: int64, minimum: 0 }
+        stayDepositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        cancelPolicy: { type: string, enum: [FREE_UNTIL_24H, NON_REFUNDABLE] }
+        pointsRedeemEnabled: { type: boolean }
+        pointsMaxRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        invoiceMode: { type: string, enum: [NONE] }
+    HotelPolicyUpsert:
+      type: object
+      properties:
+        accessMode: { type: string, enum: [SINGLE_STORE, GROUP] }
+        entryPoints: { type: string }
+        paymentMode: { type: string, enum: [PREPAY, PAY_AT_HOTEL, DEPOSIT] }
+        depositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        stayDepositRequired: { type: boolean }
+        stayDepositMode: { type: string, enum: [COLLECT, PRE_AUTH] }
+        stayDepositMinor: { type: integer, format: int64, minimum: 0 }
+        stayDepositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        cancelPolicy: { type: string, enum: [FREE_UNTIL_24H, NON_REFUNDABLE] }
+        pointsRedeemEnabled: { type: boolean }
+        pointsMaxRatioBps: { type: integer, minimum: 0, maximum: 10000 }
     RoomType:
       type: object
       properties:
