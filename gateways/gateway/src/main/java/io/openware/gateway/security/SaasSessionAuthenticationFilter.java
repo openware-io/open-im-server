@@ -101,7 +101,8 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
             // 平台级路由：优先下发运营选择的租户上下文；未选择上下文时下发会话预置的平台作用域
             // token（tenantId=0 + scopeType=PLATFORM），保证平台级动作（如创建租户）在下游能拿到
             // 操作人。两者都没有时按 SESSION_ONLY 放行（**不新增 401**，保持既有可用性）。
-            String token = contextToken(raw).orElseGet(() -> platformContextToken(raw).orElse(null));
+            // 平台级接口只接受平台作用域 token；租户选择上下文不能提升为平台权限。
+            String token = platformContextToken(raw).orElse(null);
             return forward(exchange, chain, token);
           }
           return contextToken(raw).map(token -> forward(exchange, chain, token))
