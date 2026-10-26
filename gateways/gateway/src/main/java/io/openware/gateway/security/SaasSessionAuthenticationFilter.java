@@ -105,7 +105,13 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
             // /admin/iam 既服务平台角色页，也服务租户角色页：有租户上下文时下发
             // 租户签名上下文；纯平台会话才回退平台作用域 token。否则租户管理员
             // 的角色目录会因缺少上下文变成 SAAS_CONTEXT_REQUIRED。
-            String token = contextToken(raw).orElse(platformContextToken(raw).orElse(null));
+            String routePath = exchange.getRequest().getPath().value();
+            String token;
+            if (matchesPath(routePath, "/api/v1/admin/iam")) {
+              token = contextToken(raw).orElse(platformContextToken(raw).orElse(null));
+            } else {
+              token = platformContextToken(raw).orElse(null);
+            }
             return forward(exchange, chain, token);
           }
           return contextToken(raw).map(token -> forward(exchange, chain, token))
