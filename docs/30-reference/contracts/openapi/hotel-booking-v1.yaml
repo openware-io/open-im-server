@@ -625,7 +625,7 @@ components:
         bookingNo: { type: string }
         status:
           type: string
-          enum: [PENDING_PAYMENT, CONFIRMED, ARRIVAL, IN_HOUSE, DUE_OUT, CHECKED_OUT, CANCELLED, NO_SHOW]
+          enum: [PENDING_PAYMENT, PENDING_DEPOSIT, CONFIRMED, ARRIVAL, IN_HOUSE, DUE_OUT, CHECKED_OUT, CANCELLED, NO_SHOW]
         roomTypeId: { type: integer, format: int64 }
         roomNo: { type: string }
         guestName: { type: string }
@@ -634,5 +634,7 @@ components:
         checkOutDate: { type: string, format: date }
         rooms: { type: integer }
         totalMinor: { type: integer, format: int64 }
+        depositOrderId: { type: integer, format: int64 }
+        depositAmountMinor: { type: integer, format: int64 }
         currency: { type: string }
         holdExpiresAt: { type: string, format: date-time }

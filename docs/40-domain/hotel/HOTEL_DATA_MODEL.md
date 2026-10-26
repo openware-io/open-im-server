@@ -15,7 +15,7 @@ htl_rate_plan             房价计划
 htl_daily_rate            每日房价
 htl_inventory_calendar    每日库存（room_type + stay_date）
 htl_inventory_hold        库存占用（预订/支付暂持）
-htl_booking               预订头
+htl_booking               预订头（V19 起含 deposit_order_id/deposit_amount_minor，定金独立收款单）
 htl_booking_night         按夜价格与状态
 htl_stay                  在住记录（入住/退房）
 htl_folio                 账单头
