@@ -18,7 +18,7 @@ public class CustomerAudienceInterceptor implements HandlerInterceptor {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_AUDIENCE_FORBIDDEN",
           "缺少客户端族声明");
     }
-    if (actual != null && !"saas-c".equals(actual)) {
+    if (actual != null && !"saas-c".equals(actual) && !"saas-admin".equals(actual)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_AUDIENCE_FORBIDDEN",
           "当前客户端不能访问客户接口");
     }
