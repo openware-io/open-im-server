@@ -22,11 +22,11 @@ public class HotelClientAudienceInterceptor implements HandlerInterceptor {
     if (required == null) {
       required = method.getBeanType().getAnnotation(ClientAudience.class);
     }
-    String expected = required == null ? null : required.value();
-    if (expected == null && request.getRequestURI().startsWith("/admin/")) {
-      expected = "saas-b";
+    String[] expected = required == null ? null : required.value();
+    if ((expected == null || expected.length == 0) && request.getRequestURI().startsWith("/admin/")) {
+      expected = new String[] {"saas-b"};
     }
-    if (expected == null) {
+    if (expected == null || expected.length == 0) {
       return true;
     }
     String actual = ClientAudienceHolder.get();
@@ -34,7 +34,7 @@ public class HotelClientAudienceInterceptor implements HandlerInterceptor {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_AUDIENCE_FORBIDDEN",
           "缺少客户端族声明");
     }
-    if (actual != null && !expected.equals(actual)) {
+    if (actual != null && !java.util.Arrays.asList(expected).contains(actual)) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "CLIENT_AUDIENCE_FORBIDDEN",
           "当前客户端不能访问该酒店接口");
     }

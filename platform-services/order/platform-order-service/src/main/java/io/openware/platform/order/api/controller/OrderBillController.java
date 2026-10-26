@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * <p>授权口径与账单构建在 {@link OrderBillAccessService}；本类只做端点映射。
  */
-@ClientAudience("saas-b")
+@ClientAudience({"saas-c", "saas-b"})
 @RestController
 @RequestMapping("/business/orders/{orderId}")
 public class OrderBillController {
