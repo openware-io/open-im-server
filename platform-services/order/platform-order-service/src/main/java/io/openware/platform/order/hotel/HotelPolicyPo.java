@@ -30,6 +30,8 @@ public class HotelPolicyPo {
     private Boolean pointsRedeemEnabled;
     private Integer pointsMaxRatioBps;
     private String invoiceMode;
+    private Long createdBy;
+    private Long updatedBy;
     private Integer version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

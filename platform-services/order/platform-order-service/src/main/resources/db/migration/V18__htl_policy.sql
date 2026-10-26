@@ -17,6 +17,8 @@ CREATE TABLE `htl_policy` (
   `points_redeem_enabled` tinyint(1) NOT NULL DEFAULT 0 COMMENT '是否支持积分抵扣',
   `points_max_ratio_bps` int NOT NULL DEFAULT 0 COMMENT '积分最大抵扣比例',
   `invoice_mode` varchar(24) NOT NULL DEFAULT 'NONE' COMMENT '预留，当前不接发票',
+  `created_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '创建人',
+  `updated_by` bigint unsigned NOT NULL DEFAULT 0 COMMENT '更新人',
   `version` int NOT NULL DEFAULT 0 COMMENT '乐观锁',
   `created_at` datetime(3) NOT NULL,
   `updated_at` datetime(3) NOT NULL,

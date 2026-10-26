@@ -52,6 +52,8 @@ public class HotelPolicyApplicationService {
             po.setStoreId(context.storeId());
             po.setHotelId(hotel.getId());
             po.setVersion(0);
+            po.setCreatedBy(context.accountId());
+            po.setUpdatedBy(context.accountId());
             po.setCreatedAt(now);
         }
         po.setAccessMode(blank(accessMode) ? "SINGLE_STORE" : accessMode);
@@ -66,6 +68,7 @@ public class HotelPolicyApplicationService {
         po.setPointsRedeemEnabled(pointsRedeemEnabled != null && pointsRedeemEnabled);
         po.setPointsMaxRatioBps(pointsMaxRatioBps == null ? 0 : pointsMaxRatioBps);
         po.setInvoiceMode("NONE");
+        po.setUpdatedBy(context.accountId());
         po.setUpdatedAt(now);
         if (po.getId() == null) {
             policyMapper.insert(po);
