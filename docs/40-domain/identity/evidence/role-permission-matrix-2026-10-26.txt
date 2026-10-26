@@ -1,0 +1,69 @@
+Role / permission matrix - 2026-10-26 (local Kind)
+
+Accounts used:
+  platform admin   admin / Admin@123
+  tenant owner     a380-admin / Admin@123
+  store manager    test.store.manager / Test@12345 (temporary; removed after test)
+  store cashier    test.store.cashier / Test@12345 (temporary; removed after test)
+  store finance    test.store.finance / Test@12345 (temporary; removed after test)
+
+API results (HTTP status):
+  platform admin
+    GET /api/v1/admin/platform/tenants          200
+    GET /api/v1/admin/staff                     401 (no tenant context)
+    GET /api/v1/business/members                401 (no tenant context)
+
+  tenant owner (a380-admin)
+    GET /api/v1/admin/platform/tenants          403 PLATFORM_ADMIN_REQUIRED
+    GET /api/v1/admin/staff                     200
+    GET /api/v1/business/members                200
+
+  store manager
+    GET /api/v1/admin/platform/tenants          403 PLATFORM_ADMIN_REQUIRED
+    GET /api/v1/admin/staff                     403 PERMISSION_DENIED
+    GET /api/v1/business/members                200
+    GET /api/v1/business/orders                 200
+
+  store cashier
+    GET /api/v1/admin/staff                     403
+    GET /api/v1/admin/platform/tenants          403
+    GET /api/v1/business/orders                 200
+
+  store finance
+    GET /api/v1/admin/staff                     403
+    GET /api/v1/admin/platform/tenants          403
+    GET /api/v1/business/orders                 200
+
+  C customer session
+    GET /api/v1/admin/auth/session              200 authenticated=false
+    GET /api/v1/admin/platform/tenants          401 SAAS_SESSION_REQUIRED
+
+Browser checks (/saas/, 1440x900):
+  platform -> #/admin/platform/tenants           tenant list renders; enable/disable actions
+  tenant   -> #/admin/staff                      staff list renders (a380-admin, store manager)
+  tenant   -> #/business/members                 customer list renders
+  tenant   -> #/admin/platform/tenants           redirected to tenant workspace
+  store    -> #/store                            store workbench renders
+  store    -> #/business/members                 customer list renders (masked PII)
+  store    -> #/business/orders                  cashier page renders
+
+Issues found and fixed during this test:
+  1. Tenant account could call /api/v1/admin/platform/tenants and got 200.
+     Fixed gateway: platform routes only forward platform-scope token.
+     Fixed tenant controller: require Platform scope; tenant -> 403.
+  2. Platform route was still reachable in UI for tenant accounts.
+     Fixed router guard: non-PLATFORM workspaces redirect to their workspace.
+  3. store.manager role profile landed on /admin/tenant/overview (HQ only).
+     Fixed role profile landing to /store; added migration V19.
+  4. B admin customer list failed with CLIENT_AUDIENCE_FORBIDDEN because context
+     token clientApp=saas-b but customer service allowed only saas-c.
+     Fixed customer audience to allow saas-c + saas-b (B backend) + saas-admin.
+  5. One legacy plaintext PII row made the whole customer list 500.
+     Fixed per-field decryption fallback; bad cipher logs WARN and renders empty,
+     not a page-level 500.
+
+Residual:
+  - Direct URL to tenant-only pages from a store account still renders the shell
+    with a permission error; backend returns 403 and no privileged data.
+  - Store manager at a hotel tenant sees the generic STORE menu, including KTV
+    cashier entry; business-type-specific menu filtering is still a UI follow-up.
