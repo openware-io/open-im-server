@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-27",
+  "environment": "local kind + C-end SaaS session",
+  "booking": "HTL1793032489965308",
+  "originalAmountMinor": 89900,
+  "pointsUsed": 500,
+  "pointsDiscountMinor": 500,
+  "payableAmountMinor": 89400,
+  "pointsBalanceAfterBooking": 500,
+  "cancel": {
+    "status": "CANCELLED",
+    "cancelFeeMinor": 0,
+    "refundMinor": 89400,
+    "pointsBalanceAfterCancel": 1000
+  },
+  "note": "积分按 customer-service 规则 1 分 = 1 最小货币单位；下单扣减、取消释放均已真实调用 customer-service 内部接口。"
+}
