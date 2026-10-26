@@ -150,7 +150,7 @@ public class AccountApplicationService {
     /** 内部：按登录标识解析 SaaS accountId；不存在返回 null。 */
     public Long findAccountIdByLogin(String loginType, String loginIdentifier) {
         return loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier)
-                .map(io.openware.platform.identity.domain.account.model.LoginIdentity::accountId)
+                .map(LoginIdentity::accountId)
                 .orElse(null);
     }
 
