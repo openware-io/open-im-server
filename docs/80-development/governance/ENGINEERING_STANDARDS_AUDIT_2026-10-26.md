@@ -140,7 +140,7 @@ Not fully audited:
 all /admin/platform/** endpoints
 all /admin/iam/** endpoints
 all tenant-only page URLs entered by store accounts
-customer audience widening to saas-b/saas-admin
+customer audience strict saas-c/saas-b (saas-admin removed)
 ```
 
 Some endpoint probes returned 404/400 because the route does not exist, not
