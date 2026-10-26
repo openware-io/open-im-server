@@ -32,32 +32,32 @@ public class HotelFrontDeskController {
 
     @GetMapping("/tasks")
     public List<BookingView> tasks() {
-        return service.tasks().stream().map(BookingView::from).toList();
+        return service.tasks().stream().map(booking -> BookingView.from(booking, service.hasStay(booking.getId()))).toList();
     }
 
     @PostMapping("/bookings/{id}/checkin")
     public BookingView checkIn(@PathVariable Long id, @RequestParam(required = false) Long roomId) {
-        return BookingView.from(stayService.checkIn(id, roomId));
+        return BookingView.from(stayService.checkIn(id, roomId), true);
     }
 
     @PostMapping("/bookings/{id}/confirm-deposit")
     public BookingView confirmDeposit(@PathVariable Long id) {
-        return BookingView.from(bookingService.confirmDeposit(id));
+        return BookingView.from(bookingService.confirmDeposit(id), false);
     }
 
     @PostMapping("/bookings/{id}/checkout")
     public BookingView checkOut(@PathVariable Long id) {
-        return BookingView.from(stayService.checkOut(id));
+        return BookingView.from(stayService.checkOut(id), false);
     }
 
     @PostMapping("/bookings/{id}/extend")
     public BookingView extend(@PathVariable Long id, @RequestBody ExtendRequest request) {
-        return BookingView.from(stayService.extendStay(id, request.newCheckOutDate()));
+        return BookingView.from(stayService.extendStay(id, request.newCheckOutDate()), true);
     }
 
     @PostMapping("/bookings/{id}/move-room")
     public BookingView moveRoom(@PathVariable Long id, @RequestBody MoveRoomRequest request) {
-        return BookingView.from(stayService.moveRoom(id, request.roomId()));
+        return BookingView.from(stayService.moveRoom(id, request.roomId()), true);
     }
 
     @PostMapping("/bookings/{id}/deposit")
@@ -101,11 +101,13 @@ public class HotelFrontDeskController {
     public record BookingView(@JsonFormat(shape = JsonFormat.Shape.STRING) Long id,
                               String bookingNo, String guestName, Long roomTypeId, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,
-                              Long amountMinor, Long depositOrderId, Long depositAmountMinor, String currency) {
-        static BookingView from(HotelBookingPo po) {
+                              Long amountMinor, Long depositOrderId, Long depositAmountMinor,
+                              boolean hasStay, String currency) {
+        static BookingView from(HotelBookingPo po, boolean hasStay) {
             return new BookingView(po.getId(), po.getBookingNo(), po.getGuestName(), po.getRoomTypeId(),
                     po.getRoomType(), po.getRoomNo(), po.getCheckInDate(), po.getCheckOutDate(),
-                    po.getStatus(), po.getAmountMinor(), po.getDepositOrderId(), po.getDepositAmountMinor(), po.getCurrency());
+                    po.getStatus(), po.getAmountMinor(), po.getDepositOrderId(), po.getDepositAmountMinor(),
+                    hasStay, po.getCurrency());
         }
     }
 }

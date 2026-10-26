@@ -14,9 +14,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class HotelFrontDeskApplicationService {
 
     private final HotelBookingMapper mapper;
+    private final HotelStayMapper stayMapper;
 
-    public HotelFrontDeskApplicationService(HotelBookingMapper mapper) {
+    public HotelFrontDeskApplicationService(HotelBookingMapper mapper, HotelStayMapper stayMapper) {
         this.mapper = mapper;
+        this.stayMapper = stayMapper;
     }
 
     public List<HotelBookingPo> tasks() {
@@ -27,6 +29,13 @@ public class HotelFrontDeskApplicationService {
                 .in(HotelBookingPo::getStatus, List.of("PENDING_DEPOSIT", "CONFIRMED", "ARRIVAL", "IN_HOUSE", "DUE_OUT"))
                 .orderByAsc(HotelBookingPo::getCheckInDate)
                 .orderByAsc(HotelBookingPo::getId));
+    }
+
+    /** 是否已有在住记录；历史预订没有 stay，前台不应显示可退房。 */
+    public boolean hasStay(Long bookingId) {
+        return stayMapper.selectCount(new LambdaQueryWrapper<HotelStayPo>()
+                .eq(HotelStayPo::getBookingId, bookingId)
+                .eq(HotelStayPo::getStatus, "IN_HOUSE")) > 0;
     }
 
     @Transactional

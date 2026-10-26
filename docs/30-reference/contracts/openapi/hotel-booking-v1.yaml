@@ -636,5 +636,6 @@ components:
         totalMinor: { type: integer, format: int64 }
         depositOrderId: { type: integer, format: int64 }
         depositAmountMinor: { type: integer, format: int64 }
+        hasStay: { type: boolean, description: 是否已有真实在住记录；历史预订为 false，前台不提供退房/换房 }
         currency: { type: string }
         holdExpiresAt: { type: string, format: date-time }
