@@ -23,9 +23,10 @@
 - C 端：`open-saas-mobile/c-end/hotel-real.js`，已接真实酒店目录、报价、预订、订单与取消接口；
 - B 端前台：`open-saas-admin/src/views/tenant/hotel.vue`，路由 `/admin/tenant/hotel`，已接真实任务、入住选房、退房、续住、换房、押金、账单、退款、夜审、客房清扫和房态；
 - B 端主数据：`open-saas-admin/src/views/tenant/hotel-master.vue`，路由 `/admin/tenant/hotel-master`，维护酒店资料、房型、客房、房价计划、每日房价和按日期库存；
-- 后端：`platform-order-service` 的 `hotel` 模块提供真实主数据、库存日历、报价/预订/取消/no-show、前台与账单接口；
-- 尚未完成：店铺级支付策略（预付/到店付/定金）、押金策略、取消政策、积分抵扣和 OTA 真实渠道；
-- 明确不做：发票、公安入住登记、动态收益定价、跨集团 CRS、复杂套餐/宴会/长租、多币种（仅 USD/CNY）、会员等级价/协议价、OTA 真实渠道与沙箱。
+- 后端：`platform-order-service` 的 `hotel` 模块提供真实主数据、库存日历、报价/预订/取消/no-show、前台、账单与店铺策略接口；
+- 支付/押金：店铺策略支持预付、到店付、定金；定金使用独立收款单，前台收定金后确认预订；
+- 尚未完成：取消政策计费、积分抵扣、OTA 真实渠道；
+- 明确不做：发票、公安入住登记、动态收益定价、跨集团 CRS、复杂套餐/宴会/长租、多币种（仅 USD/CNY）、会员等级价/协议价、OTA 真实渠道与沙箱、在线支付（按 S7 deferral）。
 
 ## 相关
 

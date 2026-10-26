@@ -21,6 +21,7 @@ htl_stay                  在住记录（入住/退房）
 htl_folio                 账单头
 htl_folio_item            账单项（ROOM/DEPOSIT/REFUND，退款必须带 method=CASH|ONLINE）
 htl_housekeeping_task     客房清扫任务
+htl_policy                店铺策略（支付/押金/取消/积分开关；一个酒店一条）
 ```
 
 ## 关键唯一键
@@ -59,7 +60,9 @@ WHERE room_type_id = ? AND stay_date = ? AND total - sold - held >= n
 
 ```text
 PENDING_PAYMENT -> CONFIRMED -> ARRIVAL -> IN_HOUSE -> DUE_OUT -> CHECKED_OUT
+PENDING_DEPOSIT -> CONFIRMED
 PENDING_PAYMENT -> CANCELLED
+PENDING_DEPOSIT -> CANCELLED
 CONFIRMED       -> CANCELLED
 CONFIRMED       -> NO_SHOW
 ```
