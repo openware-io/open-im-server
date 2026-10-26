@@ -37,7 +37,7 @@ public class HotelBookingController {
     public HotelBookingPo create(@RequestBody BookingRequest request) {
         return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
                 request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
-                request.guestName(), request.guestPhone(), request.note());
+                request.guestName(), request.guestPhone(), request.note(), request.bookedByAccountId());
     }
 
     @GetMapping("/bookings")
@@ -67,5 +67,6 @@ public class HotelBookingController {
                                Integer rooms) {}
 
     public record BookingRequest(Long roomTypeId, Long ratePlanId, LocalDate checkInDate, LocalDate checkOutDate,
-                                 Integer rooms, String guestName, String guestPhone, String note) {}
+                                 Integer rooms, String guestName, String guestPhone, String note,
+                                 Long bookedByAccountId) {}
 }
