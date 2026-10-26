@@ -61,7 +61,6 @@ public class AuthContextApplicationService {
                 // 注册为运营人员。B 端原生员工没有 consumer 授权锚点，因此不能强制要求 consumerContext；
                 // 有锚点时仍按锚点过滤，避免 H5 跨租户看到无关上下文。
                 List<TenantServiceClient.TenantContext> operatorContexts = tenantClient.contexts(accountId);
-                log.info("B contexts accountId={} appId={} operatorContexts={}", accountId, appId, operatorContexts);
                 if (operatorContexts == null || operatorContexts.isEmpty()) {
                     throw staffNotBound();
                 }
@@ -81,13 +80,12 @@ public class AuthContextApplicationService {
                     }
                     return items;
                 }
-                log.info("B contexts anchor={}", anchor);
                 final TenantServiceClient.TenantContext anchorContext = anchor;
                 List<ContextItem> items = operatorContexts.stream()
                         .filter(AuthContextApplicationService::hasOperatorRole)
-                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchorContext.tenantId())
-                                && (anchorContext.storeId() == null || ctx.storeId() == null
-                                    || ctx.storeId().equals(anchorContext.storeId())))
+                        // B 端员工可能被授权到多个门店，consumer 授权锚点只用于确认租户，
+                        // 不能再要求门店相同，否则 Hotel 员工会被 KTV consumer 锚点误判为未绑定。
+                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchorContext.tenantId()))
                         .map(AuthContextApplicationService::toContextItem)
                         .toList();
                 if (items.isEmpty()) {
