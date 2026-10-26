@@ -120,6 +120,37 @@ paths:
                 $ref: '#/components/schemas/Room'
         '409':
           $ref: '#/components/responses/Conflict'
+  /admin/hotel/rooms/{roomId}/status:
+    put:
+      tags: [Rooms]
+      operationId: setRoomStatus
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ACTIVE, MAINTENANCE]
+      responses:
+        '200':
+          description: Updated room status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /admin/hotel/rate-plans:
     get:
       tags: [Rates]
@@ -309,6 +340,13 @@ paths:
       operationId: checkIn
       parameters:
         - $ref: '#/components/parameters/BookingId'
+        - name: roomId
+          in: query
+          required: false
+          description: Physical room selected by the front desk; omitted for automatic assignment.
+          schema:
+            type: integer
+            format: int64
       responses:
         '200':
           description: Checked in
@@ -430,7 +468,7 @@ components:
         roomTypeId: { type: integer, format: int64 }
         roomNo: { type: string }
         floor: { type: string }
-        status: { type: string, enum: [ACTIVE, OUT_OF_ORDER, DISABLED] }
+        status: { type: string, enum: [ACTIVE, OCCUPIED, DIRTY, MAINTENANCE] }
     RoomUpsert:
       type: object
       required: [roomTypeId, roomNo]

@@ -20,11 +20,12 @@
 
 ## 现状
 
-- C 端原型：`open-chat-app/lib/screens/mock_venue_flow_screens.dart`（服务中心 → 酒店 → 列表/详情/房型/预订；已补离店日期、客房数、住客人数）；
-- B 端原型：`open-saas-admin/src/views/tenant/hotel.vue`，路由 `/admin/tenant/hotel`（开发环境侧栏可见）；
-- B 端覆盖：经营概览、酒店资料、接入模式/销售入口、支付策略、房型房价、库存日历、预订订单、入住/退房；
-- 数据：全部为本地 mock，不调用后端；后续接入时替换数据源，不重建页面；
-- 尚未覆盖：真实库存、支付、取消退款、发票与公安登记、后端 BFF/API。
+- C 端：`open-saas-mobile/c-end/hotel-real.js`，已接真实酒店目录、报价、预订、订单与取消接口；
+- B 端前台：`open-saas-admin/src/views/tenant/hotel.vue`，路由 `/admin/tenant/hotel`，已接真实任务、入住选房、退房、续住、换房、押金、账单、退款、夜审、客房清扫和房态；
+- B 端主数据：`open-saas-admin/src/views/tenant/hotel-master.vue`，路由 `/admin/tenant/hotel-master`，维护酒店资料、房型、客房、房价计划、每日房价和按日期库存；
+- 后端：`platform-order-service` 的 `hotel` 模块提供真实主数据、库存日历、报价/预订/取消/no-show、前台与账单接口；
+- 尚未完成：店铺级支付策略（预付/到店付/定金）、押金策略、取消政策、积分抵扣和 OTA 真实渠道；
+- 明确不做：发票、公安入住登记、动态收益定价、跨集团 CRS、复杂套餐/宴会/长租、多币种（仅 USD/CNY）、会员等级价/协议价、OTA 真实渠道与沙箱。
 
 ## 相关
 
