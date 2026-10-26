@@ -112,6 +112,7 @@ public class AdminReportApplicationService {
             String to,
             String granularity) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         Map<String, EmployeeAgg> byKey = new LinkedHashMap<>();
         for (Map<String, Object> m : reportRepository.selectCashierOpenOrders(tenantId, storeId, scope.from(),
@@ -156,6 +157,7 @@ public class AdminReportApplicationService {
             String to,
             String granularity) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         Map<String, OperationsAgg> byKey = new LinkedHashMap<>();
         for (Map<String, Object> m : reportRepository.selectOperations(tenantId, storeId, scope.from(), scope.to(),
@@ -204,6 +206,7 @@ public class AdminReportApplicationService {
             String to,
             String granularity) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         Map<String, PaymentsAgg> byKey = new LinkedHashMap<>();
         for (Map<String, Object> m : reportRepository.selectCollections(tenantId, storeId, scope.from(), scope.to(),
@@ -255,6 +258,7 @@ public class AdminReportApplicationService {
             String to,
             String granularity) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         List<Map<String, Object>> sessions = reportRepository.selectResourceUtilization(tenantId, storeId, scope.from(),
                 scope.to(), scope.shiftSeconds());
@@ -313,6 +317,7 @@ public class AdminReportApplicationService {
             String to,
             String granularity) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         Map<String, GrossProfitAgg> byKey = new LinkedHashMap<>();
         for (Map<String, Object> m : reportRepository.selectItemRevenue(tenantId, storeId, scope.from(), scope.to(),
@@ -380,6 +385,7 @@ public class AdminReportApplicationService {
             Integer page,
             Integer pageSize) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, granularity);
         String detailStatus = normalizeStatus(status);
 
@@ -476,6 +482,7 @@ public class AdminReportApplicationService {
             String itemType,
             Integer topN) {
         Long tenantId = requireTenant();
+        storeId = requireScopedStoreId(storeId);
         Scope scope = Scope.of(from, to, null);
         String category = normalizeItemCategory(itemType);
         int limit = clampTopN(topN);
@@ -589,6 +596,18 @@ public class AdminReportApplicationService {
             return DEFAULT_PAGE_SIZE;
         }
         return Math.min(pageSize, MAX_PAGE_SIZE);
+    }
+
+    /** 门店上下文只能看本店；请求其他门店直接拒绝，空 storeId 也收敛到当前门店。 */
+    private static Long requireScopedStoreId(Long requestedStoreId) {
+        var context = TenantContextHolder.get();
+        if (context != null && context.storeId() != null && context.storeId() > 0) {
+            if (requestedStoreId != null && !requestedStoreId.equals(context.storeId())) {
+                throw new ApiException(403, "REPORT_STORE_SCOPE_MISMATCH", "门店账号只能查看当前门店报表");
+            }
+            return context.storeId();
+        }
+        return requestedStoreId;
     }
 
     private static Long requireTenant() {
