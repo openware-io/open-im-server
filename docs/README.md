@@ -63,6 +63,7 @@ docs/
 | [API 文档](30-reference/API_DOCUMENTATION.md) | 网关 Swagger/OpenAPI 入口 |
 | [协议说明](30-reference/PROTOCOL.md) | WebSocket 事件与 REST 约定 |
 | [OpenAPI 契约](30-reference/contracts/README.md) | 跨服务/对外接口契约 |
+| [客户接口受众](30-reference/CUSTOMER_AUDIENCE.md) | saas-c / saas-b 严格受众 |
 | [MQ 台账](30-reference/mq/REGISTRY.md) | Topic / 事件登记 |
 | [ADR 索引](20-architecture/adr/README.md) | 架构决策记录、状态与模板 |
 | [ADR 0007](20-architecture/adr/0007-version-named-exceptions.md) | 已撤回的 version 字段名决策 |
