@@ -32,13 +32,15 @@ public class HotelBookingApplicationService {
     private final HotelBookingNightMapper nightMapper;
     private final OrderApplicationService orderApplicationService;
     private final MemberLookupProvider memberLookupProvider;
+    private final HotelPolicyApplicationService policyService;
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
                                           HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
                                           HotelBookingNightMapper nightMapper,
                                           OrderApplicationService orderApplicationService,
-                                          MemberLookupProvider memberLookupProvider) {
+                                          MemberLookupProvider memberLookupProvider,
+                                          HotelPolicyApplicationService policyService) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
@@ -48,6 +50,7 @@ public class HotelBookingApplicationService {
         this.nightMapper = nightMapper;
         this.orderApplicationService = orderApplicationService;
         this.memberLookupProvider = memberLookupProvider;
+        this.policyService = policyService;
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -156,6 +159,16 @@ public class HotelBookingApplicationService {
             bookingNight.setCreatedAt(now);
             bookingNight.setUpdatedAt(now);
             nightMapper.insert(bookingNight);
+        }
+        HotelPolicyPo policy = policyService.paymentPolicy(booking.getHotelId(), context);
+        if ("PAY_AT_HOTEL".equals(policy.getPaymentMode())) {
+            // 到店付：预订直接确认，库存由 confirm 将 HELD 转为 SOLD。
+            return confirm(booking.getId());
+        }
+        if ("DEPOSIT".equals(policy.getPaymentMode())) {
+            booking.setStatus("PENDING_DEPOSIT");
+            booking.setUpdatedAt(LocalDateTime.now());
+            bookingMapper.updateById(booking);
         }
         return booking;
     }
