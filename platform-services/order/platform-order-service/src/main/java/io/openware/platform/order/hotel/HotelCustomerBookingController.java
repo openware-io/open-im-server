@@ -43,7 +43,8 @@ public class HotelCustomerBookingController {
     }
     return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
         request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
-        request.guestName(), request.guestPhone(), request.note(), context.accountId());
+        request.guestName(), request.guestPhone(), request.note(), context.accountId(),
+        request.pointsUsed());
   }
 
   @PostMapping("/bookings/{id}/cancel")
@@ -79,6 +80,6 @@ public class HotelCustomerBookingController {
 
   public record BookingRequest(Long roomTypeId, Long ratePlanId, LocalDate checkInDate,
                                LocalDate checkOutDate, Integer rooms, String guestName,
-                               String guestPhone, String note) {
+                               String guestPhone, String note, Long pointsUsed) {
   }
 }
