@@ -102,25 +102,27 @@ and C 端 “我的预约” reads the associated booking.
 Still incomplete:
 
 - B 后台 customer selector search was not reliably exercised end to end.
-- No automatic phone -> account resolution; operator must select/enter a customer.
-- No test for checkout/check-in status propagation to C.
+- Phone -> account resolution is now implemented inside the booking controller
+  when `bookedByAccountId` is absent.
+- Verified: admin booking without bookedByAccountId, guestPhone=13951800434
+  -> response bookedByAccountId=101 -> C booking API returns the same booking.
+- Admin confirm -> C booking API reflects CONFIRMED. Checkout/cancel UI propagation
+  remains to be exercised.
 
-Status: PARTIAL; business logic not closed.
+Status: create/link/confirm PASS; checkout/cancel UI still partial.
 
-### P1 - Hotel images are not implemented
+### P1 - Hotel images (implemented for demo)
 
-Evidence:
+Implemented a bundled SVG cover asset in B and C, plus an error fallback on C.
+Browser evidence:
 
 ```text
-B /admin/tenant/hotel: 0 <img>
-C /c/#/service/hotel: 0 <img>
-C /c/#/real-hotel/1: 0 <img>
+B /admin/tenant/hotel: img 640x360 complete=true
+C /c/#/service/hotel:  img 640x360 complete=true
 ```
 
-C uses `🏨` emoji and gradients; B explicitly says hotel master data is not connected.
-Image loading, broken-image fallback and room-type galleries cannot be validated.
-
-Status: FUNCTIONAL GAP, not a passing test.
+Status: PASS for the bundled demo cover and fallback. Per-hotel/room-type image
+management in B is still a separate product gap.
 
 ### P2 - Authorization coverage is partial
 
@@ -201,7 +203,7 @@ as current naming.
 | Platform tenant authz | PASS |
 | All platform authz | NOT FULLY VERIFIED |
 | Hotel booking customer link | PARTIAL |
-| Hotel images | NOT IMPLEMENTED |
+| Hotel images | PASS for bundled demo cover + fallback; per-hotel images pending |
 | Full browser/button coverage | NOT COMPLETE |
 | Docs current naming | PARTIAL (history remains) |
 | Frozen migrations immutability | PASS |
