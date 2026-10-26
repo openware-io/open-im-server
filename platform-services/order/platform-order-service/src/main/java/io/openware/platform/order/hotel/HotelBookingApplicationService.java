@@ -239,6 +239,12 @@ public class HotelBookingApplicationService {
             holdMapper.updateById(hold);
         }
         updateNights(bookingId, "CANCELLED");
+        HotelPolicyPo cancelPolicy = policyService.paymentPolicy(booking.getHotelId(), context);
+        HotelPolicyApplicationService.CancellationQuote quote =
+                policyService.cancellationQuote(booking, cancelPolicy, LocalDateTime.now());
+        booking.setCancelFeeMinor(quote.feeMinor());
+        booking.setRefundMinor(quote.refundMinor());
+        booking.setCancelledAt(LocalDateTime.now());
         booking.setStatus("CANCELLED");
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);

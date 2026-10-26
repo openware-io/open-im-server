@@ -637,5 +637,8 @@ components:
         depositOrderId: { type: integer, format: int64 }
         depositAmountMinor: { type: integer, format: int64 }
         hasStay: { type: boolean, description: 是否已有真实在住记录；历史预订为 false，前台不提供退房/换房 }
+        cancelFeeMinor: { type: integer, format: int64, description: 取消时按 cancelPolicy 计算出的费用 }
+        refundMinor: { type: integer, format: int64, description: 取消时计算出的应退金额，实际退款走支付能力 }
+        cancelledAt: { type: string, format: date-time }
         currency: { type: string }
         holdExpiresAt: { type: string, format: date-time }

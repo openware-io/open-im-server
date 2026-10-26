@@ -91,6 +91,33 @@ public class HotelPolicyApplicationService {
         return Math.max(1, Math.min(totalMinor, Math.round(totalMinor * bps / 10_000.0)));
     }
 
+    /**
+     * 取消政策：免费取消窗口、首晚费用、不可退。金额以订单总额和晚数为准，
+     * 仅计算应退金额，不在这里发起支付退款。
+     */
+    public CancellationQuote cancellationQuote(HotelBookingPo booking, HotelPolicyPo policy, LocalDateTime now) {
+        long total = Math.max(0L, booking.getAmountMinor() == null ? 0L : booking.getAmountMinor());
+        int nights = booking.getNights() == null || booking.getNights() <= 0 ? 1 : booking.getNights();
+        long oneNight = Math.min(total, Math.round(total / (double) nights));
+        String mode = policy == null || blank(policy.getCancelPolicy()) ? "FREE_UNTIL_24H" : policy.getCancelPolicy();
+        long fee;
+        if ("NON_REFUNDABLE".equals(mode)) {
+            fee = total;
+        } else if ("FIRST_NIGHT".equals(mode)) {
+            fee = oneNight;
+        } else if ("FREE_UNTIL_48H".equals(mode)) {
+            fee = booking.getCheckInDate() != null
+                    && now.isBefore(booking.getCheckInDate().atStartOfDay().minusHours(48)) ? 0 : oneNight;
+        } else {
+            fee = booking.getCheckInDate() != null
+                    && now.isBefore(booking.getCheckInDate().atStartOfDay().minusHours(24)) ? 0 : oneNight;
+        }
+        fee = Math.min(total, fee);
+        return new CancellationQuote(fee, total - fee);
+    }
+
+    public record CancellationQuote(long feeMinor, long refundMinor) {}
+
     /** 下单读取支付策略；没有配置时按预付处理，保持既有订单状态机。 */
     public HotelPolicyPo paymentPolicy(Long hotelId, TenantContext context) {
         HotelPolicyPo policy = find(hotelId, context);
