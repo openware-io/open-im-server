@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
  *
  * <p><b>ratio 语义（冻结，见 16_CURRENCY_CONVENTIONS §9）</b>：{@code ratio = N} 表示
  * <b>1 个主单位（1 元 / 1 美元，随租户币种，默认 USD）= N 代币</b>。
- * 该比例<b>仅用于展示与文案</b>（例如界面提示「充 100 元得 10,000 A380币」），
+ * 该比例<b>仅用于展示与文案</b>（例如界面提示「充 100 元得 10,000 OpenChat币」），
  * <b>硬约束：禁止参与任何入账 / 扣减 / 对账 / 退款 / 日结计算</b>——钱包账本、支付、退款、班次日结
  * 一律只用<b>最小货币单位</b>（CNY 分 / USD cent）的整数金额，不按 ratio 折算；跨币种不做折算（§1）。
  * 本接口只做键值读写，不引入任何换算逻辑。
@@ -34,7 +34,7 @@ public class TenantConfigController {
      * 当前租户的钱包代币展示名与比例（租户来自上下文）。
      *
      * <p>{@code ratio} 是展示口径：1 个主单位（随租户币种）= ratio 个代币；调用方<b>不得</b>用它做金额换算。
-     * 缺行/空值/非法值一律回退 {@code A380币 / 100}（与内部端点同源，读路径不抛错）。
+     * 缺行/空值/非法值一律回退 {@code OpenChat币 / 100}（与内部端点同源，读路径不抛错）。
      */
     @GetMapping
     public WalletTokenConfig get(@RequestParam(required = false) Long tenantId) {

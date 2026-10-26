@@ -5,7 +5,7 @@ USE open_saas;
 -- 1) 管理后台租户管理员映射到统一账本账号 101
 UPDATE cons_admin_account
    SET platform_account_id = 101, updated_at = NOW(3)
- WHERE username = 'a380-admin';
+ WHERE username = 'openchat-admin';
 
 -- 2) 账号 101 同时具备 STAFF（后台）与 CUSTOMER（C 端）身份
 INSERT INTO tnt_membership
@@ -76,7 +76,7 @@ SELECT 100, 102, 1, DATE_ADD('2026-10-25', INTERVAL n DAY), 10, 0, 0, 0, NOW(3),
 ON DUPLICATE KEY UPDATE total = VALUES(total), updated_at = NOW(3);
 
 -- 校验
-SELECT 'store' AS item, COUNT(*) AS cnt FROM tnt_store WHERE tenant_id = 100 AND code = 'a380-hotel-001'
+SELECT 'store' AS item, COUNT(*) AS cnt FROM tnt_store WHERE tenant_id = 100 AND code = 'openchat-hotel-001'
 UNION ALL SELECT 'staff', COUNT(*) FROM tnt_membership WHERE tenant_id = 100 AND account_id = 101 AND membership_type = 'STAFF'
 UNION ALL SELECT 'customer', COUNT(*) FROM tnt_membership WHERE tenant_id = 100 AND account_id = 101 AND membership_type = 'CUSTOMER'
 UNION ALL SELECT 'inventory', COUNT(*) FROM htl_inventory_calendar WHERE tenant_id = 100 AND store_id = 102;

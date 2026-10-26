@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 客户端无法通过网关访问 `/internal/**`。调用方 source 必须列在
  * {@code internal.service-auth.expected-source} 白名单内（缺省含 platform-customer-service）。
  *
- * <p>读路径一律缺省（币种 USD、代币 {@code A380币 / 100}）、绝不抛异常：签发上下文不能因为币种查询失败
+ * <p>读路径一律缺省（币种 USD、代币 {@code OpenChat币 / 100}）、绝不抛异常：签发上下文不能因为币种查询失败
  * 而失败，C 端余额/流水展示也不能因为租户代币配置读取失败而失败。
  */
 @RestController
@@ -43,7 +43,7 @@ public class InternalTenantConfigController {
     }
 
     /**
-     * 目标租户的钱包代币展示配置（品牌展示名 + ratio）；无配置/非法值回退 {@code A380币 / 100}。
+     * 目标租户的钱包代币展示配置（品牌展示名 + ratio）；无配置/非法值回退 {@code OpenChat币 / 100}。
      *
      * <p>调用方按 {@code 代币数量 = 余额最小单位 ÷ 100 × ratio} 换算<b>展示</b>数量；
      * ratio 禁止参与任何金额计算（§9）。

@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A380币储值账本应用服务（账本只追加，扣减前校验余额）。
+ * OpenChat币储值账本应用服务（账本只追加，扣减前校验余额）。
  * 金额单位为最小货币单位整数。
  *
  * <p><b>账户懒初始化（2026-09-19）</b>：储值账户<b>只在首次充值</b>（{@link #recharge}）时创建。
@@ -121,7 +121,7 @@ public class WalletApplicationService {
     }
 
     /**
-     * 储值消费（组合收款 A380币抵扣，账本 CONSUME，幂等）。
+     * 储值消费（组合收款 OpenChat币抵扣，账本 CONSUME，幂等）。
      * 金额最小货币单位整数；同主体同币种；扣减前校验余额，不足拒绝（LEDGER_INSUFFICIENT）。
      * 没有账户的会员按余额 0 处理：同样回 LEDGER_INSUFFICIENT（**不是** 404，也不为失败路径建账户）。
      */

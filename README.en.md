@@ -63,7 +63,7 @@ The first run builds all service images and downloads dependencies; duration dep
 | --- | --- |
 | Unified portal | `http://<host-ip>:30080/` |
 | SaaS admin | `http://<host-ip>:30080/saas/` |
-| SaaS C-end (H5) | `http://<host-ip>:30080/a380/` |
+| SaaS C-end (H5) | `http://<host-ip>:30080/c/` |
 | SaaS B-end / operator console | `http://<host-ip>:30080/b/` |
 | IM admin | `http://<host-ip>:30080/im/` |
 | Gateway health | `http://<host-ip>:30080/actuator/health` |

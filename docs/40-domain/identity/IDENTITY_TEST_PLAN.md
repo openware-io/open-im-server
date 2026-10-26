@@ -40,7 +40,7 @@ SaaS B App/移动端（前厅）
 
 ```text
 平台管理员：admin / Admin@123
-租户 owner：a380-admin / Admin@123
+租户 owner：openchat-admin / Admin@123
 门店经理：mobile.manager5 / Mobile@123
 酒店门店：businessType=HOTEL（不得挂在 KTV 门店）
 C 客户：真实 OAuth 首次授权创建

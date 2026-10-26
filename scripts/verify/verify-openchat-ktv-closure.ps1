@@ -9,7 +9,7 @@ param(
   [string]$DatabaseSecretKey = 'DB_PASSWORD',
   [string]$RedisSecret = $DatabaseSecret,
   [string]$RootDatabaseSecretKey = $DatabaseSecretKey,
-  [string]$AdminUser = 'a380-admin',
+  [string]$AdminUser = 'openchat-admin',
   [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD
 )
 
@@ -80,8 +80,8 @@ $username = "ktvgate$script:suffix"; $password = "Kt!$script:suffix-gate"
 $registration = Json 'POST' '/api/v1/auth/register' @{username=$username;password=$password;nickname='KTV Gate';email="$username@example.invalid"} @{}
 $script:imToken = $registration.access_token; if (!$script:imToken) { throw 'Disposable IM registration failed.' }
 try {
-  $grant = Code "$H5Base/a380/"
-  $callback = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/identity/oauth/im/callback" -ContentType 'application/json' -Body (@{code=$grant.code;code_verifier=$grant.verifier;redirect_uri="$H5Base/a380/";app_id='saas-c';appId='saas-c';state=$grant.state;nonce=$grant.nonce}|ConvertTo-Json)
+  $grant = Code "$H5Base/c/"
+  $callback = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/identity/oauth/im/callback" -ContentType 'application/json' -Body (@{code=$grant.code;code_verifier=$grant.verifier;redirect_uri="$H5Base/c/";app_id='saas-c';appId='saas-c';state=$grant.state;nonce=$grant.nonce}|ConvertTo-Json)
   $cCookie = @($callback.BaseResponse.Headers.GetValues('Set-Cookie') | ForEach-Object { ($_ -split ';')[0] } |
     Where-Object { $_ -match '^(__Host-)?saas_[bc]_session=' } | Select-Object -First 1)[0]
   if ($cCookie -notmatch '^(__Host-)?saas_[bc]_session=') { throw "OAuth callback did not return a SaaS session cookie. status=$($callback.StatusCode) body=$($callback.Content)" }
@@ -93,7 +93,7 @@ try {
   $adminLogin = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/admin/auth/login" -ContentType 'application/json' -Body (@{username=$AdminUser;password=$AdminPassword;ttlHours=1}|ConvertTo-Json)
   $adminCookie = ($adminLogin.Headers['Set-Cookie'] -split ';')[0]; $adminCsrf = (Json 'GET' '/api/v1/admin/auth/csrf' $null @{Cookie=$adminCookie}).csrfToken; $adminHeaders=@{Cookie=$adminCookie;'X-CSRF-Token'=$adminCsrf}
   $adminContext = Json 'POST' '/api/v1/admin/context/select' @{contextId='100:100:100'} $adminHeaders
-  if ($adminContext.permissions -notcontains 'order.add_item') { throw 'A380 context did not receive order.add_item after IAM migration.' }
+  if ($adminContext.permissions -notcontains 'order.add_item') { throw 'OpenChat context did not receive order.add_item after IAM migration.' }
   $script:testRoomId = [long](SqlValue "SELECT id FROM res_resource WHERE tenant_id=100 AND store_id=100 AND resource_type='KTV_ROOM' AND status='ENABLED' AND cleaning_status='IDLE' AND room_type_id IS NULL ORDER BY id LIMIT 1;")
   if (!$script:testRoomId) { throw 'No unbound enabled KTV room is available for the disposable fixture.' }
   $script:testRoomTypeId = [long](SqlValue "INSERT INTO res_room_type(tenant_id,store_id,code,name,capacity,unit_price,server_unit_price,sort_order,status,created_by,created_at,updated_by,updated_at) VALUES(100,100,'E2E_$script:suffix','E2E RoomType $script:suffix',8,12800,5000,999,'ACTIVE',0,NOW(3),0,NOW(3)); SELECT LAST_INSERT_ID();")

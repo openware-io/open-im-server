@@ -31,7 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.mockito.ArgumentCaptor;
 
 /**
- * A380币储值账本：只追加流水、扣减前校验余额、幂等。
+ * OpenChat币储值账本：只追加流水、扣减前校验余额、幂等。
  *
  * <p><b>本类只断言「端口调用语义」</b>（standards/10「测试分层」）：用什么 SQL、写了哪些列属于适配器
  * 的职责，由 {@code WalletAccountRepositoryAdapterTest} 用真实适配器 + mock mapper 覆盖。

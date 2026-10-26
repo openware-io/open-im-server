@@ -591,7 +591,7 @@ Write-Host "  Bind:    $LocalBindAddress"
 Write-Host '  Ingress: http://<host-ip>:30080'
 Write-Host '  IM Admin: http://<host-ip>:30080/im/'
 Write-Host '  SaaS Admin: http://<host-ip>:30080/saas/'
-Write-Host '  SaaS Mobile: http://<host-ip>:30080/a380/ or /b/'
+Write-Host '  SaaS Mobile: http://<host-ip>:30080/c/ or /b/'
 Write-Host '  Portal: http://<host-ip>:30080/'
 $releaseOutputDirectory = Join-Path $root '.outputs\releases'
 $releaseOutputPath = Join-Path $releaseOutputDirectory ("$releaseId.json")

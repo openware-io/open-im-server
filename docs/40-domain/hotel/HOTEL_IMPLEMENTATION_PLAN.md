@@ -155,7 +155,7 @@ SINGLE_STORE  = store 级酒店目录 + 本店库存
 
 ## 2. 原型现状与缺口
 
-现有原型：`open-chat-app/web/miniservice/a380`。
+现有原型：`open-chat-app/web/miniservice/c`。
 
 | 原型页面 | 已表达 | 真实实现缺口 |
 | --- | --- | --- |

@@ -110,7 +110,7 @@ OTA later becomes another `SalesEntry=OTA` plus channel mapping, not a new domai
 
 ## 2. Prototype gap
 
-Prototype: `open-chat-app/web/miniservice/a380`.
+Prototype: `open-chat-app/web/miniservice/c`.
 
 | Screen | Covered | Missing |
 | --- | --- | --- |

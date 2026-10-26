@@ -31,7 +31,7 @@ app:
     base-url: ${TENANT_SERVICE_BASE_URL:http://platform-tenant-service:4110}
 # 出站内部调用签名（HMAC 鉴权版本 2）：secret 必须与 tenant-service 的
 # INTERNAL_SERVICE_AUTH_SECRET 一致；tenant-service 的 INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE
-# 白名单必须包含 platform-customer-service，否则内部端点 401 → 代币品牌回退缺省 A380币（只打 WARN）。
+# 白名单必须包含 platform-customer-service，否则内部端点 401 → 代币品牌回退缺省 OpenChat币（只打 WARN）。
 internal:
   service-auth:
     service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-customer-service}

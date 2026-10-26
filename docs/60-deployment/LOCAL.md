@@ -35,7 +35,7 @@ kubectl --context kind-open-im-local get ingress -n open-im-local
 
 - 统一门户：`http://<本机IP>:30080/`
 - SaaS 管理后台：`http://<本机IP>:30080/saas/`
-- SaaS C 端：`http://<本机IP>:30080/a380/`
+- SaaS C 端：`http://<本机IP>:30080/c/`
 - SaaS B 端：`http://<本机IP>:30080/b/`
 - IM 管理后台：`http://<本机IP>:30080/im/`
 - 网关健康检查：`http://<本机IP>:30080/actuator/health`
@@ -162,7 +162,7 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 - 网关健康检查：`http://<宿主机局域网IP>:30080/actuator/health`
 - IM 管理后台：`http://<宿主机局域网IP>:30080/im/`
 - SaaS 管理后台：`http://<宿主机局域网IP>:30080/saas/`
-- SaaS 移动端 C 端：`http://<宿主机局域网IP>:30080/a380/`
+- SaaS 移动端 C 端：`http://<宿主机局域网IP>:30080/c/`
 - SaaS 移动端 B 端：`http://<宿主机局域网IP>:30080/b/`
 - 统一门户：`http://<宿主机局域网IP>:30080/`
 - MinIO API/控制台：`http://<宿主机局域网IP>:30900` / `http://<宿主机局域网IP>:30901`

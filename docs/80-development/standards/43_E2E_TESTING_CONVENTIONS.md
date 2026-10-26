@@ -49,7 +49,7 @@
 | --- | --- |
 | `oidc-hybrid-preflight.ps1` | 发版前预检：issuer、Redis 前缀、secret/配置一致性 |
 | `verify-oidc-cb-session.ps1` | C/B 会话隔离、CSRF、logout/re-login 真实 OAuth 回调验证 |
-| `verify-a380-ktv-closure.ps1` | SaaS A380 KTV 预约/履约/账单/结算闭环（真实数据） |
+| `verify-openchat-ktv-closure.ps1` | SaaS OpenChat KTV 预约/履约/账单/结算闭环（真实数据） |
 | `ack-auth-contract.ps1` | ACK 环境授权契约验证 |
 | `local-integration.ps1` | 本地集成入口 |
 | `e2e-ktv-smoke.ps1` | KTV 冒烟（旧的无 Cookie/JSON 上下文路径，保留作历史对照） |
@@ -93,7 +93,7 @@
 ## 6. 需要持续补充的用例面
 
 - 群聊解散后禁发消息、@成员名单与成员资料一致、消息编辑同步、加好友/成为好友通知、注册报错 i18n、登录设备列表、未读角标（含后台关闭私密/私密群聊后的排除）。
-- 服务板块（小程序服务列表）→ A380 / A380 后台的跳转与权限完整性。
+- 服务板块（小程序服务列表）→ OpenChat 后台的跳转与权限完整性。
 
 ## 7. 原则与允许禁止例外
 

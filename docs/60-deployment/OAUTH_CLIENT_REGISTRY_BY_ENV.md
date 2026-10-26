@@ -10,10 +10,10 @@
 | 字段 | Kind（本地联调） | ACK-dev | 生产 |
 | --- | --- | --- | --- |
 | 网关/API | `http://<LAN-IP>:30080` | `https://api.dev.example.com` | 生产域名 |
-| SaaS C 端 H5 | `http://<LAN-IP>:30080/a380/` | `https://miniservice.dev.example.com/a380/` | 生产域名/a380/ |
+| SaaS C 端 H5 | `http://<LAN-IP>:30080/c/` | `https://miniservice.dev.example.com/c/` | 生产域名/c/ |
 | SaaS B 端 H5 | `http://<LAN-IP>:30080/b/` | `https://miniservice.dev.example.com/b/` | 生产域名/b/ |
 | Provider issuer | `http://<LAN-IP>:30080` | `https://api.dev.example.com` | 生产域名 |
-| `saas-c.callback_url` | `http://<LAN-IP>:30080/a380/` | `https://miniservice.dev.example.com/a380/` | 生产对应 |
+| `saas-c.callback_url` | `http://<LAN-IP>:30080/c/` | `https://miniservice.dev.example.com/c/` | 生产对应 |
 | `saas-b.callback_url` | `http://<LAN-IP>:30080/b/` | `https://miniservice.dev.example.com/b/` | 生产对应 |
 
 说明：Kind 使用局域网地址作为兼容表主回调，同时在 `user_oidc_redirect_uri` 精确登记局域网、`127.0.0.1` 与 `localhost` 回调，使真机和本机浏览器可并行验证。**Kind 的正确基线就是本地值，不是 ACK 域名**；ACK-dev/生产库仅登记各自 HTTPS 域名。

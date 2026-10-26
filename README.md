@@ -65,7 +65,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
 | --- | --- |
 | 统一门户 | `http://<本机IP>:30080/` |
 | SaaS 管理后台 | `http://<本机IP>:30080/saas/` |
-| SaaS C 端（H5） | `http://<本机IP>:30080/a380/` |
+| SaaS C 端（H5） | `http://<本机IP>:30080/c/` |
 | SaaS B 端 / 运营后台 | `http://<本机IP>:30080/b/` |
 | IM 管理后台 | `http://<本机IP>:30080/im/` |
 | 网关健康检查 | `http://<本机IP>:30080/actuator/health` |

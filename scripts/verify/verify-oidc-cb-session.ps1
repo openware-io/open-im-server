@@ -82,7 +82,7 @@ $script:imToken = $registration.access_token
 if ([string]::IsNullOrWhiteSpace($script:imToken)) { throw 'Registration did not return an IM token.' }
 
 try {
-  $cCookie = New-SaasSession 'saas-c' "$H5Base/a380/"
+  $cCookie = New-SaasSession 'saas-c' "$H5Base/c/"
   $bCookie = New-SaasSession 'saas-b' "$H5Base/b/"
   $cCookieName = ($cCookie -split '=')[0]
   $bCookieName = ($bCookie -split '=')[0]
@@ -97,7 +97,7 @@ try {
   $logoutStatus = & curl.exe -sS -o NUL -w '%{http_code}' -X POST -H "Cookie: $cCookie" -H "X-CSRF-Token: $($csrf.csrfToken)" "$Gateway/api/v1/auth/logout"
   if ($logoutStatus -ne '200') { throw "C logout failed: $logoutStatus" }
   if ((Get-SaasSession $cCookie).authenticated) { throw 'C logout did not revoke the session.' }
-  $cReLogin = New-SaasSession 'saas-c' "$H5Base/a380/"
+  $cReLogin = New-SaasSession 'saas-c' "$H5Base/c/"
   if (!(Get-SaasSession $cReLogin).authenticated) { throw 'C re-login failed.' }
   Write-Output 'C/B OIDC session isolation, logout and re-login passed.'
 } finally {

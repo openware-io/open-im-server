@@ -18,7 +18,7 @@ import org.springframework.web.client.RestClient;
  *
  * <p><b>失败一律回退缺省并只打 WARN</b>：租户上下文缺失、网络/超时、401（source 不在
  * {@code internal.service-auth.expected-source} 白名单）、响应为空、品牌/比例非法——都退化成
- * {@code A380币 / 100}。C 端余额与流水展示不能因为租户配置读取失败而失败，也绝不把代币数量当金额。
+ * {@code OpenChat币 / 100}。C 端余额与流水展示不能因为租户配置读取失败而失败，也绝不把代币数量当金额。
  *
  * <p>本客户端只取「品牌展示名 + 比例」两个展示用值：<b>不得</b>用于入账 / 扣减 / 对账 / 退款 / 日结。
  */
@@ -101,7 +101,7 @@ public class TenantWalletTokenClient {
     }
 
     /**
-     * 归一化后的代币展示配置：品牌名保证非空白、ratio 保证为正（缺省 {@code A380币 / 100}）。
+     * 归一化后的代币展示配置：品牌名保证非空白、ratio 保证为正（缺省 {@code OpenChat币 / 100}）。
      * <b>只用于展示代币数量</b>，禁止参与任何金额计算。
      */
     public record WalletTokenConfig(String brandName, long ratio) {
