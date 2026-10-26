@@ -521,6 +521,20 @@ public class MemberApplicationService {
                         null, null, null);
     }
 
+    /**
+     * 单条历史脏密文不能让整页 500：记录 WARN 后按“无明文”展示，密文仍不直接下发。
+     */
+    private String decryptOrNull(String cipher, Long memberId, String field) {
+        if (cipher == null || cipher.isBlank()) return null;
+        try {
+            return aesGcmCipher.decrypt(cipher);
+        } catch (RuntimeException failure) {
+            log.warn("客户 PII 解密失败，按空值展示: memberId={}, field={}, cause={}", memberId, field,
+                    failure.getMessage());
+            return null;
+        }
+    }
+
     private boolean canViewPii() {
         TenantContext ctx = TenantContextHolder.get();
         return ctx != null && ctx.permissions() != null && ctx.permissions().contains(PII_PERMISSION);
