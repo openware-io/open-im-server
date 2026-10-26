@@ -14,6 +14,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,14 +34,17 @@ public class HotelBookingApplicationService {
     private final OrderApplicationService orderApplicationService;
     private final MemberLookupProvider memberLookupProvider;
     private final HotelPolicyApplicationService policyService;
+    private final HotelPointsClient pointsClient;
 
+    @Autowired
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
                                           HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
                                           HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
                                           HotelBookingNightMapper nightMapper,
                                           OrderApplicationService orderApplicationService,
                                           MemberLookupProvider memberLookupProvider,
-                                          HotelPolicyApplicationService policyService) {
+                                          HotelPolicyApplicationService policyService,
+                                          HotelPointsClient pointsClient) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
@@ -51,6 +55,18 @@ public class HotelBookingApplicationService {
         this.orderApplicationService = orderApplicationService;
         this.memberLookupProvider = memberLookupProvider;
         this.policyService = policyService;
+        this.pointsClient = pointsClient;
+    }
+
+    public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
+                                              HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
+                                              HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
+                                              HotelBookingNightMapper nightMapper,
+                                              OrderApplicationService orderApplicationService,
+                                              MemberLookupProvider memberLookupProvider,
+                                              HotelPolicyApplicationService policyService) {
+        this(bookingMapper, roomTypeMapper, ratePlanMapper, inventoryMapper, holdMapper, dailyRateMapper,
+                nightMapper, orderApplicationService, memberLookupProvider, policyService, null);
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -78,13 +94,21 @@ public class HotelBookingApplicationService {
     @Transactional
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note) {
-        return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note, null);
+        return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note, null, 0L);
     }
 
     @Transactional
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note,
                                         Long bookedByAccountId) {
+        return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note,
+                bookedByAccountId, 0L);
+    }
+
+    @Transactional
+    public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
+                                        int rooms, String guestName, String guestPhone, String note,
+                                        Long bookedByAccountId, Long requestedPoints) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         if (guestName == null || guestName.isBlank() || guestPhone == null || guestPhone.isBlank()) {
@@ -96,6 +120,33 @@ public class HotelBookingApplicationService {
         }
         HotelRoomTypePo roomType = requireRoomType(roomTypeId, context);
         HotelRatePlanPo ratePlan = requireRatePlan(ratePlanId, roomType.getHotelId(), context);
+        HotelPolicyPo paymentPolicy = policyService.paymentPolicy(roomType.getHotelId(), context);
+        long pointsUsed = requestedPoints == null ? 0L : requestedPoints;
+        if (pointsUsed < 0) {
+            throw new ApiException(400, "HOTEL_POINTS_INVALID", "积分数量不能为负数");
+        }
+        Long customerId = bookedByAccountId == null ? null
+                : memberLookupProvider.findMemberId(context.tenantId(), bookedByAccountId).orElse(null);
+        long pointsDiscount = 0L;
+        if (pointsUsed > 0) {
+            if (!Boolean.TRUE.equals(paymentPolicy.getPointsRedeemEnabled())
+                    || paymentPolicy.getPointsMaxRatioBps() == null
+                    || paymentPolicy.getPointsMaxRatioBps() <= 0) {
+                throw new ApiException(400, "HOTEL_POINTS_DISABLED", "当前酒店未开启积分抵扣");
+            }
+            if (customerId == null) {
+                throw new ApiException(403, "MEMBER_NOT_FOUND", "当前账号没有会员档案，不能使用积分");
+            }
+            long maxDiscount = Math.round(quote.totalMinor()
+                    * paymentPolicy.getPointsMaxRatioBps() / 10_000.0);
+            pointsDiscount = pointsClient.amountForPoints(pointsUsed);
+            if (pointsDiscount <= 0 || pointsDiscount > maxDiscount) {
+                throw new ApiException(400, "HOTEL_POINTS_LIMIT_EXCEEDED", "积分抵扣超过本单上限");
+            }
+            if (pointsClient.balance(customerId) < pointsUsed) {
+                throw new ApiException(409, "HOTEL_POINTS_INSUFFICIENT", "会员积分余额不足");
+            }
+        }
         LocalDateTime now = LocalDateTime.now();
         HotelBookingPo booking = new HotelBookingPo();
         booking.setTenantId(context.tenantId());
@@ -113,7 +164,9 @@ public class HotelBookingApplicationService {
         booking.setCheckInDate(checkIn);
         booking.setCheckOutDate(checkOut);
         booking.setStatus("PENDING_PAYMENT");
-        booking.setAmountMinor(quote.totalMinor());
+        booking.setAmountMinor(quote.totalMinor() - pointsDiscount);
+        booking.setPointsUsed(pointsUsed);
+        booking.setPointsDiscountMinor(pointsDiscount);
         booking.setCurrency(quote.currency());
         booking.setSource("WEB");
         booking.setHoldExpiresAt(now.plusMinutes(HOLD_MINUTES));
@@ -122,20 +175,30 @@ public class HotelBookingApplicationService {
         booking.setUpdatedAt(now);
         bookingMapper.insert(booking);
 
-        Long customerId = bookedByAccountId == null ? null
-                : memberLookupProvider.findMemberId(context.tenantId(), bookedByAccountId).orElse(null);
-        booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
-                context.organizationId(), context.storeId(), booking.getBookingNo(),
-                booking.getCurrency(), booking.getAmountMinor(), customerId));
-        HotelPolicyPo paymentPolicy = policyService.paymentPolicy(booking.getHotelId(), context);
-        if ("DEPOSIT".equals(paymentPolicy.getPaymentMode())) {
-            long depositMinor = policyService.depositAmount(booking.getAmountMinor(), paymentPolicy);
-            if (depositMinor > 0) {
-                booking.setDepositAmountMinor(depositMinor);
-                booking.setDepositOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
-                        context.organizationId(), context.storeId(), booking.getBookingNo() + "-DEP",
-                        booking.getCurrency(), depositMinor, customerId));
+        String pointsKey = "hotel-points:" + booking.getBookingNo();
+        boolean pointsRedeemed = false;
+        try {
+            if (pointsUsed > 0) {
+                pointsClient.redeem(customerId, pointsUsed, booking.getId(), pointsKey);
+                pointsRedeemed = true;
             }
+            booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
+                    context.organizationId(), context.storeId(), booking.getBookingNo(),
+                    booking.getCurrency(), booking.getAmountMinor(), customerId));
+            if ("DEPOSIT".equals(paymentPolicy.getPaymentMode())) {
+                long depositMinor = policyService.depositAmount(booking.getAmountMinor(), paymentPolicy);
+                if (depositMinor > 0) {
+                    booking.setDepositAmountMinor(depositMinor);
+                    booking.setDepositOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
+                            context.organizationId(), context.storeId(), booking.getBookingNo() + "-DEP",
+                            booking.getCurrency(), depositMinor, customerId));
+                }
+            }
+        } catch (RuntimeException e) {
+            if (pointsRedeemed) {
+                pointsClient.release(customerId, pointsUsed, booking.getId(), pointsKey);
+            }
+            throw e;
         }
         booking.setBookedByAccountId(bookedByAccountId);
         booking.setUpdatedAt(now);
@@ -248,6 +311,14 @@ public class HotelBookingApplicationService {
         booking.setStatus("CANCELLED");
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);
+        if (booking.getPointsUsed() != null && booking.getPointsUsed() > 0 && booking.getBookedByAccountId() != null) {
+            Long cancelCustomerId = memberLookupProvider
+                    .findMemberId(context.tenantId(), booking.getBookedByAccountId()).orElse(null);
+            if (cancelCustomerId != null) {
+                pointsClient.release(cancelCustomerId, booking.getPointsUsed(), booking.getId(),
+                        "hotel-points:" + booking.getBookingNo());
+            }
+        }
         return booking;
     }
 

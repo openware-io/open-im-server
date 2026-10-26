@@ -617,6 +617,7 @@ components:
         guestName: { type: string, maxLength: 128 }
         guestPhone: { type: string, maxLength: 32 }
         note: { type: string, maxLength: 255 }
+        pointsUsed: { type: integer, format: int64, minimum: 0, description: 使用积分；受酒店积分开关和最大抵扣比例限制 }
         source: { type: string, example: WEB }
     Booking:
       type: object
@@ -637,6 +638,8 @@ components:
         depositOrderId: { type: integer, format: int64 }
         depositAmountMinor: { type: integer, format: int64 }
         hasStay: { type: boolean, description: 是否已有真实在住记录；历史预订为 false，前台不提供退房/换房 }
+        pointsUsed: { type: integer, format: int64 }
+        pointsDiscountMinor: { type: integer, format: int64 }
         cancelFeeMinor: { type: integer, format: int64, description: 取消时按 cancelPolicy 计算出的费用 }
         refundMinor: { type: integer, format: int64, description: 取消时计算出的应退金额，实际退款走支付能力 }
         cancelledAt: { type: string, format: date-time }

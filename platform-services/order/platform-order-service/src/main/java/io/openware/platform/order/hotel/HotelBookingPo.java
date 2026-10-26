@@ -39,6 +39,8 @@ public class HotelBookingPo {
     private Long cancelFeeMinor;
     private Long refundMinor;
     private LocalDateTime cancelledAt;
+    private Long pointsUsed;
+    private Long pointsDiscountMinor;
     private String source;
     private LocalDateTime holdExpiresAt;
     private Integer version;
