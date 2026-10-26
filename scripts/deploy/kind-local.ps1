@@ -93,7 +93,7 @@ function Restart-KindWorkloads {
   }
   & kubectl --namespace $Namespace wait --for=condition=available deployment --all --timeout="$($StartupTimeoutSeconds)s" | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'SaaS workloads did not become available before the startup timeout.' }
-  # Deployment available 与 Ingress 路由生效之间有短暂窗口，恢复时给 Ingress 几次重试。
+  # Allow a short window for Ingress reconciliation after deployments become available.
   for ($attempt = 1; $attempt -le 10; $attempt++) {
     if (Test-HealthyKindWorkload) { return }
     Start-Sleep -Seconds 2
