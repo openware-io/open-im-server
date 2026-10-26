@@ -1,6 +1,6 @@
 -- 酒店店铺策略：支付模式、押金策略与取消/积分开关。
 -- 币种沿用租户级 tnt_tenant_config.currency，不在酒店策略中重复存储。
-CREATE TABLE IF NOT EXISTS `htl_policy` (
+CREATE TABLE `htl_policy` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
   `tenant_id` bigint unsigned NOT NULL COMMENT '租户ID',
   `store_id` bigint unsigned NOT NULL COMMENT '门店ID',
