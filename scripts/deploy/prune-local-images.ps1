@@ -37,6 +37,28 @@ foreach ($container in (docker ps -q)) {
   $id = (docker inspect --format '{{.Image}}' $container).Trim()
   if ($id) { [void]$usedIds.Add($id) }
 }
+# Kind 节点使用 containerd，Pod 镜像不一定出现在 docker ps 中；必须按 Pod spec
+# 把实际镜像加入保留集，否则会误删正在运行的 SaaS 服务镜像。
+$podImages = [System.Collections.Generic.HashSet[string]]::new()
+$previousErrorActionPreference = $ErrorActionPreference
+try {
+  $ErrorActionPreference = 'SilentlyContinue'
+  $podJson = & kubectl get pods --all-namespaces -o json 2>$null | Out-String
+  if ($podJson.Trim()) {
+    $pods = $podJson | ConvertFrom-Json
+    foreach ($pod in @($pods.items)) {
+      foreach ($container in @($pod.spec.containers)) {
+        if ($container.image) { [void]$podImages.Add([string]$container.image) }
+      }
+    }
+  }
+} finally {
+  $ErrorActionPreference = $previousErrorActionPreference
+}
+foreach ($image in $podImages) {
+  [void]$keep.Add($image)
+}
+Write-Host "Keeping $($podImages.Count) image reference(s) used by Kubernetes Pods"
 
 $removed = 0
 foreach ($line in (docker images --format '{{.Repository}}|{{.Tag}}|{{.ID}}')) {

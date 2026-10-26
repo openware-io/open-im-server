@@ -6,6 +6,7 @@ param(
   [switch]$Stop,
   [switch]$ValidateOnly,
   [switch]$PruneImages,
+  [switch]$Recover,
   [string]$ReleaseManifestPath,
   [string]$Namespace = 'open-im-local',
   [string]$KindClusterName = 'open-im-local',
@@ -59,6 +60,46 @@ function Test-HealthyKindWorkload {
   return $true
 }
 
+function Start-KindNodeContainers {
+  $nodes = @(& docker ps -a --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --format '{{.Names}}|{{.State}}' 2>$null)
+  if ($nodes.Count -eq 0) { return }
+  foreach ($node in $nodes) {
+    $parts = $node -split '\|', 2
+    if ($parts.Count -lt 2) { continue }
+    if ($parts[1] -ne 'running') {
+      Write-Host "Starting stopped Kind node $($parts[0])..."
+      & docker start $parts[0] | Out-Null
+      if ($LASTEXITCODE -ne 0) { throw "Unable to start Kind node $($parts[0])." }
+    }
+  }
+  $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
+  do {
+    $notReady = @(& kubectl get nodes --no-headers 2>$null | Where-Object { $_ -notmatch '\sReady\s' })
+    if ($LASTEXITCODE -eq 0 -and $notReady.Count -eq 0) { return }
+    Start-Sleep -Seconds 3
+  } while ([DateTime]::UtcNow -lt $deadline)
+  throw 'Kind nodes did not become Ready before the startup timeout.'
+}
+
+function Restart-KindWorkloads {
+  # Restart application deployments; keep stateful stores (mysql/mongodb/redis/minio/rocketmq) running.
+  $names = @(& kubectl get deployments --namespace $Namespace -o name 2>$null |
+    ForEach-Object { ($_ -split '/')[-1] } |
+    Where-Object { $_ -and $_ -notmatch '^(mysql|mongodb|redis|minio|rocketmq)' })
+  foreach ($name in $names) {
+    Write-Host "Restarting deployment/$name..."
+    & kubectl --namespace $Namespace rollout restart "deployment/$name" | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Unable to restart deployment/$name." }
+  }
+  & kubectl --namespace $Namespace wait --for=condition=available deployment --all --timeout="$($StartupTimeoutSeconds)s" | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw 'SaaS workloads did not become available before the startup timeout.' }
+  # Deployment available 与 Ingress 路由生效之间有短暂窗口，恢复时给 Ingress 几次重试。
+  for ($attempt = 1; $attempt -le 10; $attempt++) {
+    if (Test-HealthyKindWorkload) { return }
+    Start-Sleep -Seconds 2
+  }
+}
+
 if ($Stop) {
   & $k8sScript -Stop -Namespace $Namespace -KindClusterName $KindClusterName
   exit $LASTEXITCODE
@@ -71,6 +112,18 @@ Assert-Command 'kind' 'Install Kind from https://kind.sigs.k8s.io/.'
 
 $dockerReady = (& docker info --format '{{.ServerVersion}}' 2>$null | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or !$dockerReady) { throw 'Docker is installed but the Docker daemon is not running.' }
+
+Start-KindNodeContainers
+
+if ($Recover) {
+  if (-not (Test-HealthyKindWorkload)) {
+    Restart-KindWorkloads
+  }
+  if (-not (Test-HealthyKindWorkload)) { throw 'SaaS recovery did not reach a healthy state.' }
+  Write-Host "Recovered existing Kind workload in namespace '$Namespace'."
+  & kubectl get pods --namespace $Namespace
+  exit 0
+}
 
 if (Test-HealthyKindWorkload) {
   Write-Host "Healthy Kind workload found in namespace '$Namespace'; reusing existing Pods."
