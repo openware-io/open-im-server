@@ -76,17 +76,17 @@ Counts after this pass:
 
 ```text
 open-saas-mobile: 0 A380 lines
-open-chat-app:    75 A380 lines (Android l10n key, comments, legacy web prototype, tests)
-open-saas-admin:  12 A380 lines (prototype/docs/comments/test fixtures)
-open-im-server:   223 references (mostly frozen migrations, historical evidence, tests)
+open-chat-app:    0 A380 lines (l10n key renamed to servicesWalletSaaSCoin;
+                                web/miniservice/a380 removed; tests cleaned)
+open-saas-admin:  0 A380 lines
+open-im-server:  223 references (frozen migrations, historical evidence, tests)
 ```
 
-C active code is clean. Android and B still have non-runtime but active-looking
-A380 names (l10n key `servicesWalletA380Coin`, `web/miniservice/a380`, comments
-and test fixtures). Frozen migrations and historical evidence must remain
-immutable and should be labeled historical.
+C, B and Android active code are clean. Main remaining references are frozen
+migration seeds, historical S3/S5/S7 evidence and test fixtures, which must not
+be rewritten without a migration/evidence policy decision.
 
-Status: PARTIAL; C PASS, Android/B/Main history NOT CLEAN.
+Status: PASS for active client/admin code; historical main references remain.
 
 ### P1 - Admin hotel booking customer association is not a finished business flow
 
@@ -197,7 +197,7 @@ as current naming.
 | `/a380/` removal | PASS (404 via explicit not-found backend) |
 | Tenant data branding | PASS (saas-demo/SaaS) |
 | SaaS/IM separation in all UI | PASS (runtime); IM login stays OpenChat |
-| A380 internal namespace | C PASS; Android/B/Main partially remain |
+| A380 internal namespace | C/B/Android PASS; main historical only |
 | Platform tenant authz | PASS |
 | All platform authz | NOT FULLY VERIFIED |
 | Hotel booking customer link | PARTIAL |
