@@ -514,8 +514,8 @@ public class MemberApplicationService {
             return null;
         }
         boolean canViewPii = canViewPii();
-        String name = aesGcmCipher.decrypt(member.nameCipher());
-        String phone = aesGcmCipher.decrypt(member.phoneCipher());
+        String name = decryptOrNull(member.nameCipher(), member.id(), "name");
+        String phone = decryptOrNull(member.phoneCipher(), member.id(), "phone");
         return MemberDisplay.withoutDisplay(member)
                 .withDisplay(canViewPii ? name : maskName(name), canViewPii ? phone : maskPhone(phone),
                         null, null, null);
