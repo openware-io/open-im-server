@@ -38,13 +38,13 @@ class HotelCustomerBookingControllerTest {
     TenantContextHolder.set(new TenantContext(100L, 100L, 102L, 112L, 1,
         List.of("hotel.booking.create"), null, "HOTEL", null));
     when(service.createBooking(1L, 1L, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2),
-        1, "A", "1", null, 112L)).thenReturn(new HotelBookingPo());
+        1, "A", "1", null, 112L, 0L)).thenReturn(new HotelBookingPo());
 
     new HotelCustomerBookingController(service).create(
         new HotelCustomerBookingController.BookingRequest(1L, 1L, LocalDate.of(2026, 11, 1),
-            LocalDate.of(2026, 11, 2), 1, "A", "1", null));
+            LocalDate.of(2026, 11, 2), 1, "A", "1", null, 0L));
 
     verify(service).createBooking(1L, 1L, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2),
-        1, "A", "1", null, 112L);
+        1, "A", "1", null, 112L, 0L);
   }
 }
