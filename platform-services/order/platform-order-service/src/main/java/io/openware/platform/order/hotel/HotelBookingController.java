@@ -21,9 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class HotelBookingController {
 
     private final HotelBookingApplicationService service;
+    private final IdentityAccountLookupClient identityLookup;
 
-    public HotelBookingController(HotelBookingApplicationService service) {
+    public HotelBookingController(HotelBookingApplicationService service,
+                                  IdentityAccountLookupClient identityLookup) {
         this.service = service;
+        this.identityLookup = identityLookup;
     }
 
     @PostMapping("/quotes")
@@ -35,9 +38,13 @@ public class HotelBookingController {
     @PostMapping("/bookings")
     @ResponseStatus(HttpStatus.CREATED)
     public HotelBookingPo create(@RequestBody BookingRequest request) {
+        Long bookedByAccountId = request.bookedByAccountId();
+        if (bookedByAccountId == null && request.guestPhone() != null) {
+            bookedByAccountId = identityLookup.findByPhone(request.guestPhone()).orElse(null);
+        }
         return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
                 request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
-                request.guestName(), request.guestPhone(), request.note(), request.bookedByAccountId());
+                request.guestName(), request.guestPhone(), request.note(), bookedByAccountId);
     }
 
     @GetMapping("/bookings")

@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import io.openware.common.exception.ApiException;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 内部账号查询：tenant 平台角色授予前校验 account_type/status。 */
@@ -32,6 +34,16 @@ public class InternalAccountController {
    * 内部：按登录标识查/建 SaaS 账号。供 platform-admin-service 开通运营人员或
    * 平台初始化租户管理员使用；不暴露给浏览器。
    */
+  /** 内部：按手机号/登录标识查找 SaaS accountId，供后台代客下单关联客户。 */
+  @GetMapping("/lookup")
+  public Long lookup(@RequestParam String loginType, @RequestParam String loginIdentifier) {
+    Long accountId = accounts.findAccountIdByLogin(loginType, loginIdentifier);
+    if (accountId == null) {
+      throw new ApiException(404, "ACCOUNT_NOT_FOUND", "账号不存在");
+    }
+    return accountId;
+  }
+
   @PostMapping("/ensure")
   public AccountInfo ensure(@RequestBody EnsureAccountRequest req) {
     var account = accounts.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType());

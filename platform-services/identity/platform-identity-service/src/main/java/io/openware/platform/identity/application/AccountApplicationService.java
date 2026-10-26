@@ -147,6 +147,13 @@ public class AccountApplicationService {
         return account;
     }
 
+    /** 内部：按登录标识解析 SaaS accountId；不存在返回 null。 */
+    public Long findAccountIdByLogin(String loginType, String loginIdentifier) {
+        return loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier)
+                .map(io.openware.platform.identity.domain.account.model.LoginIdentity::accountId)
+                .orElse(null);
+    }
+
     public LoginResult login(String loginType, String loginIdentifier, String credential) {
         // 仅可用登录标识可登录：状态过滤收在端口方法里，应用层不再拼接查询条件。
         LoginIdentity identity = loginIdentityRepository
