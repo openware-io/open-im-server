@@ -19,7 +19,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>存储位置：{@code tnt_tenant_config} 的 {@code (tenant_id, store_id=0)} 下的键
  * {@code wallet_brand_name} / {@code wallet_ratio}（见 {@code docs/80-development/standards/24_CURRENCY_CONVENTIONS.md} §9）。
- * 缺省为 {@code OpenChat币} / {@code 100}；无行、空值、非数字、非正数一律按缺省处理，<b>读路径绝不抛异常</b>——
+ * 缺省为 {@code SaaS 币} / {@code 100}；无行、空值、非数字、非正数一律按缺省处理，<b>读路径绝不抛异常</b>——
  * 租户配置读取失败不能影响 C 端余额/流水展示，也不能影响客户端渲染。
  *
  * <p><b>ratio 语义（冻结）</b>：{@code ratio = N} 表示 <b>1 个主单位（1 元 / 1 美元，随租户币种，默认 USD）
@@ -38,7 +38,7 @@ public class WalletTokenConfigApplicationService {
     /** 租户配置键：1 个主单位兑换的代币个数。 */
     public static final String CONFIG_KEY_RATIO = "wallet_ratio";
     /** 缺省品牌展示名（与租户配置种子值一致，可用 SaaS 后台覆盖）。 */
-    public static final String DEFAULT_BRAND_NAME = "OpenChat币";
+    public static final String DEFAULT_BRAND_NAME = "SaaS 币";
     /** 缺省比例：1 个主单位 = 100 个代币。 */
     public static final long DEFAULT_RATIO = 100L;
 
@@ -130,7 +130,7 @@ public class WalletTokenConfigApplicationService {
      * 解析目标租户的代币展示配置。
      *
      * <p>tenantId 为空/非正、配置缺行、值为空或非法（非数字、&le;0）一律回退
-     * {@code OpenChat币 / 100}，绝不抛异常。
+     * {@code SaaS 币 / 100}，绝不抛异常。
      */
     public TenantWalletTokenConfig resolve(Long tenantId) {
         if (tenantId == null || tenantId <= 0) {

@@ -67,7 +67,7 @@ class MemberTimeRangeFilterTest {
                 new WalletTokenDisplayService(client));
         // 储值列表会先按上下文租户解析代币展示配置（比例用于代币数量换算），缺上下文/缺配置会 NPE。
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, 2001L, 0L, 0, java.util.List.of()));
-        when(client.resolve(TENANT_ID)).thenReturn(new TenantWalletTokenClient.WalletTokenConfig("OpenChat币", 100L));
+        when(client.resolve(TENANT_ID)).thenReturn(new TenantWalletTokenClient.WalletTokenConfig("SaaS 币", 100L));
     }
 
     @AfterEach

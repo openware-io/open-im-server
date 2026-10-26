@@ -9,7 +9,7 @@ param(
   [string]$DatabaseSecretKey = 'DB_PASSWORD',
   [string]$RedisSecret = $DatabaseSecret,
   [string]$RootDatabaseSecretKey = $DatabaseSecretKey,
-  [string]$AdminUser = 'openchat-admin',
+  [string]$AdminUser = 'tenant-admin',
   [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD
 )
 

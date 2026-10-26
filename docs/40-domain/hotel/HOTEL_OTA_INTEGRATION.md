@@ -28,7 +28,7 @@
 ## 2. 角色与边界
 
 ```text
-OTA / Channel Manager  <-->  OpenChat Hotel Channel API  <-->  Hotel Domain
+OTA / Channel Manager  <-->  SaaS Hotel Channel API  <-->  Hotel Domain
 ```
 
 - OTA：外部销售渠道；

@@ -50,7 +50,7 @@ class WalletTokenResponseContractTest {
   @Test
   void walletAccountJsonCarriesTokenQuantityAndKeepsMoneyFields() throws Exception {
     TenantContextHolder.set(new TenantContext(TENANT_ID, null, null, 1L, 1));
-    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("OpenChat币", 100L));
+    when(client.resolve(TENANT_ID)).thenReturn(new WalletTokenConfig("SaaS 币", 100L));
     WalletAccountView account = displayService.decorate(WalletAccountView.from(
         new WalletAccount(1L, null, 7L, null, "USD", 100L, 0L, null, null, true,
             WalletAccount.STATUS_ACTIVE, 0)));
@@ -60,7 +60,7 @@ class WalletTokenResponseContractTest {
 
     assertTrue(node.path("tokenAmount").isTextual(), "tokenAmount 必须是字符串数量");
     assertEquals("100", node.path("tokenAmount").asText());
-    assertEquals("OpenChat币", node.path("tokenBrandName").asText());
+    assertEquals("SaaS 币", node.path("tokenBrandName").asText());
     // 原货币字段不变：仍是「这笔钱」的最小货币单位与币种（对账/入账口径）
     assertEquals(100L, node.path("availableAmount").asLong());
     assertEquals(0L, node.path("frozenAmount").asLong());

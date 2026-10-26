@@ -76,6 +76,6 @@ public record BillResult(
     /** 4 优惠逐项：type ∈ {COUPON/DISCOUNT/FULL_REDUCTION/MEMBER_PRICE}。 */
     public record PromotionLine(String type, long amount) {}
 
-    /** 6 已收分项：现金（含线上渠道）/OpenChat币/积分，来自 payment 域组合收款分腿；读不到时退回「已收合计记现金」。 */
+    /** 6 已收分项：现金（含线上渠道）/SaaS 币/积分，来自 payment 域组合收款分腿；读不到时退回「已收合计记现金」。 */
     public record Collected(long cash, long wallet, long points) {}
 }

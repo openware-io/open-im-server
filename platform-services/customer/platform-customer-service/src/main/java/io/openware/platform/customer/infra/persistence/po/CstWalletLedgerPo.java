@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * OpenChat币储值账本流水（cst_wallet_ledger），只追加，不更新历史流水。
+ * SaaS 币储值账本流水（cst_wallet_ledger），只追加，不更新历史流水。
  */
 @Getter
 @Setter
@@ -33,7 +33,7 @@ public class CstWalletLedgerPo {
      */
     @TableField(exist = false)
     private String tokenAmount;
-    /** 非持久化：代币品牌展示名（租户配置 wallet_brand_name，缺省 OpenChat币）；是展示文案，不是币种。 */
+    /** 非持久化：代币品牌展示名（租户配置 wallet_brand_name，缺省 SaaS 币）；是展示文案，不是币种。 */
     @TableField(exist = false)
     private String tokenBrandName;
     private Long orderId;

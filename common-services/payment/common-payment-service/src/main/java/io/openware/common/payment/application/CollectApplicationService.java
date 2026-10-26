@@ -316,7 +316,7 @@ public class CollectApplicationService {
     }
 
     /**
-     * 按订单汇总已收分项（内部只读，供 order 域账单展示「现金/OpenChat币/积分」分腿）。
+     * 按订单汇总已收分项（内部只读，供 order 域账单展示「现金/SaaS 币/积分」分腿）。
      * 数据源是已确认的组合收款记录 pay_collect.response_json：同一订单可能分多次收款，
      * 逐笔累加各分腿；WALLET/POINT 之外的（现金/线上渠道）统一归入 cash。
      *

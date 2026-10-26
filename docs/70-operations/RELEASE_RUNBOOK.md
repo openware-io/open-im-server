@@ -17,7 +17,7 @@
 | 客户端（Flutter） | `D:\projects\cnb-oss\open-chat-app` | `javachat` | `pubspec.yaml` 的 `version: X.Y.Z+buildNumber` |
 | 管理后台（Vue） | `D:\projects\cnb-oss\open-chat-admin` | `develop/api-20260731-th` | `package.json` 的 `version` |
 | 官网（静态站） | `D:\projects\cnb\open-website` | `main` | `VERSION` |
-| SaaS 移动 H5（C端 OpenChat 更多服务 + B端 商户端） | `D:\projects\cnb-oss\open-saas-mobile` | `main` | `VERSION` |
+| SaaS 移动 H5（C端 SaaS 生活服务 + B端 商户端） | `D:\projects\cnb-oss\open-saas-mobile` | `main` | `VERSION` |
 
 > 分支名可能随时间演进；以 `git remote -v` + `git branch` 实测为准。官网 CMS 的版本号独立维护。
 

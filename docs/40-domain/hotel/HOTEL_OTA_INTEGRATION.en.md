@@ -20,7 +20,7 @@ Contract: [hotel-channel-v1.yaml](../../30-reference/contracts/openapi/hotel-cha
 ## 2. Roles
 
 ```text
-OTA / Channel Manager  <-->  OpenChat Hotel Channel API  <-->  Hotel Domain
+OTA / Channel Manager  <-->  SaaS Hotel Channel API  <-->  Hotel Domain
 ```
 
 OTAs and channel managers never write `res_inventory_calendar` or `ord_hotel_booking` directly. The channel contract is the only entry.

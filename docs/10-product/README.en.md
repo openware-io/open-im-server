@@ -37,7 +37,7 @@ It is not a chat-SDK demo. It is a product-grade foundation that runs locally en
 
 The in-app service board and H5 home cover hotels, KTV, bars, billiards, food, delivery and travel.
 
-Local demo data includes the `OpenChat 生活服务` tenant, `OpenChat KTV 旗舰店`, six KTV rooms, the service catalog, paid/completed orders and reservations.
+Local demo data includes the `SaaS 生活服务` tenant, `OpenChat KTV 旗舰店`, six KTV rooms, the service catalog, paid/completed orders and reservations.
 
 ![OpenChat C-end service board](../assets/screenshots/c-end.jpg)
 

@@ -9,7 +9,7 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * OpenChat币储值账本（cst_wallet_account），同主体同币种唯一。
+ * SaaS 币储值账本（cst_wallet_account），同主体同币种唯一。
  * 金额使用最小货币单位整数（bigint）。
  */
 @Getter
@@ -31,7 +31,7 @@ public class CstWalletAccountPo {
      */
     @TableField(exist = false)
     private String tokenAmount;
-    /** 非持久化：代币品牌展示名（租户配置 wallet_brand_name，缺省 OpenChat币）；是展示文案，不是币种。 */
+    /** 非持久化：代币品牌展示名（租户配置 wallet_brand_name，缺省 SaaS 币）；是展示文案，不是币种。 */
     @TableField(exist = false)
     private String tokenBrandName;
     /**

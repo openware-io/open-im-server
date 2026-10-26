@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: OpenChat Hotel Booking API
+  title: SaaS Hotel Booking API
   version: 1.0.0
   description: |
     Internal hotel booking contract for platform-admin-service BFF and

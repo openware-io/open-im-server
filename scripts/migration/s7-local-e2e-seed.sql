@@ -5,7 +5,7 @@ USE open_saas;
 -- 1) 管理后台租户管理员映射到统一账本账号 101
 UPDATE cons_admin_account
    SET platform_account_id = 101, updated_at = NOW(3)
- WHERE username = 'openchat-admin';
+ WHERE username = 'tenant-admin';
 
 -- 2) 账号 101 同时具备 STAFF（后台）与 CUSTOMER（C 端）身份
 INSERT INTO tnt_membership
