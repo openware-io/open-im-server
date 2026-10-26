@@ -283,7 +283,7 @@ class SaasSessionAuthenticationFilterTest {
   }
 
   @Test
-  void platformRoutePrefersSelectedTenantContextOverPresetPlatformContext() {
+  void platformRouteUsesPlatformContextEvenWhenTenantContextSelected() {
     ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
@@ -303,7 +303,30 @@ class SaasSessionAuthenticationFilterTest {
     }).block();
 
     assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context"))
-        .isEqualTo("selected-tenant-context");
+        .isEqualTo("signed-platform-context");
+  }
+
+  /** 只有租户上下文、没有平台上下文时，平台路由绝不能把租户 token 当平台权限转发。 */
+  @Test
+  void platformRouteDropsTenantContextWhenPlatformContextMissing() {
+    ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
+    when(redis.opsForValue()).thenReturn(values);
+    when(values.get("saas-admin:session:admin-session")).thenReturn(Mono.just(
+        "{\"accountId\":1,\"tenantContextToken\":\"selected-tenant-context\"}"));
+    SaasSessionAuthenticationFilter filter = new SaasSessionAuthenticationFilter(redis);
+    AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+    MockServerWebExchange exchange = MockServerWebExchange.from(
+        MockServerHttpRequest.get("/api/v1/admin/platform/tenants")
+            .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
+
+    filter.filter(exchange, requestExchange -> {
+      forwarded.set(requestExchange.getRequest());
+      return Mono.empty();
+    }).block();
+
+    assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context")).isNull();
   }
 
   /** 平台级路由在两族上下文都没有时仍必须放行（不能从「可用」退化成 401）。 */
