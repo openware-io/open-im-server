@@ -1,6 +1,5 @@
 package io.openware.platform.order.hotel;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import io.openware.infrastructure.security.InternalServiceAuthenticationInterceptor;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
@@ -24,13 +23,12 @@ public class IdentityAccountLookupClient {
     public Optional<Long> findByPhone(String phone) {
         if (phone == null || phone.isBlank()) return Optional.empty();
         try {
-            JsonNode node = restClient.get()
+            Long accountId = restClient.get()
                     .uri(uriBuilder -> uriBuilder.path("/internal/identity/accounts/lookup")
                             .queryParam("loginType", "PHONE")
                             .queryParam("loginIdentifier", phone.trim()).build())
-                    .retrieve().body(JsonNode.class);
-            if (node == null || !node.isNumber()) return Optional.empty();
-            return Optional.of(node.asLong());
+                    .retrieve().body(Long.class);
+            return accountId == null ? Optional.empty() : Optional.of(accountId);
         } catch (RestClientResponseException e) {
             return Optional.empty();
         } catch (RuntimeException e) {
