@@ -75,6 +75,19 @@ public class HotelPolicyApplicationService {
         return po;
     }
 
+    /** 定金金额：固定金额优先，否则按订单金额比例，最多不超过订单总额。 */
+    public long depositAmount(long totalMinor, HotelPolicyPo policy) {
+        if (totalMinor <= 0) {
+            return 0;
+        }
+        long fixed = policy.getStayDepositMinor() == null ? 0 : policy.getStayDepositMinor();
+        if (fixed > 0) {
+            return Math.min(fixed, totalMinor);
+        }
+        int bps = policy.getDepositRatioBps() == null ? 3000 : policy.getDepositRatioBps();
+        return Math.max(1, Math.min(totalMinor, Math.round(totalMinor * bps / 10_000.0)));
+    }
+
     /** 下单读取支付策略；没有配置时按预付处理，保持既有订单状态机。 */
     public HotelPolicyPo paymentPolicy(Long hotelId, TenantContext context) {
         HotelPolicyPo policy = find(hotelId, context);

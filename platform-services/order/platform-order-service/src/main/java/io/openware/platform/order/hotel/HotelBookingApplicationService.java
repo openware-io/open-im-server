@@ -127,6 +127,16 @@ public class HotelBookingApplicationService {
         booking.setOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
                 context.organizationId(), context.storeId(), booking.getBookingNo(),
                 booking.getCurrency(), booking.getAmountMinor(), customerId));
+        HotelPolicyPo paymentPolicy = policyService.paymentPolicy(booking.getHotelId(), context);
+        if ("DEPOSIT".equals(paymentPolicy.getPaymentMode())) {
+            long depositMinor = policyService.depositAmount(booking.getAmountMinor(), paymentPolicy);
+            if (depositMinor > 0) {
+                booking.setDepositAmountMinor(depositMinor);
+                booking.setDepositOrderId(orderApplicationService.createHotelReceivable(context.tenantId(),
+                        context.organizationId(), context.storeId(), booking.getBookingNo() + "-DEP",
+                        booking.getCurrency(), depositMinor, customerId));
+            }
+        }
         booking.setBookedByAccountId(bookedByAccountId);
         booking.setUpdatedAt(now);
         bookingMapper.updateById(booking);
@@ -160,12 +170,11 @@ public class HotelBookingApplicationService {
             bookingNight.setUpdatedAt(now);
             nightMapper.insert(bookingNight);
         }
-        HotelPolicyPo policy = policyService.paymentPolicy(booking.getHotelId(), context);
-        if ("PAY_AT_HOTEL".equals(policy.getPaymentMode())) {
+        if ("PAY_AT_HOTEL".equals(paymentPolicy.getPaymentMode())) {
             // 到店付：预订直接确认，库存由 confirm 将 HELD 转为 SOLD。
             return confirm(booking.getId());
         }
-        if ("DEPOSIT".equals(policy.getPaymentMode())) {
+        if ("DEPOSIT".equals(paymentPolicy.getPaymentMode())) {
             booking.setStatus("PENDING_DEPOSIT");
             booking.setUpdatedAt(LocalDateTime.now());
             bookingMapper.updateById(booking);

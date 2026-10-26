@@ -101,11 +101,11 @@ public class HotelFrontDeskController {
     public record BookingView(@JsonFormat(shape = JsonFormat.Shape.STRING) Long id,
                               String bookingNo, String guestName, Long roomTypeId, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,
-                              Long amountMinor, String currency) {
+                              Long amountMinor, Long depositOrderId, Long depositAmountMinor, String currency) {
         static BookingView from(HotelBookingPo po) {
             return new BookingView(po.getId(), po.getBookingNo(), po.getGuestName(), po.getRoomTypeId(),
                     po.getRoomType(), po.getRoomNo(), po.getCheckInDate(), po.getCheckOutDate(),
-                    po.getStatus(), po.getAmountMinor(), po.getCurrency());
+                    po.getStatus(), po.getAmountMinor(), po.getDepositOrderId(), po.getDepositAmountMinor(), po.getCurrency());
         }
     }
 }
