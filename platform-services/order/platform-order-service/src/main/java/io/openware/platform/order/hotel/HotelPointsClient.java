@@ -39,7 +39,7 @@ public class HotelPointsClient {
 
     /** 积分可抵扣金额（最小货币单位）。 */
     public long amountForPoints(long points) {
-        JsonNode node = get("/internal/customer/points/points-to-amount?points={points}", points);
+        JsonNode node = get("/internal/customer/points/points-to-amount/{points}", points);
         return node.path("amountMinor").asLong(0L);
     }
 

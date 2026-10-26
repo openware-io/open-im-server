@@ -96,8 +96,8 @@ public class InternalCustomerController {
         return new AmountToPointsResponse(amountMinor, pointService.pointsForAmount(storeId, amountMinor));
     }
 
-    @GetMapping("/points/points-to-amount")
-    public PointsToAmountResponse pointsToAmount(@RequestParam long points) {
+    @GetMapping("/points/points-to-amount/{points}")
+    public PointsToAmountResponse pointsToAmount(@PathVariable long points) {
         verifyInternalAuth();
         TenantContext context = TenantContextHolder.get();
         Long storeId = context == null ? null : context.storeId();
