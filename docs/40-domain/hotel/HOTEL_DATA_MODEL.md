@@ -21,7 +21,7 @@ htl_stay                  在住记录（入住/退房）
 htl_folio                 账单头
 htl_folio_item            账单项（ROOM/DEPOSIT/REFUND，退款必须带 method=CASH|ONLINE）
 htl_housekeeping_task     客房清扫任务
-htl_policy                店铺策略（支付/押金/取消/积分开关；一个酒店一条；V18）
+htl_policy                店铺策略（支付/押金/取消/积分开关；一个酒店一条；V18，含审计字段）
 ```
 
 ## 关键唯一键
