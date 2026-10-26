@@ -37,8 +37,8 @@ foreach ($container in (docker ps -q)) {
   $id = (docker inspect --format '{{.Image}}' $container).Trim()
   if ($id) { [void]$usedIds.Add($id) }
 }
-# Kind 节点使用 containerd，Pod 镜像不一定出现在 docker ps 中；必须按 Pod spec
-# 把实际镜像加入保留集，否则会误删正在运行的 SaaS 服务镜像。
+# Kind nodes use containerd; Pod images may not appear in docker ps.
+# Keep every image referenced by a Pod so a prune cannot break a running service.
 $podImages = [System.Collections.Generic.HashSet[string]]::new()
 $previousErrorActionPreference = $ErrorActionPreference
 try {
