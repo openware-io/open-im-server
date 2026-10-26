@@ -125,6 +125,25 @@ public class HotelMasterDataApplicationService {
         return persist(po);
     }
 
+    @Transactional
+    public HotelRoomPo setRoomStatus(Long id, String status) {
+        PermissionGuard.require("hotel.inventory.manage");
+        TenantContext context = requireStore();
+        if (!"ACTIVE".equals(status) && !"MAINTENANCE".equals(status)) {
+            throw new ApiException(400, "ROOM_STATUS_INVALID", "客房状态只能设置为可用或维修中");
+        }
+        HotelRoomPo room = requireRoom(id, context);
+        if ("OCCUPIED".equals(room.getStatus()) || "DIRTY".equals(room.getStatus())) {
+            throw new ApiException(409, "ROOM_STATUS_LOCKED", "在住或待清扫客房不能直接切换维修/可用状态");
+        }
+        if (status.equals(room.getStatus())) {
+            return room;
+        }
+        room.setStatus(status);
+        roomMapper.updateById(room);
+        return room;
+    }
+
     public List<HotelRatePlanPo> ratePlans(Long hotelId) {
         PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();

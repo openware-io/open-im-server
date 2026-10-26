@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,8 +33,8 @@ public class HotelFrontDeskController {
     }
 
     @PostMapping("/bookings/{id}/checkin")
-    public BookingView checkIn(@PathVariable Long id) {
-        return BookingView.from(stayService.checkIn(id));
+    public BookingView checkIn(@PathVariable Long id, @RequestParam(required = false) Long roomId) {
+        return BookingView.from(stayService.checkIn(id, roomId));
     }
 
     @PostMapping("/bookings/{id}/checkout")
@@ -90,13 +91,13 @@ public class HotelFrontDeskController {
     public record ExtendRequest(LocalDate newCheckOutDate) {}
 
     public record BookingView(@JsonFormat(shape = JsonFormat.Shape.STRING) Long id,
-                              String bookingNo, String guestName, String roomType, String roomNo,
+                              String bookingNo, String guestName, Long roomTypeId, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,
                               Long amountMinor, String currency) {
         static BookingView from(HotelBookingPo po) {
-            return new BookingView(po.getId(), po.getBookingNo(), po.getGuestName(), po.getRoomType(),
-                    po.getRoomNo(), po.getCheckInDate(), po.getCheckOutDate(), po.getStatus(),
-                    po.getAmountMinor(), po.getCurrency());
+            return new BookingView(po.getId(), po.getBookingNo(), po.getGuestName(), po.getRoomTypeId(),
+                    po.getRoomType(), po.getRoomNo(), po.getCheckInDate(), po.getCheckOutDate(),
+                    po.getStatus(), po.getAmountMinor(), po.getCurrency());
         }
     }
 }

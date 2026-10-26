@@ -55,6 +55,12 @@ public class HotelStayApplicationService {
 
     @Transactional
     public HotelBookingPo checkIn(Long bookingId) {
+        return checkIn(bookingId, null);
+    }
+
+    /** 办理入住；roomId 为空时按房型自动分配，传入时使用前台选择的房间。 */
+    @Transactional
+    public HotelBookingPo checkIn(Long bookingId, Long roomId) {
         PermissionGuard.require("hotel.checkin");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
@@ -65,12 +71,21 @@ public class HotelStayApplicationService {
                 .eq(HotelStayPo::getBookingId, bookingId)) != null) {
             throw new ApiException(409, "STAY_ALREADY_EXISTS", "该预订已办理入住");
         }
-        HotelRoomPo room = roomMapper.selectOne(new LambdaQueryWrapper<HotelRoomPo>()
-                .eq(HotelRoomPo::getStoreId, context.storeId())
-                .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
-                .eq(HotelRoomPo::getStatus, "ACTIVE")
-                .orderByAsc(HotelRoomPo::getRoomNo)
-                .last("LIMIT 1"));
+        HotelRoomPo room;
+        if (roomId == null) {
+            room = roomMapper.selectOne(new LambdaQueryWrapper<HotelRoomPo>()
+                    .eq(HotelRoomPo::getStoreId, context.storeId())
+                    .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
+                    .eq(HotelRoomPo::getStatus, "ACTIVE")
+                    .orderByAsc(HotelRoomPo::getRoomNo)
+                    .last("LIMIT 1"));
+        } else {
+            room = roomMapper.selectOne(new LambdaQueryWrapper<HotelRoomPo>()
+                    .eq(HotelRoomPo::getId, roomId)
+                    .eq(HotelRoomPo::getStoreId, context.storeId())
+                    .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
+                    .eq(HotelRoomPo::getStatus, "ACTIVE"));
+        }
         if (room == null || roomMapper.occupy(room.getId(), context.tenantId(), context.storeId()) == 0) {
             throw new ApiException(409, "ROOM_UNAVAILABLE", "没有可分配的房间");
         }

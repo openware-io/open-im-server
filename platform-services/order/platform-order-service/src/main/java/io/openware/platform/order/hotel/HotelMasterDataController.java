@@ -83,6 +83,11 @@ public class HotelMasterDataController {
         return service.saveRoom(id, request.roomTypeId(), request.roomNo(), request.floor());
     }
 
+    @PutMapping("/rooms/{id}/status")
+    public HotelRoomPo setRoomStatus(@PathVariable Long id, @RequestBody RoomStatusRequest request) {
+        return service.setRoomStatus(id, request.status());
+    }
+
     @GetMapping("/rate-plans")
     public List<HotelRatePlanPo> ratePlans(@RequestParam(required = false) Long hotelId) {
         return service.ratePlans(hotelId);
@@ -133,6 +138,8 @@ public class HotelMasterDataController {
                                   BigDecimal areaSqm) {}
 
     public record RoomRequest(Long roomTypeId, String roomNo, String floor) {}
+
+    public record RoomStatusRequest(String status) {}
 
     public record RatePlanRequest(Long hotelId, String code, String name, Long basePriceMinor, String currency) {}
 
