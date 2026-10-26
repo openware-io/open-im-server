@@ -93,7 +93,7 @@ class OAuthImBindApplicationServiceTest {
     when(tokenProvider.createAccessToken(10L, "open-c", 0)).thenReturn("signed-jwt");
     when(tenantServiceClient.consumerContext(10L, "saas-hotel-c")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-hotel-c:100:100:100", 100L, "A380",
-            100L, "HQ", 100L, "Store", List.of("CONSUMER"), "CONSUMER"));
+            100L, "HQ", 100L, "Store", List.of("CONSUMER"), "CONSUMER", null));
     when(tenantServiceClient.memberships(10L)).thenReturn(List.of());
 
     var error = org.junit.jupiter.api.Assertions.assertThrows(

@@ -131,7 +131,7 @@ public class AuthContextApplicationService {
     private static ContextItem toContextItem(TenantServiceClient.TenantContext c) {
         return new ContextItem(c.contextId(), c.tenantId(), c.tenantName(),
                 c.organizationId(), c.organizationName(), c.storeId(), c.storeName(),
-                c.roles() == null ? List.of() : c.roles(), c.scopeType());
+                c.roles() == null ? List.of() : c.roles(), c.scopeType(), c.businessType());
     }
 
     /** 选择上下文：解析 contextId → 作用域，取权限快照后签发签名 Token。 */

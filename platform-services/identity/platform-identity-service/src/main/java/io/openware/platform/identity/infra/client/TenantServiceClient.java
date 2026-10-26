@@ -160,7 +160,8 @@ public class TenantServiceClient {
     /** tenant-service 内部上下文（内部契约 DTO，非 PO）。 */
     public record TenantContext(String contextId, Long tenantId, String tenantName,
                                 Long organizationId, String organizationName,
-                                Long storeId, String storeName, List<String> roles, String scopeType) {}
+                                Long storeId, String storeName, List<String> roles, String scopeType,
+                                String businessType) {}
 
     /** tenant-service 内部权限快照（内部契约 DTO，非 PO）。 */
     public record PermissionSnapshot(Long accountId, Long tenantId, Long organizationId, Long storeId,

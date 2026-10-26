@@ -29,17 +29,17 @@ class AuthContextApplicationServiceTest {
   void contexts_mapsTenantContextsWithRolesAndScope() {
     when(tenantClient.contexts(100L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("1:10:1001", 1L, "Tenant A", 10L, "Org A", 1001L, "Store A1",
-            List.of("STORE_MANAGER", "CASHIER"), "STORE"),
+            List.of("STORE_MANAGER", "CASHIER"), "STORE", null),
         new TenantServiceClient.TenantContext("2::", 2L, "Tenant B", null, null, null, null,
-            List.of("TENANT_ADMIN"), "TENANT")));
+            List.of("TENANT_ADMIN"), "TENANT", null)));
 
     List<ContextItem> result = service.contexts(100L);
 
     assertIterableEquals(List.of(
         new ContextItem("1:10:1001", 1L, "Tenant A", 10L, "Org A", 1001L, "Store A1",
-            List.of("STORE_MANAGER", "CASHIER"), "STORE"),
+            List.of("STORE_MANAGER", "CASHIER"), "STORE", null),
         new ContextItem("2::", 2L, "Tenant B", null, null, null, null,
-            List.of("TENANT_ADMIN"), "TENANT")), result);
+            List.of("TENANT_ADMIN"), "TENANT", null)), result);
   }
 
   @Test
@@ -54,7 +54,7 @@ class AuthContextApplicationServiceTest {
     when(tenantClient.contexts(158L)).thenReturn(List.of());
     when(tenantClient.consumerContext(158L, "saas-c")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-c:100:100:100", 100L, "A380",
-            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
+            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER", null));
 
     List<ContextItem> result = service.contexts(158L, "saas-c");
 
@@ -67,10 +67,10 @@ class AuthContextApplicationServiceTest {
     stubCustomer(158L);
     when(tenantClient.contexts(158L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("2::", 2L, "Operations", null, null, null, null,
-            List.of("TENANT_ADMIN"), "TENANT")));
+            List.of("TENANT_ADMIN"), "TENANT", null)));
     when(tenantClient.consumerContext(158L, "saas-c")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-c:100:100:100", 100L, "A380",
-            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
+            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER", null));
 
     List<ContextItem> result = service.contexts(158L, "saas-c");
 
@@ -84,10 +84,10 @@ class AuthContextApplicationServiceTest {
     // saas-b（B 端/后台）：IM 账号已在 SaaS 租户后台注册为运营人员（store.manager@A380/首店）
     when(tenantClient.consumerContext(158L, "saas-b")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-b:100:100:100", 100L, "A380",
-            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
+            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER", null));
     when(tenantClient.contexts(158L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("100:100:100", 100L, "A380", 100L, "总部", 100L, "首店",
-            List.of("store.manager"), "STORE")));
+            List.of("store.manager"), "STORE", null)));
 
     List<ContextItem> result = service.contexts(158L, "saas-b");
 
@@ -102,10 +102,10 @@ class AuthContextApplicationServiceTest {
     // 未注册运营人员：有 consumer 授权锚点但没有任何运营角色上下文 → 空 → B 端显示无权限
     when(tenantClient.consumerContext(158L, "saas-b")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-b:100:100:100", 100L, "A380",
-            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
+            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER", null));
     when(tenantClient.contexts(158L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("100:100:100", 100L, "A380", 100L, "总部", 100L, "首店",
-            List.of("CONSUMER"), "CONSUMER")));
+            List.of("CONSUMER"), "CONSUMER", null)));
 
     var exception = assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.contexts(158L, "saas-b"));
@@ -123,19 +123,20 @@ class AuthContextApplicationServiceTest {
   }
 
   @Test
-  void operatorApp_filtersAllContextsOutsideAnchor_returnsStaffNotBound() {
+  void operatorApp_keepsSameTenantContextsOutsideConsumerStoreAnchor() {
     when(tenantClient.consumerContext(158L, "saas-b")).thenReturn(
         new TenantServiceClient.TenantContext("consumer:saas-b:100:100:100", 100L, "A380",
-            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER"));
+            100L, "总部", 100L, "首店", List.of("CONSUMER"), "CONSUMER", null));
     when(tenantClient.contexts(158L)).thenReturn(List.of(
         new TenantServiceClient.TenantContext("999::", 999L, "Other", null, null, null, null,
-            List.of("tenant.owner"), "TENANT"),
+            List.of("tenant.owner"), "TENANT", null),
         new TenantServiceClient.TenantContext("100:100:999", 100L, "A380", 100L, "总部", 999L, "其它门店",
-            List.of("store.manager"), "STORE")));
+            List.of("store.manager"), "STORE", null)));
 
-    var exception = assertThrows(io.openware.common.exception.ApiException.class,
-        () -> service.contexts(158L, "saas-b"));
-    assertEquals("STAFF_NOT_BOUND", exception.getCode());
+    List<ContextItem> result = service.contexts(158L, "saas-b");
+
+    assertEquals(1, result.size());
+    assertEquals("100:100:999", result.get(0).contextId());
   }
 
   private void stubCustomer(long accountId) {

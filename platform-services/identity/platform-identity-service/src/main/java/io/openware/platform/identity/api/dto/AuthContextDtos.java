@@ -8,7 +8,7 @@ public final class AuthContextDtos {
 
     public record ContextItem(String contextId, Long tenantId, String tenantName, Long organizationId,
                               String organizationName, Long storeId, String storeName, List<String> roles,
-                              String scopeType) {}
+                              String scopeType, String businessType) {}
 
     public record ContextsResponse(List<ContextItem> items) {}
 
