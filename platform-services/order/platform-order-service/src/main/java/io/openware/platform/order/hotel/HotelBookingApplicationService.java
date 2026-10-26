@@ -114,6 +114,9 @@ public class HotelBookingApplicationService {
         if (guestName == null || guestName.isBlank() || guestPhone == null || guestPhone.isBlank()) {
             throw new ApiException(400, "GUEST_REQUIRED", "住客姓名和手机号不能为空");
         }
+        if (guestName.trim().matches("^[?\\s]+$")) {
+            throw new ApiException(400, "GUEST_NAME_INVALID", "住客姓名包含无效编码，请重新输入");
+        }
         Quote quote = quote(roomTypeId, ratePlanId, checkIn, checkOut, rooms);
         if (!quote.available()) {
             throw new ApiException(409, "INVENTORY_UNAVAILABLE", "所选日期房量不足");
