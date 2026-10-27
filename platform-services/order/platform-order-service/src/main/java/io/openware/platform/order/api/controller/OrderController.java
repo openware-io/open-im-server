@@ -79,7 +79,7 @@ public class OrderController {
                 req.currencyCode(), req.resourceId()));
     }
 
-    /** 确认订单：交易状态 DRAFT → PENDING_PAYMENT（进入结算；兼容列写 WAITING_SETTLEMENT）。 */
+    /** 确认订单：交易状态 DRAFT → PENDING_PAYMENT（加项完成，进入结算）。 */
     @PostMapping("/orders/{id}/confirm")
     public OrderView confirm(@PathVariable Long id) {
         return orderService.confirm(id);

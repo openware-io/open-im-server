@@ -80,6 +80,30 @@ if (Test-Path -LiteralPath $legacyPath) {
   }
 }
 
+# Destructive cleanup allowlist: only DROP TABLE is waived, and only for reviewed
+# final-cleanup migrations. Format: path|reason|expires.
+$destructiveAllowPath = Join-Path $PSScriptRoot 'flyway-destructive-allowlist.txt'
+$destructiveAllowed = [System.Collections.Generic.HashSet[string]]::new()
+if (Test-Path -LiteralPath $destructiveAllowPath) {
+  foreach ($line in [System.IO.File]::ReadAllLines($destructiveAllowPath, [System.Text.UTF8Encoding]::new($false, $true))) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+    $parts = $trimmed -split '\|'
+    if ($parts.Count -lt 3) { continue }
+    $expiry = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($parts[2].Trim(), 'yyyy-MM-dd', [cultureinfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::None, [ref]$expiry)) {
+      $violations.Add("flyway-destructive-allowlist: invalid expiry for $($parts[0].Trim())")
+      continue
+    }
+    if ($expiry -lt (Get-Date).Date) {
+      $violations.Add("flyway-destructive-allowlist: entry expired for $($parts[0].Trim())")
+      continue
+    }
+    [void]$destructiveAllowed.Add($parts[0].Trim())
+  }
+}
+
 $migrationDirs = [System.Collections.Generic.List[string]]::new()
 foreach ($domain in $domainRoots) {
   $domainPath = Join-Path $root $domain
@@ -163,7 +187,9 @@ foreach ($dir in $migrationDirs) {
     $identCode = [regex]::Replace($code, "(?s)'(?:[^'\\]|\\.|'')*'", "''")
 
     if ($code -match '(?i)CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS') { $violations.Add("${fileRef}: CREATE TABLE IF NOT EXISTS is forbidden") }
-    if ($code -match '(?i)\bDROP\s+TABLE\b') { $violations.Add("${fileRef}: DROP TABLE is forbidden") }
+    if ($code -match '(?i)\bDROP\s+TABLE\b' -and -not $destructiveAllowed.Contains($fileRef)) {
+      $violations.Add("${fileRef}: DROP TABLE is forbidden (add to flyway-destructive-allowlist.txt only for reviewed final cleanup)")
+    }
     if ($code -match '(?i)\bFOREIGN\s+KEY\b') { $violations.Add("${fileRef}: physical foreign keys are forbidden") }
     if ($code -match '(?i)\b(PREPARE|EXECUTE|DEALLOCATE)\b') { $violations.Add("${fileRef}: dynamic DDL is forbidden") }
 

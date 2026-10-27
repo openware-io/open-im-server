@@ -120,7 +120,8 @@ public class StripeChannel implements PaymentChannelProvider {
                     && (isBlank(eventId) || !recorder.existsByEventId("stripe", eventId))) {
                 recorder.record("stripe", transactionId, eventId, tenantId, orderId, amount, currency, status, request.rawBody());
             }
-            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status, request.rawBody());
+            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status,
+                    request.rawBody(), eventId, tenantId);
         } catch (Exception e) {
             // 验签/解析/落库失败必须留痕（不打印密钥与明文报文）。
             log.warn("Stripe 回调处理失败（验签/解析/落库）", e);
@@ -164,7 +165,7 @@ public class StripeChannel implements PaymentChannelProvider {
     }
 
     private static VerifyCallbackResult fail(VerifyCallbackRequest request) {
-        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody());
+        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody(), null, null);
     }
 
     /**

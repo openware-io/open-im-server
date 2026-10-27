@@ -24,6 +24,7 @@ import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
@@ -74,7 +75,7 @@ class OrderControllerAuditTest {
 
     @Test
     void hold_writesSucceededAudit() {
-        when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
+        when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("DRAFT"));
         when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(true);
 
         OrderView held = controller.hold(ORDER_ID, new OrderController.HoldRequest("等客人回来"));
@@ -92,7 +93,7 @@ class OrderControllerAuditTest {
      */
     @Test
     void hold_raisesConflictWhenAlreadyHeldConcurrently() {
-        when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("SERVING"));
+        when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(order("DRAFT"));
         when(orderMapper.holdIfNotHeld(anyLong(), any(), any(), any())).thenReturn(false);
 
         BusinessException ex = assertThrows(BusinessException.class,
@@ -121,7 +122,7 @@ class OrderControllerAuditTest {
 
     @Test
     void unhold_writesSucceededAudit() {
-        Order serving = order("SERVING", "等客人回来");
+        Order serving = order("DRAFT", "等客人回来");
         when(orderCancellationService.requireOrder(ORDER_ID)).thenReturn(serving);
         when(orderMapper.unholdIfHeld(anyLong(), any())).thenReturn(true);
 
@@ -177,8 +178,7 @@ class OrderControllerAuditTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(String status, String holdReason) {
-        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status,
-                "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, null, null, holdReason, null, 0);
     }
 

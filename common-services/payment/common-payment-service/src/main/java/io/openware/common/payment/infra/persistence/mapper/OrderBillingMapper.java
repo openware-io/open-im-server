@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 @Mapper
 public interface OrderBillingMapper {
     @Select("""
-            SELECT o.id, o.status, o.paid_amount, o.currency_code,
+            SELECT o.id, o.trade_status, o.paid_amount, o.currency_code,
                    CASE WHEN o.total_amount > 0 THEN o.total_amount
                         ELSE GREATEST(0, COALESCE((SELECT SUM(i.total_amount)
                           FROM ord_order_item i WHERE i.tenant_id = o.tenant_id
@@ -51,25 +51,22 @@ public interface OrderBillingMapper {
                                @Param("accountId") Long accountId);
 
     /**
-     * 收款落账：更新已收金额与状态（足额即 COMPLETED）。
+     * 收款落账：更新已收金额与交易状态（足额 → {@code PAID}，未足额 → {@code PENDING_PAYMENT}）。
      * refundable_amount 同步为已收金额（可退 = 已收，暂无退款回冲流程），
      * 否则未收款订单的「可退金额」会与实收金额口径不一致。
      *
-     * <p><b>交易状态同步（V24 目标契约）</b>：订单主表以 {@code trade_status} 表达交易事实——
-     * 全额收款 → {@code PAID}，未全额（部分收款）→ {@code PENDING_PAYMENT}，金额看 {@code paid_amount}。
-     * {@code status} 是收口前的兼容列（旧报表/对账仍读它），这里继续按「足额即 COMPLETED」双写。
+     * <p>订单主表只有 {@code trade_status}：兼容列 {@code status} 已随收口迁移删除，不再双写。
      */
     @Update("""
             UPDATE ord_order
                SET paid_amount = #{newPaidAmount},
                    refundable_amount = #{newPaidAmount},
                    trade_status = CASE WHEN #{newPaidAmount} >= #{totalAmount} THEN 'PAID' ELSE 'PENDING_PAYMENT' END,
-                   status = CASE WHEN #{newPaidAmount} >= #{totalAmount} THEN 'COMPLETED' ELSE status END,
                    completed_at = CASE WHEN #{newPaidAmount} >= #{totalAmount} THEN CURRENT_TIMESTAMP(3) ELSE completed_at END,
                    updated_at = CURRENT_TIMESTAMP(3)
              WHERE tenant_id = #{tenantId} AND id = #{orderId}
                AND paid_amount = #{expectedPaidAmount}
-               AND (trade_status IS NULL OR trade_status NOT IN ('CANCELLED', 'COMPLETED'))
+               AND trade_status NOT IN ('CANCELLED', 'VOIDED', 'COMPLETED')
             """)
     int markPaid(@Param("tenantId") Long tenantId,
                  @Param("orderId") Long orderId,
@@ -80,10 +77,12 @@ public interface OrderBillingMapper {
     /**
      * 退款落账：回冲已收与可退，金额不为负。
      *
-     * <p><b>退款状态同步（V24 目标契约）</b>：{@code refund_status} 表达退款程度——
+     * <p><b>退款状态同步</b>：{@code refund_status} 表达退款程度——
      * 退到已收金额归零 → {@code FULL}，否则 {@code PARTIAL}。
      * {@code refund_status} 的赋值放在 {@code paid_amount} 之前：MySQL 按从左到右求值，
      * 放在后面会用到已经回冲过的金额，把部分退款误判成全额。
+     *
+     * <p>显式取消/作废的订单不可退款：判据是 {@code trade_status}（兼容列 status 已删除）。
      */
     @Update("""
             UPDATE ord_order
@@ -92,7 +91,7 @@ public interface OrderBillingMapper {
                    refundable_amount = GREATEST(0, refundable_amount - #{refundAmount}),
                    updated_at = CURRENT_TIMESTAMP(3)
              WHERE tenant_id = #{tenantId} AND id = #{orderId}
-               AND status NOT IN ('CANCELLED', 'VOIDED')
+               AND trade_status NOT IN ('CANCELLED', 'VOIDED')
             """)
     int markRefunded(@Param("tenantId") Long tenantId,
                      @Param("orderId") Long orderId,

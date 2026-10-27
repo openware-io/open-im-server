@@ -30,7 +30,7 @@ SELECT r.id,
        r.order_id,
        r.arrived_at,
        o.order_no,
-       o.status          AS order_status,
+       o.trade_status    AS order_status,
        s.id              AS session_id,
        s.status          AS session_status,
        s.opened_at

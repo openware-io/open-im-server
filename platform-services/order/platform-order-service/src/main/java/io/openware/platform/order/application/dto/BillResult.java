@@ -12,11 +12,10 @@ import java.util.List;
  * = {@code totalAmount} 合计）。**客户端不做任何金额算术**，只做展示与拼文案。
  *
  * <p><b>状态三字段</b>（目标契约 §4）：账单单据同时给出 {@code tradeStatus}/{@code sessionStatus}/
- * {@code settlementStatus}；{@code status} 只是收口前的兼容列，新前端不得依赖。
+ * {@code settlementStatus}；旧兼容列 {@code status} 已在收口迁移中删除，账单状态以 {@code tradeStatus} 为准。
  */
 public record BillResult(
-        String status,
-        // 交易状态（DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED）：账单单据状态以它为准。
+        // 交易状态（DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED）：账单单据状态以它为准。
         String tradeStatus,
         // KTV 会话状态（RESERVED/OPEN/PAUSED/CLOSED/CANCELLED）：开台中/已结台/已取消看它，不看 status。
         String sessionStatus,

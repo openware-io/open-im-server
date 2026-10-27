@@ -24,7 +24,7 @@ UPDATE `htl_hotel` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND 
 UPDATE `htl_room_type` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_rate_plan` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_room` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
-UPDATE `htl_inventory_calendar` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
+UPDATE `htl_room_availability` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_booking` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_booking_night` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_stay` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
@@ -33,7 +33,7 @@ UPDATE `htl_folio_item` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100
 UPDATE `htl_refund` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_housekeeping_task` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 UPDATE `htl_night_audit` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
-UPDATE `htl_inventory_hold` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
+UPDATE `htl_room_availability_hold` SET `store_id` = @hotel_store_id WHERE `tenant_id` = 100 AND `store_id` = 100;
 
 COMMIT;
 

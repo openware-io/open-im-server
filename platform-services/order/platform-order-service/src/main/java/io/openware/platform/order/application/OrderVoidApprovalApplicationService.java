@@ -57,7 +57,7 @@ public class OrderVoidApprovalApplicationService {
         if (order.trade() == TradeStatus.VOIDED) throw new ApiException(409, "ORDER_STATUS_INVALID", "订单已作废");
         String snapshotJson = "{\"orderNo\":\"" + esc(order.orderNo()) + "\"}";
         OrderVoidApproval application = new OrderVoidApproval(null, tenantId, storeId, order.businessType(),
-                orderId, order.currentVersion(), order.status(), snapshotJson, reason,
+                orderId, order.currentVersion(), order.tradeStatus(), snapshotJson, reason,
                 OrderVoidApproval.STATUS_PENDING, applicantId, null, null, idempotencyKey, 0, null);
         Persisted<OrderVoidApproval> saved = repository.insert(application);
         audit.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(storeId)

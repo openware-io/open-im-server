@@ -1,0 +1,5 @@
+# Explicit destructive-migration allowlist for validate-flyway-conventions.ps1.
+# Format: path|reason|expires
+# Only DROP TABLE is waived; every other Flyway convention still applies.
+# Add an entry only for a reviewed final-cleanup migration that removes legacy tables.
+platform-services/order/platform-order-service/src/main/resources/db/migration/V27__drop_domain_compat_columns.sql|final domain cleanup removes legacy hotel-inventory tables after code consumers were deleted|2026-12-31

@@ -20,6 +20,7 @@ import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +49,7 @@ class OrderVoidRuleGuardTest {
     @Test
     void directVoidIsRejectedWhenRuleRequiresApproval() {
         // 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。
-        Order order = new Order(42L, 100L, null, 7L, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+        Order order = new Order(42L, 100L, null, 7L, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, null, null, null, null, 0);
         when(cancellation.requireOrder(42L)).thenReturn(order);

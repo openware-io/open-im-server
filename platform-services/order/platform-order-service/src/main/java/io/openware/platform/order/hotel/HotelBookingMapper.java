@@ -29,7 +29,7 @@ public interface HotelBookingMapper extends BaseMapper<HotelBookingPo> {
           FROM htl_booking b
           JOIN ord_order o ON o.tenant_id = b.tenant_id AND o.id = b.order_id
          WHERE b.status = 'PENDING_CONFIRM'
-           AND (o.trade_status = 'COMPLETED' OR o.status = 'COMPLETED')
+           AND o.trade_status IN ('PAID', 'COMPLETED')
            AND o.paid_amount >= o.total_amount
          ORDER BY b.id
          LIMIT 100

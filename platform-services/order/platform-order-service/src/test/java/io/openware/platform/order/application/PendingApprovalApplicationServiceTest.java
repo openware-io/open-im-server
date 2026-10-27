@@ -22,6 +22,7 @@ import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -198,7 +199,7 @@ class PendingApprovalApplicationServiceTest {
 
   /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
   private static Order order(Long id, Long storeId, String orderNo) {
-    return new Order(id, TENANT_ID, null, storeId, orderNo, null, "KTV", null, "SERVING", "CNY",
+    return new Order(id, TENANT_ID, null, storeId, orderNo, null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
         BigDecimal.ZERO, null, null, null, null, 0);
   }

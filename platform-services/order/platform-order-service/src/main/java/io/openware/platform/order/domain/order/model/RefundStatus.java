@@ -11,7 +11,7 @@ public enum RefundStatus {
   PARTIAL,
   FULL;
 
-  /** 解析列值；{@code null}/空/未知一律视为 {@link #NONE}（历史行没有该列时的安全默认）。 */
+  /** 解析列值；{@code null}/空/未知一律视为 {@link #NONE}（列值异常时的安全默认）。 */
   public static RefundStatus parse(String code) {
     if (code == null || code.isBlank()) {
       return NONE;
@@ -22,18 +22,6 @@ public enum RefundStatus {
       }
     }
     return NONE;
-  }
-
-  /** 旧 {@code ord_order.status} → 退款状态（只读历史行/兼容列）。 */
-  public static RefundStatus fromLegacy(String legacyStatus) {
-    if (legacyStatus == null) {
-      return NONE;
-    }
-    return switch (legacyStatus.trim().toUpperCase(java.util.Locale.ROOT)) {
-      case "PARTIAL_REFUNDED" -> PARTIAL;
-      case "REFUNDED" -> FULL;
-      default -> NONE;
-    };
   }
 
   /** 是否发生过退款。 */

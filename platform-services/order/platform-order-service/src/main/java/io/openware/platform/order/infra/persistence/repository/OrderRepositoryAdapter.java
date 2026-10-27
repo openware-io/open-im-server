@@ -137,8 +137,8 @@ public class OrderRepositoryAdapter implements OrderRepository {
 
     @Override
     public boolean updateTradeStatusGuarded(Long id, String expectedTradeStatus, String newTradeStatus,
-                                            String newLegacyStatus, LocalDateTime at) {
-        return mapper.updateTradeStatusGuarded(id, expectedTradeStatus, newTradeStatus, newLegacyStatus, at) > 0;
+                                            LocalDateTime at) {
+        return mapper.updateTradeStatusGuarded(id, expectedTradeStatus, newTradeStatus, at) > 0;
     }
 
     @Override
@@ -153,8 +153,8 @@ public class OrderRepositoryAdapter implements OrderRepository {
 
     @Override
     public boolean voidByTradeStatus(Long id, String expectedTradeStatus, String newTradeStatus,
-                                     String newLegacyStatus, LocalDateTime at) {
-        return mapper.voidByTradeStatus(id, expectedTradeStatus, newTradeStatus, newLegacyStatus, at) > 0;
+                                     LocalDateTime at) {
+        return mapper.voidByTradeStatus(id, expectedTradeStatus, newTradeStatus, at) > 0;
     }
 
     /** 领域聚合 → 持久化对象：逐列对应真实列；13 个会话投影字段一个都不设（见类注释）。 */
@@ -168,7 +168,6 @@ public class OrderRepositoryAdapter implements OrderRepository {
         po.setIdempotencyKey(order.idempotencyKey());
         po.setBusinessType(order.businessType());
         po.setCustomerId(order.customerId());
-        po.setStatus(order.status());
         po.setTradeStatus(order.trade() == null ? null : order.trade().name());
         po.setRefundStatus(order.refund() == null ? null : order.refund().name());
         po.setCurrencyCode(order.currencyCode());
@@ -192,7 +191,7 @@ public class OrderRepositoryAdapter implements OrderRepository {
             return null;
         }
         return new Order(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getStoreId(), po.getOrderNo(),
-            po.getIdempotencyKey(), po.getBusinessType(), po.getCustomerId(), po.getStatus(),
+            po.getIdempotencyKey(), po.getBusinessType(), po.getCustomerId(),
             po.getTradeStatus(), po.getRefundStatus(), po.getCurrencyCode(), po.getSubtotalAmount(),
             po.getDiscountAmount(), po.getTaxAmount(), po.getTotalAmount(), po.getPaidAmount(),
             po.getRefundableAmount(), po.getCompletedAt(), po.getCancelledAt(), po.getHoldReason(),

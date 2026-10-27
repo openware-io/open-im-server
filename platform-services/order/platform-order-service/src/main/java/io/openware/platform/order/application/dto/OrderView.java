@@ -11,9 +11,8 @@ import java.time.LocalDateTime;
  *
  * <p><b>KTV 订单状态语义（目标契约 §4/§7）</b>：KTV 订单 DTO 必须**同时**返回
  * {@code tradeStatus}（交易状态，{@link TradeStatus}）、{@code sessionStatus}（会话状态，
- * {@code RESERVED/OPEN/PAUSED/CLOSED/CANCELLED}）与 {@code settlementStatus}（结算派生状态），
- * 前端不再靠单一 {@code status} 推断业务阶段。{@code status} 只是收口前的兼容列，
- * 最终清理迁移会删除，新前端不得依赖它。
+ * {@code RESERVED/OPEN/PAUSED/CLOSED/CANCELLED}）与 {@code settlementStatus}（结算派生状态）；
+ * 前端不再靠单一状态推断业务阶段，旧兼容列 {@code status} 已在收口迁移中删除。
  *
  * <p><b>字段集照搬原持久化对象 {@code OrderPo}（JSON 字段名一个不改）</b>：这些端点响应早已是对外契约
  * （见 {@code docs/contracts/openapi/platform-order-service.json} 的 {@code OrderPo} schema），
@@ -60,8 +59,7 @@ import java.time.LocalDateTime;
  * @param idempotencyKey       幂等键
  * @param businessType         业态
  * @param customerId           会员
- * @param status               兼容列（收口前 {@code ord_order.status}，新前端不得依赖）
- * @param tradeStatus          交易状态：DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED
+ * @param tradeStatus          交易状态：DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED
  * @param refundStatus         退款状态：NONE/PARTIAL/FULL
  * @param settlementStatus     结算派生状态：UNSETTLED/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/REFUNDED/PARTIALLY_REFUNDED
  * @param currencyCode         币种快照
@@ -103,7 +101,6 @@ public record OrderView(
     String idempotencyKey,
     String businessType,
     Long customerId,
-    String status,
     String tradeStatus,
     String refundStatus,
     String settlementStatus,
@@ -133,7 +130,7 @@ public record OrderView(
         RefundStatus refund = order.refund();
         return new OrderView(order.id(), null, null, null, null, null, null, null, null, null, null, null,
             null, null, order.tenantId(), order.organizationId(), order.storeId(), order.orderNo(),
-            order.idempotencyKey(), order.businessType(), order.customerId(), order.status(),
+            order.idempotencyKey(), order.businessType(), order.customerId(),
             trade.name(), refund.name(), settlementStatusOf(trade, refund), order.currencyCode(),
             order.subtotalAmount(), order.discountAmount(), order.taxAmount(), order.totalAmount(),
             order.paidAmount(), order.refundableAmount(), order.completedAt(), order.cancelledAt(),
@@ -169,7 +166,7 @@ public record OrderView(
         return new OrderView(id, newSessionId, newRoomResourceId, newRoomName, newRoomCode, newSessionStatus,
             newPartySize, newServerId, newServerName, newRoomElapsedSeconds, newRoomEstimatedFee,
             newLiveTotalAmount, newSessionOpenedAt, newSessionClosedAt, tenantId, organizationId, storeId,
-            orderNo, idempotencyKey, businessType, customerId, status, tradeStatus, refundStatus,
+            orderNo, idempotencyKey, businessType, customerId, tradeStatus, refundStatus,
             settlementStatus, currencyCode, subtotalAmount, discountAmount, taxAmount, totalAmount,
             paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt, version, createdBy,
             createdAt, updatedBy, updatedAt);
@@ -180,7 +177,7 @@ public record OrderView(
         return new OrderView(id, newSessionId, roomResourceId, roomName, roomCode, sessionStatus, partySize,
             serverId, serverName, roomElapsedSeconds, roomEstimatedFee, liveTotalAmount, sessionOpenedAt,
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-            customerId, status, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
+            customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
             holdReason, holdAt, version, createdBy, createdAt, updatedBy, updatedAt);
     }
@@ -190,7 +187,7 @@ public record OrderView(
         return new OrderView(id, sessionId, roomResourceId, roomName, roomCode, sessionStatus, partySize,
             serverId, serverName, roomElapsedSeconds, roomEstimatedFee, newLiveTotalAmount, sessionOpenedAt,
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-            customerId, status, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
+            customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
             holdReason, holdAt, version, createdBy, createdAt, updatedBy, updatedAt);
     }

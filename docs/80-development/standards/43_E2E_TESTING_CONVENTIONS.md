@@ -62,6 +62,10 @@
 | `verify-reservation-room-type.ps1` | 预约房型闭环 |
 | `release-status.ps1` | 发布状态与制品哈希核对 |
 | `run-all.ps1` | 统一执行其余验证脚本，按脚本保留 log 与 `summary.txt` 证据 |
+| `run-e2e-domain.ps1` | 二期域 E2E 一键入口（fail-closed）：凭证自动化 → B 端/管理端 E2E → C 端/OTA/渠道回调 E2E |
+| `e2e-c-end-ota-channel.ps1` | C 端酒店报价/预订/支付/退款 + OTA channel v1 真链路（HMAC/幂等/取消）+ 渠道支付回调（sandbox）；真实 HTTP + `open_saas` DB 断言 |
+| `ota-channel-client.ps1` | 酒店 OTA channel v1 请求辅助（HMAC 签名，供 C 端/OTA E2E dot-source 复用） |
+| `prepare-e2e-c-hotel-fixture.ps1` | C 端酒店 E2E 前置 fixture：临时 app 安装指向 HOTEL 门店，finally 恢复 |
 
 `scripts/verify/*.ps1` 与本节清单的一致性由 `scripts/validate/validate-verify-inventory.ps1`（G39）校验：
 新增脚本必须登记，登记脚本必须存在。层级顺序、真机/模拟器证据与一次性数据清理仍需运行期人工验收，静态门禁不能替代。

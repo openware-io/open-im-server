@@ -12,7 +12,7 @@ DELETE FROM htl_folio_item WHERE folio_id IN (
 );
 DELETE FROM htl_folio WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);
 DELETE FROM htl_stay WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);
-DELETE FROM htl_inventory_hold WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);
+DELETE FROM htl_room_availability_hold WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);
 DELETE FROM htl_booking_night WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);
 DELETE FROM htl_booking WHERE id IN (SELECT id FROM tmp_hotel_test_booking_ids);
 DROP TEMPORARY TABLE tmp_hotel_test_booking_ids;

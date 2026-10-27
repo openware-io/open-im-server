@@ -9,7 +9,8 @@ import java.math.BigDecimal;
 @Setter
 public class OrderBillingPo {
     private Long id;
-    private String status;
+    /** 订单交易状态（{@code ord_order.trade_status}）：收款判定只看它。 */
+    private String tradeStatus;
     private BigDecimal totalAmount;
     private BigDecimal paidAmount;
     /** 订单币种快照（ord_order.currency_code）：收款/退款必须与它一致（禁止跨币种）。 */

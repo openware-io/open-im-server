@@ -63,10 +63,11 @@ SELECT 'MEMBERSHIP', m.id, r.id, 'STORE', 100, 100, 100, 1, 'ACTIVE', NOW(3), NO
         AND b.role_id = r.id AND b.store_id = 100 AND b.status = 'ACTIVE'
    );
 
--- 5) 酒店未来 14 天房态（room_type 1，总房量 10）
-INSERT INTO htl_inventory_calendar
-  (tenant_id, store_id, room_type_id, stay_date, total, sold, held, version, created_at, updated_at)
-SELECT 100, 102, 1, DATE_ADD('2026-10-25', INTERVAL n DAY), 10, 0, 0, 0, NOW(3), NOW(3)
+-- 5) 酒店未来 14 天房量（room_type 1，总房量 10）
+INSERT INTO htl_room_availability
+  (tenant_id, organization_id, store_id, room_type_id, stay_date, total, sold, held, version, created_at, updated_at)
+SELECT 100, (SELECT organization_id FROM tnt_store WHERE tenant_id = 100 AND id = 102), 102, 1,
+       DATE_ADD('2026-10-25', INTERVAL n DAY), 10, 0, 0, 0, NOW(3), NOW(3)
   FROM (
     SELECT 0 n UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
     UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8
@@ -79,4 +80,4 @@ ON DUPLICATE KEY UPDATE total = VALUES(total), updated_at = NOW(3);
 SELECT 'store' AS item, COUNT(*) AS cnt FROM tnt_store WHERE tenant_id = 100 AND code = 'openchat-hotel-001'
 UNION ALL SELECT 'staff', COUNT(*) FROM tnt_membership WHERE tenant_id = 100 AND account_id = 101 AND membership_type = 'STAFF'
 UNION ALL SELECT 'customer', COUNT(*) FROM tnt_membership WHERE tenant_id = 100 AND account_id = 101 AND membership_type = 'CUSTOMER'
-UNION ALL SELECT 'inventory', COUNT(*) FROM htl_inventory_calendar WHERE tenant_id = 100 AND store_id = 102;
+UNION ALL SELECT 'inventory', COUNT(*) FROM htl_room_availability WHERE tenant_id = 100 AND store_id = 102;

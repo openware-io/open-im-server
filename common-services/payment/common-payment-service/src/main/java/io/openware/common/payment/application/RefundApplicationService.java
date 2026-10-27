@@ -14,10 +14,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import io.openware.common.exception.ApiException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 
 /**
  * 退款审批状态机：PENDING → APPROVED/REJECTED → REFUNDED（KTV_BUSINESS_01 §7.5 / §10.2）。
@@ -35,6 +39,9 @@ public class RefundApplicationService {
     public static final String STATUS_APPROVED = "APPROVED";
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_REFUNDED = "REFUNDED";
+
+    /** {@code pay_refund.request_id} 列宽（超长幂等键按摘要截断到该长度内）。 */
+    private static final int MAX_REQUEST_ID_LENGTH = 64;
 
     private final RefundRepository refundRepository;
     private final AuditClient auditClient;
@@ -64,21 +71,67 @@ public class RefundApplicationService {
     /**
      * 收银员申请退款：创建 PENDING 记录（幂等唯一键 uk_pay_refund_tenant_req 兜底）并固化门店归因。
      * 门店 ID 来自调用方已校验的经营上下文，不允许在支付域跨库猜测门店。
+     *
+     * <p><b>重复提交语义</b>（收口 must-fix：重复申请不得新建第二条 refund）：
+     * <ul>
+     *   <li>带 {@code Idempotency-Key}：键映射为 {@code request_id} 并受租户内唯一键约束；同键重放直接返回
+     *       既有行（同 id、不新建；即使该退款已完成也回放 200），同键不同 payload → 409
+     *       {@code IDEMPOTENCY_KEY_REUSED}。</li>
+     *   <li>同订单 + 同申请金额已存在 PENDING/APPROVED/REFUNDED 退款单（即不是 REJECTED）→ 409
+     *       {@code REFUND_DUPLICATE}，不新建第二条。REFUNDED 命中的是"同一笔钱已退过又申请退一次"。</li>
+     *   <li>申请金额超过订单当前已收金额（已扣除已完成退款）→ 422 {@code REFUND_EXCEEDS_PAID}。</li>
+     * </ul>
      */
     @Transactional
     public RefundDto requestRefund(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason,
                                    Long requestedBy) {
+        return requestRefund(tenantId, storeId, orderId, amount, reason, requestedBy, null);
+    }
+
+    /** 带幂等键的退款申请（{@code Idempotency-Key} 头；空白视为未提供）。 */
+    @Transactional
+    public RefundDto requestRefund(Long tenantId, Long storeId, Long orderId, BigDecimal amount, String reason,
+                                   Long requestedBy, String idempotencyKey) {
         try {
             TenantContext context = TenantContextHolder.get();
             requireOrderStore(tenantId, storeId, orderId);
+            requireRefundAmount(amount);
+            String requestId = resolveRequestId(idempotencyKey);
+            if (requestId != null) {
+                // 同键重放优先于金额/重复校验：已完成（REFUNDED）的退款也应返回 200 + 同 id，而不是 409/422。
+                Persisted<Refund> existing = refundRepository.findByRequestId(tenantId, requestId).orElse(null);
+                if (existing != null) {
+                    return replayExisting(existing, orderId, amount);
+                }
+            }
+            // 同订单同金额去重（PENDING/APPROVED/REFUNDED；REJECTED 除外）：带不带幂等键都适用，
+            // 否则"已退过的钱"或"审批中的同额申请"会被重复建单。
+            refundRepository.findDuplicateCandidate(tenantId, orderId, amount)
+                    .ifPresent(duplicate -> {
+                        throw new ApiException(409, "REFUND_DUPLICATE",
+                                "订单已有同金额的退款申请或已完成退款，请勿重复提交");
+                    });
+            // 申请金额不得超过订单当前可退（已收 − 已完成退款）；该检查放在重复判定之后，
+            // 让"全额退款后重复申请"稳定返回 409 REFUND_DUPLICATE（E2E 硬断言），而不是 422。
+            requireRefundableAmount(tenantId, orderId, amount);
             // 币种快照（16_CURRENCY_CONVENTIONS §5/§6.3）：退款必须退**原币种**，与申请金额同事务落库。
             String currencyCode = resolveRefundCurrency(tenantId, orderId);
-            String requestId = UUID.randomUUID().toString();
             Refund draft = new Refund(null, tenantId, storeId,
-                    context == null ? null : context.businessType(), orderId, null, requestId, amount, null,
+                    context == null ? null : context.businessType(), orderId, null,
+                    requestId == null ? UUID.randomUUID().toString() : requestId, amount, null,
                     currencyCode, null, STATUS_PENDING, reason, requestedBy, null);
-            Persisted<Refund> saved =
-                    refundRepository.insert(draft, LocalDateTime.now());
+            Persisted<Refund> saved;
+            try {
+                saved = refundRepository.insert(draft, LocalDateTime.now());
+            } catch (DuplicateKeyException concurrent) {
+                // 并发同键：由 uk_pay_refund_tenant_req 兜底，回读后按幂等回放；不同 payload 转 409 冲突。
+                if (requestId == null) {
+                    throw concurrent;
+                }
+                Persisted<Refund> winner = refundRepository.findByRequestId(tenantId, requestId)
+                        .orElseThrow(() -> concurrent);
+                return replayExisting(winner, orderId, amount);
+            }
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
                     .tenantId(tenantId)
                     .operatorId(requestedBy)
@@ -95,6 +148,77 @@ public class RefundApplicationService {
         } catch (RuntimeException failure) {
             recordFailure("payment.refund.request", "退款申请", tenantId, null, orderId, failure);
             throw failure;
+        }
+    }
+
+    /**
+     * 幂等键重放：同订单 + 同申请金额才返回既有行；否则说明调用方复用了键但换了 payload，报 409。
+     * 返回既有行时**不新增 pay_refund、不重新留痕**。
+     */
+    private RefundDto replayExisting(Persisted<Refund> existing, Long orderId, BigDecimal amount) {
+        Refund refund = existing.aggregate();
+        boolean sameOrder = refund.orderId() != null && refund.orderId().equals(orderId);
+        boolean sameAmount = refund.requestedAmount() != null && amount != null
+                && refund.requestedAmount().compareTo(amount) == 0;
+        if (!sameOrder || !sameAmount) {
+            throw new ApiException(409, "IDEMPOTENCY_KEY_REUSED",
+                    "幂等键已用于另一笔退款申请，请更换 Idempotency-Key");
+        }
+        return RefundDto.from(existing);
+    }
+
+    /** {@code pay_refund.request_id} 为 varchar(64)：短键直接作为申请号（可读可追），超长键按 SHA-256 摘要截断。 */
+    private static String resolveRequestId(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return null;
+        }
+        String key = idempotencyKey.trim();
+        if (key.length() <= MAX_REQUEST_ID_LENGTH) {
+            return key;
+        }
+        return "IDEM-" + sha256Hex(key).substring(0, 40);
+    }
+
+    private static void requireRefundAmount(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(422, "REFUND_AMOUNT_INVALID", "退款金额必须为正数");
+        }
+    }
+
+    /**
+     * 申请阶段的可退上限预检：申请金额不得超过订单**当前已收金额**（已扣除已完成退款回冲）。
+     *
+     * <p>冻结前 E2E 场景：订单已全额退款（{@code paid_amount=0}）后重复提交同额退款申请，此前会新建
+     * 第二条 PENDING 行（到审批阶段才失败）。这里在同事务内用行锁读订单已收金额，
+     * 超限直接 422 {@code REFUND_EXCEEDS_PAID}，DB 不新增行。
+     *
+     * <p>为什么用 {@code findForUpdate}：本次申请与并发退款/收款需要基于同一份已收金额判定，
+     * 锁持有到事务提交（只包住一次插入，时间很短）。
+     */
+    private void requireRefundableAmount(Long tenantId, Long orderId, BigDecimal amount) {
+        if (orderBillingRepository == null || tenantId == null || orderId == null) {
+            return;
+        }
+        var order = orderBillingRepository.findForUpdate(tenantId, orderId).orElse(null);
+        if (order == null) {
+            return;
+        }
+        if (amount.compareTo(order.paidOrZero()) > 0) {
+            throw new ApiException(422, "REFUND_EXCEEDS_PAID", "退款金额超过订单当前可退金额");
+        }
+    }
+
+    private static String sha256Hex(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(digest.length * 2);
+            for (byte b : digest) {
+                hex.append(Character.forDigit((b >> 4) & 0xF, 16));
+                hex.append(Character.forDigit(b & 0xF, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Unable to hash the idempotency key", e);
         }
     }
 
@@ -122,10 +246,10 @@ public class RefundApplicationService {
             requireRefundStore(refund);
             requireStatus(refund, STATUS_PENDING, "approve");
             if (approvedAmount == null || approvedAmount.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalStateException("REFUND_AMOUNT_INVALID");
+                throw new ApiException(422, "REFUND_AMOUNT_INVALID", "批准金额必须为正数");
             }
             if (refund.requestedAmount() != null && approvedAmount.compareTo(refund.requestedAmount()) > 0) {
-                throw new IllegalStateException("REFUND_AMOUNT_EXCEEDS_REQUEST");
+                throw new ApiException(422, "REFUND_AMOUNT_EXCEEDS_REQUEST", "批准金额不得超过申请金额");
             }
             if (orderBillingRepository != null && refund.orderId() != null) {
                 var order = orderBillingRepository.findForUpdate(refund.tenantId(), refund.orderId()).orElse(null);
@@ -204,7 +328,8 @@ public class RefundApplicationService {
             if (orderBillingRepository != null && refund.orderId() != null
                     && refund.approvedAmount() != null) {
                 if (!orderBillingRepository.markRefunded(refund.tenantId(), refund.orderId(), refund.approvedAmount())) {
-                    throw new IllegalStateException("REFUND_ORDER_UPDATE_FAILED");
+                    throw new ApiException(409, "REFUND_ORDER_CONFLICT",
+                            "订单退款落账冲突，请核对订单当前收款/退款状态");
                 }
             }
             auditClient.recordAsync(AuditClient.AuditRecord.builder()
@@ -229,9 +354,15 @@ public class RefundApplicationService {
     /**
      * 执行状态迁移（状态守卫的 CAS）。
      *
-     * <p>受影响 0 行 = 状态已被他人改变。这里报 {@code REFUND_STATE_INVALID} 而不是冲突码：
-     * 对调用方而言语义相同（这次迁移没生效、钱没退出去），而错误里的状态说明更有助于排查。
+     * <p>受影响 0 行 = 状态已被他人改变（并发抢先 / 重复提交）。这是**业务冲突**，必须返回 409
+     * {@code REFUND_STATE_INVALID} 而不是 500：重复登记线下退款时调用方需要可判定的 4xx，
+     * 且不得把"未生效"当成"已退出去"。
      */
+    private Persisted<Refund> transactionGuarded(Refund target, String expectedStatus, String action) {
+        return refundRepository.updateStatusGuarded(target, expectedStatus, LocalDateTime.now())
+                .orElseThrow(() -> new ApiException(409, "REFUND_STATE_INVALID",
+                        "退款状态已变更，无法执行 " + action + "（期望 " + expectedStatus + "）"));
+    }
 
     private void requireOrderStore(Long tenantId, Long storeId, Long orderId) {
         if (orderBillingRepository == null) {
@@ -261,11 +392,6 @@ public class RefundApplicationService {
             }
         }
     }
-    private Persisted<Refund> transactionGuarded(Refund target, String expectedStatus, String action) {
-        return refundRepository.updateStatusGuarded(target, expectedStatus, LocalDateTime.now())
-                .orElseThrow(() -> new IllegalStateException(
-                        "REFUND_STATE_INVALID: cannot " + action + " refund in state " + expectedStatus));
-    }
 
     /** 生成迁移后的退款单快照（不可变模型按需替换字段）。 */
     private static Refund withStatus(Refund refund, String status, BigDecimal approvedAmount,
@@ -280,7 +406,8 @@ public class RefundApplicationService {
 
     /**
      * 退款写操作失败留痕：动作码与成功路径同码，{@code result=FAILURE} + 稳定 errorCode
-     * （本服务抛 {@link IllegalStateException}，取类名；有稳定业务码时优先取业务码，并按列宽 64 截断）。
+     * （本服务抛 {@link ApiException}，优先取稳定业务码，例如 {@code REFUND_STATE_INVALID}；
+     * 无业务码的框架异常退回异常类名，并按列宽 64 截断）。
      *
      * <p>审计只走 {@link AuditClient#recordAsync}（失败仅 WARN），业务异常原样抛出：留痕不改变业务结果。
      * 失败路径不再回查退款单（避免二次读库再抛异常掩盖原始业务异常）；租户缺省由
@@ -304,13 +431,13 @@ public class RefundApplicationService {
 
     private Persisted<Refund> requireRefund(Long refundId) {
         return refundRepository.findById(refundId)
-                .orElseThrow(() -> new IllegalStateException("REFUND_NOT_FOUND"));
+                .orElseThrow(() -> new ApiException(404, "REFUND_NOT_FOUND", "退款单不存在: " + refundId));
     }
 
     private void requireStatus(Refund refund, String expected, String action) {
         if (!expected.equals(refund.status())) {
-            throw new IllegalStateException(
-                    "REFUND_STATE_INVALID: cannot " + action + " refund in state " + refund.status());
+            throw new ApiException(409, "REFUND_STATE_INVALID",
+                    "退款状态不允许该操作: 期望 " + expected + "，实际 " + refund.status());
         }
     }
 }

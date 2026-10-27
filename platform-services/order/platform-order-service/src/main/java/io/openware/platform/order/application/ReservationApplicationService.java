@@ -641,7 +641,7 @@ public class ReservationApplicationService {
         // 领域模型不可变：直接构造落库实体（金额六个列全 0、交易状态 DRAFT、退款状态 NONE、版本 0）。
         Order order = new Order(null, r.tenantId(), organizationId, r.storeId(),
                 dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, r.tenantId()),
-                null, effectiveBusinessType, r.customerId(), "DRAFT",
+                null, effectiveBusinessType, r.customerId(),
                 TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), CurrencyResolver.currentCode(),
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, null, null, null, null, 0);

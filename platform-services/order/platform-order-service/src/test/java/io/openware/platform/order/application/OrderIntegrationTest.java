@@ -116,7 +116,7 @@ class OrderIntegrationTest {
     assertNotNull(opened.openedAt());
     assertNotNull(opened.billingStartAt());
     assertNotNull(opened.billingRuleSnapshotJson());
-    assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
+    assertEquals("DRAFT", orderMapper.selectById(order.getId()).getTradeStatus());
 
     // 回拨计费起点到 90 分钟前，确保结台能产出正计时费（否则 billable≈0）。
     // 这是「整实体写回」（迁移前就是 updateById，不带 CAS），端口上的 update 逐字保留该语义。
@@ -126,7 +126,7 @@ class OrderIntegrationTest {
     KtvSession closed = ktvSessionApplicationService.close(session.id());
     assertEquals("CLOSED", closed.status());
     assertNotNull(closed.closedAt());
-    assertEquals("WAITING_PAYMENT", orderMapper.selectById(order.getId()).getStatus(),
+    assertEquals("PENDING_PAYMENT", orderMapper.selectById(order.getId()).getTradeStatus(),
         "结台即结算：没有待确认的客户自助加项时，结台后直接进入待收款");
     assertEquals("CNY", orderMapper.selectById(order.getId()).getCurrencyCode(),
         "历史单据的币种快照不得被开台/结台/金额写入改写");
@@ -169,15 +169,13 @@ class OrderIntegrationTest {
     KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
     // 开台：占用登记（mock 返回 occupationId=1）并把会话推进到 OPEN
     ktvSessionApplicationService.open(session.id(), null);
-    assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
+    assertEquals("DRAFT", orderMapper.selectById(order.getId()).getTradeStatus());
 
     Order cancelled = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("CANCELLED", cancelled.status());
     assertEquals("CANCELLED", cancelled.tradeStatus());
     assertNotNull(cancelled.cancelledAt());
     OrderPo cancelledRow = orderMapper.selectById(order.getId());
-    assertEquals("CANCELLED", cancelledRow.getStatus());
     assertEquals("CANCELLED", cancelledRow.getTradeStatus());
     KtvSession released = ktvSessionRepository.findById(session.id()).orElseThrow();
     assertEquals("CANCELLED", released.status());
@@ -198,7 +196,7 @@ class OrderIntegrationTest {
 
     assertEquals(409, ex.getStatus());
     assertEquals("ORDER_HAS_PAYMENT_REFUND_FIRST", ex.getCode());
-    assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
+    assertEquals("DRAFT", orderMapper.selectById(order.getId()).getTradeStatus());
     assertEquals("OPEN", ktvSessionRepository.findById(session.id()).orElseThrow().status());
   }
 
@@ -213,7 +211,7 @@ class OrderIntegrationTest {
     orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
     Order second = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("CANCELLED", second.status());
+    assertEquals("CANCELLED", second.tradeStatus());
     // 第二次不再释放占用：release 只发生一次（第一次取消）。
     verify(resourceStateClient).release(1L);
   }
@@ -221,7 +219,7 @@ class OrderIntegrationTest {
   @Test
   void settle_crossTenant_throwsForbidden() {
     OrderPo order = newOrder();
-    order.setStatus("WAITING_SETTLEMENT");
+    order.setTradeStatus("PENDING_PAYMENT");
     orderMapper.insert(order);
 
     TenantContextHolder.set(new TenantContext(2002L, 1L, STORE_ID, 0L, 0));
@@ -256,7 +254,9 @@ class OrderIntegrationTest {
     po.setStoreId(STORE_ID);
     po.setOrderNo("ORD-IT-" + System.nanoTime());
     po.setBusinessType("KTV");
-    po.setStatus("DRAFT");
+    // 订单主表只有交易状态（兼容列 status 已随收口迁移删除）
+    po.setTradeStatus("DRAFT");
+    po.setRefundStatus("NONE");
     po.setCurrencyCode("CNY");
     po.setSubtotalAmount(BigDecimal.ZERO);
     po.setDiscountAmount(BigDecimal.ZERO);

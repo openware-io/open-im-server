@@ -268,6 +268,12 @@ spring:
          - Path=/api/v1/business/payments/**,/api/v1/business/payment-methods/**,/api/v1/business/shifts/**,/api/v1/business/refund-requests/**,/api/v1/admin/refund-requests/**,/api/v1/admin/daily-closings/**,/api/v1/admin/reconciliations/**,/api/v1/admin/payment-channels/**,/api/v1/admin/payment-methods/**
         filters:
          - StripPrefix=2
+      # 酒店 OTA channel v1：外部渠道 HMAC 鉴权由 order 服务自校验，网关只做转发；
+      # 刻意不 StripPrefix，保证下游 requestURI 与外部签名 canonical path 完全一致。
+      - id: open-hotel-channel
+        uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
+        predicates:
+         - Path=/api/v1/open/hotel/**
       - id: saas-order
         uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
         predicates:

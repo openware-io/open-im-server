@@ -55,6 +55,21 @@
   退款超过已收 → 422 `REFUND_AMOUNT_EXCEEDS_PAID`；订单已被其他收款改写 → 409 `PAYMENT_ORDER_CONFLICT`。
 - 金额口径：`amountMinor` 是最小货币单位整数，与 `pay_intent/pay_transaction/ord_order` 现有金额列口径一致。
 
+## 退款幂等与错误码（2.4.0 收口 must-fix）
+
+退款申请/线下退款登记此前在重复提交时分别会"新建第二条 refund"与"抛 IllegalStateException → 500"，收口后：
+
+- **申请退款**（`POST /business/refund-requests`）支持可选 `Idempotency-Key`：
+  - 同键重放返回首次创建的退款单（200、同 id、不新建）；
+  - 同键不同订单/金额 → 409 `IDEMPOTENCY_KEY_REUSED`；
+  - 不带键（或换键）但同订单 + 同申请金额已有未终结（`PENDING`/`APPROVED`）退款单 → 409 `REFUND_DUPLICATE`，DB 不新增行。
+- **线下退款登记**（`POST /admin/refund-requests/{id}/refund`）重复调用：状态 CAS 失败返回 409
+  `REFUND_STATE_INVALID`（不再是 500），且不会二次回冲 `ord_order.paid_amount/refundable_amount/refund_status`。
+- 其余退款业务错误同样使用显式 4xx：`REFUND_NOT_FOUND`(404)、`REFUND_AMOUNT_INVALID`(422)、
+  `REFUND_AMOUNT_EXCEEDS_REQUEST`(422)、`REFUND_ORDER_CONFLICT`(409)。
+- 渠道退款回调（`/internal/payment/channel-settlement` 的 `REFUNDED`）走 `pay_channel_settlement` 幂等台账，
+  与本节的线下退款状态机互不影响。
+
 ## 订单交易状态落账（2.4.0）
 
 组合收款、退款与渠道回调结算直接落 `ord_order` 的交易事实列（兼容列 `status` 已在收口迁移 V27 删除）：

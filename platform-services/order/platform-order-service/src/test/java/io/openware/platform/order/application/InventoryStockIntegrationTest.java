@@ -319,18 +319,16 @@ class InventoryStockIntegrationTest {
         STORE_ID, "INV-" + System.nanoTime(), name, "耗材", "件", BigDecimal.ZERO, null, null, null, null));
   }
 
-  private OrderPo newOrder(String status) {
+  private OrderPo newOrder(String tradeStatus) {
     OrderPo po = new OrderPo();
     po.setTenantId(TENANT_ID);
     po.setOrganizationId(1L);
     po.setStoreId(STORE_ID);
     po.setOrderNo("ORD-INV-" + System.nanoTime());
     po.setBusinessType("KTV");
-    po.setStatus(status);
-    // V24：订单主表以 trade_status/refund_status 为判据；直接插 PO 的夹具必须同步写这两个快照列
-    // （生产写路径由领域模型双写，这里绕过领域模型，不能只写兼容列）。
-    po.setTradeStatus(TradeStatus.fromLegacy(status).name());
-    po.setRefundStatus(RefundStatus.fromLegacy(status).name());
+    // 订单主表只有交易状态（兼容列 status 已随收口迁移删除）。
+    po.setTradeStatus(tradeStatus);
+    po.setRefundStatus(RefundStatus.NONE.name());
     po.setCurrencyCode("CNY");
     po.setSubtotalAmount(BigDecimal.ZERO);
     po.setDiscountAmount(BigDecimal.ZERO);

@@ -24,6 +24,14 @@ public class PayChannelTransactionPo {
     private String currency;
     private String status;
     private String callbackRaw;
+    /** 回调结算状态：PENDING/APPLIED/FAILED（调用 payment-service 内部结算接口的结果，失败可重试）。 */
+    private String settlementStatus;
+    /** 结算调用尝试次数（含失败重投）。 */
+    private Integer settlementAttempts;
+    /** 最近一次结算失败原因（截断，不含密钥/卡号/完整报文）。 */
+    private String settlementError;
+    /** 最近一次结算调用时间。 */
+    private LocalDateTime settlementUpdatedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

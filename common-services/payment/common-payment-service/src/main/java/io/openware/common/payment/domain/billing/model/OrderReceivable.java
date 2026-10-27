@@ -12,26 +12,27 @@ import java.math.BigDecimal;
  * 不属于支付域，加进来只会造出一个没人用的宽模型。
  *
  * @param orderId      订单标识
- * @param status       订单状态：{@code CANCELLED}/{@code VOIDED}/{@code COMPLETED} 不可再收款
+ * @param tradeStatus  订单交易状态（{@code ord_order.trade_status}）：
+ *                     {@code CANCELLED}/{@code VOIDED}/{@code COMPLETED} 不可再收款
  * @param totalAmount  应收总额（最小货币单位）
  * @param paidAmount   已收金额（最小货币单位）
  * @param currencyCode 订单币种快照（收款与退款都必须与它一致，禁止跨币种）
  */
 public record OrderReceivable(
     Long orderId,
-    String status,
+    String tradeStatus,
     BigDecimal totalAmount,
     BigDecimal paidAmount,
     String currencyCode) {
 
   /** 订单已取消。 */
-  public static final String STATUS_CANCELLED = "CANCELLED";
+  public static final String TRADE_CANCELLED = "CANCELLED";
 
   /** 订单已作废。 */
-  public static final String STATUS_VOIDED = "VOIDED";
+  public static final String TRADE_VOIDED = "VOIDED";
 
   /** 订单已完成。 */
-  public static final String STATUS_COMPLETED = "COMPLETED";
+  public static final String TRADE_COMPLETED = "COMPLETED";
 
   /** 总额；为空视为零。 */
   public BigDecimal totalOrZero() {
@@ -51,10 +52,16 @@ public record OrderReceivable(
   /**
    * 该订单当前是否**可收款**。
    *
-   * <p>已取消/已作废/已完成都不可再收款：对它们落账会把钱记到一个已经终结的订单上。
+   * <p>已取消/已作废/已完成/已全额收款都不可再收款：对它们落账会把钱记到一个已经终结（或已收清）的订单上。
+   * 判据是交易状态（订单主表唯一的状态来源，兼容列 {@code status} 已随收口迁移删除）**加**剩余应收：
+   * 新模型全额收款后是 {@code trade_status=PAID}（不再是旧的 COMPLETED），只看状态名会把「已收清」
+   * 当成可收款，于是“新幂等键 + payable=0”的重复 collect 还能写出 0 元收款单——
+   * 这里用剩余应收归零作为第二道判据，恢复旧行为（重复收款 422 ORDER_STATUS_INVALID）。
    */
   public boolean collectable() {
-    return !STATUS_CANCELLED.equals(status) && !STATUS_VOIDED.equals(status)
-        && !STATUS_COMPLETED.equals(status);
+    return remainingPayable() > 0
+        && !TRADE_CANCELLED.equals(tradeStatus)
+        && !TRADE_VOIDED.equals(tradeStatus)
+        && !TRADE_COMPLETED.equals(tradeStatus);
   }
 }

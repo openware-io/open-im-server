@@ -23,6 +23,7 @@ import io.openware.platform.order.infra.client.RoomTypeCatalogClient.RoomView;
 import io.openware.platform.order.infra.client.TenantBusinessHoursClient;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -652,7 +653,7 @@ class ReservationApplicationServiceTest {
         when(orderMapper.insert(any(Order.class), any()))
                 .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(eq(TENANT_ID), eq(88L), eq(3001L))).thenReturn(session(555L));
-        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "DRAFT")));
         CurrencyContextHolder.set(Currency.CNY);
 
         OrderView opened = service.openTable(9L, null);
@@ -672,7 +673,7 @@ class ReservationApplicationServiceTest {
         when(orderMapper.insert(any(Order.class), any()))
                 .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "DRAFT")));
 
         service.openTable(9L, null);
 
@@ -974,7 +975,7 @@ class ReservationApplicationServiceTest {
         when(orderMapper.insert(any(Order.class), any()))
                 .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "DRAFT")));
 
         OrderView order = service.openTable(9L, null);
 
@@ -994,7 +995,7 @@ class ReservationApplicationServiceTest {
         when(orderMapper.insert(any(Order.class), any()))
                 .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "DRAFT")));
 
         service.openTable(9L, null);
 
@@ -1028,7 +1029,7 @@ class ReservationApplicationServiceTest {
         when(orderMapper.insert(any(Order.class), any()))
                 .thenAnswer(invocation -> ((Order) invocation.getArgument(0)).withId(88L));
         when(ktvSessionService.create(any(), any(), any())).thenReturn(session(555L));
-        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "SERVING")));
+        when(orderMapper.findById(88L)).thenReturn(Optional.of(order(88L, "DRAFT")));
 
         service.openTable(9L, null);
 
@@ -1043,7 +1044,7 @@ class ReservationApplicationServiceTest {
     @Test
     void openTableIsIdempotentForConvertedReservation() {
         givenReservation(reservation(ReservationStatus.CONVERTED, 3001L, ROOM_TYPE_ID, 88L, null));
-        Order existing = order(88L, "SERVING");
+        Order existing = order(88L, "DRAFT");
         when(orderMapper.findById(88L)).thenReturn(Optional.of(existing));
         when(ktvSessionService.findByOrderId(88L)).thenReturn(session(555L));
 
@@ -1153,7 +1154,7 @@ class ReservationApplicationServiceTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(Long id, String status) {
-        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, null, null, null, null, 0);
     }

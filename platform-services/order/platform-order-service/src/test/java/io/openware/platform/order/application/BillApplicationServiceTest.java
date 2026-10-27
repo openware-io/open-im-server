@@ -24,6 +24,7 @@ import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -132,7 +133,7 @@ class BillApplicationServiceTest {
    */
   @Test
   void pausedSessionStopsBillingAtPauseStartedAt() {
-    Order order = order(BigDecimal.ZERO, "SERVING");
+    Order order = order(BigDecimal.ZERO, "DRAFT");
     when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     when(orderItemMapper.list(any())).thenReturn(rows());
     // 开台 10:00 → 暂停 10:30（停表）→ 现在 12:30：计费时长只能是 30 分钟 = 1 块。
@@ -230,7 +231,7 @@ class BillApplicationServiceTest {
    */
   @Test
   void packagePlanHasNoRoomFeeLineAndKeepsStoredTotal() {
-    Order order = order(BigDecimal.valueOf(26800), "SERVING");
+    Order order = order(BigDecimal.valueOf(26800), "DRAFT");
     when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     when(orderItemMapper.list(any())).thenReturn(rows(
         item(1L, "PRODUCT", "果盘", null, new BigDecimal("6800"), new BigDecimal("1"), new BigDecimal("6800")),
@@ -252,7 +253,7 @@ class BillApplicationServiceTest {
    */
   @Test
   void billPicksTheSameCurrentSessionAsOrderBoard() {
-    Order order = order(BigDecimal.ZERO, "SERVING");
+    Order order = order(BigDecimal.ZERO, "DRAFT");
     when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     when(orderItemMapper.list(any())).thenReturn(rows());
     KtvSession olderClosed = closedSession().withId(11L);
@@ -365,7 +366,7 @@ class BillApplicationServiceTest {
    */
   @Test
   void billComputesLiveRoomFeeForOpenSession() {
-    Order order = order(BigDecimal.ZERO, "SERVING");
+    Order order = order(BigDecimal.ZERO, "DRAFT");
     when(orderMapper.findById(1L)).thenReturn(Optional.of(order));
     // 存量开台订单：库里还没有房费明细（本轮修复前开的台），合计也是 0。
     when(orderItemMapper.list(any())).thenReturn(rows());
@@ -399,7 +400,7 @@ class BillApplicationServiceTest {
   }
 
   private static Order order(BigDecimal totalAmount, String status) {
-    return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+    return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
         totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, totalAmount, BigDecimal.ZERO,
         null, null, null, null, 0);
   }

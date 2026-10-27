@@ -29,6 +29,7 @@ import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -65,7 +66,7 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_createsOrderedSessionWithZeroAmount() {
-    Order order = order(10L, "SERVING", 100L);
+    Order order = order(10L, "DRAFT", 100L);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 
@@ -195,7 +196,7 @@ class KtvServerSessionApplicationServiceTest {
   /** 点服务人员：把服务人员快照（ID + 资源名）写入 KTV 会话，订单列表/房态看板直接读会话。 */
   @Test
   void order_writesServerSnapshotIntoKtvSession() {
-    Order order = order(10L, "SERVING", 100L);
+    Order order = order(10L, "DRAFT", 100L);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     ResourceStateClient resourceClient = mock(ResourceStateClient.class);
@@ -229,7 +230,7 @@ class KtvServerSessionApplicationServiceTest {
   /** 缺少 ktvSessionId（老调用）时跳过会话回写，不能因为多一个可选依赖阻断点单。 */
   @Test
   void order_withoutKtvSessionIdSkipsSessionSnapshot() {
-    Order order = order(10L, "SERVING", 100L);
+    Order order = order(10L, "DRAFT", 100L);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
     KtvServerSessionApplicationService withResource = new KtvServerSessionApplicationService(
@@ -406,7 +407,7 @@ class KtvServerSessionApplicationServiceTest {
     when(sessionRepository.findById(2L)).thenReturn(Optional.of(charged));
     when(sessionRepository.listByOrderId(10L)).thenReturn(List.of(free, charged));
     when(sessionRepository.updateWithVersion(any())).thenReturn(true);
-    Order order = order(10L, "SERVING", 100L);
+    Order order = order(10L, "DRAFT", 100L);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     // 真库行为：结台/重算读的是已落库的 ACTIVE 明细，这里回放刚写入的那条服务人员费。
     OrderItem stored = new OrderItem(99L, 1L, 100L, "KTV", 10L, "SERVICE", null, null, "服务人员#9",
@@ -434,7 +435,7 @@ class KtvServerSessionApplicationServiceTest {
 
   /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
   private static Order order(long id, String status, long storeId) {
-    return new Order(id, 1L, null, storeId, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+    return new Order(id, 1L, null, storeId, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
         BigDecimal.ZERO, null, null, null, null, 0);
   }
@@ -445,7 +446,7 @@ class KtvServerSessionApplicationServiceTest {
 
   @Test
   void order_writesSucceededAudit() {
-    Order order = order(10L, "SERVING", 100L);
+    Order order = order(10L, "DRAFT", 100L);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(order));
     when(pricingPlanProvider.resolve(1L, 100L)).thenReturn(plan());
 

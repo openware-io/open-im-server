@@ -104,8 +104,8 @@ class CollectApplicationServiceTest {
   }
 
   /** 账单夹具：只带本域真正读取的列。 */
-  private static OrderReceivable bill(long total, long paid, String status) {
-    return new OrderReceivable(9L, status, java.math.BigDecimal.valueOf(total),
+  private static OrderReceivable bill(long total, long paid, String tradeStatus) {
+    return new OrderReceivable(9L, tradeStatus, java.math.BigDecimal.valueOf(total),
         java.math.BigDecimal.valueOf(paid), "CNY");
   }
 
@@ -117,7 +117,7 @@ class CollectApplicationServiceTest {
 
   @Test
   void collect_rejectsClientPayableWhenItDiffersFromServerBill() {
-    OrderReceivable bill = bill(10000, 0, "WAITING_SETTLEMENT");
+    OrderReceivable bill = bill(10000, 0, "PENDING_PAYMENT");
     when(orderBillingRepository.findForUpdate(1L, 9L)).thenReturn(Optional.of(bill));
     when(orderBillingRepository.markPaid(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
 
@@ -130,7 +130,7 @@ class CollectApplicationServiceTest {
 
   @Test
   void collect_marksOrderCompletedAfterFullPayment() {
-    OrderReceivable bill = bill(5000, 0, "WAITING_SETTLEMENT");
+    OrderReceivable bill = bill(5000, 0, "PENDING_PAYMENT");
     when(orderBillingRepository.findForUpdate(1L, 9L)).thenReturn(Optional.of(bill));
     when(orderBillingRepository.markPaid(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
 
@@ -391,7 +391,7 @@ class CollectApplicationServiceTest {
 
   @Test
   void collect_cashLegFailureRollsBackWholeTransactionAndNeverLeavesConfirmed() {
-    OrderReceivable bill = bill(8000, 0, "WAITING_SETTLEMENT");
+    OrderReceivable bill = bill(8000, 0, "PENDING_PAYMENT");
     when(orderBillingRepository.findForUpdate(1L, 9L)).thenReturn(Optional.of(bill));
     when(payCollectRepository.findByIdempotencyKey(any(), any())).thenReturn(Optional.empty());
     // 现金分腿已写、订单落账 CAS 冲突（并发收款抢占）：整个事务必须回滚。

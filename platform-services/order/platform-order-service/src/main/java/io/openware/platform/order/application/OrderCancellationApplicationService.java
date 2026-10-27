@@ -178,7 +178,6 @@ public class OrderCancellationApplicationService {
 
     private Order apply(Long orderId, String reason, CancelKind kind) {
         Order order = requireOrder(orderId);
-        String beforeStatus = order.status();
         TradeStatus beforeTrade = order.trade();
         // 目标终态：取消 → CANCELLED（用户取消），作废/冲正 → VOIDED（审批作废，报表独立统计）。
         TradeStatus targetTrade = kind == CancelKind.CANCEL ? TradeStatus.CANCELLED : TradeStatus.VOIDED;
@@ -205,18 +204,17 @@ public class OrderCancellationApplicationService {
             LocalDateTime now = LocalDateTime.now();
             // 条件更新：只有库中交易状态仍是判定的那个状态才算终结成功。上面按 beforeTrade 的判定不是并发保护——
             // 两个并发取消都会读到同一非终结状态并通过判定，从而各自释放一次会话、各写一条审计。
-            if (!orderRepository.voidByTradeStatus(order.id(), beforeTrade.name(), targetTrade.name(),
-                    targetTrade.legacyStatus(), now)) {
+            if (!orderRepository.voidByTradeStatus(order.id(), beforeTrade.name(), targetTrade.name(), now)) {
                 throw new ApiException(409, "ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
             }
-            // 领域模型不可变：终结后的新实例（交易状态 CANCELLED/VOIDED、兼容列同值、cancelled_at = now）。
+            // 领域模型不可变：终结后的新实例（交易状态 CANCELLED/VOIDED、cancelled_at = now）。
             order = order.terminated(targetTrade, now);
-            audit(order, beforeStatus, beforeTrade, reason, kind, releasedSession);
+            audit(order, beforeTrade, reason, kind, releasedSession);
             return order;
         } catch (RuntimeException failure) {
             // 失败留痕（状态冲突/已收款拦截/释放占用或落库失败）：BFF 拦截器只覆盖 /admin/**，
             // /business/** 取消订单的失败此前完全没有留痕。审计只 WARN、异常原样抛出。
-            recordFailure(order, beforeStatus, kind, failure);
+            recordFailure(order, kind, failure);
             throw failure;
         }
     }
@@ -224,9 +222,9 @@ public class OrderCancellationApplicationService {
     /**
      * 取消/作废失败留痕：动作码与成功路径同码，{@code result=FAILURE} + 稳定 errorCode。
      * <p>不带幂等键（同一动作重复失败必须各自留痕，且不得与成功路径的稳定键互相覆盖）；
-     * detail 只放订单号与状态等检索字段，不含金额、联系人等敏感信息。
+     * detail 只放订单号与交易状态等检索字段，不含金额、联系人等敏感信息。
      */
-    private void recordFailure(Order order, String beforeStatus, CancelKind kind, RuntimeException failure) {
+    private void recordFailure(Order order, CancelKind kind, RuntimeException failure) {
         if (auditClient == null) {
             return;
         }
@@ -241,7 +239,7 @@ public class OrderCancellationApplicationService {
                 .result(AuditClient.AuditRecord.RESULT_FAILURE)
                 .errorCode(AuditErrorCodes.of(failure))
                 .detailJson("{\"orderNo\":" + jsonText(order.orderNo())
-                        + ",\"beforeStatus\":" + jsonText(beforeStatus) + "}")
+                        + ",\"tradeStatus\":" + jsonText(order.tradeStatus()) + "}")
                 .build());
     }
 
@@ -272,8 +270,8 @@ public class OrderCancellationApplicationService {
         return breakdown.cash() + breakdown.wallet() + breakdown.points();
     }
 
-    /** 取消/作废审计：动作码按 kind 分叉，detail 带前后状态、原因与释放的会话/包厢（无会话时为 null）。 */
-    private void audit(Order order, String beforeStatus, TradeStatus beforeTrade, String reason, CancelKind kind,
+    /** 取消/作废审计：动作码按 kind 分叉，detail 带前后交易状态、原因与释放的会话/包厢（无会话时为 null）。 */
+    private void audit(Order order, TradeStatus beforeTrade, String reason, CancelKind kind,
                        KtvSession releasedSession) {
         if (auditClient == null) {
             return;
@@ -290,16 +288,14 @@ public class OrderCancellationApplicationService {
                 .resourceName(order.orderNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey(kind.idempotencyKey(order.id()))
-                .detailJson(detail(order, beforeStatus, beforeTrade, reason, releasedSessionId, releasedResourceId))
+                .detailJson(detail(order, beforeTrade, reason, releasedSessionId, releasedResourceId))
                 .build());
     }
 
-    private static String detail(Order order, String beforeStatus, TradeStatus beforeTrade, String reason,
+    private static String detail(Order order, TradeStatus beforeTrade, String reason,
                                  Long releasedSessionId, Long releasedResourceId) {
         return "{\"orderNo\":" + jsonText(order.orderNo())
-                + ",\"beforeStatus\":" + jsonText(beforeStatus)
                 + ",\"beforeTradeStatus\":" + jsonText(beforeTrade == null ? null : beforeTrade.name())
-                + ",\"afterStatus\":" + jsonText(order.status())
                 + ",\"afterTradeStatus\":" + jsonText(order.tradeStatus())
                 + ",\"reason\":" + jsonText(reason)
                 + ",\"releasedSessionId\":" + releasedSessionId

@@ -101,17 +101,15 @@ public interface OrderRepository {
 
     /**
      * 交易状态转换的条件更新：单条
-     * {@code UPDATE ... SET trade_status=?, status=?, updated_at=? WHERE id=? AND trade_status=?}。
+     * {@code UPDATE ... SET trade_status=?, updated_at=? WHERE id=? AND trade_status=?}。
      *
      * <p>判据是**交易状态本身**（订单确认：{@code DRAFT → PENDING_PAYMENT}）：
      * 只靠应用层「读出来比对」不是并发保护，两个并发确认都会通过比对。
-     * 兼容列 {@code status} 不参与判定，只随交易状态一起写（收口前双写）。
      *
-     * @param newLegacyStatus 兼容列要写的旧值（KTV：开台中 SERVING / 结台待收款 WAITING_SETTLEMENT…）
      * @return 是否写入成功；{@code false} = 期间已被他人转换
      */
     boolean updateTradeStatusGuarded(Long id, String expectedTradeStatus, String newTradeStatus,
-                                     String newLegacyStatus, LocalDateTime at);
+                                     LocalDateTime at);
 
     /**
      * 挂单的条件更新：单条 {@code UPDATE ... SET hold_at=?, hold_reason=?, updated_at=?
@@ -134,8 +132,7 @@ public interface OrderRepository {
 
     /**
      * 取消/作废的条件更新：单条
-     * {@code UPDATE ... SET trade_status=?, status=?, cancelled_at=?, updated_at=?
-     * WHERE id=? AND trade_status=?}。
+     * {@code UPDATE ... SET trade_status=?, cancelled_at=?, updated_at=? WHERE id=? AND trade_status=?}。
      *
      * <p>判据用交易状态而不是 {@code version} 是刻意的：取消流程不写金额，
      * 而重复取消是幂等语义；只有仍是原状态才允许终结，精确表达「这次终结针对的是我刚读到的那个状态」。
@@ -143,6 +140,5 @@ public interface OrderRepository {
      *
      * @return 是否写入成功；{@code false} = 期间已被他人转换
      */
-    boolean voidByTradeStatus(Long id, String expectedTradeStatus, String newTradeStatus,
-                              String newLegacyStatus, LocalDateTime at);
+    boolean voidByTradeStatus(Long id, String expectedTradeStatus, String newTradeStatus, LocalDateTime at);
 }

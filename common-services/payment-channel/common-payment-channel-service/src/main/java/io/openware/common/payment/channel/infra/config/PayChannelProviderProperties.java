@@ -16,6 +16,7 @@ public class PayChannelProviderProperties {
     private Wechat wechat = new Wechat();
     private Alipay alipay = new Alipay();
     private Stripe stripe = new Stripe();
+    private Sandbox sandbox = new Sandbox();
 
     /** 微信支付配置：apiVersion=v2（XML 统一下单 + MD5/HMAC-SHA256）或 v3（JSON + RSA + AES-256-GCM）。 */
     @Getter
@@ -63,5 +64,21 @@ public class PayChannelProviderProperties {
         private String apiUrl = "https://api.stripe.com/v1";
         /** Stripe-Signature 时间戳容忍窗口（秒），防旧签名重放。 */
         private long webhookToleranceSeconds = 300;
+    }
+
+    /**
+     * SANDBOX 渠道配置：**仅供本地 Kind E2E**（默认关闭，禁止在共享/生产环境启用）。
+     *
+     * <p>本地 Kind 没有真实 Alipay/Wechat/Stripe 商户密钥，真实渠道回调无法在 E2E 中产生资金事实。
+     * SANDBOX 用固定 HMAC 密钥对回调 JSON 验签，走与真实渠道**完全相同**的
+     * {@code callback → 渠道交易落库 → payment-service 内部结算 → pay_intent/ord_order} 链路，
+     * 因此成功/失败/重复/退款回调都能在真实部署上验证，而不是只验证签失败。
+     */
+    @Getter
+    @Setter
+    public static class Sandbox {
+        private boolean enabled;
+        /** 回调验签密钥（本地固定测试值；生产环境不应启用 SANDBOX）。 */
+        private String webhookSecret;
     }
 }

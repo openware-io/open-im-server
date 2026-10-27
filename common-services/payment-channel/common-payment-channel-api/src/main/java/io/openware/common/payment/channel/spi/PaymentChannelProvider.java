@@ -27,4 +27,17 @@ public interface PaymentChannelProvider {
                 ? CallbackAck.ok("text/plain;charset=utf-8", "success")
                 : CallbackAck.fail("text/plain;charset=utf-8", "fail");
     }
+
+    /**
+     * 验签通过但**内部结算失败**时的确认报文：必须让渠道重试，不能返回成功 ack（否则资金事实静默丢失）。
+     *
+     * <p>复用各渠道既有的失败报文格式（支付宝 {@code fail}、微信 v2 XML {@code FAIL}、
+     * 微信 v3 / Stripe 非 2xx），只是把 {@code verified} 置 false 交给 {@link #callbackAck} 生成——
+     * 验签结果本身不受影响，日志会记录「验签成功、结算失败」。
+     */
+    default CallbackAck retryAck(VerifyCallbackResult result) {
+        return callbackAck(new VerifyCallbackResult(false, result.providerTransactionNo(), result.orderId(),
+                result.amount(), result.currency(), result.status(), result.rawPayload(), result.eventId(),
+                result.tenantId()));
+    }
 }

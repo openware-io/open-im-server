@@ -63,7 +63,7 @@ public class OrderBillingRepositoryAdapter implements OrderBillingRepository {
   }
 
   private static OrderReceivable toDomain(OrderBillingPo po) {
-    return new OrderReceivable(po.getId(), po.getStatus(), po.getTotalAmount(), po.getPaidAmount(),
+    return new OrderReceivable(po.getId(), po.getTradeStatus(), po.getTotalAmount(), po.getPaidAmount(),
         po.getCurrencyCode());
   }
 }

@@ -118,7 +118,7 @@ public class BillApplicationService {
                 + serverLines.stream().mapToLong(BillResult.ServerLine::amount).sum();
         long discountMinor = promotions.stream().mapToLong(BillResult.PromotionLine::amount).sum();
 
-        return new BillResult(order.status(), order.trade().name(),
+        return new BillResult(order.trade().name(),
                 current == null ? null : current.state().name(),
                 OrderView.settlementStatusOf(order.trade(), order.refund()),
                 order.currencyCode(), roomFee, itemLines, serverLines,

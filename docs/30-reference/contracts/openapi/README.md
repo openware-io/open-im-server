@@ -10,6 +10,9 @@
 - 服务端 `security` 快照随服务配置变化；本轮 SaaS 服务快照由 kind 部署（同一份 release manifest）导出，**尚未包含当时未发布的改动**（例如订单取消 `POST /business/orders/{id}/cancel` 在导出的下一批才发布，故本轮快照中不含该路径，属预期）。
 - DTO-by-DTO 语义复核仍是 CP6 的独立门禁，不能以 JSON 可解析替代；完成复核后应在本文件记录结果。
 - `common-audit-service`（4190）与 `common-sms-service`（4200）**未引入 springdoc**，按「未接 springdoc 的服务」不导出。
+- 例外：`hotel-channel-v1.yaml` 是**对外渠道契约**，由渠道协议维护、与 `HotelChannelBookingController`
+  手工对齐（不是 springdoc 快照）；二期已实现预订创建/查询/取消，ARI 为 202 no-op 占位。
+  order-service 的 springdoc 快照（`order-saas.json`）仍按原规则在 Kind 发布后重导。
 
 ## 已接 springdoc 的服务（可导出 /v3/api-docs）
 

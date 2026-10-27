@@ -22,8 +22,7 @@ CREATE TABLE ord_order (
   idempotency_key VARCHAR(64),
   business_type VARCHAR(32) NOT NULL,
   customer_id BIGINT,
-  status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
-  -- V24：订单只保留交易状态；status 是收口前的兼容列（与 trade_status 双写）
+  -- 订单主表只保留交易状态（V27 已删除兼容列 status）
   trade_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
   refund_status VARCHAR(16) NOT NULL DEFAULT 'NONE',
   currency_code CHAR(3) NOT NULL DEFAULT 'USD',

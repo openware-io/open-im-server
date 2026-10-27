@@ -128,7 +128,8 @@ public class AlipayChannel implements PaymentChannelProvider {
             if (notBlank(transactionId) && (isBlank(notifyId) || !recorder.existsByEventId("alipay", notifyId))) {
                 recorder.record("alipay", transactionId, notifyId, tenantId, orderId, amount, currency, status, request.rawBody());
             }
-            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status, request.rawBody());
+            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status,
+                    request.rawBody(), notifyId, tenantId);
         } catch (Exception e) {
             // 验签/解析/落库失败必须留痕（不打印密钥与明文报文）。
             log.warn("支付宝回调处理失败（验签/解析/落库）", e);
@@ -174,7 +175,7 @@ public class AlipayChannel implements PaymentChannelProvider {
     }
 
     private static VerifyCallbackResult fail(VerifyCallbackRequest request) {
-        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody());
+        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody(), null, null);
     }
 
     private Map<String, String> baseParams(PayChannelProviderProperties.Alipay cfg, String method) {

@@ -84,7 +84,7 @@ public class AdminReportApplicationService {
 
     /**
      * 明细可按状态过滤的取值（来源：{@code ord_order.trade_status}，V24 目标契约 §2：
-     * DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED；{@code ord_order.status} 是收口前兼容列，报表不再使用）。
+     * DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED；旧 ord_order.status 兼容列已随收口迁移删除）。
      * CANCELLED=用户取消、VOIDED=审批作废，两者在报表里独立统计。
      * 非法状态直接 400，不静默返回空表——否则用户以为「这个状态没有单据」。
      */

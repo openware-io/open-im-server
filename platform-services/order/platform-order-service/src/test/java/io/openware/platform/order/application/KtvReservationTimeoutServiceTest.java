@@ -15,6 +15,7 @@ import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import java.time.LocalDateTime;
@@ -58,7 +59,7 @@ class KtvReservationTimeoutServiceTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private Order order(long id, String status) {
-        return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
                 java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
                 null, null, null, null, 0);
@@ -67,7 +68,7 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservedSession_cancelsLiveOrder_whichCascadesRoomRelease() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "SERVING")));
+        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "DRAFT")));
 
         SweepResult result = service.sweep(60);
 
@@ -105,7 +106,7 @@ class KtvReservationTimeoutServiceTest {
     @Test
     void overdueReservedSession_withPayment_needsManualInsteadOfSilentRelease() {
         when(sessionRepository.findReservedOverdue(any())).thenReturn(List.of(reservedSession(25L, 38L)));
-        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "SERVING")));
+        when(orderMapper.findById(38L)).thenReturn(Optional.of(order(38L, "DRAFT")));
         when(orderCancellationService.cancel(eq(38L), any())).thenThrow(new ApiException(409,
                 OrderCancellationApplicationService.PAYMENT_REFUND_FIRST_CODE, "该订单已有收款，请先退款后再取消"));
 

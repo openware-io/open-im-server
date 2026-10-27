@@ -119,6 +119,18 @@ public class HotelBookingApplicationService {
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note,
                                         Long bookedByAccountId, Long requestedPoints) {
+        return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note,
+                bookedByAccountId, requestedPoints, "WEB");
+    }
+
+    /**
+     * 同一创建用例的渠道来源重载：OTA 渠道把 {@code source} 记为 {@code OTA_<channel>}，
+     * 其它创建入口仍默认 WEB。来源只影响快照字段，不改变房量/订单/权限逻辑。
+     */
+    @Transactional
+    public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
+                                        int rooms, String guestName, String guestPhone, String note,
+                                        Long bookedByAccountId, Long requestedPoints, String source) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         StoreScopeRepository.StoreScope storeScope = storeScopeResolver.requireHotelScope(context);
@@ -188,7 +200,7 @@ public class HotelBookingApplicationService {
         booking.setPointsUsed(pointsUsed);
         booking.setPointsDiscountMinor(pointsDiscount);
         booking.setCurrency(quote.currency());
-        booking.setSource("WEB");
+        booking.setSource(normalizeSource(source));
         booking.setHoldExpiresAt(now.plusMinutes(HOLD_MINUTES));
         booking.setVersion(0);
         booking.setCreatedAt(now);
@@ -338,6 +350,13 @@ public class HotelBookingApplicationService {
             }
         }
         return booking;
+    }
+
+    /** 单条预订查询：按当前门店上下文校验归属，供渠道适配器等读路径复用。 */
+    public HotelBookingPo getBooking(Long bookingId) {
+        PermissionGuard.require("hotel.booking.view");
+        TenantContext context = requireStore();
+        return requireBooking(bookingId, context);
     }
 
     @Transactional
@@ -509,6 +528,14 @@ public class HotelBookingApplicationService {
             throw new ApiException(404, "RATE_PLAN_NOT_FOUND", "房价计划不存在");
         }
         return ratePlan;
+    }
+
+    private static String normalizeSource(String source) {
+        if (source == null || source.isBlank()) {
+            return "WEB";
+        }
+        String trimmed = source.trim();
+        return trimmed.length() <= 24 ? trimmed : trimmed.substring(0, 24);
     }
 
     private void validateStay(LocalDate checkIn, LocalDate checkOut, int rooms) {

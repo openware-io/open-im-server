@@ -139,7 +139,7 @@ public class OrderApplicationService {
     // 领域模型不可变：直接构造落库聚合（金额六列全 0、交易状态 DRAFT、退款状态 NONE、版本 0、下单人留空 → DDL 默认 0 = 系统）。
     Order order = new Order(null, tenantId, organizationId, storeId,
         dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
-        blankToNull(idempotencyKey), businessType, null, "DRAFT",
+        blankToNull(idempotencyKey), businessType, null,
         TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(req.currencyCode()),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
         BigDecimal.ZERO, null, null, null, null, 0);
@@ -190,7 +190,7 @@ public class OrderApplicationService {
     BigDecimal total = BigDecimal.valueOf(totalMinor);
     Order order = new Order(null, tenantId, organizationId, storeId,
         dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
-        idempotencyKey, "HOTEL", customerId, "DRAFT",
+        idempotencyKey, "HOTEL", customerId,
         TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(currencyCode),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, total, BigDecimal.ZERO, BigDecimal.ZERO,
         null, null, null, null, 0);
@@ -222,10 +222,10 @@ public class OrderApplicationService {
     // 两个并发确认都会读到 DRAFT，真正的判定在这条 UPDATE 的 trade_status 条件上。
     LocalDateTime now = LocalDateTime.now();
     if (!orderRepository.updateTradeStatusGuarded(id, TradeStatus.DRAFT.name(),
-        TradeStatus.PENDING_PAYMENT.name(), "WAITING_SETTLEMENT", now)) {
+        TradeStatus.PENDING_PAYMENT.name(), now)) {
       throw new BusinessException("ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
     }
-    return OrderView.from(order.withTradeStatus(TradeStatus.PENDING_PAYMENT.name(), "WAITING_SETTLEMENT"));
+    return OrderView.from(order.withTradeStatus(TradeStatus.PENDING_PAYMENT.name()));
   }
 
   /** 挂单：开台中（KTV 会话 OPEN/PAUSED）的操作标记，不结台、不改交易状态。 */

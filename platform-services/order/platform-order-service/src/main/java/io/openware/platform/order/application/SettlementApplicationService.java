@@ -51,10 +51,9 @@ public class SettlementApplicationService {
             }
 
             // 与账单同一口径：只汇总已生效（ACTIVE）明细，待确认/已拒绝不计入应付。
-            // 交易状态停留在 PENDING_PAYMENT（已进入结算、未全额收款；金额看 paid_amount）；
-            // 兼容列 status 写 WAITING_PAYMENT（旧收银台按它判断「已结算待收款」）。
+            // 交易状态停留在 PENDING_PAYMENT（已进入结算、未全额收款；金额看 paid_amount）。
             order = orderAmounts.recalculate(order)
-                .withTradeStatus(TradeStatus.PENDING_PAYMENT.name(), "WAITING_PAYMENT");
+                .withTradeStatus(TradeStatus.PENDING_PAYMENT.name());
             // version 由 SQL 自增，Java 侧不再预先 +1（预先加一会在并发窗口内写回过期版本号）。
             //
             // 上面那句 currentVersion 比对只是**快失败**提示，不是并发保护：

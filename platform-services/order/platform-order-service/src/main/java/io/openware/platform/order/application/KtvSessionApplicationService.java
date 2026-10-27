@@ -255,11 +255,8 @@ public class KtvSessionApplicationService {
         session = applyOptimisticUpdate(session);
 
         if (order != null) {
-            // 开台只推进 KTV 业务状态（会话 OPEN）：订单交易状态保持 DRAFT（尚未进入结算）。
-            // 兼容列 status 双写为 SERVING（旧读取方仍看它），最终清理迁移会删掉该列。
-            if (order.trade() == TradeStatus.DRAFT) {
-                order = order.withTradeStatus(TradeStatus.DRAFT.name(), "SERVING");
-            }
+            // 开台只推进 KTV 业务状态（会话 OPEN）：订单交易状态保持 DRAFT（尚未进入结算），
+            // 订单主表没有兼容列 status 需要同步。
             // 开台即计费（2026-09-19）：把房费（含 1 名标准服务人员）写成 ROOM_FEE 明细并重算订单金额。
             // 只写会话不写费用时，开台后的账单/收银只有加项金额、房费要等结台才出现——门店看到的就是「应收 0」。
             // 计费起点 billing_start_at 已含免费等待，因此刚开台的金额与「此刻结台」完全一致。
@@ -493,7 +490,7 @@ public class KtvSessionApplicationService {
                 boolean fullyPaid = recalculated.total().signum() > 0
                         && recalculated.paid().compareTo(recalculated.total()) >= 0;
                 TradeStatus nextTrade = fullyPaid ? TradeStatus.COMPLETED : TradeStatus.PENDING_PAYMENT;
-                recalculated = recalculated.withTradeStatus(nextTrade.name(), nextTrade.legacyStatus());
+                recalculated = recalculated.withTradeStatus(nextTrade.name());
             }
             order = persistOrderGuarded(recalculated);
         }
