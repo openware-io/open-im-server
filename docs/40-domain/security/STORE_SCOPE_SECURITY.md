@@ -36,3 +36,12 @@
 `StoreScopeRequestFilter` 只处理 query 参数 `storeId` / `storeIds`。请求体中的 storeId 不能作为权限依据；服务必须使用签名上下文。SQL 层的门店条件仍由各业务仓储显式保证，新增表必须在查询中带 `store_id`，并通过集成测试证明跨店不可见。
 
 G55 会检查控制器权限守卫、门店过滤器注册、KTV 业态边界，以及控制器使用的权限码是否已在 Flyway 中声明；`AdminControllerPermissionCoverageTest` 作为 Maven 侧第二道防线。
+
+## 门店设置菜单
+
+`store.settings` 是门店级菜单，必须指向真实路由 `/admin/store/settings`。此前后台种子菜单只有名称、`path` 为空，点击后没有任何页面可渲染，看起来像“门店设置空白”。
+
+`V5__store_settings_menu.sql` 把该菜单的 `path` 修正为门店设置页；页面展示当前门店上下文、KTV 配置、收银台、预约、资源、支付、交班和报表入口，不把“菜单存在”当成业务已实现。
+
+KTV 店长可以进入 `/admin/ktv/config` 维护当前门店配置，但服务端仍由 `ktv.config.manage` + `BusinessScopeGuard("KTV")` 限制；门店设置本身不写账、不跨店。
+
