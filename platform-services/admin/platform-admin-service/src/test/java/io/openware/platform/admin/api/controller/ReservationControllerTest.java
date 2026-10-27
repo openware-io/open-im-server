@@ -2,7 +2,12 @@ package io.openware.platform.admin.api.controller;
 
 import io.openware.common.exception.ApiException;
 import io.openware.platform.admin.infra.ReservationDomainClient;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,6 +25,17 @@ class ReservationControllerTest {
 
     private final ReservationDomainClient reservationClient = mock(ReservationDomainClient.class);
     private final ReservationController controller = new ReservationController(reservationClient);
+
+    @BeforeEach
+    void permissionContext() {
+        TenantContextHolder.set(new TenantContext(100L, 100L, 100L, 1L, 1,
+                List.of("reservation.cancel"), "STORE", "KTV", "Asia/Shanghai"));
+    }
+
+    @AfterEach
+    void clearPermissionContext() {
+        TenantContextHolder.clear();
+    }
 
     @Test
     void cancelRequiresReason() {
