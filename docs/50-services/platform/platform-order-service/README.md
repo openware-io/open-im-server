@@ -292,8 +292,9 @@ refund_status : NONE / PARTIAL / FULL
 - `SERVING`、`WAITING_SETTLEMENT`、`CHECKED_IN`、`DUE_OUT` 等**不得**写进订单主表；
   KTV 的会话阶段在 `ord_ktv_session.status`，酒店的在住阶段在 `htl_booking.status`；
 - `CANCELLED`（用户取消）与 `VOIDED`（审批作废）**分开统计**，报表按 `VOIDED` 单列作废金额；
-- 兼容列 `ord_order.status` 收口前**双写**（`Order#withTradeStatus`/`voided`），代码读取一律以
-  `trade_status` 为准；最终清理迁移删除该列后支付/报表不再依赖它；
+- 兼容列 `ord_order.status` 已在收口迁移 `V27__drop_domain_compat_columns.sql` 删除
+  （`DROP INDEX idx_ord_order_store_status` + `DROP COLUMN status`），代码/报表/支付只读
+  `trade_status` / `refund_status`；
 - `organization_id = store.organization_id`、`business_type = store.business_type` 在写入时校验。
 
 订单入口（`OrderController`，网关前缀 `/api/v1`）：
@@ -364,6 +365,26 @@ GET /admin/hotel/orders?status=
 返回 `bookingId/bookingNo/orderId/orderNo/organizationId/storeId/guestName/roomTypeId/roomType/
 roomNo/checkInDate/checkOutDate/bookingStatus/tradeStatus/amountMinor/currency/createdAt`。
 
+### 酒店 OTA 渠道 v1（channel booking）
+
+外部 OTA 最小适配器（HMAC 鉴权 + 幂等预订 + 映射表），入口经网关 `/api/v1/open/hotel/v1/**`，
+创建/查询/取消复用本服务既有 `HotelBookingApplicationService`，不绕过房量与订单逻辑：
+
+```text
+POST /v1/bookings                       创建（externalRef 幂等；新建 201 / 回放 200）
+GET  /v1/bookings/{externalRef}         查询（实时 htl_booking 状态）
+POST /v1/bookings/{externalRef}/cancel  取消（幂等；重复取消 200）
+POST /v1/ari                            v1 契约占位：202 no-op，逐项 accepted=false
+```
+
+- 鉴权：`X-Channel-Code` + `X-Channel-Timestamp` + `X-Channel-Signature`（HMAC-SHA256 canonical
+  request）；验签失败 401，无绕过开关；secret 由 env/K8s Secret 注入，未配置即拒绝；
+- 映射表 `htl_channel_booking` 唯一键 `(channel_code, external_ref)`，唯一键兜底并发幂等；
+- 外部请求不携带 tenant/organization/store/business，由渠道凭证 + `htl_hotel.store_id` +
+  `tnt_store` 权威数据解析；
+- 详见 [HOTEL_OTA_CHANNEL_V1.md](HOTEL_OTA_CHANNEL_V1.md)，契约见
+  [hotel-channel-v1.yaml](../../../30-reference/contracts/openapi/hotel-channel-v1.yaml)。
+
 ### 通用商品库存（酒店与 KTV 共用）
 
 库存是公共支撑域，不建立 Hotel Inventory 领域，也不与房间绑定。作用域：
@@ -395,8 +416,8 @@ POST /admin/inventory/consumptions            客房领用/迷你吧/KTV 商品/
 | `inventory.view` / `inventory.manage` | 通用库存读写（含仓库/成本/调拨/消费） |
 | `ktv.session.open` / `ktv.session.operate` / `ktv.session.correct_pause` | KTV 会话动作 |
 
-`hotel.inventory.manage` **不再作为访问条件**（代码已无引用）；旧授权由租户域迁移映射到新码，
-该权限码本身在收口迁移中停用。
+`hotel.inventory.manage` **不再作为访问条件**（代码已无引用）；旧授权由租户域 V31 迁移映射到新码，
+权限行本身由 `V34__retire_hotel_inventory_permission.sql` 删除授权后置 `DISABLED`。
 
 ### 数据库迁移（本次发布）
 
@@ -407,12 +428,15 @@ POST /admin/inventory/consumptions            客房领用/迷你吧/KTV 商品/
 | `V24__domain_boundary_foundation.sql` | `ord_order.trade_status/refund_status`；`htl_booking.organization_id/business_type/order_id 唯一`；`htl_room` 三状态；`htl_room_hold`；`htl_room_availability(+hold)`；`ord_ktv_session.organization_id/order_id 唯一`；库存 org/business/warehouse 列与仓库表 |
 | `V25__inventory_warehouse.sql` | 库存作用域收紧：`organization_id/business_type/warehouse_id NOT NULL`、`uk_ord_inventory_stock_scope`、流水仓库索引 |
 | `V26__demo_hotel_domain_seed.sql` | 清库 Kind 演示数据：HOTEL 门店 6 房型/60 房/31 天房量，移除旧 KTV 门店演示预订 |
+| `V27__drop_domain_compat_columns.sql` | **破坏性收口（最终清理）**：删除 `ord_order.status` + `idx_ord_order_store_status`、`htl_room.status`、`htl_inventory_calendar`、`htl_inventory_hold`（清库重建下旧表无可迁移数据） |
+| `V30__htl_channel_booking.sql` | 酒店 OTA channel v1 映射表 `htl_channel_booking`（唯一键 `channel_code + external_ref`） |
 
 租户服务 `db/migration`：`V29__hotel_room_permissions.sql`（房态/清扫/房量权限）、
 `V31__permission_hardening.sql`（folio/housekeeping.view/inventory 权限 + 旧授权迁移）、
-`V32__demo_hotel_store.sql`（HOTEL 门店 102 + 业态权益 + 门店经理绑定）。
+`V32__demo_hotel_store.sql`（HOTEL 门店 102 + 业态权益 + 门店经理绑定）、
+`V34__retire_hotel_inventory_permission.sql`（删除 `hotel.inventory.manage` 授权并置 `DISABLED`）。
 
-> 收口候选（本次不执行的破坏性清理）：`ord_order.status`、`htl_room.status`、
-> `htl_inventory_calendar`、`htl_inventory_hold`、`hotel.inventory.manage`。
+> 破坏性收口已在本次发布执行：`ord_order.status`、`htl_room.status`、`htl_inventory_calendar`、
+> `htl_inventory_hold` 由 V27 删除；`hotel.inventory.manage` 授权由租户 V34 删除、权限行置 `DISABLED`。
 > 验证门禁：`invoke-engineering-validation.ps1 -Scope Full`；E2E 覆盖 KTV 开台→结台→收款→作废、
 > 酒店预订→入住→退房→清扫、房态/房量不变量与共享库存。
