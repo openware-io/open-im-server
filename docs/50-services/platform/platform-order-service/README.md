@@ -60,6 +60,10 @@ GET/PUT      /admin/hotel/inventory
 所有查询强制当前 `storeId`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
 契约见 [hotel-booking-v1.yaml](../../../30-reference/contracts/openapi/hotel-booking-v1.yaml)。
 
+酒店封面 `cover_image_url` 只接受同源相对地址或 HTTPS 地址，最长 512 字符；图片本体由后台媒体
+上传接口保存。前台编辑约束为 JPG/PNG/WebP、单张 ≤ 5MB、16:9、建议 1600×900、最小 800×450，
+比例偏差 ≤ 5%。
+
 
 ## 酒店报价与预订（H2）
 

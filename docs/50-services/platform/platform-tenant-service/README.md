@@ -84,6 +84,20 @@ TENANT_CONTEXT  门店作为租户后台内的经营上下文
 
 内部端点 `GET /internal/tenant/{tenantId}/workspace-mode` 供后台登录解析 workspace 使用。
 
+## 门店与租户品牌图片
+
+门店 Logo 存 `tnt_store.logo_url`，租户 Logo 存 `tnt_tenant_config.tenant_logo_url`；图片二进制由
+common-media-service 保存，后台只保存同源 URL 或 HTTPS URL。
+
+```text
+PUT /api/v1/admin/tenant/stores/{id}/logo       门店 Logo（tenant.store.manage）
+GET /api/v1/admin/tenant/config/branding        当前租户 Logo
+PUT /api/v1/admin/tenant/config/branding        替换租户 Logo（tenant.tenant.manage）
+```
+
+约束：单张 ≤ 1MB，JPG/PNG/WebP，正方形 1:1，建议 512×512、最小 128×128；空值恢复默认图。
+URL 最长 512 字符，禁止 `javascript:` / 协议相对 URL。
+
 ## 状态
 
 - 骨架已落库（E1）：租户 / IAM / 套餐接口已实现（见 `SAAS_PLATFORM_07_EXECUTION.md`）
