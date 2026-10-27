@@ -10,6 +10,7 @@ import io.openware.platform.admin.application.AdminReportApplicationService.Reso
 import io.openware.platform.admin.application.AdminReportApplicationService.SalesItemsReport;
 import io.openware.platform.admin.application.AdminReportApplicationService.SalesReport;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,7 +32,7 @@ public class ReportController {
     }
 
     /** 报表接口统一权限入口：菜单隐藏不是授权，接口本身必须拒绝无权限账号。 */
-    @org.springframework.web.bind.annotation.ModelAttribute
+    @ModelAttribute
     public void requireReportPermission() {
         PermissionGuard.require("report.view");
     }
