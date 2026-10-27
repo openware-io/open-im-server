@@ -1,5 +1,6 @@
 package io.openware.platform.admin.api.controller;
 
+import io.openware.infrastructure.tenant.BusinessScopeGuard;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
@@ -46,6 +47,7 @@ public class KtvConfigController {
     @ModelAttribute
     public void requireConfigPermission() {
         PermissionGuard.require("ktv.config.manage");
+        BusinessScopeGuard.require("KTV");
     }
 
     // —— 计价方案 ——

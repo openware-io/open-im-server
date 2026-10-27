@@ -1,10 +1,12 @@
 package io.openware.platform.admin.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.BusinessScopeGuard;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.platform.admin.infra.ReservationDomainClient;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +31,12 @@ public class ReservationController {
 
     public ReservationController(ReservationDomainClient reservationClient) {
         this.reservationClient = reservationClient;
+    }
+
+    /** 预约属于 KTV 业务，酒店/后续按摩桌球门店不得读取 KTV 预约。 */
+    @ModelAttribute
+    public void requireKtvBusiness() {
+        BusinessScopeGuard.require("KTV");
     }
 
     /**
