@@ -165,7 +165,13 @@ S6：/admin/iam/platform/role-bindings 平台 ACCOUNT 角色授予/撤销；旧 
 | --- | --- |
 | `V29__hotel_room_permissions.sql` | 新增 `hotel.room.view/manage`、`hotel.housekeeping.manage`、`hotel.room.availability.view/manage`，并授予店长/租户 owner（收银/主管授房态查看与清扫） |
 | `V31__permission_hardening.sql` | 新增 `hotel.folio.view/manage`、`hotel.housekeeping.view`、`inventory.view/manage`；把持有旧 `hotel.inventory.manage` 与细分 inventory 码的角色映射到新码（含自定义租户角色） |
-| `V32__demo_hotel_store.sql` | 清库 Kind 演示数据：同一租户/组织下 HOTEL 门店 `102`、HOTEL 业态权益与门店经理绑定 |
+| `V32__demo_hotel_store.sql` | 清库 Kind 演示数据：同一租户/组织下 HOTEL 门店 `102`、HOTEL 业态权益与门店经理绑定（`iam_role_binding`：`ACCOUNT/100`、`STORE`、`100:100:102`） |
+
+清库部署顺序约束：**`platform-admin-service` 必须先于 `platform-tenant-service` 执行 Flyway**。
+tenant 的 `V19`/`V26`/`V27` 会更新 `iam_role_profile` / `iam_menu`，这两张表由 admin 服务的
+`V1`/`V2` 创建并种子；反过来在空库上先跑 tenant 会报 `table iam_role_profile does not exist`。
+`scripts/deploy/k8s.ps1` 的 rollout 顺序已按此约束排列。`V32` 的岗位绑定写
+`iam_role_binding`（`V10` 创建），**不得**引用已归档、全库不存在的 `iam_user_role`。
 
 权限拆分口径：
 
