@@ -490,7 +490,11 @@ $replacements['__CLIENT_RELEASE_ALLOWED_DOWNLOAD_HOSTS__'] = "127.0.0.1,localhos
 foreach ($name in $saasImages.Keys) {
   $replacements['__APP_IMAGE_' + $name.Replace('-', '_').ToUpperInvariant() + '__'] = $saasImages[$name]
 }
-$applicationDeployments = @('im-user-service', 'im-conversation-service', 'common-media-service', 'im-message-service', 'im-admin-service', 'im-access-ws', 'gateway', 'pc-admin', 'platform-identity-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service', 'common-payment-service', 'platform-admin-service', 'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website')
+# platform-admin-service must migrate before platform-tenant-service on a clean database:
+# tenant migrations V19/V26/V27 update iam_role_profile/iam_menu, tables created and seeded
+# by the admin service Flyway history (platform-admin-service V1/V2). With the previous order
+# a clean Kind rebuild failed tenant V19 with "table iam_role_profile does not exist".
+$applicationDeployments = @('im-user-service', 'im-conversation-service', 'common-media-service', 'im-message-service', 'im-admin-service', 'im-access-ws', 'gateway', 'pc-admin', 'platform-identity-service', 'platform-admin-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service', 'common-payment-service', 'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website')
 Apply-RenderedManifest -Name 'applications.yaml' -Replacements $replacements -StartSuspended
 if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
   Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'common-media-service' -PatchName 'media-root-credentials-patch.yaml'
