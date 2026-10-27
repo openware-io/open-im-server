@@ -1,5 +1,6 @@
 package io.openware.platform.order.config;
 
+import io.openware.infrastructure.tenant.StoreScopeRequestFilter;
 import io.openware.infrastructure.tenant.TenantContextFilter;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.platform.order.infra.client.TenantAuthorizationStateClient;
@@ -30,6 +31,15 @@ public class TenantFilterConfig {
                 new FilterRegistrationBean<>(new TenantAuthorizationStateFilter(stateClient));
         reg.addUrlPatterns("/*");
         reg.setOrder(2);
+        return reg;
+    }
+
+    @Bean
+    public FilterRegistrationBean<StoreScopeRequestFilter> storeScopeRequestFilter() {
+        FilterRegistrationBean<StoreScopeRequestFilter> reg =
+                new FilterRegistrationBean<>(new StoreScopeRequestFilter());
+        reg.addUrlPatterns("/admin/*", "/business/*");
+        reg.setOrder(3);
         return reg;
     }
 }
