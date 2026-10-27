@@ -3,7 +3,7 @@
 CREATE TEMPORARY TABLE tmp_hotel_test_booking_ids (id BIGINT PRIMARY KEY);
 INSERT INTO tmp_hotel_test_booking_ids (id)
 SELECT id FROM htl_booking
-WHERE (guest_name REGEXP '^[?]+$' OR guest_name = 'DeviceWebView')
+WHERE (guest_name LIKE '%?%' OR guest_name = 'DeviceWebView')
   AND status IN ('CANCELLED', 'NO_SHOW', 'CHECKED_OUT');
 
 DELETE FROM htl_housekeeping_task WHERE booking_id IN (SELECT id FROM tmp_hotel_test_booking_ids);

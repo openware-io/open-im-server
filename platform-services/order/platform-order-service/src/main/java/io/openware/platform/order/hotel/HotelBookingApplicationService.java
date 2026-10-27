@@ -117,6 +117,10 @@ public class HotelBookingApplicationService {
         if (guestName.trim().matches("^[?\\s]+$")) {
             throw new ApiException(400, "GUEST_NAME_INVALID", "住客姓名包含无效编码，请重新输入");
         }
+        // 非 UTF-8 客户端把中文替换成 0x3F 后会形成 "????C?" 这类姓名；不能只拦截“全问号”。
+        if (guestName.contains("?") || guestName.contains("\uFFFD")) {
+            throw new ApiException(400, "GUEST_NAME_INVALID", "住客姓名包含无效问号或替换字符，请使用 UTF-8 重新输入");
+        }
         Quote quote = quote(roomTypeId, ratePlanId, checkIn, checkOut, rooms);
         if (!quote.available()) {
             throw new ApiException(409, "INVENTORY_UNAVAILABLE", "所选日期房量不足");
