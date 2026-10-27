@@ -10,6 +10,7 @@ import io.openware.platform.order.hotel.channel.HotelChannelApi.CancelRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/v1/open/hotel")
+@Slf4j
 public class HotelChannelBookingController {
 
     private final HotelChannelBookingApplicationService service;
@@ -47,6 +49,7 @@ public class HotelChannelBookingController {
                     .body(result.response());
         } catch (HotelChannelBookingApplicationService.ChannelBookingConflictException conflict) {
             // 唯一键冲突：让失败事务整体回滚后按 externalRef 回放已有预订。
+            log.debug("hotel channel booking conflict, replaying external ref", conflict);
             return ResponseEntity.ok(service.replayAfterConflict(channelCode, body));
         }
     }

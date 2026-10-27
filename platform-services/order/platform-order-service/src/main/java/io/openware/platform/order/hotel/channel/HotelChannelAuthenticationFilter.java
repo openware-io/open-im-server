@@ -86,6 +86,7 @@ public class HotelChannelAuthenticationFilter extends OncePerRequestFilter {
         try {
             timestamp = Long.parseLong(request.getHeader(HotelChannelSignature.TIMESTAMP_HEADER));
         } catch (NumberFormatException e) {
+            log.debug("hotel channel timestamp header is invalid", e);
             return "TIMESTAMP_INVALID";
         }
         if (Math.abs(System.currentTimeMillis() - timestamp) > properties.getMaxClockSkewMs()) {
