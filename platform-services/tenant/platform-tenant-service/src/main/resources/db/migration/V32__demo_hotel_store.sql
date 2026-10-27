@@ -13,14 +13,15 @@ INSERT INTO `tnt_business_entitlement` (`tenant_id`, `business_type`, `status`, 
 VALUES (100, 'HOTEL', 'ACTIVE', NOW(3), NOW(3))
 ON DUPLICATE KEY UPDATE `status` = 'ACTIVE', `updated_at` = NOW(3);
 
-INSERT INTO `iam_user_role`
-  (`account_id`, `tenant_id`, `organization_id`, `store_id`, `role_id`, `scope_type`,
-   `effective_from`, `status`, `authorization_version`, `created_by`, `created_at`, `updated_by`, `updated_at`)
-SELECT 100, 100, 100, 102, r.`id`, 'STORE', NOW(3), 'ACTIVE', 1, 0, NOW(3), 0, NOW(3)
+INSERT INTO `iam_role_binding`
+  (`subject_type`, `subject_id`, `role_id`, `scope_type`, `tenant_id`, `organization_id`, `store_id`,
+   `authorization_version`, `status`, `effective_from`, `created_by`, `created_at`, `updated_by`, `updated_at`)
+SELECT 'ACCOUNT', 100, r.`id`, 'STORE', 100, 100, 102, 1, 'ACTIVE', NOW(3), 0, NOW(3), 0, NOW(3)
 FROM `iam_role` r
 WHERE r.`code` = 'store.manager'
   AND NOT EXISTS (
-    SELECT 1 FROM `iam_user_role` ur
-    WHERE ur.`account_id` = 100 AND ur.`tenant_id` = 100 AND ur.`store_id` = 102
-      AND ur.`role_id` = r.`id` AND ur.`status` = 'ACTIVE'
+    SELECT 1 FROM `iam_role_binding` rb
+    WHERE rb.`subject_type` = 'ACCOUNT' AND rb.`subject_id` = 100
+      AND rb.`tenant_id` = 100 AND rb.`store_id` = 102
+      AND rb.`role_id` = r.`id` AND rb.`status` = 'ACTIVE'
   );
