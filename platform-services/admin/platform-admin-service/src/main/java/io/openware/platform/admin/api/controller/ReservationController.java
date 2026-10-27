@@ -1,6 +1,7 @@
 package io.openware.platform.admin.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
 import io.openware.platform.admin.infra.ReservationDomainClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,17 +42,20 @@ public class ReservationController {
     @GetMapping
     public List<Map<String, Object>> list(@RequestParam(required = false) String from,
                                           @RequestParam(required = false) String to) {
+        PermissionGuard.require("reservation.view");
         TimeRangeParams.parse(from, to);
         return reservationClient.list(from, to);
     }
 
     @PostMapping("/{id}/confirm")
     public Map<String, Object> confirm(@PathVariable Long id, @RequestBody(required = false) ConfirmRequest req) {
+        PermissionGuard.require("reservation.confirm");
         return reservationClient.confirm(id, req == null ? null : req.expectedVersion());
     }
 
     @PostMapping("/{id}/arrival")
     public Map<String, Object> arrival(@PathVariable Long id) {
+        PermissionGuard.require("reservation.arrival");
         return reservationClient.arrival(id);
     }
 
@@ -63,6 +67,7 @@ public class ReservationController {
      */
     @GetMapping("/{id}/assignable-rooms")
     public List<Map<String, Object>> assignableRooms(@PathVariable Long id) {
+        PermissionGuard.require("reservation.view");
         return reservationClient.assignableRooms(id);
     }
 
@@ -76,6 +81,7 @@ public class ReservationController {
         if (req == null || req.resourceId() == null) {
             throw new ApiException(400, "RESOURCE_ID_REQUIRED", "缺少 resourceId");
         }
+        PermissionGuard.require("reservation.confirm");
         return reservationClient.assignRoom(id, req.resourceId(), Boolean.TRUE.equals(req.override()));
     }
 
@@ -92,12 +98,14 @@ public class ReservationController {
         if (reason == null || reason.isBlank()) {
             throw new ApiException(400, "CANCEL_REASON_REQUIRED", "取消预约必须填写原因");
         }
+        PermissionGuard.require("reservation.cancel");
         return reservationClient.cancel(id, reason.trim());
     }
 
     /** 预约履约开台：ARRIVED/CONFIRMED 预约 → 生成订单 + KTV 包厢会话并回填 order_id。 */
     @PostMapping("/{id}/open-table")
     public Map<String, Object> openTable(@PathVariable Long id) {
+        PermissionGuard.require("ktv.session.open");
         return reservationClient.openTable(id);
     }
 
@@ -108,6 +116,7 @@ public class ReservationController {
      */
     @PostMapping("/{id}/no-show")
     public Map<String, Object> noShow(@PathVariable Long id) {
+        PermissionGuard.require("reservation.cancel");
         return reservationClient.noShow(id);
     }
 

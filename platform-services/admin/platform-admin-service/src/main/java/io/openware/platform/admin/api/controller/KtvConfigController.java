@@ -1,5 +1,6 @@
 package io.openware.platform.admin.api.controller;
 
+import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.admin.api.ktv.PaymentSwitchConfig;
 import io.openware.platform.admin.api.ktv.PricingPlan;
 import io.openware.platform.admin.api.ktv.ServerCatalogItem;
@@ -9,6 +10,7 @@ import io.openware.platform.admin.api.ktv.PaymentRuleConfig;
 import io.openware.platform.admin.api.ktv.VoidRuleConfig;
 import io.openware.platform.admin.application.KtvConfigApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -38,6 +40,12 @@ public class KtvConfigController {
 
     public KtvConfigController(KtvConfigApplicationService service) {
         this.service = service;
+    }
+
+    /** KTV 配置接口统一权限入口。 */
+    @ModelAttribute
+    public void requireConfigPermission() {
+        PermissionGuard.require("ktv.config.manage");
     }
 
     // —— 计价方案 ——

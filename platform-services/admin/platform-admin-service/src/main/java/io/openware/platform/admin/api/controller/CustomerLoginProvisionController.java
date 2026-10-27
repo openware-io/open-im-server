@@ -1,5 +1,6 @@
 package io.openware.platform.admin.api.controller;
 
+import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.admin.application.CustomerLoginProvisioningService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -18,6 +19,7 @@ public class CustomerLoginProvisionController {
 
     @PostMapping("/c-login")
     public ProvisionResponse provision(@RequestBody ProvisionRequest req) {
+        PermissionGuard.require("member.manage");
         return new ProvisionResponse(service.provision(req.phone(), req.password()));
     }
 
