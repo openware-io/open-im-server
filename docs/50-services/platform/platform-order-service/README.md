@@ -111,6 +111,23 @@ POST /admin/hotel/frontdesk/bookings/{id}/checkout
 
 当前押金/账务是本地账本，尚未接支付网关和真实退款。
 
+## 房态与清扫状态
+
+酒店有三套独立状态，不能互相覆盖：
+
+- 预订/在住：`IN_HOUSE` / `DUE_OUT` 都表示客人在店，`DUE_OUT` 是“今日离店但尚未退房”；
+- 房间：有在住 stay 时必须 `OCCUPIED`；退房后才 `DIRTY`；
+- 清扫：`STAYOVER` 为在住日常清扫，不改变房态；`DEPARTURE` 为退房清扫，完成后才 `DIRTY -> ACTIVE`。
+
+C 端在住客人申请清扫：
+
+```text
+POST /business/hotel/bookings/{id}/housekeeping-requests
+```
+
+只创建 `STAYOVER / CUSTOMER / PENDING` 任务，同一预订未完成任务幂等返回；不会把在住房间标成 DIRTY。
+完整状态机与前端展示规则见 [房态与清扫状态模型](../../40-domain/hotel/HOTEL_ROOM_STATE_MODEL.md)。
+
 ## 酒店前台房态卡字段
 
 `GET /admin/hotel/frontdesk/tasks` 返回前台房态卡所需的摘要字段。除房号/房型/状态外，还包含：

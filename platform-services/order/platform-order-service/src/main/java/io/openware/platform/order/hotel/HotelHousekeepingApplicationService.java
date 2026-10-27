@@ -14,12 +14,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class HotelHousekeepingApplicationService {
 
+    /** 退房后的强制清扫：完成时把 DIRTY 房间恢复为 ACTIVE。 */
+    public static final String TYPE_DEPARTURE = "DEPARTURE";
+    /** 在住客人的日常清扫：只结束任务，不改变房间占用状态。 */
+    public static final String TYPE_STAYOVER = "STAYOVER";
+
     private final HotelHousekeepingMapper taskMapper;
     private final HotelRoomMapper roomMapper;
+    private final HotelBookingMapper bookingMapper;
+    private final HotelStayMapper stayMapper;
 
-    public HotelHousekeepingApplicationService(HotelHousekeepingMapper taskMapper, HotelRoomMapper roomMapper) {
+    public HotelHousekeepingApplicationService(HotelHousekeepingMapper taskMapper, HotelRoomMapper roomMapper,
+                                                HotelBookingMapper bookingMapper, HotelStayMapper stayMapper) {
         this.taskMapper = taskMapper;
         this.roomMapper = roomMapper;
+        this.bookingMapper = bookingMapper;
+        this.stayMapper = stayMapper;
     }
 
     public List<HotelHousekeepingPo> tasks() {
@@ -52,12 +62,65 @@ public class HotelHousekeepingApplicationService {
             throw new ApiException(409, "HOUSEKEEPING_STATE_INVALID", "清扫任务不是进行中状态");
         }
         TenantContext context = requireStore();
-        if (roomMapper.markClean(task.getRoomId(), context.tenantId(), context.storeId()) == 0) {
-            throw new ApiException(409, "ROOM_STATE_INVALID", "房间不是待清扫状态");
+        // 在住日常清扫不改变房态；退房清扫完成后才允许 DIRTY -> ACTIVE。
+        if (!TYPE_STAYOVER.equals(task.getTaskType())) {
+            if (roomMapper.markClean(task.getRoomId(), context.tenantId(), context.storeId()) == 0) {
+                throw new ApiException(409, "ROOM_STATE_INVALID", "房间不是待清扫状态");
+            }
         }
         task.setStatus("DONE");
         task.setUpdatedAt(LocalDateTime.now());
         taskMapper.updateById(task);
+        return task;
+    }
+
+    /**
+     * C 端在住客人申请清扫：只创建 STAYOVER 任务，绝不把在住房间改成 DIRTY。
+     *
+     * <p>同一预订已有未完成 STAYOVER 任务时幂等返回现有任务，避免客人重复点击产生多条任务。
+     */
+    @Transactional
+    public HotelHousekeepingPo requestStayover(Long bookingId, Long accountId) {
+        TenantContext context = requireStore();
+        HotelBookingPo booking = bookingMapper.selectById(bookingId);
+        if (booking == null || !context.storeId().equals(booking.getStoreId())) {
+            throw new ApiException(404, "HOTEL_BOOKING_NOT_FOUND", "酒店预订不存在");
+        }
+        if (accountId == null || !accountId.equals(booking.getBookedByAccountId())) {
+            throw new ApiException(403, "BOOKING_OWNER_REQUIRED", "只能为本人预订申请清扫");
+        }
+        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
+            throw new ApiException(409, "HOUSEKEEPING_NOT_APPLICABLE", "只有当前在住客人可以申请日常清扫");
+        }
+        HotelStayPo stay = stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
+                .eq(HotelStayPo::getBookingId, bookingId)
+                .eq(HotelStayPo::getStatus, "IN_HOUSE")
+                .last("LIMIT 1"));
+        if (stay == null) {
+            throw new ApiException(409, "STAY_NOT_FOUND", "在住记录不存在");
+        }
+        HotelHousekeepingPo existing = taskMapper.selectOne(new LambdaQueryWrapper<HotelHousekeepingPo>()
+                .eq(HotelHousekeepingPo::getBookingId, bookingId)
+                .eq(HotelHousekeepingPo::getTaskType, TYPE_STAYOVER)
+                .in(HotelHousekeepingPo::getStatus, List.of("PENDING", "IN_PROGRESS"))
+                .last("LIMIT 1"));
+        if (existing != null) {
+            return existing;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        HotelHousekeepingPo task = new HotelHousekeepingPo();
+        task.setTenantId(context.tenantId());
+        task.setStoreId(context.storeId());
+        task.setRoomId(stay.getRoomId());
+        task.setRoomNo(stay.getRoomNo());
+        task.setBookingId(bookingId);
+        task.setTaskType(TYPE_STAYOVER);
+        task.setSource("CUSTOMER");
+        task.setNote("住客申请日常清扫");
+        task.setStatus("PENDING");
+        task.setCreatedAt(now);
+        task.setUpdatedAt(now);
+        taskMapper.insert(task);
         return task;
     }
 

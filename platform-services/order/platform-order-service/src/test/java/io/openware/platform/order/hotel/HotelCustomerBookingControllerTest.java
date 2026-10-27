@@ -15,6 +15,8 @@ class HotelCustomerBookingControllerTest {
 
   private final HotelBookingApplicationService service =
       org.mockito.Mockito.mock(HotelBookingApplicationService.class);
+  private final HotelHousekeepingApplicationService housekeeping =
+      org.mockito.Mockito.mock(HotelHousekeepingApplicationService.class);
 
   @AfterEach
   void clear() {
@@ -27,7 +29,7 @@ class HotelCustomerBookingControllerTest {
         List.of("hotel.booking.view"), null, "HOTEL", null));
     when(service.listByAccount(null, null, null, 112L)).thenReturn(List.of());
 
-    var result = new HotelCustomerBookingController(service).list(null, null, null);
+    var result = new HotelCustomerBookingController(service, housekeeping).list(null, null, null);
 
     assertEquals(0, result.size());
     verify(service).listByAccount(null, null, null, 112L);
@@ -40,7 +42,7 @@ class HotelCustomerBookingControllerTest {
     when(service.createBooking(1L, 1L, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 2),
         1, "A", "1", null, 112L, 0L)).thenReturn(new HotelBookingPo());
 
-    new HotelCustomerBookingController(service).create(
+    new HotelCustomerBookingController(service, housekeeping).create(
         new HotelCustomerBookingController.BookingRequest(1L, 1L, LocalDate.of(2026, 11, 1),
             LocalDate.of(2026, 11, 2), 1, "A", "1", null, 0L));
 

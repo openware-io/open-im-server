@@ -16,6 +16,9 @@ public class HotelHousekeepingPo {
     private Long roomId;
     private String roomNo;
     private Long bookingId;
+    private String taskType;
+    private String source;
+    private String note;
     private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

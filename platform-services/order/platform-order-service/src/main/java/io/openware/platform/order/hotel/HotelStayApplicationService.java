@@ -182,6 +182,8 @@ public class HotelStayApplicationService {
         task.setRoomId(stay.getRoomId());
         task.setRoomNo(stay.getRoomNo());
         task.setBookingId(bookingId);
+        task.setTaskType("DEPARTURE");
+        task.setSource("CHECKOUT");
         task.setStatus("PENDING");
         task.setCreatedAt(now);
         task.setUpdatedAt(now);
@@ -226,6 +228,8 @@ public class HotelStayApplicationService {
         task.setRoomId(stay.getRoomId());
         task.setRoomNo(stay.getRoomNo());
         task.setBookingId(bookingId);
+        task.setTaskType("DEPARTURE");
+        task.setSource("FRONT_DESK");
         task.setStatus("PENDING");
         task.setCreatedAt(now);
         task.setUpdatedAt(now);

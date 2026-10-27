@@ -12,6 +12,7 @@
 | --- | --- |
 | [实现方案](HOTEL_IMPLEMENTATION_PLAN.md) | 业务范围、领域边界、模型、流程、API、库存并发与迭代计划 |
 | [数据模型](HOTEL_DATA_MODEL.md) | 酒店域表清单、唯一键、库存不变量、状态机、PII 与边界 |
+| [房态与清扫状态模型](HOTEL_ROOM_STATE_MODEL.md) | 在住/待离店、房间物理状态、在住清扫与退房清扫 |
 | [预订 API 契约](../../30-reference/contracts/openapi/hotel-booking-v1.yaml) | 酒店主数据、报价、预订、取消、前台动作的 OpenAPI |
 | [OTA / 渠道接入规范](HOTEL_OTA_INTEGRATION.md) | 对外 ARI、订单、取消、鉴权、幂等与沙箱契约 |
 | [方案规范审查](HOTEL_DESIGN_REVIEW.md) | 编码前的规范符合性结论与必补项 |

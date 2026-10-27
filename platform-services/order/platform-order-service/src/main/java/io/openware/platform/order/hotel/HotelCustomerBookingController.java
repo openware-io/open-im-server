@@ -23,9 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class HotelCustomerBookingController {
 
   private final HotelBookingApplicationService service;
+  private final HotelHousekeepingApplicationService housekeepingService;
 
-  public HotelCustomerBookingController(HotelBookingApplicationService service) {
+  public HotelCustomerBookingController(HotelBookingApplicationService service,
+                                        HotelHousekeepingApplicationService housekeepingService) {
     this.service = service;
+    this.housekeepingService = housekeepingService;
   }
 
   @PostMapping("/quotes")
@@ -45,6 +48,16 @@ public class HotelCustomerBookingController {
         request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
         request.guestName(), request.guestPhone(), request.note(), context.accountId(),
         request.pointsUsed());
+  }
+
+  @PostMapping("/bookings/{id}/housekeeping-requests")
+  @ResponseStatus(HttpStatus.ACCEPTED)
+  public HotelHousekeepingPo requestHousekeeping(@PathVariable Long id) {
+    var context = TenantContextHolder.get();
+    if (context == null || context.accountId() <= 0) {
+      throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
+    }
+    return housekeepingService.requestStayover(id, context.accountId());
   }
 
   @PostMapping("/bookings/{id}/cancel")
