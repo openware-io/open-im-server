@@ -66,5 +66,4 @@ VALUES
   (100, 102, 1, 1, '1020', '10', 'ACTIVE', 0, NOW(3), NOW(3))
 ON DUPLICATE KEY UPDATE
   `floor` = VALUES(`floor`),
-  `room_type_id` = VALUES(`room_type_id`),
   `updated_at` = NOW(3);
