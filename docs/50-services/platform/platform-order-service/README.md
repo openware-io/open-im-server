@@ -107,6 +107,25 @@ POST /admin/hotel/frontdesk/bookings/{id}/checkout
 
 当前押金/账务是本地账本，尚未接支付网关和真实退款。
 
+## 酒店前台房态卡字段
+
+`GET /admin/hotel/frontdesk/tasks` 返回前台房态卡所需的摘要字段。除房号/房型/状态外，还包含：
+
+| 字段 | 用途 |
+| --- | --- |
+| `nights` / `rooms` | 入住晚数、房间数 |
+| `checkInDate` / `checkOutDate` | 住宿区间，卡片显示“10/30 → 11/02 · 3晚” |
+| `guestPhone` | 仅由前端脱敏显示尾号，不把完整手机号放进卡片 |
+| `source` | 订单来源（前台/官网/电话/OTA），前端统一映射为中文 |
+| `checkInAt` / `checkOutAt` / `stayStatus` | 实际入住/离店时间和在住状态 |
+| `folioChargeMinor` / `folioPaidMinor` / `folioStatus` | 当前账单应收/已收，用于“待结/账已结清” |
+| `depositAmountMinor` / `depositOrderId` | 定金金额与收款单状态 |
+| `hasStay` | 历史预订没有 stay 时，前台不显示可退房 |
+
+这些字段只属于当前门店任务查询；`BookingView` 不改变既有字段的 JSON 名称。房态卡展示遵循
+Opera Cloud / Mews / Cloudbeds 等前台系统的共同信息层级：**房号 → 房态 → 住客 → 住宿区间 →
+账务/来源**，不展示没有数据来源的 VIP、偏好或伪备注。
+
 ## 酒店 no-show 与客房清扫（H3 补充）
 
 ```text
