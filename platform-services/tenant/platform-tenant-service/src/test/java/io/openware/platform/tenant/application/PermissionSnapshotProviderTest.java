@@ -104,6 +104,27 @@ class PermissionSnapshotProviderTest {
   }
 
   @Test
+  void contexts_expandsOrganizationBindingWhoseStoreIdIsZero() {
+    when(authorization.findContexts(100L)).thenReturn(List.of(
+        ctx(1L, "Tenant A", 10L, "Org A", 0L, null, "ORGANIZATION")));
+    when(authorization.findRoleScopes(100L)).thenReturn(List.of(
+        role(1L, 10L, 0L, "TENANT_OWNER")));
+    when(authorization.findActiveStores(1L, 10L)).thenReturn(List.of(
+        ctx(1L, "Tenant A", 10L, "Org A", 1001L, "Store A1", "STORE"),
+        ctx(1L, "Tenant A", 10L, "Org A", 1002L, "Store A2", "STORE")));
+
+    List<AccountContext> result = provider.contexts(100L);
+
+    assertIterableEquals(List.of(
+        new AccountContext("1:10:0", 1L, "Tenant A", 10L, "Org A", 0L, null,
+            List.of("TENANT_OWNER"), "ORGANIZATION"),
+        new AccountContext("1:10:1001", 1L, "Tenant A", 10L, "Org A", 1001L, "Store A1",
+            List.of("TENANT_OWNER"), "ORGANIZATION"),
+        new AccountContext("1:10:1002", 1L, "Tenant A", 10L, "Org A", 1002L, "Store A2",
+            List.of("TENANT_OWNER"), "ORGANIZATION")), result);
+  }
+
+  @Test
   void contexts_deduplicatesByScope() {
     when(authorization.findContexts(100L)).thenReturn(List.of(
         ctx(1L, "Tenant A", 10L, "Org A", 1001L, "Store A1", "STORE"),
