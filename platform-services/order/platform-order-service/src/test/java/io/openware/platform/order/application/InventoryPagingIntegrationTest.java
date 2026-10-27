@@ -77,7 +77,7 @@ class InventoryPagingIntegrationTest {
 
   @BeforeEach
   void setUpTenant() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_PAGE, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_PAGE, 0L, 0, java.util.List.of(), null, "KTV", null));
   }
 
   @AfterEach
@@ -89,7 +89,7 @@ class InventoryPagingIntegrationTest {
   /** 物料分页：total 是全量命中条数，records 只给当前页，排序 id desc（真 SQL 真的拼了 LIMIT/OFFSET）。 */
   @Test
   void materialsPagingReturnsEnvelopeAndRealLimit() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_PAGE, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_PAGE, 0L, 0, java.util.List.of(), null, "KTV", null));
     List<Long> createdIds = new ArrayList<>();
     for (int i = 0; i < 3; i++) {
       createdIds.add(newMaterial(STORE_MATERIAL_PAGE, "分页物料" + i).id());
@@ -112,7 +112,7 @@ class InventoryPagingIntegrationTest {
   /** 物料筛选：关键字命中名称或编码，分类/状态精确匹配，且能相互叠加。 */
   @Test
   void materialsFilterByKeywordCategoryAndStatus() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_FILTER, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_MATERIAL_FILTER, 0L, 0, java.util.List.of(), null, "KTV", null));
     InventoryMaterialView cola = newMaterial(STORE_MATERIAL_FILTER, "可乐 330ml", "饮品");
     newMaterial(STORE_MATERIAL_FILTER, "毛巾", "耗材");
 
@@ -139,7 +139,7 @@ class InventoryPagingIntegrationTest {
   @Test
   void materialsFilterByCreatedAtClosedDayRangeUsesRealSql() {
     Long storeId = STORE_MATERIAL_FILTER + 1;
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0, java.util.List.of(), null, "KTV", null));
     newMaterial(storeId, "今天建的物料A");
     newMaterial(storeId, "今天建的物料B");
 
@@ -171,7 +171,7 @@ class InventoryPagingIntegrationTest {
   /** 流水筛选：类型/来源/关键字/日期闭区间；结束日整天可命中，区间外为 0。 */
   @Test
   void transactionsFilterByTypeSourceKeywordAndClosedDateRange() throws Exception {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_TRANSACTION, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_TRANSACTION, 0L, 0, java.util.List.of(), null, "KTV", null));
     InventoryMaterialView cola = newMaterial(STORE_TRANSACTION, "可乐", "饮品");
     InventoryMaterialView towel = newMaterial(STORE_TRANSACTION, "毛巾", "耗材");
     inventoryService.changeStock(cola.id(), new BigDecimal("5"), "RECEIPT", "RECEIPT", null,
@@ -238,7 +238,7 @@ class InventoryPagingIntegrationTest {
   /** 成本：分页只切物料行，total 与币种信封按全部命中行计算（翻页不漂移）。 */
   @Test
   void costsPageRowsButEnvelopeCoversAllMatchedRows() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_COST, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_COST, 0L, 0, java.util.List.of(), null, "KTV", null));
     CurrencyContextHolder.set(Currency.CNY);
     InventoryMaterialView cola = newMaterial(STORE_COST, "可乐", "饮品", new BigDecimal("300"));
     InventoryMaterialView towel = newMaterial(STORE_COST, "毛巾", "耗材", new BigDecimal("1250"));
@@ -279,7 +279,7 @@ class InventoryPagingIntegrationTest {
   }
 
   private InventoryMaterialView newMaterial(long storeId, String name, String category, BigDecimal purchasePrice) {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0, java.util.List.of(), null, "KTV", null));
     InventoryMaterialView material = inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         storeId, "PAGE-" + System.nanoTime(), name, category, "件", BigDecimal.ZERO, purchasePrice, null, null, null));
     assertNotNull(material.id());

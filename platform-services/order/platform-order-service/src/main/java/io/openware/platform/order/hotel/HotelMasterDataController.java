@@ -83,11 +83,6 @@ public class HotelMasterDataController {
         return service.saveRoom(id, request.roomTypeId(), request.roomNo(), request.floor());
     }
 
-    @PutMapping("/rooms/{id}/status")
-    public HotelRoomPo setRoomStatus(@PathVariable Long id, @RequestBody RoomStatusRequest request) {
-        return service.setRoomStatus(id, request.status());
-    }
-
     @GetMapping("/rate-plans")
     public List<HotelRatePlanPo> ratePlans(@RequestParam(required = false) Long hotelId) {
         return service.ratePlans(hotelId);
@@ -120,16 +115,17 @@ public class HotelMasterDataController {
                 request.priceMinor(), request.currency());
     }
 
-    @GetMapping("/inventory")
-    public List<HotelInventoryPo> inventory(@RequestParam Long roomTypeId,
-                                            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-                                            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return service.inventory(roomTypeId, from, to);
+    /** 房量日历：房量不是库存。 */
+    @GetMapping("/availability")
+    public List<HotelRoomAvailabilityPo> availability(@RequestParam Long roomTypeId,
+                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+                                                      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return service.availability(roomTypeId, from, to);
     }
 
-    @PutMapping("/inventory")
-    public HotelInventoryPo setInventory(@RequestBody InventoryRequest request) {
-        return service.setInventory(request.roomTypeId(), request.stayDate(), request.total());
+    @PutMapping("/availability")
+    public HotelRoomAvailabilityPo setAvailability(@RequestBody AvailabilityRequest request) {
+        return service.setAvailability(request.roomTypeId(), request.stayDate(), request.total());
     }
 
     public record HotelRequest(String name, String address, String coverImageUrl, String timezone, String checkInTime, String checkOutTime) {}
@@ -139,11 +135,9 @@ public class HotelMasterDataController {
 
     public record RoomRequest(Long roomTypeId, String roomNo, String floor) {}
 
-    public record RoomStatusRequest(String status) {}
-
     public record RatePlanRequest(Long hotelId, String code, String name, Long basePriceMinor, String currency) {}
 
-    public record InventoryRequest(Long roomTypeId, LocalDate stayDate, Integer total) {}
+    public record AvailabilityRequest(Long roomTypeId, LocalDate stayDate, Integer total) {}
 
     public record DailyRateRequest(Long roomTypeId, Long ratePlanId, LocalDate stayDate, Long priceMinor,
                                    String currency) {}

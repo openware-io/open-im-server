@@ -18,11 +18,16 @@ import io.openware.platform.order.api.dto.OrderItemView;
 import io.openware.platform.order.api.dto.ProductView;
 import io.openware.platform.order.domain.catalog.model.CatalogItem;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
+import io.openware.platform.order.domain.inventory.model.InventoryWarehouse;
 import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
 import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
 import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionQuery;
+import io.openware.platform.order.domain.inventory.repository.InventoryWarehouseRepository;
+import io.openware.platform.order.domain.order.model.RefundStatus;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
 import io.openware.platform.order.infra.persistence.mapper.OrderItemMapper;
 import io.openware.platform.order.infra.persistence.mapper.OrderMapper;
@@ -84,6 +89,9 @@ class InventoryStockIntegrationTest {
   private InventoryTransactionRepository transactionRepository;
 
   @Autowired
+  private InventoryWarehouseRepository warehouseRepository;
+
+  @Autowired
   private CatalogItemRepository catalogItemRepository;
 
   @Autowired
@@ -97,7 +105,7 @@ class InventoryStockIntegrationTest {
 
   @BeforeEach
   void setUpTenant() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, java.util.List.of(), null, "KTV", null));
   }
 
   @AfterEach
@@ -125,11 +133,11 @@ class InventoryStockIntegrationTest {
     inventoryService.changeStock(material.id(), new BigDecimal("2"), "RECEIPT", "集成测试入库", "cond-" + material.id());
 
     // 条件更新的返回值就是权威结论：可用量不足 → false（0 行受影响），库存一动不动。
-    assertFalse(stockRepository.deductAvailable(TENANT_ID, STORE_ID, material.id(), new BigDecimal("3"), LocalDateTime.now()),
+    assertFalse(stockRepository.deductAvailable(defaultScope(), material.id(), new BigDecimal("3"), LocalDateTime.now()),
         "可用量不足时条件更新必须 0 行受影响（端口把「>0 行」表达成 boolean）");
     assertEquals(0, onHand(material.id()).compareTo(new BigDecimal("2")));
 
-    assertTrue(stockRepository.deductAvailable(TENANT_ID, STORE_ID, material.id(), new BigDecimal("2"), LocalDateTime.now()),
+    assertTrue(stockRepository.deductAvailable(defaultScope(), material.id(), new BigDecimal("2"), LocalDateTime.now()),
         "可用量恰好够时条件更新必须命中 1 行");
     assertEquals(0, onHand(material.id()).signum(), "扣到 0 可以，绝不允许为负");
   }
@@ -152,7 +160,7 @@ class InventoryStockIntegrationTest {
       final int index = i;
       pool.submit(() -> {
         try {
-          TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
+          TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, java.util.List.of(), null, "KTV", null));
           ready.countDown();
           start.await(30, TimeUnit.SECONDS);
           inventoryService.changeStock(material.id(), BigDecimal.ONE, "CONSUME", "ORDER_ITEM",
@@ -188,7 +196,7 @@ class InventoryStockIntegrationTest {
   @Test
   void voidedOrderRecoveryReturnsStockAndIsIdempotent() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, List.of(
-        "inventory.recovery.view", "inventory.recovery.confirm")));
+        "inventory.recovery.view", "inventory.recovery.confirm"), null, "KTV", null));
     InventoryMaterialView material = newMaterial("作废回补");
     inventoryService.changeStock(material.id(), new BigDecimal("5"), "RECEIPT", "集成测试入库", "rev-" + material.id());
 
@@ -236,7 +244,7 @@ class InventoryStockIntegrationTest {
   @Test
   void recoveryDecisionCanRefuseWithoutTouchingStock() {
     TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, List.of(
-        "inventory.recovery.view", "inventory.recovery.confirm")));
+        "inventory.recovery.view", "inventory.recovery.confirm"), null, "KTV", null));
     InventoryMaterialView material = newMaterial("拒绝回补");
     OrderPo order = newOrder("VOIDED");
     OrderItemPo item = new OrderItemPo();
@@ -319,6 +327,10 @@ class InventoryStockIntegrationTest {
     po.setOrderNo("ORD-INV-" + System.nanoTime());
     po.setBusinessType("KTV");
     po.setStatus(status);
+    // V24：订单主表以 trade_status/refund_status 为判据；直接插 PO 的夹具必须同步写这两个快照列
+    // （生产写路径由领域模型双写，这里绕过领域模型，不能只写兼容列）。
+    po.setTradeStatus(TradeStatus.fromLegacy(status).name());
+    po.setRefundStatus(RefundStatus.fromLegacy(status).name());
     po.setCurrencyCode("CNY");
     po.setSubtotalAmount(BigDecimal.ZERO);
     po.setDiscountAmount(BigDecimal.ZERO);
@@ -334,8 +346,17 @@ class InventoryStockIntegrationTest {
   }
 
   private BigDecimal onHand(Long materialId) {
-    InventoryStock stock = stockRepository.find(TENANT_ID, STORE_ID, materialId).orElse(null);
-    return stock == null ? BigDecimal.ZERO : stock.onHandQty();
+    // 未建默认仓 = 该门店从未发生过库存写入，本测试口径就是 0。
+    return warehouseRepository.findDefault(TENANT_ID, STORE_ID, "KTV")
+        .flatMap(warehouse -> stockRepository.find(
+            InventoryScope.warehouse(TENANT_ID, 1L, "KTV", STORE_ID, warehouse.id()), materialId))
+        .map(InventoryStock::onHandQty).orElse(BigDecimal.ZERO);
+  }
+
+  /** 当前门店默认仓的完整作用域（V25：余额/流水作用域必须带仓库）。 */
+  private InventoryScope defaultScope() {
+    InventoryWarehouse warehouse = warehouseRepository.findDefault(TENANT_ID, STORE_ID, "KTV").orElseThrow();
+    return InventoryScope.warehouse(TENANT_ID, 1L, "KTV", STORE_ID, warehouse.id());
   }
 
   /** 本门店该物料的 CONSUME 流水（端口分页读，行数口径不变）。 */

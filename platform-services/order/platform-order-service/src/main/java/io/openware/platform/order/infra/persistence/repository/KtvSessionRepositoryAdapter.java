@@ -154,6 +154,7 @@ public class KtvSessionRepositoryAdapter implements KtvSessionRepository {
         KtvSessionPo po = new KtvSessionPo();
         po.setId(session.id());
         po.setTenantId(session.tenantId());
+        po.setOrganizationId(session.organizationId());
         po.setStoreId(session.storeId());
         po.setBusinessType(session.businessType());
         po.setOrderId(session.orderId());
@@ -185,11 +186,12 @@ public class KtvSessionRepositoryAdapter implements KtvSessionRepository {
         if (po == null) {
             return null;
         }
-        return new KtvSession(po.getId(), po.getTenantId(), po.getStoreId(), po.getBusinessType(), po.getOrderId(),
-                po.getRoomResourceId(), po.getOccupationId(), po.getRoomNameSnapshot(), po.getRoomCodeSnapshot(),
-                po.getPartySize(), po.getServerId(), po.getServerName(), po.getReservedStartAt(),
-                po.getReservedEndAt(), po.getOpenedAt(), po.getClosedAt(), po.getBillingUnit(),
-                po.getBillingStartAt(), po.getFreeWaitMinutes(), po.getPausedSeconds(), po.getPauseStartedAt(),
-                po.getOvertimeRate(), po.getBillingRuleSnapshotJson(), po.getStatus(), po.getVersion());
+        return new KtvSession(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getStoreId(),
+                po.getBusinessType(), po.getOrderId(), po.getRoomResourceId(), po.getOccupationId(),
+                po.getRoomNameSnapshot(), po.getRoomCodeSnapshot(), po.getPartySize(), po.getServerId(),
+                po.getServerName(), po.getReservedStartAt(), po.getReservedEndAt(), po.getOpenedAt(),
+                po.getClosedAt(), po.getBillingUnit(), po.getBillingStartAt(), po.getFreeWaitMinutes(),
+                po.getPausedSeconds(), po.getPauseStartedAt(), po.getOvertimeRate(),
+                po.getBillingRuleSnapshotJson(), po.getStatus(), po.getVersion());
     }
 }

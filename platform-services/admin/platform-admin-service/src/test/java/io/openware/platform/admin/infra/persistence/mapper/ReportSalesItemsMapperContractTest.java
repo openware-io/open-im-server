@@ -47,7 +47,7 @@ class ReportSalesItemsMapperContractTest {
     void onlyEffectiveItemsAndOrders() {
         String sql = sqlOf("selectSalesItems");
         assertTrue(sql.contains("i.status = 'ACTIVE'"), "只算已生效明细（PENDING_APPROVAL/REJECTED 不计销售）");
-        assertTrue(sql.contains("o.status NOT IN ('CANCELLED', 'VOIDED')"), "排除已取消/已作废订单");
+        assertTrue(sql.contains("o.trade_status NOT IN ('CANCELLED', 'VOIDED')"), "排除已取消/已作废订单");
     }
 
     @Test

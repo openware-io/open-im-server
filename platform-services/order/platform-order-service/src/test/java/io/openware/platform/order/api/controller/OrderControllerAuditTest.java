@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -20,6 +21,7 @@ import io.openware.platform.order.application.KtvSessionApplicationService;
 import io.openware.platform.order.application.OrderCancellationApplicationService;
 import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.platform.order.application.dto.OrderView;
+import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
@@ -42,6 +44,7 @@ class OrderControllerAuditTest {
 
     private OrderRepository orderMapper;
     private OrderCancellationApplicationService orderCancellationService;
+    private KtvSessionApplicationService ktvSessionService;
     private AuditClient auditClient;
     private DailySerialNumberGenerator dailySerialNumberGenerator;
     private OrderController controller;
@@ -50,11 +53,16 @@ class OrderControllerAuditTest {
     void setUp() {
         orderMapper = mock(OrderRepository.class);
         orderCancellationService = mock(OrderCancellationApplicationService.class);
+        ktvSessionService = mock(KtvSessionApplicationService.class);
         auditClient = mock(AuditClient.class);
         dailySerialNumberGenerator = mock(DailySerialNumberGenerator.class);
-        controller = OrderControllerTestFactory.create(orderMapper, mock(KtvSessionApplicationService.class),
+        controller = OrderControllerTestFactory.create(orderMapper, ktvSessionService,
                 mock(KtvServerSessionApplicationService.class), mock(ResourceStateClient.class), auditClient,
                 orderCancellationService, dailySerialNumberGenerator);
+        // 挂单是「开台中」的动作：交易状态 DRAFT + 会话 OPEN。默认给一个开台中会话，撤销并发场景各自覆盖。
+        when(ktvSessionService.listByOrderIds(anyList())).thenReturn(java.util.Map.of(ORDER_ID,
+                KtvSession.reserved(TENANT_ID, 1L, STORE_ID, "KTV", ORDER_ID, 3001L, null, null)
+                        .withId(1L).withStatus(KtvSession.STATUS_OPEN)));
         TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 42L, 1,
                 List.of("order.hold", "order.transfer", "order.void")));
     }

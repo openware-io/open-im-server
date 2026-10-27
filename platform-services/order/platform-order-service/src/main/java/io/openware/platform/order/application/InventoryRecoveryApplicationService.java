@@ -8,6 +8,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderItemQuery;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
@@ -99,7 +100,8 @@ public class InventoryRecoveryApplicationService {
   private Order requireVoidedOrder(Long orderId) {
     Order order = orderRepository.findById(orderId)
         .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单不存在"));
-    if (!"VOIDED".equals(order.status())) {
+    // 作废（VOIDED）与用户取消（CANCELLED）是两种终态：库存回补只针对审批作废/冲正单。
+    if (order.trade() != TradeStatus.VOIDED) {
       throw new BusinessException("ORDER_STATUS_INVALID", "仅作废订单可处理库存回补");
     }
     return order;

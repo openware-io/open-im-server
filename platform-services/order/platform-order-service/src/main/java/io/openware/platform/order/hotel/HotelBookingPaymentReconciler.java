@@ -18,17 +18,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class HotelBookingPaymentReconciler {
 
     private final HotelBookingMapper bookingMapper;
-    private final HotelInventoryHoldMapper holdMapper;
-    private final HotelInventoryMapper inventoryMapper;
+    private final HotelRoomAvailabilityHoldMapper availabilityHoldMapper;
+    private final HotelRoomAvailabilityMapper availabilityMapper;
     private final HotelBookingNightMapper nightMapper;
 
     public HotelBookingPaymentReconciler(HotelBookingMapper bookingMapper,
-                                          HotelInventoryHoldMapper holdMapper,
-                                          HotelInventoryMapper inventoryMapper,
+                                          HotelRoomAvailabilityHoldMapper availabilityHoldMapper,
+                                          HotelRoomAvailabilityMapper availabilityMapper,
                                           HotelBookingNightMapper nightMapper) {
         this.bookingMapper = bookingMapper;
-        this.holdMapper = holdMapper;
-        this.inventoryMapper = inventoryMapper;
+        this.availabilityHoldMapper = availabilityHoldMapper;
+        this.availabilityMapper = availabilityMapper;
         this.nightMapper = nightMapper;
     }
 
@@ -40,7 +40,7 @@ public class HotelBookingPaymentReconciler {
             try {
                 confirmOne(id);
             } catch (RuntimeException failure) {
-                // 单笔失败不阻塞其余订单；保留 PENDING_PAYMENT 供下轮重试/人工处理。
+                // 单笔失败不阻塞其余订单；保留 PENDING_CONFIRM 供下轮重试/人工处理。
                 log.warn("hotel paid booking reconcile failed: bookingId={}, cause={}", id,
                         failure.getMessage());
             }
@@ -49,7 +49,7 @@ public class HotelBookingPaymentReconciler {
 
     private void confirmOne(Long bookingId) {
         HotelBookingPo booking = bookingMapper.selectByIdIgnoreTenant(bookingId);
-        if (booking == null || !"PENDING_PAYMENT".equals(booking.getStatus())) {
+        if (booking == null || !"PENDING_CONFIRM".equals(booking.getStatus())) {
             return;
         }
         TenantContextHolder.set(new TenantContext(booking.getTenantId(), 0L, booking.getStoreId(),
@@ -62,18 +62,18 @@ public class HotelBookingPaymentReconciler {
     }
 
     private void confirmInTenant(HotelBookingPo booking) {
-        List<HotelInventoryHoldPo> holds = holdMapper.selectList(
-                new LambdaQueryWrapper<HotelInventoryHoldPo>()
-                        .eq(HotelInventoryHoldPo::getBookingId, booking.getId())
-                        .eq(HotelInventoryHoldPo::getStatus, "HELD"));
-        for (HotelInventoryHoldPo hold : holds) {
-            if (inventoryMapper.confirmHeld(booking.getTenantId(), booking.getStoreId(),
+        List<HotelRoomAvailabilityHoldPo> holds = availabilityHoldMapper.selectList(
+                new LambdaQueryWrapper<HotelRoomAvailabilityHoldPo>()
+                        .eq(HotelRoomAvailabilityHoldPo::getBookingId, booking.getId())
+                        .eq(HotelRoomAvailabilityHoldPo::getStatus, "HELD"));
+        for (HotelRoomAvailabilityHoldPo hold : holds) {
+            if (availabilityMapper.confirmHeld(booking.getTenantId(), booking.getStoreId(),
                     hold.getRoomTypeId(), hold.getStayDate(), hold.getRooms()) == 0) {
-                throw new IllegalStateException("INVENTORY_CONFIRM_CONFLICT");
+                throw new IllegalStateException("ROOM_AVAILABILITY_CONFIRM_CONFLICT");
             }
             hold.setStatus("SOLD");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
         nightMapper.update(null, new LambdaUpdateWrapper<HotelBookingNightPo>()
                 .eq(HotelBookingNightPo::getBookingId, booking.getId())

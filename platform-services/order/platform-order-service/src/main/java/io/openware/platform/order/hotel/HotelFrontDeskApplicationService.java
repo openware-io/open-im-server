@@ -7,9 +7,8 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.util.List;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-/** 酒店前台最小切片：任务列表、入住、退房。动作权限在此强制校验。 */
+/** 酒店前台最小切片：任务列表、在住/账单摘要。入住/退房动作统一走 HotelStayApplicationService。 */
 @Service
 public class HotelFrontDeskApplicationService {
 
@@ -29,7 +28,7 @@ public class HotelFrontDeskApplicationService {
         TenantContext context = requireStoreContext();
         return mapper.selectList(new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getStoreId, context.storeId())
-                .in(HotelBookingPo::getStatus, List.of("PENDING_DEPOSIT", "CONFIRMED", "ARRIVAL", "IN_HOUSE", "DUE_OUT"))
+                .in(HotelBookingPo::getStatus, List.of("PENDING_CONFIRM", "CONFIRMED", "CHECKED_IN", "DUE_OUT"))
                 .orderByAsc(HotelBookingPo::getCheckInDate)
                 .orderByAsc(HotelBookingPo::getId));
     }
@@ -57,38 +56,8 @@ public class HotelFrontDeskApplicationService {
                 .last("LIMIT 1"));
     }
 
-    @Transactional
-    public HotelBookingPo checkIn(Long id) {
-        PermissionGuard.require("hotel.checkin");
-        HotelBookingPo booking = requireBooking(id);
-        if (!"ARRIVAL".equals(booking.getStatus())) {
-            throw new ApiException(409, "HOTEL_CHECKIN_STATE_INVALID", "当前预订不在待入住状态");
-        }
-        booking.setStatus("IN_HOUSE");
-        mapper.updateById(booking);
-        return booking;
-    }
-
-    @Transactional
-    public HotelBookingPo checkOut(Long id) {
-        PermissionGuard.require("hotel.checkout");
-        HotelBookingPo booking = requireBooking(id);
-        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
-            throw new ApiException(409, "HOTEL_CHECKOUT_STATE_INVALID", "当前预订不在可退房状态");
-        }
-        booking.setStatus("CHECKED_OUT");
-        mapper.updateById(booking);
-        return booking;
-    }
-
-    private HotelBookingPo requireBooking(Long id) {
-        TenantContext context = requireStoreContext();
-        HotelBookingPo booking = mapper.selectById(id);
-        if (booking == null || !context.storeId().equals(booking.getStoreId())) {
-            throw new ApiException(404, "HOTEL_BOOKING_NOT_FOUND", "酒店预订不存在");
-        }
-        return booking;
-    }
+    // 入住/退房必须走 HotelStayApplicationService：只改预订状态会绕过房态、在住记录与清扫任务。
+    // 这里不再提供直接改预订状态的入口。
 
     private TenantContext requireStoreContext() {
         TenantContext context = TenantContextHolder.get();

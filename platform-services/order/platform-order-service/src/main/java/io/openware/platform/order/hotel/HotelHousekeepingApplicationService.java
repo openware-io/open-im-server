@@ -10,13 +10,13 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 客房清扫任务：PENDING → IN_PROGRESS → DONE；完成后房间 DIRTY → ACTIVE。 */
+/** 客房清扫任务：PENDING → IN_PROGRESS → DONE；退房清扫开始/完成时推进房间清扫状态。 */
 @Service
 public class HotelHousekeepingApplicationService {
 
-    /** 退房后的强制清扫：完成时把 DIRTY 房间恢复为 ACTIVE。 */
+    /** 退房后的强制清扫：DIRTY → CLEANING → CLEAN。 */
     public static final String TYPE_DEPARTURE = "DEPARTURE";
-    /** 在住客人的日常清扫：只结束任务，不改变房间占用状态。 */
+    /** 在住客人的日常清扫：只结束任务，不改变房间占用和清扫状态。 */
     public static final String TYPE_STAYOVER = "STAYOVER";
 
     private final HotelHousekeepingMapper taskMapper;
@@ -33,7 +33,7 @@ public class HotelHousekeepingApplicationService {
     }
 
     public List<HotelHousekeepingPo> tasks() {
-        PermissionGuard.require("hotel.booking.view");
+        PermissionGuard.require("hotel.housekeeping.view");
         TenantContext context = requireStore();
         return taskMapper.selectList(new LambdaQueryWrapper<HotelHousekeepingPo>()
                 .eq(HotelHousekeepingPo::getStoreId, context.storeId())
@@ -43,10 +43,15 @@ public class HotelHousekeepingApplicationService {
 
     @Transactional
     public HotelHousekeepingPo start(Long id) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.housekeeping.manage");
         HotelHousekeepingPo task = requireTask(id);
         if (!"PENDING".equals(task.getStatus())) {
             throw new ApiException(409, "HOUSEKEEPING_STATE_INVALID", "清扫任务不是待处理状态");
+        }
+        TenantContext context = requireStore();
+        // 退房清扫开始：空闲脏房 → 清扫中；在住日常清扫不动房态。
+        if (TYPE_DEPARTURE.equals(task.getTaskType())) {
+            roomMapper.startCleaning(task.getRoomId(), context.tenantId(), context.storeId());
         }
         task.setStatus("IN_PROGRESS");
         task.setUpdatedAt(LocalDateTime.now());
@@ -56,16 +61,16 @@ public class HotelHousekeepingApplicationService {
 
     @Transactional
     public HotelHousekeepingPo complete(Long id) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.housekeeping.manage");
         HotelHousekeepingPo task = requireTask(id);
         if (!"IN_PROGRESS".equals(task.getStatus())) {
             throw new ApiException(409, "HOUSEKEEPING_STATE_INVALID", "清扫任务不是进行中状态");
         }
         TenantContext context = requireStore();
-        // 在住日常清扫不改变房态；退房清扫完成后才允许 DIRTY -> ACTIVE。
+        // 在住日常清扫不改变房态；退房清扫完成后 CLEANING（兼容历史 DIRTY）→ CLEAN。
         if (!TYPE_STAYOVER.equals(task.getTaskType())) {
-            if (roomMapper.markClean(task.getRoomId(), context.tenantId(), context.storeId()) == 0) {
-                throw new ApiException(409, "ROOM_STATE_INVALID", "房间不是待清扫状态");
+            if (roomMapper.finishCleaning(task.getRoomId(), context.tenantId(), context.storeId()) == 0) {
+                throw new ApiException(409, "ROOM_STATE_INVALID", "房间不是待清扫/清扫中状态");
             }
         }
         task.setStatus("DONE");
@@ -89,7 +94,7 @@ public class HotelHousekeepingApplicationService {
         if (accountId == null || !accountId.equals(booking.getBookedByAccountId())) {
             throw new ApiException(403, "BOOKING_OWNER_REQUIRED", "只能为本人预订申请清扫");
         }
-        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
+        if (!"CHECKED_IN".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
             throw new ApiException(409, "HOUSEKEEPING_NOT_APPLICABLE", "只有当前在住客人可以申请日常清扫");
         }
         HotelStayPo stay = stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()

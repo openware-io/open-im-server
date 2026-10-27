@@ -33,7 +33,7 @@ public class HotelNightAuditApplicationService {
 
     @Transactional
     public HotelNightAuditPo run(LocalDate businessDate) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.room.manage");
         TenantContext context = requireStore();
         if (businessDate == null) {
             throw new ApiException(400, "BUSINESS_DATE_REQUIRED", "营业日不能为空");
@@ -46,7 +46,7 @@ public class HotelNightAuditApplicationService {
         }
         List<HotelBookingPo> inHouse = bookingMapper.selectList(new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getStoreId, context.storeId())
-                .eq(HotelBookingPo::getStatus, "IN_HOUSE"));
+                .eq(HotelBookingPo::getStatus, "CHECKED_IN"));
         long roomCharge = 0;
         int dueOut = 0;
         LocalDateTime now = LocalDateTime.now();

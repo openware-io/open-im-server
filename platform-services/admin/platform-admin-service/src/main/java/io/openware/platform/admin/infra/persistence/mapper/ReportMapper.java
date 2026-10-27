@@ -49,7 +49,7 @@ public interface ReportMapper {
                    COUNT(*) AS open_order_count
             FROM ord_order o
             WHERE o.tenant_id = #{tenantId}
-              AND o.status NOT IN ('CANCELLED','VOIDED')
+              AND o.trade_status NOT IN ('CANCELLED','VOIDED')
               AND o.created_by <> 0
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
@@ -132,7 +132,7 @@ public interface ReportMapper {
             FROM ord_order o
             LEFT JOIN tnt_store s ON s.id = o.store_id AND s.tenant_id = o.tenant_id
             WHERE o.tenant_id = #{tenantId}
-              AND o.status NOT IN ('CANCELLED','VOIDED')
+              AND o.trade_status NOT IN ('CANCELLED','VOIDED')
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
             GROUP BY o.store_id, s.name, business_date, o.currency_code
@@ -280,7 +280,7 @@ public interface ReportMapper {
             LEFT JOIN tnt_store s ON s.id = o.store_id AND s.tenant_id = o.tenant_id
             WHERE i.tenant_id = #{tenantId}
               AND i.status = 'ACTIVE'
-              AND o.status NOT IN ('CANCELLED','VOIDED')
+              AND o.trade_status NOT IN ('CANCELLED','VOIDED')
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
             GROUP BY o.store_id, s.name, business_date, i.currency_code
@@ -330,10 +330,10 @@ public interface ReportMapper {
      * <p>口径与经营报表同源（{@code ord_order}）：
      * <ul>
      *   <li>{@code order_count} / {@code sales_amount} / {@code discount_amount} / {@code paid_amount}
-     *       只累加**有效单据**（{@code status NOT IN ('CANCELLED','VOIDED')}），与
+     *       只累加**有效单据**（{@code trade_status NOT IN ('CANCELLED','VOIDED')}），与
      *       {@link #selectOperations} 同一条件；</li>
      *   <li>{@code voided_count} / {@code voided_amount} 单独统计**已作废**单据
-     *       （{@code status='VOIDED'}）的金额，用于核对「作废冲销」而不是并进销售额
+     *       （{@code trade_status='VOIDED'}）的金额，用于核对「作废冲销」而不是并进销售额
      *       —— 作废不是收入，混进销售额会让毛利虚高；</li>
      *   <li>{@code CANCELLED}（未成立/已取消）既不计销售额也不计作废金额，避免把从未收款的单当成损失。</li>
      * </ul>
@@ -345,15 +345,15 @@ public interface ReportMapper {
                    DATE_FORMAT(DATE_ADD(o.created_at, INTERVAL #{businessDayShiftSeconds} SECOND), '%Y-%m-%d')
                        AS business_date,
                    o.currency_code AS currency_code,
-                   SUM(CASE WHEN o.status NOT IN ('CANCELLED','VOIDED') THEN 1 ELSE 0 END) AS order_count,
-                   SUM(CASE WHEN o.status NOT IN ('CANCELLED','VOIDED') THEN o.total_amount ELSE 0 END)
+                   SUM(CASE WHEN o.trade_status NOT IN ('CANCELLED','VOIDED') THEN 1 ELSE 0 END) AS order_count,
+                   SUM(CASE WHEN o.trade_status NOT IN ('CANCELLED','VOIDED') THEN o.total_amount ELSE 0 END)
                        AS sales_amount,
-                   SUM(CASE WHEN o.status NOT IN ('CANCELLED','VOIDED') THEN o.discount_amount ELSE 0 END)
+                   SUM(CASE WHEN o.trade_status NOT IN ('CANCELLED','VOIDED') THEN o.discount_amount ELSE 0 END)
                        AS discount_amount,
-                   SUM(CASE WHEN o.status NOT IN ('CANCELLED','VOIDED') THEN o.paid_amount ELSE 0 END)
+                   SUM(CASE WHEN o.trade_status NOT IN ('CANCELLED','VOIDED') THEN o.paid_amount ELSE 0 END)
                        AS paid_amount,
-                   SUM(CASE WHEN o.status = 'VOIDED' THEN 1 ELSE 0 END) AS voided_count,
-                   SUM(CASE WHEN o.status = 'VOIDED' THEN o.total_amount ELSE 0 END) AS voided_amount
+                   SUM(CASE WHEN o.trade_status = 'VOIDED' THEN 1 ELSE 0 END) AS voided_count,
+                   SUM(CASE WHEN o.trade_status = 'VOIDED' THEN o.total_amount ELSE 0 END) AS voided_amount
             FROM ord_order o
             LEFT JOIN tnt_store s ON s.id = o.store_id AND s.tenant_id = o.tenant_id
             WHERE o.tenant_id = #{tenantId}
@@ -409,7 +409,7 @@ public interface ReportMapper {
      * <ul>
      *   <li>只算**有效明细** {@code i.status = 'ACTIVE'}——待确认加项（{@code PENDING_APPROVAL}）
      *       还没成立、被拒的（{@code REJECTED}）不该计入销售；</li>
-     *   <li>只算**有效订单** {@code o.status NOT IN ('CANCELLED','VOIDED')}；</li>
+     *   <li>只算**有效订单** {@code o.trade_status NOT IN ('CANCELLED','VOIDED')}；</li>
      *   <li>区间按**订单创建时间**闭开区间（与销售报表同一入参口径），不做营业日分档（排行看整段）；</li>
      *   <li>销售额取明细 {@code total_amount}（**已扣折扣**），折扣额单列 {@code discount_amount}
      *       便于核对「原价→实收」；</li>
@@ -439,7 +439,7 @@ public interface ReportMapper {
             LEFT JOIN ord_catalog_item c ON c.id = i.catalog_item_id
             WHERE i.tenant_id = #{tenantId}
               AND i.status = 'ACTIVE'
-              AND o.status NOT IN ('CANCELLED', 'VOIDED')
+              AND o.trade_status NOT IN ('CANCELLED', 'VOIDED')
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
               AND (#{itemCategory} IS NULL OR (CASE
@@ -460,7 +460,7 @@ public interface ReportMapper {
      * 销售报表**明细**总数：与 {@link #selectSalesDetails} **完全同一套过滤条件**，
      * 否则分页 total 与列表会对不上（前端会以为后面还有页）。
      *
-     * <p>默认口径与统计侧一致：{@code status NOT IN ('CANCELLED','VOIDED')}；
+     * <p>默认口径与统计侧一致：{@code trade_status NOT IN ('CANCELLED','VOIDED')}；
      * 传了 {@code status} 就只看该状态（用于复核作废/取消单）。
      */
     @Select("""
@@ -469,8 +469,8 @@ public interface ReportMapper {
             WHERE o.tenant_id = #{tenantId}
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
-              AND (#{status} IS NULL OR o.status = #{status})
-              AND (#{status} IS NOT NULL OR o.status NOT IN ('CANCELLED','VOIDED'))
+              AND (#{status} IS NULL OR o.trade_status = #{status})
+              AND (#{status} IS NOT NULL OR o.trade_status NOT IN ('CANCELLED','VOIDED'))
             """)
     long countSalesDetails(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
             @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("status") String status);
@@ -496,7 +496,7 @@ public interface ReportMapper {
                    (SELECT k.room_name_snapshot FROM ord_ktv_session k
                      WHERE k.order_id = o.id AND k.tenant_id = o.tenant_id
                      ORDER BY k.id LIMIT 1) AS room_name,
-                   o.status AS status,
+                   o.trade_status AS status,
                    o.currency_code AS currency_code,
                    o.subtotal_amount AS subtotal_amount,
                    o.discount_amount AS discount_amount,
@@ -508,8 +508,8 @@ public interface ReportMapper {
             WHERE o.tenant_id = #{tenantId}
               AND o.created_at >= #{from} AND o.created_at < #{to}
               AND (#{storeId} IS NULL OR o.store_id = #{storeId})
-              AND (#{status} IS NULL OR o.status = #{status})
-              AND (#{status} IS NOT NULL OR o.status NOT IN ('CANCELLED','VOIDED'))
+              AND (#{status} IS NULL OR o.trade_status = #{status})
+              AND (#{status} IS NOT NULL OR o.trade_status NOT IN ('CANCELLED','VOIDED'))
             ORDER BY o.created_at DESC, o.id DESC
             LIMIT #{limit} OFFSET #{offset}
             """)

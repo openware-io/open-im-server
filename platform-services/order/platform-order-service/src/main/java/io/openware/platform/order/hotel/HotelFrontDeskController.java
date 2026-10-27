@@ -34,8 +34,8 @@ public class HotelFrontDeskController {
     @GetMapping("/tasks")
     public List<BookingView> tasks() {
         return service.tasks().stream()
-                // IN_HOUSE / DUE_OUT 必须有 stay；历史导入数据只有预订状态时不能伪装成在住客人。
-                .filter(booking -> (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus()))
+                // CHECKED_IN / DUE_OUT 必须有 stay；历史导入数据只有预订状态时不能伪装成在住客人。
+                .filter(booking -> (!"CHECKED_IN".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus()))
                         || service.hasStay(booking.getId()))
                 .map(booking -> BookingView.from(booking, service.currentStay(booking.getId()),
                         service.currentFolio(booking.getId())))

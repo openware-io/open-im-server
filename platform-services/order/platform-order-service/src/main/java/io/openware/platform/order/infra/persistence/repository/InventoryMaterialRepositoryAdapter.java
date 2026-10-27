@@ -70,6 +70,17 @@ public class InventoryMaterialRepositoryAdapter implements InventoryMaterialRepo
   }
 
   @Override
+  public Optional<InventoryMaterial> findInStoreByCode(Long tenantId, Long storeId, String materialCode) {
+    if (materialCode == null || materialCode.isBlank()) {
+      return Optional.empty();
+    }
+    return Optional.ofNullable(mapper.selectOne(Wrappers.<InventoryMaterialPo>lambdaQuery()
+        .eq(InventoryMaterialPo::getTenantId, tenantId)
+        .eq(InventoryMaterialPo::getStoreId, storeId)
+        .eq(InventoryMaterialPo::getMaterialCode, materialCode))).map(InventoryMaterialRepositoryAdapter::toDomain);
+  }
+
+  @Override
   public List<InventoryMaterial> findByIds(Collection<Long> ids) {
     if (ids == null || ids.isEmpty()) {
       return List.of();

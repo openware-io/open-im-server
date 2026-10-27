@@ -88,6 +88,9 @@ class InventoryTransactionRepositoryAdapterTest {
     verify(mapper).insert(captor.capture());
     InventoryTransactionPo written = captor.getValue();
     assertEquals(TENANT_ID, written.getTenantId());
+    assertEquals(2L, written.getOrganizationId());
+    assertEquals("KTV", written.getBusinessType());
+    assertEquals(4L, written.getWarehouseId());
     assertEquals(MATERIAL_ID, written.getMaterialId());
     assertEquals("CONSUME", written.getTransactionType());
     assertEquals(0, written.getQuantityDelta().compareTo(new BigDecimal("-4")));
@@ -117,9 +120,9 @@ class InventoryTransactionRepositoryAdapterTest {
   void appendKeepsNullCostColumnsForLegacyRows() {
     when(mapper.insert(any(InventoryTransactionPo.class))).thenReturn(1);
 
-    adapter.append(new InventoryTransaction(null, TENANT_ID, STORE_ID, MATERIAL_ID, "RECEIPT", BigDecimal.ONE,
-        BigDecimal.ZERO, BigDecimal.ONE, null, null, "USD", "RECEIPT", null, KEY + "-legacy", "历史行",
-        LocalDateTime.now()));
+    adapter.append(new InventoryTransaction(null, TENANT_ID, 2L, "KTV", STORE_ID, 4L, MATERIAL_ID, "RECEIPT",
+        BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ONE, null, null, "USD", "RECEIPT", null,
+        KEY + "-legacy", "历史行", LocalDateTime.now()));
 
     ArgumentCaptor<InventoryTransactionPo> captor = ArgumentCaptor.forClass(InventoryTransactionPo.class);
     verify(mapper).insert(captor.capture());
@@ -237,16 +240,19 @@ class InventoryTransactionRepositoryAdapterTest {
   }
 
   private static InventoryTransaction transaction(LocalDateTime createdAt) {
-    return new InventoryTransaction(null, TENANT_ID, STORE_ID, MATERIAL_ID, "CONSUME", new BigDecimal("-4"),
-        new BigDecimal("10"), new BigDecimal("6"), new BigDecimal("300"), new BigDecimal("-1200"), "CNY",
-        "ORDER_ITEM", "7", KEY, "加项扣减", createdAt);
+    return new InventoryTransaction(null, TENANT_ID, 2L, "KTV", STORE_ID, 4L, MATERIAL_ID, "CONSUME",
+        new BigDecimal("-4"), new BigDecimal("10"), new BigDecimal("6"), new BigDecimal("300"),
+        new BigDecimal("-1200"), "CNY", "ORDER_ITEM", "7", KEY, "加项扣减", createdAt);
   }
 
   private static InventoryTransactionPo po() {
     InventoryTransactionPo po = new InventoryTransactionPo();
     po.setId(20L);
     po.setTenantId(TENANT_ID);
+    po.setOrganizationId(2L);
+    po.setBusinessType("KTV");
     po.setStoreId(STORE_ID);
+    po.setWarehouseId(4L);
     po.setMaterialId(MATERIAL_ID);
     po.setTransactionType("CONSUME");
     po.setQuantityDelta(new BigDecimal("-4"));

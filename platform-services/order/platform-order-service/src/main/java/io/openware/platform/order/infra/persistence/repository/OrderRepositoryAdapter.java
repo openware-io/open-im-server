@@ -136,8 +136,9 @@ public class OrderRepositoryAdapter implements OrderRepository {
     }
 
     @Override
-    public boolean updateStatusGuarded(Long id, String expectedStatus, String newStatus, LocalDateTime at) {
-        return mapper.updateStatusGuarded(id, expectedStatus, newStatus, at) > 0;
+    public boolean updateTradeStatusGuarded(Long id, String expectedTradeStatus, String newTradeStatus,
+                                            String newLegacyStatus, LocalDateTime at) {
+        return mapper.updateTradeStatusGuarded(id, expectedTradeStatus, newTradeStatus, newLegacyStatus, at) > 0;
     }
 
     @Override
@@ -151,8 +152,9 @@ public class OrderRepositoryAdapter implements OrderRepository {
     }
 
     @Override
-    public boolean voidIfStatus(Long id, String expectedStatus, LocalDateTime at) {
-        return mapper.voidIfStatus(id, expectedStatus, at) > 0;
+    public boolean voidByTradeStatus(Long id, String expectedTradeStatus, String newTradeStatus,
+                                     String newLegacyStatus, LocalDateTime at) {
+        return mapper.voidByTradeStatus(id, expectedTradeStatus, newTradeStatus, newLegacyStatus, at) > 0;
     }
 
     /** 领域聚合 → 持久化对象：逐列对应真实列；13 个会话投影字段一个都不设（见类注释）。 */
@@ -167,6 +169,8 @@ public class OrderRepositoryAdapter implements OrderRepository {
         po.setBusinessType(order.businessType());
         po.setCustomerId(order.customerId());
         po.setStatus(order.status());
+        po.setTradeStatus(order.trade() == null ? null : order.trade().name());
+        po.setRefundStatus(order.refund() == null ? null : order.refund().name());
         po.setCurrencyCode(order.currencyCode());
         po.setSubtotalAmount(order.subtotalAmount());
         po.setDiscountAmount(order.discountAmount());
@@ -189,9 +193,10 @@ public class OrderRepositoryAdapter implements OrderRepository {
         }
         return new Order(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getStoreId(), po.getOrderNo(),
             po.getIdempotencyKey(), po.getBusinessType(), po.getCustomerId(), po.getStatus(),
-            po.getCurrencyCode(), po.getSubtotalAmount(), po.getDiscountAmount(), po.getTaxAmount(),
-            po.getTotalAmount(), po.getPaidAmount(), po.getRefundableAmount(), po.getCompletedAt(),
-            po.getCancelledAt(), po.getHoldReason(), po.getHoldAt(), po.getVersion());
+            po.getTradeStatus(), po.getRefundStatus(), po.getCurrencyCode(), po.getSubtotalAmount(),
+            po.getDiscountAmount(), po.getTaxAmount(), po.getTotalAmount(), po.getPaidAmount(),
+            po.getRefundableAmount(), po.getCompletedAt(), po.getCancelledAt(), po.getHoldReason(),
+            po.getHoldAt(), po.getVersion());
     }
 
     /** 业务聚合 + 记账快照：分开交给上层（员工业绩报表要按 created_by 归集开单员工）。 */

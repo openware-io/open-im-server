@@ -21,11 +21,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class HotelBookingController {
 
     private final HotelBookingApplicationService service;
+    private final HotelOrderQueryApplicationService orderQueryService;
     private final IdentityAccountLookupClient identityLookup;
 
     public HotelBookingController(HotelBookingApplicationService service,
+                                  HotelOrderQueryApplicationService orderQueryService,
                                   IdentityAccountLookupClient identityLookup) {
         this.service = service;
+        this.orderQueryService = orderQueryService;
         this.identityLookup = identityLookup;
     }
 
@@ -54,6 +57,12 @@ public class HotelBookingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return service.list(status, from, to);
+    }
+
+    /** 酒店订单读模型：订单 + 预订 + 住客 + 房型/房号 + 入离 + 状态 + 金额。 */
+    @GetMapping("/orders")
+    public List<HotelOrderView> orders(@RequestParam(required = false) String status) {
+        return orderQueryService.orders(status);
     }
 
     @PostMapping("/bookings/{id}/confirm")

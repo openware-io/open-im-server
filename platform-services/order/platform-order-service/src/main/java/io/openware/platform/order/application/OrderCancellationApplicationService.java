@@ -6,6 +6,7 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.infra.client.PaymentCollectedClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,9 +56,9 @@ public class OrderCancellationApplicationService {
     public static final String PAYMENT_REFUND_FIRST_CODE = "ORDER_HAS_PAYMENT_REFUND_FIRST";
     public static final String PAYMENT_REFUND_FIRST_MESSAGE = "该订单已有收款，请先退款后再取消";
 
-    /** 终态：只有未完成订单可取消（VOIDED 单独处理，见 {@link #apply}）。 */
-    private static final Set<String> TERMINAL_STATUSES =
-            Set.of("COMPLETED", "CANCELLED", "REFUNDED", "PARTIAL_REFUNDED");
+    /** 终态判据在交易状态上（{@link TradeStatus#terminal()}）：已全额收款完成/已取消不可再取消。 */
+    private static final Set<TradeStatus> TERMINAL_TRADE_STATUSES =
+            Set.of(TradeStatus.COMPLETED, TradeStatus.CANCELLED);
 
     /** 取消动作类型：决定审计动作码、原因是否必填、以及「已作废」时是否幂等返回。 */
     public enum CancelKind {
@@ -178,19 +179,23 @@ public class OrderCancellationApplicationService {
     private Order apply(Long orderId, String reason, CancelKind kind) {
         Order order = requireOrder(orderId);
         String beforeStatus = order.status();
+        TradeStatus beforeTrade = order.trade();
+        // 目标终态：取消 → CANCELLED（用户取消），作废/冲正 → VOIDED（审批作废，报表独立统计）。
+        TradeStatus targetTrade = kind == CancelKind.CANCEL ? TradeStatus.CANCELLED : TradeStatus.VOIDED;
         try {
-            if ("VOIDED".equals(beforeStatus)) {
+            if (beforeTrade == targetTrade) {
                 if (kind.idempotentWhenAlreadyCancelled()) {
                     // 幂等：重复取消返回既有结果，不写库、不重复释放占用、不重复留痕。
                     return order;
                 }
-                throw new ApiException(409, "ORDER_STATUS_INVALID", "订单已作废，不能重复作废");
+                throw new ApiException(409, "ORDER_STATUS_INVALID",
+                        kind == CancelKind.CANCEL ? "订单已取消，不能重复取消" : "订单已作废，不能重复作废");
             }
-            if (TERMINAL_STATUSES.contains(beforeStatus)) {
+            if (TERMINAL_TRADE_STATUSES.contains(beforeTrade)) {
                 // 状态冲突必须是 409（错误码字典里 ORDER_STATUS_INVALID 由全局处理器映射为 422，
                 // 取消/作废是「与当前订单状态冲突」，这里显式给 409，避免调用方把它当参数错误）。
                 throw new ApiException(409, "ORDER_STATUS_INVALID",
-                        "仅未完成订单可" + kind.verb() + "，当前状态：" + beforeStatus);
+                        "仅未完成订单可" + kind.verb() + "，当前交易状态：" + beforeTrade);
             }
             requireNoCollectedPayment(order);
 
@@ -198,14 +203,15 @@ public class OrderCancellationApplicationService {
             KtvSession releasedSession = ktvSessionService.cancelByOrder(order.id());
 
             LocalDateTime now = LocalDateTime.now();
-            // 条件更新：只有库中仍是判定的那个状态才算作废成功。上面按 beforeStatus 的判定不是并发保护——
+            // 条件更新：只有库中交易状态仍是判定的那个状态才算终结成功。上面按 beforeTrade 的判定不是并发保护——
             // 两个并发取消都会读到同一非终结状态并通过判定，从而各自释放一次会话、各写一条审计。
-            if (!orderRepository.voidIfStatus(order.id(), beforeStatus, now)) {
+            if (!orderRepository.voidByTradeStatus(order.id(), beforeTrade.name(), targetTrade.name(),
+                    targetTrade.legacyStatus(), now)) {
                 throw new ApiException(409, "ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
             }
-            // 领域模型不可变：作废后的新实例（状态 VOIDED、cancelled_at = now）。
-            order = order.voided(now);
-            audit(order, beforeStatus, reason, kind, releasedSession);
+            // 领域模型不可变：终结后的新实例（交易状态 CANCELLED/VOIDED、兼容列同值、cancelled_at = now）。
+            order = order.terminated(targetTrade, now);
+            audit(order, beforeStatus, beforeTrade, reason, kind, releasedSession);
             return order;
         } catch (RuntimeException failure) {
             // 失败留痕（状态冲突/已收款拦截/释放占用或落库失败）：BFF 拦截器只覆盖 /admin/**，
@@ -267,7 +273,7 @@ public class OrderCancellationApplicationService {
     }
 
     /** 取消/作废审计：动作码按 kind 分叉，detail 带前后状态、原因与释放的会话/包厢（无会话时为 null）。 */
-    private void audit(Order order, String beforeStatus, String reason, CancelKind kind,
+    private void audit(Order order, String beforeStatus, TradeStatus beforeTrade, String reason, CancelKind kind,
                        KtvSession releasedSession) {
         if (auditClient == null) {
             return;
@@ -284,15 +290,17 @@ public class OrderCancellationApplicationService {
                 .resourceName(order.orderNo())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey(kind.idempotencyKey(order.id()))
-                .detailJson(detail(order, beforeStatus, reason, releasedSessionId, releasedResourceId))
+                .detailJson(detail(order, beforeStatus, beforeTrade, reason, releasedSessionId, releasedResourceId))
                 .build());
     }
 
-    private static String detail(Order order, String beforeStatus, String reason,
+    private static String detail(Order order, String beforeStatus, TradeStatus beforeTrade, String reason,
                                  Long releasedSessionId, Long releasedResourceId) {
         return "{\"orderNo\":" + jsonText(order.orderNo())
                 + ",\"beforeStatus\":" + jsonText(beforeStatus)
+                + ",\"beforeTradeStatus\":" + jsonText(beforeTrade == null ? null : beforeTrade.name())
                 + ",\"afterStatus\":" + jsonText(order.status())
+                + ",\"afterTradeStatus\":" + jsonText(order.tradeStatus())
                 + ",\"reason\":" + jsonText(reason)
                 + ",\"releasedSessionId\":" + releasedSessionId
                 + ",\"releasedResourceId\":" + releasedResourceId + "}";

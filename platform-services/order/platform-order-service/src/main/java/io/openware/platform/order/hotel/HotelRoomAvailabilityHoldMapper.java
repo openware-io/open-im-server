@@ -9,19 +9,19 @@ import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
 @Mapper
-public interface HotelInventoryHoldMapper extends BaseMapper<HotelInventoryHoldPo> {
+public interface HotelRoomAvailabilityHoldMapper extends BaseMapper<HotelRoomAvailabilityHoldPo> {
 
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT * FROM htl_inventory_hold
+        SELECT * FROM htl_room_availability_hold -- tenant-agnostic: 到期释放按记录自身 tenant 处理
         WHERE status = 'HELD' AND expires_at < NOW(3)
         ORDER BY id LIMIT 100
         """)
-    List<HotelInventoryHoldPo> selectExpired();
+    List<HotelRoomAvailabilityHoldPo> selectExpired();
 
     @InterceptorIgnore(tenantLine = "true")
     @Update("""
-        UPDATE htl_inventory_hold SET status = 'RELEASED', updated_at = NOW(3)
+        UPDATE htl_room_availability_hold SET status = 'RELEASED', updated_at = NOW(3)
         WHERE id = #{id} AND status = 'HELD'
         """)
     int releaseExpired(@Param("id") Long id);

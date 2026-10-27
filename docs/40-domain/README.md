@@ -21,7 +21,8 @@
 | [项目事实清单](PROJECT_FACTS_INVENTORY.md) | 当前产品/工程事实清单 |
 | [用户删除与数据生命周期](USER_DELETION_AND_DATA_LIFECYCLE.md) | 注销、删除、保留和审计要求 |
 | [功能专题](features/README.md) | 频道、私密会话、私密群聊等实现专题 |
-| [酒店业务](hotel/README.md) | 房型、房价、库存日历、预订支付与入住退房 |
+| [酒店业务](hotel/README.md) | 房型、房价、房量、预订支付与入住退房 |
+| [目标领域契约](architecture/ORDER_ROOM_INVENTORY_TARGET.md) | 订单/房态/房量/商品库存重构的 DTO、状态与表名约定 |
 | [库存平台域](inventory/README.md) | 公共支撑域：Stock 采销库存 |
 | [订单平台域](order/README.md) | 共享订单交易内核 + 各业务履约扩展 |
 

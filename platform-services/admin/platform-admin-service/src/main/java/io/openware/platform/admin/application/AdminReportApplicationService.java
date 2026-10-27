@@ -83,12 +83,13 @@ public class AdminReportApplicationService {
     private static final int MAX_PAGE_SIZE = 100;
 
     /**
-     * 明细可按状态过滤的取值（来源：{@code V1__ord_order_baseline.sql:8} 的 {@code ord_order.status} 注释）。
+     * 明细可按状态过滤的取值（来源：{@code ord_order.trade_status}，V24 目标契约 §2：
+     * DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED；{@code ord_order.status} 是收口前兼容列，报表不再使用）。
+     * CANCELLED=用户取消、VOIDED=审批作废，两者在报表里独立统计。
      * 非法状态直接 400，不静默返回空表——否则用户以为「这个状态没有单据」。
      */
     private static final Set<String> ORDER_STATUSES = Set.of(
-            "DRAFT", "WAITING_PAYMENT", "WAITING_ARRIVAL", "SERVING", "WAITING_SETTLEMENT",
-            "COMPLETED", "CANCELLED", "VOIDED", "PARTIAL_REFUNDED", "REFUNDED");
+            "DRAFT", "PENDING_PAYMENT", "PAID", "COMPLETED", "CANCELLED", "VOIDED");
 
     /** 收款方式归类：线上渠道（其余非现金/储值/积分的取值一律归「其它」，不静默丢弃）。 */
     private static final Set<String> ONLINE_PROVIDERS = Set.of("ALIPAY", "WECHAT", "STRIPE");
@@ -364,12 +365,12 @@ public class AdminReportApplicationService {
      *
      * <p><b>统计</b>（{@code buckets}）：按 (门店, 统计桶, 币种) 一行，给出
      * 销售额（有效单据 {@code total_amount}）、订单数、客单价、折扣/优惠、退款金额（终态 REFUNDED）、
-     * 作废金额（{@code status='VOIDED'}）、收款金额与**按支付方式的构成**
+     * 作废金额（{@code trade_status='VOIDED'}）、收款金额与**按支付方式的构成**
      * （现金 / 线上 / 储值币 / 积分 / 其它）。
      *
      * <p><b>明细</b>（{@code details}）：区间内的销售单据，按创建时间倒序**分页**
      * （Page 信封 {@code records/total/current/size}），带订单号/时间/营业日/门店/包厢/金额/状态/支付构成。
-     * 明细默认口径与统计侧完全一致（{@code status NOT IN ('CANCELLED','VOIDED')}），
+     * 明细默认口径与统计侧完全一致（{@code trade_status NOT IN ('CANCELLED','VOIDED')}），
      * 因此 {@code details.total} 等于统计行订单数之和（可用 {@code status} 参数单独复核作废/取消单）。
      *
      * <p><b>为什么一个端点同时给统计与明细</b>：两者必须在**同一份 from/to/granularity** 下口径一致
@@ -1034,7 +1035,7 @@ public class AdminReportApplicationService {
          * @param salesAmount     销售额 = 有效单据 {@code ord_order.total_amount} 之和（排除取消/作废）
          * @param averageTicketAmount 客单价 = 销售额 / 订单数（订单数为 0 时为 0）
          * @param refundAmount    退款金额（{@code pay_refund} 终态 REFUNDED 的审批金额之和）
-         * @param voidedAmount    作废金额（{@code status='VOIDED'} 单据的 {@code total_amount} 之和）
+         * @param voidedAmount    作废金额（{@code trade_status='VOIDED'} 单据的 {@code total_amount} 之和）
          * @param collectedAmount 收款金额（{@code pay_transaction} SUCCEEDED 流水之和）
          * @param cashAmount      收款构成之现金
          * @param onlineAmount    收款构成之线上（ALIPAY/WECHAT/STRIPE）

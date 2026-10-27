@@ -82,7 +82,19 @@ public class OrderPo {
     private String idempotencyKey;
     private String businessType;
     private Long customerId;
+    /**
+     * 收口前兼容列（{@code ord_order.status}，V24 起与 {@link #tradeStatus} 双写）：
+     * 旧读取方（payment-service 应收校验、旧报表）仍读它，最终清理迁移会删除。
+     * 新逻辑一律用 {@link #tradeStatus}，不得以本列做判定。
+     */
     private String status;
+    /**
+     * 交易状态（V24）：{@code DRAFT / PENDING_PAYMENT / PAID / COMPLETED / CANCELLED}。
+     * 订单主表只表达交易事实，KTV 业务状态在 {@code ord_ktv_session.status}。
+     */
+    private String tradeStatus;
+    /** 退款状态（V24）：{@code NONE / PARTIAL / FULL}。 */
+    private String refundStatus;
     private String currencyCode;
     private BigDecimal subtotalAmount;
     private BigDecimal discountAmount;

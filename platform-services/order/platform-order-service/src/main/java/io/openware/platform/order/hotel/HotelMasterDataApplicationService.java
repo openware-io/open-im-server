@@ -5,6 +5,7 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.inventory.repository.StoreScopeRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -13,7 +14,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 酒店主数据：酒店/房型/房间/房价计划/库存日历。全部按门店上下文隔离。 */
+/** 酒店主数据：酒店/房型/房间/房价计划/房量。全部按门店上下文隔离。 */
 @Service
 public class HotelMasterDataApplicationService {
 
@@ -21,18 +22,22 @@ public class HotelMasterDataApplicationService {
     private final HotelRoomTypeMapper roomTypeMapper;
     private final HotelRoomMapper roomMapper;
     private final HotelRatePlanMapper ratePlanMapper;
-    private final HotelInventoryMapper inventoryMapper;
+    private final HotelRoomAvailabilityMapper availabilityMapper;
     private final HotelDailyRateMapper dailyRateMapper;
+    private final HotelStoreScopeResolver storeScopeResolver;
 
     public HotelMasterDataApplicationService(HotelMapper hotelMapper, HotelRoomTypeMapper roomTypeMapper,
                                              HotelRoomMapper roomMapper, HotelRatePlanMapper ratePlanMapper,
-                                             HotelInventoryMapper inventoryMapper, HotelDailyRateMapper dailyRateMapper) {
+                                             HotelRoomAvailabilityMapper availabilityMapper,
+                                             HotelDailyRateMapper dailyRateMapper,
+                                             HotelStoreScopeResolver storeScopeResolver) {
         this.hotelMapper = hotelMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.roomMapper = roomMapper;
         this.ratePlanMapper = ratePlanMapper;
-        this.inventoryMapper = inventoryMapper;
+        this.availabilityMapper = availabilityMapper;
         this.dailyRateMapper = dailyRateMapper;
+        this.storeScopeResolver = storeScopeResolver;
     }
 
     public List<HotelPo> hotels() {
@@ -46,7 +51,7 @@ public class HotelMasterDataApplicationService {
     @Transactional
     public HotelPo saveHotel(Long id, String name, String address, String coverImageUrl, String timezone,
                              String checkInTime, String checkOutTime) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (name == null || name.isBlank()) {
             throw new ApiException(400, "HOTEL_NAME_REQUIRED", "酒店名称不能为空");
@@ -96,7 +101,7 @@ public class HotelMasterDataApplicationService {
     @Transactional
     public HotelRoomTypePo saveRoomType(Long id, Long hotelId, String code, String name, Integer capacity,
                                         String bedType, BigDecimal areaSqm) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (hotelId == null || code == null || code.isBlank() || name == null || name.isBlank()) {
             throw new ApiException(400, "ROOM_TYPE_FIELDS_REQUIRED", "酒店、房型编码和名称不能为空");
@@ -127,40 +132,27 @@ public class HotelMasterDataApplicationService {
 
     @Transactional
     public HotelRoomPo saveRoom(Long id, Long roomTypeId, String roomNo, String floor) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (roomTypeId == null || roomNo == null || roomNo.isBlank()) {
             throw new ApiException(400, "ROOM_FIELDS_REQUIRED", "房型和房号不能为空");
         }
         HotelRoomTypePo roomType = requireRoomType(roomTypeId, context);
-        HotelRoomPo po = id == null ? new HotelRoomPo() : requireRoom(id, context);
+        boolean created = id == null;
+        HotelRoomPo po = created ? new HotelRoomPo() : requireRoom(id, context);
         po.setTenantId(context.tenantId());
         po.setStoreId(context.storeId());
         po.setHotelId(roomType.getHotelId());
         po.setRoomTypeId(roomTypeId);
         po.setRoomNo(roomNo.trim());
         po.setFloor(floor);
-        po.setStatus("ACTIVE");
+        if (created) {
+            // 新房间默认空闲、清扫完成、不可售原因为空；房态只走三组字段。
+            po.setOccupancyStatus(HotelRoomStatePolicy.OCCUPANCY_VACANT);
+            po.setHousekeepingStatus(HotelRoomStatePolicy.HOUSEKEEPING_CLEAN);
+            po.setOutOfOrderStatus(HotelRoomStatePolicy.OUT_OF_ORDER_NONE);
+        }
         return persist(po);
-    }
-
-    @Transactional
-    public HotelRoomPo setRoomStatus(Long id, String status) {
-        PermissionGuard.require("hotel.inventory.manage");
-        TenantContext context = requireStore();
-        if (!"ACTIVE".equals(status) && !"MAINTENANCE".equals(status)) {
-            throw new ApiException(400, "ROOM_STATUS_INVALID", "客房状态只能设置为可用或维修中");
-        }
-        HotelRoomPo room = requireRoom(id, context);
-        if ("OCCUPIED".equals(room.getStatus()) || "DIRTY".equals(room.getStatus())) {
-            throw new ApiException(409, "ROOM_STATUS_LOCKED", "在住或待清扫客房不能直接切换维修/可用状态");
-        }
-        if (status.equals(room.getStatus())) {
-            return room;
-        }
-        room.setStatus(status);
-        roomMapper.updateById(room);
-        return room;
     }
 
     public List<HotelRatePlanPo> ratePlans(Long hotelId) {
@@ -195,36 +187,39 @@ public class HotelMasterDataApplicationService {
         return persist(po);
     }
 
-    public List<HotelInventoryPo> inventory(Long roomTypeId, LocalDate from, LocalDate to) {
+    /** 房量日历：房型 × 日期的总房量/已售/占用/可售。 */
+    public List<HotelRoomAvailabilityPo> availability(Long roomTypeId, LocalDate from, LocalDate to) {
         PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();
         if (roomTypeId == null || from == null || to == null || !to.isAfter(from)) {
-            throw new ApiException(400, "INVENTORY_RANGE_INVALID", "房型和日期范围不能为空");
+            throw new ApiException(400, "ROOM_AVAILABILITY_RANGE_INVALID", "房型和日期范围不能为空");
         }
         requireRoomType(roomTypeId, context);
-        return inventoryMapper.selectList(new LambdaQueryWrapper<HotelInventoryPo>()
-                .eq(HotelInventoryPo::getStoreId, context.storeId())
-                .eq(HotelInventoryPo::getRoomTypeId, roomTypeId)
-                .ge(HotelInventoryPo::getStayDate, from)
-                .lt(HotelInventoryPo::getStayDate, to)
-                .orderByAsc(HotelInventoryPo::getStayDate));
+        return availabilityMapper.selectList(new LambdaQueryWrapper<HotelRoomAvailabilityPo>()
+                .eq(HotelRoomAvailabilityPo::getStoreId, context.storeId())
+                .eq(HotelRoomAvailabilityPo::getRoomTypeId, roomTypeId)
+                .ge(HotelRoomAvailabilityPo::getStayDate, from)
+                .lt(HotelRoomAvailabilityPo::getStayDate, to)
+                .orderByAsc(HotelRoomAvailabilityPo::getStayDate));
     }
 
     @Transactional
-    public HotelInventoryPo setInventory(Long roomTypeId, LocalDate stayDate, Integer total) {
-        PermissionGuard.require("hotel.inventory.manage");
+    public HotelRoomAvailabilityPo setAvailability(Long roomTypeId, LocalDate stayDate, Integer total) {
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (roomTypeId == null || stayDate == null || total == null || total < 0) {
-            throw new ApiException(400, "INVENTORY_FIELDS_INVALID", "房型、日期和库存不能为空");
+            throw new ApiException(400, "ROOM_AVAILABILITY_FIELDS_INVALID", "房型、日期和房量不能为空");
         }
         requireRoomType(roomTypeId, context);
-        HotelInventoryPo po = inventoryMapper.selectOne(new LambdaQueryWrapper<HotelInventoryPo>()
-                .eq(HotelInventoryPo::getStoreId, context.storeId())
-                .eq(HotelInventoryPo::getRoomTypeId, roomTypeId)
-                .eq(HotelInventoryPo::getStayDate, stayDate));
+        HotelRoomAvailabilityPo po = availabilityMapper.selectOne(new LambdaQueryWrapper<HotelRoomAvailabilityPo>()
+                .eq(HotelRoomAvailabilityPo::getStoreId, context.storeId())
+                .eq(HotelRoomAvailabilityPo::getRoomTypeId, roomTypeId)
+                .eq(HotelRoomAvailabilityPo::getStayDate, stayDate));
         if (po == null) {
-            po = new HotelInventoryPo();
+            StoreScopeRepository.StoreScope storeScope = storeScopeResolver.requireHotelScope(context);
+            po = new HotelRoomAvailabilityPo();
             po.setTenantId(context.tenantId());
+            po.setOrganizationId(storeScope.organizationId());
             po.setStoreId(context.storeId());
             po.setRoomTypeId(roomTypeId);
             po.setStayDate(stayDate);
@@ -234,15 +229,15 @@ public class HotelMasterDataApplicationService {
             po.setCreatedAt(LocalDateTime.now());
             po.setUpdatedAt(LocalDateTime.now());
             po.setVersion(0);
-            inventoryMapper.insert(po);
+            availabilityMapper.insert(po);
             return po;
         }
         if (total < po.getSold() + po.getHeld()) {
-            throw new ApiException(409, "INVENTORY_BELOW_CONSUMED", "库存不能小于已售和已占用数量");
+            throw new ApiException(409, "ROOM_AVAILABILITY_BELOW_CONSUMED", "总房量不能小于已售和已占用数量");
         }
         po.setTotal(total);
         po.setUpdatedAt(LocalDateTime.now());
-        inventoryMapper.updateById(po);
+        availabilityMapper.updateById(po);
         return po;
     }
 

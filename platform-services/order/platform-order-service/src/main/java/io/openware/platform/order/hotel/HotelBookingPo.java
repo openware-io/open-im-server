@@ -16,6 +16,8 @@ public class HotelBookingPo {
     @JsonFormat(shape = JsonFormat.Shape.STRING)
     private Long id;
     private Long tenantId;
+    private Long organizationId;
+    private String businessType;
     private Long storeId;
     private Long hotelId;
     private Long roomTypeId;

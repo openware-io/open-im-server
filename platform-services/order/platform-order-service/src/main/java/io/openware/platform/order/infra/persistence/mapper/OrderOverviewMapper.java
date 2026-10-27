@@ -21,7 +21,7 @@ public interface OrderOverviewMapper {
             "       COALESCE(SUM(paid_amount), 0) AS paid_amount",
             "FROM ord_order",
             "WHERE tenant_id = #{tenantId}",
-            "  AND status NOT IN ('CANCELLED', 'VOIDED')",
+            "  AND trade_status NOT IN ('CANCELLED', 'VOIDED')",
             "  <if test='fromInclusive != null'>AND created_at &gt;= #{fromInclusive}</if>",
             "  <if test='toInclusive != null'>AND created_at &lt;= #{toInclusive}</if>",
             "  <if test='storeIds != null and storeIds.size() &gt; 0'>",

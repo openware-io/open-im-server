@@ -8,13 +8,30 @@ import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 库存余额持久化对象（{@code ord_inventory_stock}）。
+ *
+ * <p>列集合来自真实 DDL（V1 基线 + V2 revision + V24 organization/business + V25 warehouse）：
+ * {@code id / tenant_id / organization_id / business_type / store_id / warehouse_id / material_id /
+ * on_hand_qty / reserved_qty / avg_cost / currency_code / revision / created_by / created_at /
+ * updated_by / updated_at}。
+ *
+ * <p>作用域唯一键：{@code (tenant_id, business_type, store_id, warehouse_id, material_id)}。
+ * {@code organization_id} 是归属 / 报表快照，**不在唯一键里**。
+ */
 @Getter
 @Setter
 @TableName("ord_inventory_stock")
 public class InventoryStockPo {
     @TableId(type = IdType.AUTO) private Long id;
     private Long tenantId;
+    /** 组织快照（归属 / 报表，不进入唯一键）。 */
+    private Long organizationId;
+    /** 业态快照（作用域；V24 回填，写入时取签名门店上下文）。 */
+    private String businessType;
     private Long storeId;
+    /** 仓 / 库位（V25；作用域键的一部分）。 */
+    private Long warehouseId;
     private Long materialId;
     private BigDecimal onHandQty;
     private BigDecimal reservedQty;

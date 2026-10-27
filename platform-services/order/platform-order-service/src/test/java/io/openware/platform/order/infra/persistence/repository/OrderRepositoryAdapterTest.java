@@ -46,10 +46,10 @@ import org.mockito.ArgumentCaptor;
  * 订单仓储适配器的 SQL 形状与列保真（真实适配器 + mock mapper）。
  *
  * <p><b>为什么这个类必须存在</b>：本次迁移把「订单的并发写入」从服务里搬进了适配器——
- * 五条条件语句（{@code updateAmountsAndStatusWithVersion} / {@code updateStatusGuarded} /
- * {@code holdIfNotHeld} / {@code unholdIfHeld} / {@code voidIfStatus}）是**乐观锁与挂单/作废并发保护的
+ * 五条条件语句（{@code updateAmountsAndStatusWithVersion} / {@code updateTradeStatusGuarded} /
+ * {@code holdIfNotHeld} / {@code unholdIfHeld} / {@code voidByTradeStatus}）是**乐观锁与挂单/取消作废并发保护的
  * 唯一判定点**。应用层测试现在只能断言「哪个端口方法被调用」，看不到 SQL；
- * 把 {@code WHERE version = ?} / {@code WHERE status = ?} / {@code hold_at IS NULL} 或
+ * 把 {@code WHERE version = ?} / {@code WHERE trade_status = ?} / {@code hold_at IS NULL} 或
  * {@code version = version + 1} 删掉，{@code test-compile} 依然干净。因此这里分两层钉住：
  * <ol>
  *   <li><b>语句文本</b>：用反射读 {@code OrderMapper} 上的 {@code @Update}，断言每条语句的条件谓词与
@@ -150,6 +150,9 @@ class OrderRepositoryAdapterTest {
     assertEquals("KTV", po.getBusinessType());
     assertEquals(99L, po.getCustomerId());
     assertEquals("SERVING", po.getStatus());
+    // V24：交易/退款状态与兼容列一起落库（订单主表只表达交易事实）
+    assertEquals("DRAFT", po.getTradeStatus(), "SERVING 兼容列 → 交易状态 DRAFT（开台中未结算）");
+    assertEquals("NONE", po.getRefundStatus());
     assertEquals("CNY", po.getCurrencyCode());
     assertEquals(0, new BigDecimal("10000").compareTo(po.getSubtotalAmount()));
     assertEquals(0, new BigDecimal("500").compareTo(po.getDiscountAmount()));
@@ -337,56 +340,64 @@ class OrderRepositoryAdapterTest {
         "refundable_amount")) {
       assertTrue(amounts.contains(column + " = #{po."), "五个金额列一个都不能漏: " + column + " in " + amounts);
     }
-    assertTrue(amounts.contains("status = #{po.status}"), "状态必须与金额同一次写入: " + amounts);
+    assertTrue(amounts.contains("status = #{po.status}"), "兼容列状态必须与金额同一次写入: " + amounts);
+    assertTrue(amounts.contains("trade_status = #{po.tradeStatus}"), "交易状态必须与金额同一次写入: " + amounts);
+    assertTrue(amounts.contains("refund_status = #{po.refundStatus}"), "退款状态必须与金额同一次写入: " + amounts);
 
-    String status = updateStatement("updateStatusGuarded", Long.class, String.class, String.class,
-        LocalDateTime.class);
-    assertTrue(status.contains("WHERE id = #{id} AND status = #{expectedStatus}"),
-        "状态转换必须按当前状态判定: " + status);
+    String status = updateStatement("updateTradeStatusGuarded", Long.class, String.class, String.class,
+        String.class, LocalDateTime.class);
+    assertTrue(status.contains("WHERE id = #{id} AND trade_status = #{expectedTradeStatus}"),
+        "交易状态转换必须按当前交易状态判定: " + status);
+    assertTrue(status.contains("trade_status = #{newTradeStatus}"), "写交易状态: " + status);
+    assertTrue(status.contains("status = #{newLegacyStatus}"), "兼容列双写: " + status);
 
     String hold = updateStatement("holdIfNotHeld", Long.class, LocalDateTime.class, String.class,
         LocalDateTime.class);
     assertTrue(hold.contains("WHERE id = #{id} AND hold_at IS NULL"),
-        "挂单判据是 hold_at 而不是 status（挂单不改商业状态）: " + hold);
+        "挂单判据是 hold_at 而不是状态（挂单不改交易状态）: " + hold);
 
     String unhold = updateStatement("unholdIfHeld", Long.class, LocalDateTime.class);
     assertTrue(unhold.contains("WHERE id = #{id} AND hold_at IS NOT NULL"),
         "解挂判据与挂单对称: " + unhold);
 
-    String voided = updateStatement("voidIfStatus", Long.class, String.class, LocalDateTime.class);
-    assertTrue(voided.contains("SET status = 'VOIDED'"), voided);
-    assertTrue(voided.contains("WHERE id = #{id} AND status = #{expectedStatus}"),
-        "作废必须按读到的状态判定（重复取消是幂等语义，不能按 version 守卫）: " + voided);
+    String voided = updateStatement("voidByTradeStatus", Long.class, String.class, String.class,
+        String.class, LocalDateTime.class);
+    assertTrue(voided.contains("trade_status = #{newTradeStatus}"), voided);
+    assertTrue(voided.contains("status = #{newLegacyStatus}"), "兼容列双写: " + voided);
+    assertTrue(voided.contains("WHERE id = #{id} AND trade_status = #{expectedTradeStatus}"),
+        "作废/取消必须按读到的交易状态判定（重复取消是幂等语义，不能按 version 守卫）: " + voided);
   }
 
   /** 受影响 0 行 = 期间已被他人写入：五条语句都必须翻成 false，适配器不得吞掉这个信号。 */
   @Test
   void conditionalWritesMapZeroRowsAffectedToFalse() {
     when(mapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), eq(0))).thenReturn(0);
-    when(mapper.updateStatusGuarded(any(), any(), any(), any())).thenReturn(0);
+    when(mapper.updateTradeStatusGuarded(any(), any(), any(), any(), any())).thenReturn(0);
     when(mapper.holdIfNotHeld(any(), any(), any(), any())).thenReturn(0);
     when(mapper.unholdIfHeld(any(), any())).thenReturn(0);
-    when(mapper.voidIfStatus(any(), any(), any())).thenReturn(0);
+    when(mapper.voidByTradeStatus(any(), any(), any(), any(), any())).thenReturn(0);
 
     assertFalse(adapter.updateAmountsAndStatusWithVersion(order().withVersion(0), 0));
-    assertFalse(adapter.updateStatusGuarded(ORDER_ID, "DRAFT", "WAITING_SETTLEMENT", LocalDateTime.now()));
+    assertFalse(adapter.updateTradeStatusGuarded(ORDER_ID, "DRAFT", "PENDING_PAYMENT", "WAITING_SETTLEMENT",
+        LocalDateTime.now()));
     assertFalse(adapter.holdIfNotHeld(ORDER_ID, LocalDateTime.now(), "原因", LocalDateTime.now()));
     assertFalse(adapter.unholdIfHeld(ORDER_ID, LocalDateTime.now()));
-    assertFalse(adapter.voidIfStatus(ORDER_ID, "SERVING", LocalDateTime.now()));
+    assertFalse(adapter.voidByTradeStatus(ORDER_ID, "DRAFT", "CANCELLED", "CANCELLED", LocalDateTime.now()));
   }
 
   /** 受影响 1 行 = 本次写入成功：必须返回 true（调用方据此继续推进状态机）。 */
   @Test
   void conditionalWritesMapOneRowAffectedToTrue() {
-    when(mapper.updateStatusGuarded(any(), any(), any(), any())).thenReturn(1);
+    when(mapper.updateTradeStatusGuarded(any(), any(), any(), any(), any())).thenReturn(1);
     when(mapper.holdIfNotHeld(any(), any(), any(), any())).thenReturn(1);
     when(mapper.unholdIfHeld(any(), any())).thenReturn(1);
-    when(mapper.voidIfStatus(any(), any(), any())).thenReturn(1);
+    when(mapper.voidByTradeStatus(any(), any(), any(), any(), any())).thenReturn(1);
 
-    assertTrue(adapter.updateStatusGuarded(ORDER_ID, "DRAFT", "WAITING_SETTLEMENT", LocalDateTime.now()));
+    assertTrue(adapter.updateTradeStatusGuarded(ORDER_ID, "DRAFT", "PENDING_PAYMENT", "WAITING_SETTLEMENT",
+        LocalDateTime.now()));
     assertTrue(adapter.holdIfNotHeld(ORDER_ID, LocalDateTime.now(), "原因", LocalDateTime.now()));
     assertTrue(adapter.unholdIfHeld(ORDER_ID, LocalDateTime.now()));
-    assertTrue(adapter.voidIfStatus(ORDER_ID, "SERVING", LocalDateTime.now()));
+    assertTrue(adapter.voidByTradeStatus(ORDER_ID, "DRAFT", "CANCELLED", "CANCELLED", LocalDateTime.now()));
   }
 
   // ---------------------------------------------------------------- helpers

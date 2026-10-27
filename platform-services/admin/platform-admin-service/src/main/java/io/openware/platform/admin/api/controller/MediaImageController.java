@@ -29,7 +29,7 @@ public class MediaImageController {
   private static final String PRODUCT_MANAGE = "product.manage";
   private static final String MATERIAL_MANAGE = "inventory.material.manage";
   private static final String RESOURCE_MANAGE = "resource.manage";
-  private static final String HOTEL_INVENTORY_MANAGE = "hotel.inventory.manage";
+  private static final String MEDIA_IMAGE_UPLOAD = "media.image.upload";
   private static final String TENANT_STORE_MANAGE = "tenant.store.manage";
   private static final String TENANT_BRAND_MANAGE = "tenant.tenant.manage";
   private static final String MEDIA_UPLOAD = "media.image.upload";
@@ -83,7 +83,7 @@ public class MediaImageController {
         || (!snapshot.permissions().contains(PRODUCT_MANAGE)
             && !snapshot.permissions().contains(MATERIAL_MANAGE)
             && !snapshot.permissions().contains(RESOURCE_MANAGE)
-            && !snapshot.permissions().contains(HOTEL_INVENTORY_MANAGE)
+            && !snapshot.permissions().contains(MEDIA_IMAGE_UPLOAD)
             && !snapshot.permissions().contains(TENANT_STORE_MANAGE)
             && !snapshot.permissions().contains(TENANT_BRAND_MANAGE)
             && !snapshot.permissions().contains(MEDIA_UPLOAD))) {

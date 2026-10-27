@@ -84,6 +84,8 @@ class KtvSessionApplicationServiceTest {
     ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
     verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
     assertEquals("SERVING", orderWrite.getValue().status());
+    assertEquals("DRAFT", orderWrite.getValue().tradeStatus(),
+        "开台只推进 KTV 会话状态（OPEN），订单交易状态仍是 DRAFT（未进入结算）");
     capturedCas(session.id(), "OPEN");
   }
 
@@ -161,6 +163,8 @@ class KtvSessionApplicationServiceTest {
     ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
     verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
     assertEquals("WAITING_SETTLEMENT", orderWrite.getValue().status());
+    assertEquals("PENDING_PAYMENT", orderWrite.getValue().tradeStatus(),
+        "结台=履约完成但未全额收款 → 交易状态 PENDING_PAYMENT（SERVING/WAITING_SETTLEMENT 只是兼容列）");
     capturedCas(session.id(), "CLOSED");
 
     ArgumentCaptor<OrderItem> captor = ArgumentCaptor.forClass(OrderItem.class);
@@ -288,6 +292,19 @@ class KtvSessionApplicationServiceTest {
     assertEquals(10L, result.orderId());
     assertEquals(3001L, result.roomResourceId());
     assertEquals(42L, result.id());
+  }
+
+  @Test
+  void create_replaysExistingSessionWhenOrderAlreadyHasOne() {
+    // 一个订单只允许一个会话（V24 uk_ord_ktv_session_order）：并发创建/重试时回放已有会话。
+    when(sessionRepository.insert(any(KtvSession.class)))
+        .thenThrow(new org.springframework.dao.DuplicateKeyException("uk_ord_ktv_session_order"));
+    when(sessionRepository.findLatestByOrderId(10L)).thenReturn(Optional.of(session(7L, 10L, "OPEN")));
+
+    KtvSession result = service.create(1L, 10L, 3001L);
+
+    assertEquals(7L, result.id());
+    assertEquals("OPEN", result.status());
   }
 
   @Test
@@ -705,6 +722,7 @@ class KtvSessionApplicationServiceTest {
     ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
     verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
     assertEquals("SERVING", orderWrite.getValue().status());
+    assertEquals("DRAFT", orderWrite.getValue().tradeStatus());
   }
 
   /**
@@ -894,6 +912,23 @@ class KtvSessionApplicationServiceTest {
     ArgumentCaptor<Order> orderWrite = ArgumentCaptor.forClass(Order.class);
     verify(orderMapper).updateAmountsAndStatusWithVersion(orderWrite.capture(), anyInt());
     assertEquals("WAITING_SETTLEMENT", orderWrite.getValue().status());
+    assertEquals("PENDING_PAYMENT", orderWrite.getValue().tradeStatus());
+  }
+
+  /** 会话创建必须从订单复制组织快照（organization_id = 订单 organization_id，报表/权限按组织归集）。 */
+  @Test
+  void createCopiesOrganizationSnapshotFromOrder() {
+    Order withOrg = new Order(10L, 1L, 77L, 100L, "ORD-20260918-0001", null, "KTV", null, "DRAFT", "CNY",
+        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        BigDecimal.ZERO, null, null, null, null, 0);
+    when(orderMapper.findById(10L)).thenReturn(Optional.of(withOrg));
+    when(sessionRepository.insert(any(KtvSession.class)))
+        .thenAnswer(inv -> ((KtvSession) inv.getArgument(0)).withId(42L));
+
+    KtvSession result = service.create(1L, 10L, 3001L);
+
+    assertEquals(77L, result.organizationId(), "会话组织快照必须来自订单，不能为空/用门店冒充");
+    assertEquals(100L, result.storeId());
   }
 
   private static KtvPricingPlan plan() {

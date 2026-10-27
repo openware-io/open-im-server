@@ -23,6 +23,7 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository.ProductQuery;
 import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
@@ -63,12 +64,12 @@ class InventoryApplicationServiceTest {
 
     @Test
     void consumeRejectsWhenAvailableStockIsInsufficient() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(transactionRepository.findByIdempotency(1L, "k1")).thenReturn(Optional.empty());
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料")));
-        when(stockRepository.findForUpdate(1L, 3L, 10L)).thenReturn(Optional.of(stock("2", "1")));
+        when(stockRepository.findForUpdate(any(InventoryScope.class), eq(10L))).thenReturn(Optional.of(stock("2", "1")));
         // 条件更新受影响 0 行 = 可用量不足（端口把「受影响行数 > 0」表达成 boolean）。
-        when(stockRepository.deductAvailable(eq(1L), eq(3L), eq(10L), any(), any())).thenReturn(false);
+        when(stockRepository.deductAvailable(any(InventoryScope.class), eq(10L), any(), any())).thenReturn(false);
 
         assertThrows(RuntimeException.class, () -> service.changeStock(10L, new BigDecimal("2"), "CONSUME", "ORDER_ITEM", "1", "test", "k1"));
         verify(transactionRepository, never()).append(any(InventoryTransaction.class));
@@ -76,8 +77,8 @@ class InventoryApplicationServiceTest {
 
     @Test
     void repeatedIdempotencyKeyReturnsOriginalTransaction() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
-        InventoryTransaction existing = new InventoryTransaction(99L, 1L, 3L, 10L, "RECEIPT", BigDecimal.ONE,
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
+        InventoryTransaction existing = new InventoryTransaction(99L, 1L, 2L, "KTV", 3L, 3L, 10L, "RECEIPT", BigDecimal.ONE,
                 BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.TEN, BigDecimal.TEN, "USD", "RECEIPT", null, "same",
                 "test", LocalDateTime.now());
         when(transactionRepository.findByIdempotency(1L, "same")).thenReturn(Optional.of(existing));
@@ -90,7 +91,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void createMaterialPersistsImagesAndExplicitMainImage() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView created = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -108,7 +109,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void createMaterialWithoutDescriptionKeepsNull() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView created = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -121,7 +122,7 @@ class InventoryApplicationServiceTest {
     /** 描述超长必须 400（MATERIAL_INVALID）并给出明确中文消息，不能落库后被数据库截断。 */
     @Test
     void createMaterialRejectsTooLongDescription() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
 
         BusinessException error = assertThrows(BusinessException.class,
                 () -> service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -134,7 +135,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void createMaterialRejectsMainImageOutsideImages() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
 
         BusinessException error = assertThrows(BusinessException.class,
                 () -> service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -147,7 +148,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void createMaterialRejectsMoreThanNineImages() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         List<String> tenImages = java.util.stream.IntStream.rangeClosed(1, 10).mapToObj(index -> "/" + index + ".png").toList();
 
         BusinessException error = assertThrows(BusinessException.class,
@@ -160,7 +161,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialReplacesImagesAndDefaultsMainImageToFirst() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "旧名")));
         stubMaterialUpdate();
 
@@ -179,7 +180,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialReplacesDescription() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料", "旧描述")));
         stubMaterialUpdate();
 
@@ -197,7 +198,7 @@ class InventoryApplicationServiceTest {
      */
     @Test
     void updateMaterialClearsDescriptionWithBlankText() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料", "旧描述")));
         stubMaterialUpdate();
 
@@ -211,7 +212,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialRejectsTooLongDescription() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料")));
 
         BusinessException error = assertThrows(BusinessException.class,
@@ -225,7 +226,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialRejectsMainImageOutsideImages() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料")));
 
         BusinessException error = assertThrows(BusinessException.class,
@@ -238,7 +239,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialRejectsMissingMaterial() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.empty());
 
         BusinessException error = assertThrows(BusinessException.class,
@@ -251,7 +252,7 @@ class InventoryApplicationServiceTest {
     /** 物料换图后，镜像该物料的点单目录项要跟着有图（否则点单页还是旧图/无图）。 */
     @Test
     void updateMaterialImagesSyncToLinkedCatalogItem() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L))
                 .thenReturn(Optional.of(material(10L, "物料", null, List.of("/old.png"), "/old.png")));
         stubMaterialUpdate();
@@ -271,7 +272,7 @@ class InventoryApplicationServiceTest {
     /** 商品自己有图时目录项以商品图为准，物料换图不能把商品图冲掉。 */
     @Test
     void updateMaterialImagesDoNotOverwriteCatalogItemBackedByProductImages() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料")));
         stubMaterialUpdate();
         when(productRepository.find(any(ProductQuery.class)))
@@ -288,7 +289,7 @@ class InventoryApplicationServiceTest {
     /** 新建带采购价：原样落库（分），不做任何单位换算。 */
     @Test
     void createMaterialPersistsPurchasePrice() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView created = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -301,7 +302,7 @@ class InventoryApplicationServiceTest {
     /** 采购价可空：不传即「未维护」，落库 null。 */
     @Test
     void createMaterialWithoutPurchasePriceKeepsNull() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView created = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -314,7 +315,7 @@ class InventoryApplicationServiceTest {
     /** 0 = 清空/未填：落库 null，不写 0 分（避免「0 分」与「未维护」两种含义混用）。 */
     @Test
     void createMaterialTreatsZeroPurchasePriceAsNull() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView created = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -326,7 +327,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void createMaterialRejectsNegativePurchasePrice() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
 
         BusinessException error = assertThrows(BusinessException.class,
                 () -> service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -340,7 +341,7 @@ class InventoryApplicationServiceTest {
     /** 上限 10^13 分：等于上限合法，超过即 400（防止把「元」当「分」提交）。 */
     @Test
     void createMaterialRejectsPurchasePriceAboveUpperBound() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         stubMaterialInsert();
 
         InventoryMaterialView atLimit = service.createMaterial(new InventoryApplicationService.MaterialCommand(
@@ -357,7 +358,7 @@ class InventoryApplicationServiceTest {
     /** 编辑改采购价：> 0 覆盖为新值，并同源刷新币种快照。 */
     @Test
     void updateMaterialReplacesPurchasePrice() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L))
                 .thenReturn(Optional.of(material(10L, "物料", null, null, null, new BigDecimal("350"), "USD")));
         stubMaterialUpdate();
@@ -374,7 +375,7 @@ class InventoryApplicationServiceTest {
     /** 编辑置空：沿用「0 = 清空」约定，归一为 null 交给端口（适配器显式 SET NULL）。 */
     @Test
     void updateMaterialClearsPurchasePriceWithZero() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L))
                 .thenReturn(Optional.of(material(10L, "物料", null, null, null, new BigDecimal("350"), "USD")));
         stubMaterialUpdate();
@@ -389,7 +390,7 @@ class InventoryApplicationServiceTest {
     /** null = 不修改：不传采购价时保留库中原值。 */
     @Test
     void updateMaterialKeepsPurchasePriceWhenNotProvided() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L))
                 .thenReturn(Optional.of(material(10L, "物料", null, null, null, new BigDecimal("350"), "USD")));
         stubMaterialUpdate();
@@ -405,7 +406,7 @@ class InventoryApplicationServiceTest {
 
     @Test
     void updateMaterialRejectsInvalidPurchasePrice() {
-        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1));
+        TenantContextHolder.set(new TenantContext(1L, 2L, 3L, 4L, 1, java.util.List.of(), null, "KTV", null));
         when(materialRepository.findInStore(1L, 3L, 10L)).thenReturn(Optional.of(material(10L, "物料")));
 
         BusinessException negative = assertThrows(BusinessException.class,
@@ -475,7 +476,7 @@ class InventoryApplicationServiceTest {
     }
 
     private static InventoryStock stock(String onHand, String reserved) {
-        return new InventoryStock(20L, 1L, 3L, 10L, new BigDecimal(onHand), new BigDecimal(reserved),
+        return new InventoryStock(20L, 1L, 2L, "KTV", 3L, 3L, 10L, new BigDecimal(onHand), new BigDecimal(reserved),
                 BigDecimal.ZERO, "USD", 0);
     }
 

@@ -18,17 +18,17 @@ public class HotelPublicCatalogApplicationService {
     private final HotelRoomTypeMapper roomTypeMapper;
     private final HotelRatePlanMapper ratePlanMapper;
     private final HotelDailyRateMapper dailyRateMapper;
-    private final HotelInventoryMapper inventoryMapper;
+    private final HotelRoomAvailabilityMapper availabilityMapper;
 
     public HotelPublicCatalogApplicationService(HotelMapper hotelMapper, HotelRoomTypeMapper roomTypeMapper,
                                                 HotelRatePlanMapper ratePlanMapper,
                                                 HotelDailyRateMapper dailyRateMapper,
-                                                HotelInventoryMapper inventoryMapper) {
+                                                HotelRoomAvailabilityMapper availabilityMapper) {
         this.hotelMapper = hotelMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
         this.dailyRateMapper = dailyRateMapper;
-        this.inventoryMapper = inventoryMapper;
+        this.availabilityMapper = availabilityMapper;
     }
 
     public List<HotelSummary> hotels() {
@@ -94,11 +94,12 @@ public class HotelPublicCatalogApplicationService {
         long total = 0;
         int available = Integer.MAX_VALUE;
         for (LocalDate date = checkIn; date.isBefore(checkOut); date = date.plusDays(1)) {
-            HotelInventoryPo inventory = inventoryMapper.selectOne(new LambdaQueryWrapper<HotelInventoryPo>()
-                    .eq(HotelInventoryPo::getRoomTypeId, roomTypeId)
-                    .eq(HotelInventoryPo::getStayDate, date));
-            int dayAvailable = inventory == null ? 0
-                    : Math.max(0, inventory.getTotal() - inventory.getSold() - inventory.getHeld());
+            HotelRoomAvailabilityPo availability = availabilityMapper.selectOne(
+                    new LambdaQueryWrapper<HotelRoomAvailabilityPo>()
+                            .eq(HotelRoomAvailabilityPo::getRoomTypeId, roomTypeId)
+                            .eq(HotelRoomAvailabilityPo::getStayDate, date));
+            int dayAvailable = availability == null ? 0
+                    : Math.max(0, availability.getTotal() - availability.getSold() - availability.getHeld());
             available = Math.min(available, dayAvailable);
             HotelDailyRatePo daily = dailyRateMapper.selectOne(new LambdaQueryWrapper<HotelDailyRatePo>()
                     .eq(HotelDailyRatePo::getRoomTypeId, roomTypeId)

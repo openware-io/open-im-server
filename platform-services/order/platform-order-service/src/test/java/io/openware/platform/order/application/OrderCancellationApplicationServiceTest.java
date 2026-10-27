@@ -87,7 +87,7 @@ class OrderCancellationApplicationServiceTest {
     void voidKeepsOptionalReason() {
         Order order = order("SERVING", BigDecimal.ZERO);
         when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
-        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(true);
+        when(orderMapper.voidByTradeStatus(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
 
         Order result = service.voidOrder(ORDER_ID, null);
 
@@ -110,7 +110,7 @@ class OrderCancellationApplicationServiceTest {
 
         assertEquals(409, ex.getStatus());
         assertEquals("ORDER_STATUS_INVALID", ex.getCode());
-        verify(orderMapper, never()).voidIfStatus(any(), any(), any());
+        verify(orderMapper, never()).voidByTradeStatus(any(), any(), any(), any(), any());
         verify(ktvSessionService, never()).cancelByOrder(any());
         AuditClient.AuditRecord failure = capturedFailure();
         assertEquals("order.cancel", failure.action());
@@ -132,19 +132,30 @@ class OrderCancellationApplicationServiceTest {
         assertEquals("ORDER_STATUS_INVALID", ex.getCode());
     }
 
-    /** 重复取消（订单已 VOIDED）：幂等返回既有结果，不写库、不重复释放、不重复留痕。 */
+    /** 重复取消（订单已 CANCELLED）：幂等返回既有结果，不写库、不重复释放、不重复留痕。 */
     @Test
     void cancelIsIdempotentForAlreadyCancelledOrder() {
-        Order order = order("VOIDED", BigDecimal.ZERO);
+        Order order = order("CANCELLED", BigDecimal.ZERO);
         when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
 
         Order result = service.cancel(ORDER_ID, "客人要求取消");
 
         assertSame(order, result);
-        assertEquals("VOIDED", result.status());
-        verify(orderMapper, never()).voidIfStatus(any(), any(), any());
+        assertEquals("CANCELLED", result.status());
+        verify(orderMapper, never()).voidByTradeStatus(any(), any(), any(), any(), any());
         verify(ktvSessionService, never()).cancelByOrder(any());
         verifyNoInteractions(auditClient);
+    }
+
+    /** 用户取消不能终结「已作废（VOIDED）」订单：作废是审批流程的终态，取消应 409 而不是静默成功。 */
+    @Test
+    void cancelRejectsAlreadyVoidedOrder() {
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("VOIDED", BigDecimal.ZERO)));
+
+        ApiException ex = assertThrows(ApiException.class, () -> service.cancel(ORDER_ID, "客人要求取消"));
+
+        assertEquals(409, ex.getStatus());
+        assertEquals("ORDER_STATUS_INVALID", ex.getCode());
     }
 
     /** 作废保留既有行为：已作废仍 409（不幂等）。 */
@@ -185,7 +196,7 @@ class OrderCancellationApplicationServiceTest {
         assertEquals(409, ex.getStatus());
         assertEquals("ORDER_HAS_PAYMENT_REFUND_FIRST", ex.getCode());
         assertEquals("该订单已有收款，请先退款后再取消", ex.getMessage());
-        verify(orderMapper, never()).voidIfStatus(any(), any(), any());
+        verify(orderMapper, never()).voidByTradeStatus(any(), any(), any(), any(), any());
         verify(ktvSessionService, never()).cancelByOrder(any());
         AuditClient.AuditRecord failure = capturedFailure();
         assertEquals("order.cancel", failure.action());
@@ -210,20 +221,20 @@ class OrderCancellationApplicationServiceTest {
 
     // ------------------------------------------------------------------ 正常取消：释放包厢 + 审计
 
-    /** 正常取消：置 VOIDED + cancelled_at、释放活动会话、审计 order.cancel 带前后状态/原因/释放的会话与包厢。 */
+    /** 正常取消：置 CANCELLED + cancelled_at、释放活动会话、审计 order.cancel 带前后状态/原因/释放的会话与包厢。 */
     @Test
     void cancelVoidsOrderReleasesSessionAndWritesAudit() {
         Order order = order("SERVING", BigDecimal.ZERO);
         when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order));
-        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(true);
+        when(orderMapper.voidByTradeStatus(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(ktvSessionService.cancelByOrder(ORDER_ID)).thenReturn(session(SESSION_ID, ROOM_RESOURCE_ID));
 
         Order result = service.cancel(ORDER_ID, " 客人要求取消 ");
 
-        assertEquals("VOIDED", result.status());
+        assertEquals("CANCELLED", result.status());
         assertNotNull(result.cancelledAt());
-        // 作废走状态守卫的条件更新：只有库中仍是判定时的状态才算成功。
-        verify(orderMapper).voidIfStatus(eq(ORDER_ID), eq("SERVING"), any());
+        // 取消走交易状态守卫的条件更新：只有库中交易状态仍是判定时的状态才算成功。
+        verify(orderMapper).voidByTradeStatus(eq(ORDER_ID), eq("DRAFT"), eq("CANCELLED"), eq("CANCELLED"), any());
         verify(ktvSessionService).cancelByOrder(ORDER_ID);
 
         AuditClient.AuditRecord record = capturedAudit();
@@ -233,7 +244,8 @@ class OrderCancellationApplicationServiceTest {
         assertEquals(String.valueOf(ORDER_ID), record.resourceId());
         assertEquals("order-cancel:88", record.idempotencyKey());
         assertTrue(record.detailJson().contains("\"beforeStatus\":\"SERVING\""), record.detailJson());
-        assertTrue(record.detailJson().contains("\"afterStatus\":\"VOIDED\""), record.detailJson());
+        assertTrue(record.detailJson().contains("\"afterStatus\":\"CANCELLED\""), record.detailJson());
+        assertTrue(record.detailJson().contains("\"afterTradeStatus\":\"CANCELLED\""), record.detailJson());
         assertTrue(record.detailJson().contains("\"reason\":\"客人要求取消\""),
                 "原因按填写内容留痕（去掉首尾空白）: " + record.detailJson());
         assertTrue(record.detailJson().contains("\"releasedSessionId\":555"), record.detailJson());
@@ -244,12 +256,12 @@ class OrderCancellationApplicationServiceTest {
     @Test
     void cancelWithoutActiveSessionWritesNullReleaseFields() {
         when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("DRAFT", BigDecimal.ZERO)));
-        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(true);
+        when(orderMapper.voidByTradeStatus(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
         when(ktvSessionService.cancelByOrder(ORDER_ID)).thenReturn(null);
 
         Order result = service.cancel(ORDER_ID, "客人要求取消");
 
-        assertEquals("VOIDED", result.status());
+        assertEquals("CANCELLED", result.status());
         AuditClient.AuditRecord record = capturedAudit();
         assertTrue(record.detailJson().contains("\"releasedSessionId\":null"), record.detailJson());
         assertTrue(record.detailJson().contains("\"releasedResourceId\":null"), record.detailJson());
@@ -259,7 +271,7 @@ class OrderCancellationApplicationServiceTest {
     @Test
     void cancelEscapesReasonInAuditDetail() {
         when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("SERVING", BigDecimal.ZERO)));
-        when(orderMapper.voidIfStatus(anyLong(), anyString(), any())).thenReturn(true);
+        when(orderMapper.voidByTradeStatus(anyLong(), anyString(), anyString(), anyString(), any())).thenReturn(true);
 
         service.cancel(ORDER_ID, "客人说\"不要了\"\\改约");
 

@@ -2,6 +2,16 @@
 -- Mirrors the production MySQL Flyway schema (V1__ord_order_baseline.sql) minus
 -- MySQL-only clauses (ENGINE/CHARSET/COLLATE/COMMENT/datetime(3)/unsigned) that H2 cannot parse.
 
+-- 租户域门店快照（生产由 platform-tenant-service 拥有）：库存跨门店调拨只读核对
+-- organization_id = store.organization_id、business_type = store.business_type。
+CREATE TABLE tnt_store (
+  id BIGINT NOT NULL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  organization_id BIGINT NOT NULL,
+  business_type VARCHAR(32) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE'
+);
+
 CREATE TABLE ord_order (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
@@ -13,6 +23,9 @@ CREATE TABLE ord_order (
   business_type VARCHAR(32) NOT NULL,
   customer_id BIGINT,
   status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  -- V24：订单只保留交易状态；status 是收口前的兼容列（与 trade_status 双写）
+  trade_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  refund_status VARCHAR(16) NOT NULL DEFAULT 'NONE',
   currency_code CHAR(3) NOT NULL DEFAULT 'USD',
   subtotal_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   discount_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
@@ -69,6 +82,8 @@ CREATE TABLE ord_order_item (
 CREATE TABLE ord_ktv_session (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  -- V24：组织快照（创建会话时从订单复制）
+  organization_id BIGINT,
   store_id BIGINT,
   business_type VARCHAR(32),
   order_id BIGINT NOT NULL,
@@ -98,6 +113,9 @@ CREATE TABLE ord_ktv_session (
   updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL
 );
+
+-- V24：一个订单只关联一个 KTV 会话（生产 uk_ord_ktv_session_order）
+CREATE UNIQUE INDEX uk_ord_ktv_session_order ON ord_ktv_session (order_id);
 
 -- Outbox / consumed tables exist so the @Scheduled EventOutboxRelay never hits a missing table.
 CREATE TABLE ord_event_outbox (
@@ -195,12 +213,36 @@ CREATE TABLE ord_inventory_material (
   updated_at TIMESTAMP NOT NULL
 );
 
+-- 仓库 / 库位（生产 V25）：库存作用域 tenant+business_type+store+warehouse+material 的仓库维度。
+-- 一店可多仓；每个 (tenant, business, store) 至少一个 code=DEFAULT 的默认仓（写入路径懒创建）。
+CREATE TABLE ord_inventory_warehouse (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  organization_id BIGINT,
+  business_type VARCHAR(32),
+  store_id BIGINT NOT NULL,
+  code VARCHAR(64) NOT NULL,
+  name VARCHAR(128) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+  version INT NOT NULL DEFAULT 0,
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMP NOT NULL,
+  CONSTRAINT uk_ord_inventory_warehouse UNIQUE (tenant_id, business_type, store_id, code)
+);
+
 -- 库存余额/流水（生产 V1__ord_order_baseline.sql）：
 -- 点单目录可点性要查库存余额，库存集成场景要写入库流水，所以这两张表也必须建。
 CREATE TABLE ord_inventory_stock (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  -- V24：组织快照（归属/报表，不进入唯一键）与业态快照（作用域）。
+  organization_id BIGINT,
+  business_type VARCHAR(32),
   store_id BIGINT NOT NULL,
+  -- V25：仓/库位。
+  warehouse_id BIGINT NOT NULL DEFAULT 0,
   material_id BIGINT NOT NULL,
   on_hand_qty DECIMAL(20,6) NOT NULL DEFAULT 0,
   reserved_qty DECIMAL(20,6) NOT NULL DEFAULT 0,
@@ -213,14 +255,19 @@ CREATE TABLE ord_inventory_stock (
   created_at TIMESTAMP NOT NULL,
   updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at TIMESTAMP NOT NULL,
-  -- 与生产 V11 一致：一个物料在一个门店只有一行库存，并发建行由唯一键兜底。
-  CONSTRAINT uk_ord_inventory_stock_material UNIQUE (tenant_id, store_id, material_id)
+  -- 生产 V25 口径：作用域唯一（organization 不进唯一键）。
+  CONSTRAINT uk_ord_inventory_stock_scope UNIQUE (tenant_id, business_type, store_id, warehouse_id, material_id)
 );
 
 CREATE TABLE ord_inventory_transaction (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
+  -- V24：组织快照与业态快照（作用域）。
+  organization_id BIGINT,
+  business_type VARCHAR(32),
   store_id BIGINT NOT NULL,
+  -- V25：仓/库位。
+  warehouse_id BIGINT NOT NULL DEFAULT 0,
   material_id BIGINT NOT NULL,
   transaction_type VARCHAR(24) NOT NULL,
   quantity_delta DECIMAL(20,6) NOT NULL,
@@ -311,4 +358,103 @@ CREATE TABLE ord_void_rule_config (
   updated_at TIMESTAMP NOT NULL,
   CONSTRAINT uk_ord_void_rule_scope UNIQUE (tenant_id, business_type, store_id),
   CONSTRAINT uk_ord_void_rule_idem UNIQUE (tenant_id, idempotency_key)
+);
+
+-- KTV reservation (production V1__ord_order_baseline.sql). The scheduler reads
+-- overdue reservations during the Spring context test, so the H2 test schema
+-- must contain the same table even though other reservation tests seed it.
+CREATE TABLE ord_reservation (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  store_id BIGINT NOT NULL,
+  reservation_no VARCHAR(64) NOT NULL,
+  idempotency_key VARCHAR(64),
+  customer_id BIGINT,
+  business_type VARCHAR(32) NOT NULL,
+  resource_id BIGINT,
+  room_type_id BIGINT,
+  start_at DATETIME(3) NOT NULL,
+  end_at DATETIME(3) NOT NULL,
+  party_size INT NOT NULL DEFAULT 1,
+  contact VARCHAR(128),
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  order_id BIGINT,
+  arrived_at DATETIME(3),
+  version INT NOT NULL DEFAULT 0,
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at DATETIME(3) NOT NULL,
+  CONSTRAINT uk_ord_reservation_tenant_no UNIQUE (tenant_id, reservation_no),
+  CONSTRAINT uk_ord_reservation_idem UNIQUE (tenant_id, idempotency_key)
+);
+
+-- Hotel scheduler tables (production V3/V4/V24). The context loads the booking
+-- expiry and payment reconciler schedulers, so these must exist even in tests
+-- that mock the hotel application services.
+CREATE TABLE htl_booking (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  store_id BIGINT NOT NULL,
+  organization_id BIGINT,
+  business_type VARCHAR(32) NOT NULL DEFAULT 'HOTEL',
+  booking_no VARCHAR(64) NOT NULL,
+  guest_name VARCHAR(128),
+  guest_phone VARCHAR(32),
+  room_type VARCHAR(64),
+  room_no VARCHAR(32),
+  check_in_date DATE,
+  check_out_date DATE,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING_CONFIRM',
+  amount_minor BIGINT NOT NULL DEFAULT 0,
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+  deposit_order_id BIGINT,
+  deposit_amount_minor BIGINT,
+  order_id BIGINT,
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL
+);
+CREATE TABLE htl_booking_night (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  store_id BIGINT NOT NULL,
+  booking_id BIGINT NOT NULL,
+  stay_date DATE NOT NULL,
+  price_minor BIGINT NOT NULL DEFAULT 0,
+  currency VARCHAR(3) NOT NULL DEFAULT 'USD',
+  status VARCHAR(24) NOT NULL DEFAULT 'HELD',
+  created_at DATETIME(3) NOT NULL,
+  updated_at DATETIME(3) NOT NULL
+);
+CREATE TABLE htl_room_availability (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  organization_id BIGINT,
+  store_id BIGINT NOT NULL,
+  room_type_id BIGINT NOT NULL,
+  stay_date DATE NOT NULL,
+  total INT NOT NULL DEFAULT 0,
+  sold INT NOT NULL DEFAULT 0,
+  held INT NOT NULL DEFAULT 0,
+  version INT NOT NULL DEFAULT 0,
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at DATETIME(3) NOT NULL
+);
+CREATE TABLE htl_room_availability_hold (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  organization_id BIGINT,
+  store_id BIGINT NOT NULL,
+  booking_id BIGINT NOT NULL,
+  room_type_id BIGINT NOT NULL,
+  stay_date DATE NOT NULL,
+  rooms INT NOT NULL DEFAULT 1,
+  status VARCHAR(24) NOT NULL DEFAULT 'HELD',
+  expires_at DATETIME(3) NOT NULL,
+  created_by BIGINT NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL,
+  updated_by BIGINT NOT NULL DEFAULT 0,
+  updated_at DATETIME(3) NOT NULL
 );

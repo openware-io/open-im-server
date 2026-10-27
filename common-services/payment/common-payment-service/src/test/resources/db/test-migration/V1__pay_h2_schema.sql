@@ -142,6 +142,9 @@ CREATE TABLE ord_order (
   tenant_id BIGINT NOT NULL,
   store_id BIGINT NOT NULL DEFAULT 2001,
   status VARCHAR(32) NOT NULL,
+  -- V24：订单交易状态/退款状态（收款、退款落账时由 OrderBillingMapper 同步写入）
+  trade_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  refund_status VARCHAR(16) NOT NULL DEFAULT 'NONE',
   -- 币种快照（生产 V1__ord_order_baseline.sql + V22）：收款/退款必须与订单币种一致（禁止跨币种）。
   currency_code CHAR(3) NOT NULL DEFAULT 'USD',
   total_amount DECIMAL(20,6) NOT NULL DEFAULT 0,

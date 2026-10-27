@@ -10,9 +10,18 @@ import java.util.List;
  * 「怎么算出来的」所需字段：包厢费的分项/块数/计费时长/暂停/标准时长/超时倍率/递增粒度/计价方案名，
  * 以及合计的构成（{@code subtotalAmount} 原价合计 − {@code discountAmount} 优惠 + {@code taxAmount} 税额
  * = {@code totalAmount} 合计）。**客户端不做任何金额算术**，只做展示与拼文案。
+ *
+ * <p><b>状态三字段</b>（目标契约 §4）：账单单据同时给出 {@code tradeStatus}/{@code sessionStatus}/
+ * {@code settlementStatus}；{@code status} 只是收口前的兼容列，新前端不得依赖。
  */
 public record BillResult(
         String status,
+        // 交易状态（DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED）：账单单据状态以它为准。
+        String tradeStatus,
+        // KTV 会话状态（RESERVED/OPEN/PAUSED/CLOSED/CANCELLED）：开台中/已结台/已取消看它，不看 status。
+        String sessionStatus,
+        // 结算派生状态（UNSETTLED/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/REFUNDED/PARTIALLY_REFUNDED）。
+        String settlementStatus,
         String currencyCode,
         RoomFee roomFee,
         List<ItemLine> items,

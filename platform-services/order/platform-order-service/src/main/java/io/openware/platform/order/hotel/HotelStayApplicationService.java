@@ -8,7 +8,9 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +26,8 @@ public class HotelStayApplicationService {
     private final HotelHousekeepingMapper housekeepingMapper;
     private final HotelRefundMapper refundMapper;
     private final HotelPaymentRefundClient paymentRefundClient;
-    private final HotelInventoryMapper inventoryMapper;
+    private final HotelRoomAvailabilityMapper availabilityMapper;
+    private final HotelRoomHoldMapper roomHoldMapper;
     private final HotelRatePlanMapper ratePlanMapper;
     private final HotelDailyRateMapper dailyRateMapper;
     private final HotelBookingNightMapper nightMapper;
@@ -35,7 +38,8 @@ public class HotelStayApplicationService {
                                        HotelHousekeepingMapper housekeepingMapper,
                                        HotelRefundMapper refundMapper,
                                        HotelPaymentRefundClient paymentRefundClient,
-                                       HotelInventoryMapper inventoryMapper,
+                                       HotelRoomAvailabilityMapper availabilityMapper,
+                                       HotelRoomHoldMapper roomHoldMapper,
                                        HotelRatePlanMapper ratePlanMapper,
                                        HotelDailyRateMapper dailyRateMapper,
                                        HotelBookingNightMapper nightMapper) {
@@ -47,7 +51,8 @@ public class HotelStayApplicationService {
         this.housekeepingMapper = housekeepingMapper;
         this.refundMapper = refundMapper;
         this.paymentRefundClient = paymentRefundClient;
-        this.inventoryMapper = inventoryMapper;
+        this.availabilityMapper = availabilityMapper;
+        this.roomHoldMapper = roomHoldMapper;
         this.ratePlanMapper = ratePlanMapper;
         this.dailyRateMapper = dailyRateMapper;
         this.nightMapper = nightMapper;
@@ -58,36 +63,53 @@ public class HotelStayApplicationService {
         return checkIn(bookingId, null);
     }
 
-    /** 办理入住；roomId 为空时按房型自动分配，传入时使用前台选择的房间。 */
+    /**
+     * 办理入住；roomId 为空时按房型自动分配，传入时使用前台选择的房间。
+     *
+     * <p>入住只分配物理房间、把房间置为占用，不再扣减房量：房量在预订确认时已从 HELD 转 SOLD。
+     * 脏房、维修房、预留房都不能入住。
+     */
     @Transactional
     public HotelBookingPo checkIn(Long bookingId, Long roomId) {
         PermissionGuard.require("hotel.checkin");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"CONFIRMED".equals(booking.getStatus()) && !"ARRIVAL".equals(booking.getStatus())) {
+        if (!"CONFIRMED".equals(booking.getStatus())) {
             throw new ApiException(409, "CHECKIN_STATE_INVALID", "当前预订不能办理入住");
         }
         if (stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
                 .eq(HotelStayPo::getBookingId, bookingId)) != null) {
             throw new ApiException(409, "STAY_ALREADY_EXISTS", "该预订已办理入住");
         }
+        Set<Long> heldRoomIds = activeGuestHoldRoomIds(context);
         HotelRoomPo room;
         if (roomId == null) {
-            room = roomMapper.selectOne(new LambdaQueryWrapper<HotelRoomPo>()
-                    .eq(HotelRoomPo::getStoreId, context.storeId())
-                    .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
-                    .eq(HotelRoomPo::getStatus, "ACTIVE")
-                    .orderByAsc(HotelRoomPo::getRoomNo)
-                    .last("LIMIT 1"));
+            room = roomMapper.selectList(new LambdaQueryWrapper<HotelRoomPo>()
+                            .eq(HotelRoomPo::getStoreId, context.storeId())
+                            .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
+                            .eq(HotelRoomPo::getOccupancyStatus, HotelRoomStatePolicy.OCCUPANCY_VACANT)
+                            .eq(HotelRoomPo::getOutOfOrderStatus, HotelRoomStatePolicy.OUT_OF_ORDER_NONE)
+                            .in(HotelRoomPo::getHousekeepingStatus, List.of(
+                                    HotelRoomStatePolicy.HOUSEKEEPING_CLEAN,
+                                    HotelRoomStatePolicy.HOUSEKEEPING_INSPECTED))
+                            .orderByAsc(HotelRoomPo::getRoomNo))
+                    .stream()
+                    .filter(candidate -> !heldRoomIds.contains(candidate.getId()))
+                    .findFirst()
+                    .orElse(null);
         } else {
             room = roomMapper.selectOne(new LambdaQueryWrapper<HotelRoomPo>()
                     .eq(HotelRoomPo::getId, roomId)
                     .eq(HotelRoomPo::getStoreId, context.storeId())
-                    .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId())
-                    .eq(HotelRoomPo::getStatus, "ACTIVE"));
+                    .eq(HotelRoomPo::getRoomTypeId, booking.getRoomTypeId()));
+            if (room != null && (heldRoomIds.contains(roomId)
+                    || HotelRoomStatePolicy.checkInBlockedCode(room.getOccupancyStatus(),
+                            room.getHousekeepingStatus(), room.getOutOfOrderStatus(), null) != null)) {
+                room = null;
+            }
         }
         if (room == null || roomMapper.occupy(room.getId(), context.tenantId(), context.storeId()) == 0) {
-            throw new ApiException(409, "ROOM_UNAVAILABLE", "没有可分配的房间");
+            throw new ApiException(409, "ROOM_UNAVAILABLE", "没有可分配的房间：脏房、维修房、预留房不能入住");
         }
         LocalDateTime now = LocalDateTime.now();
         HotelStayPo stay = new HotelStayPo();
@@ -119,7 +141,7 @@ public class HotelStayApplicationService {
         }
 
         booking.setRoomNo(room.getRoomNo());
-        booking.setStatus("IN_HOUSE");
+        booking.setStatus("CHECKED_IN");
         booking.setUpdatedAt(now);
         bookingMapper.updateById(booking);
         return booking;
@@ -142,10 +164,10 @@ public class HotelStayApplicationService {
 
     @Transactional
     public HotelBookingPo checkOut(Long bookingId) {
-        PermissionGuard.require("hotel.checkout");
+        PermissionGuard.require("hotel.folio.manage");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
+        if (!"CHECKED_IN".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
             throw new ApiException(409, "CHECKOUT_STATE_INVALID", "当前预订不能退房");
         }
         HotelStayPo stay = stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
@@ -174,7 +196,8 @@ public class HotelStayApplicationService {
         folio.setStatus("SETTLED");
         folio.setUpdatedAt(now);
         folioMapper.updateById(folio);
-        roomMapper.markDirty(stay.getRoomId(), context.tenantId(), context.storeId());
+        // 退房只改房态（占用→空闲、清扫→脏房）并生成清扫任务，不改房量。
+        roomMapper.vacateAndMarkDirty(stay.getRoomId(), context.tenantId(), context.storeId());
 
         HotelHousekeepingPo task = new HotelHousekeepingPo();
         task.setTenantId(context.tenantId());
@@ -201,7 +224,7 @@ public class HotelStayApplicationService {
         PermissionGuard.require("hotel.checkin");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"IN_HOUSE".equals(booking.getStatus())) {
+        if (!"CHECKED_IN".equals(booking.getStatus())) {
             throw new ApiException(409, "MOVE_STATE_INVALID", "只有在住预订可以换房");
         }
         HotelStayPo stay = stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
@@ -217,11 +240,14 @@ public class HotelStayApplicationService {
         if (newRoom == null || !context.storeId().equals(newRoom.getStoreId())) {
             throw new ApiException(404, "ROOM_NOT_FOUND", "房间不存在");
         }
+        if (activeGuestHoldRoomIds(context).contains(newRoomId)) {
+            throw new ApiException(409, "ROOM_HELD", "新房间已被预留，不能换入");
+        }
         if (roomMapper.occupy(newRoomId, context.tenantId(), context.storeId()) == 0) {
-            throw new ApiException(409, "ROOM_UNAVAILABLE", "新房间不可用");
+            throw new ApiException(409, "ROOM_UNAVAILABLE", "新房间不可用：脏房、维修房、预留房不能换入");
         }
         LocalDateTime now = LocalDateTime.now();
-        roomMapper.markDirty(stay.getRoomId(), context.tenantId(), context.storeId());
+        roomMapper.vacateAndMarkDirty(stay.getRoomId(), context.tenantId(), context.storeId());
         HotelHousekeepingPo task = new HotelHousekeepingPo();
         task.setTenantId(context.tenantId());
         task.setStoreId(context.storeId());
@@ -247,7 +273,7 @@ public class HotelStayApplicationService {
 
     @Transactional
     public HotelFolioPo refundDeposit(Long bookingId, Long amountMinor, String reason, String method) {
-        PermissionGuard.require("hotel.checkout");
+        PermissionGuard.require("hotel.folio.manage");
         TenantContext context = requireStore();
         HotelFolioPo folio = requireOpenFolio(bookingId, context);
         if (amountMinor == null || amountMinor <= 0) {
@@ -274,7 +300,7 @@ public class HotelStayApplicationService {
     /** 线上退款只提交 payment-service 申请，保持 PENDING，不减少已收、不记 REFUND 账单项。 */
     @Transactional
     public HotelRefundPo requestOnlineRefund(Long bookingId, Long amountMinor, String reason, Long requestedBy) {
-        PermissionGuard.require("hotel.checkout");
+        PermissionGuard.require("hotel.folio.manage");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
         HotelFolioPo folio = requireOpenFolio(bookingId, context);
@@ -311,7 +337,7 @@ public class HotelStayApplicationService {
         PermissionGuard.require("hotel.checkin");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"IN_HOUSE".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
+        if (!"CHECKED_IN".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {
             throw new ApiException(409, "EXTEND_STATE_INVALID", "只有在住预订可以续住");
         }
         if (newCheckOutDate == null || !newCheckOutDate.isAfter(booking.getCheckOutDate())) {
@@ -326,9 +352,9 @@ public class HotelStayApplicationService {
         LocalDateTime now = LocalDateTime.now();
         for (LocalDate date = booking.getCheckOutDate(); date.isBefore(newCheckOutDate); date = date.plusDays(1)) {
             long price = dailyPrice(context, booking, ratePlan, date);
-            if (inventoryMapper.addSold(context.tenantId(), context.storeId(), booking.getRoomTypeId(), date,
+            if (availabilityMapper.addSold(context.tenantId(), context.storeId(), booking.getRoomTypeId(), date,
                     booking.getRooms()) == 0) {
-                throw new ApiException(409, "INVENTORY_UNAVAILABLE", "续住日期库存不足");
+                throw new ApiException(409, "ROOM_AVAILABILITY_UNAVAILABLE", "续住日期房量不足");
             }
             HotelBookingNightPo night = new HotelBookingNightPo();
             night.setTenantId(context.tenantId());
@@ -366,7 +392,7 @@ public class HotelStayApplicationService {
 
     /** 同步 payment-service 退款审批/打款状态；REFUNDED 才写账本并减少已收。 */
     @Transactional
-    public List<HotelRefundPo> syncOnlineRefunds() {        PermissionGuard.require("hotel.checkout");
+    public List<HotelRefundPo> syncOnlineRefunds() {        PermissionGuard.require("hotel.folio.manage");
         TenantContext context = requireStore();
         List<HotelRefundPo> refunds = refundMapper.selectList(new LambdaQueryWrapper<HotelRefundPo>()
                 .eq(HotelRefundPo::getStoreId, context.storeId())
@@ -414,14 +440,14 @@ public class HotelStayApplicationService {
     }
 
     public List<HotelRefundPo> listOnlineRefunds() {
-        PermissionGuard.require("hotel.booking.view");
+        PermissionGuard.require("hotel.folio.view");
         TenantContext context = requireStore();
         return refundMapper.selectList(new LambdaQueryWrapper<HotelRefundPo>()
                 .eq(HotelRefundPo::getStoreId, context.storeId())
                 .orderByDesc(HotelRefundPo::getId));
     }
 
-    public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.booking.view");
+    public FolioView folio(Long bookingId) {        PermissionGuard.require("hotel.folio.view");
         TenantContext context = requireStore();
         HotelFolioPo folio = folioMapper.selectOne(new LambdaQueryWrapper<HotelFolioPo>()
                 .eq(HotelFolioPo::getBookingId, bookingId)
@@ -459,6 +485,17 @@ public class HotelStayApplicationService {
             throw new ApiException(409, "FOLIO_STATE_INVALID", "账单不存在或已结算");
         }
         return folio;
+    }
+
+    /** 已被保留（RESERVED/GROUP_BLOCK/HOUSE_USE/LOCKED）的客房不可售、不可入住。 */
+    private Set<Long> activeGuestHoldRoomIds(TenantContext context) {
+        Set<Long> ids = new HashSet<>();
+        for (HotelRoomHoldPo hold : roomHoldMapper.selectActiveByStore(context.tenantId(), context.storeId())) {
+            if (HotelRoomStatePolicy.GUEST_HOLD_REASONS.contains(hold.getReason())) {
+                ids.add(hold.getRoomId());
+            }
+        }
+        return ids;
     }
 
     private HotelBookingPo requireBooking(Long id, TenantContext context) {

@@ -74,8 +74,9 @@ class OrderBillAuthorizationTest {
 
     /** 一个最小可用的账单对象：record 不 mock，避免依赖 Mockito 对 final/record 的支持。 */
     private static BillResult bill() {
-        return new BillResult("SERVING", "CNY", null, List.of(), List.of(), List.of(),
-                0L, 0L, 0L, 0L, 0L, 0L, null, 0L);
+        // 账单状态三字段（交易/会话/结算）：旧兼容列 status + tradeStatus + sessionStatus + settlementStatus
+        return new BillResult("SERVING", "PAID", "CLOSED", "PAID", "CNY", null, List.of(), List.of(),
+                List.of(), 0L, 0L, 0L, 0L, 0L, 0L, null, 0L);
     }
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */

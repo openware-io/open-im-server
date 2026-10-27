@@ -6,6 +6,10 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.LocalDateTime;
 import lombok.Data;
 
+/**
+ * 物理房间。房态由三组字段表达，不再使用单一 status：
+ * occupancy_status / housekeeping_status / out_of_order_status。
+ */
 @Data
 @TableName("htl_room")
 public class HotelRoomPo {
@@ -17,7 +21,9 @@ public class HotelRoomPo {
     private Long roomTypeId;
     private String roomNo;
     private String floor;
-    private String status;
+    private String occupancyStatus;
+    private String housekeepingStatus;
+    private String outOfOrderStatus;
     private Integer version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

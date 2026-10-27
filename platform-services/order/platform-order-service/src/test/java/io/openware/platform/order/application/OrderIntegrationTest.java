@@ -158,7 +158,8 @@ class OrderIntegrationTest {
   }
 
   /**
-   * 运营取消订单（真跑）：订单 → VOIDED + cancelled_at，活动包厢会话 → CANCELLED，包厢占用被释放。
+   * 运营取消订单（真跑）：订单交易状态 → CANCELLED（取消不是作废 VOIDED）+ cancelled_at，
+   * 活动包厢会话 → CANCELLED，包厢占用被释放。
    * 这条用例覆盖「取消后包厢不再被占用」的端到端链路（占位登记由 mock 的 ResourceStateClient 承接）。
    */
   @Test
@@ -166,15 +167,18 @@ class OrderIntegrationTest {
     OrderPo order = newOrder();
     orderMapper.insert(order);
     KtvSession session = ktvSessionRepository.insert(newSession(order.getId()));
-    // 开台：占用登记（mock 返回 occupationId=1）并把订单推进到 SERVING
+    // 开台：占用登记（mock 返回 occupationId=1）并把会话推进到 OPEN
     ktvSessionApplicationService.open(session.id(), null);
     assertEquals("SERVING", orderMapper.selectById(order.getId()).getStatus());
 
     Order cancelled = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("VOIDED", cancelled.status());
+    assertEquals("CANCELLED", cancelled.status());
+    assertEquals("CANCELLED", cancelled.tradeStatus());
     assertNotNull(cancelled.cancelledAt());
-    assertEquals("VOIDED", orderMapper.selectById(order.getId()).getStatus());
+    OrderPo cancelledRow = orderMapper.selectById(order.getId());
+    assertEquals("CANCELLED", cancelledRow.getStatus());
+    assertEquals("CANCELLED", cancelledRow.getTradeStatus());
     KtvSession released = ktvSessionRepository.findById(session.id()).orElseThrow();
     assertEquals("CANCELLED", released.status());
     verify(resourceStateClient).release(1L);
@@ -209,7 +213,7 @@ class OrderIntegrationTest {
     orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
     Order second = orderCancellationApplicationService.cancel(order.getId(), "客人要求取消");
 
-    assertEquals("VOIDED", second.status());
+    assertEquals("CANCELLED", second.status());
     // 第二次不再释放占用：release 只发生一次（第一次取消）。
     verify(resourceStateClient).release(1L);
   }

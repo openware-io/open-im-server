@@ -16,9 +16,11 @@ public interface InventoryTransactionMapper extends BaseMapper<InventoryTransact
     /**
      * 取某来源明细最近一次「出库结转」的流水（回补 REVERSE 的成本还原口径：按当时出库用的单价回补，
      * 而不是按回补时点的平均成本），按 id 倒序取最新一条。
+     *
+     * <p>出库类型包含调拨出库（{@code TRANSFER_OUT}）：调拨途中作废按源仓当时结转的单价回补。
      */
     @Select("SELECT * FROM ord_inventory_transaction WHERE tenant_id=#{tenantId} AND store_id=#{storeId} "
-            + "AND material_id=#{materialId} AND transaction_type IN ('CONSUME','ADJUST_OUT') "
+            + "AND material_id=#{materialId} AND transaction_type IN ('CONSUME','ADJUST_OUT','TRANSFER_OUT') "
             + "AND source_type=#{sourceType} AND source_id=#{sourceId} ORDER BY id DESC LIMIT 1")
     InventoryTransactionPo findLatestOutbound(@Param("tenantId") Long tenantId, @Param("storeId") Long storeId,
                                               @Param("materialId") Long materialId,

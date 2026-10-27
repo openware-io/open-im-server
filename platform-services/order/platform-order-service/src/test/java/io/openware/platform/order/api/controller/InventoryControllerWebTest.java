@@ -64,7 +64,7 @@ class InventoryControllerWebTest {
     @BeforeEach
     void setUp() {
         TenantContextHolder.set(new TenantContext(1L, 1L, 3L, 4L, 1,
-                List.of("inventory.material.manage", "inventory.material.view", "inventory.transaction.view")));
+                List.of("inventory.manage", "inventory.view"), null, "KTV", null));
         InventoryMaterialView saved = materialView(9L, new BigDecimal("350"));
         when(service.createMaterial(any())).thenReturn(saved);
         when(service.updateMaterial(any(), any())).thenReturn(saved);
@@ -157,12 +157,13 @@ class InventoryControllerWebTest {
     /** 流水列表：类型/来源/日期区间/关键字全部透传，响应是分页信封。 */
     @Test
     void transactionsListPassesFiltersThroughAndReturnsPage() throws Exception {
-        InventoryTransaction transaction = new InventoryTransaction(77L, 1L, 3L, 7L, "CONSUME",
+        InventoryTransaction transaction = new InventoryTransaction(77L, 1L, 1L, "KTV", 3L, 3L, 7L, "CONSUME",
                 new BigDecimal("-1"), new BigDecimal("2"), BigDecimal.ONE, new BigDecimal("300"),
                 new BigDecimal("-300"), "USD", "ORDER_ITEM", "1", "k-1", "加项", LocalDateTime.now());
         Page<InventoryTransactionView> page = new Page<>(1, 20, 1);
         page.setRecords(List.of(InventoryTransactionView.from(transaction)));
-        when(service.listTransactions(1L, 20L, 7L, "CONSUME", "ORDER_ITEM", TimeRangeParams.parse("2026-09-01", "2026-09-30"), "可乐")).thenReturn(page);
+        when(service.listTransactions(1L, 20L, 7L, "CONSUME", "ORDER_ITEM", null,
+                TimeRangeParams.parse("2026-09-01", "2026-09-30"), "可乐")).thenReturn(page);
 
         mvc.perform(get("/admin/inventory/transactions")
                         .param("materialId", "7").param("transactionType", "CONSUME").param("sourceType", "ORDER_ITEM")
@@ -228,7 +229,7 @@ class InventoryControllerWebTest {
         report.setStoreId(3L);
         report.setCurrencyCode("CNY");
         report.setMixedCurrency(false);
-        when(service.inventoryCosts(1L, 20L, 3L, "可乐")).thenReturn(report);
+        when(service.inventoryCosts(1L, 20L, 3L, null, "可乐")).thenReturn(report);
 
         mvc.perform(get("/admin/inventory/costs")
                         .param("storeId", "3").param("keyword", "可乐").param("pageSize", "20"))

@@ -21,13 +21,14 @@ class HotelBookingPiiTest {
   @Mock private HotelBookingMapper bookingMapper;
   @Mock private HotelRoomTypeMapper roomTypeMapper;
   @Mock private HotelRatePlanMapper ratePlanMapper;
-  @Mock private HotelInventoryMapper inventoryMapper;
-  @Mock private HotelInventoryHoldMapper holdMapper;
+  @Mock private HotelRoomAvailabilityMapper availabilityMapper;
+  @Mock private HotelRoomAvailabilityHoldMapper availabilityHoldMapper;
   @Mock private HotelDailyRateMapper dailyRateMapper;
   @Mock private HotelBookingNightMapper nightMapper;
   @Mock private OrderApplicationService orderApplicationService;
   @Mock private MemberLookupProvider memberLookupProvider;
   @Mock private HotelPolicyApplicationService policyService;
+  @Mock private HotelStoreScopeResolver storeScopeResolver;
 
   @AfterEach
   void clear() {
@@ -45,8 +46,9 @@ class HotelBookingPiiTest {
     booking.setBookedByAccountId(999L);
     when(bookingMapper.selectList(any())).thenReturn(List.of(booking));
     HotelBookingApplicationService service = new HotelBookingApplicationService(
-        bookingMapper, roomTypeMapper, ratePlanMapper, inventoryMapper, holdMapper,
-        dailyRateMapper, nightMapper, orderApplicationService, memberLookupProvider, policyService);
+        bookingMapper, roomTypeMapper, ratePlanMapper, availabilityMapper, availabilityHoldMapper,
+        dailyRateMapper, nightMapper, orderApplicationService, memberLookupProvider, policyService,
+        storeScopeResolver);
 
     HotelBookingPo result = service.list(null, null, null).getFirst();
 

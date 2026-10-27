@@ -39,7 +39,7 @@ public class HotelPolicyApplicationService {
                               Integer depositRatioBps, Boolean stayDepositRequired, String stayDepositMode,
                               Long stayDepositMinor, Integer stayDepositRatioBps, String cancelPolicy,
                               Boolean pointsRedeemEnabled, Integer pointsMaxRatioBps) {
-        PermissionGuard.require("hotel.inventory.manage");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         HotelPo hotel = requireHotel(hotelId, context);
         validate(accessMode, paymentMode, stayDepositMode, depositRatioBps, stayDepositMinor,

@@ -12,7 +12,10 @@ import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
+import io.openware.platform.order.domain.inventory.repository.StoreScopeRepository;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
@@ -99,6 +102,8 @@ public class ReservationApplicationService {
     private final AuditClient auditClient;
     private final DailySerialNumberGenerator dailySerialNumberGenerator;
     private ReservationRuleApplicationService reservationRuleService;
+    /** 门店作用域窄端口：预约开台转订单时取 organization_id/business_type 的权威快照（只读）。 */
+    private StoreScopeRepository storeScopeRepository;
 
     public ReservationApplicationService(ReservationRepository reservationRepository,
                                          OrderRepository orderRepository,
@@ -121,6 +126,12 @@ public class ReservationApplicationService {
     @Autowired
     public void setReservationRuleService(ReservationRuleApplicationService reservationRuleService) {
         this.reservationRuleService = reservationRuleService;
+    }
+
+    /** 可选装配门店作用域端口：单测/旧装配没有时由上下文提供组织；上下文也缺失则开台失败关闭。 */
+    @Autowired(required = false)
+    public void setStoreScopeRepository(StoreScopeRepository storeScopeRepository) {
+        this.storeScopeRepository = storeScopeRepository;
     }
 
     /**
@@ -591,25 +602,53 @@ public class ReservationApplicationService {
                     "预约尚未分配具体包厢，请先分配包厢后再开台");
         }
 
-        // 组织上下文：优先租户上下文，缺省回退门店 id（单组织租户下门店归属唯一组织）。
+        // 组织/业态来自**门店权威快照**（organization_id = store.organization_id、business_type = store.business_type）。
+        // 上下文缺失时读窄端口 StoreScopeRepository；仍拿不到就 422 失败关闭——绝不用 storeId 兜底冒充组织，
+        // 否则会写出「organization_id 指向一个门店」的脏快照（V24 目标契约 §1）。
         TenantContext ctx = TenantContextHolder.get();
         Long organizationId = ctx == null ? null : ctx.organizationId();
-        if (organizationId == null) {
-            organizationId = r.storeId();
+        String businessType = ctx == null ? null : ctx.businessType();
+        StoreScopeRepository.StoreScope storeScope = storeScopeRepository == null
+                ? null
+                : storeScopeRepository.findActive(r.tenantId(), r.storeId()).orElse(null);
+        if (storeScope != null) {
+            if (organizationId == null) {
+                organizationId = storeScope.organizationId();
+            } else if (storeScope.organizationId() != null && !organizationId.equals(storeScope.organizationId())) {
+                throw new ApiException(422, "ORGANIZATION_SCOPE_MISMATCH",
+                        "订单组织与门店所属组织不一致，请重新选择门店上下文");
+            }
+            if (businessType == null || businessType.isBlank()) {
+                businessType = storeScope.businessType();
+            } else if (storeScope.businessType() != null
+                    && !businessType.equalsIgnoreCase(storeScope.businessType())) {
+                throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "订单业态与门店业态不一致");
+            }
         }
+        if (organizationId == null) {
+            throw new ApiException(422, "ORGANIZATION_SCOPE_UNAVAILABLE",
+                    "无法确定门店所属组织，请重新选择门店上下文");
+        }
+        // 预约本身记录的业态与权威业态不一致时同样失败关闭（禁止把 KTV 单写进酒店业态）。
+        if (r.businessType() != null && businessType != null && !r.businessType().equalsIgnoreCase(businessType)) {
+            throw new ApiException(422, "BUSINESS_TYPE_MISMATCH", "预约业态与门店业态不一致");
+        }
+        String effectiveBusinessType = businessType != null && !businessType.isBlank()
+                ? businessType : r.businessType();
 
         // 币种取当前请求租户币种（docs/80-development/standards/24_CURRENCY_CONVENTIONS.md §2/§3.3），
         // 不再硬编码 CNY：缺 claim 时 CurrencyResolver 回退 USD，绝不因缺 claim 失败。
-        // 领域模型不可变：直接构造落库实体（金额六个列全 0、状态 DRAFT、版本 0）。
+        // 领域模型不可变：直接构造落库实体（金额六个列全 0、交易状态 DRAFT、退款状态 NONE、版本 0）。
         Order order = new Order(null, r.tenantId(), organizationId, r.storeId(),
                 dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, r.tenantId()),
-                null, r.businessType(), r.customerId(), "DRAFT", CurrencyResolver.currentCode(),
+                null, effectiveBusinessType, r.customerId(), "DRAFT",
+                TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), CurrencyResolver.currentCode(),
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, null, null, null, null, 0);
         // 预约开台改造前就把订单的记账列写成「当前操作人」，端口保留这一语义（null 才落到 DDL 默认 0）。
         Order inserted = orderRepository.insert(order, operatorId());
 
-        // 创建包厢会话并开台计时：RESERVED → OPEN（订单 DRAFT → SERVING，开始计费）。
+        // 创建包厢会话并开台计时：RESERVED → OPEN（会话状态 OPEN，订单交易状态保持 DRAFT，开始计费）。
         // 预约人数随开台写入会话（party_size），订单列表与房态看板据此展示「人数」。
         Long sessionId = ktvSessionService.create(r.tenantId(), inserted.id(), r.resourceId()).id();
         ktvSessionService.open(sessionId, freeWaitMinutes, r.partySize());
@@ -642,7 +681,7 @@ public class ReservationApplicationService {
                     .build());
         }
 
-        // 重新读取订单：开台后订单状态已由 DRAFT 流转为 SERVING，返回真实状态。
+        // 重新读取订单：开台只改会话状态（订单交易状态仍是 DRAFT），这里返回库中的真实快照。
         Order refreshed = orderRepository.findById(inserted.id())
                 .orElseThrow(() -> new BusinessException("ORDER_NOT_FOUND", "订单不存在"));
         return OrderView.from(refreshed).withSessionId(sessionId);

@@ -94,8 +94,8 @@ class ReportMapperBusinessDayContractTest {
             "o.tenant_id = #{tenantId}",
             "o.created_at >= #{from} AND o.created_at < #{to}",
             "(#{storeId} IS NULL OR o.store_id = #{storeId})",
-            "(#{status} IS NULL OR o.status = #{status})",
-            "(#{status} IS NOT NULL OR o.status NOT IN ('CANCELLED','VOIDED'))",
+            "(#{status} IS NULL OR o.trade_status = #{status})",
+            "(#{status} IS NOT NULL OR o.trade_status NOT IN ('CANCELLED','VOIDED'))",
         }) {
             assertTrue(count.contains(condition), "总数查询缺少条件: " + condition);
             assertTrue(page.contains(condition), "明细查询缺少条件: " + condition);

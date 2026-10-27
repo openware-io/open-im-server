@@ -79,7 +79,7 @@ public class OrderController {
                 req.currencyCode(), req.resourceId()));
     }
 
-    /** 确认订单：DRAFT → WAITING_SETTLEMENT。 */
+    /** 确认订单：交易状态 DRAFT → PENDING_PAYMENT（进入结算；兼容列写 WAITING_SETTLEMENT）。 */
     @PostMapping("/orders/{id}/confirm")
     public OrderView confirm(@PathVariable Long id) {
         return orderService.confirm(id);
@@ -127,7 +127,7 @@ public class OrderController {
         return KtvServerSessionView.from(ordered);
     }
 
-    /** 挂单：SERVING 内操作标记，不结台、不改商业状态。 */
+    /** 挂单：开台中（交易状态 DRAFT + 会话 OPEN/PAUSED）的操作标记，不结台、不改交易状态。 */
     @PostMapping("/orders/{id}/hold")
     public OrderView hold(@PathVariable Long id, @RequestBody HoldRequest req) {
         return orderService.hold(id, req.reason());
@@ -155,7 +155,7 @@ public class OrderController {
         return OrderView.from(orderCancellationService.cancel(id, req == null ? null : req.reason()));
     }
 
-    /** 作废：订单 → VOIDED；与取消共用状态校验/已收款拦截/包厢释放。 */
+    /** 作废：交易状态 → VOIDED（与用户取消 CANCELLED 分开统计）；与取消共用状态校验/已收款拦截/包厢释放。 */
     @PostMapping("/orders/{id}/void")
     public OrderView voidOrder(@PathVariable Long id, @RequestBody(required = false) VoidRequest req) {
         PermissionGuard.require("order.void");

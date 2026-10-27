@@ -15,12 +15,12 @@ public interface HotelBookingMapper extends BaseMapper<HotelBookingPo> {
     @InterceptorIgnore(tenantLine = "true")
     @Update("""
         UPDATE htl_booking SET status = 'CANCELLED', updated_at = NOW(3)
-        WHERE id = #{id} AND status = 'PENDING_PAYMENT'
+        WHERE id = #{id} AND status = 'PENDING_CONFIRM'
         """)
     int cancelPending(@Param("id") Long id);
 
     /**
-     * 已支付但预订仍为 PENDING_PAYMENT 的对账集合。
+     * 已支付但预订仍为 PENDING_CONFIRM 的对账集合。
      * 支付域只回写 ord_order；酒店确认由 order 域自身按订单已付事实补齐。
      */
     @InterceptorIgnore(tenantLine = "true")
@@ -28,8 +28,8 @@ public interface HotelBookingMapper extends BaseMapper<HotelBookingPo> {
         SELECT b.id
           FROM htl_booking b
           JOIN ord_order o ON o.tenant_id = b.tenant_id AND o.id = b.order_id
-         WHERE b.status = 'PENDING_PAYMENT'
-           AND o.status = 'COMPLETED'
+         WHERE b.status = 'PENDING_CONFIRM'
+           AND (o.trade_status = 'COMPLETED' OR o.status = 'COMPLETED')
            AND o.paid_amount >= o.total_amount
          ORDER BY b.id
          LIMIT 100
@@ -37,10 +37,10 @@ public interface HotelBookingMapper extends BaseMapper<HotelBookingPo> {
     List<Long> selectPaidPendingIds();
 
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT * FROM htl_booking WHERE id = #{id}")
+    @Select("SELECT * FROM htl_booking WHERE id = #{id} -- tenant-agnostic: 定时对账按记录自身 tenant 处理")
     HotelBookingPo selectByIdIgnoreTenant(@Param("id") Long id);
 
     @InterceptorIgnore(tenantLine = "true")
-    @Select("SELECT COALESCE(paid_amount, 0) FROM ord_order WHERE id = #{orderId}")
+    @Select("SELECT COALESCE(paid_amount, 0) FROM ord_order WHERE id = #{orderId} -- tenant-agnostic: 按订单主键读取")
     Long selectOrderPaidAmount(@Param("orderId") Long orderId);
 }

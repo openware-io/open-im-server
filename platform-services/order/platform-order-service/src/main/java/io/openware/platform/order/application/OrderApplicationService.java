@@ -14,6 +14,8 @@ import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderQuery;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
@@ -101,7 +103,8 @@ public class OrderApplicationService {
   }
 
   /**
-   * 快速开台：创建 KTV 订单 + 包厢会话（DRAFT→SERVING 简化，先建 RESERVED 会话并回填 sessionId）。
+   * 快速开台：创建 KTV 订单 + 包厢会话（交易状态 DRAFT，先建 RESERVED 会话并回填 sessionId；
+   * 开台/结台只改会话状态，订单交易状态在结台进入结算时才推进）。
    *
    * <p>幂等：请求头带 {@code Idempotency-Key} 时按 (tenant_id, idempotency_key) 回放已有订单；
    * 并发重复提交由唯一键兜底，命中后回放先写入的那张单。
@@ -133,10 +136,11 @@ public class OrderApplicationService {
       });
     }
 
-    // 领域模型不可变：直接构造落库聚合（金额六列全 0、状态 DRAFT、版本 0、下单人留空 → DDL 默认 0 = 系统）。
+    // 领域模型不可变：直接构造落库聚合（金额六列全 0、交易状态 DRAFT、退款状态 NONE、版本 0、下单人留空 → DDL 默认 0 = 系统）。
     Order order = new Order(null, tenantId, organizationId, storeId,
         dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
-        blankToNull(idempotencyKey), businessType, null, "DRAFT", resolveCurrencyCode(req.currencyCode()),
+        blankToNull(idempotencyKey), businessType, null, "DRAFT",
+        TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(req.currencyCode()),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
         BigDecimal.ZERO, null, null, null, null, 0);
     Order created;
@@ -186,7 +190,8 @@ public class OrderApplicationService {
     BigDecimal total = BigDecimal.valueOf(totalMinor);
     Order order = new Order(null, tenantId, organizationId, storeId,
         dailySerialNumberGenerator.next(DailySerialNumberGenerator.DocType.ORDER, tenantId),
-        idempotencyKey, "HOTEL", customerId, "DRAFT", resolveCurrencyCode(currencyCode),
+        idempotencyKey, "HOTEL", customerId, "DRAFT",
+        TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(currencyCode),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, total, BigDecimal.ZERO, BigDecimal.ZERO,
         null, null, null, null, 0);
     try {
@@ -200,7 +205,7 @@ public class OrderApplicationService {
     }
   }
 
-  /** 确认订单：DRAFT → WAITING_SETTLEMENT（加项完成，进入结算）。 */
+  /** 确认订单：交易状态 DRAFT → PENDING_PAYMENT（加项完成，进入结算）。 */
   public OrderView confirm(Long id) {
     PermissionGuard.require("order.settle");
     Order order = orderRepository.findById(id).orElse(null);
@@ -210,25 +215,27 @@ public class OrderApplicationService {
       }
       throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
     }
-    if (!"DRAFT".equals(order.status())) {
+    if (order.trade() != TradeStatus.DRAFT) {
       throw new BusinessException("ORDER_STATUS_INVALID", "仅 DRAFT 订单可确认");
     }
-    // 条件更新：只有库中仍是 DRAFT 才转换成功。上面那句比对不是并发保护——
-    // 两个并发确认都会读到 DRAFT，真正的判定在这条 UPDATE 的 status 条件上。
+    // 条件更新：只有库中交易状态仍是 DRAFT 才转换成功。上面那句比对不是并发保护——
+    // 两个并发确认都会读到 DRAFT，真正的判定在这条 UPDATE 的 trade_status 条件上。
     LocalDateTime now = LocalDateTime.now();
-    if (!orderRepository.updateStatusGuarded(id, "DRAFT", "WAITING_SETTLEMENT", now)) {
+    if (!orderRepository.updateTradeStatusGuarded(id, TradeStatus.DRAFT.name(),
+        TradeStatus.PENDING_PAYMENT.name(), "WAITING_SETTLEMENT", now)) {
       throw new BusinessException("ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
     }
-    return OrderView.from(order.withStatus("WAITING_SETTLEMENT"));
+    return OrderView.from(order.withTradeStatus(TradeStatus.PENDING_PAYMENT.name(), "WAITING_SETTLEMENT"));
   }
 
-  /** 挂单：SERVING 内操作标记，不结台、不改商业状态。 */
+  /** 挂单：开台中（KTV 会话 OPEN/PAUSED）的操作标记，不结台、不改交易状态。 */
   public OrderView hold(Long id, String reason) {
     PermissionGuard.require("order.hold");
     try {
       Order order = requireOrder(id);
-      if (!"SERVING".equals(order.status())) {
-        throw new BusinessException("ORDER_STATUS_INVALID", "仅 SERVING 订单可挂单");
+      // 挂单是「服务中」的动作：交易状态必须还是 DRAFT（未进入结算），且存在开台中/挂单中的 KTV 会话。
+      if (order.trade() != TradeStatus.DRAFT || !hasOngoingSession(id)) {
+        throw new BusinessException("ORDER_STATUS_INVALID", "仅开台中（未结算）订单可挂单");
       }
       // 条件更新：只有 hold_at 仍为空才算挂单成功。按 status 做条件挡不住并发挂单
       // （挂单不改商业状态），两次挂单的理由与时间会互相覆盖。
@@ -443,6 +450,12 @@ public class OrderApplicationService {
 
   private Order requireOrder(Long id) {
     return orderCancellationService.requireOrder(id);
+  }
+
+  /** 是否存在开台中/挂单中的 KTV 会话（挂单是会话内的操作标记，不是订单交易状态）。 */
+  private boolean hasOngoingSession(Long orderId) {
+    KtvSession session = ktvSessionService.listByOrderIds(List.of(orderId)).get(orderId);
+    return session != null && session.ongoing();
   }
 
   private TenantContext requireContext() {

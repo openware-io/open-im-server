@@ -35,6 +35,15 @@ public interface InventoryMaterialRepository {
   List<InventoryMaterial> findByIds(Collection<Long> ids);
 
   /**
+   * 门店内按物料编码取物料（跨门店调拨时把源物料的编码映射到目标门店的物料档案）。
+   *
+   * <p>物料档案是**门店级主数据**（{@code ord_inventory_material} 只有 tenant/store 维度，没有
+   * organization/business/warehouse 列）：组织与业态的权威快照落在余额与流水上，物料写入时以签名门店
+   * 上下文校验。调拨到目标门店时目标门店必须有同编码物料，不做静默自动建档（避免把错配的物料带进目标仓）。
+   */
+  Optional<InventoryMaterial> findInStoreByCode(Long tenantId, Long storeId, String materialCode);
+
+  /**
    * 关键字（名称**或**编码模糊）命中的物料 id（当前租户 + 当前门店）。
    *
    * <p>流水表与库存余额表都不存物料名快照，{@code listTransactions}/{@code inventoryCosts} 要按物料名检索，

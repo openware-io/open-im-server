@@ -7,19 +7,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.Data;
 
+/** 房量占用账本：预订按夜占用房量，不分配具体房间。 */
 @Data
-@TableName("htl_inventory_calendar")
-public class HotelInventoryPo {
+@TableName("htl_room_availability_hold")
+public class HotelRoomAvailabilityHoldPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    private Long organizationId;
     private Long storeId;
+    private Long bookingId;
     private Long roomTypeId;
     private LocalDate stayDate;
-    private Integer total;
-    private Integer sold;
-    private Integer held;
-    private Integer version;
+    private Integer rooms;
+    private String status;
+    private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

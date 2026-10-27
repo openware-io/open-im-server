@@ -11,6 +11,7 @@ import io.openware.platform.order.api.dto.InventoryTransactionView;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
@@ -82,7 +83,7 @@ class InventoryQueryPagingTest {
     void setUp() {
         materialQuery = null;
         transactionQuery = null;
-        TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
+        TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, java.util.List.of(), null, "KTV", null));
     }
 
     @AfterEach
@@ -319,7 +320,7 @@ class InventoryQueryPagingTest {
             return new MaterialPage(List.of(records), records.length);
         });
         // 列表读路径会用一次 IN 查询回填结存/预占（非列字段，见 InventoryMaterialView）。
-        when(stockRepository.findByMaterials(any(), any(), any())).thenReturn(List.of());
+        when(stockRepository.findByMaterials(any(), any())).thenReturn(List.of());
         when(materialRepository.findIdsByNameOrCode(any(), any(), any())).thenReturn(List.of());
     }
 
@@ -332,14 +333,14 @@ class InventoryQueryPagingTest {
     }
 
     private void stubCostSources(InventoryStock... stocks) {
-        when(stockRepository.findByStore(TENANT_ID, STORE_ID)).thenReturn(List.of(stocks));
+        when(stockRepository.findByStore(any(InventoryScope.class))).thenReturn(List.of(stocks));
         List<InventoryMaterial> materials = java.util.Arrays.stream(stocks)
                 .map(stock -> material(stock.materialId())).toList();
         when(materialRepository.findByIds(any())).thenReturn(materials);
     }
 
     private static InventoryStock stock(Long materialId, String onHand, String avgCost, String currency) {
-        return new InventoryStock(20L, TENANT_ID, STORE_ID, materialId, new BigDecimal(onHand), BigDecimal.ZERO,
+        return new InventoryStock(20L, TENANT_ID, 1L, "KTV", STORE_ID, STORE_ID, materialId, new BigDecimal(onHand), BigDecimal.ZERO,
                 new BigDecimal(avgCost), currency, 0);
     }
 

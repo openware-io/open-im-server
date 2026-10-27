@@ -25,6 +25,8 @@ public class KtvSessionPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long tenantId;
+    /** 组织快照（V24 新增列）：创建会话时从订单 organization_id 复制，报表/权限按组织归集不再跨域回查。 */
+    private Long organizationId;
     private Long storeId;
     private String businessType;
     private Long orderId;

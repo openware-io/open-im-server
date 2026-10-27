@@ -7,11 +7,13 @@ import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.ktv.model.KtvSessionStatus;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.ktv.service.KtvRoomFeeCalculator;
 import io.openware.platform.order.domain.ktv.repository.KtvPricingPlanProvider;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderItemQuery;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
@@ -20,6 +22,7 @@ import io.openware.platform.order.infra.client.ResourceStateClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -158,20 +161,30 @@ public class KtvSessionApplicationService {
     public KtvSession create(Long tenantId, Long orderId, Long roomResourceId) {
         Order order = orderRepository == null || orderId == null ? null : orderRepository.findById(orderId).orElse(null);
         Long storeId = null;
+        Long organizationId = null;
         String businessType = null;
         if (order != null) {
             if (!tenantId.equals(order.tenantId())) {
                 throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
             }
             storeId = order.storeId();
+            organizationId = order.organizationId();
             businessType = order.businessType();
         }
         // 包厢名/编码快照在创建时取一次（资源服务不可达时为空，读路径允许回源一次）。
         ResourceStateClient.RoomSnapshot snapshot = roomSnapshot(roomResourceId);
-        KtvSession session = KtvSession.reserved(tenantId, storeId, businessType, orderId, roomResourceId,
-                snapshot == null ? null : snapshot.name(), snapshot == null ? null : snapshot.resourceCode());
+        KtvSession session = KtvSession.reserved(tenantId, organizationId, storeId, businessType, orderId,
+                roomResourceId, snapshot == null ? null : snapshot.name(),
+                snapshot == null ? null : snapshot.resourceCode());
         // 审计四列（created_at/updated_at）由适配器在落库时填充：它们是记账信息，不进领域模型。
-        return sessionRepository.insert(session);
+        try {
+            return sessionRepository.insert(session);
+        } catch (DuplicateKeyException duplicate) {
+            // 一个订单只允许一个会话（V24 uk_ord_ktv_session_order）：并发创建/重试时回放已有会话，
+            // 而不是把唯一键冲突抛给调用方（开台/预约开台的重试语义）。
+            log.debug("KTV session concurrent insert for order {}, replay existing session", orderId);
+            return sessionRepository.findLatestByOrderId(orderId).orElseThrow(() -> duplicate);
+        }
     }
 
     /** 开台（不登记人数）：RESERVED → OPEN。 */
@@ -181,7 +194,7 @@ public class KtvSessionApplicationService {
     }
 
     /**
-     * 开台：RESERVED → OPEN，读取计价方案固化计费单位/免费等待/超时费率/规则快照；订单 DRAFT/WAITING_ARRIVAL → SERVING。
+     * 开台：RESERVED → OPEN，读取计价方案固化计费单位/免费等待/超时费率/规则快照；订单保持 DRAFT（KTV 交易状态未进入结算）。
      *
      * <p>同时固化的还有「本次实际使用的房型与单价」：资源带房型时房费/服务费按房型单价取，缺该房型回退门店级单价，
      * 生效价格连同房型编码/名称一起写进 {@code billing_rule_snapshot_json}（结台写 ROOM_FEE 明细时原样带出）。
@@ -242,8 +255,10 @@ public class KtvSessionApplicationService {
         session = applyOptimisticUpdate(session);
 
         if (order != null) {
-            if ("DRAFT".equals(order.status()) || "WAITING_ARRIVAL".equals(order.status())) {
-                order = order.withStatus("SERVING");
+            // 开台只推进 KTV 业务状态（会话 OPEN）：订单交易状态保持 DRAFT（尚未进入结算）。
+            // 兼容列 status 双写为 SERVING（旧读取方仍看它），最终清理迁移会删掉该列。
+            if (order.trade() == TradeStatus.DRAFT) {
+                order = order.withTradeStatus(TradeStatus.DRAFT.name(), "SERVING");
             }
             // 开台即计费（2026-09-19）：把房费（含 1 名标准服务人员）写成 ROOM_FEE 明细并重算订单金额。
             // 只写会话不写费用时，开台后的账单/收银只有加项金额、房费要等结台才出现——门店看到的就是「应收 0」。
@@ -433,7 +448,7 @@ public class KtvSessionApplicationService {
         }
     }
 
-    /** 结台：OPEN/PAUSED → CLOSED，读取计价方案计算包厢计时费并生成 ROOM_FEE 明细；订单 SERVING → WAITING_SETTLEMENT。 */
+    /** 结台：OPEN/PAUSED → CLOSED，读取计价方案计算包厢计时费并生成 ROOM_FEE 明细；订单 DRAFT → PENDING_PAYMENT（或已全额收款 → COMPLETED）。 */
     @Transactional
     public KtvSession close(Long sessionId) {
         try {
@@ -472,8 +487,13 @@ public class KtvSessionApplicationService {
             upsertRoomFeeItem(session, order, session.closedAt());
             // 包厢计时费刚落入明细，必须在本实例上重算订单金额后再写库，否则旧金额会覆盖新快照。
             Order recalculated = orderAmounts.recalculate(order);
-            if ("SERVING".equals(recalculated.status())) {
-                recalculated = recalculated.withStatus("WAITING_SETTLEMENT");
+            if (!recalculated.trade().terminal()) {
+                // 结台 = KTV 履约完成：交易状态离开 DRAFT。
+                // 先付后结（已全额收款）→ COMPLETED；尚未全额收款 → PENDING_PAYMENT（待收款，金额看 paid_amount）。
+                boolean fullyPaid = recalculated.total().signum() > 0
+                        && recalculated.paid().compareTo(recalculated.total()) >= 0;
+                TradeStatus nextTrade = fullyPaid ? TradeStatus.COMPLETED : TradeStatus.PENDING_PAYMENT;
+                recalculated = recalculated.withTradeStatus(nextTrade.name(), nextTrade.legacyStatus());
             }
             order = persistOrderGuarded(recalculated);
         }
@@ -514,7 +534,7 @@ public class KtvSessionApplicationService {
      * 允许半成品状态反而会出现「已结台却算不出账单」的坏数据。
      */
     private void autoSettleAfterClose(Order order) {
-        if (settlementService == null || !"WAITING_SETTLEMENT".equals(order.status())) {
+        if (settlementService == null || order.trade() != TradeStatus.PENDING_PAYMENT) {
             return;
         }
         if (orderAmounts != null && orderAmounts.hasPendingApprovalItems(order.id())) {
@@ -716,8 +736,8 @@ public class KtvSessionApplicationService {
             try {
                 TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
                 Order order = orderRepository.findById(session.orderId()).orElse(null);
-                if (order == null || !"SERVING".equals(order.status())) {
-                    // 会话残留但订单已终结（取消/作废）：交回状态机处理，这里不动金额。
+                if (order == null || order.trade() != TradeStatus.DRAFT) {
+                    // 会话残留但订单已进入结算/终结（结台、取消、作废）：交回状态机处理，这里不动金额。
                     continue;
                 }
                 upsertRoomFeeItem(session, order, billableEndAt(session, now));
@@ -943,9 +963,11 @@ public class KtvSessionApplicationService {
         if (session == null || session.status() == null) {
             return Integer.MIN_VALUE;
         }
-        return switch (session.status()) {
-            case KtvSession.STATUS_OPEN, KtvSession.STATUS_PAUSED -> 2;
-            case KtvSession.STATUS_RESERVED -> 1;
+        // 用会话状态枚举做判定：KtvSessionStatus.OPEN.name() 不是编译期常量，不能直接写进 String switch。
+        KtvSessionStatus state = session.state();
+        return switch (state) {
+            case OPEN, PAUSED -> 2;
+            case RESERVED -> 1;
             default -> 0;
         };
     }

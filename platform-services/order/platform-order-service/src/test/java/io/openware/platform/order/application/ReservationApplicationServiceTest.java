@@ -9,6 +9,7 @@ import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.api.dto.ReservationView;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
+import io.openware.platform.order.domain.inventory.repository.StoreScopeRepository;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.model.ReservationStatus;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
@@ -73,6 +74,8 @@ class ReservationApplicationServiceTest {
 
     private static final Long TENANT_ID = 7L;
     private static final Long STORE_ID = 1001L;
+    /** 门店权威组织（organization_id = store.organization_id；禁止用 storeId 冒充）。 */
+    private static final Long ORGANIZATION_ID = 3L;
     private static final Long ROOM_TYPE_ID = 55L;
     private static final Long RESERVATION_ID = 9L;
     /** 新格式单号（mock 生成器返回值）：{@code <前缀><yyyyMMdd><当日序号>}。 */
@@ -109,6 +112,11 @@ class ReservationApplicationServiceTest {
         service = new ReservationApplicationService(reservationRepository, orderMapper, ktvSessionService,
                 resourceStateClient, roomTypeCatalogClient, businessHoursClient, auditClient,
                 dailySerialNumberGenerator);
+        // 门店作用域窄端口：openTable 转订单时取 organization_id/business_type 的权威快照。
+        StoreScopeRepository storeScopeRepository = mock(StoreScopeRepository.class);
+        when(storeScopeRepository.findActive(anyLong(), any())).thenReturn(Optional.of(
+                new StoreScopeRepository.StoreScope(TENANT_ID, STORE_ID, ORGANIZATION_ID, "KTV", "ACTIVE")));
+        service.setStoreScopeRepository(storeScopeRepository);
         // 单号生成器是外部依赖（真实实现走 ord_daily_serial 表）：这里按单据类型返回可断言的新格式号，
         // 生成规则本身由 DailySerialNumberGeneratorTest（H2 真跑）覆盖。
         when(dailySerialNumberGenerator.next(any(), any())).thenAnswer(invocation ->
@@ -993,6 +1001,9 @@ class ReservationApplicationServiceTest {
         ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
         verify(orderMapper).insert(captor.capture(), any());
         assertEquals(ORDER_NO, captor.getValue().orderNo(), "开台订单号必须来自统一生成器");
+        assertEquals(ORGANIZATION_ID, captor.getValue().organizationId(),
+                "订单组织必须来自门店权威快照（organization_id = store.organization_id，禁止 storeId 兜底）");
+        assertEquals("KTV", captor.getValue().businessType(), "订单业态取门店权威业态");
         verify(dailySerialNumberGenerator).next(DailySerialNumberGenerator.DocType.ORDER, TENANT_ID);
     }
 

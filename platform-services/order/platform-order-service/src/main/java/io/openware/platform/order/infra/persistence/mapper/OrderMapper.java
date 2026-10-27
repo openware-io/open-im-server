@@ -33,7 +33,8 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
      *
      * @return 受影响行数；0 表示期间已被他人写入
      */
-    @Update("UPDATE ord_order SET status = #{po.status}, subtotal_amount = #{po.subtotalAmount}, "
+    @Update("UPDATE ord_order SET status = #{po.status}, trade_status = #{po.tradeStatus}, "
+            + "refund_status = #{po.refundStatus}, subtotal_amount = #{po.subtotalAmount}, "
             + "discount_amount = #{po.discountAmount}, tax_amount = #{po.taxAmount}, "
             + "total_amount = #{po.totalAmount}, refundable_amount = #{po.refundableAmount}, "
             + "version = version + 1, updated_at = #{po.updatedAt} "
@@ -42,19 +43,22 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
                                           @Param("expectedVersion") int expectedVersion);
 
     /**
-     * 状态转换的条件更新：仅当库中状态仍是 {@code expectedStatus} 时写入新状态。
+     * 交易状态转换的条件更新：仅当库中交易状态仍是 {@code expectedTradeStatus} 时写入新交易状态
+     * （同时双写兼容列 {@code status}）。
      *
-     * <p>{@code ord_order} 没有版本列可用于状态机（{@code OrderPo} 无 {@code @Version}、工程无乐观锁拦截器），
-     * 而状态转换的判定列就是状态本身。只靠应用层"读出来比对"不是并发保护：
-     * 两个并发确认都读到 {@code DRAFT}、都通过比对、都写入成功——订单被确认两次，各自的后续动作都会执行。
+     * <p>判定列是 {@code trade_status} 本身：只靠应用层"读出来比对"不是并发保护——两个并发确认都读到
+     * {@code DRAFT}、都通过比对、都写入成功，订单被确认两次，各自的后续动作都会执行。
+     * 兼容列 {@code status} 不参与判定（它把交易阶段和业态阶段揉在一起，不是稳定判据）。
      *
      * @return 受影响行数；0 表示期间已被他人转换
      */
-    @Update("UPDATE ord_order SET status = #{newStatus}, updated_at = #{updatedAt} "
-            + "WHERE id = #{id} AND status = #{expectedStatus}")
-    int updateStatusGuarded(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
-                            @Param("newStatus") String newStatus,
-                            @Param("updatedAt") LocalDateTime updatedAt);
+    @Update("UPDATE ord_order SET trade_status = #{newTradeStatus}, status = #{newLegacyStatus}, "
+            + "updated_at = #{updatedAt} "
+            + "WHERE id = #{id} AND trade_status = #{expectedTradeStatus}")
+    int updateTradeStatusGuarded(@Param("id") Long id, @Param("expectedTradeStatus") String expectedTradeStatus,
+                                 @Param("newTradeStatus") String newTradeStatus,
+                                 @Param("newLegacyStatus") String newLegacyStatus,
+                                 @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
      * 挂单的条件更新：仅当订单**尚未挂单**（{@code hold_at IS NULL}）时写入。
@@ -83,20 +87,20 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
     int unholdIfHeld(@Param("id") Long id, @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
-     * 取消/作废的条件更新：仅当库中状态仍是 {@code expectedStatus} 时写入 VOIDED。
+     * 取消/作废的条件更新：仅当库中交易状态仍是 {@code expectedTradeStatus} 时写入目标终态
+     * （取消 → {@code CANCELLED}，审批作废/冲正 → {@code VOIDED}，并双写兼容列 {@code status}）。
      *
-     * <p>判据用 {@code status} 而不是 version 是刻意的：取消流程不写金额，而**重复取消是幂等语义**
-     * （已 VOIDED 时直接回既有结果）。若按 version 守卫，一次无害的重试会因为"期间有别的写入改过版本"
-     * 而失败；按 status 守卫则精确表达"只有仍是原状态才允许作废"。
-     *
-     * <p>没有这条条件时，两个并发取消都读到同一非终结状态、都通过应用层判定，
-     * 于是 {@code cancelByOrder} 被调用两次（两次释放/取消同一会话）、审计写两条，
-     * 后写者的原因与时间覆盖前者——而 CALLER 两次都收到成功。
+     * <p>判据用 {@code trade_status} 而不是 version 是刻意的：取消流程不写金额，
+     * 而**重复取消是幂等语义**（已终结时由应用层回既有结果）。若按 version 守卫，一次无害的重试
+     * 会因为"期间有别的写入改过版本"而失败；按交易状态守卫则精确表达"只有仍是原状态才允许终结"。
      *
      * @return 受影响行数；0 表示期间已被他人转换
      */
-    @Update("UPDATE ord_order SET status = 'VOIDED', cancelled_at = #{cancelledAt}, "
-            + "updated_at = #{cancelledAt} WHERE id = #{id} AND status = #{expectedStatus}")
-    int voidIfStatus(@Param("id") Long id, @Param("expectedStatus") String expectedStatus,
-                     @Param("cancelledAt") LocalDateTime cancelledAt);
+    @Update("UPDATE ord_order SET trade_status = #{newTradeStatus}, status = #{newLegacyStatus}, "
+            + "cancelled_at = #{cancelledAt}, updated_at = #{cancelledAt} "
+            + "WHERE id = #{id} AND trade_status = #{expectedTradeStatus}")
+    int voidByTradeStatus(@Param("id") Long id, @Param("expectedTradeStatus") String expectedTradeStatus,
+                          @Param("newTradeStatus") String newTradeStatus,
+                          @Param("newLegacyStatus") String newLegacyStatus,
+                          @Param("cancelledAt") LocalDateTime cancelledAt);
 }

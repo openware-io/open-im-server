@@ -6,6 +6,7 @@ import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.OrderApplicationService;
+import io.openware.platform.order.domain.inventory.repository.StoreScopeRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import java.time.LocalDate;
@@ -18,7 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 酒店报价、库存 hold、预订创建/确认/取消。库存扣减全部走原子 UPDATE。 */
+/** 酒店报价、房量占用、预订创建/确认/取消。房量扣减全部走原子 UPDATE。 */
 @Service
 public class HotelBookingApplicationService {
 
@@ -27,46 +28,55 @@ public class HotelBookingApplicationService {
     private final HotelBookingMapper bookingMapper;
     private final HotelRoomTypeMapper roomTypeMapper;
     private final HotelRatePlanMapper ratePlanMapper;
-    private final HotelInventoryMapper inventoryMapper;
-    private final HotelInventoryHoldMapper holdMapper;
+    private final HotelRoomAvailabilityMapper availabilityMapper;
+    private final HotelRoomAvailabilityHoldMapper availabilityHoldMapper;
     private final HotelDailyRateMapper dailyRateMapper;
     private final HotelBookingNightMapper nightMapper;
     private final OrderApplicationService orderApplicationService;
     private final MemberLookupProvider memberLookupProvider;
     private final HotelPolicyApplicationService policyService;
+    private final HotelStoreScopeResolver storeScopeResolver;
     private final HotelPointsClient pointsClient;
 
     @Autowired
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
-                                          HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
-                                          HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
+                                          HotelRatePlanMapper ratePlanMapper,
+                                          HotelRoomAvailabilityMapper availabilityMapper,
+                                          HotelRoomAvailabilityHoldMapper availabilityHoldMapper,
+                                          HotelDailyRateMapper dailyRateMapper,
                                           HotelBookingNightMapper nightMapper,
                                           OrderApplicationService orderApplicationService,
                                           MemberLookupProvider memberLookupProvider,
                                           HotelPolicyApplicationService policyService,
+                                          HotelStoreScopeResolver storeScopeResolver,
                                           HotelPointsClient pointsClient) {
         this.bookingMapper = bookingMapper;
         this.roomTypeMapper = roomTypeMapper;
         this.ratePlanMapper = ratePlanMapper;
-        this.inventoryMapper = inventoryMapper;
-        this.holdMapper = holdMapper;
+        this.availabilityMapper = availabilityMapper;
+        this.availabilityHoldMapper = availabilityHoldMapper;
         this.dailyRateMapper = dailyRateMapper;
         this.nightMapper = nightMapper;
         this.orderApplicationService = orderApplicationService;
         this.memberLookupProvider = memberLookupProvider;
         this.policyService = policyService;
+        this.storeScopeResolver = storeScopeResolver;
         this.pointsClient = pointsClient;
     }
 
     public HotelBookingApplicationService(HotelBookingMapper bookingMapper, HotelRoomTypeMapper roomTypeMapper,
-                                              HotelRatePlanMapper ratePlanMapper, HotelInventoryMapper inventoryMapper,
-                                              HotelInventoryHoldMapper holdMapper, HotelDailyRateMapper dailyRateMapper,
+                                              HotelRatePlanMapper ratePlanMapper,
+                                              HotelRoomAvailabilityMapper availabilityMapper,
+                                              HotelRoomAvailabilityHoldMapper availabilityHoldMapper,
+                                              HotelDailyRateMapper dailyRateMapper,
                                               HotelBookingNightMapper nightMapper,
                                               OrderApplicationService orderApplicationService,
                                               MemberLookupProvider memberLookupProvider,
-                                              HotelPolicyApplicationService policyService) {
-        this(bookingMapper, roomTypeMapper, ratePlanMapper, inventoryMapper, holdMapper, dailyRateMapper,
-                nightMapper, orderApplicationService, memberLookupProvider, policyService, null);
+                                              HotelPolicyApplicationService policyService,
+                                              HotelStoreScopeResolver storeScopeResolver) {
+        this(bookingMapper, roomTypeMapper, ratePlanMapper, availabilityMapper, availabilityHoldMapper,
+                dailyRateMapper, nightMapper, orderApplicationService, memberLookupProvider, policyService,
+                storeScopeResolver, null);
     }
 
     public Quote quote(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut, int rooms) {
@@ -79,9 +89,9 @@ public class HotelBookingApplicationService {
         long total = 0;
         int available = Integer.MAX_VALUE;
         for (LocalDate date = checkIn; date.isBefore(checkOut); date = date.plusDays(1)) {
-            HotelInventoryPo inventory = inventory(context, roomTypeId, date);
-            int dayAvailable = inventory == null ? 0
-                    : Math.max(0, inventory.getTotal() - inventory.getSold() - inventory.getHeld());
+            HotelRoomAvailabilityPo availability = availability(context, roomTypeId, date);
+            int dayAvailable = availability == null ? 0
+                    : Math.max(0, availability.getTotal() - availability.getSold() - availability.getHeld());
             available = Math.min(available, dayAvailable);
             long price = dailyPrice(context, roomTypeId, ratePlan, date);
             nights.add(new NightQuote(date, price, dayAvailable));
@@ -111,6 +121,7 @@ public class HotelBookingApplicationService {
                                         Long bookedByAccountId, Long requestedPoints) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
+        StoreScopeRepository.StoreScope storeScope = storeScopeResolver.requireHotelScope(context);
         if (guestName == null || guestName.isBlank() || guestPhone == null || guestPhone.isBlank()) {
             throw new ApiException(400, "GUEST_REQUIRED", "住客姓名和手机号不能为空");
         }
@@ -123,7 +134,7 @@ public class HotelBookingApplicationService {
         }
         Quote quote = quote(roomTypeId, ratePlanId, checkIn, checkOut, rooms);
         if (!quote.available()) {
-            throw new ApiException(409, "INVENTORY_UNAVAILABLE", "所选日期房量不足");
+            throw new ApiException(409, "ROOM_AVAILABILITY_UNAVAILABLE", "所选日期房量不足");
         }
         HotelRoomTypePo roomType = requireRoomType(roomTypeId, context);
         HotelRatePlanPo ratePlan = requireRatePlan(ratePlanId, roomType.getHotelId(), context);
@@ -157,6 +168,8 @@ public class HotelBookingApplicationService {
         LocalDateTime now = LocalDateTime.now();
         HotelBookingPo booking = new HotelBookingPo();
         booking.setTenantId(context.tenantId());
+        booking.setOrganizationId(storeScope.organizationId());
+        booking.setBusinessType(storeScope.businessType());
         booking.setStoreId(context.storeId());
         booking.setHotelId(roomType.getHotelId());
         booking.setRoomTypeId(roomTypeId);
@@ -170,7 +183,7 @@ public class HotelBookingApplicationService {
         booking.setNights((int) ChronoUnit.DAYS.between(checkIn, checkOut));
         booking.setCheckInDate(checkIn);
         booking.setCheckOutDate(checkOut);
-        booking.setStatus("PENDING_PAYMENT");
+        booking.setStatus("PENDING_CONFIRM");
         booking.setAmountMinor(quote.totalMinor() - pointsDiscount);
         booking.setPointsUsed(pointsUsed);
         booking.setPointsDiscountMinor(pointsDiscount);
@@ -212,11 +225,13 @@ public class HotelBookingApplicationService {
         bookingMapper.updateById(booking);
 
         for (NightQuote quoteNight : quote.nights()) {
-            if (inventoryMapper.hold(context.tenantId(), context.storeId(), roomTypeId, quoteNight.stayDate(), rooms) == 0) {
-                throw new ApiException(409, "INVENTORY_UNAVAILABLE", "库存已被其他预订占用，请重新报价");
+            if (availabilityMapper.hold(context.tenantId(), context.storeId(), roomTypeId,
+                    quoteNight.stayDate(), rooms) == 0) {
+                throw new ApiException(409, "ROOM_AVAILABILITY_UNAVAILABLE", "房量已被其他预订占用，请重新报价");
             }
-            HotelInventoryHoldPo hold = new HotelInventoryHoldPo();
+            HotelRoomAvailabilityHoldPo hold = new HotelRoomAvailabilityHoldPo();
             hold.setTenantId(context.tenantId());
+            hold.setOrganizationId(storeScope.organizationId());
             hold.setStoreId(context.storeId());
             hold.setBookingId(booking.getId());
             hold.setRoomTypeId(roomTypeId);
@@ -226,7 +241,7 @@ public class HotelBookingApplicationService {
             hold.setExpiresAt(booking.getHoldExpiresAt());
             hold.setCreatedAt(now);
             hold.setUpdatedAt(now);
-            holdMapper.insert(hold);
+            availabilityHoldMapper.insert(hold);
 
             HotelBookingNightPo bookingNight = new HotelBookingNightPo();
             bookingNight.setTenantId(context.tenantId());
@@ -241,14 +256,10 @@ public class HotelBookingApplicationService {
             nightMapper.insert(bookingNight);
         }
         if ("PAY_AT_HOTEL".equals(paymentPolicy.getPaymentMode())) {
-            // 到店付：预订直接确认，库存由 confirm 将 HELD 转为 SOLD。
+            // 到店付：预订直接确认，房量由 confirm 将 HELD 转为 SOLD。
             return confirm(booking.getId());
         }
-        if ("DEPOSIT".equals(paymentPolicy.getPaymentMode())) {
-            booking.setStatus("PENDING_DEPOSIT");
-            booking.setUpdatedAt(LocalDateTime.now());
-            bookingMapper.updateById(booking);
-        }
+        // 定金模式保持 PENDING_CONFIRM：前台收定金后调用 confirmDeposit 推进状态。
         return booking;
     }
 
@@ -263,21 +274,21 @@ public class HotelBookingApplicationService {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"PENDING_PAYMENT".equals(booking.getStatus()) && !"PENDING_DEPOSIT".equals(booking.getStatus())) {
+        if (!"PENDING_CONFIRM".equals(booking.getStatus())) {
             throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能确认");
         }
         if (booking.getHoldExpiresAt() != null && booking.getHoldExpiresAt().isBefore(LocalDateTime.now())) {
             cancel(bookingId);
             throw new ApiException(409, "HOLD_EXPIRED", "库存占用已过期");
         }
-        for (HotelInventoryHoldPo hold : holds(bookingId, "HELD")) {
-            if (inventoryMapper.confirmHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : holds(bookingId, "HELD")) {
+            if (availabilityMapper.confirmHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
                     hold.getStayDate(), hold.getRooms()) == 0) {
-                throw new ApiException(409, "INVENTORY_CONFIRM_CONFLICT", "库存占用状态冲突");
+                throw new ApiException(409, "ROOM_AVAILABILITY_CONFIRM_CONFLICT", "房量占用状态冲突");
             }
             hold.setStatus("SOLD");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
         updateNights(bookingId, "SOLD");
         booking.setStatus("CONFIRMED");
@@ -294,19 +305,19 @@ public class HotelBookingApplicationService {
         if ("CANCELLED".equals(booking.getStatus()) || "CHECKED_OUT".equals(booking.getStatus())) {
             throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能取消");
         }
-        for (HotelInventoryHoldPo hold : holds(bookingId, "HELD")) {
-            inventoryMapper.releaseHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : holds(bookingId, "HELD")) {
+            availabilityMapper.releaseHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
                     hold.getStayDate(), hold.getRooms());
             hold.setStatus("RELEASED");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
-        for (HotelInventoryHoldPo hold : holds(bookingId, "SOLD")) {
-            inventoryMapper.releaseSold(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : holds(bookingId, "SOLD")) {
+            availabilityMapper.releaseSold(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
                     hold.getStayDate(), hold.getRooms());
             hold.setStatus("RELEASED");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
         updateNights(bookingId, "CANCELLED");
         HotelPolicyPo cancelPolicy = policyService.paymentPolicy(booking.getHotelId(), context);
@@ -334,22 +345,22 @@ public class HotelBookingApplicationService {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
-        if (!"CONFIRMED".equals(booking.getStatus()) && !"ARRIVAL".equals(booking.getStatus())) {
+        if (!"CONFIRMED".equals(booking.getStatus())) {
             throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能标记 no-show");
         }
-        for (HotelInventoryHoldPo hold : holds(bookingId, "HELD")) {
-            inventoryMapper.releaseHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : holds(bookingId, "HELD")) {
+            availabilityMapper.releaseHeld(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
                     hold.getStayDate(), hold.getRooms());
             hold.setStatus("RELEASED");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
-        for (HotelInventoryHoldPo hold : holds(bookingId, "SOLD")) {
-            inventoryMapper.releaseSold(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : holds(bookingId, "SOLD")) {
+            availabilityMapper.releaseSold(context.tenantId(), context.storeId(), hold.getRoomTypeId(),
                     hold.getStayDate(), hold.getRooms());
             hold.setStatus("RELEASED");
             hold.setUpdatedAt(LocalDateTime.now());
-            holdMapper.updateById(hold);
+            availabilityHoldMapper.updateById(hold);
         }
         updateNights(bookingId, "NO_SHOW");
         booking.setStatus("NO_SHOW");
@@ -421,10 +432,10 @@ public class HotelBookingApplicationService {
         }
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
-    private List<HotelInventoryHoldPo> holds(Long bookingId, String status) {
-        return holdMapper.selectList(new LambdaQueryWrapper<HotelInventoryHoldPo>()
-                .eq(HotelInventoryHoldPo::getBookingId, bookingId)
-                .eq(HotelInventoryHoldPo::getStatus, status));
+    private List<HotelRoomAvailabilityHoldPo> holds(Long bookingId, String status) {
+        return availabilityHoldMapper.selectList(new LambdaQueryWrapper<HotelRoomAvailabilityHoldPo>()
+                .eq(HotelRoomAvailabilityHoldPo::getBookingId, bookingId)
+                .eq(HotelRoomAvailabilityHoldPo::getStatus, status));
     }
 
     /** 每日房价优先，未配置时回退房价计划基础价。 */
@@ -450,9 +461,9 @@ public class HotelBookingApplicationService {
     @Scheduled(fixedDelay = 60_000L)
     @Transactional
     public void expireHolds() {
-        for (HotelInventoryHoldPo hold : holdMapper.selectExpired()) {
-            if (holdMapper.releaseExpired(hold.getId()) > 0) {
-                inventoryMapper.releaseHeld(hold.getTenantId(), hold.getStoreId(), hold.getRoomTypeId(),
+        for (HotelRoomAvailabilityHoldPo hold : availabilityHoldMapper.selectExpired()) {
+            if (availabilityHoldMapper.releaseExpired(hold.getId()) > 0) {
+                availabilityMapper.releaseHeld(hold.getTenantId(), hold.getStoreId(), hold.getRoomTypeId(),
                         hold.getStayDate(), hold.getRooms());
                 nightMapper.cancelHeldNights(hold.getBookingId());
                 bookingMapper.cancelPending(hold.getBookingId());
@@ -460,10 +471,11 @@ public class HotelBookingApplicationService {
         }
     }
 
-    private HotelInventoryPo inventory(TenantContext context, Long roomTypeId, LocalDate date) {        return inventoryMapper.selectOne(new LambdaQueryWrapper<HotelInventoryPo>()
-                .eq(HotelInventoryPo::getStoreId, context.storeId())
-                .eq(HotelInventoryPo::getRoomTypeId, roomTypeId)
-                .eq(HotelInventoryPo::getStayDate, date));
+    private HotelRoomAvailabilityPo availability(TenantContext context, Long roomTypeId, LocalDate date) {
+        return availabilityMapper.selectOne(new LambdaQueryWrapper<HotelRoomAvailabilityPo>()
+                .eq(HotelRoomAvailabilityPo::getStoreId, context.storeId())
+                .eq(HotelRoomAvailabilityPo::getRoomTypeId, roomTypeId)
+                .eq(HotelRoomAvailabilityPo::getStayDate, date));
     }
 
     private HotelBookingPo requireBooking(Long id, TenantContext context) {

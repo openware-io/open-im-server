@@ -17,16 +17,21 @@ import org.springframework.stereotype.Repository;
  * <p><b>只追加</b>：本适配器只有 {@code insert} 一条写路径，没有 {@code updateById}/{@code deleteById}
  * ——库存流水是账目，事后改一条会让成本追溯与幂等重放失去依据（端口形状保证的结构属性，不是约定）。
  *
- * <p><b>列集合只来自真实 DDL</b>（{@code ord_inventory_transaction}）：id / tenant_id / store_id /
- * material_id / transaction_type / quantity_delta / quantity_before / quantity_after / unit_cost / total_cost /
- * currency_code / source_type / source_id / idempotency_key / reason / created_by / created_at /
- * updated_by / updated_at。持久化对象上没有 {@code @TableField(exist = false)} 字段——逐字段核对过，
+ * <p><b>列集合只来自真实 DDL</b>（{@code ord_inventory_transaction} + V24/V25）：id / tenant_id /
+ * organization_id / business_type / store_id / warehouse_id / material_id / transaction_type /
+ * quantity_delta / quantity_before / quantity_after / unit_cost / total_cost / currency_code /
+ * source_type / source_id / idempotency_key / reason / created_by / created_at / updated_by /
+ * updated_at。持久化对象上没有 {@code @TableField(exist = false)} 字段——逐字段核对过，
  * 因此这里不需要像物料适配器那样跳过展示字段。
  *
  * <p><b>审计列</b>：本表是追加型流水，{@code created_by}/{@code updated_by}/{@code updated_at} 是记账信息
  * （DDL 里 {@code updated_at} 由库的 {@code DEFAULT CURRENT_TIMESTAMP(3)} 填、{@code updated_by} 缺省 0），
  * 领域模型不承载它们，适配器也不写：迁移前的实现同样没写这三列。
  * {@code created_at}（发生时间）是真实业务时间列，在领域模型上，适配器只在其为 {@code null} 时兜底为当前时刻。
+ *
+ * <p><b>作用域（V24/V25）</b>：{@code organization_id/business_type/warehouse_id} 随流水一起落库；
+ * 分页查询按 {@link TransactionQuery} 里的门店 + 业态（+ 可选仓库/组织）过滤，保证酒店与 KTV 的流水
+ * 不串。
  */
 @Repository
 public class InventoryTransactionRepositoryAdapter implements InventoryTransactionRepository {
@@ -84,6 +89,10 @@ public class InventoryTransactionRepositoryAdapter implements InventoryTransacti
     return Wrappers.<InventoryTransactionPo>lambdaQuery()
         .eq(InventoryTransactionPo::getTenantId, query.tenantId())
         .eq(InventoryTransactionPo::getStoreId, query.storeId())
+        // 作用域（V24/V25）：业态是必需段；仓库/组织在指定时参与过滤，未指定则覆盖门店下全部仓。
+        .eq(query.businessType() != null, InventoryTransactionPo::getBusinessType, query.businessType())
+        .eq(query.organizationId() != null, InventoryTransactionPo::getOrganizationId, query.organizationId())
+        .eq(query.warehouseId() != null, InventoryTransactionPo::getWarehouseId, query.warehouseId())
         .eq(query.materialId() != null, InventoryTransactionPo::getMaterialId, query.materialId())
         .eq(query.transactionType() != null, InventoryTransactionPo::getTransactionType, query.transactionType())
         .eq(query.sourceType() != null, InventoryTransactionPo::getSourceType, query.sourceType())
@@ -100,7 +109,10 @@ public class InventoryTransactionRepositoryAdapter implements InventoryTransacti
     InventoryTransactionPo po = new InventoryTransactionPo();
     po.setId(transaction.id());
     po.setTenantId(transaction.tenantId());
+    po.setOrganizationId(transaction.organizationId());
+    po.setBusinessType(transaction.businessType());
     po.setStoreId(transaction.storeId());
+    po.setWarehouseId(transaction.warehouseId());
     po.setMaterialId(transaction.materialId());
     po.setTransactionType(transaction.transactionType());
     po.setQuantityDelta(transaction.quantityDelta());
@@ -123,9 +135,10 @@ public class InventoryTransactionRepositoryAdapter implements InventoryTransacti
     if (po == null) {
       return null;
     }
-    return new InventoryTransaction(po.getId(), po.getTenantId(), po.getStoreId(), po.getMaterialId(),
-        po.getTransactionType(), po.getQuantityDelta(), po.getQuantityBefore(), po.getQuantityAfter(),
-        po.getUnitCost(), po.getTotalCost(), po.getCurrencyCode(), po.getSourceType(), po.getSourceId(),
+    return new InventoryTransaction(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getBusinessType(),
+        po.getStoreId(), po.getWarehouseId(), po.getMaterialId(), po.getTransactionType(),
+        po.getQuantityDelta(), po.getQuantityBefore(), po.getQuantityAfter(), po.getUnitCost(),
+        po.getTotalCost(), po.getCurrencyCode(), po.getSourceType(), po.getSourceId(),
         po.getIdempotencyKey(), po.getReason(), po.getCreatedAt());
   }
 }
