@@ -126,7 +126,7 @@ POST /business/hotel/bookings/{id}/housekeeping-requests
 ```
 
 只创建 `STAYOVER / CUSTOMER / PENDING` 任务，同一预订未完成任务幂等返回；不会把在住房间标成 DIRTY。
-完整状态机与前端展示规则见 [房态与清扫状态模型](../../40-domain/hotel/HOTEL_ROOM_STATE_MODEL.md)。
+完整状态机与前端展示规则见 [房态与清扫状态模型](../../../40-domain/hotel/HOTEL_ROOM_STATE_MODEL.md)。
 
 ## 酒店前台房态卡字段
 
