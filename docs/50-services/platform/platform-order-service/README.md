@@ -126,6 +126,7 @@ POST /business/hotel/bookings/{id}/housekeeping-requests
 ```
 
 只创建 `STAYOVER / CUSTOMER / PENDING` 任务，同一预订未完成任务幂等返回；不会把在住房间标成 DIRTY。
+前台任务接口只把有真实 stay 的 `IN_HOUSE / DUE_OUT` 预订当作在住客人；历史导入的“只有预订状态、没有 stay/folio”数据不会进入前台任务，避免点账单时出现 `FOLIO_NOT_FOUND`。
 完整状态机与前端展示规则见 [房态与清扫状态模型](../../../40-domain/hotel/HOTEL_ROOM_STATE_MODEL.md)。
 
 ## 酒店前台房态卡字段
