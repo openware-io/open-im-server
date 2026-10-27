@@ -294,7 +294,7 @@ public class StoreApplicationService {
      * <p>先判门店边界再查库：门店上下文是最便宜的一次比较，越权请求不必触达数据库。
      */
     public Store requireScopedStore(long tenantId, Long contextStoreId, Long storeId) {
-        if (contextStoreId != null && !contextStoreId.equals(storeId)) {
+        if (contextStoreId != null && contextStoreId > 0 && !contextStoreId.equals(storeId)) {
             throw new ApiException(403, CODE_STORE_SCOPE_DENIED, "只能修改当前上下文门店的门店配置");
         }
         Long ownerTenantId = storeRepository.findOwnerTenantId(storeId)
