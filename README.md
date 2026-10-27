@@ -258,3 +258,4 @@ im-saas 文档
 - [41 Java 日志规范](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E 测试与验收规范](docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [50 权限与数据域规范](docs/80-development/standards/50_PERMISSION_AND_DATA_SCOPE.md)
