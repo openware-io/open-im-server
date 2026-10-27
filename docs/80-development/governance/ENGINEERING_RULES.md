@@ -134,6 +134,15 @@ common-services/
 - 禁止在 Windows PowerShell 批量改写源码、文档、配置时裸用 `Get-Content`、`Set-Content`、`Out-File`；必须显式指定 UTF-8 或按字节读取后按 UTF-8 解码
 - 仅当验证命令真实执行并通过后，才能声明“已修复”“已完成”“已通过”
 
+## 权限与数据域规范
+
+- 权限、门店作用域和业态边界的完整规则见 [50 权限与数据域规范](../standards/50_PERMISSION_AND_DATA_SCOPE.md)。
+- 业务控制器必须在服务端调用 `PermissionGuard.require(...)`；菜单/按钮隐藏不算授权。
+- `/admin/**`、`/business/**` 的门店参数由 `StoreScopeRequestFilter` 收敛；服务层不得在 `storeId` 为空时退化为全部门店。
+- 多业态接口必须调用 `BusinessScopeGuard.require(...)`；KTV 配置/预约不得被酒店或其它业态上下文调用。
+- 权限码必须在 Flyway 中声明并授权；新增业务必须补充无权限、跨门店、跨业态测试。
+- G55 `permission-access-control` 和 `AdminControllerPermissionCoverageTest` 是该规范的执行门禁，不得绕过。
+
 ## RocketMQ 生产规范
 
 - RocketMQ 资源命名、协议边界、可靠性、安全与变更门禁以 [12 RocketMQ 治理规范](../standards/12_ROCKETMQ_CONVENTIONS.md) 为准；已实现资源以 [MQ 资源台账](../../30-reference/mq/REGISTRY.md) 为唯一台账。
