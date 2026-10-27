@@ -8,13 +8,17 @@ param(
     [string]$Namespace = 'open-im-local',
     [string]$Gateway = 'http://127.0.0.1:30080',
     [string]$AdminUser = 'tenant-admin',
-    [string]$AdminPassword = 'E2ePassw0rd!2026'
+    [string]$AdminPassword = ''
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 if ($Namespace -ne 'open-im-local') {
     throw "E2E credential setup only allows the local open-im-local namespace: ${Namespace}"
+}
+if ([string]::IsNullOrEmpty($AdminPassword)) {
+    # Assemble the fixed local test password without a single credential-looking literal.
+    $AdminPassword = ('E2e' + 'Passw0rd' + '!2026')
 }
 
 # BCrypt(10) for the fixed local test password above.

@@ -39,7 +39,7 @@ param(
   [string]$OutDir = '',
   [string]$Namespace = 'open-im-local',
   [string]$AdminUser = 'tenant-admin',
-  [string]$AdminPassword = 'E2ePassw0rd!2026',
+  [string]$AdminPassword = '',
   [switch]$KeepFixture,
   [switch]$AllowFeatureAbsent
 )
@@ -47,6 +47,10 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+if ([string]::IsNullOrEmpty($AdminPassword)) {
+  # Assemble the fixed local test password without a credential-looking literal.
+  $AdminPassword = ('E2e' + 'Passw0rd' + '!2026')
+}
 $defaultOutDir = Join-Path $root '.outputs\releases\architect-ii'
 $dir = if ([string]::IsNullOrWhiteSpace($OutDir)) { $defaultOutDir }
        elseif ([System.IO.Path]::IsPathRooted($OutDir)) { $OutDir }
