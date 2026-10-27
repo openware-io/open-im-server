@@ -159,3 +159,22 @@ S4/S5 内部：/internal/iam/accounts/{accountId}/app-grants?tenantId=，/intern
 
 S6：/admin/iam/platform/role-bindings 平台 ACCOUNT 角色授予/撤销；旧 iam_user_role 已归档，旧写 410。
 
+## 2.4.0 领域重构：权限拆分与演示种子
+
+| 迁移 | 内容 |
+| --- | --- |
+| `V29__hotel_room_permissions.sql` | 新增 `hotel.room.view/manage`、`hotel.housekeeping.manage`、`hotel.room.availability.view/manage`，并授予店长/租户 owner（收银/主管授房态查看与清扫） |
+| `V31__permission_hardening.sql` | 新增 `hotel.folio.view/manage`、`hotel.housekeeping.view`、`inventory.view/manage`；把持有旧 `hotel.inventory.manage` 与细分 inventory 码的角色映射到新码（含自定义租户角色） |
+| `V32__demo_hotel_store.sql` | 清库 Kind 演示数据：同一租户/组织下 HOTEL 门店 `102`、HOTEL 业态权益与门店经理绑定 |
+
+权限拆分口径：
+
+```text
+hotel.room.* / hotel.housekeeping.* / hotel.room.availability.*
+hotel.booking.* / hotel.folio.* / inventory.* / ktv.session.*
+```
+
+`hotel.inventory.manage` 不再作为访问条件（代码已无引用）；其角色授权由 `V31` 迁移到新码，
+权限本身保留到收口迁移再停用（先删 `iam_role_permission`，再置 `DISABLED`，不物理删除）。
+库存是酒店/KTV 共用的通用域，不按业态建独立权限树；`inventory.view/manage` 受签名门店上下文约束。
+

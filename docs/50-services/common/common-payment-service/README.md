@@ -32,6 +32,20 @@
 - 外部 HTTP：`common-payment-channel-service`（渠道 SPI，组合收款 / 回调 / 查询）
 - Redis：无
 
+## 订单交易状态落账（2.4.0）
+
+组合收款与退款直接落 `ord_order` 的交易事实列（收口前仍双写兼容列 `status`）：
+
+- 收款 `markPaid`：全额收款 `trade_status = PAID`，部分收款 `PENDING_PAYMENT`（金额看 `paid_amount`）；
+  `status` 兼容列按“足额即 COMPLETED”双写；
+- 退款 `markRefunded`：`refund_status` 退到已收归零为 `FULL`，否则 `PARTIAL`（赋值先于 `paid_amount` 回冲，
+  避免用已回冲金额误判全额）；
+- 守卫以 `trade_status` 排除 `CANCELLED` / `VOIDED` / `COMPLETED`；取消与作废分开统计，
+  作废单不再参与收款/退款落账。
+
+订单主表契约见
+[订单/房态/房量/商品库存目标契约](../../../40-domain/architecture/ORDER_ROOM_INVENTORY_TARGET.md)。
+
 ## 关键指标
 
 - 收款 / 退款吞吐与错误率
