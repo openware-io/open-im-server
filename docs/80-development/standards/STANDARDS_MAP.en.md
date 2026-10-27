@@ -48,6 +48,7 @@ Numbers are a **classification index**, not a dependency graph. Dependencies are
 | 41 | [Java logging](41_JAVA_LOGGING_CONVENTIONS.en.md) | L2 | quality | G06, G07, G08, G37 | active |
 | 42 | [Logging outputs](42_LOGGING_AND_OUTPUTS.en.md) | L2 | quality | G07, G37 | active |
 | 43 | [E2E testing](43_E2E_TESTING_CONVENTIONS.en.md) | L2 | quality | G39 | active |
+| 50 | [Permission and data scope](50_PERMISSION_AND_DATA_SCOPE.en.md) | L1 | security | G55 | active |
 
 ## 3. Coverage matrix
 

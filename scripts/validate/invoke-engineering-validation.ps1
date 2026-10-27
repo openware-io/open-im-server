@@ -95,6 +95,7 @@ $validators = @(
   @{ Name = 'standards-governance'; Arguments = @() },
   @{ Name = 'repository-hygiene'; Arguments = @() },
   @{ Name = 'tenant-sql'; Arguments = @() },
+  @{ Name = 'permission-access-control'; Arguments = @() },
   @{ Name = 'gate-registry'; Arguments = @() },
   @{ Name = 'currency-symbols'; Arguments = @() },
   @{ Name = 'currency-defaults'; Arguments = @() },

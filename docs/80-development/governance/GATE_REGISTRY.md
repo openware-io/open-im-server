@@ -69,6 +69,7 @@
 | G52 | docs-impact | validate-docs-impact.ps1 | blocking | 高风险代码变更必须伴随对应文档变更 |
 | G53 | domain-map | validate-domain-map.ps1 | blocking | 业务域类型、Owner、模块、依赖与服务覆盖 |
 | G54 | frontend-ui-standard | validate-frontend-ui-standard.ps1 | blocking | B/C UI tokens、页面骨架、禁用旧接口 |
+| G55 | permission-access-control | validate-permission-access-control.ps1 | blocking | 后台控制器权限守卫、门店过滤器、业态边界与权限码入库 |
 
 ## 已批准例外
 

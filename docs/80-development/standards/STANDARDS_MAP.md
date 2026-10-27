@@ -48,6 +48,7 @@
 | 41 | [Java 日志规范](41_JAVA_LOGGING_CONVENTIONS.md) | L2 | quality | G06, G07, G08, G37 | active |
 | 42 | [日志输出与诊断规范](42_LOGGING_AND_OUTPUTS.md) | L2 | quality | G07, G37 | active |
 | 43 | [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md) | L2 | quality | G39 | active |
+| 50 | [权限与数据域规范](50_PERMISSION_AND_DATA_SCOPE.md) | L1 | security | G55 | active |
 
 ## 3. 覆盖矩阵
 

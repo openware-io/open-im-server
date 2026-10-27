@@ -71,6 +71,12 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 42 | [Logging outputs](42_LOGGING_AND_OUTPUTS.en.md) | Output locations, diagnostics and troubleshooting |
 | 43 | [E2E testing](43_E2E_TESTING_CONVENTIONS.en.md) | Smoke, real devices, acceptance and credentials |
 
+## 50–59 Security and compliance
+
+| ID | Standard | Scope |
+| --- | --- | --- |
+| 50 | [Permission and data scope](50_PERMISSION_AND_DATA_SCOPE.en.md) | Functional permissions, store scope, business-type boundaries, controller audit and G55 |
+
 ## Related
 
 - [Documentation center](../../README.en.md)

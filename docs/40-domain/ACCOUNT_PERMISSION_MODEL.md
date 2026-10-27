@@ -72,6 +72,15 @@
   → 业务层按 permissions 判定（无权限即拒绝/脱敏）
 ```
 
+### 7.1 服务端强制规则
+
+- 菜单/按钮隐藏不是授权；业务控制器必须调用 `PermissionGuard.require(...)`。
+- 门店接口由 `StoreScopeRequestFilter` 收敛 `storeId/storeIds`；跨店 403。
+- 多业态接口必须调用 `BusinessScopeGuard.require(...)`；KTV 配置/预约不允许酒店上下文调用。
+- 权限码必须在 Flyway 中声明并授权；未入库的权限码不能只在代码里使用。
+
+完整规范与接入清单见[权限与数据域规范](../80-development/standards/50_PERMISSION_AND_DATA_SCOPE.md)，由 G55 门禁和 `AdminControllerPermissionCoverageTest` 强制。
+
 ## 8. 表关系速查
 
 - 集团账号：`group_account`（管理域）。
