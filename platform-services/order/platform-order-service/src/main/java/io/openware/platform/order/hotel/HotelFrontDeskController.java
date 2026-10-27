@@ -2,6 +2,7 @@ package io.openware.platform.order.hotel;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -32,7 +33,10 @@ public class HotelFrontDeskController {
 
     @GetMapping("/tasks")
     public List<BookingView> tasks() {
-        return service.tasks().stream().map(booking -> BookingView.from(booking, service.hasStay(booking.getId()))).toList();
+        return service.tasks().stream()
+                .map(booking -> BookingView.from(booking, service.currentStay(booking.getId()),
+                        service.currentFolio(booking.getId())))
+                .toList();
     }
 
     @PostMapping("/bookings/{id}/checkin")
@@ -102,12 +106,27 @@ public class HotelFrontDeskController {
                               String bookingNo, String guestName, Long roomTypeId, String roomType, String roomNo,
                               LocalDate checkInDate, LocalDate checkOutDate, String status,
                               Long amountMinor, Long depositOrderId, Long depositAmountMinor,
-                              boolean hasStay, String currency) {
+                              boolean hasStay, String currency,
+                              Integer nights, Integer rooms, String guestPhone, String source,
+                              LocalDateTime checkInAt, LocalDateTime checkOutAt, String stayStatus,
+                              Long folioChargeMinor, Long folioPaidMinor, String folioStatus) {
         static BookingView from(HotelBookingPo po, boolean hasStay) {
+            return from(po, hasStay, null, null);
+        }
+
+        static BookingView from(HotelBookingPo po, HotelStayPo stay, HotelFolioPo folio) {
+            return from(po, stay != null, stay, folio);
+        }
+
+        private static BookingView from(HotelBookingPo po, boolean hasStay, HotelStayPo stay, HotelFolioPo folio) {
             return new BookingView(po.getId(), po.getBookingNo(), po.getGuestName(), po.getRoomTypeId(),
                     po.getRoomType(), po.getRoomNo(), po.getCheckInDate(), po.getCheckOutDate(),
                     po.getStatus(), po.getAmountMinor(), po.getDepositOrderId(), po.getDepositAmountMinor(),
-                    hasStay, po.getCurrency());
+                    hasStay, po.getCurrency(), po.getNights(), po.getRooms(), po.getGuestPhone(), po.getSource(),
+                    stay == null ? null : stay.getCheckInAt(), stay == null ? null : stay.getCheckOutAt(),
+                    stay == null ? null : stay.getStatus(),
+                    folio == null ? null : folio.getChargeMinor(), folio == null ? null : folio.getPaidMinor(),
+                    folio == null ? null : folio.getStatus());
         }
     }
 }

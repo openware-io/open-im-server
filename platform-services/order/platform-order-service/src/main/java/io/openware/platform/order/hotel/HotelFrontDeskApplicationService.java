@@ -15,10 +15,13 @@ public class HotelFrontDeskApplicationService {
 
     private final HotelBookingMapper mapper;
     private final HotelStayMapper stayMapper;
+    private final HotelFolioMapper folioMapper;
 
-    public HotelFrontDeskApplicationService(HotelBookingMapper mapper, HotelStayMapper stayMapper) {
+    public HotelFrontDeskApplicationService(HotelBookingMapper mapper, HotelStayMapper stayMapper,
+                                            HotelFolioMapper folioMapper) {
         this.mapper = mapper;
         this.stayMapper = stayMapper;
+        this.folioMapper = folioMapper;
     }
 
     public List<HotelBookingPo> tasks() {
@@ -33,9 +36,25 @@ public class HotelFrontDeskApplicationService {
 
     /** 是否已有在住记录；历史预订没有 stay，前台不应显示可退房。 */
     public boolean hasStay(Long bookingId) {
-        return stayMapper.selectCount(new LambdaQueryWrapper<HotelStayPo>()
+        return currentStay(bookingId) != null;
+    }
+
+    /** 当前在住记录：房态卡展示实际入住时间、离店时间和入住时长。 */
+    public HotelStayPo currentStay(Long bookingId) {
+        return stayMapper.selectOne(new LambdaQueryWrapper<HotelStayPo>()
                 .eq(HotelStayPo::getBookingId, bookingId)
-                .eq(HotelStayPo::getStatus, "IN_HOUSE")) > 0;
+                .eq(HotelStayPo::getStatus, "IN_HOUSE")
+                .orderByDesc(HotelStayPo::getId)
+                .last("LIMIT 1"));
+    }
+
+    /** 当前账单摘要：房态卡只展示应收/已收，不把账单明细塞进列表接口。 */
+    public HotelFolioPo currentFolio(Long bookingId) {
+        return folioMapper.selectOne(new LambdaQueryWrapper<HotelFolioPo>()
+                .eq(HotelFolioPo::getBookingId, bookingId)
+                .eq(HotelFolioPo::getStatus, "OPEN")
+                .orderByDesc(HotelFolioPo::getId)
+                .last("LIMIT 1"));
     }
 
     @Transactional
