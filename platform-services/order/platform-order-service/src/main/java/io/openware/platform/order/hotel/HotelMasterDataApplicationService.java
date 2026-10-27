@@ -56,12 +56,31 @@ public class HotelMasterDataApplicationService {
         po.setStoreId(context.storeId());
         po.setName(name.trim());
         po.setAddress(address);
-        po.setCoverImageUrl(coverImageUrl);
+        po.setCoverImageUrl(normalizeCoverImageUrl(coverImageUrl));
         po.setTimezone(timezone == null || timezone.isBlank() ? "Asia/Shanghai" : timezone);
         po.setCheckInTime(checkInTime == null ? "14:00" : checkInTime);
         po.setCheckOutTime(checkOutTime == null ? "12:00" : checkOutTime);
         po.setStatus("ACTIVE");
         return persist(po);
+    }
+
+    /**
+     * 酒店封面只保存媒体服务返回的相对地址或 HTTPS 地址；空值表示使用产品默认封面。
+     * 尺寸/比例由前台图片编辑器先校验，后端负责 URL 形态与长度，避免脏值进入主数据。
+     */
+    private static String normalizeCoverImageUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim();
+        if (normalized.length() > 512) {
+            throw new ApiException(400, "HOTEL_COVER_INVALID", "酒店封面 URL 不能超过 512 个字符");
+        }
+        if (normalized.startsWith("//") || normalized.toLowerCase().startsWith("javascript:")) {
+            throw new ApiException(400, "HOTEL_COVER_INVALID", "酒店封面 URL 非法");
+        }
+        if (!normalized.startsWith("/") && !normalized.startsWith("https://")) {
+            throw new ApiException(400, "HOTEL_COVER_INVALID", "酒店封面必须是上传后的相对地址或 HTTPS 地址");
+        }
+        return normalized;
     }
 
     public List<HotelRoomTypePo> roomTypes(Long hotelId) {

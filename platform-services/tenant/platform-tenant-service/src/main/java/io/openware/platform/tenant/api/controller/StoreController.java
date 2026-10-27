@@ -44,6 +44,13 @@ public class StoreController {
         return storeService.list(status).stream().map(StoreConverter::toView).toList();
     }
 
+    /** 修改门店 Logo；空值恢复默认图。 */
+    @PutMapping("/{id}/logo")
+    public StoreView updateLogo(@PathVariable Long id, @RequestBody(required = false) LogoRequest request) {
+        return StoreConverter.toView(storeService.updateLogoWithAudit(id,
+                request == null ? null : request.logoUrl()));
+    }
+
     /** 修改门店时区 / 营业日切点 / 业态（权限 + 门店/租户边界 + 校验 + 审计）。 */
     @PutMapping("/{id}")
     public StoreView update(@PathVariable Long id, @RequestBody(required = false) UpdateStoreRequest request) {
@@ -60,6 +67,9 @@ public class StoreController {
      * @param businessDayCutoff  营业日切点，{@code HH:mm} 或 {@code HH:mm:ss}，取值 {@code 00:00}–{@code 12:00}
      * @param businessType       ACTIVE 业态编码，例如 {@code KTV}
      */
+    public record LogoRequest(String logoUrl) {
+    }
+
     public record UpdateStoreRequest(String timezone, String businessDayCutoff, String businessType) {
         public UpdateStoreRequest(String timezone, String businessDayCutoff) {
             this(timezone, businessDayCutoff, null);

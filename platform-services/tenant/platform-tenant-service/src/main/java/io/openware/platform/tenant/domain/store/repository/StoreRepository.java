@@ -61,6 +61,9 @@ public interface StoreRepository {
   boolean updateSchedule(Long storeId, String timezone, String businessDayCutoff, String businessType,
                          Long operatorId);
 
+  /** 只更新门店 Logo URL（空值用于恢复默认）；返回是否更新到一行。 */
+  boolean updateLogo(Long storeId, String logoUrl, Long operatorId);
+
   /**
    * 校验业态编码是否存在于**启用的**业态字典中，命中时返回字典里的规范编码。
    *

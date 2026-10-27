@@ -1,8 +1,12 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.PermissionGuard;
+import io.openware.platform.tenant.application.TenantBrandingApplicationService;
+import io.openware.platform.tenant.application.TenantBrandingApplicationService.TenantBranding;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService;
 import io.openware.platform.tenant.application.WalletTokenConfigApplicationService.TenantWalletTokenConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -25,9 +29,40 @@ import org.springframework.web.bind.annotation.*;
 public class TenantConfigController {
 
     private final WalletTokenConfigApplicationService walletTokenConfigService;
+    private final TenantBrandingApplicationService brandingService;
 
-    public TenantConfigController(WalletTokenConfigApplicationService walletTokenConfigService) {
+    @Autowired
+    public TenantConfigController(WalletTokenConfigApplicationService walletTokenConfigService,
+                                  TenantBrandingApplicationService brandingService) {
         this.walletTokenConfigService = walletTokenConfigService;
+        this.brandingService = brandingService;
+    }
+
+    /** 兼容既有单测/只装配钱包配置的调用方。 */
+    public TenantConfigController(WalletTokenConfigApplicationService walletTokenConfigService) {
+        this(walletTokenConfigService, null);
+    }
+
+    /** 当前租户 Logo；空字符串表示使用产品默认图。 */
+    @GetMapping("/branding")
+    public TenantBranding branding() {
+        if (brandingService == null) {
+            throw new IllegalStateException("tenant branding service is not configured");
+        }
+        return brandingService.get();
+    }
+
+    /** 替换当前租户 Logo；空值恢复默认。 */
+    @PutMapping("/branding")
+    public TenantBranding updateBranding(@RequestBody(required = false) BrandingRequest request) {
+        PermissionGuard.require("tenant.tenant.manage");
+        if (brandingService == null) {
+            throw new IllegalStateException("tenant branding service is not configured");
+        }
+        return brandingService.update(request == null ? null : request.logoUrl());
+    }
+
+    public record BrandingRequest(String logoUrl) {
     }
 
     /**

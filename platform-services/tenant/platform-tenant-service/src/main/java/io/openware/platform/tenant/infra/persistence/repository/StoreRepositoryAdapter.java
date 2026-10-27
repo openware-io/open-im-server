@@ -71,6 +71,15 @@ public class StoreRepositoryAdapter implements StoreRepository {
   }
 
   @Override
+  public boolean updateLogo(Long storeId, String logoUrl, Long operatorId) {
+    return mapper.update(null, Wrappers.<StorePo>lambdaUpdate()
+        .eq(StorePo::getId, storeId)
+        .set(StorePo::getLogoUrl, logoUrl)
+        .set(StorePo::getUpdatedBy, operatorId)
+        .set(StorePo::getUpdatedAt, LocalDateTime.now())) > 0;
+  }
+
+  @Override
   public String findActiveBusinessTypeCode(String businessType) {
     return mapper.selectActiveBusinessType(businessType);
   }
@@ -79,6 +88,6 @@ public class StoreRepositoryAdapter implements StoreRepository {
     return new Store(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getCode(), po.getName(),
         po.getBusinessType(), po.getCountryCode(), po.getRegionCode(), po.getTimezone(),
         po.getDefaultCurrency(), po.getLocale(), po.getTaxProfileId(), po.getBusinessDayCutoff(),
-        po.getStatus());
+        po.getStatus(), po.getLogoUrl());
   }
 }
