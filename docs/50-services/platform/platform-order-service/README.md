@@ -273,6 +273,7 @@ POST /me/reservations      # 当前会员创建 KTV 预约，Idempotency-Key 幂
 
 - `POST /me/reservations` 只接受 `roomTypeId/startAt/endAt/partySize/contact`；
   租户、门店、业态从签名消费者上下文派生，`customerId` 从当前会员派生，客户端不能指定。
+  历史消费者上下文未携带 `businessType` 时，该 C 端 KTV 预约入口按 `KTV` 处理。
 - 权限：`reservation.create`；列表不额外要求权限，按当前会员过滤。
 - 返回体与 B 端预约视图一致；到店后由门店分配具体包厢，C 端创建时不锁定包厢。
 
