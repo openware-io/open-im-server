@@ -31,7 +31,8 @@ SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），�
 ## 当前接口
 
 - GET /admin/backends — 返回当前账号可访问后台列表（脚手架暂返回全部三类：im / platform / tenant，后续按 IAM 权限过滤）。
-- GET /admin/menus?scope=PLATFORM|TENANT — 返回对应后台菜单树（脚手架静态，后续按角色 + 权限码过滤）。
+- GET /admin/menus?scope=PLATFORM|TENANT — 返回对应后台菜单树；当前实现从 `iam_menu` 读取并按签名运营上下文做作用域/业态/权限剪枝。
+  业务专属菜单（如 KTV 配置）只在 `businessType` 匹配的上下文中出现；租户总部（storeId=0、无 businessType）不显示，避免打开「当前门店不支持该业务操作」页面。
 
 门店设置与租户设置不是空菜单：`store.settings` 指向 `/admin/store/settings`，`tenant.settings`
 指向 `/admin/tenant/settings`；页面分别维护门店级与租户级品牌/配置。对应菜单路径由
