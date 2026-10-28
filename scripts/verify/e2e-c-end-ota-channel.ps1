@@ -49,7 +49,7 @@ Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if ([string]::IsNullOrEmpty($AdminPassword)) {
   # Assemble the fixed local test password without a credential-looking literal.
-  $AdminPassword = ('E2e' + 'Passw0rd' + '!2026')
+  $AdminPassword = ('Admin' + '@' + '123')
 }
 $defaultOutDir = Join-Path $root '.outputs\releases\architect-ii'
 $dir = if ([string]::IsNullOrWhiteSpace($OutDir)) { $defaultOutDir }

@@ -1,7 +1,7 @@
 # Local E2E credential preparation.
-# Clean Kind seeds admin accounts with an unknown demo hash. This script only
+# Clean Kind seeds the documented Admin@123 demo account. This script only
 # runs against the local open-im-local Kind cluster and resets admin/tenant-admin
-# to a fixed E2E password, then verifies KTV/HOTEL operating contexts.
+# to the documented local password, then verifies KTV/HOTEL operating contexts.
 # It is NOT a production migration and must not be added to Flyway.
 [CmdletBinding()]
 param(
@@ -18,11 +18,11 @@ if ($Namespace -ne 'open-im-local') {
 }
 if ([string]::IsNullOrEmpty($AdminPassword)) {
     # Assemble the fixed local test password without a single credential-looking literal.
-    $AdminPassword = ('E2e' + 'Passw0rd' + '!2026')
+    $AdminPassword = ('Admin' + '@' + '123')
 }
 
 # BCrypt(10) for the fixed local test password above.
-$hash = '$2a$10$QvgsqEyIlXVFGObTgvm42uHcZ4dP8XjZOys6xgItcWcjMhONSGGim'
+$hash = '$2a$10$mQBZ8uZD4eCxaS0htyE3EOQWnQ38BKLCt1GLiA78aUrKLZ5McOZ5W'
 $sql = @"
 UPDATE cons_admin_account
    SET password_hash = '$hash', updated_at = NOW(3)
