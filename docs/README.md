@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > 维护范围：`D:\projects\cnb-oss` 下的 im-saas 产品仓库与 `open-im-server` 工程文档  
-> 当前阶段：`develop/2.3.0` 开发中（最近阶段 tag `2.2.1`）  
+> 当前阶段：`main` / 2.4.1 开发迭代中（当前无发布 tag）  
 > 语言约定：面向工程决策和交付的顶层文档提供中英双语；历史审计/renovation 记录只做归档标注，不追写双语。
 > 常用入口：[门禁清单](80-development/governance/GATE_REGISTRY.md) · [门禁目录](80-development/governance/GATE_CATALOG.md) · [工程标准版图](80-development/standards/STANDARDS_MAP.md) · [架构图集](20-architecture/diagrams/README.md) · [部署索引](60-deployment/README.md)
 
@@ -97,6 +97,8 @@ docs/
 | 文档 | 关系 |
 | --- | --- |
 | [参与贡献](80-development/contributing/README.md) | 提交前检查与协作流程 |
+| [2.4.1 本地现状交接](80-development/HANDOFF_2.4.1.md) | 菜单权限修复、账号、部署与门禁交接 |
+| [2.4.1 严格合规审计](80-development/AUDIT_2.4.1_STRICT.md) | 架构/DB/文档/门禁审查结论与整改项 |
 | [工程规范](80-development/governance/ENGINEERING_RULES.md) | 研发、评审与门禁规则 |
 | [工程规范审计](80-development/governance/ENGINEERING_STANDARDS_AUDIT_2026-10-26.md) | 本轮 A380/SaaS 规范审查结论 |
 | [工程仓库与分支](80-development/governance/ENGINEERING_REPOSITORIES.md) | 全工程仓库范围、统一版本分支与一致性检查 |

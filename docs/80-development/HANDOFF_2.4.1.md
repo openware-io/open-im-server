@@ -112,8 +112,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify\run-e2e-dom
 
 ## 7. 遗留/下一轮建议
 
-1. **tag 与 main 对齐**：升 2.4.2 后重打 tag；不要把已推送的 `v2.4.1` 强移。
-2. **clean Kind 重发**：当前 admin 是 scoped 热更，其他服务是 b9d 发布镜像；若要一次性发布 2.4.2，需重新 build full manifest + 清库部署。
+1. **不要自行打 tag**：当前无 tag；下一次正式发布必须由用户明确版本号与 tag 名，Agent/CI 不得自动补 tag 或强推。
+2. **clean Kind 重发**：当前 admin 是 scoped 热更，其他服务是 b9d 发布镜像；若要一次性清库重发，需重新 build full manifest，版本按用户确认的 PATCH 号。
 3. **未跟踪 ADR**：`docs/20-architecture/adr/0016-organization-management-boundary.md` 仍是 untracked，接手时决定是否合入。
 4. **额外账号**：`platform-operator` / `store-manager` / `ktv-manager` 未 seed；需要时再建，并绑定角色/门店上下文。
 5. 菜单修复后只跑了目标测试 + 全量门禁，未重跑整套 E2E；下轮 clean deploy 后建议跑一次 `run-e2e-domain.ps1` 确认。

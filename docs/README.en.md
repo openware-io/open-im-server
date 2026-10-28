@@ -3,7 +3,7 @@
 [中文](README.md) | [English](README.en.md)
 
 > Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` engineering docs.
-> Stage: `develop/2.3.0` in development (latest stage tag `2.2.1`).
+> Stage: `main` / 2.4.1 development iteration (no release tag yet).
 > Language: top-level engineering and delivery docs are bilingual; historical audits/renovation stay Chinese-only with archive metadata.
 > Quick links: [Gate registry](80-development/governance/GATE_REGISTRY.md) · [Gate catalog](80-development/governance/GATE_CATALOG.en.md) · [Standards map](80-development/standards/STANDARDS_MAP.en.md) · [Architecture diagrams](20-architecture/diagrams/README.en.md) · [Deployment index](60-deployment/README.md)
 

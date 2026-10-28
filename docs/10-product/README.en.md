@@ -102,6 +102,6 @@ One-click deploy → website/C-end → SaaS admin → engineering topology → s
 ## 8. Project status
 
 - Development branch: `main`
-- Latest stage tag: `v2.4.1`
+- Latest stage tag: none (2.4.1 is a development iteration; no release tag)
 - License: Apache License 2.0
 - Documentation: [Documentation center](../README.en.md)
