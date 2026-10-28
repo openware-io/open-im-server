@@ -37,6 +37,11 @@ class RefundApplicationServiceTest {
     when(refundRepository.updateStatusGuarded(org.mockito.ArgumentMatchers.any(Refund.class),
         org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
         .thenAnswer(inv -> java.util.Optional.of(persisted(inv.getArgument(0))));
+    when(refundRepository.findByRequestId(org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyString())).thenReturn(java.util.Optional.empty());
+    when(refundRepository.findDuplicateCandidate(org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(java.util.Optional.empty());
   }
 
   @Test
@@ -106,6 +111,7 @@ class RefundApplicationServiceTest {
   @Test
   void requestRefund_snapshotsOrderCurrencyAsOriginalCurrency() {
     OrderBillingRepository orderBillingRepository = mock(OrderBillingRepository.class);
+    when(orderBillingRepository.findStoreId(1L, 9L)).thenReturn(java.util.Optional.of(77L));
     when(orderBillingRepository.findCurrencyCode(1L, 9L)).thenReturn(java.util.Optional.of("CNY"));
     RefundApplicationService serviceWithBilling =
         new RefundApplicationService(refundRepository, auditClient, orderBillingRepository);
@@ -120,8 +126,28 @@ class RefundApplicationServiceTest {
     Refund rejected = refund(1L, RefundApplicationService.STATUS_REJECTED, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(rejected)));
 
-    assertThrows(IllegalStateException.class,
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
+    assertEquals(409, error.getStatus());
+    assertEquals("REFUND_STATE_INVALID", error.getCode());
+  }
+
+  /**
+   * P0-A 回归：重复登记线下退款必须是可判定的 409，而不是 500；且不得再次执行状态迁移/回冲。
+   */
+  @Test
+  void markRefunded_duplicateAfterRefundedReturns409WithoutSecondMigration() {
+    Refund refunded = refund(1L, RefundApplicationService.STATUS_REFUNDED, new BigDecimal("50.00"));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(refunded)));
+
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.markRefunded(1L, "offline-refund-001", 9L));
+
+    assertEquals(409, error.getStatus());
+    assertEquals("REFUND_STATE_INVALID", error.getCode());
+    verify(refundRepository, org.mockito.Mockito.never()).updateStatusGuarded(
+        org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.any());
   }
 
   @Test
@@ -129,8 +155,10 @@ class RefundApplicationServiceTest {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
-    assertThrows(IllegalStateException.class,
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.markRefunded(1L, "x", 9L));
+    assertEquals(409, error.getStatus());
+    assertEquals("REFUND_STATE_INVALID", error.getCode());
   }
 
   @Test
@@ -138,16 +166,91 @@ class RefundApplicationServiceTest {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
-    assertThrows(IllegalStateException.class,
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.approveRefund(1L, new BigDecimal("60.00"), 8L));
+    assertEquals(422, error.getStatus());
+    assertEquals("REFUND_AMOUNT_EXCEEDS_REQUEST", error.getCode());
   }
 
   @Test
   void approveRefund_rejectsMissingRefund() {
     when(refundRepository.findById(999L)).thenReturn(java.util.Optional.empty());
 
-    assertThrows(IllegalStateException.class,
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.approveRefund(999L, new BigDecimal("50.00"), 8L));
+    assertEquals(404, error.getStatus());
+    assertEquals("REFUND_NOT_FOUND", error.getCode());
+  }
+
+  /** P0-B：同 Idempotency-Key 重放返回首次创建的退款单（同 id），不新建第二条。 */
+  @Test
+  void requestRefund_sameIdempotencyKeyReplaysExistingRow() {
+    Refund existing = refund(5L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
+    when(refundRepository.findByRequestId(1L, "idem-key-1"))
+        .thenReturn(java.util.Optional.of(persisted(existing)));
+
+    RefundDto result = service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L, "idem-key-1");
+
+    assertEquals(5L, result.id());
+    verify(refundRepository, org.mockito.Mockito.never()).insert(
+        org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any());
+  }
+
+  /** P0-B：同键不同 payload 必须 409，而不是静默返回不匹配的退款单。 */
+  @Test
+  void requestRefund_reusedKeyWithDifferentAmountConflicts() {
+    Refund existing = refund(5L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
+    when(refundRepository.findByRequestId(1L, "idem-key-2"))
+        .thenReturn(java.util.Optional.of(persisted(existing)));
+
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.requestRefund(1L, 77L, 9L, new BigDecimal("40.00"), "多收退款", 7L, "idem-key-2"));
+
+    assertEquals(409, error.getStatus());
+    assertEquals("IDEMPOTENCY_KEY_REUSED", error.getCode());
+    verify(refundRepository, org.mockito.Mockito.never()).insert(
+        org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any());
+  }
+
+  /** P0-B：不带幂等键时，同订单同金额已有退款单（PENDING/APPROVED/REFUNDED）→ 409 且不新建。 */
+  @Test
+  void requestRefund_duplicateActiveSameAmountConflictsWithoutInsert() {
+    Refund existing = refund(5L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
+    when(refundRepository.findDuplicateCandidate(1L, 9L, new BigDecimal("50.00")))
+        .thenReturn(java.util.Optional.of(persisted(existing)));
+
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "多收退款", 7L));
+
+    assertEquals(409, error.getStatus());
+    assertEquals("REFUND_DUPLICATE", error.getCode());
+    verify(refundRepository, org.mockito.Mockito.never()).insert(
+        org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any());
+  }
+
+  /** P0-B：前一条同额退款已 REFUNDED 时再次申请 → 409（不得新建"退款后退款"脏行）。 */
+  @Test
+  void requestRefund_duplicateAfterRefundedConflictsWithoutInsert() {
+    Refund refunded = refund(5L, RefundApplicationService.STATUS_REFUNDED, new BigDecimal("50.00"));
+    when(refundRepository.findDuplicateCandidate(1L, 9L, new BigDecimal("50.00")))
+        .thenReturn(java.util.Optional.of(persisted(refunded)));
+
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.requestRefund(1L, 77L, 9L, new BigDecimal("50.00"), "重复退款", 7L));
+
+    assertEquals(409, error.getStatus());
+    assertEquals("REFUND_DUPLICATE", error.getCode());
+    verify(refundRepository, org.mockito.Mockito.never()).insert(
+        org.mockito.ArgumentMatchers.any(Refund.class), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void requestRefund_rejectsNonPositiveAmount() {
+    io.openware.common.exception.ApiException error = assertThrows(io.openware.common.exception.ApiException.class,
+        () -> service.requestRefund(1L, 77L, 9L, BigDecimal.ZERO, "非法金额", 7L));
+
+    assertEquals(422, error.getStatus());
+    assertEquals("REFUND_AMOUNT_INVALID", error.getCode());
   }
 
   private static Refund refund(Long id, String status, BigDecimal requestedAmount) {
@@ -189,20 +292,20 @@ class RefundApplicationServiceTest {
     assertFalse(record.detailJson().contains("50"), record.detailJson());
   }
 
-  /** 审批通过失败（状态不是 PENDING）：FAILURE，errorCode 退化为异常类名。 */
+  /** 审批通过失败（状态不是 PENDING）：FAILURE，errorCode 取稳定业务码 REFUND_STATE_INVALID。 */
   @Test
   void approveRefund_writesFailureAudit() {
     Refund rejected = refund(1L, RefundApplicationService.STATUS_REJECTED, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(rejected)));
 
-    assertThrows(IllegalStateException.class,
+    assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.approve", record.action());
     assertEquals("退款审批通过", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
-    assertEquals("IllegalStateException", record.errorCode());
+    assertEquals("REFUND_STATE_INVALID", record.errorCode());
     assertEquals("1", record.resourceId());
     assertNull(record.idempotencyKey());
   }
@@ -213,13 +316,13 @@ class RefundApplicationServiceTest {
     Refund approved = refund(1L, RefundApplicationService.STATUS_APPROVED, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(approved)));
 
-    assertThrows(IllegalStateException.class, () -> service.rejectRefund(1L, 8L));
+    assertThrows(io.openware.common.exception.ApiException.class, () -> service.rejectRefund(1L, 8L));
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.reject", record.action());
     assertEquals("退款审批驳回", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
-    assertEquals("IllegalStateException", record.errorCode());
+    assertEquals("REFUND_STATE_INVALID", record.errorCode());
   }
 
   /** 线下退款登记失败（状态不是 APPROVED）：FAILURE，且详情不含线下退款单号。 */
@@ -228,14 +331,14 @@ class RefundApplicationServiceTest {
     Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
     when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
 
-    assertThrows(IllegalStateException.class,
+    assertThrows(io.openware.common.exception.ApiException.class,
         () -> service.markRefunded(1L, "offline-refund-001", 9L));
 
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.offline", record.action());
     assertEquals("线下退款登记", record.actionLabel());
     assertEquals(AuditClient.AuditRecord.RESULT_FAILURE, record.result());
-    assertEquals("IllegalStateException", record.errorCode());
+    assertEquals("REFUND_STATE_INVALID", record.errorCode());
     assertFalse(record.detailJson().contains("offline-refund-001"), record.detailJson());
   }
 
@@ -277,6 +380,20 @@ class RefundApplicationServiceTest {
     AuditClient.AuditRecord record = capturedAudit();
     assertEquals("payment.refund.offline", record.action());
     assertEquals(AuditClient.AuditRecord.RESULT_SUCCESS, record.result());
+  }
+
+  @Test
+  void approveRefund_rejectsNullStoreContext() {
+    Refund pending = refund(1L, RefundApplicationService.STATUS_PENDING, new BigDecimal("50.00"));
+    when(refundRepository.findById(1L)).thenReturn(java.util.Optional.of(persisted(pending)));
+    io.openware.infrastructure.tenant.TenantContextHolder.set(
+        new io.openware.infrastructure.tenant.TenantContext(1L, 1L, null, 0L, 0));
+    try {
+      assertThrows(io.openware.common.exception.ApiException.class,
+          () -> service.approveRefund(1L, new BigDecimal("50.00"), 8L));
+    } finally {
+      io.openware.infrastructure.tenant.TenantContextHolder.clear();
+    }
   }
 
   private static Persisted<Refund> persisted(Refund refund) {

@@ -2,6 +2,7 @@ package io.openware.platform.order.application;
 
 import io.openware.common.exception.BusinessException;
 import io.openware.platform.order.application.dto.BillResult;
+import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
 import io.openware.platform.order.domain.ktv.model.KtvRoundingDirection;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
@@ -117,7 +118,10 @@ public class BillApplicationService {
                 + serverLines.stream().mapToLong(BillResult.ServerLine::amount).sum();
         long discountMinor = promotions.stream().mapToLong(BillResult.PromotionLine::amount).sum();
 
-        return new BillResult(order.status(), order.currencyCode(), roomFee, itemLines, serverLines,
+        return new BillResult(order.trade().name(),
+                current == null ? null : current.state().name(),
+                OrderView.settlementStatusOf(order.trade(), order.refund()),
+                order.currencyCode(), roomFee, itemLines, serverLines,
                 promotions, subtotalMinor, discountMinor, toMinor(order.taxAmount()),
                 totalMinor, paidMinor, payableMinor, collected, change);
     }

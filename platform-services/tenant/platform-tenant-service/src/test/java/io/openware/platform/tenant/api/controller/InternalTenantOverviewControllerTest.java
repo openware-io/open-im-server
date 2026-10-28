@@ -55,7 +55,7 @@ class InternalTenantOverviewControllerTest {
     authenticated();
     TenantContextHolder.set(tenantContext());
     Store store = new Store(11L, 100L, 1L, "S11", "Main", "RETAIL", null, null, null, null, null, null,
-        null, Store.STATUS_ACTIVE);
+        null, Store.STATUS_ACTIVE, null);
     when(service.stores(100L, List.of(11L), "retail")).thenReturn(List.of(store));
 
     var response = controller.overview("11", "retail");

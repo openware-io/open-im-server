@@ -10,9 +10,17 @@ import java.util.List;
  * 「怎么算出来的」所需字段：包厢费的分项/块数/计费时长/暂停/标准时长/超时倍率/递增粒度/计价方案名，
  * 以及合计的构成（{@code subtotalAmount} 原价合计 − {@code discountAmount} 优惠 + {@code taxAmount} 税额
  * = {@code totalAmount} 合计）。**客户端不做任何金额算术**，只做展示与拼文案。
+ *
+ * <p><b>状态三字段</b>（目标契约 §4）：账单单据同时给出 {@code tradeStatus}/{@code sessionStatus}/
+ * {@code settlementStatus}；旧兼容列 {@code status} 已在收口迁移中删除，账单状态以 {@code tradeStatus} 为准。
  */
 public record BillResult(
-        String status,
+        // 交易状态（DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED）：账单单据状态以它为准。
+        String tradeStatus,
+        // KTV 会话状态（RESERVED/OPEN/PAUSED/CLOSED/CANCELLED）：开台中/已结台/已取消看它，不看 status。
+        String sessionStatus,
+        // 结算派生状态（UNSETTLED/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/REFUNDED/PARTIALLY_REFUNDED）。
+        String settlementStatus,
         String currencyCode,
         RoomFee roomFee,
         List<ItemLine> items,
@@ -76,6 +84,6 @@ public record BillResult(
     /** 4 优惠逐项：type ∈ {COUPON/DISCOUNT/FULL_REDUCTION/MEMBER_PRICE}。 */
     public record PromotionLine(String type, long amount) {}
 
-    /** 6 已收分项：现金（含线上渠道）/A380币/积分，来自 payment 域组合收款分腿；读不到时退回「已收合计记现金」。 */
+    /** 6 已收分项：现金（含线上渠道）/SaaS 币/积分，来自 payment 域组合收款分腿；读不到时退回「已收合计记现金」。 */
     public record Collected(long cash, long wallet, long points) {}
 }

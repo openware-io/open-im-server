@@ -63,7 +63,7 @@ class KtvBusinessHoursApplicationServiceTest {
     private void store(long storeId, String businessType) {
         when(stores.findById(storeId)).thenReturn(Optional.of(new Store(storeId, TENANT_ID, 1L, "S-" + storeId,
                 "store-" + storeId, businessType, "CN", null, "Asia/Shanghai", "CNY", "zh-CN", null,
-                "04:00:00", Store.STATUS_ACTIVE)));
+                "04:00:00", Store.STATUS_ACTIVE, null)));
         when(stores.findOwnerTenantId(storeId)).thenReturn(Optional.of(TENANT_ID));
     }
 

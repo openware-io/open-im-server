@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * 门店支付开关配置（KTV_BUSINESS_03_ADMIN §5）。
  * 对应 tnt_store_payment_config；线上渠道（支付宝/微信/Stripe）默认关闭，
- * 现金/A380币/积分不依赖渠道配置。
+ * 现金/SaaS 币/积分不依赖渠道配置。
  */
 public record PaymentSwitchConfig(
         Long id,

@@ -54,12 +54,12 @@ class TenantConfigControllerTest {
     withContext("tenant.tenant.manage");
     when(tenantConfigRepository.upsert(any(TenantConfig.class))).thenAnswer(i -> i.getArgument(0));
 
-    controller.update(new TenantConfigController.UpdateRequest(null, "A380币", 100));
+    controller.update(new TenantConfigController.UpdateRequest(null, "SaaS 币", 100));
 
     AuditClient.AuditRecord record = capturedAudit();
     assertThat(record.action()).isEqualTo("tenant.config.update");
     assertThat(record.tenantId()).isEqualTo(TENANT_ID);
-    assertThat(record.detailJson()).contains("\"brandName\":\"A380币\"").contains("\"ratio\":100");
+    assertThat(record.detailJson()).contains("\"brandName\":\"SaaS 币\"").contains("\"ratio\":100");
     assertThat(record.result()).isNotEqualTo(AuditClient.AuditRecord.RESULT_FAILURE);
   }
 
@@ -68,7 +68,7 @@ class TenantConfigControllerTest {
   void updateWithoutPermissionRecordsFailureAudit() {
     withContext();
 
-    assertThatThrownBy(() -> controller.update(new TenantConfigController.UpdateRequest(null, "A380币", 100)))
+    assertThatThrownBy(() -> controller.update(new TenantConfigController.UpdateRequest(null, "SaaS 币", 100)))
         .isInstanceOf(ApiException.class)
         .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo("PERMISSION_DENIED"));
 
@@ -85,7 +85,7 @@ class TenantConfigControllerTest {
     withContext("tenant.tenant.manage");
 
     assertThatThrownBy(() -> controller.update(
-        new TenantConfigController.UpdateRequest(200L, "A380币", 100)))
+        new TenantConfigController.UpdateRequest(200L, "SaaS 币", 100)))
         .isInstanceOf(ApiException.class)
         .satisfies(ex -> assertThat(((ApiException) ex).getCode()).isEqualTo("TENANT_SCOPE_DENIED"));
 
@@ -104,7 +104,7 @@ class TenantConfigControllerTest {
     when(tenantConfigRepository.upsert(any(TenantConfig.class)))
         .thenThrow(new IllegalStateException("数据库连接不可用"));
 
-    assertThatThrownBy(() -> controller.update(new TenantConfigController.UpdateRequest(null, "A380币", 100)))
+    assertThatThrownBy(() -> controller.update(new TenantConfigController.UpdateRequest(null, "SaaS 币", 100)))
         .isInstanceOf(IllegalStateException.class);
 
     AuditClient.AuditRecord record = capturedAudit();

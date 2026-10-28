@@ -43,9 +43,9 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
       "/api/v1/admin/pricing-plans", "/api/v1/admin/resources", "/api/v1/admin/refund-requests",
       "/api/v1/admin/daily-closings", "/api/v1/admin/reconciliations", "/api/v1/admin/payment-channels",
       "/api/v1/admin/payment-methods", "/api/v1/admin/ktv", "/api/v1/admin/reservations",
-      "/api/v1/admin/staff", "/api/v1/admin/reports", "/api/v1/admin/wallets",
+      "/api/v1/admin/staff", "/api/v1/admin/customers", "/api/v1/admin/reports", "/api/v1/admin/wallets",
       "/api/v1/admin/audits", "/api/v1/admin/channels", "/api/v1/admin/inventory",
-      "/api/v1/admin/products", "/api/v1/admin/orders", "/api/v1/admin/media"
+      "/api/v1/admin/products", "/api/v1/admin/orders", "/api/v1/admin/hotel", "/api/v1/admin/media"
   };
   private final ReactiveStringRedisTemplate redisTemplate;
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -85,6 +85,10 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
         // 下面每个分支都返回 Mono<Void>（转发/拒绝都不会 emit 元素），而 switchIfEmpty 只看
         // 「完成时有没有元素」——于是**成功转发之后**也会命中「缺少会话」分支，把已经代理成功的
         // 响应再改写成 401（历史上平台级路由看似 401 却又能拿到数据的根因）。
+        .onErrorResume(error -> {
+          log.warn("SaaS session lookup failed: path={}, cause={}", path, error.getMessage());
+          return Mono.empty();
+        })
         .defaultIfEmpty("")
         .flatMap(raw -> {
           if (raw.isEmpty()) {
@@ -97,13 +101,22 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
             // 平台级路由：优先下发运营选择的租户上下文；未选择上下文时下发会话预置的平台作用域
             // token（tenantId=0 + scopeType=PLATFORM），保证平台级动作（如创建租户）在下游能拿到
             // 操作人。两者都没有时按 SESSION_ONLY 放行（**不新增 401**，保持既有可用性）。
-            String token = contextToken(raw).orElseGet(() -> platformContextToken(raw).orElse(null));
+            // 平台级接口只接受平台作用域 token；租户选择上下文不能提升为平台权限。
+            // /admin/iam 既服务平台角色页，也服务租户角色页：有租户上下文时下发
+            // 租户签名上下文；纯平台会话才回退平台作用域 token。否则租户管理员
+            // 的角色目录会因缺少上下文变成 SAAS_CONTEXT_REQUIRED。
+            String routePath = exchange.getRequest().getPath().value();
+            String token;
+            if (matchesPath(routePath, "/api/v1/admin/iam")) {
+              token = contextToken(raw).orElse(platformContextToken(raw).orElse(null));
+            } else {
+              token = platformContextToken(raw).orElse(null);
+            }
             return forward(exchange, chain, token);
           }
           return contextToken(raw).map(token -> forward(exchange, chain, token))
               .orElseGet(() -> reject(exchange, "SAAS_CONTEXT_REQUIRED"));
-        })
-        .onErrorResume(error -> reject(exchange, "SAAS_SESSION_UNAVAILABLE"));
+        });
   }
 
   /** B 端应用族判定（与 identity 服务同一规则）：`*-h5` 或含 `-b`。 */
@@ -164,7 +177,9 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
       if (matchesPath(path, prefix)) {
         // 平台级路由（/admin/platform/**、/admin/pricing-plans/**）不要求租户上下文：
         // 它们服务的是平台运营本身；但仍尽量下发可用的签名上下文（见 PLATFORM_CONTEXT）。
-        if (matchesPath(path, "/api/v1/admin/platform") || matchesPath(path, "/api/v1/admin/pricing-plans")) {
+        if (matchesPath(path, "/api/v1/admin/platform") || matchesPath(path, "/api/v1/admin/pricing-plans")
+            || matchesPath(path, "/api/v1/admin/iam") || matchesPath(path, "/api/v1/admin/payment-methods")
+            || "/api/v1/admin/staff/bootstrap-owner".equals(path)) {
           return Route.PLATFORM_CONTEXT;
         }
         return Route.CONTEXT_BOUND;
@@ -228,6 +243,9 @@ public final class SaasSessionAuthenticationFilter implements GlobalFilter, Orde
         headers.set(TENANT_CONTEXT, contextToken);
       }
     }).build();
+    if (contextToken != null) {
+      exchange.getAttributes().put("tenantContextToken", contextToken);
+    }
     return chain.filter(exchange.mutate().request(request).build());
   }
 

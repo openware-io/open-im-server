@@ -56,6 +56,11 @@ public class IamAuthorizationRepositoryAdapter implements IamAuthorizationReposi
   }
 
   @Override
+  public boolean revokeConsumerAuthorization(String appId, Long accountId) {
+    return mapper.revokeConsumerAuthorization(appId, accountId) > 0;
+  }
+
+  @Override
   public boolean grantConsumerAuthorization(String appId, Long accountId, String scope) {
     // 行数语义反直觉：1 = 首次插入，2 = ON DUPLICATE KEY UPDATE，两者都表示生效；仅 0 表示应用不可用。
     // 在这里收敛成布尔，避免调用方去理解 MySQL 的行数约定。

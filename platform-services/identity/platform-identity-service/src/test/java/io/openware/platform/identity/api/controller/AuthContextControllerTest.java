@@ -1,7 +1,11 @@
 package io.openware.platform.identity.api.controller;
 
+import io.openware.common.exception.ApiException;
 import io.openware.platform.identity.application.AuthContextApplicationService;
+import io.openware.platform.identity.application.ServiceEntryApplicationService;
 import io.openware.platform.identity.infra.security.SaasUserSessionCookie;
+import io.openware.platform.identity.infra.security.AccountTokenResolver;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.SaasUserSessionStore;
 import jakarta.servlet.http.Cookie;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -9,17 +13,19 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class AuthContextControllerTest {
-    private static final String C_APP = "saas-a380-c";
-    private static final String B_APP = "saas-a380-h5";
+    private static final String C_APP = "saas-c";
+    private static final String B_APP = "saas-b";
 
     private AuthContextController controller(SaasUserSessionStore store) {
-        return new AuthContextController(mock(AuthContextApplicationService.class), store);
+        return new AuthContextController(mock(AuthContextApplicationService.class), store,
+                mock(AccountTokenResolver.class), new SaasAppRegistry("saas-c,saas-hotel-c,saas-ktv-c", "saas-b,saas-hotel-b,saas-ktv-b"), mock(ServiceEntryApplicationService.class), true);
     }
 
     private static SaasUserSessionStore.UserSession session(long accountId, String appId) {
@@ -31,10 +37,11 @@ class AuthContextControllerTest {
         SaasUserSessionStore sessionStore = mock(SaasUserSessionStore.class);
         when(sessionStore.issueCsrfToken("session-1")).thenReturn("csrf-1");
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie(SaasUserSessionCookie.NAME, "session-1"));
+        request.setCookies(new Cookie(SaasUserSessionCookie.C_PLAIN, "session-1"));
+        request.addHeader("Referer", "http://127.0.0.1:30080/c/");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
-        controller(sessionStore).csrf(null, request, response);
+        controller(sessionStore).csrf(C_APP, request, response);
 
         assertEquals("no-store, no-cache, must-revalidate", response.getHeader("Cache-Control"));
         assertEquals("no-cache", response.getHeader("Pragma"));
@@ -47,8 +54,9 @@ class AuthContextControllerTest {
                 java.util.Optional.of(session(157L, C_APP)));
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setCookies(new Cookie(SaasUserSessionCookie.C_PLAIN, "session-plain"));
+        request.addHeader("Referer", "http://127.0.0.1:30080/c/");
 
-        AuthContextController.SessionResponse response = controller(sessionStore).sessionStatus(null, request);
+        AuthContextController.SessionResponse response = controller(sessionStore).sessionStatus(C_APP, request);
 
         assertTrue(response.authenticated());
         assertEquals(157L, response.accountId());
@@ -94,6 +102,7 @@ class AuthContextControllerTest {
         request.setCookies(
                 new Cookie(SaasUserSessionCookie.C_PLAIN, "c-session"),
                 new Cookie(SaasUserSessionCookie.B_PLAIN, "b-session"));
+        request.addHeader("Referer", "http://127.0.0.1:30080/saas/");
 
         AuthContextController.SessionResponse response = controller(sessionStore).sessionStatus(B_APP, request);
 
@@ -102,17 +111,13 @@ class AuthContextControllerTest {
     }
 
     @Test
-    void withoutAppIdLegacyConsumerFirstOrderIsKept() {
+    void withoutAppIdIsRejected() {
         SaasUserSessionStore sessionStore = mock(SaasUserSessionStore.class);
-        when(sessionStore.findSession("c-session")).thenReturn(java.util.Optional.of(session(133L, C_APP)));
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(
-                new Cookie(SaasUserSessionCookie.C_PLAIN, "c-session"),
-                new Cookie(SaasUserSessionCookie.B_PLAIN, "b-session"));
+        request.setCookies(new Cookie(SaasUserSessionCookie.C_PLAIN, "c-session"));
 
-        AuthContextController.SessionResponse response = controller(sessionStore).sessionStatus(null, request);
-
-        assertTrue(response.authenticated(), "未声明 appId 的老客户端保持既有行为");
-        assertEquals(C_APP, response.appId());
+        var error = assertThrows(ApiException.class,
+            () -> controller(sessionStore).sessionStatus(null, request));
+        assertEquals("SAAS_APP_REQUIRED", error.getCode());
     }
 }

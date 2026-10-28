@@ -17,6 +17,20 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true
 
+app:
+  # 渠道回调结算调用 payment-service 的内部接口：默认集群内服务名，本机直跑时用
+  # PAYMENT_SERVICE_BASE_URL=http://localhost:4140 覆盖。
+  payment-settlement:
+    base-url: ${PAYMENT_SERVICE_BASE_URL:http://common-payment-service:4140}
+
+internal:
+  service-auth:
+    # 出站内部签名身份：必须与 payment-service 侧 expected-source 白名单一致。
+    service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:common-payment-channel-service}
+    # 必须与 payment-service 的 INTERNAL_SERVICE_AUTH_SECRET 一致（Kind 由 open-im-env secret 注入）。
+    # 不提供默认值：缺失时启动即失败，避免带空密钥发请求后静默 401。
+    secret: ${INTERNAL_SERVICE_AUTH_SECRET}
+
 # 支付渠道密钥：全部来自环境占位（不硬编码真实密钥），enabled 决定渠道能力开关。
 pay-channel-provider:
   wechat:
@@ -44,3 +58,8 @@ pay-channel-provider:
     webhook-secret: ${STRIPE_PAY_WEBHOOK_SECRET:}
     api-url: ${STRIPE_PAY_API_URL:https://api.stripe.com/v1}
     webhook-tolerance-seconds: ${STRIPE_PAY_WEBHOOK_TOLERANCE_SECONDS:300}
+  # SANDBOX 渠道：仅本地 Kind E2E 使用（默认关闭，禁止在共享/生产环境启用）。
+  # 用固定 HMAC 密钥对回调 JSON 验签，走与真实渠道完全相同的落账链路，使成功/失败/重复/退款回调可自动化验证。
+  sandbox:
+    enabled: ${SANDBOX_PAY_ENABLED:false}
+    webhook-secret: ${SANDBOX_PAY_WEBHOOK_SECRET:}

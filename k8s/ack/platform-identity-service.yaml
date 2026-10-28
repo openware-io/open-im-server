@@ -30,7 +30,7 @@ spec:
             - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             - { name: JWT_EXPIRATION_MS, value: '604800000' }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
-            - { name: IM_OAUTH_APP_ID, value: saas-a380-h5 }
+            - { name: IM_OAUTH_APP_ID, value: saas-b }
             - { name: IM_OAUTH_APP_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: IM_OAUTH_APP_SECRET } } }
             - { name: REDIS_HOST, value: 192.168.247.182 }
             - { name: REDIS_PORT, value: '6379' }

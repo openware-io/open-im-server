@@ -82,22 +82,22 @@ $script:imToken = $registration.access_token
 if ([string]::IsNullOrWhiteSpace($script:imToken)) { throw 'Registration did not return an IM token.' }
 
 try {
-  $cCookie = New-SaasSession 'saas-a380-c' "$H5Base/a380/"
-  $bCookie = New-SaasSession 'saas-a380-h5' "$H5Base/b/"
+  $cCookie = New-SaasSession 'saas-c' "$H5Base/c/"
+  $bCookie = New-SaasSession 'saas-b' "$H5Base/b/"
   $cCookieName = ($cCookie -split '=')[0]
   $bCookieName = ($bCookie -split '=')[0]
   Write-Output "Callback cookies received: C=$cCookieName($($cCookie.Length)), B=$bCookieName($($bCookie.Length))."
   if (($cCookie -split '=')[0] -eq ($bCookie -split '=')[0]) { throw 'C/B cookie names must differ.' }
   $cSession = Get-SaasSession $cCookie
   $bSession = Get-SaasSession $bCookie
-  if (!$cSession.authenticated -or !$bSession.authenticated -or $cSession.appId -ne 'saas-a380-c' -or $bSession.appId -ne 'saas-a380-h5') {
+  if (!$cSession.authenticated -or !$bSession.authenticated -or $cSession.appId -ne 'saas-c' -or $bSession.appId -ne 'saas-b') {
     throw "C/B session isolation failed: c=$($cSession.authenticated)/$($cSession.appId), b=$($bSession.authenticated)/$($bSession.appId)."
   }
   $csrf = Get-SaasCsrf $cCookie
   $logoutStatus = & curl.exe -sS -o NUL -w '%{http_code}' -X POST -H "Cookie: $cCookie" -H "X-CSRF-Token: $($csrf.csrfToken)" "$Gateway/api/v1/auth/logout"
   if ($logoutStatus -ne '200') { throw "C logout failed: $logoutStatus" }
   if ((Get-SaasSession $cCookie).authenticated) { throw 'C logout did not revoke the session.' }
-  $cReLogin = New-SaasSession 'saas-a380-c' "$H5Base/a380/"
+  $cReLogin = New-SaasSession 'saas-c' "$H5Base/c/"
   if (!(Get-SaasSession $cReLogin).authenticated) { throw 'C re-login failed.' }
   Write-Output 'C/B OIDC session isolation, logout and re-login passed.'
 } finally {

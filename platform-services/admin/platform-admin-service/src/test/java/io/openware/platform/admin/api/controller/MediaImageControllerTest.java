@@ -132,7 +132,7 @@ class MediaImageControllerTest {
 
     assertEquals(403, error.getStatus());
     assertEquals("PERMISSION_DENIED", error.getCode());
-    assertEquals("无商品/物料/包厢图片管理权限", error.getMessage());
+    assertEquals("无商品/物料/酒店/门店/租户图片管理权限", error.getMessage());
     verifyNoInteractions(images);
   }
 

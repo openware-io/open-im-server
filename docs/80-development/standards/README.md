@@ -34,6 +34,7 @@
 | 02 | [架构决策记录（ADR）规范](02_ARCHITECTURE_DECISION_RECORDS.md) | ADR 编号、状态、模板、索引与门禁 |
 | 03 | [工程原则](03_ENGINEERING_PRINCIPLES.md) | 正确性、边界、单一事实源、自动化与可演进 |
 | 04 | [门禁治理规范](04_GATE_GOVERNANCE.md) | 分类、编号、放置、生命周期与文档影响 |
+| 05 | [业务域分类规范](05_DOMAIN_CLASSIFICATION.md) | 核心/支撑/通用/边缘域、依赖与归属 |
 
 ## 10–19 架构与服务设计
 
@@ -59,6 +60,7 @@
 | --- | --- | --- |
 | 30 | [客户端发布与版本治理规范](30_CLIENT_RELEASE_GOVERNANCE.md) | 版本号、构建号、渠道、灰度 |
 | 31 | [客户端发布操作规范](31_CLIENT_RELEASE_SKILL.md) | 发布步骤、制品、验证和回滚 |
+| 32 | [前端 UI 风格标准](32_FRONTEND_UI_STYLE.md) | B/C design tokens、卡片、标签、指标和验收 |
 
 ## 40–49 质量、可观测性与测试
 
@@ -68,6 +70,12 @@
 | 41 | [Java 日志规范](41_JAVA_LOGGING_CONVENTIONS.md) | 日志级别、字段、脱敏和采样 |
 | 42 | [日志输出与诊断规范](42_LOGGING_AND_OUTPUTS.md) | 输出位置、诊断包和故障排查 |
 | 43 | [E2E 测试与验收规范](43_E2E_TESTING_CONVENTIONS.md) | 冒烟、真实设备、验收和凭据注入 |
+
+## 50–59 安全与合规
+
+| 编号 | 标准 | 范围 |
+| --- | --- | --- |
+| 50 | [权限与数据域规范](50_PERMISSION_AND_DATA_SCOPE.md) | 功能权限、门店作用域、业态边界、控制器审计与 G55 |
 
 ## 相关索引
 

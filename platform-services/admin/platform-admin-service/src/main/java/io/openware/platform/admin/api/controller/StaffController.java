@@ -7,7 +7,9 @@ import io.openware.infrastructure.time.TimeRangeParams.TimeRange;
 import io.openware.platform.admin.application.StaffAccountApplicationService;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
+import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
+import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +45,30 @@ public class StaffController {
         this.tenantIamClient = tenantIamClient;
         this.contextTokens = contextTokens;
         this.staffAccounts = staffAccounts;
+    }
+
+    /**
+     * 平台运营为新租户创建首个租户管理员。
+     *
+     * <p>新租户创建接口只落 tnt_tenant，若没有这个引导端点，租户后台没有任何
+     * 可登录账号。这里复用运营人员开通用例，并强制绑定全局预置 tenant.owner 角色。
+     */
+    @PostMapping("/bootstrap-owner")
+    public AccountView bootstrapOwner(@RequestBody BootstrapOwnerRequest req) {
+        AdminContext admin = AdminContextHolder.get();
+        if (admin == null || (admin.role() != AdminRole.SUPER_ADMIN && admin.role() != AdminRole.PLATFORM_ADMIN)) {
+            throw new ApiException(403, "PLATFORM_ADMIN_REQUIRED", "仅平台运营可创建租户初始管理员");
+        }
+        if (req == null || req.tenantId() == null || req.tenantId() <= 0) {
+            throw new ApiException(400, "TENANT_ID_REQUIRED", "租户 ID 不能为空");
+        }
+        TenantIamDomainClient.StaffRole ownerRole = tenantIamClient.staffRoles().stream()
+                .filter(role -> "tenant.owner".equals(role.code()))
+                .findFirst()
+                .orElseThrow(() -> new ApiException(500, "TENANT_OWNER_ROLE_MISSING", "缺少 tenant.owner 预置角色"));
+        return accountView(staffAccounts.create(new StaffAccountApplicationService.CreateCommand(
+                req.username(), req.password(), null, req.displayName(), ownerRole.roleId(),
+                "TENANT", req.tenantId(), null, null), true));
     }
 
     /** 新增运营人员：把 IM 账号开通为员工并绑定角色。 */
@@ -159,6 +185,7 @@ public class StaffController {
         return context;
     }
 
+    public record BootstrapOwnerRequest(Long tenantId, String username, String password, String displayName) {}
     public record CreateStaffRequest(String username, String password, String imAccount, String displayName, Long roleId, String scopeType,
                                      Long tenantId, Long organizationId, Long storeId) {}
     public record StaffOptions(List<TenantIamDomainClient.StaffRole> roles, List<TenantIamDomainClient.StaffStore> stores) {}

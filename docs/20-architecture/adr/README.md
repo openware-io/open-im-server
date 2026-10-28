@@ -11,6 +11,14 @@
 | 编号 | 决策 | 状态 | 日期 |
 | --- | --- | --- | --- |
 | 0007 | [`version` 具名例外](0007-version-named-exceptions.md) | withdrawn | 2026-10-18 |
+| 0008 | [酒店域边界与 MVP 归属](0008-hotel-domain-boundary.md) | accepted | 2026-10-23 |
+| 0009 | [C 端统一订单视图](0009-user-order-index.md) | proposed | 2026-10-22 |
+| 0010 | [采销库存作为公共支撑域](0010-stock-supporting-domain.md) | proposed | 2026-10-22 |
+| 0011 | [库存上下文映射与依赖规则](0011-inventory-context-map.md) | proposed | 2026-10-22 |
+| 0012 | [订单作为共享交易内核](0012-order-kernel.md) | proposed | 2026-10-22 |
+| 0013 | [角色工作台作为平台能力](0013-role-workbench.md) | proposed | 2026-10-22 |
+| 0014 | [平台、租户、门店工作区与角色治理](0014-workspace-role-model.md) | accepted | 2026-10-23 |
+| 0015 | [IM 与 SaaS 身份联邦、租户成员与授权模型](0015-identity-federation-tenant-iam.md) | accepted | 2026-10-23 |
 
 ## 状态说明
 

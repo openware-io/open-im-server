@@ -1,10 +1,13 @@
 package io.openware.platform.admin.api.controller;
 
 import io.openware.platform.admin.application.AdminPasswordApplicationService;
+import io.openware.platform.admin.application.AdminRoleProfileService;
 import io.openware.platform.admin.infra.security.AdminSessionCookie;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,22 +23,39 @@ public class AdminSessionController {
 
     private final ConsAdminSessionStore sessionStore;
     private final AdminPasswordApplicationService passwordService;
+    private final AdminRoleProfileService roleProfileService;
     private final boolean plainCookie;
 
     public AdminSessionController(ConsAdminSessionStore sessionStore,
                                   AdminPasswordApplicationService passwordService,
                                   @Value("${saas.cookie.plain:false}") boolean plainCookie) {
+        this(sessionStore, passwordService, null, plainCookie);
+    }
+
+    @Autowired
+    public AdminSessionController(ConsAdminSessionStore sessionStore,
+                                  AdminPasswordApplicationService passwordService,
+                                  AdminRoleProfileService roleProfileService,
+                                  @Value("${saas.cookie.plain:false}") boolean plainCookie) {
         this.sessionStore = sessionStore;
         this.passwordService = passwordService;
+        this.roleProfileService = roleProfileService;
         this.plainCookie = plainCookie;
     }
 
     @GetMapping("/session")
     public SessionResponse session(@CookieValue(value = AdminSessionCookie.NAME, required = false) String sessionId) {
         return sessionStore.findSession(sessionId)
-                .map(ctx -> new SessionResponse(true, ctx.accountId(), ctx.username(),
-                        ctx.displayName(), ctx.role().name(), sessionStore.selectedContextId(sessionId)))
-                .orElse(new SessionResponse(false, null, null, null, null, null));
+                .map(ctx -> {
+                    var workspace = roleProfileService == null
+                            ? new AdminRoleProfileService.AdminWorkspace(List.of(), List.of("PLATFORM"), "PLATFORM", "/select")
+                            : roleProfileService.resolve(ctx.platformAccountId(), ctx.role());
+                    return new SessionResponse(true, ctx.accountId(), ctx.username(),
+                            ctx.displayName(), ctx.role().name(), sessionStore.selectedContextId(sessionId),
+                            workspace.roles(), workspace.workspaces(), workspace.defaultWorkspace(), workspace.landing());
+                })
+                .orElse(new SessionResponse(false, null, null, null, null, null,
+                        List.of(), List.of(), "PLATFORM", "/select"));
     }
 
     @PostMapping("/logout")
@@ -50,7 +70,6 @@ public class AdminSessionController {
                                                   @RequestBody PasswordChangeRequest request,
                                                   HttpServletResponse response) {
         passwordService.changePassword(AdminContextHolder.accountIdOrNull(), request.currentPassword(), request.newPassword());
-        // 修改凭据后立即撤销当前会话，避免旧会话继续使用。
         sessionStore.deleteSession(sessionId);
         AdminSessionCookie.clear(response, plainCookie);
         return new PasswordChangeResponse(true);
@@ -62,7 +81,9 @@ public class AdminSessionController {
     }
 
     public record SessionResponse(boolean authenticated, Long accountId, String username,
-                                  String displayName, String role, String selectedContextId) {}
+                                  String displayName, String role, String selectedContextId,
+                                  List<String> roles, List<String> workspaces,
+                                  String defaultWorkspace, String landing) {}
 
     public record CsrfResponse(String csrfToken) {}
 

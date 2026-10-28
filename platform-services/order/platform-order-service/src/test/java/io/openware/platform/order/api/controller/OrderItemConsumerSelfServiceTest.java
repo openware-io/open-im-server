@@ -25,6 +25,7 @@ import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
 import java.util.List;
@@ -60,7 +61,7 @@ class OrderItemConsumerSelfServiceTest {
     private static final Long MEMBER_ID = 777L;
     private static final Long OTHER_MEMBER_ID = 888L;
     private static final Long CATALOG_ITEM_ID = 10L;
-    /** V14 种子给 saas-a380-c 的全部权限：消费者会话在订单域没有任何商户权限码。 */
+    /** V14 种子给 saas-c 的全部权限：消费者会话在订单域没有任何商户权限码。 */
     private static final List<String> CONSUMER_PERMISSIONS =
             List.of("reservation.view", "reservation.create");
 
@@ -223,9 +224,8 @@ class OrderItemConsumerSelfServiceTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(Long customerId) {
-        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", customerId,
-                "SERVING", "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, null, 0);
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", customerId, "DRAFT", RefundStatus.NONE.name(), "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, null, null, 0);
     }
 
     /** 纯服务目录项：未关联商品、不占库存，单价来自目录自身（「加项能对服务加项」）。 */

@@ -1,0 +1,40 @@
+Android C-path verification (2026-10-25)
+======================================
+
+Device:
+  Xiaomi MI 9
+  Android 11
+  WebView 83.0.4103.106
+
+Network:
+  Device can ping 192.168.3.35, but TCP 30080 from the device timed out
+  (LAN/AP isolation). Host curl to 192.168.3.35:30080 returned 200.
+  Test APK was built with:
+    OPEN_API_BASE=http://127.0.0.1:30080
+    OPEN_WS_URI=ws://127.0.0.1:30080/ws/im/v1
+    OPEN_MEDIA_BASE=http://127.0.0.1:30080
+    OPEN_SERVICE_BASE=http://127.0.0.1:30080
+  and adb reverse tcp:30080 tcp:30080.
+
+Login:
+  User: s3c001937
+  Login page -> 消息 -> 服务 -> 酒店
+
+WebView URL proof (WebView DevTools):
+  http://127.0.0.1:30080/c/#/service/hotel
+  http://127.0.0.1:30080/c/#/real-hotel/1
+
+Picker:
+  document.querySelector('#booking-picker').classList.contains('show') -> true
+  The date sheet is the product bottom sheet, not the MIUI native spinner.
+
+Screenshots:
+  android-c-hotel.png
+  android-c-hotel-detail.png
+  android-c-hotel-picker.png
+
+Result:
+  /a380/ is not used by the new APK.
+  C path is /c/.
+  Hotel list and hotel detail both load from the real API through /c/.
+  The date field opens the product picker on the real WebView 83 device.

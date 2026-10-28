@@ -1,0 +1,42 @@
+Hotel / UI deep audit - 2026-10-26
+
+Scope actually exercised:
+  - B admin tenant pages crawled with tenant owner browser session:
+      /admin/audits
+      /admin/security
+      /admin/staff
+      /admin/tenant/currency
+      /admin/tenant/overview
+      /admin/tenant/stores
+      /admin/tenant/wallet-token-config
+      /business/payment-methods
+    Result: all rendered, no horizontal overflow, 0 images, 0 broken images.
+  - B hotel page /admin/tenant/hotel:
+      no <img> elements; page says hotel master data page not connected.
+      buttons: 新建预订 dialog opens; cancel closes (overlay display none).
+      夜审 dialog opens with date input; 同步退款 returns "退款状态已同步".
+      first 办理退房 row -> "在住记录不存在".
+  - C hotel list /c/#/service/hotel:
+      no <img>; only emoji 🏨 and gradient placeholder. Cannot test image loading.
+  - C hotel detail /c/#/real-hotel/1:
+      no <img>; only emoji 🏨 and gradient placeholders.
+      "查看房型" navigates to detail.
+      date picker opens; empty submit shows "请填写入住人姓名和手机号";
+      "查询实时价格" returns 总价 ¥899.00 · 1 晚 · 1 间.
+      390x844: no horizontal overflow.
+
+Not yet covered / cannot claim full coverage:
+  - All buttons on every admin page were not clicked; only the hotel buttons above.
+  - All dialogs/forms on staff, members, stores, currency, payment methods,
+    wallet, audits, security were not submitted.
+  - B hotel room/rate/inventory master data has no page yet.
+  - C hotel guest submit was blocked by empty-name validation in the automated
+    input attempt; a real order creation/cancel was not completed in this round.
+  - Hotel images are absent, so image loading / broken-image fallback is not
+    verifiable on the hotel UI.
+
+Known defects/gaps:
+  1. Hotel UI has no real images; emoji/gradient only.
+  2. B hotel master data page is explicitly not implemented.
+  3. B hotel checkout on H202610220002 returned 在住记录不存在 while the row
+     was shown as 待退房.

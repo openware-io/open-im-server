@@ -514,11 +514,25 @@ public class MemberApplicationService {
             return null;
         }
         boolean canViewPii = canViewPii();
-        String name = aesGcmCipher.decrypt(member.nameCipher());
-        String phone = aesGcmCipher.decrypt(member.phoneCipher());
+        String name = decryptOrNull(member.nameCipher(), member.id(), "name");
+        String phone = decryptOrNull(member.phoneCipher(), member.id(), "phone");
         return MemberDisplay.withoutDisplay(member)
                 .withDisplay(canViewPii ? name : maskName(name), canViewPii ? phone : maskPhone(phone),
                         null, null, null);
+    }
+
+    /**
+     * 单条历史脏密文不能让整页 500：记录 WARN 后按“无明文”展示，密文仍不直接下发。
+     */
+    private String decryptOrNull(String cipher, Long memberId, String field) {
+        if (cipher == null || cipher.isBlank()) return null;
+        try {
+            return aesGcmCipher.decrypt(cipher);
+        } catch (RuntimeException failure) {
+            log.warn("客户 PII 解密失败，按空值展示: memberId={}, field={}, cause={}", memberId, field,
+                    failure.getMessage());
+            return null;
+        }
     }
 
     private boolean canViewPii() {

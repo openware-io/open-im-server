@@ -6,8 +6,10 @@ import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.security.TenantContextTokenSigner;
 import org.springframework.stereotype.Service;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Objects;
@@ -17,17 +19,21 @@ import java.util.Objects;
  * 选择上下文后签发 30 分钟签名 JWT（含 tenantId/organizationId/storeId/authorizationVersion/permissions）。
  * tenant-service 不可用时返回可诊断的服务不可用错误，不伪造权限结果。
  */
+@Slf4j
 @Service
 public class AuthContextApplicationService {
     private final TenantServiceClient tenantClient;
     private final TenantContextTokenSigner tokenSigner;
+    private final SaasAppRegistry appRegistry;
 
     /** 运营后台类应用(B 端)的运营角色集合：租户在 SaaS 后台注册该 IM 账号为运营人员即绑定这些角色之一。 */
     static final List<String> OPERATOR_ROLES = List.of("tenant.owner", "store.manager", "store.cashier", "store.finance");
 
-    public AuthContextApplicationService(TenantServiceClient tenantClient, TenantContextTokenSigner tokenSigner) {
+    public AuthContextApplicationService(TenantServiceClient tenantClient, TenantContextTokenSigner tokenSigner,
+                                         SaasAppRegistry appRegistry) {
         this.tenantClient = tenantClient;
         this.tokenSigner = tokenSigner;
+        this.appRegistry = appRegistry;
     }
 
     /** 返回账号可访问的经营上下文（按 tenant-service 的 iam_user_role 聚合）。 */
@@ -41,31 +47,51 @@ public class AuthContextApplicationService {
         }
         try {
             if (appId != null && !appId.isBlank()) {
-                if (!isOperatorApp(appId)) {
-                    // C 端/消费者应用：任意 IM 账号（未授权先授权）→ consumer 应用授权上下文
+                if (!appRegistry.isBackend(appId)) {
+                    // C 端：consumer 授权给出 app 租户；该租户下必须有 ACTIVE CUSTOMER membership。
                     TenantServiceClient.TenantContext consumer = tenantClient.consumerContext(accountId, appId);
-                    if (consumer != null) {
-                        return List.of(toContextItem(consumer));
+                    if (consumer == null || consumer.tenantId() == null) {
+                        throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                            "当前账号未绑定为租户客户");
                     }
-                    return List.of();
+                    requireCustomer(accountId, consumer.tenantId());
+                    return List.of(toContextItem(consumer));
                 }
-                // 运营后台类应用（如 saas-a380-h5 /b/）：审核 = 该 IM 账号是否已在 SaaS 租户后台
-                // 注册为运营人员。注册过 → 返回其运营上下文（角色含 tenant.owner/store.manager/...）；
-                // 未注册 → 空列表 → 前端判定“无权限”并可回退 IM。绝不回退到 consumer 上下文。
-                TenantServiceClient.TenantContext anchor = tenantClient.consumerContext(accountId, appId);
-                if (anchor == null) {
-                    return List.of();
-                }
+                // 运营后台类应用（如 saas-b /b/）：审核 = 该账号是否已在 SaaS 租户后台
+                // 注册为运营人员。B 端原生员工没有 consumer 授权锚点，因此不能强制要求 consumerContext；
+                // 有锚点时仍按锚点过滤，避免 H5 跨租户看到无关上下文。
                 List<TenantServiceClient.TenantContext> operatorContexts = tenantClient.contexts(accountId);
                 if (operatorContexts == null || operatorContexts.isEmpty()) {
-                    return List.of();
+                    throw staffNotBound();
                 }
-                return operatorContexts.stream()
+                TenantServiceClient.TenantContext anchor = null;
+                try {
+                    anchor = tenantClient.consumerContext(accountId, appId);
+                // degradation: native B staff has no consumer authorization
+                } catch (Exception ignored) {
+                }
+                if (anchor == null) {
+                    List<ContextItem> items = operatorContexts.stream()
+                            .filter(AuthContextApplicationService::hasOperatorRole)
+                            .map(AuthContextApplicationService::toContextItem)
+                            .toList();
+                    if (items.isEmpty()) {
+                        throw staffNotBound();
+                    }
+                    return items;
+                }
+                final TenantServiceClient.TenantContext anchorContext = anchor;
+                List<ContextItem> items = operatorContexts.stream()
                         .filter(AuthContextApplicationService::hasOperatorRole)
-                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchor.tenantId())
-                                && (anchor.storeId() == null || ctx.storeId() == null || ctx.storeId().equals(anchor.storeId())))
+                        // B 端员工可能被授权到多个门店，consumer 授权锚点只用于确认租户，
+                        // 不能再要求门店相同，否则 Hotel 员工会被 KTV consumer 锚点误判为未绑定。
+                        .filter(ctx -> ctx.tenantId() != null && ctx.tenantId().equals(anchorContext.tenantId()))
                         .map(AuthContextApplicationService::toContextItem)
                         .toList();
+                if (items.isEmpty()) {
+                    throw staffNotBound();
+                }
+                return items;
             }
             List<TenantServiceClient.TenantContext> contexts = tenantClient.contexts(accountId);
             return contexts.stream()
@@ -79,8 +105,20 @@ public class AuthContextApplicationService {
         }
     }
 
-    static boolean isOperatorApp(String appId) {
-        return appId != null && (appId.endsWith("-h5") || appId.contains("-b"));
+    private void requireCustomer(Long accountId, Long tenantId) {
+        boolean customer = tenantId != null && tenantClient.memberships(accountId).stream()
+            .anyMatch(membership -> "CUSTOMER".equals(membership.membershipType())
+                && "ACTIVE".equals(membership.status())
+                && tenantId.equals(membership.tenantId()));
+        if (!customer) {
+            throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                "当前账号未绑定为租户客户");
+        }
+    }
+
+    private static ApiException staffNotBound() {
+        return new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                "当前账号未绑定为租户员工，请联系租户管理员");
     }
 
     private static boolean hasOperatorRole(TenantServiceClient.TenantContext ctx) {
@@ -93,7 +131,7 @@ public class AuthContextApplicationService {
     private static ContextItem toContextItem(TenantServiceClient.TenantContext c) {
         return new ContextItem(c.contextId(), c.tenantId(), c.tenantName(),
                 c.organizationId(), c.organizationName(), c.storeId(), c.storeName(),
-                c.roles() == null ? List.of() : c.roles(), c.scopeType());
+                c.roles() == null ? List.of() : c.roles(), c.scopeType(), c.businessType());
     }
 
     /** 选择上下文：解析 contextId → 作用域，取权限快照后签发签名 Token。 */
@@ -113,6 +151,9 @@ public class AuthContextApplicationService {
                     "contextId 格式非法，应为 tenantId:organizationId:storeId");
         }
         try {
+            if (contextId.startsWith("consumer:")) {
+                requireCustomer(accountId, scope.tenantId());
+            }
             TenantServiceClient.PermissionSnapshot snapshot = contextId.startsWith("consumer:")
                     ? (appId == null ? null : tenantClient.consumerPermissions(accountId, appId, contextId))
                     // 选择/切换上下文时强制刷新权限快照：刚调整的角色权限立即生效
@@ -129,8 +170,10 @@ public class AuthContextApplicationService {
             // 币种（规范 §3.1）：读目标租户配置（缺省 USD），既写进签名 token 的 currency claim，
             // 也随响应体回给前端作为全局 store 的唯一启动来源。查询失败回退 USD，不影响上下文选择。
             String currencyCode = Currency.parse(tenantClient.tenantCurrencyCode(scope.tenantId())).code();
+            String clientApp = appId == null || appId.isBlank()
+                    ? null : (appRegistry.isBackend(appId) ? "saas-b" : "saas-c");
             String token = tokenSigner.sign(accountId, scope.tenantId(), scope.organizationId(), scope.storeId(),
-                    snapshot.authorizationVersion(), snapshot.permissions(), currencyCode);
+                    snapshot.authorizationVersion(), snapshot.permissions(), currencyCode, clientApp);
             long expiresAt = System.currentTimeMillis() / 1000 + 1800;
             return new SelectContextResponse(token, expiresAt, scope.tenantId(), scope.organizationId(),
                     scope.storeId(), snapshot.authorizationVersion(), snapshot.permissions(), List.of(), currencyCode);

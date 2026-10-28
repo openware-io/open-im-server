@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -44,6 +43,17 @@ public class StaffAccountApplicationService {
 
     @Transactional
     public ConsAdminAccount create(CreateCommand command) {
+        return create(command, false);
+    }
+
+    /** 平台引导租户管理员时走内部 IAM 显式 tenantId；普通运营人员创建传 false。 */
+    @Transactional
+    public ConsAdminAccount create(CreateCommand command, String tenantContextToken) {
+        return create(command, tenantContextToken != null);
+    }
+
+    @Transactional
+    public ConsAdminAccount create(CreateCommand command, boolean platformBootstrap) {
         String username = command.username() == null ? "" : command.username().trim();
         if (!username.matches("[A-Za-z0-9][A-Za-z0-9_.-]{2,63}")) {
             throw new ApiException(400, "STAFF_USERNAME_INVALID", "登录账号应为 3–64 位字母、数字、下划线、点或短横线");
@@ -64,12 +74,13 @@ public class StaffAccountApplicationService {
             if (openId == null || openId.isBlank()) throw new ApiException(404, "IM_ACCOUNT_NOT_FOUND", "IM 账号不存在");
         }
         long accountId = openId == null
-                ? identity.ensureAccount("SAAS_ADMIN", UUID.randomUUID().toString(), "EMPLOYEE")
-                : identity.ensureAccount("IM", openId, "EMPLOYEE");
+                ? identity.ensureAccount("SAAS_ADMIN", username, "USER")
+                : identity.ensureAccount("IM", openId, "USER");
         if (accountId <= 0) throw new IllegalStateException("Identity returned invalid account ID");
         if (accounts.existsByPlatformAccountId(accountId)) {
             throw new ApiException(409, "STAFF_IM_ALREADY_BOUND", "该 IM 账号已绑定后台账号");
         }
+        iam.ensureStaffMembership(accountId, command.tenantId(), command.organizationId());
         // 状态、默认角色与展示名回退规则由领域工厂给定；审计字段由适配器填充。
         ConsAdminAccount account = ConsAdminAccount.provision(username, passwords.encode(command.password()),
                 command.displayName() == null || command.displayName().isBlank() ? username : command.displayName().trim(),
@@ -80,7 +91,13 @@ public class StaffAccountApplicationService {
         } catch (DuplicateKeyException exception) {
             throw new ApiException(409, "STAFF_ACCOUNT_EXISTS", "登录账号或 IM 绑定已存在");
         }
-        iam.assignUserRole(accountId, command.tenantId(), command.organizationId(), command.storeId(), command.roleId(), command.scopeType());
+        identity.bindLoginIdentity(account.platformAccountId(), "USERNAME", username, command.password());
+        if (platformBootstrap) {
+            iam.assignPlatformBootstrapRole(accountId, command.tenantId(), command.roleId(), command.scopeType(),
+                    command.organizationId(), command.storeId());
+        } else {
+            iam.assignUserRole(accountId, command.tenantId(), command.organizationId(), command.storeId(), command.roleId(), command.scopeType());
+        }
         return account;
     }
 
@@ -100,7 +117,7 @@ public class StaffAccountApplicationService {
         if (openId == null || openId.isBlank()) {
             throw new ApiException(404, "IM_ACCOUNT_NOT_FOUND", "IM 账号不存在");
         }
-        long targetAccountId = identity.ensureAccount("IM", openId, "EMPLOYEE");
+        long targetAccountId = identity.ensureAccount("IM", openId, "USER");
         if (targetAccountId <= 0) {
             throw new IllegalStateException("Identity returned invalid account ID");
         }

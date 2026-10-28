@@ -155,10 +155,10 @@ if ($Env -ne 'kind') {
   Skip 'consumer session checks need the saas-mobile host (kind only)'
 } else {
   $ckC = Join-Path $Tmp 'c-cookies.txt'
-  $sess = ApiCall -Base $MobileBase -Method 'POST' -Path '/api/v1/dev/saas/session?appId=saas-a380-c' -CookieFile $ckC
+  $sess = ApiCall -Base $MobileBase -Method 'POST' -Path '/api/v1/dev/saas/session?appId=saas-c' -CookieFile $ckC
   $csrfJson = ApiCall -Base $MobileBase -Method 'GET' -Path '/api/v1/auth/csrf' -CookieFile $ckC
   $cCsrf = [string](JProp (Unwrap $csrfJson.Json) 'csrfToken')
-  $ctx = ApiCall -Base $MobileBase -Method 'POST' -Path '/api/v1/auth/context/select?appId=saas-a380-c' -Body @{ contextId = ('consumer:saas-a380-c:' + $ContextId) } -Csrf $cCsrf -CookieFile $ckC
+  $ctx = ApiCall -Base $MobileBase -Method 'POST' -Path '/api/v1/auth/context/select?appId=saas-c' -Body @{ contextId = ('consumer:saas-c:' + $ContextId) } -Csrf $cCsrf -CookieFile $ckC
   Info ("consumer session=" + $sess.Status + " context=" + $ctx.Status)
   $ctxData = Unwrap $ctx.Json
   $cCurrency = [string](JProp $ctxData 'currencyCode')

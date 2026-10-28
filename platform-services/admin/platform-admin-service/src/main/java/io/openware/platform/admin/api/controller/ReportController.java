@@ -1,5 +1,6 @@
 package io.openware.platform.admin.api.controller;
 
+import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.admin.application.AdminReportApplicationService;
 import io.openware.platform.admin.application.AdminReportApplicationService.EmployeePerformanceReport;
 import io.openware.platform.admin.application.AdminReportApplicationService.InventoryGrossProfitReport;
@@ -9,6 +10,7 @@ import io.openware.platform.admin.application.AdminReportApplicationService.Reso
 import io.openware.platform.admin.application.AdminReportApplicationService.SalesItemsReport;
 import io.openware.platform.admin.application.AdminReportApplicationService.SalesReport;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +29,12 @@ public class ReportController {
 
     public ReportController(AdminReportApplicationService reportService) {
         this.reportService = reportService;
+    }
+
+    /** 报表接口统一权限入口：菜单隐藏不是授权，接口本身必须拒绝无权限账号。 */
+    @ModelAttribute
+    public void requireReportPermission() {
+        PermissionGuard.require("report.view");
     }
 
     /** 员工业绩：按员工（收银/服务人员）× 统计桶聚合开单数/服务时长/收款额/加项数。 */

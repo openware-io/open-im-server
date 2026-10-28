@@ -2,6 +2,7 @@ package io.openware.platform.order.application;
 
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.order.model.OrderVoidApproval;
 import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.OrderVoidApprovalRepository;
@@ -46,7 +47,7 @@ class OrderVoidApprovalApplicationServiceTest {
                 eq(51L), eq("同意作废"), any()))
                 .thenReturn(Optional.of(persisted(transition(approval, OrderVoidApproval.STATUS_APPROVED, 1))));
         when(mapper.markExecuted(eq(91L), anyInt(), any())).thenReturn(true);
-        when(cancellation.requireOrder(31L)).thenReturn(order(31L, "SERVING"));
+        when(cancellation.requireOrder(31L)).thenReturn(order(31L, "DRAFT"));
 
         Persisted<OrderVoidApproval> result = service.approve(11L, 21L, 51L, 91L, "同意作废");
 
@@ -71,7 +72,7 @@ class OrderVoidApprovalApplicationServiceTest {
     }
 
     private static OrderVoidApproval approval(long id, long tenantId, long storeId, long orderId, long applicantId) {
-        return new OrderVoidApproval(id, tenantId, storeId, "KTV", orderId, 0, "SERVING", null, "测试作废",
+        return new OrderVoidApproval(id, tenantId, storeId, "KTV", orderId, 0, "DRAFT", null, "测试作废",
                 OrderVoidApproval.STATUS_PENDING, applicantId, null, null, null, 0, null);
     }
 
@@ -86,9 +87,9 @@ class OrderVoidApprovalApplicationServiceTest {
 
     /** 订单夹具（执行作废时读它判断是否已经是 VOIDED）。 */
     private static Order order(long id, String status) {
-        return new Order(id, 11L, null, 21L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        return new Order(id, 11L, null, 21L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static Persisted<OrderVoidApproval> persisted(OrderVoidApproval approval) {

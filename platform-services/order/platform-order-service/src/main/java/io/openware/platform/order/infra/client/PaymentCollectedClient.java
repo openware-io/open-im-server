@@ -12,7 +12,7 @@ import org.springframework.web.client.RestClient;
 import java.util.Optional;
 
 /**
- * 读 payment 域的「订单已收分项」（内部只读 HTTP）：账单需要按 现金/A380币/积分 分腿展示，
+ * 读 payment 域的「订单已收分项」（内部只读 HTTP）：账单需要按 现金/SaaS 币/积分 分腿展示，
  * 而组合收款的分腿数据在 pay_collect，属于 payment 域，order 域不直接读它的表。
  *
  * <p>降级：payment 不可达 / 上下文缺失 / 返回异常时返回 empty，账单退回「已收合计记现金」的兜底口径，

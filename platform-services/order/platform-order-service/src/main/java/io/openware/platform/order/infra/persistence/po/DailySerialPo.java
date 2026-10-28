@@ -14,7 +14,7 @@ import lombok.Setter;
  *
  * <p>一行 = 一个「租户 + 单据类型 + 营业日」的序号游标；单号格式与口径见
  * {@link io.openware.platform.order.application.DailySerialNumberGenerator}。
- * 本表只服务新建单据：历史 {@code ord_order.order_no} / {@code ord_reservation.reservation_no}
+ * 本表只服务新建单据：历史 {@code ord_order.order_no} / 预约表 reservation_no（V29 起预约表 = ktv_reservation）
  * 不会被回填、改名或重排。
  */
 @Getter

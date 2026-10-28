@@ -2,6 +2,7 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.currency.CurrencyResolver;
+import io.openware.infrastructure.tenant.ClientAudience;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.ktv.model.KtvPricingPlan;
@@ -27,6 +28,7 @@ import java.util.Map;
  * {@code roomUnitPrice}/{@code serverUnitPrice}/{@code combinedUnitPrice} 就是**实际生效**的单价
  * （合计 = 房型单价 + 服务单价，C 端展示口径），{@code displayText} 与计费同源。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/ktv/pricing")
 @Slf4j

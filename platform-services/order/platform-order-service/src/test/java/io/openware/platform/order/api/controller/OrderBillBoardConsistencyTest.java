@@ -34,6 +34,7 @@ import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.Persisted;
 import java.math.BigDecimal;
@@ -112,7 +113,7 @@ class OrderBillBoardConsistencyTest {
     /** 开台中 + 库里**没有**房费明细（存量订单）：两边都按实时房费算，且实时房费进合计。 */
     @Test
     void openSessionWithoutStoredRoomFeeAgrees() {
-        Order order = order(new BigDecimal("2150"), "SERVING");
+        Order order = order(new BigDecimal("2150"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(product(86L, "果盘", new BigDecimal("2150")));
         KtvSession session = session("OPEN", LocalDateTime.now().minusMinutes(40), null, plan());
         fixture(order, items, List.of(session), List.of());
@@ -123,7 +124,7 @@ class OrderBillBoardConsistencyTest {
     /** 开台中 + 库里有「上次刷新」的房费快照（线上订单 73 的形态）：差额法两边同值。 */
     @Test
     void openSessionWithStaleRoomFeeSnapshotAgrees() {
-        Order order = order(new BigDecimal("10150"), "SERVING");
+        Order order = order(new BigDecimal("10150"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(
                 roomFee(85L, "8000", "4000", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
@@ -137,7 +138,7 @@ class OrderBillBoardConsistencyTest {
     /** 开台中 + 房费明细重复（历史脏数据）：多行一并求和，两边仍然同值。 */
     @Test
     void openSessionWithDuplicatedRoomFeeRowsAgrees() {
-        Order order = order(new BigDecimal("6000"), "SERVING");
+        Order order = order(new BigDecimal("6000"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(
                 roomFee(85L, "4000", "4000", "1", plan()),
                 roomFee(86L, "2000", "2000", "1", plan()));
@@ -157,7 +158,7 @@ class OrderBillBoardConsistencyTest {
      */
     @Test
     void pausedSessionStopsBillingAtPauseStartedAtOnBothSurfaces() {
-        Order order = order(new BigDecimal("5150"), "SERVING");
+        Order order = order(new BigDecimal("5150"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(
                 roomFee(85L, "3000", "1500", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
@@ -215,7 +216,7 @@ class OrderBillBoardConsistencyTest {
     /** 已结台：金额固化不再随时间变化，两边都取固化明细值。 */
     @Test
     void closedSessionKeepsFrozenAmountOnBothSurfaces() {
-        Order order = order(new BigDecimal("10150"), "WAITING_PAYMENT");
+        Order order = order(new BigDecimal("10150"), "PENDING_PAYMENT");
         List<Persisted<OrderItem>> items = List.of(
                 roomFee(85L, "8000", "4000", "2", plan()),
                 product(86L, "果盘", new BigDecimal("2150")));
@@ -234,7 +235,7 @@ class OrderBillBoardConsistencyTest {
     /** 多会话订单（同一订单多次开台）：两边都必须取「当前这一次」（进行中的），不能取到旧会话。 */
     @Test
     void multiSessionOrderPicksTheCurrentSessionOnBothSurfaces() {
-        Order order = order(new BigDecimal("2150"), "SERVING");
+        Order order = order(new BigDecimal("2150"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(product(86L, "果盘", new BigDecimal("2150")));
         KtvSession olderClosed = session("CLOSED", LocalDateTime.now().minusHours(5),
                 LocalDateTime.now().minusHours(4), plan()).withId(11L);
@@ -262,7 +263,7 @@ class OrderBillBoardConsistencyTest {
      */
     @Test
     void packageOrderHasNoLiveRoomFeeOnBothSurfaces() {
-        Order order = order(new BigDecimal("26800"), "SERVING");
+        Order order = order(new BigDecimal("26800"), "DRAFT");
         List<Persisted<OrderItem>> items = List.of(
                 product(86L, "果盘", new BigDecimal("6800")),
                 item(87L, "PACKAGE_FEE", "欢唱套餐", new BigDecimal("20000"), new BigDecimal("1"),
@@ -278,7 +279,7 @@ class OrderBillBoardConsistencyTest {
     /** 服务人员计时费：服务人员行独立展示，合计含它，两边同值且不重不漏。 */
     @Test
     void serverSessionFeeIsCountedOnBothSurfaces() {
-        Order order = order(new BigDecimal("10500"), "WAITING_PAYMENT");
+        Order order = order(new BigDecimal("10500"), "PENDING_PAYMENT");
         // 服务人员计时费：SERVICE + resourceId=服务人员资源 + 价格快照（加项路径不写快照）。
         OrderItem serverFeeItem = new OrderItem(87L, TENANT_ID, STORE_ID, "KTV", ORDER_ID, "SERVICE", null, 9L,
                 "额外服务人员#9", new BigDecimal("5000"), new BigDecimal("2"), BigDecimal.ZERO, BigDecimal.ZERO,
@@ -365,9 +366,8 @@ class OrderBillBoardConsistencyTest {
     }
 
     private static Order order(BigDecimal totalAmount, String status) {
-        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260920-0001", null, "KTV", null, status,
-                "CNY", totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+        return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260920-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY", totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static KtvSession session(String status, LocalDateTime billingStartAt, LocalDateTime closedAt,

@@ -26,6 +26,7 @@ import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.repository.Persisted;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.List;
@@ -241,9 +242,9 @@ class OrderLiveTotalProjectionTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(Long id, BigDecimal totalAmount) {
-        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+        return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO, BigDecimal.ZERO,
-                null, null, null, null, 0);
+                null, null, 0);
     }
 
     /** 读路径的落库行 + 记账快照（本用例只看业务字段）。 */

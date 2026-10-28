@@ -2,6 +2,7 @@ package io.openware.platform.order.api.controller;
 
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.infrastructure.tenant.ClientAudience;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.time.TimeRangeParams;
@@ -32,7 +33,7 @@ import java.util.List;
  * <p><b>预约对象 = 房型</b>（docs/renovation/KTV_RESERVATION_ROOM_TYPE.md）：
  * 创建预约传 {@code roomTypeId}（必填），不传具体包厢；具体包厢由「到店分配包厢」写入。
  *
- * <p>时间口径（对应 ord_reservation.start_at/end_at 的列注释，见 V1__ord_order_baseline.sql）：
+ * <p>时间口径（对应 ktv_reservation.start_at/end_at 的列注释，见 V1__ord_order_baseline.sql）：
  * <ul>
  *   <li>入参 {@code startAt}/{@code endAt} 必须是**带时区偏移**的 ISO-8601（如 {@code 2026-09-18T20:00:00+08:00}）；
  *       服务端统一换算到 +08:00 后去掉偏移落库，不做二次时区推断。</li>
@@ -40,6 +41,7 @@ import java.util.List;
  *       前端直接按本地时钟渲染，不要再做 UTC 转换（列注释此前误写为 UTC，基线重建时已纠正）。</li>
  * </ul>
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/reservations")
 public class ReservationController {

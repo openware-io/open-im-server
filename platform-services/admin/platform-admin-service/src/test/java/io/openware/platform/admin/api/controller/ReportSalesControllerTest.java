@@ -133,7 +133,7 @@ class ReportSalesControllerTest {
     void detailsCarryFieldsAndPaymentComposition() {
         setTenant();
         stubBuckets(List.of(sales("2026-09-19", "USD", 1, "25000", "0", "0", 0, "0")), List.of(), List.of());
-        stubDetails(1, List.of(detail(77L, "2026-09-19T18:30:00", "2026-09-20", "USD", "WAITING_SETTLEMENT")));
+        stubDetails(1, List.of(detail(77L, "2026-09-19T18:30:00", "2026-09-20", "USD", "PENDING_PAYMENT")));
         when(reportRepository.selectOrderPaymentComposition(any(), eq(List.of(77L)))).thenReturn(List.of(
                 composition(77L, "CASH", "20000"),
                 composition(77L, "POINT", "3000"),
@@ -148,7 +148,7 @@ class ReportSalesControllerTest {
         assertEquals("2026-09-20", row.businessDate().toString(),
                 "跨零点通宵场次：存储 09-19 18:30（门店 09-20 02:30）归属营业日 09-20");
         assertEquals("K12", row.roomName());
-        assertEquals("WAITING_SETTLEMENT", row.status());
+        assertEquals("PENDING_PAYMENT", row.status());
         assertEquals(0, row.totalAmount().compareTo(new BigDecimal("25000")));
         assertEquals(0, row.payment().cashAmount().compareTo(new BigDecimal("20000")));
         assertEquals(0, row.payment().pointsAmount().compareTo(new BigDecimal("3000")));

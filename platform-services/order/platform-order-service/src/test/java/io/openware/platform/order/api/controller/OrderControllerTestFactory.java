@@ -54,8 +54,7 @@ final class OrderControllerTestFactory {
                                 MemberLookupProvider memberLookupProvider,
                                 VoidRuleApplicationService voidRuleService) {
     OrderApplicationService orderService = new OrderApplicationService(orderRepository, ktvSessionService,
-        resourceStateClient, auditClient, orderCancellationService, dailySerialNumberGenerator,
-        memberLookupProvider);
+        resourceStateClient, orderCancellationService, dailySerialNumberGenerator, memberLookupProvider);
     return new OrderController(orderService, ktvSessionService, ktvServerSessionService,
         orderCancellationService, voidRuleService);
   }

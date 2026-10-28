@@ -28,7 +28,7 @@ spec:
             - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-secret, key: REDIS_PASSWORD } } }
             - { name: JWT_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: JWT_SECRET } } }
             # 钱包「代币数量」展示口径：customer 读取租户的代币品牌名/ratio（GET /internal/iam/tenant-config/{id}/wallet-token）。
-            # secret 必须与 platform-tenant-service 的 INTERNAL_SERVICE_AUTH_SECRET 一致，否则 401 后品牌静默回退 A380币/100。
+            # secret 必须与 platform-tenant-service 的 INTERNAL_SERVICE_AUTH_SECRET 一致，否则 401 后品牌静默回退 SaaS 币/100。
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-secret, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: APP_WALLET_DEFAULT_LEGAL_ENTITY_ID, value: '100' }

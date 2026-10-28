@@ -33,6 +33,21 @@ public class TenantRepositoryAdapter implements TenantRepository {
   }
 
   @Override
+  public Optional<Tenant> findById(Long id) {
+    return Optional.ofNullable(mapper.selectById(id)).map(TenantRepositoryAdapter::toDomain);
+  }
+
+  @Override
+  public Tenant updateStatus(Tenant tenant) {
+    TenantPo po = new TenantPo();
+    po.setId(tenant.id());
+    po.setStatus(tenant.status());
+    po.setUpdatedAt(LocalDateTime.now());
+    mapper.updateById(po);
+    return toDomain(mapper.selectById(tenant.id()));
+  }
+
+  @Override
   public List<Tenant> listCreatedBetween(LocalDateTime fromInclusive, LocalDateTime toInclusive) {
     return mapper.selectList(Wrappers.<TenantPo>lambdaQuery()
             .ge(fromInclusive != null, TenantPo::getCreatedAt, fromInclusive)

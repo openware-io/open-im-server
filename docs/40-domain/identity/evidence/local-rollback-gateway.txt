@@ -1,0 +1,28 @@
+Gateway rollback drill (local Kind)
+===================================
+
+Scope: gateways/gateway only, real previous commit then current commit.
+No ACR/ACK. Images built from git worktree, deployed through schema v2 manifest.
+
+Baseline (current before drill):
+  revision 7cff0c41
+  imageID sha256:afb5e3834765fbe36eabbf091c43cf5006b30bfa5c522baac7267012b3395967
+
+Rollback candidate:
+  revision 6ba32869 (previous commit; before exception-logging changes)
+  manifest .outputs/releases/s7-rollback-gateway.json
+  build identity development.20261025T035544Z.6ba32869
+  imageID sha256:19798b14c1daf8e4665c87b2f0f3ccd2369a2375d872c386968185c60f1f97f7
+  deployment rollout: success
+  health: 200
+
+Restore current:
+  manifest .outputs/releases/s7-rollback-restore.json
+  build identity development.20261025T035756Z.7cff0c41
+  imageID sha256:4f58d212e1caeb4a47ef178c72c4c77dced8b38a3bb590f8746326e83b4cfcc9
+  deployment rollout: success
+  health: 200
+  B page console (tenant/hotel): no errors
+
+This validates the local deploy -> rollback -> restore path for gateway.
+It does not claim a full all-service rollback.

@@ -2,6 +2,7 @@ package io.openware.common.payment.domain.refund.repository;
 
 import io.openware.common.payment.domain.channel.repository.Persisted;
 import io.openware.common.payment.domain.refund.model.Refund;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -15,6 +16,22 @@ public interface RefundRepository {
 
   /** 按标识读取退款单。 */
   Optional<Persisted<Refund>> findById(Long refundId);
+
+  /**
+   * 按租户 + 申请号读取退款单（{@code uk_pay_refund_tenant_req} 的读面）。
+   *
+   * <p>退款申请的幂等判据：调用方提供 {@code Idempotency-Key} 时它被映射为 {@code request_id}，
+   * 重放先走本查询返回既有行，再落到唯一键兜底并发。
+   */
+  Optional<Persisted<Refund>> findByRequestId(Long tenantId, String requestId);
+
+  /**
+   * 同订单、同申请金额、且**不是被驳回**（PENDING/APPROVED/REFUNDED）的退款单。
+   *
+   * <p>用于重复申请去重：PENDING/APPROVED 重复是"同额重复申请"，REFUNDED 重复是"已退过的钱再退一次"，
+   * 两者都必须拦住；REJECTED 是唯一允许同额重新申请的状态。
+   */
+  Optional<Persisted<Refund>> findDuplicateCandidate(Long tenantId, Long orderId, BigDecimal requestedAmount);
 
   /** 按申请发生时刻 {@code createdAt} 的闭区间列出退款申请（时间倒序），两端为 {@code null} 表示该端不筛。 */
   List<Persisted<Refund>> listByCreatedAtBetween(LocalDateTime fromInclusive, LocalDateTime toInclusive);
@@ -37,4 +54,7 @@ public interface RefundRepository {
    */
   Optional<Persisted<Refund>> updateStatusGuarded(Refund refund, String expectedStatus,
                                                   java.time.LocalDateTime occurredAt);
+
+  /** 同订单仍在 PENDING/APPROVED 的退款金额（含已批准未退），用于并发可退上限。 */
+  java.math.BigDecimal sumActiveAmount(Long tenantId, Long orderId, Long excludeRefundId);
 }

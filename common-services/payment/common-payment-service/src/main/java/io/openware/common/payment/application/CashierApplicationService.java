@@ -197,7 +197,7 @@ public class CashierApplicationService {
      * 结构见 {@link DailyClosingSummary}（金额一律最小货币单位整数，禁止跨币种求和）。
      *
      * <p><b>储值币/积分收款（本改动新增，独立分项、只对新增数据生效、不回填历史）</b>：
-     * A380 币（储值 WALLET）与积分（POINT）是组合支付里的**支付工具**（只有现金与价格才带币种），
+     * OpenChat 币（储值 WALLET）与积分（POINT）是组合支付里的**支付工具**（只有现金与价格才带币种），
      * 其抵扣不落 {@code pay_intent}，只在 {@code pay_collect.response_json} 的分腿里；日结把它们
      * **抵扣的账单金额**作为 {@code providers[]} 的独立分项（provider = {@code WALLET}/{@code POINT}）
      * 按币种并列展示，**不并入** {@code collectedAmount}；代币/积分**数量**不在本服务落库，不输出。
@@ -363,7 +363,7 @@ public class CashierApplicationService {
     }
 
     /**
-     * 储值币（WALLET，A380 币）/积分（POINT）收款汇总：作为**独立分项**，只对新增数据生效、不回填历史。
+     * 储值币（WALLET，OpenChat 币）/积分（POINT）收款汇总：作为**独立分项**，只对新增数据生效、不回填历史。
      *
      * <p><b>数据源与口径</b>：这类抵扣不落 {@code pay_intent}（{@link CollectApplicationService#recordCash}
      * 只对现金类分腿写 pay_intent/pay_transaction），实际落在 {@code pay_collect.response_json} 的分腿记录里，

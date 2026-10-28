@@ -43,7 +43,10 @@ $allowedWorkspaceEntries = @(
   'open-saas-admin',
   'open-saas-mobile',
   'open-website',
-  'open-green-pass'
+  'open-green-pass',
+  '.outputs',
+  '.vscode',
+  'artifacts'
 )
 if (Test-Path -LiteralPath $workspaceRoot) {
   foreach ($entry in (Get-ChildItem -LiteralPath $workspaceRoot -Force)) {

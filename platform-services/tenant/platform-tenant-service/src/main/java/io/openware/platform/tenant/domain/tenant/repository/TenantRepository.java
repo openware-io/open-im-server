@@ -24,6 +24,11 @@ public interface TenantRepository {
    *
    * <p>筛选口径是**创建时间**而非更新时间：平台管理的区间筛选语义是"这段时间新开了哪些租户"。
    */
+  Optional<Tenant> findById(Long id);
+
+  /** 更新租户状态（平台启用/停用）。 */
+  Tenant updateStatus(Tenant tenant);
+
   List<Tenant> listCreatedBetween(LocalDateTime fromInclusive, LocalDateTime toInclusive);
 
   /** 新增租户，返回落库后的聚合（含回填主键与创建时刻）。 */

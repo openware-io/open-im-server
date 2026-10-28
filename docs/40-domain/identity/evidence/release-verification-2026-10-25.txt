@@ -1,0 +1,105 @@
+Release verification (2026-10-25)
+=================================
+
+Path model:
+  /saas/  B admin
+  /b/     B mobile
+  /c/     C consumer (only canonical C entry)
+  /a380/  removed from C routing/static artifact/OIDC/DB links
+
+Runtime:
+  GET /c/ -> 200
+  saas-mobile container has no /usr/share/nginx/html/a380
+  GET /a380/ is no longer the C app (falls to the unified portal fallback)
+  Ingress open-im-mobile-apps only lists /c and /website
+
+C:
+  npm test: 23 files / 167 tests PASS
+  /c/#/service/hotel console []
+  /c/#/real-hotel/1 console []
+  hotel date field opens custom bottom sheet (#booking-picker)
+
+B:
+  npm test: 51 files / 696 tests PASS
+  #/admin/platform/tenants console []
+  #/admin/iam/roles console []
+
+Gates:
+  documentation-links PASS
+  documentation-governance PASS
+  frontend-ui-standard PASS
+  service-api-boundaries PASS
+  standards-governance PASS
+  text-encoding PASS
+  docs-impact PASS
+
+Android:
+  lib path references updated /a380 -> /c
+  flutter targeted tests could not load suites in this environment
+  (Connection closed before test suite loaded); not claimed as PASS.
+  Old APK must be replaced because /a380 is no longer served as C.
+
+Android follow-up:
+  flutter analyze lib/screens/services_screen.dart lib/services/hybrid_bridge_policy.dart
+    -> No issues found
+  flutter build apk --debug --no-pub -> app-debug.apk built
+  adb install -r -> Success
+  APK rebuilt with /c paths; app installed but currently logged out.
+
+Flutter test failure diagnosis:
+  flutter test starts flutter_tester and a local listener, then the listener
+  cannot connect to its own WebSocket at 127.0.0.1:2985:
+  SocketException: 信号灯超时时间已到 (OS Error 121)
+  This is a local test-harness/loopback failure, not a Dart compile error.
+  All targeted suites fail at suite loading, before any test body runs.
+  No PASS is claimed for flutter test.
+
+Android device login attempt (new /c APK):
+  adb input filled s3c001937 / password, checked consent, tapped login.
+  Button changed to 登录中..., then UI showed 网络错误.
+  logcat: "The request connection took longer than 0:00:15.000000 and it was aborted."
+  Device can ping 192.168.3.35, but the API connect from the device times out.
+  Therefore the post-login /c WebView path is still not verified on device.
+
+Final path/runtime check:
+  GET /c/    200
+  GET /b/    200
+  GET /saas/ 200
+  saas-mobile, saas-admin, platform-identity-service all Ready=1
+  adm_miniapp_service_item /a380/% count = 0
+  user_oidc_redirect_uri /a380/% count = 0
+
+Android real device:
+  MI 9 / Android 11 / WebView 83
+  /c/#/service/hotel -> /c/#/real-hotel/1
+  #booking-picker.show = true
+  Evidence: android-c-path-2026-10-25.txt and android-c-hotel*.png
+
+Full gates after path change:
+  Engineering validation passed for scope Full
+  54 gates PASS
+  Maven clean verify PASS
+
+Tenant owner bootstrap (2026-10-25):
+  POST /api/v1/admin/staff/bootstrap-owner with platform session -> 200
+  Created login bootcheck -> TENANT_ADMIN, roles [tenant.owner],
+    landing /admin/tenant/overview
+  Test account and membership cleaned after verification.
+  Platform tenant create dialog now requires initial owner
+    username / password / display name.
+  Full engineering validation after bootstrap changes: PASS
+
+C standalone login (2026-10-25):
+  /c/ no-session path renders #c-login-form (phone/email + password).
+  POST /api/v1/identity/login -> 200
+  POST /api/v1/auth/session?appId=saas-a380-c -> 200
+  GET /api/v1/auth/contexts -> CUSTOMER context -> /c/ renders.
+  Wrong credential now shows 账号或密码错误，请重试.
+  Test CUSTOMER account/membership/app authorization cleaned after verification.
+  C tests: 26 files / 172 tests PASS.
+
+C login no-session path (2026-10-25):
+  Blocked /api/v1/dev/saas/session and cleared cookies.
+  /c/ showed the standalone login page within 3 seconds.
+  Previously the page stayed blank ~6 seconds waiting for a non-existent IM Bridge.
+  Evidence: c-login-auto.png.

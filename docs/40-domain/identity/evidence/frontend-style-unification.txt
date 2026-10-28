@@ -1,0 +1,50 @@
+Frontend style unification (2026-10-25)
+======================================
+
+Baseline measured on MI 9:
+  Android 11
+  WebView 83.0.4103.106
+
+Shared brand tokens:
+  C: --primary #13b981, --primary-dark #079668
+  B: --brand-primary #13b981, --brand-primary-dark #079668
+  B Element Plus:
+    --el-color-primary #13b981
+    --el-color-primary-dark-2 #079668
+    --el-border-radius-base 10px
+  B card/surface radius: 14px
+  B/C font stack includes Roboto / Helvetica Neue / Arial
+
+Compatibility (WebView 83):
+  html.compat-webview83 added when aspect-ratio is unsupported
+  inset:0 replaced with top/right/bottom/left
+  flex gap fallback margins for main C layouts
+  aspect-ratio image fallback heights
+  backdrop-filter page head fallback
+  native window.confirm replaced by product showConfirm
+
+C hotel booking:
+  room type, rate plan, check-in, check-out and room count now use the
+  product bottom sheet (#booking-picker), not native select/date.
+  Values remain on the same hidden input ids, so quote/book code is unchanged.
+  Screenshots:
+    c-hotel-picker-form-final.png
+    c-hotel-picker-sheet.png\n    c-venue-picker-form.png\n    c-venue-picker-sheet.png\n    c-travel-picker-form.png\n    c-taxi-picker-form.png\n    c-venue-picker-sheet.png
+
+Verification:
+  C tests: 24 files / 170 tests PASS
+  B tests: 51 files / 696 tests PASS
+  B #/admin/platform/tenants console []
+  B #/admin/iam/roles console []
+  C /c/#/real-hotel/1 console []
+  C /c/#/real-hotel/1 date sheet opens custom bottom sheet
+
+Remaining:
+  C 端 app.js / hotel-real.js no longer contain native date/time/select/
+  window.confirm; hotel, venue and travel forms all use the product picker.
+  A regression test (native-controls.test.js) enforces this.
+
+Hotel order UX:
+  order cards use hotel-order-card, status pills, two-column dates and compact cancel button
+  cancel confirmation uses product modal
+  hotel list keeps a cache and shows it with a toast if a back-navigation refresh fails

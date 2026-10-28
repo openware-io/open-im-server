@@ -7,6 +7,7 @@ import io.openware.common.payment.domain.refund.model.Refund;
 import io.openware.common.payment.domain.refund.repository.RefundRepository;
 import io.openware.common.payment.infra.persistence.mapper.RefundMapper;
 import io.openware.common.payment.infra.persistence.po.RefundPo;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +31,33 @@ public class RefundRepositoryAdapter implements RefundRepository {
   @Override
   public Optional<Persisted<Refund>> findById(Long refundId) {
     return Optional.ofNullable(mapper.selectById(refundId)).map(this::toPersisted);
+  }
+
+  @Override
+  public Optional<Persisted<Refund>> findByRequestId(Long tenantId, String requestId) {
+    if (tenantId == null || requestId == null || requestId.isBlank()) {
+      return Optional.empty();
+    }
+    return mapper.selectList(Wrappers.<RefundPo>lambdaQuery()
+            .eq(RefundPo::getTenantId, tenantId)
+            .eq(RefundPo::getRequestId, requestId))
+        .stream().findFirst().map(this::toPersisted);
+  }
+
+  @Override
+  public Optional<Persisted<Refund>> findDuplicateCandidate(Long tenantId, Long orderId,
+                                                            BigDecimal requestedAmount) {
+    if (tenantId == null || orderId == null || requestedAmount == null) {
+      return Optional.empty();
+    }
+    // 不是驳回即可：PENDING/APPROVED（同额重复申请）与 REFUNDED（已退过的钱再退一次）都算重复候选；
+    // REJECTED 是唯一允许同额重新申请的状态，不参与去重。
+    return mapper.selectList(Wrappers.<RefundPo>lambdaQuery()
+            .eq(RefundPo::getTenantId, tenantId)
+            .eq(RefundPo::getOrderId, orderId)
+            .eq(RefundPo::getRequestedAmount, requestedAmount)
+            .ne(RefundPo::getStatus, "REJECTED"))
+        .stream().findFirst().map(this::toPersisted);
   }
 
   @Override
@@ -78,6 +106,11 @@ public class RefundRepositoryAdapter implements RefundRepository {
         .set(RefundPo::getUpdatedAt, occurredAt));
     return updated > 0 ? Optional.ofNullable(mapper.selectById(refund.id())).map(this::toPersisted)
         : Optional.empty();
+  }
+
+  @Override
+  public java.math.BigDecimal sumActiveAmount(Long tenantId, Long orderId, Long excludeRefundId) {
+    return mapper.sumActiveAmount(tenantId, orderId, excludeRefundId);
   }
 
   private static RefundPo toPo(Refund refund) {

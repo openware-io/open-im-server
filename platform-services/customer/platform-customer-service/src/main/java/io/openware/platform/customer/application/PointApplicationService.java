@@ -242,6 +242,18 @@ public class PointApplicationService {
         return BigDecimal.valueOf(amountMinor).divide(rule.redeemRate(), 0, RoundingMode.CEILING).longValueExact();
     }
 
+    /** 积分可抵扣金额换算：返回 points 对应的最小货币单位，向下取整，避免多抵扣。 */
+    public long amountForPoints(Long storeId, long points) {
+        if (points <= 0) throw new ApiException(400, "POINTS_INVALID", "积分必须为正数");
+        TenantContext context = TenantContextHolder.get();
+        PointRuleConfigApplicationService.PointRule rule = ruleService == null
+                ? PointRuleConfigApplicationService.PointRule.DEFAULT
+                : ruleService.resolve(context == null ? 0L : context.tenantId(), storeId,
+                        context == null ? null : context.businessType());
+        return BigDecimal.valueOf(points).multiply(rule.redeemRate())
+                .setScale(0, RoundingMode.DOWN).longValueExact();
+    }
+
     private PointAccount requireOrCreateAccount(Long memberId) {
         try { return requireAccountByMember(memberId); }
         catch (ApiException ex) {

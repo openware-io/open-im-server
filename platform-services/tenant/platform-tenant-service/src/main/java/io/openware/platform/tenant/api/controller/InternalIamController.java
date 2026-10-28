@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
+import io.openware.platform.tenant.application.RoleBindingApplicationService;
 import io.openware.platform.tenant.domain.authorization.AccountContext;
 import io.openware.platform.tenant.domain.authorization.PermissionSnapshot;
 import io.openware.platform.tenant.domain.authorization.RoleBinding;
@@ -18,9 +19,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class InternalIamController {
 
     private final PermissionSnapshotProvider provider;
+    private final RoleBindingApplicationService roleBindings;
 
-    public InternalIamController(PermissionSnapshotProvider provider) {
+    public InternalIamController(PermissionSnapshotProvider provider,
+                                 RoleBindingApplicationService roleBindings) {
         this.provider = provider;
+        this.roleBindings = roleBindings;
     }
 
     /** 账号在某作用域下的权限快照（权限码 + 授权版本）；refresh=true 跳过缓存（上下文选择时用）。 */
@@ -58,6 +62,22 @@ public class InternalIamController {
                                            @RequestParam(defaultValue = "profile.basic") String scope) {
         provider.grantConsumerAuthorization(appId, accountId, scope);
     }
+
+    @DeleteMapping("/consumer/{appId}/authorization")
+    public void revokeConsumerAuthorization(@PathVariable String appId, @RequestParam Long accountId) {
+        provider.revokeConsumerAuthorization(appId, accountId);
+    }
+
+    /** 内部：平台引导租户管理员时按显式 tenantId 绑定角色（service-to-service）。 */
+    @PostMapping("/account/{accountId}/roles")
+    public void assignBootstrapRole(@PathVariable Long accountId,
+                                    @RequestBody BootstrapRoleRequest req) {
+        roleBindings.assignForBootstrap(accountId, req.tenantId(), req.roleId(),
+                req.scopeType(), req.organizationId(), req.storeId());
+    }
+
+    public record BootstrapRoleRequest(Long tenantId, Long roleId, String scopeType,
+                                       Long organizationId, Long storeId) {}
 
     /** 账号角色绑定视图（角色名 + 作用域 + 门店名，供运营人员列表展示）。 */
     @GetMapping("/account/{accountId}/role-bindings")

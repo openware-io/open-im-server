@@ -5,6 +5,7 @@ import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.audit.AuditClient;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderVoidApproval;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.AuditSnapshot;
 import io.openware.platform.order.domain.order.repository.OrderVoidApprovalRepository;
 import io.openware.platform.order.domain.order.repository.Persisted;
@@ -53,10 +54,10 @@ public class OrderVoidApprovalApplicationService {
         Order order = cancellation.requireOrder(orderId);
         if (!tenantId.equals(order.tenantId()) || !storeId.equals(order.storeId()))
             throw new ApiException(403, "STORE_SCOPE_DENIED", "无权操作该门店订单");
-        if ("VOIDED".equals(order.status())) throw new ApiException(409, "ORDER_STATUS_INVALID", "订单已作废");
+        if (order.trade() == TradeStatus.VOIDED) throw new ApiException(409, "ORDER_STATUS_INVALID", "订单已作废");
         String snapshotJson = "{\"orderNo\":\"" + esc(order.orderNo()) + "\"}";
         OrderVoidApproval application = new OrderVoidApproval(null, tenantId, storeId, order.businessType(),
-                orderId, order.currentVersion(), order.status(), snapshotJson, reason,
+                orderId, order.currentVersion(), order.tradeStatus(), snapshotJson, reason,
                 OrderVoidApproval.STATUS_PENDING, applicantId, null, null, idempotencyKey, 0, null);
         Persisted<OrderVoidApproval> saved = repository.insert(application);
         audit.recordAsync(AuditClient.AuditRecord.builder().tenantId(tenantId).storeId(storeId)
@@ -124,7 +125,7 @@ public class OrderVoidApprovalApplicationService {
         OrderVoidApproval application = row.aggregate();
         if (application.executed()) return row;
         Order order = cancellation.requireOrder(application.orderId());
-        if (!"VOIDED".equals(order.status())) {
+        if (order.trade() != TradeStatus.VOIDED) {
             cancellation.voidOrderApproved(application.orderId(), application.reason());
         }
         LocalDateTime now = LocalDateTime.now();

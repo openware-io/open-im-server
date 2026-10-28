@@ -67,3 +67,14 @@
 | G50 | documentation-reachability | validate-documentation-reachability.ps1 | blocking | 现行文档可从 README / docs/README 递归到达（历史归档豁免） |
 | G51 | gate-catalog | validate-gate-catalog.ps1 | blocking | 门禁类别、Owner、阶段与目录覆盖 |
 | G52 | docs-impact | validate-docs-impact.ps1 | blocking | 高风险代码变更必须伴随对应文档变更 |
+| G53 | domain-map | validate-domain-map.ps1 | blocking | 业务域类型、Owner、模块、依赖与服务覆盖 |
+| G54 | frontend-ui-standard | validate-frontend-ui-standard.ps1 | blocking | B/C UI tokens、页面骨架、禁用旧接口 |
+| G55 | permission-access-control | validate-permission-access-control.ps1 | blocking | 后台控制器权限守卫、门店过滤器、业态边界与权限码入库 |
+
+## 已批准例外
+
+- [ENGINEERING_DEBT_EXCEPTIONS.md](ENGINEERING_DEBT_EXCEPTIONS.md)：G27 既有的 9 条 hotel/admin 迁移债务，2026-11-15 到期；G32 已清零。
+
+> 例外：S3-APP-REGISTRY-001 见 ENGINEERING_DEBT_EXCEPTIONS.md（S4 到期关闭）。
+
+> 延续：S4-APP-REGISTRY-CONTINUE-001（S5 关闭）。

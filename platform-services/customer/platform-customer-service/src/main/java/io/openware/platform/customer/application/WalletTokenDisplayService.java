@@ -51,7 +51,7 @@ public class WalletTokenDisplayService {
 
     /**
      * 当前租户的代币展示配置：租户来自签名上下文；无上下文或调用失败一律回退缺省
-     * {@code A380币 / 100}（由 {@link TenantWalletTokenClient} 保证不抛异常）。
+     * {@code SaaS 币 / 100}（由 {@link TenantWalletTokenClient} 保证不抛异常）。
      */
     public WalletTokenConfig currentConfig() {
         TenantContext context = TenantContextHolder.get();

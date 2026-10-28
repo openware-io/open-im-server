@@ -48,6 +48,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
             if (header != null && !header.isBlank()) {
                 Claims claims = verify(header);
                 TenantContextHolder.set(toContext(claims), header);
+                ClientAudienceHolder.set(claims.get("clientApp", String.class));
                 // 币种与租户上下文同生共死，但走旁路 holder：不牵动 TenantContext 规范构造器。
                 // claim 缺失（老 token）或取值非法一律回退 USD，绝不因此 401。
                 CurrencyContextHolder.set(Currency.parse(claims.get("currency", String.class)));
@@ -58,6 +59,7 @@ public class TenantContextFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid tenant context");
         } finally {
             TenantContextHolder.clear();
+            ClientAudienceHolder.clear();
             CurrencyContextHolder.clear();
             RequestIdContext.clear();
         }

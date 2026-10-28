@@ -14,6 +14,7 @@ import io.openware.platform.order.domain.ktv.repository.KtvServerSessionReposito
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.OrderItem;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.infra.client.ResourceStateClient;
@@ -106,7 +107,9 @@ public class KtvServerSessionApplicationService {
             if (order == null) {
                 throw new BusinessException("ORDER_NOT_FOUND", "订单不存在");
             }
-            if (!"SERVING".equals(order.status())) {
+            // 只有「服务中」（交易状态 DRAFT = 未进入结算）订单可点服务人员：
+            // 已结算/已收款的订单再加服务费会凭空产生应收。
+            if (order.trade() != TradeStatus.DRAFT) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅服务中订单可点服务人员");
             }
             KtvPricingPlan plan = pricingPlanProvider.resolve(tenantId, order.storeId());

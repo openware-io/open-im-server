@@ -16,7 +16,7 @@
 # so they do not get repeated:
 #
 #   - Not every offender was BOM-less "since the initial commit" as a deferral: `scripts/verify/
-#     verify-a380-ktv-closure.ps1` had a Chinese room-type name in an SQL literal that is only ever
+#     verify-openchat-ktv-closure.ps1` had a Chinese room-type name in an SQL literal that is only ever
 #     used as an id, so no assertion depended on it; and four `.ps1` files in `scripts/verify/`
 #     already declared "must be ASCII-only" in their own headers. The N-20 record in
 #     docs/renovation/ENGINEERING_GOVERNANCE_03_REMEDIATION.md describes it as an identified

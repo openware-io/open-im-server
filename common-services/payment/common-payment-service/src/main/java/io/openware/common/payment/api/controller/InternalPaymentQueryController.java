@@ -37,7 +37,7 @@ public class InternalPaymentQueryController {
         this.request = request;
     }
 
-    /** 按订单汇总已收分项：现金 / A380币（储值）/ 积分。 */
+    /** 按订单汇总已收分项：现金 / OpenChat币（储值）/ 积分。 */
     @GetMapping("/orders/{orderId}/collected")
     public CollectApplicationService.OrderCollected collected(@PathVariable Long orderId) {
         verifyInternalAuth();

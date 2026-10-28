@@ -56,8 +56,15 @@ public class CashierController {
         return cashierService.submitDailyClosing(req.tenantId(), req.storeId(), req.businessDate(), req.submittedBy());
     }
 
+    /**
+     * 退款申请（PENDING）。
+     *
+     * <p><b>重复提交</b>：可选请求头 {@code Idempotency-Key}。同键重放返回首次创建的退款单（200，同 id，不新建）；
+     * 不带键但同订单 + 同金额已有未终结（PENDING/APPROVED）退款单时返回 409 {@code REFUND_DUPLICATE}。
+     */
     @PostMapping("/business/refund-requests")
-    public RefundDto requestRefund(@RequestBody RefundRequest req) {
+    public RefundDto requestRefund(@RequestBody RefundRequest req,
+                                   @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
@@ -69,7 +76,7 @@ public class CashierController {
             throw new ApiException(422, "STORE_CONTEXT_MISMATCH", "请求门店与当前门店上下文不一致");
         }
         return refundService.requestRefund(context.tenantId(), context.storeId(), req.orderId(), req.amount(),
-                req.reason(), req.requestedBy());
+                req.reason(), req.requestedBy(), idempotencyKey);
     }
 
     @PostMapping("/admin/refund-requests/{id}/approve")
@@ -84,6 +91,11 @@ public class CashierController {
         return refundService.rejectRefund(id, req.rejectedBy());
     }
 
+    /**
+     * 财务登记线下退款（APPROVED → REFUNDED）。
+     *
+     * <p>重复调用（已完成）返回 409 {@code REFUND_STATE_INVALID}，不会二次回冲订单已收金额。
+     */
     @PostMapping("/admin/refund-requests/{id}/refund")
     public RefundDto markRefunded(@PathVariable Long id, @RequestBody MarkRefundedRequest req) {
         PermissionGuard.require("payment.refund.offline");

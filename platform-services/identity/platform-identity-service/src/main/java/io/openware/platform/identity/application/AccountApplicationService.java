@@ -42,6 +42,16 @@ public class AccountApplicationService {
         this.jwtProperties = jwtProperties;
     }
 
+    /** 内部账号只读视图：供 tenant/admin 在平台角色授予前校验账号类型与状态。 */
+    public AccountView findAccountView(Long accountId) {
+        return accountRepository.findById(accountId)
+                .map(account -> new AccountView(account.id(), account.accountType(), account.status()))
+                .orElse(null);
+    }
+
+    public record AccountView(Long id, String accountType, String status) {
+    }
+
     @Transactional
     public IdentityAccount register(String loginType, String loginIdentifier, String credential) {
         // 状态与类型由领域工厂固定（注册的不变量），凭据编码属基础设施细节，故留在应用层完成后再传入领域。
@@ -53,10 +63,53 @@ public class AccountApplicationService {
         return account;
     }
 
+    /** 为已有员工账号绑定可密码登录的标识（内部端点；同一标识已存在则拒绝，避免覆盖凭据）。 */
+    @Transactional
+    public void bindPasswordLogin(Long accountId, String loginType, String loginIdentifier, String credential) {
+        if (accountId == null || accountId <= 0) {
+            throw new IllegalArgumentException("accountId is required");
+        }
+        accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalStateException("Identity account not found: " + accountId))
+                .ensureActive();
+        var existing = loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier);
+        if (existing.isPresent()) {
+            if (accountId.equals(existing.get().accountId())) {
+                return;
+            }
+            throw new IllegalStateException("Login identity already exists: " + loginType + "/" + loginIdentifier);
+        }
+        loginIdentityRepository.save(LoginIdentity.forLogin(accountId, loginType, loginIdentifier,
+                passwordEncoder.encode(credential)));
+    }
+
+    /** 内部开通：设置/重设 C 端手机号或邮箱密码。 */
+    @Transactional
+    public void resetPassword(Long accountId, String loginType, String loginIdentifier, String credential) {
+        if (accountId == null || accountId <= 0) {
+            throw new IllegalArgumentException("accountId is required");
+        }
+        accountRepository.findById(accountId)
+                .orElseThrow(() -> new IllegalStateException("Identity account not found: " + accountId))
+                .ensureActive();
+        LoginIdentity existing = loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier)
+                .orElse(null);
+        String encoded = passwordEncoder.encode(credential);
+        if (existing != null) {
+            if (!accountId.equals(existing.accountId())) {
+                throw new IllegalStateException("Login identity already exists: " + loginType + "/" + loginIdentifier);
+            }
+            loginIdentityRepository.save(new LoginIdentity(existing.id(), accountId, loginType,
+                    loginIdentifier, encoded, LoginIdentity.STATUS_ACTIVE));
+            return;
+        }
+        loginIdentityRepository.save(LoginIdentity.forLogin(accountId, loginType, loginIdentifier, encoded));
+    }
+
     /**
      * 按登录标识查/建账号（内部端点，供运营人员开通使用）。
      * 已存在则返回并修正 account_type；不存在则按指定类型创建账号 + 登录标识（credential 为空，IM/第三方无密码）。
-     * IM 类型额外写入 oauth_link（provider=IM, provider_account_id=open_id），使 OAuth 绑定按 open_id 命中同一账号。
+     * IM 的 app 维度 oauth_link 由 OAuth 回调按 app_id 写入，本入口不再写 legacy 绑定。
      */
     @Transactional
     public IdentityAccount ensureAccount(String loginType, String loginIdentifier, String accountType) {
@@ -87,24 +140,18 @@ public class AccountApplicationService {
             if (account.hasDifferentAccountType(accountType)) {
                 account = accountRepository.save(account.changeAccountType(accountType));
             }
-            ensureImOauthLink(loginType, loginIdentifier, accountId);
             return account;
         }
         IdentityAccount account = accountRepository.save(IdentityAccount.ofType(accountType));
         loginIdentityRepository.save(LoginIdentity.forLogin(account.id(), loginType, loginIdentifier, null));
-        ensureImOauthLink(loginType, loginIdentifier, account.id());
         return account;
     }
 
-    /** IM 账号补写 OAuth 绑定（幂等）：确保 /oauth 授权回调按 open_id 命中本账号而非另建新账号。 */
-    private void ensureImOauthLink(String loginType, String loginIdentifier, Long accountId) {
-        if (!IM_LOGIN_TYPE.equals(loginType) || accountId == null) {
-            return;
-        }
-        if (oauthLinkRepository.findByProviderAccount(IM_OAUTH_PROVIDER, loginIdentifier).isPresent()) {
-            return;
-        }
-        oauthLinkRepository.save(OauthLink.bind(accountId, IM_OAUTH_PROVIDER, loginIdentifier, null));
+    /** 内部：按登录标识解析 SaaS accountId；不存在返回 null。 */
+    public Long findAccountIdByLogin(String loginType, String loginIdentifier) {
+        return loginIdentityRepository.findUniqueByLoginIdentifier(loginType, loginIdentifier)
+                .map(LoginIdentity::accountId)
+                .orElse(null);
     }
 
     public LoginResult login(String loginType, String loginIdentifier, String credential) {

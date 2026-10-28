@@ -10,8 +10,8 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 预约持久化对象（SaaS 侧 ord_reservation，SAAS_PLATFORM_04 §6.3）。
- * 与 im-order-service 旧 ord_reservation（IM 库）同名不同库，字段已切换为多租户归属。
+ * 预约持久化对象（SaaS 侧 ktv_reservation，SAAS_PLATFORM_04 §6.3）。
+ * 表名在 V29 迁移中改为 ktv_reservation；与 im-order-service 旧预约表（IM 库）不同库，字段已切换为多租户归属。
  *
  * <p>预约对象 = **房型**（{@link #roomTypeId}，见 docs/renovation/KTV_RESERVATION_ROOM_TYPE.md §2）：
  * 创建预约时只写房型，具体包厢由「到店分配包厢」写入 {@link #resourceId}（**分配包厢不改变状态**：
@@ -24,7 +24,7 @@ import java.time.LocalDateTime;
  */
 @Getter
 @Setter
-@TableName("ord_reservation")
+@TableName("ktv_reservation")
 public class ReservationPo {
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -47,7 +47,7 @@ public class ReservationPo {
     /**
      * 实际到店时间（门店营业本地时间）：由「到店登记」或「到店开台（隐含到店）」写入，未到店为 null。
      * 与 {@link #startAt}（客户预约的时段，计划时间）语义不同，后台预约列表两者分列展示。
-     * 列见 V1__ord_order_baseline.sql（{@code ord_reservation.arrived_at}）。
+     * 列见 V1__ord_order_baseline.sql（{@code ktv_reservation.arrived_at}）。
      */
     private LocalDateTime arrivedAt;
     private Integer version;

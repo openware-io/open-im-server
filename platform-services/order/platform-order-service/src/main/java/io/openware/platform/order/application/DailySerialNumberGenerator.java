@@ -34,7 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
  *       {@code docs/renovation/MULTI_TIMEZONE_DESIGN.md} §4.2 S19。</li>
  *   <li><b>当日序号</b>：按 <b>租户</b>（不含门店）每日从 1 递增，最小定宽 4 位（{@code 0001}）。
  *       <b>不按门店分桶的理由</b>：{@code ord_order} 的唯一键是 {@code uk_ord_order_tenant_no
- *       (tenant_id, order_no)}，{@code ord_reservation} 是 {@code uk_ord_reservation_tenant_no}；
+ *       (tenant_id, order_no)}，{@code ktv_reservation} 是 {@code uk_ktv_reservation_tenant_no}；
  *       若各门店各自从 0001 开始，同租户两个门店同日必然生成同一个单号并撞唯一键。
  *       要让门店可区分，只能把门店编码写进单号（如 {@code O-K01-20260919-0001}），
  *       而定稿格式不含门店位，因此序号按租户维度分配。</li>
@@ -84,7 +84,7 @@ public class DailySerialNumberGenerator {
     public enum DocType {
         /** 统一订单：{@code ord_order.order_no}，前缀 O。 */
         ORDER("O"),
-        /** 预约：{@code ord_reservation.reservation_no}，前缀 R。 */
+        /** 预约：{@code ktv_reservation.reservation_no}，前缀 R。 */
         RESERVATION("R");
 
         private final String prefix;

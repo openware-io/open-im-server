@@ -1,23 +1,16 @@
--- 回填 idt_account.account_type（统一账号模型落地）
--- 依赖 admin 域(cons_admin_account)、tenant 域(iam_user_role) 表，须在所有相关服务启动后执行一次（幂等）。
--- 优先级：PLATFORM_OPERATOR > EMPLOYEE > CUSTOMER（默认）。
+-- 回填 idt_account.account_type 到目标模型（S2 代码切换后执行，幂等）。
+-- 目标：PLATFORM_OPERATOR / USER；员工/客户身份由 tnt_membership.membership_type 决定。
+USE open_saas;
 
-USE open_im;
-
--- 1) 平台运营：持有 PLATFORM 作用域角色的账号（如 admin）
+-- 1) 平台运营：持有 PLATFORM 作用域角色的账号
 UPDATE idt_account a
-  JOIN iam_user_role r ON r.account_id = a.id AND r.scope_type = 'PLATFORM' AND r.status = 'ACTIVE'
+  JOIN iam_role_binding r ON r.subject_type = 'ACCOUNT' AND r.subject_id = a.id AND r.scope_type = 'PLATFORM' AND r.status = 'ACTIVE'
   SET a.account_type = 'PLATFORM_OPERATOR';
 
--- 2) 员工：被 SaaS 后台账号映射的账号（cons_admin_account.platform_account_id）
+-- 2) 其余账号统一为 USER（包括原 EMPLOYEE/CUSTOMER）
 UPDATE idt_account a
-  JOIN cons_admin_account s ON s.platform_account_id = a.id
-  SET a.account_type = 'EMPLOYEE';
-
--- 3) 客户：被会员档案映射的账号（cst_member.account_id），显式置 CUSTOMER（避免被上面误标）
-UPDATE idt_account a
-  JOIN cst_member m ON m.account_id = a.id
-  SET a.account_type = 'CUSTOMER';
+  SET a.account_type = 'USER'
+  WHERE a.account_type <> 'PLATFORM_OPERATOR';
 
 -- 结果校验
 SELECT account_type, COUNT(*) AS cnt FROM idt_account GROUP BY account_type;

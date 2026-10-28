@@ -15,6 +15,7 @@ public class OauthLinkPo {
     private Long id;
     private Long accountId;
     private String provider;
+    private String appId;
     private String providerAccountId;
     private String scope;
     private String status;

@@ -18,10 +18,10 @@ import org.springframework.stereotype.Repository;
 /**
  * {@link OrderRepository} 的持久化适配器。
  *
- * <p><b>五条条件语句逐字保留</b>：{@code updateAmountsAndStatusWithVersion} / {@code updateStatusGuarded} /
- * {@code holdIfNotHeld} / {@code unholdIfHeld} / {@code voidIfStatus} 直接调用 {@code OrderMapper} 上已有的
- * {@code @Update} 语句（条件分别是 {@code AND version = ?}、{@code AND status = ?}、{@code hold_at IS NULL}、
- * {@code hold_at IS NOT NULL}、{@code AND status = ?}，版本自增写在 SQL 里）。本适配器只做
+ * <p><b>四条条件语句逐字保留</b>：{@code updateAmountsAndStatusWithVersion} / {@code updateTradeStatusGuarded} /
+ * {@code voidByTradeStatus} 直接调用 {@code OrderMapper} 上已有的
+ * {@code @Update} 语句（条件分别是 {@code AND version = ?}、{@code AND trade_status = ?}、
+ * {@code AND trade_status = ?}，版本自增写在 SQL 里）。本适配器只做
  * 「领域聚合 ↔ 持久化对象」的搬运与「受影响行数 → boolean」的翻译，
  * <b>不改写、不拆分、不合并、不在 Java 侧重算版本</b>：{@code ord_order} 没有 {@code @Version} 注解、
  * 工程里也没有乐观锁拦截器，把条件拆掉换成 {@code updateById} 会让并发写静默互相覆盖。
@@ -38,10 +38,10 @@ import org.springframework.stereotype.Repository;
  * （条件语句的 {@code updated_at} 来自端口参数，因为业务上它就是那一次动作的时刻）；
  * {@code created_by/updated_by} 只在插入时取调用方给的操作人，其余路径不写（改造前也不写）。
  *
- * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_order}）：
+ * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_order}，已收口）：
  * id / tenant_id / organization_id / store_id / order_no / idempotency_key / business_type / customer_id /
- * status / currency_code / subtotal_amount / discount_amount / tax_amount / total_amount / paid_amount /
- * refundable_amount / completed_at / cancelled_at / hold_reason / hold_at / version
+ * trade_status / refund_status / currency_code / subtotal_amount / discount_amount / tax_amount / total_amount /
+ * paid_amount / refundable_amount / completed_at / cancelled_at / version
  * + created_by / created_at / updated_by / updated_at。
  */
 @Repository
@@ -136,23 +136,15 @@ public class OrderRepositoryAdapter implements OrderRepository {
     }
 
     @Override
-    public boolean updateStatusGuarded(Long id, String expectedStatus, String newStatus, LocalDateTime at) {
-        return mapper.updateStatusGuarded(id, expectedStatus, newStatus, at) > 0;
+    public boolean updateTradeStatusGuarded(Long id, String expectedTradeStatus, String newTradeStatus,
+                                            LocalDateTime at) {
+        return mapper.updateTradeStatusGuarded(id, expectedTradeStatus, newTradeStatus, at) > 0;
     }
 
     @Override
-    public boolean holdIfNotHeld(Long id, LocalDateTime holdAt, String reason, LocalDateTime at) {
-        return mapper.holdIfNotHeld(id, holdAt, reason, at) > 0;
-    }
-
-    @Override
-    public boolean unholdIfHeld(Long id, LocalDateTime at) {
-        return mapper.unholdIfHeld(id, at) > 0;
-    }
-
-    @Override
-    public boolean voidIfStatus(Long id, String expectedStatus, LocalDateTime at) {
-        return mapper.voidIfStatus(id, expectedStatus, at) > 0;
+    public boolean voidByTradeStatus(Long id, String expectedTradeStatus, String newTradeStatus,
+                                     LocalDateTime at) {
+        return mapper.voidByTradeStatus(id, expectedTradeStatus, newTradeStatus, at) > 0;
     }
 
     /** 领域聚合 → 持久化对象：逐列对应真实列；13 个会话投影字段一个都不设（见类注释）。 */
@@ -166,7 +158,8 @@ public class OrderRepositoryAdapter implements OrderRepository {
         po.setIdempotencyKey(order.idempotencyKey());
         po.setBusinessType(order.businessType());
         po.setCustomerId(order.customerId());
-        po.setStatus(order.status());
+        po.setTradeStatus(order.trade() == null ? null : order.trade().name());
+        po.setRefundStatus(order.refund() == null ? null : order.refund().name());
         po.setCurrencyCode(order.currencyCode());
         po.setSubtotalAmount(order.subtotalAmount());
         po.setDiscountAmount(order.discountAmount());
@@ -176,8 +169,6 @@ public class OrderRepositoryAdapter implements OrderRepository {
         po.setRefundableAmount(order.refundableAmount());
         po.setCompletedAt(order.completedAt());
         po.setCancelledAt(order.cancelledAt());
-        po.setHoldReason(order.holdReason());
-        po.setHoldAt(order.holdAt());
         po.setVersion(order.version());
         return po;
     }
@@ -188,10 +179,10 @@ public class OrderRepositoryAdapter implements OrderRepository {
             return null;
         }
         return new Order(po.getId(), po.getTenantId(), po.getOrganizationId(), po.getStoreId(), po.getOrderNo(),
-            po.getIdempotencyKey(), po.getBusinessType(), po.getCustomerId(), po.getStatus(),
-            po.getCurrencyCode(), po.getSubtotalAmount(), po.getDiscountAmount(), po.getTaxAmount(),
-            po.getTotalAmount(), po.getPaidAmount(), po.getRefundableAmount(), po.getCompletedAt(),
-            po.getCancelledAt(), po.getHoldReason(), po.getHoldAt(), po.getVersion());
+            po.getIdempotencyKey(), po.getBusinessType(), po.getCustomerId(),
+            po.getTradeStatus(), po.getRefundStatus(), po.getCurrencyCode(), po.getSubtotalAmount(),
+            po.getDiscountAmount(), po.getTaxAmount(), po.getTotalAmount(), po.getPaidAmount(),
+            po.getRefundableAmount(), po.getCompletedAt(), po.getCancelledAt(), po.getVersion());
     }
 
     /** 业务聚合 + 记账快照：分开交给上层（员工业绩报表要按 created_by 归集开单员工）。 */

@@ -49,7 +49,7 @@
 | --- | --- |
 | `oidc-hybrid-preflight.ps1` | 发版前预检：issuer、Redis 前缀、secret/配置一致性 |
 | `verify-oidc-cb-session.ps1` | C/B 会话隔离、CSRF、logout/re-login 真实 OAuth 回调验证 |
-| `verify-a380-ktv-closure.ps1` | SaaS A380 KTV 预约/履约/账单/结算闭环（真实数据） |
+| `verify-openchat-ktv-closure.ps1` | SaaS OpenChat KTV 预约/履约/账单/结算闭环（真实数据） |
 | `ack-auth-contract.ps1` | ACK 环境授权契约验证 |
 | `local-integration.ps1` | 本地集成入口 |
 | `e2e-ktv-smoke.ps1` | KTV 冒烟（旧的无 Cookie/JSON 上下文路径，保留作历史对照） |
@@ -62,6 +62,10 @@
 | `verify-reservation-room-type.ps1` | 预约房型闭环 |
 | `release-status.ps1` | 发布状态与制品哈希核对 |
 | `run-all.ps1` | 统一执行其余验证脚本，按脚本保留 log 与 `summary.txt` 证据 |
+| `run-e2e-domain.ps1` | 二期域 E2E 一键入口（fail-closed）：凭证自动化 → B 端/管理端 E2E → C 端/OTA/渠道回调 E2E |
+| `e2e-c-end-ota-channel.ps1` | C 端酒店报价/预订/支付/退款 + OTA channel v1 真链路（HMAC/幂等/取消）+ 渠道支付回调（sandbox）；真实 HTTP + `open_saas` DB 断言 |
+| `ota-channel-client.ps1` | 酒店 OTA channel v1 请求辅助（HMAC 签名，供 C 端/OTA E2E dot-source 复用） |
+| `prepare-e2e-c-hotel-fixture.ps1` | C 端酒店 E2E 前置 fixture：临时 app 安装指向 HOTEL 门店，finally 恢复 |
 
 `scripts/verify/*.ps1` 与本节清单的一致性由 `scripts/validate/validate-verify-inventory.ps1`（G39）校验：
 新增脚本必须登记，登记脚本必须存在。层级顺序、真机/模拟器证据与一次性数据清理仍需运行期人工验收，静态门禁不能替代。
@@ -93,7 +97,7 @@
 ## 6. 需要持续补充的用例面
 
 - 群聊解散后禁发消息、@成员名单与成员资料一致、消息编辑同步、加好友/成为好友通知、注册报错 i18n、登录设备列表、未读角标（含后台关闭私密/私密群聊后的排除）。
-- 服务板块（小程序服务列表）→ A380 / A380 后台的跳转与权限完整性。
+- 服务板块（小程序服务列表）→ OpenChat 后台的跳转与权限完整性。
 
 ## 7. 原则与允许禁止例外
 

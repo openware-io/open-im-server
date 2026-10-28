@@ -20,6 +20,7 @@ import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.order.repository.OrderQuery;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.repository.Persisted;
@@ -46,11 +47,10 @@ import org.mockito.ArgumentCaptor;
  * 订单仓储适配器的 SQL 形状与列保真（真实适配器 + mock mapper）。
  *
  * <p><b>为什么这个类必须存在</b>：本次迁移把「订单的并发写入」从服务里搬进了适配器——
- * 五条条件语句（{@code updateAmountsAndStatusWithVersion} / {@code updateStatusGuarded} /
- * {@code holdIfNotHeld} / {@code unholdIfHeld} / {@code voidIfStatus}）是**乐观锁与挂单/作废并发保护的
- * 唯一判定点**。应用层测试现在只能断言「哪个端口方法被调用」，看不到 SQL；
- * 把 {@code WHERE version = ?} / {@code WHERE status = ?} / {@code hold_at IS NULL} 或
- * {@code version = version + 1} 删掉，{@code test-compile} 依然干净。因此这里分两层钉住：
+ * 四条条件语句（{@code updateAmountsAndStatusWithVersion} / {@code updateTradeStatusGuarded} /
+ * {@code voidByTradeStatus}）是**乐观锁与取消/作废并发保护的唯一判定点**。应用层测试现在只能断言「哪个端口方法被调用」，看不到 SQL；
+ * 把 {@code WHERE version = ?} / {@code WHERE trade_status = ?} 或 {@code version = version + 1} 删掉，
+ * {@code test-compile} 依然干净。因此这里分两层钉住：
  * <ol>
  *   <li><b>语句文本</b>：用反射读 {@code OrderMapper} 上的 {@code @Update}，断言每条语句的条件谓词与
  *       SQL 侧自增仍在（语句是手写的，不在 Wrapper 上，只有反射能读）；</li>
@@ -112,7 +112,6 @@ class OrderRepositoryAdapterTest {
           property + " 标了 @TableField(exist = false)，绝不能出现在列集合里");
     }
     assertTrue(columnProperties.contains("orderNo"), "order_no 是列");
-    assertTrue(columnProperties.contains("holdAt"), "hold_at 是列");
     assertTrue(columnProperties.contains("version"), "version 是列");
   }
 
@@ -149,7 +148,9 @@ class OrderRepositoryAdapterTest {
     assertEquals("idem-1", po.getIdempotencyKey());
     assertEquals("KTV", po.getBusinessType());
     assertEquals(99L, po.getCustomerId());
-    assertEquals("SERVING", po.getStatus());
+    // 订单主表只表达交易事实：交易/退款状态与金额一起落库（兼容列 status 已随收口迁移删除）
+    assertEquals("DRAFT", po.getTradeStatus(), "开台中未结算 → 交易状态 DRAFT");
+    assertEquals("NONE", po.getRefundStatus());
     assertEquals("CNY", po.getCurrencyCode());
     assertEquals(0, new BigDecimal("10000").compareTo(po.getSubtotalAmount()));
     assertEquals(0, new BigDecimal("500").compareTo(po.getDiscountAmount()));
@@ -159,8 +160,6 @@ class OrderRepositoryAdapterTest {
     assertEquals(0, new BigDecimal("9800").compareTo(po.getRefundableAmount()));
     assertEquals(LocalDateTime.of(2026, 9, 19, 22, 0), po.getCompletedAt());
     assertEquals(LocalDateTime.of(2026, 9, 19, 21, 0), po.getCancelledAt());
-    assertEquals("等客人回来", po.getHoldReason());
-    assertEquals(LocalDateTime.of(2026, 9, 19, 20, 30), po.getHoldAt());
     assertEquals(3, po.getVersion());
   }
 
@@ -180,7 +179,7 @@ class OrderRepositoryAdapterTest {
     Order order = adapter.findById(ORDER_ID).orElseThrow();
 
     assertEquals(ORDER_ID, order.id());
-    assertEquals("SERVING", order.status());
+    assertEquals("DRAFT", order.tradeStatus());
     assertEquals(3, order.version());
     assertEquals(0, new BigDecimal("9800").compareTo(order.total()));
   }
@@ -224,7 +223,6 @@ class OrderRepositoryAdapterTest {
     List<Persisted<Order>> rows = adapter.list(OrderQuery.newestFirst().from(FROM).until(TO));
 
     assertEquals(1, rows.size());
-    assertEquals("等客人回来", rows.getFirst().aggregate().holdReason());
     assertEquals(9L, rows.getFirst().audit().createdBy(), "created_by 必须随行读回（员工业绩按它归集）");
     assertEquals(LocalDateTime.of(2026, 9, 19, 8, 0), rows.getFirst().audit().createdAt());
 
@@ -314,7 +312,7 @@ class OrderRepositoryAdapterTest {
     ArgumentCaptor<OrderPo> captor = ArgumentCaptor.forClass(OrderPo.class);
     verify(mapper).updateAmountsAndStatusWithVersion(captor.capture(), eq(3));
     OrderPo written = captor.getValue();
-    assertEquals("SERVING", written.getStatus());
+    assertEquals("DRAFT", written.getTradeStatus());
     assertEquals(0, new BigDecimal("9800").compareTo(written.getTotalAmount()));
     assertNotNull(written.getUpdatedAt(), "条件语句的 updated_at 来自该字段，不填会写成 NULL");
   }
@@ -323,7 +321,7 @@ class OrderRepositoryAdapterTest {
    * 五条条件语句的**语句文本**必须保住各自的谓词与 SQL 侧自增。
    *
    * <p>这是本类存在的核心理由：把 {@code AND version = ?}、{@code AND status = ?}、
-   * {@code hold_at IS NULL}、{@code hold_at IS NOT NULL} 或 {@code version = version + 1} 删掉，
+   * {@code version = version + 1} 删掉，
    * 并发保护就没了，而 {@code test-compile} 完全看不出来。
    */
   @Test
@@ -337,56 +335,48 @@ class OrderRepositoryAdapterTest {
         "refundable_amount")) {
       assertTrue(amounts.contains(column + " = #{po."), "五个金额列一个都不能漏: " + column + " in " + amounts);
     }
-    assertTrue(amounts.contains("status = #{po.status}"), "状态必须与金额同一次写入: " + amounts);
+    assertFalse(amounts.contains("status = #{po.status}"),
+        "兼容列 status 已随收口迁移删除，SQL 不得再写它: " + amounts);
+    assertTrue(amounts.contains("trade_status = #{po.tradeStatus}"), "交易状态必须与金额同一次写入: " + amounts);
+    assertTrue(amounts.contains("refund_status = #{po.refundStatus}"), "退款状态必须与金额同一次写入: " + amounts);
 
-    String status = updateStatement("updateStatusGuarded", Long.class, String.class, String.class,
+    String status = updateStatement("updateTradeStatusGuarded", Long.class, String.class, String.class,
         LocalDateTime.class);
-    assertTrue(status.contains("WHERE id = #{id} AND status = #{expectedStatus}"),
-        "状态转换必须按当前状态判定: " + status);
+    assertTrue(status.contains("WHERE id = #{id} AND trade_status = #{expectedTradeStatus}"),
+        "交易状态转换必须按当前交易状态判定: " + status);
+    assertTrue(status.contains("trade_status = #{newTradeStatus}"), "写交易状态: " + status);
+    assertFalse(status.contains("status = #{newLegacyStatus}"), "不得再双写兼容列: " + status);
 
-    String hold = updateStatement("holdIfNotHeld", Long.class, LocalDateTime.class, String.class,
+    String voided = updateStatement("voidByTradeStatus", Long.class, String.class, String.class,
         LocalDateTime.class);
-    assertTrue(hold.contains("WHERE id = #{id} AND hold_at IS NULL"),
-        "挂单判据是 hold_at 而不是 status（挂单不改商业状态）: " + hold);
-
-    String unhold = updateStatement("unholdIfHeld", Long.class, LocalDateTime.class);
-    assertTrue(unhold.contains("WHERE id = #{id} AND hold_at IS NOT NULL"),
-        "解挂判据与挂单对称: " + unhold);
-
-    String voided = updateStatement("voidIfStatus", Long.class, String.class, LocalDateTime.class);
-    assertTrue(voided.contains("SET status = 'VOIDED'"), voided);
-    assertTrue(voided.contains("WHERE id = #{id} AND status = #{expectedStatus}"),
-        "作废必须按读到的状态判定（重复取消是幂等语义，不能按 version 守卫）: " + voided);
+    assertTrue(voided.contains("trade_status = #{newTradeStatus}"), voided);
+    assertFalse(voided.contains("status = #{newLegacyStatus}"), "不得再双写兼容列: " + voided);
+    assertTrue(voided.contains("WHERE id = #{id} AND trade_status = #{expectedTradeStatus}"),
+        "作废/取消必须按读到的交易状态判定（重复取消是幂等语义，不能按 version 守卫）: " + voided);
   }
 
   /** 受影响 0 行 = 期间已被他人写入：五条语句都必须翻成 false，适配器不得吞掉这个信号。 */
   @Test
   void conditionalWritesMapZeroRowsAffectedToFalse() {
     when(mapper.updateAmountsAndStatusWithVersion(any(OrderPo.class), eq(0))).thenReturn(0);
-    when(mapper.updateStatusGuarded(any(), any(), any(), any())).thenReturn(0);
-    when(mapper.holdIfNotHeld(any(), any(), any(), any())).thenReturn(0);
-    when(mapper.unholdIfHeld(any(), any())).thenReturn(0);
-    when(mapper.voidIfStatus(any(), any(), any())).thenReturn(0);
+    when(mapper.updateTradeStatusGuarded(any(), any(), any(), any())).thenReturn(0);
+    when(mapper.voidByTradeStatus(any(), any(), any(), any())).thenReturn(0);
 
     assertFalse(adapter.updateAmountsAndStatusWithVersion(order().withVersion(0), 0));
-    assertFalse(adapter.updateStatusGuarded(ORDER_ID, "DRAFT", "WAITING_SETTLEMENT", LocalDateTime.now()));
-    assertFalse(adapter.holdIfNotHeld(ORDER_ID, LocalDateTime.now(), "原因", LocalDateTime.now()));
-    assertFalse(adapter.unholdIfHeld(ORDER_ID, LocalDateTime.now()));
-    assertFalse(adapter.voidIfStatus(ORDER_ID, "SERVING", LocalDateTime.now()));
+    assertFalse(adapter.updateTradeStatusGuarded(ORDER_ID, "DRAFT", "PENDING_PAYMENT",
+        LocalDateTime.now()));
+    assertFalse(adapter.voidByTradeStatus(ORDER_ID, "DRAFT", "CANCELLED", LocalDateTime.now()));
   }
 
   /** 受影响 1 行 = 本次写入成功：必须返回 true（调用方据此继续推进状态机）。 */
   @Test
   void conditionalWritesMapOneRowAffectedToTrue() {
-    when(mapper.updateStatusGuarded(any(), any(), any(), any())).thenReturn(1);
-    when(mapper.holdIfNotHeld(any(), any(), any(), any())).thenReturn(1);
-    when(mapper.unholdIfHeld(any(), any())).thenReturn(1);
-    when(mapper.voidIfStatus(any(), any(), any())).thenReturn(1);
+    when(mapper.updateTradeStatusGuarded(any(), any(), any(), any())).thenReturn(1);
+    when(mapper.voidByTradeStatus(any(), any(), any(), any())).thenReturn(1);
 
-    assertTrue(adapter.updateStatusGuarded(ORDER_ID, "DRAFT", "WAITING_SETTLEMENT", LocalDateTime.now()));
-    assertTrue(adapter.holdIfNotHeld(ORDER_ID, LocalDateTime.now(), "原因", LocalDateTime.now()));
-    assertTrue(adapter.unholdIfHeld(ORDER_ID, LocalDateTime.now()));
-    assertTrue(adapter.voidIfStatus(ORDER_ID, "SERVING", LocalDateTime.now()));
+    assertTrue(adapter.updateTradeStatusGuarded(ORDER_ID, "DRAFT", "PENDING_PAYMENT",
+        LocalDateTime.now()));
+    assertTrue(adapter.voidByTradeStatus(ORDER_ID, "DRAFT", "CANCELLED", LocalDateTime.now()));
   }
 
   // ---------------------------------------------------------------- helpers
@@ -397,11 +387,9 @@ class OrderRepositoryAdapterTest {
 
   /** 显式版本（{@code null} = 新建聚合没有版本，插入时必须落 0）。 */
   private static Order order(Integer version) {
-    return new Order(ORDER_ID, TENANT_ID, 55L, 1001L, "O202609190001", "idem-1", "KTV", 99L, "SERVING",
-        "CNY", new BigDecimal("10000"), new BigDecimal("500"), new BigDecimal("300"),
+    return new Order(ORDER_ID, TENANT_ID, 55L, 1001L, "O202609190001", "idem-1", "KTV", 99L, "DRAFT", RefundStatus.NONE.name(), "CNY", new BigDecimal("10000"), new BigDecimal("500"), new BigDecimal("300"),
         new BigDecimal("9800"), new BigDecimal("9800"), new BigDecimal("9800"),
-        LocalDateTime.of(2026, 9, 19, 22, 0), LocalDateTime.of(2026, 9, 19, 21, 0), "等客人回来",
-        LocalDateTime.of(2026, 9, 19, 20, 30), version);
+        LocalDateTime.of(2026, 9, 19, 22, 0), LocalDateTime.of(2026, 9, 19, 21, 0), version);
   }
 
   private static OrderPo po(Long id) {
@@ -414,7 +402,7 @@ class OrderRepositoryAdapterTest {
     po.setIdempotencyKey("idem-1");
     po.setBusinessType("KTV");
     po.setCustomerId(99L);
-    po.setStatus("SERVING");
+    po.setTradeStatus("DRAFT");
     po.setCurrencyCode("CNY");
     po.setSubtotalAmount(new BigDecimal("10000"));
     po.setDiscountAmount(new BigDecimal("500"));
@@ -424,8 +412,6 @@ class OrderRepositoryAdapterTest {
     po.setRefundableAmount(new BigDecimal("9800"));
     po.setCompletedAt(LocalDateTime.of(2026, 9, 19, 22, 0));
     po.setCancelledAt(LocalDateTime.of(2026, 9, 19, 21, 0));
-    po.setHoldReason("等客人回来");
-    po.setHoldAt(LocalDateTime.of(2026, 9, 19, 20, 30));
     po.setVersion(3);
     po.setCreatedBy(9L);
     po.setCreatedAt(LocalDateTime.of(2026, 9, 19, 8, 0));

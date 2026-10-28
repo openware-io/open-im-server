@@ -5,6 +5,7 @@ import io.openware.platform.order.application.CatalogApplicationService.CatalogI
 import io.openware.platform.order.application.dto.CatalogItemView;
 import java.math.BigDecimal;
 import java.util.List;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -40,6 +41,7 @@ public class CatalogController {
     }
 
     /** 新增目录项（B 端商户经营）。 */
+    @ClientAudience("saas-b")
     @PostMapping("/items")
     public CatalogItemView create(@RequestBody CatalogItemRequest req) {
         return catalogService.create(new CatalogItemCommand(req.storeId(), req.category(), req.itemType(),
@@ -48,6 +50,7 @@ public class CatalogController {
     }
 
     /** 更新目录项（B 端商户经营）。 */
+    @ClientAudience("saas-b")
     @PutMapping("/items/{id}")
     public CatalogItemView update(@PathVariable Long id, @RequestBody CatalogItemRequest req) {
         return catalogService.update(id, new CatalogItemCommand(req.storeId(), req.category(), req.itemType(),
@@ -56,6 +59,7 @@ public class CatalogController {
     }
 
     /** 停用目录项（软删 status → INACTIVE）。 */
+    @ClientAudience("saas-b")
     @DeleteMapping("/items/{id}")
     public void disable(@PathVariable Long id) {
         catalogService.disable(id);

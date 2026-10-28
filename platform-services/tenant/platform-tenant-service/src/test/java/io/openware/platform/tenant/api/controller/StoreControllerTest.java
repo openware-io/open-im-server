@@ -313,6 +313,6 @@ class StoreControllerTest {
 
     private static Store store() {
         return new Store(STORE_ID, TENANT_ID, 1L, "a380-ktv-001", "A380 KTV 旗舰店", "KTV", "CN", null,
-            "Asia/Shanghai", "CNY", "zh-CN", null, "04:00:00", Store.STATUS_ACTIVE);
+            "Asia/Shanghai", "CNY", "zh-CN", null, "04:00:00", Store.STATUS_ACTIVE, null);
     }
 }

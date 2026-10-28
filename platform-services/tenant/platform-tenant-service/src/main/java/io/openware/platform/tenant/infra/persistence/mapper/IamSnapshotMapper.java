@@ -59,24 +59,34 @@ public interface IamSnapshotMapper {
     int grantConsumerAuthorization(@Param("appId") String appId, @Param("accountId") Long accountId,
                                   @Param("scope") String scope);
 
-    /** 账号在作用域下的权限码列表（iam_user_role → iam_role → iam_permission）。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("UPDATE tnt_app_user_authorization /* tenant-agnostic: 按 app+account 撤销授权 */ "
+        + "SET status = 'REVOKED', authorization_version = authorization_version + 1, updated_at = NOW(3) "
+        + "WHERE app_id = #{appId} AND account_id = #{accountId} AND status = 'ACTIVE'")
+    int revokeConsumerAuthorization(@Param("appId") String appId, @Param("accountId") Long accountId);
+
+    /** 账号在作用域下的权限码列表（iam_role_binding → iam_role → iam_permission）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
         SELECT DISTINCT p.code
-        FROM iam_user_role ur
-        JOIN iam_role r ON r.id = ur.role_id AND r.status = 'ACTIVE'
+        FROM iam_role_binding b
+        LEFT JOIN tnt_membership mem
+          ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        JOIN iam_role r ON r.id = b.role_id AND r.status = 'ACTIVE'
         JOIN iam_role_permission rp ON rp.role_id = r.id
         JOIN iam_permission p ON p.id = rp.permission_id AND p.status = 'ACTIVE'
-        WHERE ur.account_id = #{accountId}
-          AND ur.status = 'ACTIVE'
-          AND (ur.effective_from IS NULL OR ur.effective_from <= NOW(3))
-          AND (ur.effective_to IS NULL OR ur.effective_to >= NOW(3))
+        WHERE b.status = 'ACTIVE'
+          AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
+          AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
           AND (
-            ur.scope_type = 'PLATFORM'
+            (b.subject_type = 'ACCOUNT' AND b.subject_id = #{accountId} AND b.scope_type = 'PLATFORM')
             OR (
-              ur.tenant_id = #{tenantId}
-              AND (#{organizationId} IS NULL OR ur.organization_id IS NULL OR ur.organization_id = #{organizationId})
-              AND (#{storeId} IS NULL OR ur.store_id IS NULL OR ur.store_id = #{storeId})
+              b.subject_type = 'MEMBERSHIP'
+              AND mem.account_id = #{accountId}
+              AND mem.status = 'ACTIVE'
+              AND b.tenant_id = #{tenantId}
+              AND (#{organizationId} IS NULL OR b.organization_id = 0 OR b.organization_id = #{organizationId})
+              AND (#{storeId} IS NULL OR b.store_id = 0 OR b.store_id = #{storeId})
             )
           )
         """)
@@ -85,21 +95,25 @@ public interface IamSnapshotMapper {
                                        @Param("organizationId") Long organizationId,
                                        @Param("storeId") Long storeId);
 
-    /** 账号在作用域下的授权版本（取该作用域匹配的用户角色分配版本最大值）。 */
+    /** 账号在作用域下的授权版本（binding 与 membership 版本取最大）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT MAX(ur.authorization_version)
-        FROM iam_user_role ur
-        WHERE ur.account_id = #{accountId}
-          AND ur.status = 'ACTIVE'
-          AND (ur.effective_from IS NULL OR ur.effective_from <= NOW(3))
-          AND (ur.effective_to IS NULL OR ur.effective_to >= NOW(3))
+        SELECT MAX(GREATEST(b.authorization_version, mem.authorization_version))
+        FROM iam_role_binding b
+        LEFT JOIN tnt_membership mem
+          ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        WHERE (b.status = 'ACTIVE' OR b.subject_type = 'ACCOUNT')
+          AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
+          AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
           AND (
-            ur.scope_type = 'PLATFORM'
+            (b.subject_type = 'ACCOUNT' AND b.subject_id = #{accountId} AND b.scope_type = 'PLATFORM')
             OR (
-              ur.tenant_id = #{tenantId}
-              AND (#{organizationId} IS NULL OR ur.organization_id IS NULL OR ur.organization_id = #{organizationId})
-              AND (#{storeId} IS NULL OR ur.store_id IS NULL OR ur.store_id = #{storeId})
+              b.subject_type = 'MEMBERSHIP'
+              AND mem.account_id = #{accountId}
+              AND mem.status = 'ACTIVE'
+              AND b.tenant_id = #{tenantId}
+              AND (#{organizationId} IS NULL OR b.organization_id = 0 OR b.organization_id = #{organizationId})
+              AND (#{storeId} IS NULL OR b.store_id = 0 OR b.store_id = #{storeId})
             )
           )
         """)
@@ -111,31 +125,35 @@ public interface IamSnapshotMapper {
     /** 账号可访问的经营上下文（租户/组织/门店）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT DISTINCT ur.tenant_id, t.name AS tenant_name,
-               ur.organization_id, o.name AS organization_name,
-               ur.store_id, s.name AS store_name, ur.scope_type,
+        SELECT DISTINCT b.tenant_id, t.name AS tenant_name,
+               b.organization_id, o.name AS organization_name,
+               b.store_id, s.name AS store_name, b.scope_type,
                s.business_type, s.timezone
-        FROM iam_user_role ur
-        JOIN tnt_tenant t ON t.id = ur.tenant_id
-        LEFT JOIN tnt_organization o ON o.id = ur.organization_id
-        LEFT JOIN tnt_store s ON s.id = ur.store_id
-        WHERE ur.account_id = #{accountId}
-          AND ur.status = 'ACTIVE'
-          AND (ur.effective_from IS NULL OR ur.effective_from <= NOW(3))
-          AND (ur.effective_to IS NULL OR ur.effective_to >= NOW(3))
+        FROM iam_role_binding b
+        JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        JOIN tnt_tenant t ON t.id = b.tenant_id
+        LEFT JOIN tnt_organization o ON o.id = b.organization_id
+        LEFT JOIN tnt_store s ON s.id = b.store_id
+        WHERE mem.account_id = #{accountId}
+          AND mem.status = 'ACTIVE'
+          AND b.status = 'ACTIVE'
+          AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
+          AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
         """)
     List<IamContextRow> selectContexts(@Param("accountId") Long accountId);
 
     /** 账号在各作用域下的角色编码。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT DISTINCT ur.tenant_id, ur.organization_id, ur.store_id, r.code AS role_code
-        FROM iam_user_role ur
-        JOIN iam_role r ON r.id = ur.role_id AND r.status = 'ACTIVE'
-        WHERE ur.account_id = #{accountId}
-          AND ur.status = 'ACTIVE'
-          AND (ur.effective_from IS NULL OR ur.effective_from <= NOW(3))
-          AND (ur.effective_to IS NULL OR ur.effective_to >= NOW(3))
+        SELECT DISTINCT b.tenant_id, b.organization_id, b.store_id, r.code AS role_code
+        FROM iam_role_binding b
+        JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        JOIN iam_role r ON r.id = b.role_id AND r.status = 'ACTIVE'
+        WHERE mem.account_id = #{accountId}
+          AND mem.status = 'ACTIVE'
+          AND b.status = 'ACTIVE'
+          AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
+          AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
         """)
     List<IamRoleRow> selectRoles(@Param("accountId") Long accountId);
 
@@ -143,12 +161,13 @@ public interface IamSnapshotMapper {
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
         SELECT COUNT(1)
-        FROM iam_user_role ur
-        WHERE ur.account_id = #{accountId}
-          AND ur.status = 'ACTIVE'
-          AND ur.scope_type = 'PLATFORM'
-          AND (ur.effective_from IS NULL OR ur.effective_from <= NOW(3))
-          AND (ur.effective_to IS NULL OR ur.effective_to >= NOW(3))
+        FROM iam_role_binding b
+        WHERE b.subject_type = 'ACCOUNT'
+          AND b.subject_id = #{accountId}
+          AND b.status = 'ACTIVE'
+          AND b.scope_type = 'PLATFORM'
+          AND (b.effective_from IS NULL OR b.effective_from <= NOW(3))
+          AND (b.effective_to IS NULL OR b.effective_to >= NOW(3))
         """)
     int countPlatformRoles(@Param("accountId") Long accountId);
 
@@ -204,39 +223,45 @@ public interface IamSnapshotMapper {
     /** 账号的角色绑定视图（角色名 + 作用域 + 租户/门店名，含状态；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT ur.role_id AS role_id, ur.tenant_id AS tenant_id, ur.organization_id, ur.store_id,
+        SELECT b.role_id AS role_id, b.tenant_id AS tenant_id, b.organization_id, b.store_id,
                r.code AS role_code, r.name AS role_name,
-               ur.scope_type AS scope_type, t.name AS tenant_name, s.name AS store_name,
-               ur.status AS status
-        FROM iam_user_role ur
-        JOIN iam_role r ON r.id = ur.role_id
-        LEFT JOIN tnt_tenant t ON t.id = ur.tenant_id
-        LEFT JOIN tnt_store s ON s.id = ur.store_id
-        WHERE ur.account_id = #{accountId}
-        ORDER BY ur.id
+               b.scope_type AS scope_type, t.name AS tenant_name, s.name AS store_name,
+               b.status AS status
+        FROM iam_role_binding b
+        LEFT JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        JOIN iam_role r ON r.id = b.role_id
+        LEFT JOIN tnt_tenant t ON t.id = b.tenant_id
+        LEFT JOIN tnt_store s ON s.id = b.store_id
+        WHERE (b.subject_type = 'MEMBERSHIP' AND mem.account_id = #{accountId})
+           OR (b.subject_type = 'ACCOUNT' AND b.subject_id = #{accountId} AND b.scope_type = 'PLATFORM')
+        ORDER BY b.id
         """)
     List<IamRoleBindingRow> selectRoleBindings(@Param("accountId") Long accountId);
 
-    /** 账号的 ACTIVE iam_user_role id 列表（删除运营人员时逐个撤销用；跳过租户拦截器）。 */
+    /** 账号的 ACTIVE 角色绑定 id 列表（删除运营人员时逐个撤销用；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT id FROM iam_user_role /* tenant-agnostic: 按全局唯一 account_id 定位该账号的角色绑定 */
-        WHERE account_id = #{accountId} AND status = 'ACTIVE'
+        SELECT b.id FROM iam_role_binding b /* tenant-agnostic: account_id 经 membership 定位，跨租户撤销 */
+        JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        WHERE mem.account_id = #{accountId} AND b.status = 'ACTIVE'
         """)
     List<Long> selectUserRoleIds(@Param("accountId") Long accountId);
 
-    /** 撤销角色绑定：iam_user_role 状态软删为 REVOKED（跳过租户拦截器）。 */
+    /** 撤销角色绑定：iam_role_binding 状态软删为 REVOKED（跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Update("""
-        UPDATE iam_user_role SET status = 'REVOKED', updated_at = NOW(3)
+        UPDATE iam_role_binding SET status = 'REVOKED', updated_at = NOW(3)
         WHERE id = #{userRoleId}
         """)
     int revokeUserRole(@Param("userRoleId") Long userRoleId);
 
-    /** 查 iam_user_role 绑定的 account_id（撤销后逐出权限快照缓存用；跳过租户拦截器）。 */
+    /** 查角色绑定归属的 account_id（撤销后逐出权限快照缓存用；跳过租户拦截器）。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
-        SELECT account_id FROM iam_user_role WHERE id = #{userRoleId} /* tenant-agnostic: 按全局唯一主键回查 account_id */
+        SELECT mem.account_id
+        FROM iam_role_binding b
+        JOIN tnt_membership mem ON b.subject_type = 'MEMBERSHIP' AND b.subject_id = mem.id
+        WHERE b.id = #{userRoleId}
         """)
     Long selectAccountIdByUserRole(@Param("userRoleId") Long userRoleId);
 }

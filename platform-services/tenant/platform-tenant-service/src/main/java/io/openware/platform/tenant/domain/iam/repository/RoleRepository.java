@@ -21,6 +21,12 @@ public interface RoleRepository {
   /** 列出某租户的**可用**角色。 */
   List<Role> listActiveByTenant(Long tenantId);
 
+  /** 列出可分配给该租户的角色：全局预置角色 + 该租户自定义角色，不含平台角色。 */
+  List<Role> listAssignableByTenant(Long tenantId);
+
+  /** 平台角色目录，仅平台上下文使用。 */
+  List<Role> listPlatformRoles();
+
   /**
    * 遮蔽（脱敏）角色视图：角色 + 其权限中标记了可见 PII 的项。
    *

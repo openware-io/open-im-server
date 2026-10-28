@@ -29,6 +29,8 @@ im:
 jwt:
   secret: ${JWT_SECRET:}
 app:
+  audit-service:
+    base-url: ${INTERNAL_AUDIT_SERVICE_BASE_URL:http://common-audit-service:4190}
   tenant-service:
     base-url: ${TENANT_SERVICE_BASE_URL:http://localhost:4110}
 internal:
@@ -41,10 +43,13 @@ saas:
     # true: 纯 http 环境（本地 Kind/真机 adb 反向）种无前缀非 Secure cookie；
     # false(默认): https 环境（ACK dev/prod）保持 __Host- + Secure。
     plain: ${SAAS_COOKIE_PLAIN:false}
+  apps:
+    consumer: ${SAAS_APPS_CONSUMER:}
+    backend: ${SAAS_APPS_BACKEND:}
   # 本地/局域网调试放权（见 DevSaasSessionController）：默认关闭，仅本地 Kind 清单开启。
   dev-session:
     enabled: ${SAAS_DEV_SESSION_ENABLED:false}
-    allowed-app-ids: ${SAAS_DEV_SESSION_ALLOWED_APP_IDS:saas-a380-c,saas-a380-h5}
+    allowed-app-ids: ${SAAS_DEV_SESSION_ALLOWED_APP_IDS:saas-c,saas-b}
     consumer-account-id: ${SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID:0}
     operator-account-id: ${SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID:0}
 mybatis-plus:

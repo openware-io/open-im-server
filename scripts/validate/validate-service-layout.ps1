@@ -30,6 +30,22 @@ if (Test-Path -LiteralPath $legacyPath) {
   }
 }
 
+$legacyPackages = @{}
+$legacyPackagesPath = Join-Path $PSScriptRoot 'service-layout-legacy-packages.txt'
+if (Test-Path -LiteralPath $legacyPackagesPath) {
+  foreach ($line in [System.IO.File]::ReadAllLines($legacyPackagesPath, [System.Text.UTF8Encoding]::new($false))) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+    $parts = $trimmed -split '\|'
+    if ($parts.Count -lt 4) { continue }
+    $legacyPackages[($parts[0].Trim() + '|' + $parts[1].Trim())] = [ordered]@{
+      expires = $parts[2].Trim()
+      reason = $parts[3].Trim()
+      used = $false
+    }
+  }
+}
+
 $allowedTopLevel = @(
   'api', 'application', 'domain', 'infra',
   'config', 'handler',
@@ -84,6 +100,22 @@ try {
     }
     foreach ($name in $topNames) {
       if ($name -notin $allowedTopLevel) {
+        $key = $serviceName + '|' + $name
+        if ($legacyPackages.ContainsKey($key)) {
+          $entry = $legacyPackages[$key]
+          $expiry = [datetime]::MinValue
+          if (-not [datetime]::TryParseExact($entry.expires, 'yyyy-MM-dd', [cultureinfo]::InvariantCulture,
+              [System.Globalization.DateTimeStyles]::None, [ref]$expiry)) {
+            Add-Violation "invalid legacy package expiry for ${key}: $($entry.expires)"
+            continue
+          }
+          if ($expiry -lt (Get-Date).Date) {
+            Add-Violation "expired legacy package exception for ${key} (expired $($entry.expires))"
+            continue
+          }
+          $entry.used = $true
+          continue
+        }
         Add-Violation "unexpected top-level package '$name': $($service.FullName.Substring($root.Length + 1))"
       }
     }
@@ -106,6 +138,12 @@ try {
   }
 } finally {
   Pop-Location
+}
+
+foreach ($key in $legacyPackages.Keys) {
+  if (-not $legacyPackages[$key].used) {
+    Add-Violation "stale legacy package exception (no longer matches): $key"
+  }
 }
 
 if ($violations.Count -eq 0) {

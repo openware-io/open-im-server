@@ -31,12 +31,12 @@ app:
     base-url: ${TENANT_SERVICE_BASE_URL:http://platform-tenant-service:4110}
 # 出站内部调用签名（HMAC 鉴权版本 2）：secret 必须与 tenant-service 的
 # INTERNAL_SERVICE_AUTH_SECRET 一致；tenant-service 的 INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE
-# 白名单必须包含 platform-customer-service，否则内部端点 401 → 代币品牌回退缺省 A380币（只打 WARN）。
+# 白名单必须包含 platform-customer-service，否则内部端点 401 → 代币品牌回退缺省 SaaS 币（只打 WARN）。
 internal:
   service-auth:
     service-name: ${INTERNAL_SERVICE_AUTH_SERVICE_NAME:platform-customer-service}
-    # /internal/customer/** 仅接受这两个受信服务的鉴权版本 2 请求。
-    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:common-payment-service,platform-admin-service}
+    # /internal/customer/** 仅接受受信服务的鉴权版本 2 请求。
+    expected-source: ${INTERNAL_SERVICE_AUTH_EXPECTED_SOURCE:common-payment-service,platform-admin-service,platform-order-service}
     secret: ${INTERNAL_SERVICE_AUTH_SECRET}
 # 客户姓名盲索引（cst_member_name_token）存量回填：姓名是随机 IV 密文，迁移里无法解密，
 # 只能由应用层按「没有 token 行」的客户逐条解密重建（幂等、可重入，单条失败不中断整批）。

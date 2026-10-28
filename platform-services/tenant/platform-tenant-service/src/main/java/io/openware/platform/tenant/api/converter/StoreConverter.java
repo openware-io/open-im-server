@@ -22,6 +22,6 @@ public final class StoreConverter {
     return new StoreView(store.id(), store.tenantId(), store.organizationId(), store.code(),
         store.name(), store.businessType(), store.countryCode(), store.regionCode(), store.timezone(),
         store.defaultCurrency(), store.locale(), store.taxProfileId(), store.businessDayCutoff(),
-        store.status());
+        store.status(), store.logoUrl());
   }
 }

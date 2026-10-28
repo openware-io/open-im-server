@@ -33,7 +33,7 @@ import org.springframework.stereotype.Repository;
  * 在运行时抛 {@code can not find lambda cache for this property [...]}
  * （钱包切片的 CAS 适配器栽过一次：{@code tokenAmount}/{@code tokenBrandName}/{@code accountOpened}）。
  *
- * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_reservation}）：
+ * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ktv_reservation}）：
  * id / tenant_id / store_id / reservation_no / idempotency_key / customer_id / business_type /
  * resource_id / room_type_id / start_at / end_at / party_size / contact / status / order_id /
  * arrived_at / version + created_by / created_at / updated_by / updated_at。

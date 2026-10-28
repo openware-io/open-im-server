@@ -134,7 +134,7 @@ class PaymentIntegrationTest {
     assertEquals(STORE_ID, txs.get(0).storeId());
 
     OrderReceivable order = requireOrder(ORDER_ID);
-    assertEquals("COMPLETED", order.status());
+    assertEquals("PAID", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
 
     // 收款确认事件必须真的写进 Outbox（与上面那行 CONFIRMED 同事务）。
@@ -146,6 +146,31 @@ class PaymentIntegrationTest {
     assertEquals(0, events.get(0).retryCount());
     assertTrue(events.get(0).payloadJson().contains("\"occurredAt\""),
         "载荷必须能序列化含 Instant 的领域事件（ObjectMapper 未注册 JavaTimeModule 时会在此炸掉）");
+  }
+
+  /**
+   * 全额收款后订单交易状态是 PAID（不是旧模型的 COMPLETED）：换一个新的幂等键再收一次
+   * 必须 422 ORDER_STATUS_INVALID，不能因为「PAID 不在旧终态集合里」而写出 0 元收款单。
+   */
+  @Test
+  void collect_rejectsSecondCollectOnFullyPaidOrder() {
+    long orderId = 9106L;
+    insertOrder(orderId, 5000L);
+
+    collectApplicationService.collect(TENANT_ID, STORE_ID, orderId, CUSTOMER_ID, "CNY", 5000L,
+        List.of(new CollectApplicationService.PaymentItem("CASH", 5000L)), "it-paid-once-key");
+
+    OrderReceivable paid = requireOrder(orderId);
+    assertEquals("PAID", paid.tradeStatus());
+    assertEquals(0L, paid.remainingPayable());
+
+    ApiException ex = assertThrows(ApiException.class, () -> collectApplicationService.collect(
+        TENANT_ID, STORE_ID, orderId, CUSTOMER_ID, "CNY", 0L,
+        List.of(new CollectApplicationService.PaymentItem("CASH", 0L)), "it-paid-twice-key"));
+    assertEquals(422, ex.getStatus());
+    assertEquals("ORDER_STATUS_INVALID", ex.getCode());
+    assertEquals(1, collectRows("it-paid-once-key").size());
+    assertTrue(collectRows("it-paid-twice-key").isEmpty(), "重复收款不得落 pay_collect");
   }
 
   @Test
@@ -183,7 +208,7 @@ class PaymentIntegrationTest {
     assertEquals(0, txs.get(0).amount().compareTo(new BigDecimal("5000")));
 
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("COMPLETED", order.status());
+    assertEquals("PAID", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("10000")));
     assertEquals("CONFIRMED", collectRows("it-success-key").get(0).state());
   }
@@ -243,7 +268,7 @@ class PaymentIntegrationTest {
     assertTrue(collects.get(0).responseJson().contains("\"compensated\":true"),
         collects.get(0).responseJson());
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals("PENDING_PAYMENT", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(BigDecimal.ZERO));
   }
 
@@ -290,7 +315,7 @@ class PaymentIntegrationTest {
     verify(customerClient).releaseWallet(eq(TENANT_ID), eq(STORE_ID), eq(CUSTOMER_ID), eq(3000L), eq("CNY"),
         eq(orderId), any());
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals("PENDING_PAYMENT", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("1000")));
   }
 
@@ -339,7 +364,7 @@ class PaymentIntegrationTest {
 
     assertEquals("CONFIRMED", collectRows("it-split-key").get(0).state());
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("COMPLETED", order.status());
+    assertEquals("PAID", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
   }
 
@@ -401,7 +426,7 @@ class PaymentIntegrationTest {
     assertEquals(1, collects.size());
     assertEquals("CONFIRMED", collects.get(0).state());
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("COMPLETED", order.status());
+    assertEquals("PAID", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(new BigDecimal("8000")));
   }
 
@@ -482,7 +507,7 @@ class PaymentIntegrationTest {
     assertEquals(0, collectRows(idempotencyKey).size());
     assertNoLedger(orderId);
     OrderReceivable order = requireOrder(orderId);
-    assertEquals("WAITING_SETTLEMENT", order.status());
+    assertEquals("PENDING_PAYMENT", order.tradeStatus());
     assertEquals(0, order.paidOrZero().compareTo(BigDecimal.ZERO));
   }
 
@@ -528,9 +553,9 @@ class PaymentIntegrationTest {
                                String responseJson) {}
 
   private void insertOrder(long orderId, long totalAmount) {
-    jdbc.update("INSERT INTO ord_order (id, tenant_id, status, currency_code, total_amount, paid_amount,"
+    jdbc.update("INSERT INTO ord_order (id, tenant_id, trade_status, currency_code, total_amount, paid_amount,"
             + " refundable_amount, discount_amount, tax_amount, updated_at)"
-            + " VALUES (?, ?, 'WAITING_SETTLEMENT', 'CNY', ?, 0, 0, 0, 0, CURRENT_TIMESTAMP)",
+            + " VALUES (?, ?, 'PENDING_PAYMENT', 'CNY', ?, 0, 0, 0, 0, CURRENT_TIMESTAMP)",
         orderId, TENANT_ID, new BigDecimal(totalAmount));
   }
 

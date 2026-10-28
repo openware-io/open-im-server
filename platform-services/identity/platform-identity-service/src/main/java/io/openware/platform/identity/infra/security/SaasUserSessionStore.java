@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class SaasUserSessionStore {
   public static final String PREFIX = "saas:user-session:";
+  private static final String ACCOUNT_APP_PREFIX = "saas:user-sessions:";
   private static final String CSRF_PREFIX = "saas:user-csrf:";
   private static final Duration TTL = Duration.ofHours(8);
 
@@ -30,12 +31,25 @@ public class SaasUserSessionStore {
   }
 
   public String createSession(long accountId, String appId) {
+    return createSession(accountId, appId, null, null, null);
+  }
+
+  public String createSession(long accountId, String appId, Long membershipId, Long tenantId,
+                              String scopeType) {
     String sessionId = newSessionId();
     try {
       var value = objectMapper.createObjectNode();
       value.put("accountId", accountId);
       if (appId != null && !appId.isBlank()) value.put("appId", appId);
+      if (membershipId != null) value.put("membershipId", membershipId);
+      if (tenantId != null) value.put("tenantId", tenantId);
+      if (scopeType != null && !scopeType.isBlank()) value.put("scopeType", scopeType);
       redisTemplate.opsForValue().set(PREFIX + sessionId, objectMapper.writeValueAsString(value), TTL);
+      if (appId != null && !appId.isBlank()) {
+        String indexKey = ACCOUNT_APP_PREFIX + accountId + ":" + appId;
+        redisTemplate.opsForSet().add(indexKey, sessionId);
+        redisTemplate.expire(indexKey, TTL);
+      }
       return sessionId;
     } catch (Exception exception) {
       throw new IllegalStateException("Unable to create SaaS user session", exception);
@@ -58,7 +72,10 @@ public class SaasUserSessionStore {
       }
       String contextToken = value.path("tenantContextToken").asText(null);
       String appId = value.path("appId").asText(null);
-      return Optional.of(new UserSession(accountId, contextToken, appId));
+      Long membershipId = value.has("membershipId") ? value.path("membershipId").asLong() : null;
+      Long tenantId = value.has("tenantId") ? value.path("tenantId").asLong() : null;
+      String scopeType = value.path("scopeType").asText(null);
+      return Optional.of(new UserSession(accountId, contextToken, appId, membershipId, tenantId, scopeType));
     // degradation: unusable stored session means no principal (fail-closed)
     } catch (Exception exception) {
       return Optional.empty();
@@ -66,6 +83,10 @@ public class SaasUserSessionStore {
   }
 
   public void setActiveContext(String sessionId, String tenantContextToken) {
+    setActiveContext(sessionId, tenantContextToken, null, null);
+  }
+
+  public void setActiveContext(String sessionId, String tenantContextToken, Long tenantId, String scopeType) {
     if (tenantContextToken == null || tenantContextToken.isBlank()) {
       throw new IllegalArgumentException("tenant context token is required");
     }
@@ -74,6 +95,11 @@ public class SaasUserSessionStore {
         var value = objectMapper.createObjectNode();
         value.put("accountId", session.accountId());
         if (session.appId() != null && !session.appId().isBlank()) value.put("appId", session.appId());
+        if (session.membershipId() != null) value.put("membershipId", session.membershipId());
+        Long effectiveTenant = tenantId != null ? tenantId : session.tenantId();
+        if (effectiveTenant != null) value.put("tenantId", effectiveTenant);
+        String effectiveScope = scopeType != null ? scopeType : session.scopeType();
+        if (effectiveScope != null && !effectiveScope.isBlank()) value.put("scopeType", effectiveScope);
         value.put("tenantContextToken", tenantContextToken);
         Duration remaining = remainingTtl(sessionId);
         value.put("expiresAt", System.currentTimeMillis() + remaining.toMillis());
@@ -104,9 +130,31 @@ public class SaasUserSessionStore {
 
   public void deleteSession(String sessionId) {
     if (sessionId != null && !sessionId.isBlank()) {
+      findSession(sessionId).ifPresent(session -> {
+        if (session.appId() != null && !session.appId().isBlank()) {
+          redisTemplate.opsForSet().remove(
+              ACCOUNT_APP_PREFIX + session.accountId() + ":" + session.appId(), sessionId);
+        }
+      });
       redisTemplate.delete(PREFIX + sessionId);
       redisTemplate.delete(CSRF_PREFIX + sessionId);
     }
+  }
+
+  /** 解绑/撤销应用时删除该账号在该 app 下的全部会话。 */
+  public void deleteSessions(long accountId, String appId) {
+    if (appId == null || appId.isBlank()) {
+      return;
+    }
+    String indexKey = ACCOUNT_APP_PREFIX + accountId + ":" + appId;
+    var sessionIds = redisTemplate.opsForSet().members(indexKey);
+    if (sessionIds != null) {
+      for (String sessionId : sessionIds) {
+        redisTemplate.delete(PREFIX + sessionId);
+        redisTemplate.delete(CSRF_PREFIX + sessionId);
+      }
+    }
+    redisTemplate.delete(indexKey);
   }
 
   private Duration remainingTtl(String sessionId) {
@@ -118,9 +166,14 @@ public class SaasUserSessionStore {
     return UUID.randomUUID().toString().replace("-", "");
   }
 
-  public record UserSession(long accountId, String tenantContextToken, String appId) {
+  public record UserSession(long accountId, String tenantContextToken, String appId,
+                            Long membershipId, Long tenantId, String scopeType) {
+    public UserSession(long accountId, String tenantContextToken, String appId) {
+      this(accountId, tenantContextToken, appId, null, null, null);
+    }
+
     public UserSession(long accountId, String tenantContextToken) {
-      this(accountId, tenantContextToken, null);
+      this(accountId, tenantContextToken, null, null, null, null);
     }
   }
         }

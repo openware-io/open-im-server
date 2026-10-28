@@ -37,7 +37,7 @@ class StaffAccountApplicationServiceTest {
     @Test
     void unboundStaffReceivesIdentityPasswordAndIamRole() {
         savingReturnsArgument();
-        when(identity.ensureAccount(eq("SAAS_ADMIN"), anyString(), eq("EMPLOYEE"))).thenReturn(51L);
+        when(identity.ensureAccount(eq("SAAS_ADMIN"), anyString(), eq("USER"))).thenReturn(51L);
         var result = service.create(command(null, "TestPass123"));
         assertEquals(51L, result.platformAccountId());
         assertTrue(passwords.matches("TestPass123", result.passwordHash()));
@@ -53,7 +53,7 @@ class StaffAccountApplicationServiceTest {
     void optionalImUsesSameIdentityAsOAuth() {
         savingReturnsArgument();
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         var result = service.create(command("im-user", "TestPass123"));
         assertEquals(61L, result.platformAccountId());
         verify(iam).assignUserRole(61L, 100L, 101L, 102L, 3L, "STORE");
@@ -80,7 +80,7 @@ class StaffAccountApplicationServiceTest {
         savingReturnsArgument();
         var staff = staffAccount(20L, 51L, null);
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(iam.roleBindings(51L)).thenReturn(List.of(activeBinding()));
         when(iam.listUserRoleIds(61L)).thenReturn(List.of());
         when(iam.listUserRoleIds(51L)).thenReturn(List.of(701L));
@@ -98,7 +98,7 @@ class StaffAccountApplicationServiceTest {
     void bindImAssignmentFailureDoesNotUpdateStaffAccount() {
         var staff = staffAccount(20L, 51L, null);
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(iam.roleBindings(51L)).thenReturn(List.of(activeBinding()));
         when(iam.listUserRoleIds(61L)).thenReturn(List.of(), List.of(801L));
         doThrow(new IllegalStateException("IAM unavailable")).when(iam)
@@ -116,7 +116,7 @@ class StaffAccountApplicationServiceTest {
     void bindImRejectsASecondStaffAccount() {
         var staff = staffAccount(20L, 51L, null);
         when(imUsers.resolveOpenId("im-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(accounts.existsByPlatformAccountIdExcluding(61L, 20L)).thenReturn(true);
 
         assertThrows(ApiException.class, () -> service.bindImAccount(staff, "im-user"));
@@ -149,7 +149,7 @@ class StaffAccountApplicationServiceTest {
         var staff = staffAccount(20L, 51L, "old-user");
         when(imUsers.resolveOpenId("old-user")).thenReturn(null);
         when(imUsers.resolveOpenId("new-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(iam.roleBindings(51L)).thenReturn(List.of(activeBinding()));
         when(iam.listUserRoleIds(61L)).thenReturn(List.of());
         when(iam.listUserRoleIds(51L)).thenReturn(List.of(701L));
@@ -171,7 +171,7 @@ class StaffAccountApplicationServiceTest {
         when(imUsers.resolveOpenId("old-user")).thenReturn("im_140");
         when(identity.imIdentityExists("im_140")).thenReturn(false);
         when(imUsers.resolveOpenId("new-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(iam.roleBindings(51L)).thenReturn(List.of(activeBinding()));
         when(iam.listUserRoleIds(61L)).thenReturn(List.of());
         when(iam.listUserRoleIds(51L)).thenReturn(List.of(701L));
@@ -223,7 +223,7 @@ class StaffAccountApplicationServiceTest {
         var staff = staffAccount(20L, 51L, "old-user");
         when(imUsers.resolveOpenId("old-user")).thenReturn(null);
         when(imUsers.resolveOpenId("new-user")).thenReturn("im_150");
-        when(identity.ensureAccount("IM", "im_150", "EMPLOYEE")).thenReturn(61L);
+        when(identity.ensureAccount("IM", "im_150", "USER")).thenReturn(61L);
         when(accounts.existsByPlatformAccountIdExcluding(61L, 20L)).thenReturn(true);
 
         ApiException failure = assertThrows(ApiException.class, () -> service.bindImAccount(staff, "new-user"));

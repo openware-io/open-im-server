@@ -63,7 +63,7 @@ if (!$credentialPayload) { throw "Secret $DatabaseSecret does not contain $RootD
 $mysqlAuthArgument = '-p' + [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($credentialPayload))
 $target = Get-MySqlTarget
 $origin = $baseUri.GetLeftPart([UriPartial]::Authority)
-$cUris = @("$origin/a380/")
+$cUris = @("$origin/c/")
 $bUris = @("$origin/b/")
 foreach ($additionalOrigin in $AdditionalH5Origins) {
   try { $additionalUri = [Uri]$additionalOrigin } catch { throw "AdditionalH5Origins contains an invalid URI: $additionalOrigin" }
@@ -71,7 +71,7 @@ foreach ($additionalOrigin in $AdditionalH5Origins) {
     throw "AdditionalH5Origins entry must be a $($baseUri.Scheme) origin without a path, query or fragment: $additionalOrigin"
   }
   $additionalAuthority = $additionalUri.GetLeftPart([UriPartial]::Authority)
-  $cUris += "$additionalAuthority/a380/"
+  $cUris += "$additionalAuthority/c/"
   $bUris += "$additionalAuthority/b/"
 }
 foreach ($additionalOrigin in $AdditionalViteCOrigins) {
@@ -91,7 +91,7 @@ foreach ($additionalOrigin in $AdditionalViteBOrigins) {
   $bUris += "$additionalAuthority/index.b.html"
 }
 if ($Environment -eq 'kind') {
-  $cUris += @('http://127.0.0.1:30080/a380/', 'http://localhost:30080/a380/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
+  $cUris += @('http://127.0.0.1:30080/c/', 'http://localhost:30080/c/', 'http://127.0.0.1:5175/', 'http://localhost:5175/')
   $bUris += @('http://127.0.0.1:30080/b/', 'http://localhost:30080/b/', 'http://127.0.0.1:5176/index.b.html', 'http://localhost:5176/index.b.html')
 }
 $cUris = @($cUris | Select-Object -Unique)
@@ -99,20 +99,20 @@ $bUris = @($bUris | Select-Object -Unique)
 
 $sql = @"
 UPDATE open_application SET callback_url = CASE app_id
-  WHEN 'saas-a380-c' THEN $(SqlLiteral $cUris[0])
-  WHEN 'saas-a380-h5' THEN $(SqlLiteral $bUris[0])
+  WHEN 'saas-c' THEN $(SqlLiteral $cUris[0])
+  WHEN 'saas-b' THEN $(SqlLiteral $bUris[0])
 END
-WHERE app_id IN ('saas-a380-c', 'saas-a380-h5');
-DELETE FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5');
-INSERT INTO user_oidc_redirect_uri (client_id, redirect_uri) VALUES $(Values 'saas-a380-c' $cUris),$(Values 'saas-a380-h5' $bUris);
+WHERE app_id IN ('saas-c', 'saas-b');
+DELETE FROM user_oidc_redirect_uri WHERE client_id IN ('saas-c', 'saas-b');
+INSERT INTO user_oidc_redirect_uri (client_id, redirect_uri) VALUES $(Values 'saas-c' $cUris),$(Values 'saas-b' $bUris);
 "@
 Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, 'open_im', '-e', $sql) | Out-Null
 
-$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'open_im', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-a380-c', 'saas-a380-h5') ORDER BY client_id, redirect_uri;")
+$registered = Invoke-Cluster @('exec', $target, '--', 'mysql', '-u', 'root', $mysqlAuthArgument, '-N', '-B', 'open_im', '-e', "SELECT client_id, redirect_uri FROM user_oidc_redirect_uri WHERE client_id IN ('saas-c', 'saas-b') ORDER BY client_id, redirect_uri;")
 $actual = @($registered | Where-Object { $_ } | ForEach-Object { $_.Trim() })
 $expected = @(
-  $cUris | ForEach-Object { "saas-a380-c`t$_" }
-  $bUris | ForEach-Object { "saas-a380-h5`t$_" }
+  $cUris | ForEach-Object { "saas-c`t$_" }
+  $bUris | ForEach-Object { "saas-b`t$_" }
 ) | Sort-Object
 if ((@($actual | Sort-Object) -join "`n") -ne ($expected -join "`n")) {
   throw "OIDC redirect registry mismatch for ${Environment}. expected=$($expected -join ', ') actual=$($actual -join ', ')"

@@ -14,7 +14,7 @@ public class IdentityAccountPo {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String status;
-    /** 账号类型 EMPLOYEE/CUSTOMER/PLATFORM_OPERATOR（统一账号模型：员工/客户共表，按类型区分）。 */
+    /** 账号类型 PLATFORM_OPERATOR/USER；员工/客户由 tnt_membership 区分。 */
     private String accountType;
     private Long createdBy;
     private LocalDateTime createdAt;

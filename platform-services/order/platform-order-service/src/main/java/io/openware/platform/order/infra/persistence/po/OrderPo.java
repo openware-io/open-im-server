@@ -82,7 +82,13 @@ public class OrderPo {
     private String idempotencyKey;
     private String businessType;
     private Long customerId;
-    private String status;
+    /**
+     * 交易状态：{@code DRAFT / PENDING_PAYMENT / PAID / COMPLETED / CANCELLED / VOIDED}。
+     * 订单主表只表达交易事实，KTV 业务状态在 {@code ord_ktv_session.status}。
+     */
+    private String tradeStatus;
+    /** 退款状态：{@code NONE / PARTIAL / FULL}。 */
+    private String refundStatus;
     private String currencyCode;
     private BigDecimal subtotalAmount;
     private BigDecimal discountAmount;
@@ -92,10 +98,6 @@ public class OrderPo {
     private BigDecimal refundableAmount;
     private LocalDateTime completedAt;
     private LocalDateTime cancelledAt;
-    /** 挂单原因（KTV_BUSINESS_01 §11.1：挂单不结台、不改商业状态）。 */
-    private String holdReason;
-    /** 挂单时间。 */
-    private LocalDateTime holdAt;
     private Integer version;
     private Long createdBy;
     private LocalDateTime createdAt;

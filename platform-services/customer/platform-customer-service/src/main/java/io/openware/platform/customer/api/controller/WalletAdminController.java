@@ -10,7 +10,7 @@ import io.openware.infrastructure.tenant.PermissionGuard;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * A380币储值充值/退还（对齐 SAAS_PLATFORM_05_API.md §8 / KTV §8 充值管理）。
+ * OpenChat币储值充值/退还（对齐 SAAS_PLATFORM_05_API.md §8 / KTV §8 充值管理）。
  * 写接口要求 Idempotency-Key 请求头；账本唯一键 (tenant_id, idempotency_key) 兜底。
  * 头声明为 {@code required = false}，缺失时由应用层统一抛 400 IDEMPOTENCY_KEY_REQUIRED（中文统一体），
  * 避免 Spring 抛出 MissingRequestHeaderException 后漏出框架默认错误体。

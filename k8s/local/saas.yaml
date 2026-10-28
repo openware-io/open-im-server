@@ -107,6 +107,9 @@ spec:
             - { name: SAAS_DEV_SESSION_ENABLED, value: 'true' }
             - { name: SAAS_DEV_SESSION_CONSUMER_ACCOUNT_ID, value: '101' }
             - { name: SAAS_DEV_SESSION_OPERATOR_ACCOUNT_ID, value: '100' }
+            - { name: SAAS_DEV_SESSION_ALLOWED_APP_IDS, value: 'saas-c,saas-b' }
+            - { name: SAAS_APPS_CONSUMER, value: 'saas-c,saas-hotel-c,saas-ktv-c' }
+            - { name: SAAS_APPS_BACKEND, value: 'saas-b,saas-hotel-b,saas-ktv-b' }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
             - { name: ROCKETMQ_NAMESRV_ADDR, value: rocketmq-namesrv:9876 }
             # 本地 Kind 走 http(含真机 adb reverse 的 127.0.0.1):Android WebView 会丢弃 http 下 __Host-+Secure
@@ -193,6 +196,9 @@ spec:
             - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: RESOURCE_SERVICE_BASE_URL, value: http://platform-resource-service:4120 }
+            # 酒店 OTA channel v1（仅本地 Kind）：E2E 用固定测试渠道凭证；生产不得复用该值。
+            - { name: HOTEL_CHANNEL_SANDBOX_TENANT_ID, value: '100' }
+            - { name: HOTEL_CHANNEL_SANDBOX_SECRET, value: local-kind-ota-channel-secret-0123456789abcdef }
             - { name: SPRING_DATA_REDIS_HOST, value: redis }
             - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
             - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
@@ -251,7 +257,7 @@ spec:
             - { name: SPRING_DATA_REDIS_PORT, value: '6379' }
             - { name: SPRING_DATA_REDIS_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: REDIS_PASSWORD } } }
             # 钱包「代币数量」展示口径：读取租户代币品牌名/ratio（/internal/iam/tenant-config/{id}/wallet-token）。
-            # secret 必须与 platform-tenant-service 一致，否则 401 后品牌静默回退 A380币/100。
+            # secret 必须与 platform-tenant-service 一致，否则 401 后品牌静默回退 SaaS 币/100。
             - { name: TENANT_SERVICE_BASE_URL, value: http://platform-tenant-service:4110 }
             - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
           ports: [ { containerPort: 4160 } ]
@@ -330,6 +336,16 @@ spec:
             - { name: MYSQL_HOST, value: mysql }
             - { name: MYSQL_USER, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_USERNAME } } }
             - { name: MYSQL_PASSWORD, valueFrom: { secretKeyRef: { name: open-im-env, key: DB_PASSWORD } } }
+            # 渠道回调结算：payment-service 内部接口（同命名空间 DNS）+ 出站 v2 内部签名密钥。
+            # INTERNAL_SERVICE_AUTH_SECRET 也由 envFrom 注入，这里显式声明是为了缺失时 Pod 直接因
+            # secretKeyRef 失败，而不是带着空密钥启动、回调结算时静默 401。
+            - { name: INTERNAL_SERVICE_AUTH_SECRET, valueFrom: { secretKeyRef: { name: open-im-env, key: INTERNAL_SERVICE_AUTH_SECRET } } }
+            - { name: PAYMENT_SERVICE_BASE_URL, value: http://common-payment-service:4140 }
+            # SANDBOX 渠道：仅本地 E2E，用固定测试密钥签发回调，真实驱动
+            # callback -> pay_channel_transaction -> payment-service 结算 -> pay_intent/ord_order 链路。
+            # 固定测试值不是生产凭据；共享/生产 manifest 不得启用以避免伪造回调。
+            - { name: SANDBOX_PAY_ENABLED, value: 'true' }
+            - { name: SANDBOX_PAY_WEBHOOK_SECRET, value: local-e2e-sandbox-webhook-secret }
           ports: [ { containerPort: 4180 } ]
           readinessProbe: { httpGet: { path: /actuator/health, port: 4180 }, initialDelaySeconds: 30, periodSeconds: 5 }
 ---
@@ -473,7 +489,7 @@ spec:
           image: __APP_IMAGE_SAAS_MOBILE__
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 80 } ]
-          readinessProbe: { httpGet: { path: /a380/index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
+          readinessProbe: { httpGet: { path: /index.html, port: 80 }, initialDelaySeconds: 5, periodSeconds: 5 }
 ---
 apiVersion: apps/v1
 kind: Deployment

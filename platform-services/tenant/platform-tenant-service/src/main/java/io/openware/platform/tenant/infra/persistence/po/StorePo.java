@@ -20,6 +20,7 @@ public class StorePo {
     private Long organizationId;
     private String code;
     private String name;
+    private String logoUrl;
     private String businessType;
     private String countryCode;
     private String regionCode;

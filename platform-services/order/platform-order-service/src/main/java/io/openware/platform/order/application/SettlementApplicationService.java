@@ -7,6 +7,7 @@ import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,12 +46,14 @@ public class SettlementApplicationService {
             if (order.currentVersion() != expectedVersion) {
                 throw new BusinessException("ORDER_VERSION_CONFLICT", "订单版本冲突，请重试");
             }
-            if (!"WAITING_SETTLEMENT".equals(order.status())) {
+            if (order.trade() != TradeStatus.PENDING_PAYMENT) {
                 throw new BusinessException("ORDER_STATUS_INVALID", "仅待结算订单可结算");
             }
 
             // 与账单同一口径：只汇总已生效（ACTIVE）明细，待确认/已拒绝不计入应付。
-            order = orderAmounts.recalculate(order).withStatus("WAITING_PAYMENT");
+            // 交易状态停留在 PENDING_PAYMENT（已进入结算、未全额收款；金额看 paid_amount）。
+            order = orderAmounts.recalculate(order)
+                .withTradeStatus(TradeStatus.PENDING_PAYMENT.name());
             // version 由 SQL 自增，Java 侧不再预先 +1（预先加一会在并发窗口内写回过期版本号）。
             //
             // 上面那句 currentVersion 比对只是**快失败**提示，不是并发保护：

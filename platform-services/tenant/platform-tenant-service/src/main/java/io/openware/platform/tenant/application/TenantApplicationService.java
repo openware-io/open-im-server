@@ -31,6 +31,30 @@ public class TenantApplicationService {
     return tenantRepository.listCreatedBetween(range.fromInclusive(), range.toInclusive());
   }
 
+  /** 平台启用/停用租户；停用会阻止后续登录上下文选择。 */
+  @Transactional
+  public Tenant changeStatus(Long id, String status) {
+    if (id == null || id <= 0) {
+      throw new IllegalArgumentException("tenantId is required");
+    }
+    String normalized = status == null ? "" : status.trim().toUpperCase();
+    if (!List.of(Tenant.STATUS_ACTIVE, Tenant.STATUS_SUSPENDED).contains(normalized)) {
+      throw new IllegalArgumentException("status must be ACTIVE or SUSPENDED");
+    }
+    Tenant current = tenantRepository.findById(id)
+        .orElseThrow(() -> new IllegalArgumentException("tenant not found: " + id));
+    Tenant saved = tenantRepository.updateStatus(current.withStatus(normalized));
+    auditClient.recordAsync(AuditClient.AuditRecord.builder()
+        .tenantId(id)
+        .action("tenant.status.change")
+        .operatorType(AuditClient.AuditRecord.OPERATOR_TYPE_PLATFORM)
+        .resourceType("tnt_tenant").resourceId(String.valueOf(id))
+        .resourceName(current.name())
+        .detailJson("{\"status\":\"" + normalized + "\"}")
+        .build());
+    return saved;
+  }
+
   /** 创建租户；tenantCode 已存在则幂等返回既有租户，不重复落库、不重复留痕。 */
   @Transactional
   public Tenant create(String tenantCode, String name, String defaultLocale, String defaultTimezone) {

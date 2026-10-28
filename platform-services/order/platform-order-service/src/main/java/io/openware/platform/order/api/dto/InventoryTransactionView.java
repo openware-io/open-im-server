@@ -9,9 +9,15 @@ import java.time.LocalDateTime;
  *
  * <p><b>字段集照搬原持久化对象 {@code InventoryTransactionPo}（JSON 字段名一个不改）</b>：
  * {@code GET /admin/inventory/transactions}、{@code POST /admin/inventory/receipts}、
- * {@code POST /admin/inventory/adjustments} 的响应体早已是对外契约。其中 V24 新增的三列
- * （{@link #unitCost} / {@link #totalCost} / {@link #currencyCode}）在原 PO 上就是字段，
- * 这里一个不少地保留。
+ * {@code POST /admin/inventory/adjustments}、{@code POST /admin/inventory/transfers}、
+ * {@code POST /admin/inventory/stocktakes}、{@code POST /admin/inventory/consumptions} 的响应体。
+ * V24 的成本三列（{@link #unitCost} / {@link #totalCost} / {@link #currencyCode}）与 V24/V25 的作用域列
+ * （{@link #organizationId} / {@link #businessType} / {@link #warehouseId}）在这里一个不少地保留：
+ * 调用方要能判断一条流水属于哪个组织、业态、仓库。
+ *
+ * <p><b>为什么没有房间号/房型</b>：库存是通用域，不绑定房间。客房领用/迷你吧销售只通过
+ * {@code sourceType}（ROOM_CONSUMPTION / MINIBAR_SALE）与 {@code sourceId}（业务单号）关联，
+ * 房间维度属于酒店核心域。
  *
  * <p><b>{@code createdAt} 是业务时间列</b>（本表没有独立的 {@code occurred_at} 列，DDL 注释即「发生时间」）：
  * 它在领域模型上（见 {@code InventoryTransaction}），是列表的排序与区间筛选依据，因此读路径也是真实值。
@@ -22,9 +28,12 @@ import java.time.LocalDateTime;
  *
  * @param id              流水标识
  * @param tenantId        租户
+ * @param organizationId  组织快照（归属 / 报表，不进入库存唯一键）
+ * @param businessType    业态快照（作用域）
  * @param storeId         门店
+ * @param warehouseId     仓 / 库位（作用域）
  * @param materialId      物料
- * @param transactionType RECEIPT / CONSUME / ADJUST_IN / ADJUST_OUT / REVERSE
+ * @param transactionType RECEIPT / CONSUME / ADJUST_IN / ADJUST_OUT / TRANSFER_IN / TRANSFER_OUT / REVERSE
  * @param quantityDelta   库存变化量（带符号）
  * @param quantityBefore  变化前现有量
  * @param quantityAfter   变化后现有量
@@ -41,7 +50,10 @@ import java.time.LocalDateTime;
 public record InventoryTransactionView(
     Long id,
     Long tenantId,
+    Long organizationId,
+    String businessType,
     Long storeId,
+    Long warehouseId,
     Long materialId,
     String transactionType,
     BigDecimal quantityDelta,
@@ -62,10 +74,11 @@ public record InventoryTransactionView(
     if (transaction == null) {
       return null;
     }
-    return new InventoryTransactionView(transaction.id(), transaction.tenantId(), transaction.storeId(),
-        transaction.materialId(), transaction.transactionType(), transaction.quantityDelta(),
-        transaction.quantityBefore(), transaction.quantityAfter(), transaction.unitCost(), transaction.totalCost(),
-        transaction.currencyCode(), transaction.sourceType(), transaction.sourceId(), transaction.idempotencyKey(),
-        transaction.reason(), null, transaction.createdAt());
+    return new InventoryTransactionView(transaction.id(), transaction.tenantId(), transaction.organizationId(),
+        transaction.businessType(), transaction.storeId(), transaction.warehouseId(), transaction.materialId(),
+        transaction.transactionType(), transaction.quantityDelta(), transaction.quantityBefore(),
+        transaction.quantityAfter(), transaction.unitCost(), transaction.totalCost(), transaction.currencyCode(),
+        transaction.sourceType(), transaction.sourceId(), transaction.idempotencyKey(), transaction.reason(),
+        null, transaction.createdAt());
   }
 }

@@ -30,6 +30,51 @@ public class TenantServiceClient {
         return arr == null ? List.of() : List.of(arr);
     }
 
+    /** 账号的全部 membership（B 端回调必须显式校验 STAFF/ACTIVE）。 */
+    public List<Membership> memberships(Long accountId) {
+        Membership[] arr = restClient.get()
+                .uri("/internal/iam/accounts/{accountId}/memberships", accountId)
+                .retrieve()
+                .body(Membership[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    public record Membership(Long id, Long accountId, Long tenantId, Long organizationId,
+                             String membershipType, String memberNo, int authorizationVersion,
+                             String status) {
+    }
+
+    /** 租户已安装应用。 */
+    public List<InstalledApp> installedApps(Long tenantId) {
+        InstalledApp[] arr = restClient.get()
+                .uri("/internal/iam/tenants/{tenantId}/apps", tenantId)
+                .retrieve().body(InstalledApp[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    /** 租户已开通权益（businessType 作为 featureCode）。 */
+    public List<Entitlement> entitlements(Long tenantId) {
+        Entitlement[] arr = restClient.get()
+                .uri("/internal/iam/tenants/{tenantId}/entitlements", tenantId)
+                .retrieve().body(Entitlement[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    /** 当前用户已授权的应用 appId。 */
+    public List<String> authorizedApps(Long accountId, Long tenantId) {
+        String[] arr = restClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/internal/iam/accounts/{accountId}/app-grants")
+                        .queryParam("tenantId", tenantId).build(accountId))
+                .retrieve().body(String[].class);
+        return arr == null ? List.of() : List.of(arr);
+    }
+
+    public record InstalledApp(Long id, Long tenantId, String appId, String clientType, String status) {
+    }
+
+    public record Entitlement(String featureCode, String status, String source) {
+    }
+
     public TenantContext consumerContext(Long accountId, String appId) {
         return restClient.get().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/context")
                         .queryParam("accountId", accountId).build(appId))
@@ -47,6 +92,13 @@ public class TenantServiceClient {
         restClient.post().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorizations")
                         .queryParam("accountId", accountId).queryParam("scope", scope == null ? "profile.basic" : scope)
                         .build(appId))
+                .retrieve().toBodilessEntity();
+    }
+
+    /** C 端解绑：撤销 consumer 授权并逐出权限快照。 */
+    public void revokeConsumerAuthorization(Long accountId, String appId) {
+        restClient.delete().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorization")
+                        .queryParam("accountId", accountId).build(appId))
                 .retrieve().toBodilessEntity();
     }
 
@@ -108,7 +160,8 @@ public class TenantServiceClient {
     /** tenant-service 内部上下文（内部契约 DTO，非 PO）。 */
     public record TenantContext(String contextId, Long tenantId, String tenantName,
                                 Long organizationId, String organizationName,
-                                Long storeId, String storeName, List<String> roles, String scopeType) {}
+                                Long storeId, String storeName, List<String> roles, String scopeType,
+                                String businessType) {}
 
     /** tenant-service 内部权限快照（内部契约 DTO，非 PO）。 */
     public record PermissionSnapshot(Long accountId, Long tenantId, Long organizationId, Long storeId,

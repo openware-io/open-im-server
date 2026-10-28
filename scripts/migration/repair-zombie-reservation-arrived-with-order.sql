@@ -30,11 +30,11 @@ SELECT r.id,
        r.order_id,
        r.arrived_at,
        o.order_no,
-       o.status          AS order_status,
+       o.trade_status    AS order_status,
        s.id              AS session_id,
        s.status          AS session_status,
        s.opened_at
-FROM ord_reservation r
+FROM ktv_reservation r
 LEFT JOIN ord_order        o ON o.id = r.order_id
 LEFT JOIN ord_ktv_session  s ON s.order_id = r.order_id
 WHERE r.order_id IS NOT NULL
@@ -45,7 +45,7 @@ WHERE r.order_id IS NOT NULL
 --    `AND r.order_id IS NOT NULL` 与第 1 段同谓词；生产环境如确认范围更大，
 --    去掉 id 白名单即可（但请先留好第 1 段的输出作为 before 快照）。
 -- ----------------------------------------------------------------------------
-UPDATE ord_reservation r
+UPDATE ktv_reservation r
 LEFT JOIN ord_ktv_session s ON s.order_id = r.order_id
 SET r.status     = 'CONVERTED',
     r.arrived_at = COALESCE(r.arrived_at, s.opened_at),
@@ -59,7 +59,7 @@ WHERE r.order_id IS NOT NULL
 -- 3) 修复后核对：应为空集
 -- ----------------------------------------------------------------------------
 SELECT r.id, r.reservation_no, r.status, r.order_id, r.arrived_at
-FROM ord_reservation r
+FROM ktv_reservation r
 WHERE r.order_id IS NOT NULL
   AND r.status <> 'CONVERTED';
 
@@ -68,7 +68,7 @@ WHERE r.order_id IS NOT NULL
 --    收银台 ACTIVE_RESERVATION_STATUSES = {PENDING, CONFIRMED, ARRIVED}
 -- ----------------------------------------------------------------------------
 SELECT r.id, r.reservation_no, r.resource_id, r.status, r.order_id, r.start_at, r.end_at
-FROM ord_reservation r
+FROM ktv_reservation r
 WHERE r.status IN ('PENDING', 'CONFIRMED', 'ARRIVED')
   AND r.resource_id IS NOT NULL
 ORDER BY r.resource_id, r.start_at;

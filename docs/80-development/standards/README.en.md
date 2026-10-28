@@ -34,6 +34,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 02 | [Architecture Decision Records](02_ARCHITECTURE_DECISION_RECORDS.en.md) | ADR numbering, status, template, index and gate |
 | 03 | [Engineering principles](03_ENGINEERING_PRINCIPLES.en.md) | Correctness, boundaries, single source of truth, automation and evolution |
 | 04 | [Gate governance](04_GATE_GOVERNANCE.en.md) | Classification, IDs, placement, lifecycle and docs impact |
+| 05 | [Domain classification](05_DOMAIN_CLASSIFICATION.en.md) | Core/supporting/generic/edge domains, dependencies and ownership |
 
 ## 10–19 Architecture and service design
 
@@ -59,6 +60,7 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | --- | --- | --- |
 | 30 | [Client release governance](30_CLIENT_RELEASE_GOVERNANCE.en.md) | Version/build numbers, channels and rollout |
 | 31 | [Client release operations](31_CLIENT_RELEASE_SKILL.en.md) | Release steps, artifacts, verification and rollback |
+| 32 | [Frontend UI style standard](32_FRONTEND_UI_STYLE.en.md) | B/C design tokens, cards, tags, metrics and acceptance |
 
 ## 40–49 Quality, observability and testing
 
@@ -68,6 +70,12 @@ Standards use **category block + two-digit sequence**, not append-by-time:
 | 41 | [Java logging](41_JAVA_LOGGING_CONVENTIONS.en.md) | Levels, fields, redaction and sampling |
 | 42 | [Logging outputs](42_LOGGING_AND_OUTPUTS.en.md) | Output locations, diagnostics and troubleshooting |
 | 43 | [E2E testing](43_E2E_TESTING_CONVENTIONS.en.md) | Smoke, real devices, acceptance and credentials |
+
+## 50–59 Security and compliance
+
+| ID | Standard | Scope |
+| --- | --- | --- |
+| 50 | [Permission and data scope](50_PERMISSION_AND_DATA_SCOPE.en.md) | Functional permissions, store scope, business-type boundaries, controller audit and G55 |
 
 ## Related
 

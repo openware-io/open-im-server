@@ -42,6 +42,9 @@ public interface OrderBillingRepository {
    * @param newPaid      落账后的已收金额
    * @param totalAmount  应收总额（判定是否足额完成）
    */
+  /** 读取订单所属门店，用于收款/退款的门店范围校验。 */
+  Optional<Long> findStoreId(Long tenantId, Long orderId);
+
   boolean markPaid(Long tenantId, Long orderId, BigDecimal expectedPaid, BigDecimal newPaid,
                    BigDecimal totalAmount);
 
@@ -64,4 +67,8 @@ public interface OrderBillingRepository {
    * 就去锁住订单主行——那会让退款申请与收款互相阻塞。订单不存在时返回空（调用方按缺省币种处理）。
    */
   Optional<String> findCurrencyCode(Long tenantId, Long orderId);
+
+  /** 退款落账：回冲订单已收与可退金额；金额不得小于 0。 */
+  boolean markRefunded(Long tenantId, Long orderId, BigDecimal refundAmount);
+
 }

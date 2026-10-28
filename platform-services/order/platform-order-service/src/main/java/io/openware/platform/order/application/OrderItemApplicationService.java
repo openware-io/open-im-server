@@ -114,9 +114,9 @@ public class OrderItemApplicationService {
 
   private OrderItem doAddItem(Long orderId, AddItemCommand req) {
     Order order = requireOrder(orderId);
-    // 终态订单不可再加项：COMPLETED/VOIDED/CANCELLED 的金额快照与已收金额已经固化，
+    // 终态订单不可再加项：交易状态 COMPLETED/CANCELLED 的金额快照与已收金额已经固化，
     // 允许加项会把「已收款订单」的合计改写成新值（账单凭空出现应收），不再允许。
-    if (isTerminalStatus(order.status())) {
+    if (order.terminal()) {
       throw new BusinessException("ORDER_STATUS_INVALID", "已完成/已作废/已取消订单不可加项");
     }
     if (req.quantity() == null || req.quantity().signum() <= 0 || req.quantity().scale() > 3) {
@@ -389,11 +389,6 @@ public class OrderItemApplicationService {
   private Long currentStoreId() {
     TenantContext context = TenantContextHolder.get();
     return context == null ? null : context.storeId();
-  }
-
-  /** 终态订单：金额与已收已固化，不允许再加项（null 安全，历史数据可能没有状态）。 */
-  private static boolean isTerminalStatus(String status) {
-    return "COMPLETED".equals(status) || "VOIDED".equals(status) || "CANCELLED".equals(status);
   }
 
   /** 加项写操作失败留痕：action 与成功路径同码，{@code result=FAILURE} + 稳定 errorCode。 */

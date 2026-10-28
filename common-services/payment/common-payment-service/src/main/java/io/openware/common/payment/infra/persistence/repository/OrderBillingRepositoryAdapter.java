@@ -46,14 +46,24 @@ public class OrderBillingRepositoryAdapter implements OrderBillingRepository {
   }
 
   @Override
+  public Optional<Long> findStoreId(Long tenantId, Long orderId) {
+    return Optional.ofNullable(mapper.selectStoreId(tenantId, orderId));
+  }
+
+  @Override
   public Optional<String> findCurrencyCode(Long tenantId, Long orderId) {
     String currencyCode = mapper.selectCurrencyCode(tenantId, orderId);
     return currencyCode == null || currencyCode.isBlank() ? Optional.empty()
         : Optional.of(currencyCode);
   }
 
+  @Override
+  public boolean markRefunded(Long tenantId, Long orderId, BigDecimal refundAmount) {
+    return mapper.markRefunded(tenantId, orderId, refundAmount) == 1;
+  }
+
   private static OrderReceivable toDomain(OrderBillingPo po) {
-    return new OrderReceivable(po.getId(), po.getStatus(), po.getTotalAmount(), po.getPaidAmount(),
+    return new OrderReceivable(po.getId(), po.getTradeStatus(), po.getTotalAmount(), po.getPaidAmount(),
         po.getCurrencyCode());
   }
 }

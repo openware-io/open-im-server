@@ -1,7 +1,9 @@
 package io.openware.platform.order.config;
 
+import io.openware.infrastructure.tenant.StoreScopeRequestFilter;
 import io.openware.infrastructure.tenant.TenantContextFilter;
 import io.openware.infrastructure.security.JwtProperties;
+import io.openware.platform.order.infra.client.TenantAuthorizationStateClient;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +21,25 @@ public class TenantFilterConfig {
         FilterRegistrationBean<TenantContextFilter> reg = new FilterRegistrationBean<>(new TenantContextFilter(jwtProperties));
         reg.addUrlPatterns("/*");
         reg.setOrder(1);
+        return reg;
+    }
+
+    @Bean
+    public FilterRegistrationBean<TenantAuthorizationStateFilter> tenantAuthorizationStateFilter(
+            TenantAuthorizationStateClient stateClient) {
+        FilterRegistrationBean<TenantAuthorizationStateFilter> reg =
+                new FilterRegistrationBean<>(new TenantAuthorizationStateFilter(stateClient));
+        reg.addUrlPatterns("/*");
+        reg.setOrder(2);
+        return reg;
+    }
+
+    @Bean
+    public FilterRegistrationBean<StoreScopeRequestFilter> storeScopeRequestFilter() {
+        FilterRegistrationBean<StoreScopeRequestFilter> reg =
+                new FilterRegistrationBean<>(new StoreScopeRequestFilter());
+        reg.addUrlPatterns("/admin/*", "/business/*");
+        reg.setOrder(3);
         return reg;
     }
 }

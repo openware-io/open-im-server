@@ -358,7 +358,9 @@ class KtvSessionRepositoryAdapterTest {
     assertEquals(SESSION_ID, session.id());
     assertEquals("OPEN", session.status());
     assertEquals(3, session.version());
-    assertEquals(25, KtvSession.class.getRecordComponents().length, "领域模型列集合变了：请同步复核");
+    // V24：新增 organization_id（组织快照）列，领域模型 26 个组件
+    assertEquals(26, KtvSession.class.getRecordComponents().length, "领域模型列集合变了：请同步复核");
+    assertEquals(77L, session.organizationId(), "组织快照必须随会话读回");
   }
 
   // ---------------------------------------------------------------- helpers
@@ -413,6 +415,8 @@ class KtvSessionRepositoryAdapterTest {
     KtvSessionPo po = new KtvSessionPo();
     po.setId(SESSION_ID);
     po.setTenantId(TENANT_ID);
+    // V24：组织快照（创建会话时从订单复制）
+    po.setOrganizationId(77L);
     po.setStoreId(100L);
     po.setBusinessType("KTV");
     po.setOrderId(73L);

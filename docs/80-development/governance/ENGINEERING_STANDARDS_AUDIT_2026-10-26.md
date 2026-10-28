@@ -1,0 +1,219 @@
+# Engineering Standards Audit - 2026-10-26
+
+Scope: post-A380 cleanup, SaaS/IM naming separation, tenant/IAM/hotel changes,
+frontend and documentation assets.
+
+## Baseline evidence
+
+- `invoke-engineering-validation.ps1 -Scope Full`: PASS, 54 gates, Maven clean verify 05:33.
+- C: 26 files / 172 tests PASS.
+- B: 51 files / 696 tests PASS.
+- Android `flutter analyze`: no issues for changed files (not a full test pass).
+
+This audit is a review of conformance, not a claim that every UI path has full coverage.
+
+## Findings
+
+### P0 - `/a380/` returned 200 (FIXED)
+
+Original evidence:
+
+```text
+curl -I http://127.0.0.1:30080/a380/
+HTTP/1.1 200 OK
+Content-Type: text/html
+```
+
+Cause: `open-im-portal` ingress has `path: /` to the unified portal SPA; the
+portal's fallback served `index.html` for `/a380/`. The mobile ingress only
+registered `/c/` and `/b/`; removing the mobile route did not remove the portal
+fallback.
+
+Fix: added an explicit `saas-not-found` nginx backend and registered
+`/a380(/|$)(.*)` on `open-im-mobile-apps` before `/c/`.
+
+Verified:
+
+```text
+/a380/ -> 404
+/c/    -> 200
+/b/    -> 200
+/saas/ -> 200
+```
+
+Status: COMPLIANT with `SAAS_PATH_STANDARD.md`.
+
+### P1 - SaaS/IM naming boundary still leaks
+
+Correctly separated:
+
+```text
+tenant code: saas-demo
+tenant name: SaaS 生活服务
+hotel: SaaS Hotel
+admin: tenant-admin / 租户管理员
+wallet: SaaS 币
+```
+
+Cleaned in this pass:
+
+```text
+C business mock data: SaaS hotel/bar/KTV/member names
+C login brand: SaaS 生活服务
+C title: SaaS 生活服务
+C internal namespace: Saas*
+C storage keys: saas-orders / saas-cart
+B remote-dev docs: SaaS 租户运营
+```
+
+The IM login button and IM app itself remain OpenChat by design.
+
+Status: PASS for current SaaS runtime; IM-only strings remain correct.
+
+### P1 - A380 internal names and assets remain
+
+Counts after this pass:
+
+```text
+open-saas-mobile: 0 A380 lines
+open-chat-app:    0 A380 lines (l10n key renamed to servicesWalletSaaSCoin;
+                                web/miniservice/a380 removed; tests cleaned)
+open-saas-admin:  0 A380 lines
+open-im-server:  223 references (frozen migrations, historical evidence, tests)
+```
+
+C, B and Android active code are clean. Main remaining references are frozen
+migration seeds, historical S3/S5/S7 evidence and test fixtures, which must not
+be rewritten without a migration/evidence policy decision.
+
+Status: PASS for active client/admin code; historical main references remain.
+
+### P1 - Admin hotel booking customer association is not a finished business flow
+
+Now implemented:
+
+```text
+POST /api/v1/admin/hotel/bookings
+body.bookedByAccountId
+```
+
+and C 端 “我的预约” reads the associated booking.
+
+Still incomplete:
+
+- B 后台 customer selector search was not reliably exercised end to end.
+- Phone -> account resolution is now implemented inside the booking controller
+  when `bookedByAccountId` is absent.
+- Verified: admin booking without bookedByAccountId, guestPhone=13951800434
+  -> response bookedByAccountId=101 -> C booking API returns the same booking.
+- Admin confirm -> C booking API reflects CONFIRMED. Checkout/cancel UI propagation
+  remains to be exercised.
+
+Status: create/link/confirm PASS; checkout/cancel UI still partial.
+
+### P1 - Hotel images (implemented for demo)
+
+Implemented a bundled SVG cover asset in B and C, plus an error fallback on C.
+Browser evidence:
+
+```text
+B /admin/tenant/hotel: img 640x360 complete=true
+C /c/#/service/hotel:  img 640x360 complete=true
+```
+
+Status: PASS for the bundled demo cover and fallback. Per-hotel/room-type image
+management in B is still a separate product gap.
+
+### P2 - Authorization coverage is partial
+
+Fixed:
+
+```text
+tenant -> /api/v1/admin/platform/tenants: 403 PLATFORM_ADMIN_REQUIRED
+platform -> same endpoint: 200
+tenant -> /api/v1/admin/staff: 200
+store -> /api/v1/admin/staff: 403
+C customer -> admin platform: 401
+```
+
+Not fully audited:
+
+```text
+all /admin/platform/** endpoints
+all /admin/iam/** endpoints
+all tenant-only page URLs entered by store accounts
+customer audience strict saas-c/saas-b (saas-admin removed)
+```
+
+Some endpoint probes returned 404/400 because the route does not exist, not
+because authorization passed; those must not be counted as security coverage.
+
+### P2 - Full page/button/style coverage is not complete
+
+Actually exercised:
+
+```text
+platform tenants page
+tenant staff page
+tenant members page
+tenant hotel page
+store landing/orders/members
+C hotel list/detail/date picker/quote/empty submit
+```
+
+Not exercised:
+
+```text
+all admin menu pages and every button
+all dialogs and form validations
+all pagination/filter/export flows
+all destructive actions with test data
+all resolutions/devices
+full Android interaction matrix
+```
+
+Status: NOT FULL COVERAGE.
+
+### P2 - Historical docs and frozen migrations still contain A380
+
+Examples:
+
+```text
+docs/40-domain/identity/S3/S4/S5/S7 evidence
+docs/99-archive
+immutable V1 migration seeds and old V2/V3/V10/V20 rebrand migrations
+test fixtures using A380 names
+```
+
+These are historical records; rewriting frozen migrations would violate
+Flyway immutability. They should be marked historical rather than silently used
+as current naming.
+
+## Compliance summary
+
+| Area | Result |
+|---|---|
+| Full gate / Maven | PASS |
+| C/B test suites | PASS |
+| `/c/` `/b/` `/saas/` runtime | PASS |
+| `/a380/` removal | PASS (404 via explicit not-found backend) |
+| Tenant data branding | PASS (saas-demo/SaaS) |
+| SaaS/IM separation in all UI | PASS (runtime); IM login stays OpenChat |
+| A380 internal namespace | C/B/Android PASS; main historical only |
+| Platform tenant authz | PASS |
+| All platform authz | NOT FULLY VERIFIED |
+| Hotel booking customer link | PARTIAL |
+| Hotel images | PASS for bundled demo cover + fallback; per-hotel images pending |
+| Full browser/button coverage | NOT COMPLETE |
+| Docs current naming | PARTIAL (history remains) |
+| Frozen migrations immutability | PASS |
+
+## Recommended remediation order
+
+1. Block `/a380` at ingress/portal (P0).
+2. Rename C `A380*` namespace and `a380-*` storage keys (P1).
+3. Remove/rename Android `A380` l10n keys and legacy `web/miniservice/a380` (P1).
+4. Finish admin customer selection/phone auto-link and test B -> C status transitions (P1).
+5. Add hotel image data and B master-data page; then test image fallback (P1).
+6. Crawl every admin route and exercise buttons/forms with seeded test data (P1).
+7. Update current docs only; keep frozen migrations/historical evidence clearly marked (P2).

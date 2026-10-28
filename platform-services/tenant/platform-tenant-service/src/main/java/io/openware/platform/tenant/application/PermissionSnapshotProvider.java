@@ -84,6 +84,14 @@ public class PermissionSnapshotProvider {
         }
     }
 
+    public void revokeConsumerAuthorization(String appId, Long accountId) {
+        if (appId == null || appId.isBlank() || accountId == null) {
+            throw new IllegalArgumentException("appId and accountId are required");
+        }
+        authorizationRepository.revokeConsumerAuthorization(appId, accountId);
+        evict(accountId);
+    }
+
     /** 返回账号在某作用域下的权限快照（权限码 + 授权版本）。 */
     public PermissionSnapshot snapshot(Long accountId, Long tenantId, Long organizationId, Long storeId) {
         return snapshot(accountId, tenantId, organizationId, storeId, false);
@@ -186,7 +194,8 @@ public class PermissionSnapshotProvider {
             List<String> roles = rolesByScope.getOrDefault(key, List.of());
             contextsByScope.put(key, toContext(row, roles, row.scopeType()));
             // 租户/组织级绑定同样覆盖其名下门店：展开门店上下文供选择，授权范围不放大。
-            if (row.storeId() == null) {
+            // iam_role_binding.store_id 是非空列，组织级绑定落库为 0；不能只判断 null。
+            if (row.storeId() == null || row.storeId() == 0L) {
                 for (IamContext store : activeStores(row.tenantId(), row.organizationId())) {
                     ScopeKey storeKey = new ScopeKey(store.tenantId(), store.organizationId(),
                             store.storeId());

@@ -77,6 +77,6 @@ class InternalPricingPlanBatchTest {
 
   private static Store store(long id, String businessType) {
     return new Store(id, 100L, 1L, "S-" + id, "store-" + id, businessType, "CN", null, "Asia/Shanghai",
-        "CNY", "zh-CN", null, "04:00:00", Store.STATUS_ACTIVE);
+        "CNY", "zh-CN", null, "04:00:00", Store.STATUS_ACTIVE, null);
   }
 }

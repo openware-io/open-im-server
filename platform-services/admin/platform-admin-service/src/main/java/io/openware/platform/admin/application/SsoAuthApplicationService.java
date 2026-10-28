@@ -2,14 +2,16 @@ package io.openware.platform.admin.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
+import io.openware.platform.admin.domain.model.AdminRole;
 import io.openware.platform.admin.domain.model.ConsAdminAccount;
 import io.openware.platform.admin.domain.repository.ConsAdminAccountRepository;
 import io.openware.platform.admin.infra.IdaasSsoClient;
 import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.ConsAdminSessionStore;
-import org.springframework.stereotype.Service;
-
 import java.time.Duration;
+import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 /**
  * SaaS 后台 SSO 交换：用一次性票据经 IDaaS /sso/verify 换到 accountId，
@@ -21,24 +23,25 @@ public class SsoAuthApplicationService {
     private final ConsAdminAccountRepository accountRepository;
     private final IdaasSsoClient idaasSsoClient;
     private final ConsAdminSessionStore sessionStore;
+    private final AdminRoleProfileService roleProfileService;
 
     public SsoAuthApplicationService(ConsAdminAccountRepository accountRepository,
                                      IdaasSsoClient idaasSsoClient,
                                      ConsAdminSessionStore sessionStore) {
+        this(accountRepository, idaasSsoClient, sessionStore, null);
+    }
+
+    @Autowired
+    public SsoAuthApplicationService(ConsAdminAccountRepository accountRepository,
+                                     IdaasSsoClient idaasSsoClient,
+                                     ConsAdminSessionStore sessionStore,
+                                     AdminRoleProfileService roleProfileService) {
         this.accountRepository = accountRepository;
         this.idaasSsoClient = idaasSsoClient;
         this.sessionStore = sessionStore;
+        this.roleProfileService = roleProfileService;
     }
 
-    /**
-     * 交换：一次性票据 → Redis 会话。
-     *
-     * <p><b>有效期继承</b>：{@code ttl} 是本后台自己的上限，实际会话时长取
-     * {@code min(ttl, 集团会话剩余时长)}——集团统一登录门户选的「登录有效时长」就是这么带进后台的。
-     *
-     * <p><b>顺序</b>：先判票据有效与**是否过期**（fail closed：过期票据不查库、也不泄露账号是否已映射），
-     * 再按 idaas_subject 映射本后台账号。
-     */
     public AdminAuthResult exchange(String ticket, Duration ttl) {
         IdaasSsoClient.SsoUser user = idaasSsoClient.verifyTicket(ticket);
         if (!user.valid() || user.accountId() <= 0) {
@@ -65,6 +68,20 @@ public class SsoAuthApplicationService {
         String sessionId = sessionStore.createSession(ctx, ttl);
         AdminAccountView user = new AdminAccountView(account.id(), account.username(), account.displayName(),
                 account.role().name(), account.platformAccountId());
-        return new AdminAuthResult(sessionId, user, System.currentTimeMillis() + ttl.toMillis());
+        AdminRoleProfileService.AdminWorkspace workspace = resolveWorkspace(account);
+        return new AdminAuthResult(sessionId, user, System.currentTimeMillis() + ttl.toMillis(),
+                workspace.roles(), workspace.workspaces(), workspace.defaultWorkspace(), workspace.landing());
+    }
+
+    private AdminRoleProfileService.AdminWorkspace resolveWorkspace(ConsAdminAccount account) {
+        if (roleProfileService != null) {
+            return roleProfileService.resolve(account.platformAccountId(), account.role());
+        }
+        if (account.role() == AdminRole.TENANT_ADMIN) {
+            return new AdminRoleProfileService.AdminWorkspace(List.of("tenant.owner"), List.of("HEADQUARTERS"),
+                    "HEADQUARTERS", "/admin/tenant/overview");
+        }
+        return new AdminRoleProfileService.AdminWorkspace(List.of("platform.operator"), List.of("PLATFORM"),
+                "PLATFORM", "/admin/platform/tenants");
     }
 }

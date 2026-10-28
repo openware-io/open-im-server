@@ -1,5 +1,6 @@
 package io.openware.platform.admin.application;
 
+import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.platform.admin.api.menu.AdminMenuItem;
 import io.openware.platform.admin.domain.model.AdminRole;
@@ -8,7 +9,9 @@ import io.openware.platform.admin.domain.menu.repository.AdminMenuRepository;
 import io.openware.platform.admin.domain.menu.repository.TenantPaymentGrantRepository;
 import io.openware.platform.admin.infra.TenantIamDomainClient;
 import io.openware.platform.admin.infra.security.AdminContextHolder;
+import io.openware.platform.admin.infra.security.AdminContext;
 import io.openware.platform.admin.infra.security.AdminTenantContextTokenSigner;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -30,31 +33,91 @@ public class AdminMenuApplicationService {
     private final TenantIamDomainClient tenantIamClient;
     private final AdminTenantContextTokenSigner contextTokens;
     private final AdminMenuRepository menuRepository;
+    private final AdminRoleProfileService roleProfiles;
 
     public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
                                        TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
                                        AdminMenuRepository menuRepository) {
+        this(paymentGrants, tenantIamClient, contextTokens, menuRepository, null);
+    }
+
+    @Autowired
+    public AdminMenuApplicationService(TenantPaymentGrantRepository paymentGrants,
+                                       TenantIamDomainClient tenantIamClient, AdminTenantContextTokenSigner contextTokens,
+                                       AdminMenuRepository menuRepository, AdminRoleProfileService roleProfiles) {
         this.paymentGrants = paymentGrants;
         this.tenantIamClient = tenantIamClient;
         this.contextTokens = contextTokens;
         this.menuRepository = menuRepository;
+        this.roleProfiles = roleProfiles;
     }
 
     public List<AdminMenuItem> menus(String scope) {
-        List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
         var admin = AdminContextHolder.get();
         if (admin == null) return List.of();
+        var resolved = roleProfiles == null
+                ? null : roleProfiles.resolve(admin.platformAccountId(), admin.role());
+        List<String> workspaces = resolved == null || resolved.workspaces() == null
+                ? List.of() : resolved.workspaces();
+        String requested = normalizeScope(scope, workspaces, admin.role());
+        if (scope == null || scope.isBlank()) {
+            // 未显式声明 workspace 时仍要校验已选择的上下文 token，避免坏 token 被静默忽略。
+            selectedContext();
+        }
+        if (!workspaces.isEmpty()) {
+            boolean allowed = workspaces.contains(requested)
+                    || ("TENANT".equals(requested) && workspaces.contains("HEADQUARTERS"));
+            if (!allowed) {
+                throw new ApiException(403, "WORKSPACE_FORBIDDEN", "当前账号无权访问该工作区");
+            }
+        }
+        List<AdminMenuItem> all = menuTree(menuRepository.findActiveOrdered());
+        String menuScope = "TENANT".equals(requested) ? "TENANT" : requested;
+        boolean includeStoreContext = "TENANT".equals(menuScope) && storeContextMode(admin);
         List<AdminMenuItem> scoped = all.stream()
-                .filter(menu -> scope == null || scope.isBlank()
-                        || ("TENANT".equalsIgnoreCase(scope)
-                            ? ("TENANT".equalsIgnoreCase(menu.scope()) || "STORE".equalsIgnoreCase(menu.scope()))
-                            : scope.equalsIgnoreCase(menu.scope())))
+                .filter(menu -> menuScope.equalsIgnoreCase(menu.scope())
+                        || (includeStoreContext && "STORE".equalsIgnoreCase(menu.scope())))
                 .filter(menu -> !"PLATFORM".equals(menu.scope())
                         || admin.role() == AdminRole.SUPER_ADMIN || admin.role() == AdminRole.PLATFORM_ADMIN)
                 .toList();
-        return scoped.stream().anyMatch(menu -> !"PLATFORM".equals(menu.scope()))
-                ? filterByContext(scoped, selectedContext())
-                : scoped;
+        return "PLATFORM".equals(menuScope) ? scoped : filterByContext(scoped, selectedContext());
+    }
+
+    /**
+     * 门店上下文模式：租户选择 TENANT_CONTEXT 时，门店员工在租户后台内仍需要门店业务菜单。
+     * 只有同时持有 store.* 角色且租户配置为该模式时才合并 STORE 段。
+     */
+    private boolean storeContextMode(AdminContext admin) {
+        try {
+            var bindings = tenantIamClient.roleBindings(admin.platformAccountId());
+            boolean hasStoreRole = bindings.stream()
+                    .filter(binding -> binding.status() == null || "ACTIVE".equalsIgnoreCase(binding.status()))
+                    .anyMatch(binding -> binding.roleCode() != null && binding.roleCode().startsWith("store."));
+            if (!hasStoreRole) return false;
+            Long tenantId = bindings.stream()
+                    .map(TenantIamDomainClient.RoleBinding::tenantId)
+                    .filter(id -> id != null && id > 0)
+                    .findFirst().orElse(null);
+            return "TENANT_CONTEXT".equals(tenantIamClient.workspaceMode(tenantId));
+        // degradation: workspace probe unavailable; deny platform workspace
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static String normalizeScope(String scope, List<String> workspaces, AdminRole role) {        if (scope != null && !scope.isBlank()) {
+            String value = scope.trim().toUpperCase(java.util.Locale.ROOT);
+            return switch (value) {
+                case "PLATFORM" -> "PLATFORM";
+                case "STORE" -> "STORE";
+                case "TENANT", "HEADQUARTERS" -> "TENANT";
+                default -> value;
+            };
+        }
+        if (workspaces.contains("PLATFORM")) return "PLATFORM";
+        if (workspaces.contains("HEADQUARTERS") || workspaces.contains("TENANT")) return "TENANT";
+        if (workspaces.contains("STORE")) return "STORE";
+        return role == AdminRole.SUPER_ADMIN || role == AdminRole.PLATFORM_ADMIN ? "PLATFORM" : "TENANT";
     }
 
     private List<AdminMenuItem> menuTree(List<AdminMenuRow> rows) {

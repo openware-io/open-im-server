@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.openware.common.exception.ApiException;
 import io.openware.common.http.HttpStatusCodes;
 import io.openware.common.port.TokenProvider;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.security.JwtProperties;
 import io.openware.platform.identity.domain.account.model.IdentityAccount;
 import io.openware.platform.identity.domain.account.model.LoginIdentity;
@@ -16,6 +17,7 @@ import io.openware.platform.identity.domain.account.repository.OauthLinkReposito
 import io.openware.platform.identity.domain.account.repository.ProfileSyncRecordRepository;
 import io.openware.platform.identity.infra.oauth.ImOAuthClient;
 import io.openware.platform.identity.infra.oauth.ImOAuthUserInfo;
+import io.openware.platform.identity.infra.security.SaasAppRegistry;
 import io.openware.platform.identity.infra.client.TenantServiceClient;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * IM 用户级授权 → SaaS 身份绑定。
@@ -49,6 +52,8 @@ public class OAuthImBindApplicationService {
     private final TokenProvider tokenProvider;
     private final JwtProperties jwtProperties;
     private final TenantServiceClient tenantServiceClient;
+    private final SaasAppRegistry appRegistry;
+    private final AuditClient audit;
 
     public OAuthImBindApplicationService(@Lazy OAuthImBindApplicationService self, ImOAuthClient imOAuthClient,
                                          IdentityAccountRepository accountRepository,
@@ -56,7 +61,8 @@ public class OAuthImBindApplicationService {
                                          OauthLinkRepository oauthLinkRepository,
                                          ProfileSyncRecordRepository profileSyncRecordRepository,
                                          TokenProvider tokenProvider, JwtProperties jwtProperties,
-                                         TenantServiceClient tenantServiceClient) {
+                                         TenantServiceClient tenantServiceClient,
+                                         SaasAppRegistry appRegistry, AuditClient audit) {
         this.self = self;
         this.imOAuthClient = imOAuthClient;
         this.accountRepository = accountRepository;
@@ -66,9 +72,16 @@ public class OAuthImBindApplicationService {
         this.tokenProvider = tokenProvider;
         this.jwtProperties = jwtProperties;
         this.tenantServiceClient = tenantServiceClient;
+        this.appRegistry = appRegistry;
+        this.audit = audit;
     }
 
     /** 授权码换 token 后绑定（H5 客户端无 appSecret，授权码交换由服务端完成）。 */
+    /** 供 Controller 解析会话/cookie 所需的实际 appId。 */
+    public String resolveAppId(String appId) {
+        return imOAuthClient.resolveAppId(appId);
+    }
+
     public BindResult bindByCode(String code, String codeVerifier, String redirectUri, String appId) {
         return bindByCode(code, codeVerifier, redirectUri, appId, null, null);
     }
@@ -79,32 +92,131 @@ public class OAuthImBindApplicationService {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "OIDC_TRANSACTION_INVALID",
                     "state 与 nonce 不能为空");
         }
-        String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, appId);
-        BindResult result = bind(imAccessToken);
-        tenantServiceClient.grantConsumerAuthorization(result.accountId(), appId, "profile.basic");
+        String resolvedAppId = imOAuthClient.resolveAppId(appId);
+        String imAccessToken = imOAuthClient.exchangeCode(code, codeVerifier, redirectUri, resolvedAppId);
+        BindResult result = bind(imAccessToken, resolvedAppId);
+        if (appRegistry.isBackend(resolvedAppId)) {
+            boolean staff = tenantServiceClient.memberships(result.accountId()).stream()
+                .anyMatch(membership -> "STAFF".equals(membership.membershipType())
+                    && "ACTIVE".equals(membership.status()));
+            if (!staff) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                    "当前账号未绑定为租户员工，请联系租户管理员");
+            }
+            var contexts = tenantServiceClient.contexts(result.accountId());
+            boolean bound = contexts != null && contexts.stream().anyMatch(context ->
+                context.roles() != null && context.roles().stream().anyMatch(
+                    role -> Set.of("tenant.owner", "store.manager", "store.cashier", "store.finance")
+                        .contains(role)));
+            if (!bound) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "STAFF_NOT_BOUND",
+                    "当前账号未绑定为租户员工，请联系租户管理员");
+            }
+        } else {
+            tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
+            var consumer = tenantServiceClient.consumerContext(result.accountId(), resolvedAppId);
+            Long tenantId = consumer == null ? null : consumer.tenantId();
+            boolean customer = tenantId != null && tenantServiceClient.memberships(result.accountId()).stream()
+                .anyMatch(membership -> "CUSTOMER".equals(membership.membershipType())
+                    && "ACTIVE".equals(membership.status())
+                    && tenantId.equals(membership.tenantId()));
+            if (!customer) {
+                throw new ApiException(HttpStatusCodes.FORBIDDEN, "CUSTOMER_NOT_BOUND",
+                    "当前账号未绑定为租户客户");
+            }
+        }
         return result;
     }
 
     public BindResult bind(String imAccessToken) {
+        return bindResolved(imAccessToken, imOAuthClient.resolveAppId(null));
+    }
+
+    public BindResult bind(String imAccessToken, String appId) {
+        return bindResolved(imAccessToken, imOAuthClient.resolveAppId(appId));
+    }
+
+    private BindResult bindResolved(String imAccessToken, String resolvedAppId) {
         ImOAuthUserInfo info = imOAuthClient.fetchUserInfo(imAccessToken);
         String openId = info.openId();
         if (openId == null || openId.isBlank()) {
             throw new ApiException(HttpStatusCodes.BAD_REQUEST, "IM_OPEN_ID_MISSING", "IM 用户信息缺少 open_id");
         }
-        OauthLink existing = findLink(openId);
+        OauthLink existing = findLink(openId, resolvedAppId);
         if (existing != null) {
             return bindResult(existing.accountId(), openId);
         }
+        // 老用户/跨应用：已有 IM 登录标识时复用同一 SaaS 账号，只新增 app 维度绑定。
+        LoginIdentity existingLogin = loginIdentityRepository
+                .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
+        if (existingLogin != null) {
+            return reuseLoginAndBind(openId, resolvedAppId, info.scope(), existingLogin);
+        }
         try {
-            Long accountId = self.createAccountAndBind(openId, info);
+            Long accountId = self.createAccountAndBind(openId, info, resolvedAppId);
             return bindResult(accountId, openId);
         } catch (DuplicateKeyException ex) {
-            OauthLink raced = findLink(openId);
+            OauthLink raced = findLink(openId, resolvedAppId);
             if (raced == null) {
+                LoginIdentity racedLogin = loginIdentityRepository
+                        .findActiveByLoginIdentifier(PROVIDER_IM, openId).orElse(null);
+                if (racedLogin != null) {
+                    return reuseLoginAndBind(openId, resolvedAppId, info.scope(), racedLogin);
+                }
                 throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
             }
             return bindResult(raced.accountId(), openId);
         }
+    }
+
+    /** 复用已有登录标识时只补 app 维度绑定；并发插入冲突则回读已存在 link。 */
+    private BindResult reuseLoginAndBind(String openId, String appId, String scope, LoginIdentity login) {
+        OauthLink any = findAnyLink(openId, appId);
+        if (any != null) {
+            if (!any.accountId().equals(login.accountId())) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 绑定归属不一致");
+            }
+            try {
+                return bindResult(oauthLinkRepository.save(any.activate(scope)).accountId(), openId);
+            } catch (DuplicateKeyException ex) {
+                OauthLink raced = findLink(openId, appId);
+                if (raced == null || !raced.accountId().equals(login.accountId())) {
+                    throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
+                }
+                return bindResult(raced.accountId(), openId);
+            }
+        }
+        try {
+            oauthLinkRepository.save(OauthLink.bind(login.accountId(), PROVIDER_IM, appId, openId, scope));
+        } catch (DuplicateKeyException ex) {
+            OauthLink raced = findLink(openId, appId);
+            if (raced == null) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 账号已被绑定");
+            }
+            if (!raced.accountId().equals(login.accountId())) {
+                throw new ApiException(HttpStatusCodes.CONFLICT, "IM_BIND_CONFLICT", "IM 绑定归属不一致");
+            }
+            return bindResult(raced.accountId(), openId);
+        }
+        return bindResult(login.accountId(), openId);
+    }
+
+    @Transactional
+    public void unbind(Long accountId, String appId) {
+        var links = oauthLinkRepository.findByAccountId(accountId).stream()
+            .filter(link -> PROVIDER_IM.equals(link.provider()) && appId.equals(link.appId()))
+            .toList();
+        if (links.isEmpty()) {
+            throw new ApiException(HttpStatusCodes.NOT_FOUND, "OAUTH_LINK_NOT_FOUND", "OAuth 绑定不存在");
+        }
+        links.stream().filter(OauthLink::isActive)
+            .forEach(link -> oauthLinkRepository.save(link.revoke()));
+        if (!appRegistry.isBackend(appId)) {
+            tenantServiceClient.revokeConsumerAuthorization(accountId, appId);
+        }
+        audit.recordAsync(AuditClient.AuditRecord.of(null, accountId, "iam.oauth.unbind", "oauth_link",
+            appId, null, "oauth-unbind:" + accountId + ":" + appId,
+            "{\"accountId\":" + accountId + ",\"appId\":\"" + appId + "\"}"));
     }
 
     private BindResult bindResult(Long accountId, String openId) {
@@ -115,23 +227,31 @@ public class OAuthImBindApplicationService {
 
     @Transactional
     public Long createAccountAndBind(String openId, ImOAuthUserInfo info) {
+        return createAccountAndBind(openId, info, imOAuthClient.resolveAppId(null));
+    }
+
+    @Transactional
+    public Long createAccountAndBind(String openId, ImOAuthUserInfo info, String appId) {
         LocalDateTime now = LocalDateTime.now();
-        // IM OAuth 授权进入的默认是普通用户/潜在消费者（客户类型）；员工须由管理员在后台开通并标记 EMPLOYEE。
-        // 状态与类型由领域工厂固定，审计字段由适配器填充。
         IdentityAccount account = accountRepository.save(IdentityAccount.register());
 
         loginIdentityRepository.save(
                 LoginIdentity.forLogin(account.id(), PROVIDER_IM, openId, null));
         oauthLinkRepository.save(
-                OauthLink.bind(account.id(), PROVIDER_IM, openId, info.scope()));
-        // event_id 为空是既定口径（建表注释：bind 拉取为空），仅事件消费路径才带幂等键。
+                OauthLink.bind(account.id(), PROVIDER_IM, appId, openId, info.scope()));
         profileSyncRecordRepository.save(new ProfileSyncRecord(
                 null, null, account.id(), PROVIDER_IM, toProfileJson(info), now));
         return account.id();
     }
 
-    private OauthLink findLink(String openId) {
-        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, openId).stream()
+    private OauthLink findLink(String openId, String appId) {
+        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
+                .filter(OauthLink::isActive)
+                .findFirst().orElse(null);
+    }
+
+    private OauthLink findAnyLink(String openId, String appId) {
+        return oauthLinkRepository.findAllByProviderAccount(PROVIDER_IM, appId, openId).stream()
                 .findFirst().orElse(null);
     }
 

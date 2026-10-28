@@ -3,8 +3,11 @@ package io.openware.platform.order.api.controller;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.platform.order.application.PendingApprovalApplicationService;
 import io.openware.platform.order.application.dto.PendingApprovalView;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.GetMapping;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RequestMapping;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 提交后立即失效；{@code revision} 字段供客户端「未变化则跳过重渲染」。未来接入消息中心后，
  * 本端点保留为兜底快照，客户端改为订阅推送即可，无需改口径。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/orders")
 public class PendingApprovalController {

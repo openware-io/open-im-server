@@ -1,54 +1,70 @@
 package io.openware.platform.identity.api.controller;
 
-import io.openware.platform.identity.api.converter.AccountConverter;
-import io.openware.platform.identity.api.dto.AccountView;
 import io.openware.platform.identity.application.AccountApplicationService;
-import io.openware.platform.identity.application.ImUnifiedAccountApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import io.openware.common.exception.ApiException;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 账号内部端点（供 platform-admin-service 运营人员开通和只读核对，不走网关）。
- */
+/** 内部账号查询：tenant 平台角色授予前校验 account_type/status。 */
 @RestController
-@RequestMapping("/internal/accounts")
+@RequestMapping("/internal/identity/accounts")
 public class InternalAccountController {
 
-    private final AccountApplicationService accountService;
-    private final ImUnifiedAccountApplicationService imUnifiedAccountService;
+  private final AccountApplicationService accounts;
 
-    public InternalAccountController(AccountApplicationService accountService,
-                                     ImUnifiedAccountApplicationService imUnifiedAccountService) {
-        this.accountService = accountService;
-        this.imUnifiedAccountService = imUnifiedAccountService;
+  public InternalAccountController(AccountApplicationService accounts) {
+    this.accounts = accounts;
+  }
+
+  @GetMapping("/{id}")
+  public AccountInfo get(@PathVariable Long id) {
+    AccountApplicationService.AccountView account = accounts.findAccountView(id);
+    if (account == null) {
+      return null;
     }
+    return new AccountInfo(account.id(), account.accountType(), account.status());
+  }
 
-    /** 按登录标识查/建账号（IM 账号开通运营人员用）。 */
-    @PostMapping("/ensure")
-    public AccountView ensure(@RequestBody EnsureAccountRequest req) {
-        return AccountConverter.toView(
-                accountService.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType()));
+  /**
+   * 内部：按登录标识查/建 SaaS 账号。供 platform-admin-service 开通运营人员或
+   * 平台初始化租户管理员使用；不暴露给浏览器。
+   */
+  /** 内部：按手机号/登录标识查找 SaaS accountId，供后台代客下单关联客户。 */
+  @GetMapping("/lookup")
+  public Long lookup(@RequestParam String loginType, @RequestParam String loginIdentifier) {
+    Long accountId = accounts.findAccountIdByLogin(loginType, loginIdentifier);
+    if (accountId == null) {
+      throw new ApiException(404, "ACCOUNT_NOT_FOUND", "账号不存在");
     }
+    return accountId;
+  }
 
-    /**
-     * 按 IM 用户名（{@code im_<id>}）查统一账号落点：账号类型 + 登录标识/OAuth 绑定计数。
-     *
-     * <p>只读查询：供运维与审计核对「这个 IM 用户在统一账号模型里还有什么落点」。
-     */
-    @GetMapping("/im/{username}")
-    public ImUnifiedAccountApplicationService.ImAccountView imAccount(@PathVariable String username) {
-        return imUnifiedAccountService.findByImUsername(username);
-    }
+  @PostMapping("/ensure")
+  public AccountInfo ensure(@RequestBody EnsureAccountRequest req) {
+    var account = accounts.ensureAccount(req.loginType(), req.loginIdentifier(), req.accountType());
+    return new AccountInfo(account.id(), account.accountType(), account.status());
+  }
 
-    /**
-     * 清理某个 IM 用户名在统一账号模型里的落点（IM 后台删除用户的级联一步，幂等）。
-     *
-     * <p>由 IM 侧在**自己的事务内**调用；本端点**不做任何拒绝**：只清 IM 身份（登录标识 + OAuth 绑定），
-     * 账号本体仅在「客户账号 + 孤儿」时才删，员工 / 平台运营账号本体保留（等后台换绑 IM 账号）。
-     */
-    public record EnsureAccountRequest(String loginType, String loginIdentifier, String accountType) {}
+  /** 内部：设置/重设 C 端登录密码（运营开通使用）。 */
+  @PostMapping("/{accountId}/password")
+  public void resetPassword(@PathVariable Long accountId, @RequestBody BindLoginIdentityRequest req) {
+    accounts.resetPassword(accountId, req.loginType(), req.loginIdentifier(), req.credential());
+  }
+
+  /** 内部：为已有账号绑定可密码登录的标识。 */
+  @PostMapping("/{accountId}/login-identity")
+  public void bindLoginIdentity(@PathVariable Long accountId, @RequestBody BindLoginIdentityRequest req) {
+    accounts.bindPasswordLogin(accountId, req.loginType(), req.loginIdentifier(), req.credential());
+  }
+
+  public record EnsureAccountRequest(String loginType, String loginIdentifier, String accountType) {}
+  public record BindLoginIdentityRequest(String loginType, String loginIdentifier, String credential) {}
+
+  public record AccountInfo(Long id, String accountType, String status) {
+  }
 }

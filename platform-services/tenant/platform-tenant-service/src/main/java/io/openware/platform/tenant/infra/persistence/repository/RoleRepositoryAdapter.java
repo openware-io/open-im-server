@@ -33,7 +33,7 @@ public class RoleRepositoryAdapter implements RoleRepository {
 
   @Override
   public Optional<Role> findById(Long roleId) {
-    return Optional.ofNullable(mapper.selectById(roleId)).map(RoleRepositoryAdapter::toDomain);
+    return Optional.ofNullable(mapper.selectByIdIgnoringTenant(roleId)).map(RoleRepositoryAdapter::toDomain);
   }
 
   @Override
@@ -52,6 +52,18 @@ public class RoleRepositoryAdapter implements RoleRepository {
             .eq(RolePo::getTenantId, tenantId)
             .eq(RolePo::getStatus, Role.STATUS_ACTIVE))
         .stream().map(RoleRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
+  public List<Role> listAssignableByTenant(Long tenantId) {
+    return mapper.selectAssignableByTenant(tenantId).stream()
+        .map(RoleRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
+  public List<Role> listPlatformRoles() {
+    return mapper.selectPlatformRoles().stream()
+        .map(RoleRepositoryAdapter::toDomain).toList();
   }
 
   @Override

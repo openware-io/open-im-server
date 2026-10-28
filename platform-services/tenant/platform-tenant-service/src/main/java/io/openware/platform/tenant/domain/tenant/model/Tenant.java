@@ -45,6 +45,11 @@ public record Tenant(
   }
 
   /** 是否已开通可用。 */
+  /** 平台运营启用/停用；只允许 PENDING/ACTIVE/SUSPENDED 三态。 */
+  public Tenant withStatus(String nextStatus) {
+    return new Tenant(id, tenantCode, name, nextStatus, defaultLocale, defaultTimezone, createdAt);
+  }
+
   public boolean active() {
     return STATUS_ACTIVE.equals(status);
   }

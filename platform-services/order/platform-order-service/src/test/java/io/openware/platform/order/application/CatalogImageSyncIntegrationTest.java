@@ -62,7 +62,7 @@ class CatalogImageSyncIntegrationTest {
 
   @BeforeEach
   void setUpTenant() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_ID, 0L, 0, java.util.List.of(), null, "KTV", null));
   }
 
   @AfterEach

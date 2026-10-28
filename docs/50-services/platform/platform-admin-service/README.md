@@ -33,6 +33,10 @@ SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），�
 - GET /admin/backends — 返回当前账号可访问后台列表（脚手架暂返回全部三类：im / platform / tenant，后续按 IAM 权限过滤）。
 - GET /admin/menus?scope=PLATFORM|TENANT — 返回对应后台菜单树（脚手架静态，后续按角色 + 权限码过滤）。
 
+门店设置与租户设置不是空菜单：`store.settings` 指向 `/admin/store/settings`，`tenant.settings`
+指向 `/admin/tenant/settings`；页面分别维护门店级与租户级品牌/配置。对应菜单路径由
+`V5__store_settings_menu.sql`、`V6__tenant_settings_menu.sql` 修正。
+
 ## 网关路由（gateway）
 
 - saas-admin：/api/v1/admin/menus/**、/api/v1/admin/backends/** → PLATFORM_ADMIN_URI（默认 http://localhost:4150，StripPrefix=2）。

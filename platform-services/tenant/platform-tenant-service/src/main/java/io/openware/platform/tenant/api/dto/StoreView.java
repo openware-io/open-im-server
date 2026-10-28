@@ -20,5 +20,6 @@ public record StoreView(
     String locale,
     Long taxProfileId,
     String businessDayCutoff,
-    String status) {
+    String status,
+    String logoUrl) {
 }

@@ -49,7 +49,7 @@ $firstConstraintPattern = '(?m)^[ \t]*(?:PRIMARY\s+KEY|UNIQUE\s+KEY|KEY|INDEX|CO
 
 # --- registered prefixes ---
 $prefixFilePath = Join-Path $PSScriptRoot 'table-prefixes.txt'
-$rulesPath = Join-Path $root 'docs\ENGINEERING_RULES.md'
+$rulesPath = Join-Path $root 'docs\80-development\governance\ENGINEERING_RULES.md'
 $registered = [System.Collections.Generic.HashSet[string]]::new()
 foreach ($line in [System.IO.File]::ReadAllLines($prefixFilePath, [System.Text.UTF8Encoding]::new($false, $true))) {
   $token = $line.Trim()
@@ -68,6 +68,42 @@ foreach ($prefix in $registered) {
 
 # --- migration roots ---
 $domainRoots = @('im-services', 'platform-services', 'common-services', 'group-services')
+$legacyPath = Join-Path $PSScriptRoot 'flyway-legacy-files.txt'
+$legacyFiles = @{}
+if (Test-Path -LiteralPath $legacyPath) {
+  foreach ($line in [System.IO.File]::ReadAllLines($legacyPath, [System.Text.UTF8Encoding]::new($false, $true))) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+    $parts = $trimmed -split '\|'
+    if ($parts.Count -lt 2) { continue }
+    $legacyFiles[$parts[0].Trim()] = [ordered]@{ expires = $parts[1].Trim(); used = $false }
+  }
+}
+
+# Destructive cleanup allowlist: only DROP TABLE is waived, and only for reviewed
+# final-cleanup migrations. Format: path|reason|expires.
+$destructiveAllowPath = Join-Path $PSScriptRoot 'flyway-destructive-allowlist.txt'
+$destructiveAllowed = [System.Collections.Generic.HashSet[string]]::new()
+if (Test-Path -LiteralPath $destructiveAllowPath) {
+  foreach ($line in [System.IO.File]::ReadAllLines($destructiveAllowPath, [System.Text.UTF8Encoding]::new($false, $true))) {
+    $trimmed = $line.Trim()
+    if ($trimmed -eq '' -or $trimmed.StartsWith('#')) { continue }
+    $parts = $trimmed -split '\|'
+    if ($parts.Count -lt 3) { continue }
+    $expiry = [datetime]::MinValue
+    if (-not [datetime]::TryParseExact($parts[2].Trim(), 'yyyy-MM-dd', [cultureinfo]::InvariantCulture,
+        [System.Globalization.DateTimeStyles]::None, [ref]$expiry)) {
+      $violations.Add("flyway-destructive-allowlist: invalid expiry for $($parts[0].Trim())")
+      continue
+    }
+    if ($expiry -lt (Get-Date).Date) {
+      $violations.Add("flyway-destructive-allowlist: entry expired for $($parts[0].Trim())")
+      continue
+    }
+    [void]$destructiveAllowed.Add($parts[0].Trim())
+  }
+}
+
 $migrationDirs = [System.Collections.Generic.List[string]]::new()
 foreach ($domain in $domainRoots) {
   $domainPath = Join-Path $root $domain
@@ -85,6 +121,21 @@ foreach ($dir in $migrationDirs) {
     $text = [System.IO.File]::ReadAllText($file.FullName, [System.Text.UTF8Encoding]::new($false, $true))
     $name = $file.Name
     $fileRef = "${relative}/${name}"
+    if ($legacyFiles.ContainsKey($fileRef)) {
+      $entry = $legacyFiles[$fileRef]
+      $expiry = [datetime]::MinValue
+      if (-not [datetime]::TryParseExact($entry.expires, 'yyyy-MM-dd', [cultureinfo]::InvariantCulture,
+          [System.Globalization.DateTimeStyles]::None, [ref]$expiry)) {
+        $violations.Add("${fileRef}: invalid legacy expiry $($entry.expires)")
+        continue
+      }
+      if ($expiry -lt (Get-Date).Date) {
+        $violations.Add("${fileRef}: legacy exception expired $($entry.expires)")
+        continue
+      }
+      $entry.used = $true
+      continue
+    }
 
     # Strip comments in ONE forward pass before parsing. Without this, a Chinese comment such as
     # "KMS/Vault key id" is read as a real index declaration, and a commented-out "-- DROP TABLE x"
@@ -136,7 +187,9 @@ foreach ($dir in $migrationDirs) {
     $identCode = [regex]::Replace($code, "(?s)'(?:[^'\\]|\\.|'')*'", "''")
 
     if ($code -match '(?i)CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS') { $violations.Add("${fileRef}: CREATE TABLE IF NOT EXISTS is forbidden") }
-    if ($code -match '(?i)\bDROP\s+TABLE\b') { $violations.Add("${fileRef}: DROP TABLE is forbidden") }
+    if ($code -match '(?i)\bDROP\s+TABLE\b' -and -not $destructiveAllowed.Contains($fileRef)) {
+      $violations.Add("${fileRef}: DROP TABLE is forbidden (add to flyway-destructive-allowlist.txt only for reviewed final cleanup)")
+    }
     if ($code -match '(?i)\bFOREIGN\s+KEY\b') { $violations.Add("${fileRef}: physical foreign keys are forbidden") }
     if ($code -match '(?i)\b(PREPARE|EXECUTE|DEALLOCATE)\b') { $violations.Add("${fileRef}: dynamic DDL is forbidden") }
 
@@ -229,6 +282,12 @@ foreach ($dir in $migrationDirs) {
         $violations.Add("${where}: column name '$($columnMatch.Groups['bare'].Value)' is not backticked (identifier convention)")
       }
     }
+  }
+}
+
+foreach ($key in $legacyFiles.Keys) {
+  if (-not $legacyFiles[$key].used) {
+    $violations.Add("stale flyway legacy exception (no longer matches): $key")
   }
 }
 

@@ -9,7 +9,7 @@
 [CmdletBinding()]
 param(
   [string]$GatewayUrl = 'http://127.0.0.1:30080',
-  [string]$AppId = 'saas-a380-h5',
+  [string]$AppId = 'saas-b',
   [string]$ContextId = '100:100:100',
   [long]$StoreId = 100,
   [long]$TenantId = 100

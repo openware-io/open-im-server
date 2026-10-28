@@ -158,7 +158,7 @@ class AdminMenuApplicationServiceTest {
         .thenReturn(new TenantIamDomainClient.PermissionSnapshot(
             1L, 100L, null, null, 1, List.of("iam.role.manage", "audit.view")));
 
-    List<AdminMenuItem> menus = service.menus(null);
+    List<AdminMenuItem> menus = service.menus("TENANT");
 
     assertEquals(1, menus.stream().filter(menu -> CURRENCY_PATH.equals(menu.path())).count());
   }

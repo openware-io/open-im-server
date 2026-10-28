@@ -29,7 +29,11 @@ public class MediaImageController {
   private static final String PRODUCT_MANAGE = "product.manage";
   private static final String MATERIAL_MANAGE = "inventory.material.manage";
   private static final String RESOURCE_MANAGE = "resource.manage";
-  private static final String DENIED_MESSAGE = "无商品/物料/包厢图片管理权限";
+  private static final String MEDIA_IMAGE_UPLOAD = "media.image.upload";
+  private static final String TENANT_STORE_MANAGE = "tenant.store.manage";
+  private static final String TENANT_BRAND_MANAGE = "tenant.tenant.manage";
+  private static final String MEDIA_UPLOAD = "media.image.upload";
+  private static final String DENIED_MESSAGE = "无商品/物料/酒店/门店/租户图片管理权限";
 
   private final MediaImageApplicationService images;
   private final TenantIamDomainClient tenantIamClient;
@@ -78,7 +82,11 @@ public class MediaImageController {
     if (snapshot.permissions() == null
         || (!snapshot.permissions().contains(PRODUCT_MANAGE)
             && !snapshot.permissions().contains(MATERIAL_MANAGE)
-            && !snapshot.permissions().contains(RESOURCE_MANAGE))) {
+            && !snapshot.permissions().contains(RESOURCE_MANAGE)
+            && !snapshot.permissions().contains(MEDIA_IMAGE_UPLOAD)
+            && !snapshot.permissions().contains(TENANT_STORE_MANAGE)
+            && !snapshot.permissions().contains(TENANT_BRAND_MANAGE)
+            && !snapshot.permissions().contains(MEDIA_UPLOAD))) {
       throw new ApiException(HttpStatusCodes.FORBIDDEN, "PERMISSION_DENIED", DENIED_MESSAGE);
     }
     return context;

@@ -26,9 +26,19 @@ public class ImOAuthClient {
         this.appSecret = properties.getAppSecret();
     }
 
+    /** 解析实际使用的 IM 应用 ID；请求与服务配置都为空时 fail-fast，禁止静默写 legacy。 */
+    public String resolveAppId(String appId) {
+        String resolved = appId == null || appId.isBlank() ? this.appId : appId;
+        if (resolved == null || resolved.isBlank()) {
+            throw new ApiException(HttpStatusCodes.BAD_REQUEST, "OAUTH_APP_NOT_CONFIGURED",
+                    "IM OAuth appId 未配置");
+        }
+        return resolved;
+    }
+
     /** 授权码换 im_access_token（appId 由调用方传入，C/B 共用 appSecret + PKCE verifier）。 */
     public String exchangeCode(String code, String codeVerifier, String redirectUri, String appId) {
-        String resolvedAppId = appId == null || appId.isBlank() ? this.appId : appId;
+        String resolvedAppId = resolveAppId(appId);
         try {
             var form = new LinkedMultiValueMap<String, String>();
             form.add("grant_type", "authorization_code");

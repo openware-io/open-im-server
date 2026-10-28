@@ -17,6 +17,7 @@ import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.model.KtvServerSession;
 import io.openware.platform.order.domain.order.model.Order;
 import java.util.List;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.*;
  * {@link KtvServerSessionApplicationService}；取消/作废委托
  * {@link OrderCancellationApplicationService}。本类只做协议转换与端点权限守卫。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business")
 public class OrderController {
@@ -77,7 +79,7 @@ public class OrderController {
                 req.currencyCode(), req.resourceId()));
     }
 
-    /** 确认订单：DRAFT → WAITING_SETTLEMENT。 */
+    /** 确认订单：交易状态 DRAFT → PENDING_PAYMENT（加项完成，进入结算）。 */
     @PostMapping("/orders/{id}/confirm")
     public OrderView confirm(@PathVariable Long id) {
         return orderService.confirm(id);
@@ -125,18 +127,6 @@ public class OrderController {
         return KtvServerSessionView.from(ordered);
     }
 
-    /** 挂单：SERVING 内操作标记，不结台、不改商业状态。 */
-    @PostMapping("/orders/{id}/hold")
-    public OrderView hold(@PathVariable Long id, @RequestBody HoldRequest req) {
-        return orderService.hold(id, req.reason());
-    }
-
-    /** 解除挂单。 */
-    @PostMapping("/orders/{id}/unhold")
-    public OrderView unhold(@PathVariable Long id) {
-        return orderService.unhold(id);
-    }
-
     /** 转台：换包厢，计时继承（累计）不重置。 */
     @PostMapping("/orders/{id}/transfer")
     public KtvSessionView transfer(@PathVariable Long id, @RequestBody TransferRequest req) {
@@ -153,7 +143,7 @@ public class OrderController {
         return OrderView.from(orderCancellationService.cancel(id, req == null ? null : req.reason()));
     }
 
-    /** 作废：订单 → VOIDED；与取消共用状态校验/已收款拦截/包厢释放。 */
+    /** 作废：交易状态 → VOIDED（与用户取消 CANCELLED 分开统计）；与取消共用状态校验/已收款拦截/包厢释放。 */
     @PostMapping("/orders/{id}/void")
     public OrderView voidOrder(@PathVariable Long id, @RequestBody(required = false) VoidRequest req) {
         PermissionGuard.require("order.void");
@@ -203,7 +193,6 @@ public class OrderController {
                                      String currencyCode, Long resourceId) {}
     public record OpenRequest(Integer freeWaitMinutes, Integer partySize) {}
     public record OrderServerRequest(Long tenantId, Long ktvSessionId, Long serverResourceId, Long catalogItemId) {}
-    public record HoldRequest(String reason) {}
     public record TransferRequest(Long targetResourceId) {}
     public record VoidRequest(String reason) {}
     /** 取消订单请求体：{@code reason} 必填（空白 → 400 CANCEL_REASON_REQUIRED），≤255 字符。 */

@@ -38,7 +38,8 @@ public record Store(
     String locale,
     Long taxProfileId,
     String businessDayCutoff,
-    String status) {
+    String status,
+    String logoUrl) {
 
   /** 门店处于可用状态。 */
   public static final String STATUS_ACTIVE = "ACTIVE";

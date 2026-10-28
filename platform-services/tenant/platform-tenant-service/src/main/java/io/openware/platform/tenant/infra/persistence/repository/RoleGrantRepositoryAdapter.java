@@ -62,6 +62,11 @@ public class RoleGrantRepositoryAdapter implements RoleGrantRepository {
     RolePermissionPo po = new RolePermissionPo();
     po.setRoleId(roleId);
     po.setPermissionId(permissionId);
+    java.time.LocalDateTime now = java.time.LocalDateTime.now();
+    po.setCreatedBy(0L);
+    po.setCreatedAt(now);
+    po.setUpdatedBy(0L);
+    po.setUpdatedAt(now);
     mapper.insert(po);
   }
 }

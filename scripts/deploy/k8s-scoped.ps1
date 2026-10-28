@@ -166,7 +166,24 @@ foreach ($name in $targets) {
   }
 }
 
+function Import-KindLocalImage {
+  param([string]$Name)
+  if ($env:OPEN_IM_OFFLINE_LOCAL -ne '1' -and $env:OPEN_IM_KIND_PRIVATE_LOCAL -ne '1') { return }
+  $image = $images[$Name]
+  $localId = (& docker image inspect $image --format '{{.Id}}' 2>$null | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or !$localId) { throw "Local image missing for offline Kind deploy: $image" }
+  $nodes = @(& docker ps --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --filter 'label=io.x-k8s.kind.role=worker' --format '{{.Names}}')
+  if ($nodes.Count -eq 0) { throw "Kind worker nodes not found: $KindClusterName" }
+  foreach ($node in $nodes) {
+    $nodeImages = & docker exec $node crictl images --no-trunc
+    if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Kind node images: $node" }
+    if ($nodeImages -match [regex]::Escape($localId)) { continue }
+    & cmd.exe /d /c "docker image save $image | docker exec -i $node ctr --namespace k8s.io images import -"
+    if ($LASTEXITCODE -ne 0) { throw "Importing local image into Kind failed: $image on $node" }
+  }
+}
 foreach ($name in $targets) { Set-LocalRecreateStrategy -Name $name }
+foreach ($name in $targets) { Import-KindLocalImage -Name $name }
 foreach ($name in $targets) { Set-ApplicationImage -Name $name }
 foreach ($name in $targets) {
   Invoke-Kubectl -Arguments @('rollout', 'status', "deployment/$name", '--namespace', $Namespace, "--timeout=$($StartupTimeoutSeconds)s")

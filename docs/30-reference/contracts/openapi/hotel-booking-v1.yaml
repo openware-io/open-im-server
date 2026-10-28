@@ -1,0 +1,647 @@
+openapi: 3.1.0
+info:
+  title: SaaS Hotel Booking API
+  version: 1.0.0
+  description: |
+    Internal hotel booking contract for platform-admin-service BFF and
+    platform-order-service. All endpoints are tenant/store scoped through
+    X-Tenant-Context. Amounts are integer minor units plus ISO-4217 currency.
+servers:
+  - url: https://api.example.com/api/v1
+    description: Gateway
+security:
+  - SaasSession: []
+tags:
+  - name: Hotel
+  - name: RoomTypes
+  - name: Rooms
+  - name: Rates
+  - name: Inventory
+  - name: Quotes
+  - name: Bookings
+  - name: FrontDesk
+paths:
+  /admin/hotel/policy:
+    get:
+      tags: [Hotel]
+      operationId: getHotelPolicy
+      parameters:
+        - name: hotelId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Hotel policy; defaults are returned when not persisted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotelPolicy'
+    put:
+      tags: [Hotel]
+      operationId: saveHotelPolicy
+      parameters:
+        - name: hotelId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HotelPolicyUpsert'
+      responses:
+        '200':
+          description: Saved hotel policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HotelPolicy'
+  /admin/hotel/hotels:
+    get:
+      tags: [Hotel]
+      operationId: listHotels
+      responses:
+        '200':
+          description: Hotels in the current store
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Hotel'
+    post:
+      tags: [Hotel]
+      operationId: createHotel
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HotelUpsert'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hotel'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /admin/hotel/room-types:
+    get:
+      tags: [RoomTypes]
+      operationId: listRoomTypes
+      parameters:
+        - $ref: '#/components/parameters/HotelId'
+      responses:
+        '200':
+          description: Room types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoomType'
+    post:
+      tags: [RoomTypes]
+      operationId: createRoomType
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomTypeUpsert'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomType'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hotel/rooms:
+    get:
+      tags: [Rooms]
+      operationId: listRooms
+      parameters:
+        - $ref: '#/components/parameters/RoomTypeId'
+      responses:
+        '200':
+          description: Physical rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Room'
+    post:
+      tags: [Rooms]
+      operationId: createRoom
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoomUpsert'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hotel/rooms/{roomId}/status:
+    put:
+      tags: [Rooms]
+      operationId: setRoomStatus
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ACTIVE, MAINTENANCE]
+      responses:
+        '200':
+          description: Updated room status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hotel/rate-plans:
+    get:
+      tags: [Rates]
+      operationId: listRatePlans
+      responses:
+        '200':
+          description: Rate plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RatePlan'
+    post:
+      tags: [Rates]
+      operationId: createRatePlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatePlanUpsert'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatePlan'
+  /admin/hotel/inventory:
+    get:
+      tags: [Inventory]
+      operationId: getInventoryCalendar
+      parameters:
+        - $ref: '#/components/parameters/RoomTypeId'
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Daily inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InventoryDay'
+    put:
+      tags: [Inventory]
+      operationId: setInventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InventoryUpdate'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryDay'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hotel/quotes:
+    post:
+      tags: [Quotes]
+      operationId: quoteStay
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '200':
+          description: Price and availability
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '409':
+          $ref: '#/components/responses/InventoryUnavailable'
+  /admin/hotel/bookings:
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+      responses:
+        '201':
+          description: Booking created and inventory held
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          $ref: '#/components/responses/InventoryUnavailable'
+    get:
+      tags: [Bookings]
+      operationId: listBookings
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Bookings in the current store
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+  /admin/hotel/bookings/{bookingId}/confirm:
+    post:
+      tags: [Bookings]
+      operationId: confirmBooking
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /admin/hotel/bookings/{bookingId}/cancel:
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string, maxLength: 255 }
+      responses:
+        '200':
+          description: Cancelled and inventory released
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /business/hotel/frontdesk/tasks:
+    get:
+      tags: [FrontDesk]
+      operationId: frontDeskTasks
+      responses:
+        '200':
+          description: Arrivals, in-house and due-out
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+  /business/hotel/frontdesk/bookings/{bookingId}/checkin:
+    post:
+      tags: [FrontDesk]
+      operationId: checkIn
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+        - name: roomId
+          in: query
+          required: false
+          description: Physical room selected by the front desk; omitted for automatic assignment.
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Checked in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /business/hotel/frontdesk/bookings/{bookingId}/checkout:
+    post:
+      tags: [FrontDesk]
+      operationId: checkOut
+      parameters:
+        - $ref: '#/components/parameters/BookingId'
+      responses:
+        '200':
+          description: Checked out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    SaasSession:
+      type: apiKey
+      in: cookie
+      name: saas_b_session
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: { type: string, minLength: 8, maxLength: 128 }
+    HotelId:
+      name: hotelId
+      in: query
+      required: false
+      schema: { type: integer, format: int64 }
+    RoomTypeId:
+      name: roomTypeId
+      in: query
+      required: false
+      schema: { type: integer, format: int64 }
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema: { type: integer, format: int64 }
+  responses:
+    Forbidden:
+      description: Permission or tenant scope denied
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: State or concurrency conflict
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InventoryUnavailable:
+      description: No room inventory for the requested stay
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+    Hotel:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        address: { type: string }
+        timezone: { type: string }
+        checkInTime: { type: string }
+        checkOutTime: { type: string }
+        status: { type: string, enum: [ACTIVE, DISABLED] }
+    HotelUpsert:
+      type: object
+      required: [name, timezone, checkInTime, checkOutTime]
+      properties:
+        name: { type: string, maxLength: 128 }
+        address: { type: string, maxLength: 255 }
+        timezone: { type: string }
+        checkInTime: { type: string, example: '14:00' }
+        checkOutTime: { type: string, example: '12:00' }
+    HotelPolicy:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        hotelId: { type: integer, format: int64 }
+        accessMode: { type: string, enum: [SINGLE_STORE, GROUP] }
+        entryPoints: { type: string }
+        paymentMode: { type: string, enum: [PREPAY, PAY_AT_HOTEL, DEPOSIT] }
+        depositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        stayDepositRequired: { type: boolean }
+        stayDepositMode: { type: string, enum: [COLLECT, PRE_AUTH] }
+        stayDepositMinor: { type: integer, format: int64, minimum: 0 }
+        stayDepositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        cancelPolicy: { type: string, enum: [FREE_UNTIL_24H, NON_REFUNDABLE] }
+        pointsRedeemEnabled: { type: boolean }
+        pointsMaxRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        invoiceMode: { type: string, enum: [NONE] }
+    HotelPolicyUpsert:
+      type: object
+      properties:
+        accessMode: { type: string, enum: [SINGLE_STORE, GROUP] }
+        entryPoints: { type: string }
+        paymentMode: { type: string, enum: [PREPAY, PAY_AT_HOTEL, DEPOSIT] }
+        depositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        stayDepositRequired: { type: boolean }
+        stayDepositMode: { type: string, enum: [COLLECT, PRE_AUTH] }
+        stayDepositMinor: { type: integer, format: int64, minimum: 0 }
+        stayDepositRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+        cancelPolicy: { type: string, enum: [FREE_UNTIL_24H, NON_REFUNDABLE] }
+        pointsRedeemEnabled: { type: boolean }
+        pointsMaxRatioBps: { type: integer, minimum: 0, maximum: 10000 }
+    RoomType:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        hotelId: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        capacity: { type: integer }
+        bedType: { type: string }
+        areaSqm: { type: number }
+        status: { type: string }
+    RoomTypeUpsert:
+      type: object
+      required: [hotelId, code, name, capacity]
+      properties:
+        hotelId: { type: integer, format: int64 }
+        code: { type: string, maxLength: 64 }
+        name: { type: string, maxLength: 128 }
+        capacity: { type: integer, minimum: 1 }
+        bedType: { type: string, maxLength: 64 }
+        areaSqm: { type: number }
+    Room:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        roomTypeId: { type: integer, format: int64 }
+        roomNo: { type: string }
+        floor: { type: string }
+        status: { type: string, enum: [ACTIVE, OCCUPIED, DIRTY, MAINTENANCE] }
+    RoomUpsert:
+      type: object
+      required: [roomTypeId, roomNo]
+      properties:
+        roomTypeId: { type: integer, format: int64 }
+        roomNo: { type: string, maxLength: 32 }
+        floor: { type: string, maxLength: 16 }
+    RatePlan:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        code: { type: string }
+        name: { type: string }
+        basePriceMinor: { type: integer, format: int64 }
+        currency: { type: string }
+        status: { type: string }
+    RatePlanUpsert:
+      type: object
+      required: [code, name, basePriceMinor, currency]
+      properties:
+        code: { type: string }
+        name: { type: string }
+        basePriceMinor: { type: integer, format: int64, minimum: 0 }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+    InventoryDay:
+      type: object
+      properties:
+        roomTypeId: { type: integer, format: int64 }
+        stayDate: { type: string, format: date }
+        total: { type: integer }
+        sold: { type: integer }
+        held: { type: integer }
+        version: { type: integer }
+    InventoryUpdate:
+      type: object
+      required: [roomTypeId, stayDate, total]
+      properties:
+        roomTypeId: { type: integer, format: int64 }
+        stayDate: { type: string, format: date }
+        total: { type: integer, minimum: 0 }
+    QuoteRequest:
+      type: object
+      required: [roomTypeId, checkInDate, checkOutDate, rooms]
+      properties:
+        roomTypeId: { type: integer, format: int64 }
+        ratePlanId: { type: integer, format: int64 }
+        checkInDate: { type: string, format: date }
+        checkOutDate: { type: string, format: date }
+        rooms: { type: integer, minimum: 1 }
+    Quote:
+      type: object
+      properties:
+        available: { type: boolean }
+        totalMinor: { type: integer, format: int64 }
+        currency: { type: string }
+        nights:
+          type: array
+          items:
+            type: object
+            properties:
+              stayDate: { type: string, format: date }
+              priceMinor: { type: integer, format: int64 }
+              available: { type: integer }
+        holdExpiresAt: { type: string, format: date-time }
+    BookingCreate:
+      type: object
+      required: [roomTypeId, ratePlanId, checkInDate, checkOutDate, rooms, guestName, guestPhone]
+      properties:
+        roomTypeId: { type: integer, format: int64 }
+        ratePlanId: { type: integer, format: int64 }
+        checkInDate: { type: string, format: date }
+        checkOutDate: { type: string, format: date }
+        rooms: { type: integer, minimum: 1 }
+        guestName: { type: string, maxLength: 128 }
+        guestPhone: { type: string, maxLength: 32 }
+        note: { type: string, maxLength: 255 }
+        pointsUsed: { type: integer, format: int64, minimum: 0, description: 使用积分；受酒店积分开关和最大抵扣比例限制 }
+        source: { type: string, example: WEB }
+    Booking:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        bookingNo: { type: string }
+        status:
+          type: string
+          enum: [PENDING_PAYMENT, PENDING_DEPOSIT, CONFIRMED, ARRIVAL, IN_HOUSE, DUE_OUT, CHECKED_OUT, CANCELLED, NO_SHOW]
+        roomTypeId: { type: integer, format: int64 }
+        roomNo: { type: string }
+        guestName: { type: string }
+        guestPhone: { type: string }
+        checkInDate: { type: string, format: date }
+        checkOutDate: { type: string, format: date }
+        rooms: { type: integer }
+        totalMinor: { type: integer, format: int64 }
+        depositOrderId: { type: integer, format: int64 }
+        depositAmountMinor: { type: integer, format: int64 }
+        hasStay: { type: boolean, description: 是否已有真实在住记录；历史预订为 false，前台不提供退房/换房 }
+        pointsUsed: { type: integer, format: int64 }
+        pointsDiscountMinor: { type: integer, format: int64 }
+        cancelFeeMinor: { type: integer, format: int64, description: 取消时按 cancelPolicy 计算出的费用 }
+        refundMinor: { type: integer, format: int64, description: 取消时计算出的应退金额，实际退款走支付能力 }
+        cancelledAt: { type: string, format: date-time }
+        currency: { type: string }
+        holdExpiresAt: { type: string, format: date-time }

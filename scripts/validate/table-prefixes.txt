@@ -25,6 +25,8 @@ iam
 cons
 res
 ord
+ktv
+htl
 pay
 cst
 mkt

@@ -16,6 +16,8 @@ public class PlatformTenantLineHandler implements TenantLineHandler {
     public String getTenantIdColumn() { return "tenant_id"; }
     @Override
     public boolean ignoreTable(String t) {
-        return t.startsWith("idt_") || t.equals("tnt_tenant") || t.equals("tnt_business_type") || t.equals("iam_permission") || t.endsWith("_event_outbox") || t.endsWith("_event_consumed");
+        return t.startsWith("idt_") || t.equals("tnt_tenant") || t.equals("tnt_business_type")
+        || t.equals("tnt_payment_method") // 授权接口按显式 tenantId 查询/写入，平台上下文没有租户号
+        || t.equals("iam_permission") || t.endsWith("_event_outbox") || t.endsWith("_event_consumed");
     }
 }

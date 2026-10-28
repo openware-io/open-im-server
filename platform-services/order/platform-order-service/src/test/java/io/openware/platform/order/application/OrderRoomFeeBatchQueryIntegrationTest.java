@@ -164,7 +164,7 @@ class OrderRoomFeeBatchQueryIntegrationTest {
         po.setStoreId(STORE_ID);
         po.setOrderNo("ORD-BATCH-" + System.nanoTime());
         po.setBusinessType("KTV");
-        po.setStatus("SERVING");
+        po.setTradeStatus("DRAFT");
         po.setCurrencyCode("CNY");
         po.setSubtotalAmount(BigDecimal.ZERO);
         po.setDiscountAmount(BigDecimal.ZERO);

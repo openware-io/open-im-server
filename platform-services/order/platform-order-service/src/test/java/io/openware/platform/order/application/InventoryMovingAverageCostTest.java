@@ -17,6 +17,7 @@ import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.api.dto.InventoryMaterialView;
 import io.openware.platform.order.api.dto.InventoryTransactionView;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
 import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
@@ -24,6 +25,7 @@ import io.openware.platform.order.domain.inventory.repository.InventoryTransacti
 import io.openware.platform.order.infra.mq.EventOutboxRelay;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
@@ -98,7 +100,7 @@ class InventoryMovingAverageCostTest {
 
   @BeforeEach
   void setUpTenant() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_WEIGHTED, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_WEIGHTED, 0L, 0, java.util.List.of(), null, "KTV", null));
   }
 
   @AfterEach
@@ -232,7 +234,7 @@ class InventoryMovingAverageCostTest {
       final int index = i;
       pool.submit(() -> {
         try {
-          TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_CONCURRENT, 0L, 0));
+          TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_CONCURRENT, 0L, 0, java.util.List.of(), null, "KTV", null));
           ready.countDown();
           start.await(30, TimeUnit.SECONDS);
           inventoryService.changeStock(material.id(), BigDecimal.ONE, "RECEIPT", "RECEIPT", null,
@@ -294,7 +296,7 @@ class InventoryMovingAverageCostTest {
   @Test
   void inventoryCostsReportsPerMaterialCostInItsOwnCurrency() {
     CurrencyContextHolder.set(Currency.CNY);
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_COST_REPORT, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, STORE_COST_REPORT, 0L, 0, java.util.List.of(), null, "KTV", null));
     InventoryMaterialView cola = newMaterial(STORE_COST_REPORT, "可乐", new BigDecimal("300"));
     InventoryMaterialView towel = newMaterial(STORE_COST_REPORT, "毛巾", new BigDecimal("1250"));
     inventoryService.changeStock(cola.id(), new BigDecimal("2"), "RECEIPT", "RECEIPT", null,
@@ -337,7 +339,7 @@ class InventoryMovingAverageCostTest {
   }
 
   private InventoryMaterialView newMaterial(long storeId, String name, BigDecimal purchasePrice) {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 1L, storeId, 0L, 0, java.util.List.of(), null, "KTV", null));
     return inventoryService.createMaterial(new InventoryApplicationService.MaterialCommand(
         storeId, "INV-" + System.nanoTime(), name, "耗材", "件", BigDecimal.ZERO, purchasePrice, null, null, null));
   }
@@ -356,9 +358,41 @@ class InventoryMovingAverageCostTest {
 
   /** 按端口读库存行（迁移后不再直接持有 mapper；端口返回 Optional，缺失即夹具坏了）。 */
   private InventoryStock readStock(long storeId, Long materialId) {
-    InventoryStock stock = stockRepository.find(TENANT_ID, storeId, materialId).orElse(null);
+    InventoryStock stock = stockRepository.find(scopeOf(storeId), materialId).orElse(null);
     assertNotNull(stock, "库存行必须存在");
     return stock;
+  }
+
+  /** 当前门店 + 默认仓的完整作用域（V25：余额/流水作用域必须带仓库）。 */
+  private InventoryScope scopeOf(long storeId) {
+    return InventoryScope.warehouse(TENANT_ID, 1L, "KTV", storeId, defaultWarehouseId(storeId));
+  }
+
+  /** 测试夹具默认仓：与生产一致按 (租户, 业态, 门店, code=DEFAULT) 懒创建，返回其 id。 */
+  private long defaultWarehouseId(long storeId) {
+    try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+      Long existing = queryWarehouseId(statement, storeId);
+      if (existing != null) {
+        return existing;
+      }
+      statement.executeUpdate("INSERT INTO ord_inventory_warehouse (tenant_id, organization_id, business_type, "
+          + "store_id, code, name, status, version, created_at, updated_at) VALUES (" + TENANT_ID + ", 1, 'KTV', "
+          + storeId + ", 'DEFAULT', '默认仓', 'ACTIVE', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+      Long created = queryWarehouseId(statement, storeId);
+      if (created == null) {
+        throw new IllegalStateException("默认仓创建失败: storeId=" + storeId);
+      }
+      return created;
+    } catch (Exception failure) {
+      throw new IllegalStateException("默认仓夹具失败: storeId=" + storeId, failure);
+    }
+  }
+
+  private static Long queryWarehouseId(Statement statement, long storeId) throws Exception {
+    try (ResultSet result = statement.executeQuery("SELECT id FROM ord_inventory_warehouse WHERE tenant_id = "
+        + TENANT_ID + " AND store_id = " + storeId + " AND code = 'DEFAULT'")) {
+      return result.next() ? result.getLong(1) : null;
+    }
   }
 
   private BigDecimal inventoryCostOf(long storeId, Long materialId) {
@@ -368,21 +402,24 @@ class InventoryMovingAverageCostTest {
   /** 绕过 ORM 造「升级前形态」的库存行：有结存、无成本基准（avg_cost = 0）或脏数据。 */
   private void rawInsertStock(long storeId, Long materialId, BigDecimal onHand, BigDecimal avgCost, String currency)
       throws Exception {
+    long warehouseId = defaultWarehouseId(storeId);
     try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-      statement.executeUpdate("INSERT INTO ord_inventory_stock (tenant_id, store_id, material_id, on_hand_qty, "
-          + "reserved_qty, avg_cost, currency_code, revision, created_at, updated_at) VALUES ("
-          + TENANT_ID + ", " + storeId + ", " + materialId + ", " + onHand + ", 0, " + avgCost + ", '"
-          + currency + "', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+      statement.executeUpdate("INSERT INTO ord_inventory_stock (tenant_id, organization_id, business_type, store_id, "
+          + "warehouse_id, material_id, on_hand_qty, reserved_qty, avg_cost, currency_code, revision, created_at, "
+          + "updated_at) VALUES (" + TENANT_ID + ", 1, 'KTV', " + storeId + ", " + warehouseId + ", " + materialId
+          + ", " + onHand + ", 0, " + avgCost + ", '" + currency + "', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
     }
   }
 
   /** 绕过 ORM 造「升级前形态」的流水：unit_cost/total_cost 为 NULL（历史行本就无批次单价）。 */
   private void rawInsertLegacyTransaction(long storeId, Long materialId, String idempotencyKey) throws Exception {
+    long warehouseId = defaultWarehouseId(storeId);
     try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-      statement.executeUpdate("INSERT INTO ord_inventory_transaction (tenant_id, store_id, material_id, "
-          + "transaction_type, quantity_delta, quantity_before, quantity_after, currency_code, source_type, "
-          + "idempotency_key, created_at) VALUES (" + TENANT_ID + ", " + storeId + ", " + materialId
-          + ", 'RECEIPT', 3, 0, 3, 'USD', 'RECEIPT', '" + idempotencyKey + "', CURRENT_TIMESTAMP)");
+      statement.executeUpdate("INSERT INTO ord_inventory_transaction (tenant_id, organization_id, business_type, "
+          + "store_id, warehouse_id, material_id, transaction_type, quantity_delta, quantity_before, quantity_after, "
+          + "currency_code, source_type, idempotency_key, created_at) VALUES (" + TENANT_ID + ", 1, 'KTV', " + storeId
+          + ", " + warehouseId + ", " + materialId + ", 'RECEIPT', 3, 0, 3, 'USD', 'RECEIPT', '" + idempotencyKey
+          + "', CURRENT_TIMESTAMP)");
     }
   }
 }

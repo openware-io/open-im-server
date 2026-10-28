@@ -140,7 +140,10 @@ CREATE TABLE pay_event_outbox (
 CREATE TABLE ord_order (
   id BIGINT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
-  status VARCHAR(32) NOT NULL,
+  store_id BIGINT NOT NULL DEFAULT 2001,
+  -- 订单交易状态/退款状态（V27 已删除兼容列 status）
+  trade_status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+  refund_status VARCHAR(16) NOT NULL DEFAULT 'NONE',
   -- 币种快照（生产 V1__ord_order_baseline.sql + V22）：收款/退款必须与订单币种一致（禁止跨币种）。
   currency_code CHAR(3) NOT NULL DEFAULT 'USD',
   total_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
@@ -159,5 +162,5 @@ CREATE TABLE ord_order_item (
   status VARCHAR(24) NOT NULL
 );
 -- 订单币种与集成测试的收款币种（CNY）保持一致：收款/退款必须与订单币种相同，跨币种一律 422。
-INSERT INTO ord_order (id, tenant_id, status, currency_code, total_amount, paid_amount, updated_at)
-VALUES (9001, 1001, 'WAITING_SETTLEMENT', 'CNY', 8000, 0, CURRENT_TIMESTAMP);
+INSERT INTO ord_order (id, tenant_id, trade_status, currency_code, total_amount, paid_amount, updated_at)
+VALUES (9001, 1001, 'PENDING_PAYMENT', 'CNY', 8000, 0, CURRENT_TIMESTAMP);

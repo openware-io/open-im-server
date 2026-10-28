@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-27",
+  "environment": "local kind + Xiaomi 9 C-end session",
+  "free_until_24h": {
+    "bookingNo": "HTL1793031358342930",
+    "amountMinor": 179800,
+    "nights": 2,
+    "checkInDate": "2026-11-10",
+    "cancelFeeMinor": 0,
+    "refundMinor": 179800,
+    "status": "CANCELLED"
+  },
+  "non_refundable": {
+    "bookingNo": "HTL1793031366932874",
+    "amountMinor": 89900,
+    "nights": 1,
+    "checkInDate": "2026-11-11",
+    "cancelFeeMinor": 89900,
+    "refundMinor": 0,
+    "status": "CANCELLED"
+  },
+  "note": "费用与应退金额由 HotelPolicyApplicationService.cancellationQuote 计算；实际支付退款仍沿用既有支付能力，本次只验证取消计费结果。"
+}

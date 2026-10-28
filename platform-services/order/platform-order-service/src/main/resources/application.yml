@@ -70,3 +70,13 @@ platform:
       max-retry-count: ${PLATFORM_ORDER_OUTBOX_MAX_RETRY_COUNT:10}
       base-retry-delay-seconds: ${PLATFORM_ORDER_OUTBOX_BASE_RETRY_DELAY_SECONDS:1}
       max-backoff-seconds: ${PLATFORM_ORDER_OUTBOX_MAX_BACKOFF_SECONDS:3600}
+# 酒店 OTA channel v1 鉴权：channel code → 租户 + HMAC secret。
+# secret 只通过环境变量/K8s Secret 注入；未注入 secret 的渠道视为未配置，请求直接 401（fail-closed）。
+hotel:
+  channel:
+    max-clock-skew-ms: ${HOTEL_CHANNEL_MAX_CLOCK_SKEW_MS:300000}
+    channels:
+      sandbox:
+        tenant-id: ${HOTEL_CHANNEL_SANDBOX_TENANT_ID:0}
+        secret: ${HOTEL_CHANNEL_SANDBOX_SECRET:}
+

@@ -1,0 +1,22 @@
+B/C page sweep (2026-10-25)
+===========================
+
+B admin (29 routes, admin session, Chrome 155):
+  all routes -> console []
+
+C H5 (16 routes, saas_c_session):
+  home, my, my-orders, my-reservations, orders, cart, checkout,
+  my-hotel-orders, service/hotel, service/ktv, service/bar,
+  service/travel, service/mall, service/wallet, ledger/points, ledger/coin
+  all routes -> console []
+
+Found and fixed during sweep:
+  C /my-reservations requested /api/v1/business/ktv/pricing for terminal
+  KTV reservations (NO_SHOW/CANCELLED/COMPLETED) while the current store is
+  HOTEL, producing HTTP 403.
+  Fix: reservationPricingRef returns null for terminal rows; list still renders.
+  After redeploy: /my-reservations console [].
+
+Verification:
+  C tests: 23 files / 167 tests PASS
+  C image deployed: Ready=1, health 200

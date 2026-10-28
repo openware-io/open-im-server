@@ -107,7 +107,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.get("/api/v1/admin/tenant/stores")
-            .header("X-Saas-App", "saas-a380-h5")
+            .header("X-Saas-App", "saas-b")
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "b-end-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
 
@@ -237,9 +237,53 @@ class SaasSessionAuthenticationFilterTest {
         .isEqualTo("signed-platform-context");
   }
 
-  /** 运营已选择租户上下文时租户上下文优先：平台页面的读写仍应受该租户作用域与权限约束。 */
   @Test
-  void platformRoutePrefersSelectedTenantContextOverPresetPlatformContext() {
+  void platformIamRouteForwardsPresetPlatformContextWhenNoTenantContextSelected() {
+    ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
+    when(redis.opsForValue()).thenReturn(values);
+    when(values.get("saas-admin:session:admin-session")).thenReturn(Mono.just(
+        "{\"accountId\":1,\"role\":\"PLATFORM_ADMIN\",\"platformContextToken\":\"signed-platform-context\"}"));
+    SaasSessionAuthenticationFilter filter = new SaasSessionAuthenticationFilter(redis);
+    AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+    MockServerWebExchange exchange = MockServerWebExchange.from(
+        MockServerHttpRequest.get("/api/v1/admin/iam/roles/catalog")
+            .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
+
+    filter.filter(exchange, requestExchange -> {
+      forwarded.set(requestExchange.getRequest());
+      return Mono.empty();
+    }).block();
+
+    assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context"))
+        .isEqualTo("signed-platform-context");
+  }
+  @Test
+  void tenantOwnerBootstrapForwardsPlatformContext() {
+    ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
+    when(redis.opsForValue()).thenReturn(values);
+    when(values.get("saas-admin:session:admin-session")).thenReturn(Mono.just(
+        "{\"accountId\":1,\"role\":\"PLATFORM_ADMIN\",\"platformContextToken\":\"signed-platform-context\"}"));
+    SaasSessionAuthenticationFilter filter = new SaasSessionAuthenticationFilter(redis);
+    AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+    MockServerWebExchange exchange = MockServerWebExchange.from(
+        MockServerHttpRequest.post("/api/v1/admin/staff/bootstrap-owner")
+            .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
+
+    filter.filter(exchange, requestExchange -> {
+      forwarded.set(requestExchange.getRequest());
+      return Mono.empty();
+    }).block();
+
+    assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context"))
+        .isEqualTo("signed-platform-context");
+  }
+
+  @Test
+  void platformRouteUsesPlatformContextEvenWhenTenantContextSelected() {
     ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
     @SuppressWarnings("unchecked")
     ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
@@ -259,7 +303,30 @@ class SaasSessionAuthenticationFilterTest {
     }).block();
 
     assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context"))
-        .isEqualTo("selected-tenant-context");
+        .isEqualTo("signed-platform-context");
+  }
+
+  /** 只有租户上下文、没有平台上下文时，平台路由绝不能把租户 token 当平台权限转发。 */
+  @Test
+  void platformRouteDropsTenantContextWhenPlatformContextMissing() {
+    ReactiveStringRedisTemplate redis = mock(ReactiveStringRedisTemplate.class);
+    @SuppressWarnings("unchecked")
+    ReactiveValueOperations<String, String> values = mock(ReactiveValueOperations.class);
+    when(redis.opsForValue()).thenReturn(values);
+    when(values.get("saas-admin:session:admin-session")).thenReturn(Mono.just(
+        "{\"accountId\":1,\"tenantContextToken\":\"selected-tenant-context\"}"));
+    SaasSessionAuthenticationFilter filter = new SaasSessionAuthenticationFilter(redis);
+    AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+    MockServerWebExchange exchange = MockServerWebExchange.from(
+        MockServerHttpRequest.get("/api/v1/admin/platform/tenants")
+            .cookie(new org.springframework.http.HttpCookie("saas_admin_session", "admin-session")).build());
+
+    filter.filter(exchange, requestExchange -> {
+      forwarded.set(requestExchange.getRequest());
+      return Mono.empty();
+    }).block();
+
+    assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Context")).isNull();
   }
 
   /** 平台级路由在两族上下文都没有时仍必须放行（不能从「可用」退化成 401）。 */
@@ -311,7 +378,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.post("/api/v1/business/reservations/29/confirm")
-            .header("X-Saas-App", "saas-a380-h5")
+            .header("X-Saas-App", "saas-b")
             .cookie(new org.springframework.http.HttpCookie("saas_c_session", "consumer-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "backend-session"))
             .build());
@@ -364,7 +431,7 @@ class SaasSessionAuthenticationFilterTest {
     AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
     MockServerWebExchange exchange = MockServerWebExchange.from(
         MockServerHttpRequest.post("/api/v1/business/reservations")
-            .header("X-Saas-App", "saas-a380-c")
+            .header("X-Saas-App", "saas-c")
             .cookie(new org.springframework.http.HttpCookie("saas_b_session", "backend-session"))
             .cookie(new org.springframework.http.HttpCookie("saas_c_session", "consumer-session"))
             .build());

@@ -6,6 +6,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.ktv.model.KtvSession;
 import io.openware.platform.order.domain.ktv.repository.KtvSessionRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.reservation.model.Reservation;
 import io.openware.platform.order.domain.reservation.repository.ReservationRepository;
@@ -44,8 +45,8 @@ public class KtvReservationTimeoutService {
     /** 自动释放的取消原因：写进订单审计，运营在操作日志里能看懂是谁、为什么释放的。 */
     public static final String AUTO_RELEASE_REASON = "预约超时未到店，系统自动释放包厢";
 
-    private static final Set<String> TERMINAL_ORDER_STATUSES =
-            Set.of("COMPLETED", "CANCELLED", "VOIDED", "REFUNDED", "PARTIAL_REFUNDED");
+    private static final Set<TradeStatus> TERMINAL_TRADE_STATUSES =
+            Set.of(TradeStatus.COMPLETED, TradeStatus.CANCELLED, TradeStatus.VOIDED);
 
     private final KtvSessionRepository sessionRepository;
     private final ReservationRepository reservationRepository;
@@ -91,12 +92,12 @@ public class KtvReservationTimeoutService {
             try {
                 TenantContextHolder.set(new TenantContext(session.tenantId(), null, null, 0L, 0));
                 Order order = orderRepository.findById(session.orderId()).orElse(null);
-                if (order == null || TERMINAL_ORDER_STATUSES.contains(order.status())) {
+                if (order == null || TERMINAL_TRADE_STATUSES.contains(order.trade())) {
                     // 孤儿会话：订单已终结（作废/取消/已完成）但会话还停在「已预留」——只收敛会话，释放包厢。
                     ktvSessionService.cancelByOrder(session.orderId());
                     orphanSessions++;
-                    log.info("收敛孤儿预留会话: sessionId={}, orderId={}, orderStatus={}",
-                            session.id(), session.orderId(), order == null ? "MISSING" : order.status());
+                    log.info("收敛孤儿预留会话: sessionId={}, orderId={}, tradeStatus={}",
+                            session.id(), session.orderId(), order == null ? "MISSING" : order.trade());
                     continue;
                 }
                 try {

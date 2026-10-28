@@ -35,7 +35,7 @@ kubectl --context kind-open-im-local get ingress -n open-im-local
 
 - 统一门户：`http://<本机IP>:30080/`
 - SaaS 管理后台：`http://<本机IP>:30080/saas/`
-- SaaS C 端：`http://<本机IP>:30080/a380/`
+- SaaS C 端：`http://<本机IP>:30080/c/`
 - SaaS B 端：`http://<本机IP>:30080/b/`
 - IM 管理后台：`http://<本机IP>:30080/im/`
 - 网关健康检查：`http://<本机IP>:30080/actuator/health`
@@ -147,14 +147,28 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 .\deploy-k8s.ps1 -ReleaseManifestPath <本地发布清单路径> -SkipBuild
 .\deploy-k8s.ps1 -SaasReleaseManifestPath <远程发布清单路径> -ValidateOnly
 .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
+.\deploy-k8s.ps1 -Recover
 .\deploy-k8s.ps1 -Stop
 ```
 
+`-Recover` 用于电脑重启或 Kind 节点停止后的恢复：先启动退出的 Kind 节点，再重启应用 Deployment，
+等待 Ready 和 `/saas/` 可用；不会重启 MySQL、MongoDB、Redis、MinIO、RocketMQ。日常重启不需要重新构建。
+
 `-PruneImages` 在部署成功后清理 `ghcr.io/openware-io/*` 中不属于本次发布清单的旧镜像，
-并清理 Docker 构建缓存；Kind 已导入的镜像不受影响。也可单独执行
-`scripts/deploy/prune-local-images.ps1`。
+并清理 Docker 构建缓存；清理前会保留发布清单、Kubernetes Pod 实际引用以及运行中容器引用的镜像。
+Kind 已导入的镜像不受影响。也可单独执行
+`scripts/deploy/prune-local-images.ps1`；只想清理旧镜像、不清理构建缓存时加 `-NoBuildCache`。
 
 脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支使用 `<模块版本>-SNAPSHOT` 镜像标签，允许开发环境覆盖；正式发布使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、`dirty`、手工标签及 `@sha256` 镜像后缀；构建时间与 Git 修订写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。
+
+本地 Kind 的 `common-payment-channel-service` 额外注入渠道回调结算配置：`PAYMENT_SERVICE_BASE_URL=http://common-payment-service:4140`、
+`INTERNAL_SERVICE_AUTH_SECRET`（来自 `open-im-env`，与 payment-service 同值）以及
+`SANDBOX_PAY_ENABLED=true`、`SANDBOX_PAY_WEBHOOK_SECRET=local-e2e-sandbox-webhook-secret`。
+SANDBOX 渠道是**仅本地 E2E** 的可控回调源：本地没有真实 Alipay/WeChat/Stripe 商户密钥，真实回调无法产生
+资金事实；SANDBOX 用固定 HMAC 密钥验签，但走与真实渠道完全相同的
+`callback → pay_channel_transaction → payment-service 内部结算 → pay_intent/ord_order` 链路，
+可自动化验证成功、失败、重复、退款回调。共享/生产 manifest 不得启用 SANDBOX（否则等于开放伪造回调入口），
+ACK 清单未注入上述变量，保持关闭。
 
 访问地址：
 
@@ -162,7 +176,7 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 - 网关健康检查：`http://<宿主机局域网IP>:30080/actuator/health`
 - IM 管理后台：`http://<宿主机局域网IP>:30080/im/`
 - SaaS 管理后台：`http://<宿主机局域网IP>:30080/saas/`
-- SaaS 移动端 C 端：`http://<宿主机局域网IP>:30080/a380/`
+- SaaS 移动端 C 端：`http://<宿主机局域网IP>:30080/c/`
 - SaaS 移动端 B 端：`http://<宿主机局域网IP>:30080/b/`
 - 统一门户：`http://<宿主机局域网IP>:30080/`
 - MinIO API/控制台：`http://<宿主机局域网IP>:30900` / `http://<宿主机局域网IP>:30901`

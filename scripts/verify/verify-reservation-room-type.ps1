@@ -19,7 +19,7 @@ param(
   [string]$AdminUser = 'admin',
   [string]$AdminPassword = $env:IM_SAAS_ADMIN_PASSWORD,
   [string]$AdminContextId = '100:100:100',
-  [string]$ConsumerAppId = 'saas-a380-c',
+  [string]$ConsumerAppId = 'saas-c',
   [long]$RoomTypeId = 7,
   [long]$RoomResourceId = 1001,
   [int]$DaysAhead = 7

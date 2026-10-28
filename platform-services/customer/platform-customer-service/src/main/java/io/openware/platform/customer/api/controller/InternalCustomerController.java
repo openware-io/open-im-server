@@ -96,6 +96,14 @@ public class InternalCustomerController {
         return new AmountToPointsResponse(amountMinor, pointService.pointsForAmount(storeId, amountMinor));
     }
 
+    @GetMapping("/points/points-to-amount/{points}")
+    public PointsToAmountResponse pointsToAmount(@PathVariable long points) {
+        verifyInternalAuth();
+        TenantContext context = TenantContextHolder.get();
+        Long storeId = context == null ? null : context.storeId();
+        return new PointsToAmountResponse(points, pointService.amountForPoints(storeId, points));
+    }
+
     private Long requireStoreContext() {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0) {
@@ -144,6 +152,7 @@ public class InternalCustomerController {
     public record PointEarnRequest(Long customerId, Long eligibleAmountMinor, Long orderId, String idempotencyKey) {}
     public record PointEarnResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
     public record AmountToPointsResponse(long amountMinor, long points) {}
+    public record PointsToAmountResponse(long points, long amountMinor) {}
     public record PointReleaseResponse(Long pointAccountId, Long customerId, Long availablePoints, Long frozenPoints) {}
     public record WalletBalanceResponse(Long customerId, Long availableAmount, Long frozenAmount, String currencyCode) {}
     public record PointBalanceResponse(Long customerId, Long availablePoints, Long frozenPoints) {}

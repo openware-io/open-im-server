@@ -10,11 +10,11 @@ import java.time.LocalDateTime;
  * <p><b>字段集照搬原持久化对象 {@code ReservationPo}（JSON 字段名一个不改）</b>：
  * {@code /business/reservations/**}、{@code /me/reservations}、{@code /api/v1/reservations/**}
  * 的响应体早已是对外契约（见 {@code docs/contracts/openapi/platform-order-service.json}
- * 的 {@code ReservationPo} schema，以及 {@code scripts/verify/verify-a380-ktv-closure.ps1}
+ * 的 {@code ReservationPo} schema，以及 {@code scripts/verify/verify-openchat-ktv-closure.ps1}
  * 按 {@code id}/{@code status}/{@code version}/{@code resourceId} 断言的闭环脚本）。
  *
  * <p>其中三个字段**不是数据库列**（原 PO 上标 {@code @TableField(exist = false)}，
- * DDL 的 {@code ord_reservation} 里也没有）：
+ * DDL 的 {@code ktv_reservation} 里也没有）：
  * <ul>
  *   <li>{@link #roomTypeCode} / {@link #roomTypeName}：按 {@code room_type_id} 从资源域房型字典回填；</li>
  *   <li>{@link #resourceName}：按 {@code resource_id} 回填（历史预约只有包厢、没有房型时靠它展示旧包厢）。</li>

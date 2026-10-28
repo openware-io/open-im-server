@@ -51,7 +51,25 @@ public record Role(
     return this.scopeLevel != null && this.scopeLevel.equals(scopeLevel);
   }
 
-  /** 新建角色：状态固定为 ACTIVE，尚未落库。 */
+  /** 新建租户自定义角色：必须显式带作用域，禁止创建无作用域的角色。 */
+  public static Role create(Long tenantId, String code, String name, String roleType, String scopeLevel) {
+    if (tenantId == null || tenantId <= 0) {
+      throw new IllegalArgumentException("tenant role requires tenantId");
+    }
+    if (!SCOPE_TENANT.equals(scopeLevel) && !SCOPE_STORE.equals(scopeLevel)) {
+      throw new IllegalArgumentException("tenant role scope must be TENANT or STORE");
+    }
+    return new Role(null, tenantId, code, name,
+        roleType == null || roleType.isBlank() ? TYPE_TENANT : roleType,
+        scopeLevel, null, null, STATUS_ACTIVE);
+  }
+
+  /** 平台运营角色：租户为空，作用域固定 PLATFORM。 */
+  public static Role createPlatform(String code, String name) {
+    return new Role(null, null, code, name, "PLATFORM", SCOPE_PLATFORM, null, null, STATUS_ACTIVE);
+  }
+
+  /** 兼容旧调用：仅用于内部预置角色装配，不应用于租户创建接口。 */
   public static Role create(Long tenantId, String code, String name, String roleType) {
     return new Role(null, tenantId, code, name,
         roleType == null || roleType.isBlank() ? TYPE_TENANT : roleType, null, null, null, STATUS_ACTIVE);

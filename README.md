@@ -19,7 +19,7 @@ OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面�
   </tr>
 </table>
 
-> 状态：`current`（`develop/2.3.0` 开发中；最近阶段 tag `2.2.1`）  
+> 状态：`current`（`develop/2.4.0-hotel` 开发中；版本 `2.4.0-SNAPSHOT`）  
 > 工程级拓扑与文档导航见[文档中心](docs/README.md)和[工程拓扑](docs/20-architecture/TOPOLOGY.zh.md)。
 
 ## 一键部署（推荐）
@@ -65,7 +65,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
 | --- | --- |
 | 统一门户 | `http://<本机IP>:30080/` |
 | SaaS 管理后台 | `http://<本机IP>:30080/saas/` |
-| SaaS C 端（H5） | `http://<本机IP>:30080/a380/` |
+| SaaS C 端（H5） | `http://<本机IP>:30080/c/` |
 | SaaS B 端 / 运营后台 | `http://<本机IP>:30080/b/` |
 | IM 管理后台 | `http://<本机IP>:30080/im/` |
 | 网关健康检查 | `http://<本机IP>:30080/actuator/health` |
@@ -242,6 +242,7 @@ im-saas 文档
 - [02 架构决策记录（ADR）规范](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.md)
 - [03 工程原则](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.md)
 - [04 门禁治理规范](docs/80-development/standards/04_GATE_GOVERNANCE.md)
+- [05 业务域分类规范](docs/80-development/standards/05_DOMAIN_CLASSIFICATION.md)
 - [10 DDD 服务工程规范](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ 治理规范](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 平台媒体规范](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
@@ -252,7 +253,9 @@ im-saas 文档
 - [24 币种规范](docs/80-development/standards/24_CURRENCY_CONVENTIONS.md)
 - [30 客户端发布与版本治理规范](docs/80-development/standards/30_CLIENT_RELEASE_GOVERNANCE.md)
 - [31 客户端发布操作规范](docs/80-development/standards/31_CLIENT_RELEASE_SKILL.md)
+- [32 前端 UI 风格标准](docs/80-development/standards/32_FRONTEND_UI_STYLE.md)
 - [40 可观测性规范](docs/80-development/standards/40_OBSERVABILITY_CONVENTIONS.md)
 - [41 Java 日志规范](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 日志输出与诊断规范](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E 测试与验收规范](docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [50 权限与数据域规范](docs/80-development/standards/50_PERMISSION_AND_DATA_SCOPE.md)

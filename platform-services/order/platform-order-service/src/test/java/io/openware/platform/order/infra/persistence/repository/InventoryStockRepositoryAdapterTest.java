@@ -3,7 +3,6 @@ package io.openware.platform.order.infra.persistence.repository;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -18,6 +17,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.infra.persistence.mapper.InventoryStockMapper;
 import io.openware.platform.order.infra.persistence.po.InventoryStockPo;
@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 /**
- * 库存余额仓储适配器的**并发关键 SQL** 与列保真（真实适配器 + mock mapper）。
+ * 库存余额仓储适配器的**并发关键 SQL**、作用域下发与列保真（真实适配器 + mock mapper）。
  *
  * <p><b>这个类为什么必须存在</b>：库存子域已经有正确的并发控制，本子域迁移只许保留、不许"顺手加固成
  * 先读后判"。两条防超卖语句写在 {@code InventoryStockMapper} 的注解里（单条条件 UPDATE），
@@ -51,28 +51,27 @@ import org.mockito.ArgumentCaptor;
  *       与上下界条件 {@code on_hand_qty - reserved_qty >= ?}；入库语句必须在**同一条**语句里写
  *       {@code on_hand_qty = on_hand_qty + ?} 与 {@code avg_cost = ?}；加锁读必须带 {@code FOR UPDATE}。
  *       任何把条件判定搬回应用层的改动都会让这些断言失败。</li>
+ *   <li><b>作用域下发</b>：tenant / organization / business_type / store / warehouse 五段必须原样交给
+ *       mapper（V24/V25 作用域键是前四段 + material，organization 只是归属快照）。</li>
  *   <li><b>适配器的转换契约</b>（mock mapper）：{@code deductAvailable} 把「受影响行数 &gt; 0」表达成
  *       boolean 且不吞掉 0 行信号；{@code increaseOnHand} 原样返回行数；{@code save} 只插入。</li>
  * </ol>
- *
- * <p>断言方式与 {@code WalletAccountRepositoryAdapterTest} / {@code CatalogItemRepositoryAdapterTest}
- * 一致：{@code TableInfoHelper.initTableInfo(...)} 之后用 {@code getTargetSql()} 求值，
- * 不手写 SQL 比对、不猜列名；数值参数按数值比较（MyBatis-Plus 按 Java 类型装箱，{@code Integer} 不等于
- * {@code Long}）。
  */
 class InventoryStockRepositoryAdapterTest {
 
   private static final long TENANT_ID = 1L;
+  private static final long ORGANIZATION_ID = 2L;
+  private static final String BUSINESS_TYPE = "KTV";
   private static final long STORE_ID = 3L;
+  private static final long WAREHOUSE_ID = 4L;
   private static final long MATERIAL_ID = 10L;
   private static final long OTHER_MATERIAL_ID = 11L;
 
-  /**
-   * 注册 {@code ord_inventory_stock} 的 {@code TableInfo}。
-   *
-   * <p>没有这一步，lambda 的列名解析在单元测试里是**空操作**（{@code eq} 只登记方法引用），
-   * 于是 {@code getTargetSql()}/{@code getParamNameValuePairs()} 都是空的，断言会「莫名其妙地空过」。
-   */
+  /** 完整作用域（写路径与单仓读必须钉到仓库）。 */
+  private static InventoryScope scope() {
+    return InventoryScope.warehouse(TENANT_ID, ORGANIZATION_ID, BUSINESS_TYPE, STORE_ID, WAREHOUSE_ID);
+  }
+
   @BeforeAll
   static void registerTableInfo() {
     MybatisConfiguration configuration = new MybatisConfiguration();
@@ -94,15 +93,15 @@ class InventoryStockRepositoryAdapterTest {
   void deductAvailableSqlKeepsTheAtomicConditionalUpdate() {
     String sql = sqlOf("deductAvailable").replaceAll("\\s+", " ").toUpperCase();
 
-    assertTrue(sql.startsWith("UPDATE ORD_INVENTORY_STOCK"), "必须是 UPDATE，实际: " + sql);
+    assertTrue(sql.contains("UPDATE ORD_INVENTORY_STOCK"), "必须是 UPDATE，实际: " + sql);
     assertTrue(sql.replace(" ", "").contains("ON_HAND_QTY=ON_HAND_QTY-#{QUANTITY}"),
         "必须用「列 = 列 - 参数」自减，而不是把读出来的值写回: " + sql);
     assertTrue(sql.replace(" ", "").contains("ON_HAND_QTY-RESERVED_QTY>=#{QUANTITY}"),
         "必须带上下界条件（可用量 >= 扣减量），否则并发下会把库存扣成负数: " + sql);
     assertTrue(sql.replace(" ", "").contains("REVISION=REVISION+1"), "版本号自增必须写在 SQL 里: " + sql);
     assertTrue(sql.contains("TENANT_ID = #{TENANTID}") && sql.contains("STORE_ID = #{STOREID}")
-            && sql.contains("MATERIAL_ID = #{MATERIALID}"),
-        "定位口径必须是 (租户, 门店, 物料): " + sql);
+            && sql.contains("WAREHOUSE_ID = #{WAREHOUSEID}") && sql.contains("MATERIAL_ID = #{MATERIALID}"),
+        "定位口径必须是 (租户, 门店, 仓库, 物料): " + sql);
   }
 
   /**
@@ -113,7 +112,7 @@ class InventoryStockRepositoryAdapterTest {
   void increaseOnHandSqlWritesQuantityAndAverageCostInOneStatement() {
     String sql = sqlOf("increaseOnHand").replaceAll("\\s+", " ").toUpperCase();
 
-    assertTrue(sql.startsWith("UPDATE ORD_INVENTORY_STOCK"), "必须是 UPDATE，实际: " + sql);
+    assertTrue(sql.contains("UPDATE ORD_INVENTORY_STOCK"), "必须是 UPDATE，实际: " + sql);
     assertTrue(sql.replace(" ", "").contains("ON_HAND_QTY=ON_HAND_QTY+#{QUANTITY}"),
         "必须用自增写法: " + sql);
     assertTrue(sql.replace(" ", "").contains("AVG_COST=#{AVGCOST}"),
@@ -127,63 +126,66 @@ class InventoryStockRepositoryAdapterTest {
   @Test
   void selectForUpdateSqlTakesARowLock() {
     String sql = sqlOf("selectForUpdate").replaceAll("\\s+", " ").toUpperCase();
+    String compact = sql.replace(" ", "");
 
-    assertTrue(sql.startsWith("SELECT * FROM ORD_INVENTORY_STOCK"), "必须是单行读，实际: " + sql);
+    assertTrue(sql.contains("SELECT * FROM ORD_INVENTORY_STOCK"), "必须是单行读，实际: " + sql);
     assertTrue(sql.contains("FOR UPDATE"), "必须加行锁（FOR UPDATE），否则并发入库会丢失更新: " + sql);
-    assertTrue(sql.contains("TENANT_ID=#{TENANTID}") && sql.contains("STORE_ID=#{STOREID}")
-            && sql.contains("MATERIAL_ID=#{MATERIALID}"),
-        "定位口径必须是 (租户, 门店, 物料): " + sql);
+    assertTrue(compact.contains("TENANT_ID=#{TENANTID}") && compact.contains("STORE_ID=#{STOREID}")
+            && compact.contains("WAREHOUSE_ID=#{WAREHOUSEID}") && compact.contains("MATERIAL_ID=#{MATERIALID}"),
+        "定位口径必须是 (租户, 门店, 仓库, 物料): " + sql);
+    assertTrue(sql.contains("BUSINESS_TYPE") && sql.contains("ORGANIZATION_ID"),
+        "业态与组织快照必须参与作用域过滤: " + sql);
   }
 
-  // ------------------------------------------------- 适配器转换契约
+  // ------------------------------------------------- 作用域下发与转换契约
 
-  /** 0 行受影响必须原样表达成 false（库存不足是业务结果，不是异常）。 */
+  /** 0 行受影响必须原样表达成 false（库存不足是业务结果，不是异常），且五段作用域原样下发。 */
   @Test
   void deductAvailableReturnsFalseWhenNoRowAffected() {
-    when(mapper.deductAvailable(any(), any(), any(), any(), any())).thenReturn(0);
+    when(mapper.deductAvailable(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
 
-    assertFalse(adapter.deductAvailable(TENANT_ID, STORE_ID, MATERIAL_ID, new BigDecimal("2"),
-        LocalDateTime.now()));
+    assertFalse(adapter.deductAvailable(scope(), MATERIAL_ID, new BigDecimal("2"), LocalDateTime.now()));
+    verify(mapper).deductAvailable(eq(TENANT_ID), eq(ORGANIZATION_ID), eq(BUSINESS_TYPE), eq(STORE_ID),
+        eq(WAREHOUSE_ID), eq(MATERIAL_ID), any(), any());
   }
 
   /** 命中 1 行即扣减成功。 */
   @Test
   void deductAvailableReturnsTrueWhenRowAffected() {
-    when(mapper.deductAvailable(any(), any(), any(), any(), any())).thenReturn(1);
+    when(mapper.deductAvailable(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
 
-    assertTrue(adapter.deductAvailable(TENANT_ID, STORE_ID, MATERIAL_ID, new BigDecimal("2"),
-        LocalDateTime.now()));
+    assertTrue(adapter.deductAvailable(scope(), MATERIAL_ID, new BigDecimal("2"), LocalDateTime.now()));
   }
 
   /** 条件更新的参数必须原样透传（数量按数值比较，定点不做换算）。 */
   @Test
   void deductAvailablePassesTheGuardParametersThrough() {
     LocalDateTime now = LocalDateTime.of(2026, 9, 19, 20, 0, 0);
-    when(mapper.deductAvailable(any(), any(), any(), any(), any())).thenReturn(1);
+    when(mapper.deductAvailable(any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
 
-    adapter.deductAvailable(TENANT_ID, STORE_ID, MATERIAL_ID, new BigDecimal("2.5"), now);
+    adapter.deductAvailable(scope(), MATERIAL_ID, new BigDecimal("2.5"), now);
 
     ArgumentCaptor<BigDecimal> quantity = ArgumentCaptor.forClass(BigDecimal.class);
     ArgumentCaptor<LocalDateTime> updatedAt = ArgumentCaptor.forClass(LocalDateTime.class);
-    verify(mapper).deductAvailable(eq(TENANT_ID), eq(STORE_ID), eq(MATERIAL_ID),
-        quantity.capture(), updatedAt.capture());
+    verify(mapper).deductAvailable(eq(TENANT_ID), eq(ORGANIZATION_ID), eq(BUSINESS_TYPE), eq(STORE_ID),
+        eq(WAREHOUSE_ID), eq(MATERIAL_ID), quantity.capture(), updatedAt.capture());
     assertEquals(0, quantity.getValue().compareTo(new BigDecimal("2.5")),
         "扣减数量必须原样下发（定点，不做任何换算）");
     assertEquals(now, updatedAt.getValue());
   }
 
-  /** 入库的受影响行数原样返回（0 = 目标行不存在，由应用层据此抛业务异常）。 */
+  /** 入库的受影响行数原样返回（0 = 目标行不存在，由应用层据此抛业务异常），成本与作用域原样下发。 */
   @Test
   void increaseOnHandReturnsAffectedRowsAndPassesCostThrough() {
-    when(mapper.increaseOnHand(any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
+    when(mapper.increaseOnHand(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())).thenReturn(0);
 
-    assertEquals(0, adapter.increaseOnHand(TENANT_ID, STORE_ID, MATERIAL_ID, BigDecimal.ONE,
+    assertEquals(0, adapter.increaseOnHand(scope(), MATERIAL_ID, BigDecimal.ONE,
         new BigDecimal("466.666667"), "CNY", LocalDateTime.now()));
 
     ArgumentCaptor<BigDecimal> avgCost = ArgumentCaptor.forClass(BigDecimal.class);
     ArgumentCaptor<String> currency = ArgumentCaptor.forClass(String.class);
-    verify(mapper).increaseOnHand(eq(TENANT_ID), eq(STORE_ID), eq(MATERIAL_ID), any(),
-        avgCost.capture(), currency.capture(), any());
+    verify(mapper).increaseOnHand(eq(TENANT_ID), eq(ORGANIZATION_ID), eq(BUSINESS_TYPE), eq(STORE_ID),
+        eq(WAREHOUSE_ID), eq(MATERIAL_ID), any(), avgCost.capture(), currency.capture(), any());
     assertEquals(0, avgCost.getValue().compareTo(new BigDecimal("466.666667")),
         "加权后的平均成本必须原样下发（6 位定点）");
     assertEquals("CNY", currency.getValue(), "成本币种快照必须与平均成本同一条语句落库");
@@ -191,22 +193,24 @@ class InventoryStockRepositoryAdapterTest {
 
   // ------------------------------------------------- 读路径与列保真
 
-  /** 单条读按 (租户, 门店, 物料) 定位，并把持久化对象转成领域模型。 */
+  /** 单条读按 (租户, 门店, 仓库, 物料) 定位，并把持久化对象转成领域模型。 */
   @Test
-  void findQueriesTenantStoreAndMaterial() {
+  void findQueriesTenantStoreWarehouseAndMaterial() {
     when(mapper.selectOne(any())).thenReturn(po());
 
-    Optional<InventoryStock> found = adapter.find(TENANT_ID, STORE_ID, MATERIAL_ID);
+    Optional<InventoryStock> found = adapter.find(scope(), MATERIAL_ID);
 
     assertTrue(found.isPresent());
     assertEquals(MATERIAL_ID, found.get().materialId());
+    assertEquals(WAREHOUSE_ID, found.get().warehouseId());
+    assertEquals(BUSINESS_TYPE, found.get().businessType());
     assertEquals(0, found.get().availableQty().compareTo(new BigDecimal("4")),
         "可用量 = 现有量 − 预留量（5 − 1）");
     LambdaQueryWrapper<InventoryStockPo> wrapper = capturedSelectOne();
     Map<String, Object> params = evaluatedParams(wrapper);
     assertTrue(containsNumber(params, TENANT_ID) && containsNumber(params, STORE_ID)
-            && containsNumber(params, MATERIAL_ID),
-        "必须按 (租户, 门店, 物料) 定位: " + params.values());
+            && containsNumber(params, WAREHOUSE_ID) && containsNumber(params, MATERIAL_ID),
+        "必须按 (租户, 门店, 仓库, 物料) 定位: " + params.values());
   }
 
   /** 批量读按物料 id 集合一次 IN 查询（列表页避免 N+1），空集合不查库。 */
@@ -214,43 +218,45 @@ class InventoryStockRepositoryAdapterTest {
   void findByMaterialsQueriesTheMaterialIdSet() {
     when(mapper.selectList(any())).thenReturn(List.of(po()));
 
-    List<InventoryStock> stocks = adapter.findByMaterials(TENANT_ID, STORE_ID, List.of(MATERIAL_ID, OTHER_MATERIAL_ID));
+    List<InventoryStock> stocks = adapter.findByMaterials(scope(), List.of(MATERIAL_ID, OTHER_MATERIAL_ID));
 
     assertEquals(1, stocks.size());
     String sql = evaluatedSql(capturedSelectList());
     assertTrue(sql.contains("MATERIAL_ID IN"), "必须一次 IN 查询: " + sql);
-    assertTrue(adapter.findByMaterials(TENANT_ID, STORE_ID, List.of()).isEmpty(),
+    assertTrue(adapter.findByMaterials(scope(), List.of()).isEmpty(),
         "空集合返回空列表，不下发 IN ()（非法 SQL）");
   }
 
-  /** 按门店读全部余额（成本报表口径）：一次查询，委托给专用语句。 */
+  /** 按门店读全部余额（成本报表口径）：一次查询，委托给专用语句（作用域含业态/仓库）。 */
   @Test
   void findByStoreDelegatesToTheStoreQuery() {
-    when(mapper.selectByStore(TENANT_ID, STORE_ID)).thenReturn(List.of(po()));
+    when(mapper.selectByStore(TENANT_ID, BUSINESS_TYPE, STORE_ID, WAREHOUSE_ID)).thenReturn(List.of(po()));
 
-    assertEquals(1, adapter.findByStore(TENANT_ID, STORE_ID).size());
-    verify(mapper).selectByStore(TENANT_ID, STORE_ID);
+    assertEquals(1, adapter.findByStore(scope()).size());
+    verify(mapper).selectByStore(TENANT_ID, BUSINESS_TYPE, STORE_ID, WAREHOUSE_ID);
   }
 
   /** 行锁读走 mapper 的专用方法（不是 selectOne）。 */
   @Test
   void findForUpdateDelegatesToTheLockingQuery() {
-    when(mapper.selectForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(po());
+    when(mapper.selectForUpdate(TENANT_ID, ORGANIZATION_ID, BUSINESS_TYPE, STORE_ID, WAREHOUSE_ID, MATERIAL_ID))
+        .thenReturn(po());
 
-    assertTrue(adapter.findForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID).isPresent());
-    verify(mapper).selectForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID);
+    assertTrue(adapter.findForUpdate(scope(), MATERIAL_ID).isPresent());
+    verify(mapper).selectForUpdate(TENANT_ID, ORGANIZATION_ID, BUSINESS_TYPE, STORE_ID, WAREHOUSE_ID, MATERIAL_ID);
   }
 
   /** 空结果回 {@code Optional.empty()}，由调用方决定是建行还是拒绝。 */
   @Test
   void findForUpdateReturnsEmptyWhenNoRow() {
-    when(mapper.selectForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(null);
+    when(mapper.selectForUpdate(any(), any(), any(), any(), any(), any())).thenReturn(null);
 
-    assertTrue(adapter.findForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID).isEmpty());
+    assertTrue(adapter.findForUpdate(scope(), MATERIAL_ID).isEmpty());
   }
 
   /**
-   * {@code save} 只插入（首次入库建零额行），且必须自己补 {@code created_at}/{@code updated_at}（NOT NULL）。
+   * {@code save} 只插入（首次入库建零额行），且必须自己补 {@code created_at}/{@code updated_at}（NOT NULL），
+   * 并把完整作用域（org/business/warehouse）写进新行。
    *
    * <p><b>为什么没有 UPDATE 分支</b>：库存的每次变更都必须走 deductAvailable/increaseOnHand 的原子条件语句，
    * 提供「按 id 覆盖写余额行」会重新引入「先读后判再写回」的竞态；领域模型不可变、没有 setter，正是为了
@@ -258,24 +264,25 @@ class InventoryStockRepositoryAdapterTest {
    */
   @Test
   void saveInsertsOnlyAndFillsTheAuditTimestamps() {
-    adapter.save(InventoryStock.empty(TENANT_ID, STORE_ID, MATERIAL_ID));
+    adapter.save(InventoryStock.empty(scope(), MATERIAL_ID));
 
     ArgumentCaptor<InventoryStockPo> captor = ArgumentCaptor.forClass(InventoryStockPo.class);
     verify(mapper).insert(captor.capture());
     verify(mapper, never()).updateById(any(InventoryStockPo.class));
     InventoryStockPo written = captor.getValue();
     assertEquals(TENANT_ID, written.getTenantId());
+    assertEquals(ORGANIZATION_ID, written.getOrganizationId());
+    assertEquals(BUSINESS_TYPE, written.getBusinessType());
+    assertEquals(WAREHOUSE_ID, written.getWarehouseId());
     assertEquals(MATERIAL_ID, written.getMaterialId());
     assertEquals(0, written.getOnHandQty().signum());
     assertEquals(0, written.getReservedQty().signum());
     assertEquals(0, written.getRevision());
-    assertNull(written.getCurrencyCode(),
-        "币种留空由 DDL 的 DEFAULT 'USD' 填充（与迁移前的 INSERT 口径一致）");
     assertNotNull(written.getCreatedAt(), "created_at 是 NOT NULL，必须由适配器填充");
     assertNotNull(written.getUpdatedAt(), "updated_at 是 NOT NULL，必须由适配器填充");
   }
 
-  /** 库存行的列集合只有真实列（该 PO 上没有展示字段），并发/成本列必须真在列集合里。 */
+  /** 库存行的列集合只有真实列（该 PO 上没有展示字段），并发/成本/作用域列必须真在列集合里。 */
   @Test
   void stockTableInfoHasOnlyRealColumns() {
     TableInfo info = TableInfoHelper.getTableInfo(InventoryStockPo.class);
@@ -285,19 +292,20 @@ class InventoryStockRepositoryAdapterTest {
 
     assertEquals(Set.of(), declaredNonColumnProperties(InventoryStockPo.class),
         "库存余额没有展示字段；一旦新增，写入路径的列集合必须同步复核");
-    assertTrue(columns.containsAll(Set.of("onHandQty", "reservedQty", "avgCost", "currencyCode", "revision")),
-        "并发/成本列必须是真列: " + columns);
+    assertTrue(columns.containsAll(Set.of("onHandQty", "reservedQty", "avgCost", "currencyCode", "revision",
+            "organizationId", "businessType", "warehouseId")),
+        "并发/成本/作用域列必须是真列: " + columns);
   }
 
-  /** 领域模型不承载审计列：四个记账列既不在模型上，也不在适配器里被读。 */
+  /** 领域模型不承载审计列，但承载完整作用域快照。 */
   @Test
-  void domainModelCarriesNoAuditFields() {
+  void domainModelCarriesScopeButNoAuditFields() {
     Set<String> components = Arrays.stream(InventoryStock.class.getRecordComponents())
         .map(RecordComponent::getName).collect(Collectors.toSet());
 
-    assertEquals(Set.of("id", "tenantId", "storeId", "materialId", "onHandQty", "reservedQty", "avgCost",
-        "currencyCode", "revision"), components,
-        "库存领域模型只承载业务列（审计四列由适配器在写入时填充、读取时丢弃）");
+    assertEquals(Set.of("id", "tenantId", "organizationId", "businessType", "storeId", "warehouseId",
+        "materialId", "onHandQty", "reservedQty", "avgCost", "currencyCode", "revision"), components,
+        "库存领域模型只承载业务列 + 作用域快照（审计四列由适配器在写入时填充、读取时丢弃）");
   }
 
   // ------------------------------------------------------------- helpers
@@ -368,7 +376,10 @@ class InventoryStockRepositoryAdapterTest {
     InventoryStockPo po = new InventoryStockPo();
     po.setId(20L);
     po.setTenantId(TENANT_ID);
+    po.setOrganizationId(ORGANIZATION_ID);
+    po.setBusinessType(BUSINESS_TYPE);
     po.setStoreId(STORE_ID);
+    po.setWarehouseId(WAREHOUSE_ID);
     po.setMaterialId(MATERIAL_ID);
     po.setOnHandQty(new BigDecimal("5"));
     po.setReservedQty(BigDecimal.ONE);

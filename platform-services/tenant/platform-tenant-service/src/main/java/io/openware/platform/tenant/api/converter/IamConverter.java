@@ -5,6 +5,7 @@ import io.openware.platform.tenant.api.dto.RoleView;
 import io.openware.platform.tenant.api.dto.UserRoleView;
 import io.openware.platform.tenant.domain.iam.model.Permission;
 import io.openware.platform.tenant.domain.iam.model.Role;
+import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
 
 /**
@@ -35,6 +36,16 @@ public final class IamConverter {
     return new PermissionView(permission.id(), permission.code(), permission.module(), permission.resource(),
         permission.action(), permission.description(), permission.scopeLevel(), permission.domainCode(),
         permission.grantableLevels(), permission.menuCode(), permission.status());
+  }
+
+  /** 成员绑定转对外视图；账号由 membership 反查。 */
+  public static UserRoleView toView(RoleBinding binding, Long accountId) {
+    if (binding == null) {
+      return null;
+    }
+    return new UserRoleView(binding.id(), accountId, binding.tenantId(), binding.organizationId(),
+        binding.storeId(), binding.roleId(), binding.scopeType(), null, null,
+        binding.status(), binding.authorizationVersion());
   }
 
   /** 绑定转对外视图；入参为空时返回空。 */

@@ -173,7 +173,9 @@ public class WechatChannel implements PaymentChannelProvider {
             if (!transactionId.isEmpty() && !recorder.exists("wechat", transactionId)) {
                 recorder.record("wechat", transactionId, tenantId, orderId, amount, currency, status, request.rawBody());
             }
-            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status, request.rawBody());
+            // 微信 v2 回调没有事件 ID：幂等由结算桥按 (provider, transaction_id) 保证，eventId 留空。
+            return new VerifyCallbackResult(true, transactionId, orderId, amount, currency, status,
+                    request.rawBody(), null, tenantId);
         } catch (Exception e) {
             // 解析/验签/落库任何一步失败都要留痕，否则「回调被静默判失败」无法排查。
             log.warn("微信支付 V2 回调处理失败（验签/解析/落库）", e);
@@ -322,7 +324,8 @@ public class WechatChannel implements PaymentChannelProvider {
             if (notBlank(eventId) && !recorder.existsByEventId("wechat", eventId) && V3_SUCCESS_EVENT.equals(eventType)) {
                 recorder.record("wechat", transactionId, eventId, tenantId, orderId, total, currency, status, request.rawBody());
             }
-            return new VerifyCallbackResult(true, transactionId, orderId, total, currency, status, request.rawBody());
+            return new VerifyCallbackResult(true, transactionId, orderId, total, currency, status,
+                    request.rawBody(), eventId, tenantId);
         } catch (Exception e) {
             // 验签/解密/落库任何一步失败都要留痕（不打印密钥与明文报文）。
             log.warn("微信支付 V3 回调处理失败（验签/解密/落库）", e);
@@ -380,7 +383,7 @@ public class WechatChannel implements PaymentChannelProvider {
     // ---------------- shared helpers ----------------
 
     private static VerifyCallbackResult fail(VerifyCallbackRequest request) {
-        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody());
+        return new VerifyCallbackResult(false, null, null, 0L, null, "FAILED", request.rawBody(), null, null);
     }
 
     private static String buildXml(Map<String, String> params) {

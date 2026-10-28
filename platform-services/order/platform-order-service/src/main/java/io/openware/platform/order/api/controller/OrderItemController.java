@@ -6,6 +6,7 @@ import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.application.OrderItemApplicationService;
 import io.openware.platform.order.application.OrderItemApplicationService.AddItemCommand;
 import io.openware.platform.order.application.SettlementApplicationService;
+import io.openware.infrastructure.tenant.ClientAudience;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -18,6 +19,7 @@ import java.util.List;
  * {@link OrderItemApplicationService}；结算委托 {@link SettlementApplicationService}。
  * 本类只做协议转换。
  */
+@ClientAudience("saas-b")
 @RestController
 @RequestMapping("/business/orders/{orderId}")
 public class OrderItemController {

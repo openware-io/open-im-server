@@ -17,6 +17,7 @@ import io.openware.platform.order.api.dto.InventoryTransactionView;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
@@ -62,7 +63,7 @@ class InventoryAvailabilityCacheTest {
 
   @Test
   void cachedAvailabilityIsServedWithoutSecondQuery() {
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("5", "1")));
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any())).thenReturn(List.of(stock("5", "1")));
 
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).compareTo(new BigDecimal("4")));
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).compareTo(new BigDecimal("4")));
@@ -70,17 +71,17 @@ class InventoryAvailabilityCacheTest {
     assertEquals(0, service.availableQuantities(TENANT_ID, STORE_ID, List.of(MATERIAL_ID))
         .get(MATERIAL_ID).compareTo(new BigDecimal("4")));
 
-    verify(stockRepository, times(1)).find(TENANT_ID, STORE_ID, MATERIAL_ID);
-    verify(stockRepository, never()).findByMaterials(any(), any(), any());
+    verify(stockRepository, times(1)).findByMaterials(any(InventoryScope.class), any());
+    verify(stockRepository, never()).find(any(InventoryScope.class), any());
   }
 
   @Test
   void missingStockRowIsReportedAsSoldOutAndNegativeAvailableIsClamped() {
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.empty());
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any())).thenReturn(List.of());
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).signum());
 
     cache.invalidateAll();
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("1", "3")));
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any())).thenReturn(List.of(stock("1", "3")));
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).signum());
   }
 
@@ -89,13 +90,13 @@ class InventoryAvailabilityCacheTest {
     InventoryAvailabilityCache shortTtl = new InventoryAvailabilityCache(1L);
     InventoryApplicationService shortTtlService = new InventoryApplicationService(
         materialRepository, stockRepository, transactionRepository, productRepository, catalogItemRepository, shortTtl);
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("5", "0")));
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any())).thenReturn(List.of(stock("5", "0")));
 
     shortTtlService.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID);
     Thread.sleep(20L);
     shortTtlService.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID);
 
-    verify(stockRepository, times(2)).find(TENANT_ID, STORE_ID, MATERIAL_ID);
+    verify(stockRepository, times(2)).findByMaterials(any(InventoryScope.class), any());
   }
 
   @Test
@@ -103,36 +104,36 @@ class InventoryAvailabilityCacheTest {
     InventoryAvailabilityCache disabled = new InventoryAvailabilityCache(0L);
     InventoryApplicationService noCacheService = new InventoryApplicationService(
         materialRepository, stockRepository, transactionRepository, productRepository, catalogItemRepository, disabled);
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("5", "0")));
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any())).thenReturn(List.of(stock("5", "0")));
 
     noCacheService.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID);
     noCacheService.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID);
 
-    verify(stockRepository, times(2)).find(TENANT_ID, STORE_ID, MATERIAL_ID);
+    verify(stockRepository, times(2)).findByMaterials(any(InventoryScope.class), any());
   }
 
   /** 写后失效：扣减成功后缓存被清掉，下一次读回源拿到新的可用量。 */
   @Test
   void stockWriteInvalidatesCache() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-    when(stockRepository.find(TENANT_ID, STORE_ID, MATERIAL_ID))
-        .thenReturn(Optional.of(stock("5", "0")))
-        .thenReturn(Optional.of(stock("4", "0")));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1, java.util.List.of(), null, "KTV", null));
+    when(stockRepository.findByMaterials(any(InventoryScope.class), any()))
+        .thenReturn(List.of(stock("5", "0")))
+        .thenReturn(List.of(stock("4", "0")));
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).compareTo(new BigDecimal("5")));
 
     when(transactionRepository.findByIdempotency(TENANT_ID, "k-consume")).thenReturn(Optional.empty());
     when(materialRepository.findInStore(eq(TENANT_ID), eq(STORE_ID), eq(MATERIAL_ID)))
         .thenReturn(Optional.of(material()));
-    when(stockRepository.findForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("5", "0")));
+    when(stockRepository.findForUpdate(any(InventoryScope.class), eq(MATERIAL_ID))).thenReturn(Optional.of(stock("5", "0")));
     // 条件更新 1 行 = 扣减成功（端口把「受影响行数 > 0」表达成 boolean）。
-    when(stockRepository.deductAvailable(any(), any(), any(), any(), any())).thenReturn(true);
+    when(stockRepository.deductAvailable(any(), any(), any(), any())).thenReturn(true);
     when(transactionRepository.append(any(InventoryTransaction.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
     service.changeStock(MATERIAL_ID, BigDecimal.ONE, "CONSUME", "ORDER_ITEM", "1", "测试扣减", "k-consume");
 
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).compareTo(new BigDecimal("4")));
-    verify(stockRepository, times(2)).find(TENANT_ID, STORE_ID, MATERIAL_ID);
+    verify(stockRepository, times(2)).findByMaterials(any(InventoryScope.class), any());
   }
 
   /**
@@ -141,13 +142,13 @@ class InventoryAvailabilityCacheTest {
    */
   @Test
   void staleCacheNeverAllowsOversell() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1, java.util.List.of(), null, "KTV", null));
     cache.put(TENANT_ID, STORE_ID, MATERIAL_ID, new BigDecimal("99"));
     when(transactionRepository.findByIdempotency(TENANT_ID, "k-dirty")).thenReturn(Optional.empty());
     when(materialRepository.findInStore(eq(TENANT_ID), eq(STORE_ID), eq(MATERIAL_ID)))
         .thenReturn(Optional.of(material()));
-    when(stockRepository.findForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("0", "0")));
-    when(stockRepository.deductAvailable(any(), any(), any(), any(), any())).thenReturn(false);
+    when(stockRepository.findForUpdate(any(InventoryScope.class), eq(MATERIAL_ID))).thenReturn(Optional.of(stock("0", "0")));
+    when(stockRepository.deductAvailable(any(), any(), any(), any())).thenReturn(false);
 
     BusinessException error = assertThrows(BusinessException.class,
         () -> service.changeStock(MATERIAL_ID, BigDecimal.ONE, "CONSUME", "ORDER_ITEM", "1", "并发抢购", "k-dirty"));
@@ -159,12 +160,12 @@ class InventoryAvailabilityCacheTest {
   /** 回补走入库分支：原子加库存（含移动加权平均成本列），并失效缓存。 */
   @Test
   void recoveryIncreasesStockAndInvalidatesCache() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1, java.util.List.of(), null, "KTV", null));
     when(transactionRepository.findByIdempotency(TENANT_ID, "k-reverse")).thenReturn(Optional.empty());
     when(materialRepository.findInStore(eq(TENANT_ID), eq(STORE_ID), eq(MATERIAL_ID)))
         .thenReturn(Optional.of(material()));
-    when(stockRepository.findForUpdate(TENANT_ID, STORE_ID, MATERIAL_ID)).thenReturn(Optional.of(stock("0", "0")));
-    when(stockRepository.increaseOnHand(any(), any(), any(), any(), any(), any(), any())).thenReturn(1);
+    when(stockRepository.findForUpdate(any(InventoryScope.class), eq(MATERIAL_ID))).thenReturn(Optional.of(stock("0", "0")));
+    when(stockRepository.increaseOnHand(any(), any(), any(), any(), any(), any())).thenReturn(1);
     when(transactionRepository.append(any(InventoryTransaction.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -173,14 +174,14 @@ class InventoryAvailabilityCacheTest {
 
     assertEquals(0, tx.quantityDelta().compareTo(new BigDecimal("2")));
     assertEquals(0, tx.quantityAfter().compareTo(new BigDecimal("2")));
-    verify(stockRepository).increaseOnHand(any(), any(), any(), any(), any(), any(), any());
+    verify(stockRepository).increaseOnHand(any(), any(), any(), any(), any(), any());
   }
 
   /** 幂等：同一 Idempotency-Key 重放直接返回首次流水，不再扣减。 */
   @Test
   void replayReturnsOriginalTransactionWithoutSecondDeduction() {
-    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
-    InventoryTransaction existing = new InventoryTransaction(99L, TENANT_ID, STORE_ID, MATERIAL_ID, "CONSUME",
+    TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1, java.util.List.of(), null, "KTV", null));
+    InventoryTransaction existing = new InventoryTransaction(99L, TENANT_ID, 2L, "KTV", STORE_ID, STORE_ID, MATERIAL_ID, "CONSUME",
         BigDecimal.ONE.negate(), BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, "USD",
         "ORDER_ITEM", "1", "k-same", "重放", LocalDateTime.now());
     when(transactionRepository.findByIdempotency(TENANT_ID, "k-same")).thenReturn(Optional.of(existing));
@@ -189,13 +190,13 @@ class InventoryAvailabilityCacheTest {
     assertEquals(InventoryTransactionView.from(existing),
         service.changeStock(MATERIAL_ID, BigDecimal.ONE, "CONSUME", "ORDER_ITEM", "1", "重放", "k-same"));
 
-    verify(stockRepository, never()).deductAvailable(any(), any(), any(), any(), any());
+    verify(stockRepository, never()).deductAvailable(any(), any(), any(), any());
     // 重放不改库存，缓存也不需要失效
     assertEquals(0, service.availableQuantity(TENANT_ID, STORE_ID, MATERIAL_ID).compareTo(new BigDecimal("5")));
   }
 
   private static InventoryStock stock(String onHand, String reserved) {
-    return new InventoryStock(20L, TENANT_ID, STORE_ID, MATERIAL_ID, new BigDecimal(onHand),
+    return new InventoryStock(20L, TENANT_ID, 2L, "KTV", STORE_ID, STORE_ID, MATERIAL_ID, new BigDecimal(onHand),
         new BigDecimal(reserved), BigDecimal.ZERO, "USD", 0);
   }
 

@@ -1,0 +1,579 @@
+# 酒店业务实现方案
+
+[中文](HOTEL_IMPLEMENTATION_PLAN.md) | [English](HOTEL_IMPLEMENTATION_PLAN.en.md)
+
+> 状态：`draft`（`develop/2.4.0-hotel`）
+> 定位：酒店业务的技术基线；先对齐边界和模型，再拆任务。
+> 原则：不重复造订单/支付/客户能力；酒店特有库存与房价单独建模。
+
+## 1. 目标与范围
+
+### MVP 的定义
+
+MVP 不是“先做一半功能”，而是：
+
+> 能在一个真实集团酒店上线、跑通一笔真实订单闭环的最小产品切片。
+
+判定标准：
+
+```text
+真实用户能搜索、报价、下单、支付
+真实库存不超卖
+真实前台能办理入住/退房（Web + 移动端）
+真实运营能维护酒店、房型、房价、库存
+真实权限、租户隔离、审计可用
+出问题能取消/退款/回滚，有监控和对账
+```
+
+缺任何一项，都还是演示，不是 MVP。
+
+### MVP 必须完成
+
+```text
+酒店/门店资料
+房型 + 物理房间
+房价计划 + 每日价格
+按日期范围的库存日历
+搜索 → 报价 → 下单 → 支付 → 确认
+取消 / 超时未付 / no-show
+入住 → 退房（Admin Web + 移动前台）
+押金收取 / 结算 / 退还
+后台房价与库存维护
+OTA 对外接入规范（不接真实渠道、不做沙箱）
+订单、支付、审计、权限
+C 端统一订单中心（跨集团/门店）
+```
+
+移动前台参考 KTV B 端工作台：
+
+```text
+今日到店 / 在住 / 待退房
+办理入住 / 分配房号
+办理退房 / 房间转清扫
+订单查询 / 房态查看
+```
+
+### 1.1 用户订单中心（平台能力）
+
+用户不关心订单属于哪个集团/门店，C 端“我的订单”必须统一：
+
+```text
+GET /api/v1/my/orders
+GET /api/v1/my/orders/{orderType}/{orderId}
+```
+
+- 查询入口不要求 `X-Tenant-Context`，按当前登录用户的全局 `platformUserId` 查询；
+- 写模型仍是各订单表；新增 `ord_user_order_index` 作为统一读模型；
+- 详情先用索引校验归属，再恢复订单所属租户上下文读取；
+- 酒店订单、KTV 订单、后续其他订单类型都写入同一索引；
+- 这是平台级能力，不是酒店私有页面；边界见 ADR-0009。
+
+### 1.2 营销域范围
+
+当前只有积分，会员/优惠券未实现。MVP 不重构营销域，但**积分抵扣要做**：
+
+| 能力 | MVP |
+| --- | --- |
+| 积分赚取 | 做：支付/完成事件触发，幂等 |
+| 积分抵扣 | 做：复用 `common-payment-service` 的 `POINT` 分腿 |
+| 会员等级/权益 | 不做 |
+| 优惠券/发券/核销 | 不做 |
+| 会员价/协议价 | 不做 |
+
+积分抵扣不新建积分服务：
+
+```text
+报价：可抵扣金额/积分上限由 customer 域 amount-to-points 提供
+支付：common-payment-service 组合收款，method=POINT
+扣减：customer 内部 /internal/customer/points/redeem，幂等键
+失败：common-payment-service 按相反顺序 /release 归还
+成功：payment.collect.confirmed 触发积分赚取
+```
+
+关键口径：
+
+- `POINT` 分腿的 `amount` 是**抵扣的账单金额**，不是积分数量；积分数量在 customer 账本；
+- 积分抵扣不参与币种换算，跟随订单币种快照；
+- 店铺配置 `pointsRedeemEnabled` 与最大抵扣比例，避免全额积分套利；
+- 会员等级、优惠券仍不做；报价预留 `MarketingBenefitPort` 空实现，营销域独立立项后再接。
+
+### MVP 明确不做
+
+| 项 | 结论 |
+| --- | --- |
+| 发票 | 暂不接入；字段预留，后续接财务/税控 |
+| 公安入住登记 | 暂不接入；接口和字段预留 |
+| 动态收益定价、自动调价 | 不做 |
+| 跨集团 CRS / 子集团层级 | 不做；当前 `tenant=集团`、`store=门店` |
+| 复杂套餐、会议宴会、长租 | 不做 |
+| 多币种结算 | 支持 USD / CNY，默认 USD；不做第三方币种 |
+| 会员等级价、企业协议价 | 二期 |
+| OTA 真实渠道上线 / 沙箱 | 不做；只交付对外规范与内部渠道模型 |
+| 渠道经理全量同步 | 不在 MVP；由 OTA 规范预留 |
+
+### MVP 的 OTA 边界
+
+OTA 首发不接真实渠道，也不做沙箱；MVP 只做“规范实现”：
+
+- 交付 `Hotel Channel v1` 对外规范：鉴权、幂等、错误码、版本、ARI、订单、取消；
+- 内部渠道模型：`Channel`、`ChannelMapping`、`ExternalBookingRef`；
+- 契约先以 OpenAPI/接口文档评审，不实现真实 OTA 适配器；
+- 真实 OTA、沙箱适配器、渠道经理都放到后续阶段。
+
+### 接入模式：一套酒店域，两种入口
+
+需求同时包含：
+
+```text
+单店：休闲娱乐 -> 酒店 -> 本店房型/库存
+集团：OpenChat 服务中心 -> 酒店 -> 集团内酒店/门店
+```
+
+不按入口复制两套业务，统一为：
+
+```text
+HotelScope：SINGLE_STORE | GROUP
+SalesEntry：SERVICE_CENTER | LEISURE | GROUP_INTERNAL
+Visibility：STORE | GROUP
+```
+
+- **先做集团内酒店**：`HotelScope=GROUP`，从 OpenChat 服务中心进入，集团内门店共享酒店资料、房型和库存视图；
+- 单店后续接入：同一套酒店域，`HotelScope=SINGLE_STORE`，入口改为休闲娱乐，库存只在本店可见；
+- 入口是**渠道配置**，不是领域边界；订单、库存、支付仍走同一套服务；
+- 每次查询必须带 `tenantId` + `storeId`/`groupId`，由 `Visibility` 决定可见范围。
+
+现有 SaaS 模型已经能承载集团：`tenantId` 对应集团/租户，`storeId` 对应酒店门店。因此一期：
+
+```text
+GROUP         = tenant 级酒店目录 + 门店库存
+SINGLE_STORE  = store 级酒店目录 + 本店库存
+```
+
+不新增 `groupId`；只有出现“集团下再分子集团”时才扩展层级。
+
+这样不需要为“单店/集团”分叉代码；以后接 OTA 时，OTA 只是新增一个 `SalesEntry=OTA` 和渠道映射。
+
+## 2. 原型现状与缺口
+
+现有原型：`open-chat-app/web/miniservice/c`。
+
+| 原型页面 | 已表达 | 真实实现缺口 |
+| --- | --- | --- |
+| 酒店列表 | 搜索、排序、距离、评分、起价 | 城市/商圈/日期筛选、真实库存与价格 |
+| 酒店详情 | 图片、标签、地址、房型套餐 | 酒店政策、设施、房型设施、取消规则 |
+| 房型套餐 | 房型名、床型、面积、早餐、价格、库存 | 房价计划、每晚价格、税费、库存日历 |
+| 预订表单 | 入住日期、到店时间、离店日期、客房数、住客数、姓名/手机 | 真实库存校验、报价明细、支付、取消政策 |
+| 订单 | 本机 mock | 支付、确认、取消、入住/退房、发票 |
+| B 端管理 | `open-saas-admin` 原型：资料、支付策略、房型房价、库存日历、订单、入住/退房 | 真实 BFF/API；发票、公安登记、渠道同步 |
+
+**结论**：原型只覆盖“展示 + 提交表单”，不能直接作为领域模型依据。需要先确认第 11 节的业务决策。
+
+## 3. 领域边界
+
+### 方案对比
+
+| 方案 | 做法 | 优点 | 风险 |
+| --- | --- | --- | --- |
+| A. 扩展 resource | `platform-resource-service` 管酒店/房型/房价/库存 | 复用资源表 | 酒店容量是核心域，和 KTV 资源平台耦合 |
+| B. 酒店核心模块打包进 order | `platform-order-service` 的 `domain/hotel` 管酒店/房型/房价/容量/预订 | MVP 不跨服务；容量与预订同聚合，边界清晰 | order 服务职责变宽，需要模块边界 |
+| C. 新建 hotel-service | 独立部署、独立库 | 长期隔离最好 | MVP 分布式事务、后台 BFF、运维成本高 |
+
+### 推荐：B，先模块化，后按触发器拆分
+
+```text
+platform-order-service
+  domain/hotel
+    Hotel / HotelRoomType / HotelRoom / RatePlan / DailyRate
+    HotelInventoryCalendar / HotelInventoryHold
+    Order（公共订单头） / Billing（计费模块） / HotelBookingDetail / HotelBookingNight / HotelGuest / StayDeposit
+  application/hotel
+  api/hotel
+  infra/persistence/hotel
+
+platform-resource-service
+  KTV 资源 / 占用（现有，不承载酒店容量）
+
+platform-admin-service (BFF)
+  酒店资料、房价、库存、订单、入住/退房
+
+common-payment-service
+  支付、退款、对账
+
+platform-customer-service
+  客户、积分
+
+Stock Platform
+  采销库存（迷你吧/耗材），不承载酒店房间容量
+
+common-audit-service
+  酒店/房价/库存/订单审计
+```
+
+拆分触发条件（满足任一再新建 `platform-hotel-service`）：
+
+- 酒店团队独立开发/发布；
+- 酒店库存 QPS 或数据量显著高于 order 其他业务；
+- 需要独立数据库/独立 SLA；
+- OTA 渠道同步成为独立子系统。
+
+### 3.1 库存边界：Stock 公共，Capacity 归业务核心
+
+**结论：采销库存是公共支撑域；容量/房态是酒店核心域，不能共享库存表。**
+
+| 类型 | 归属 | 例子 |
+| --- | --- | --- |
+| Stock（采销库存） | 公共支撑平台 | 酒店迷你吧、耗材、KTV 商品、餐饮原料 |
+| Capacity（容量库存） | 各业务核心域 | 酒店房型/房态、KTV 包厢时段、按摩技师时段、饭店桌台、健身课程 |
+
+```text
+酒店房间不足，不能采购房间补库存；
+KTV 包厢、饭店桌台、健身课程同理。
+```
+
+所以：
+
+- 酒店容量/房态/多晚 hold/超卖规则归酒店核心模块；
+- KTV 容量/时段归 KTV 核心模块；
+- 按摩、饭店、健身各自拥有容量；
+- 业务之间不共享容量表、容量服务、容量模型；
+- 只共享技术模式：日历计算、hold 状态机、乐观锁、幂等、测试夹具；
+- 展示层各自投影：酒店日历、KTV 看板、按摩排班、饭店桌台、健身课表。
+
+Stock 平台只提供：
+
+```text
+商品/原料、仓库、余额、入库/出库/盘点/调拨、成本、批次
+```
+
+详见 [ADR-0010](../../20-architecture/adr/0010-stock-supporting-domain.md) 与 [ADR-0011](../../20-architecture/adr/0011-inventory-context-map.md)。
+
+## 4. 核心模型
+
+### 酒店核心模型（`gv_saas` / `open_saas`，`res_*` / `htl_*`）
+
+酒店资料/房型可用 `res_*`；酒店容量 `htl_*` 归酒店核心；Stock 平台用 `inv_stock_*`，与酒店容量无关。
+
+| 模型 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `Hotel` | `tenantId`, `storeId`,
+`name`, `city`, `address`, `star`, `checkInTime`, `checkOutTime`, `status` | 酒店/门店资料 |
+| `HotelPolicy` | `hotelId`, `accessMode`, `entryPoints`, `paymentMode`, `depositRatioBps`, `stayDepositMode`, `stayDepositMinor`, `stayDepositRatioBps`, `cancelPolicy`, `currency`, `pointsRedeemEnabled`, `pointsMaxRatioBps`, `invoiceMode` | 接入模式、支付策略、押金策略、币种、取消政策；在店铺管理中维护 |
+| `HotelRoomType` | `hotelId`, `code`,
+`name`, `bedType`, `area`, `maxOccupancy`, `amenities`, `images` | 房型，不直接等于物理房 |
+| `HotelRoom` | `roomTypeId`, `roomNo`, `floor`, `status` | 物理房间，入住时分配 |
+| `RatePlan` | `roomTypeId`, `code`,
+`name`, `mealPlan`, `cancelPolicy`, `guarantee` | 房价计划 |
+| `DailyRate` | `ratePlanId`, `stayDate`, `priceMinor`, `currency`, `minStay`, `closed` | 每日价格/限制 |
+| `HotelInventoryCalendar` | `tenantId`, `storeId`, `roomTypeId`, `stayDate`, `total`, `sold`, `held`, `stopSell`, `version` | 酒店核心容量，归酒店模块；建议 `htl_inventory_calendar` |
+| `HotelInventoryHold` | `bookingId`, `roomTypeId`, `checkIn`, `checkOut`, `qty`, `expiresAt`, `status` | 酒店多晚 hold，归酒店模块；建议 `htl_inventory_hold` |
+
+酒店容量是核心域，不进入 Stock 平台，也不与 KTV/按摩/饭店共享容量表。表前缀在数据模型评审时最终确认。
+
+金额统一用最小货币单位 `*_minor` + `currency`，遵守现有币种规范。
+
+### 订单域（`open_saas`，`ord_*`）
+
+| 模型 | 关键字段 | 说明 |
+| --- | --- | --- |
+| `Order` | `orderNo`, `tenantId`, `storeId`, `customerId`, `platformUserId`, `orderType`, `businessType`, `status`, `paymentStatus`, `amountMinor`, `currency` | 公共订单交易内核 `ord_order`，见 ADR-0012 |
+| `HotelBookingDetail` | `orderId`, `hotelId`, `roomTypeId`, `ratePlanId`, `checkIn`, `checkOut`, `roomCount`, `guestCount` | 酒店订单 1:1 扩展 |
+| `HotelBookingNight` | `orderId`, `stayDate`, `priceMinor`, `taxMinor`, `currency` | 每晚价格快照 |
+| `HotelGuest` | `orderId`, `name`, `phone`, `idType`, `idNoMasked` | 入住人快照；证件号加密/脱敏 |
+| `StayDeposit` | `orderId`, `amountMinor`, `currency`, `mode`, `status`, `collectedAt`, `refundedAt` | 入住押金，独立于订单收入；`mode=COLLECT`（MVP）/`PRE_AUTH`（预留） |
+| `StayDepositLedger` | `depositId`, `entryType`（COLLECT/DEDUCT/REFUND）, `amountMinor`, `reason`, `operatorId`, `idempotencyKey` | 押金收取、扣减、退还流水 |
+| `UserOrderIndex` | `platformUserId`, `tenantId`, `storeId`, `orderType`, `orderId`, `status`, `amountMinor`, `currency` | C 端跨集团/门店订单读模型，见 ADR-0009 |
+
+押金不是收入：`StayDeposit` 的收取/退还不得计入 `Order.amountMinor`，也不得进入订单收入报表；只有实际扣减（如损坏赔偿）才转为收入/应收。
+
+**订单头复用公共 Order 内核，容量不复用**：酒店容量按“日期区间 + 房型库存”实现，KTV `Reservation`/`res_occupation` 保持自有语义，不强行合并。
+
+## 5. 状态机
+
+### 预订
+
+```text
+PENDING_PAYMENT
+  -> CONFIRMED       支付成功
+  -> CANCELLED       用户取消/超时未付
+CONFIRMED
+  -> CHECKED_IN      前台入住
+  -> CANCELLED       按取消政策取消
+  -> NO_SHOW         到店日未入住
+CHECKED_IN
+  -> CHECKED_OUT     退房
+CHECKED_OUT
+  -> COMPLETED       账务结清
+```
+
+### 库存占用
+
+```text
+HELD -> CONSUMED    支付成功，转为已售
+HELD -> RELEASED    取消/超时
+CONSUMED -> RELEASED 取消且可退库存（按政策）
+```
+
+## 6. 关键流程
+
+### 搜索与报价
+
+1. 输入城市/酒店、入住/离店日期、房间数、住客数；
+2. 查询 `HotelInventoryCalendar` 可用量（`total - sold - held`）；
+3. 查询 `DailyRate` 计算每晚价格，返回总价、税费、取消政策；
+4. 报价只读，不占库存；下单时才创建 hold。
+
+### 下单
+
+1. 校验日期、房型、房价计划、库存；
+2. 创建公共 `Order`（`businessType=HOTEL`）+ `HotelBookingDetail`，状态 `PENDING_PAYMENT`；
+3. 同一事务内创建 `HotelInventoryHold`，原子扣减可售量；
+4. 返回支付参数；库存不足返回 `409 INVENTORY_UNAVAILABLE`。
+
+### 支付确认
+
+1. 支付回调按 `paymentId` 幂等；
+2. `Order` 从 `PENDING_PAYMENT` → `CONFIRMED`，同步 `HotelBookingDetail`；
+3. `HotelInventoryHold` → `CONSUMED`，写 `sold`；
+4. 发 `hotel.booking.confirmed` 事件，通知客户与酒店。
+
+### 取消 / no-show
+
+- 按 `RatePlan.cancelPolicy` 计算可退金额；
+- 可退库存则 `CONSUMED` → `RELEASED`；
+- 退款走支付服务，状态 `REFUNDING` → `REFUNDED`；
+- no-show 由定时任务在到店日次日执行，收 no-show 费用（按政策）。
+
+### 入住 / 退房
+
+1. 前台确认订单与住客；
+2. 按 `HotelPolicy.stayDeposit*` 收取押金，写 `StayDeposit` + `StayDepositLedger(COLLECT)`；
+3. 选择具体 `HotelRoom`，写 `roomId`，`CHECKED_IN`，房间状态 `OCCUPIED`；
+4. 退房：先结算消费/赔偿，写 `DEDUCT`；剩余押金写 `REFUND`；
+5. `CHECKED_OUT`，房间状态 `CLEANING` → `AVAILABLE`；
+6. 账务结清后 `COMPLETED`。
+
+押金未收取时是否允许入住，由门店策略 `stayDepositRequired` 控制；默认必须收取。
+
+## 7. 库存与并发
+
+- 唯一键：`(tenant_id, store_id, room_type_id, stay_date)`；
+- 原子扣减：
+
+```sql
+UPDATE htl_inventory_calendar
+SET held = held + :qty, version = version + 1
+WHERE tenant_id = :tenantId
+  AND room_type_id = :roomTypeId
+  AND stay_date >= :checkIn AND stay_date < :checkOut
+  AND total - sold - held >= :qty
+  AND stop_sell = 0;
+```
+
+- 任一天失败则整段回滚，禁止部分占库；
+- `held` 有 `expires_at`，定时任务释放；
+- 支付成功用 `bookingId + paymentId` 幂等，重复回调不重复扣减；
+- 监控 `overbooking_count`，必须为 0；冲突率升高告警。
+
+### 支付策略（店铺配置，不写死）
+
+`HotelPolicy.paymentMode` 支持：
+
+| 模式 | 行为 | 订单初始状态 |
+| --- | --- | --- |
+| `PREPAY` | 下单后全额支付，支付成功确认 | `PENDING_PAYMENT` |
+| `PAY_AT_HOTEL` | 到店支付，先确认并保留库存 | `CONFIRMED`（未收款） |
+| `DEPOSIT` | 支付定金确认，尾款到店/离店结清 | `PENDING_DEPOSIT` → `CONFIRMED` |
+
+店铺管理里配置：
+
+- 支付模式；
+- 定金比例（`depositRatioBps`，如 3000 = 30%）；
+- 取消/未入住政策；
+- 是否支持发票（后续）。
+同一酒店不同门店可以不同；集团默认值可被门店覆盖。配置作用域沿用 KTV 配置模型：租户默认 → 业态默认 → 门店覆盖。
+
+### 押金策略（店铺配置）
+
+押金不是“定金”，也不是收入：
+
+- 定金：预订时支付，抵扣房费；
+- 押金：入住时收取，退房结算/退还；实际扣减才转收入。
+
+`StayDeposit.mode`：
+
+| 模式 | 说明 |
+| --- | --- |
+| `COLLECT` | MVP 默认：现金/微信/支付宝/刷卡收取，退房原路退回或现金退 |
+| `PRE_AUTH` | 预留：仅银行卡预授权，按通道能力启用 |
+
+店铺配置：
+
+```text
+stayDepositRequired     是否必须收押金
+stayDepositMode         COLLECT / PRE_AUTH
+stayDepositMinor        固定金额
+stayDepositRatioBps     或按订单金额比例
+stayDepositCapMinor     封顶金额
+depositRefundMethod     ORIGINAL / CASH
+```
+
+状态：
+
+```text
+COLLECTED -> PARTIALLY_DEDUCTED -> REFUNDED
+COLLECTED -> REFUNDED
+COLLECTED -> VOID
+```
+
+扣减（迷你吧、损坏赔偿）必须走 `StayDepositLedger(DEDUCT)`，保留原因、操作人、凭证；退款必须原路优先，现金退款需前台授权。
+
+### 结账与计费（Billing）
+
+酒店结账不另写一套金额计算，接入公共 Billing 支撑域：
+
+```text
+酒店核心产生计费行：
+  房晚（含房价快照）
+  迷你吧
+  损坏赔偿
+  其他消费
+
+Billing：
+  汇总小计、优惠、税/服务费、押金抵扣、已收、应付
+
+Checkout（前台/BFF）：
+  编排 Billing + Payment + StayDeposit
+```
+
+边界：
+
+- 房价/房晚规则归酒店核心；
+- 账单/应付金额归 Billing；
+- 支付/退款归 Payment；
+- 押金账本归酒店核心；
+- Checkout 是流程，不是领域服务；
+- `Bill` 不等于 `Invoice`；发票不接入。
+
+详见 [计费与结账域](../billing/README.md)。
+
+## 8. API 草案
+
+C 端（经 gateway）：
+
+```text
+GET  /api/v1/hotels?city=&checkIn=&checkOut=&guests=&entry=service-center|leisure
+GET  /api/v1/hotels/{hotelId}?checkIn=&checkOut=
+GET  /api/v1/hotels/{hotelId}/room-types?checkIn=&checkOut=
+POST /api/v1/hotel-bookings
+GET  /api/v1/hotel-bookings/{bookingId}
+POST /api/v1/hotel-bookings/{bookingId}/cancel
+```
+
+C 端统一订单（跨集团/门店，见 ADR-0009）：
+
+```text
+GET /api/v1/my/orders?type=&status=&page=
+GET /api/v1/my/orders/{orderType}/{orderId}
+```
+
+后台（经 admin BFF）：
+
+```text
+POST /api/v1/admin/hotels
+PUT  /api/v1/admin/hotels/{hotelId}
+PUT  /api/v1/admin/hotels/{hotelId}/policy
+POST /api/v1/admin/hotels/{hotelId}/room-types
+PUT  /api/v1/admin/hotels/{hotelId}/inventory
+POST /api/v1/admin/hotel-bookings/{bookingId}/check-in
+POST /api/v1/admin/hotel-bookings/{bookingId}/check-out
+```
+
+内部：
+
+```text
+POST /internal/hotels/availability
+POST /internal/hotels/holds
+POST /internal/hotels/holds/{holdId}/consume
+POST /internal/hotels/holds/{holdId}/release
+```
+
+所有写接口要求 `X-Tenant-Context`、权限与 `Idempotency-Key`；金额字段用最小单位。
+
+## 9. 权限、安全、审计
+
+- 租户/门店隔离：所有查询带 `tenantId`/`storeId`，禁止跨租户、跨门店；
+- 后端权限：以服务端会话解析 tenant/store，不信任前端传入的 tenantId/storeId；校验用户属于该门店；越权返回 403/404；
+- 前端权限：路由、菜单、按钮按 `hotel.inventory.manage` 等权限隐藏，但只做体验，不作为安全边界；
+- API 客户端：门店上下文统一从 `contextStore` 注入，禁止页面硬编码 storeId；
+- 权限码：`hotel.view`、`hotel.manage`、`hotel.inventory.manage`、`hotel.booking.view`、`hotel.booking.checkin`、`hotel.booking.cancel`、`hotel.deposit.manage`；
+- 住客 PII：手机号、证件号加密/脱敏，日志禁止原文；
+- 支付：不落卡号/CVV，只存支付单号；
+- 押金：收取/扣减/退款独立账本，扣减需原因和操作人；
+- 审计：酒店/房型/房价/库存/订单/入住/退房/押金/退款全链路；
+- 中国合规：发票、公安上传接口不在 MVP，字段预留。
+
+## 10. 可观测性与测试
+
+指标：
+
+```text
+hotel.search.latency
+hotel.booking.created / confirmed / cancelled
+hotel.inventory.conflict
+hotel.inventory.hold_expired
+hotel.payment.callback_lag
+hotel.overbooking_count   # 必须 0
+hotel.checkin.completed
+```
+
+测试：
+
+- 领域单测：日期区间、价格、取消政策、状态迁移；
+- 集成测试：并发下单不超卖、支付回调幂等、hold 过期释放；
+- 契约测试：C 端/后台/内部 API；
+- E2E：原型主流程 + 支付成功/失败/取消/退款。
+
+## 11. 已确认与剩余问题
+
+| # | 问题 | 结论 |
+| --- | --- | --- |
+| 1 | 单店、连锁还是多门店？ | 三者都要支持；**先做集团内酒店**，同一套酒店域，通过 `HotelScope` / `SalesEntry` 区分入口 |
+| 2 | 库存按房型还是具体房间？ | 按房型卖，入住时分配具体房间 |
+| 3 | 支付模式？ | **店铺配置**：预付 / 到店付 / 定金；不写死 |
+| 4 | 取消政策？ | 按房价计划配置，默认入住前 24h 免费取消 |
+| 5 | 是否接 OTA/渠道经理？ | OTA **要做规范**：MVP 只交付对外规范与内部渠道模型；真实 OTA、沙箱、渠道经理后续 |
+| 6 | 前台操作端？ | Admin Web + 移动端；移动端参考 KTV B 端 |
+| 7 | 发票/押金/公安登记？ | 押金**纳入 MVP**，统一叫“押金”；发票、公安暂不接入，字段预留 |
+| 8 | 会员/积分/优惠券？ | 积分**赚取 + 抵扣**都做（复用支付 POINT 分腿）；会员等级、优惠券不做 |
+| 9 | 多币种？ | 支持 USD / CNY，默认 USD |
+| 10 | 原型范围？ | C 端已有服务中心酒店流程；B 端原型在 `open-saas-admin` 代码内补建；不另建独立原型项目 |
+
+## 12. 迭代计划
+
+| 阶段 | 内容 | 产出 |
+| --- | --- | --- |
+| S0 决策 | 回答第 11 节，确认原型 | 决策记录、范围冻结 |
+| S1 模型 | 酒店/房型/房价/库存/订单模型与迁移 | DDL、领域模型、单测 |
+| S2 库存 | 搜索、报价、hold、并发、过期释放 | 可用性 API、库存测试 |
+| S3 订单支付 | 下单、支付回调、确认、取消/退款 | 订单 API、支付集成 |
+| S4 前台 | 入住、退房、房态、订单列表 | Admin BFF、前台页面 |
+| S5 上线 | 灰度、监控、对账、SOP | 发布清单、运行手册 |
+
+## 13. 验收标准
+
+- 并发 100 次抢同一日期最后一间房，成功数不超过库存；
+- 支付重复回调不重复确认/扣库存；
+- 取消按政策计算退款，库存正确释放；
+- 跨租户访问返回 403/404，不泄露数据；
+- 所有写操作有审计；
+- `hotel.overbooking_count = 0`；
+- 原型主流程可完整走通：搜索 → 房型 → 下单 → 支付 → 确认 → 入住 → 退房。
+
+## 14. 相关文档
+
+- [酒店决策与待确认问题](HOTEL_DECISIONS.md)
+- [资源服务](../../50-services/platform/platform-resource-service/README.md)
+- [订单服务](../../50-services/platform/platform-order-service/README.md)
+- [支付服务](../../50-services/common/common-payment-service/README.md)
+- [数据库迁移标准](../../80-development/standards/23_DATABASE_MIGRATION_STANDARD.md)
+- [订单/预约状态机](../../20-architecture/diagrams/08-order-reservation-state.md)

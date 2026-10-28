@@ -14,3 +14,4 @@ if ($LASTEXITCODE -gt 1) {
 }
 
 Write-Host 'Java deprecated API validation passed.'
+exit 0

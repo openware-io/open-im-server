@@ -16,6 +16,7 @@ import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -277,9 +278,9 @@ class OrderItemControllerWebTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order() {
-        return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, "SERVING", "CNY",
+        return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 目录项夹具（不可变记录；可变字段作为参数显式给出，替代迁移前的 setter 逐项覆盖）。 */

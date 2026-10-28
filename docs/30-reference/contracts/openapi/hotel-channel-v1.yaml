@@ -1,0 +1,480 @@
+openapi: 3.1.0
+info:
+  title: SaaS Hotel Channel API
+  version: 1.0.0
+  description: |
+    External OTA / channel-manager contract for hotel bookings and cancellation.
+
+    ## Implementation status (2.4.0 二期)
+
+    - `POST /v1/bookings`（创建，externalRef 幂等）、`GET /v1/bookings/{externalRef}`（查询）、
+      `POST /v1/bookings/{externalRef}/cancel`（取消，幂等）为**已实现**接口。
+    - `POST /v1/ari` 为**契约占位**：返回 `202 Accepted` 且逐项 `accepted=false`，
+      **不写入任何 ARI/房量/价格数据**（`ARI_NOT_IMPLEMENTED`）。不要把它当成已落库。
+    - `POST /v1/bookings/{externalRef}/modify` 不在 v1 范围，未实现。
+    - 外部请求**不携带** tenant / organization / store / business 字段：租户由渠道凭证绑定，
+      门店与组织由服务端按 `htl_hotel.store_id` + `tnt_store` 权威数据解析。
+
+    ## Authentication（HMAC-SHA256）
+
+    每个请求必须带三个头：
+
+    | Header | 说明 |
+    | --- | --- |
+    | `X-Channel-Code` | 渠道编码，例如 `sandbox` |
+    | `X-Channel-Timestamp` | epoch 毫秒；与服务端时钟偏差超过 5 分钟即 401 |
+    | `X-Channel-Signature` | hex(HMAC-SHA256(secret, canonical))，小写 64 位十六进制 |
+
+    canonical request（字段顺序、分隔符不可变更）：
+
+    ```text
+    channelCode \n
+    HTTP-METHOD \n
+    requestPath \n          # 完整外部路径，例：/api/v1/open/hotel/v1/bookings
+    queryString \n          # 无 query 时为空串
+    timestamp \n            # 与 X-Channel-Timestamp 相同的十进制毫秒
+    sha256Hex(body)         # 空体为 sha256("")
+    ```
+
+    网关对该入口**不剥离** `/api/v1` 前缀，因此服务端校验的 requestPath 与调用方签名路径一致。
+    签名/时间戳/channel 任一不合法 → `401 CHANNEL_UNAUTHORIZED`，不存在关闭校验的开关。
+    写接口天然幂等（创建按 externalRef 回放、取消按最终状态回放），v1 只做时间窗防重放。
+
+    ## Idempotency
+
+    `externalRef` 是渠道侧幂等键（在请求体中，创建与查询/取消路径共用同一值）：
+
+    - 同 `externalRef` + 同规范化请求内容 → `200` 回放已有预订，不重复占房；
+    - 同 `externalRef` + 不同内容 → `409 CHANNEL_BOOKING_REQUEST_MISMATCH`；
+    - 并发同 `externalRef` 由 `(channel_code, external_ref)` 唯一键兜底，后到请求回放先到的预订。
+servers:
+  - url: https://api.example.com/api/v1/open/hotel
+    description: Production placeholder（网关不剥前缀）
+  - url: http://127.0.0.1:30080/api/v1/open/hotel
+    description: 本地 Kind（网关 NodePort；HMAC 由 order-service 校验）
+security:
+  - ChannelCode: []
+    ChannelSignature: []
+tags:
+  - name: ARI
+  - name: Bookings
+paths:
+  /v1/ari:
+    post:
+      tags: [ARI]
+      operationId: pushAri
+      summary: Push availability, rates and restrictions (contract placeholder, no-op)
+      description: |
+        **v1 未实现**：接口固定返回 `202 Accepted`，逐项 `accepted=false` 且
+        `code=ARI_NOT_IMPLEMENTED`，不写任何数据。后续版本再落 ARI 推送时保持同一路径与
+        `AriPushResponse` 信封。
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ChannelTimestamp'
+        - $ref: '#/components/parameters/ChannelSignature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AriPushRequest'
+      responses:
+        '202':
+          description: Accepted as a no-op; per-item accepted=false
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AriPushResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /v1/bookings:
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      summary: Create an OTA booking (idempotent by externalRef)
+      description: |
+        服务端用酒店域既有报价/房量/订单逻辑创建预订：
+        房量不足 → `409 ROOM_AVAILABILITY_UNAVAILABLE`；
+        `amountMinor`/`currency` 与服务端报价不一致 → `422 CHANNEL_AMOUNT_MISMATCH` /
+        `422 CHANNEL_CURRENCY_MISMATCH`；
+        请求中任何 tenant/organization/store/business 字段都会被忽略，服务端只信门店权威数据。
+      parameters:
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ChannelTimestamp'
+        - $ref: '#/components/parameters/ChannelSignature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreateRequest'
+            examples:
+              sandbox:
+                summary: 本地 Kind demo（酒店 1 / 房型 1 / 房价计划 1，2 晚）
+                value:
+                  externalRef: OTA-E2E-20261028-0001
+                  hotelRef: "1"
+                  roomTypeRef: "1"
+                  ratePlanRef: "1"
+                  checkIn: "2026-10-29"
+                  checkOut: "2026-10-31"
+                  rooms: 1
+                  guests: 2
+                  guest:
+                    name: OTA Guest
+                    phone: "13800000000"
+                  amountMinor: 179800
+                  currency: CNY
+                  paymentResponsibility: OTA_COLLECT
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '200':
+          description: Idempotent replay returns the existing booking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/PolicyRejected'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /v1/bookings/{externalRef}:
+    get:
+      tags: [Bookings]
+      operationId: getBooking
+      summary: Query an OTA booking by externalRef
+      description: 返回 `htl_booking` 实时状态；渠道映射不存在时 404。
+      parameters:
+        - $ref: '#/components/parameters/ExternalRef'
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ChannelTimestamp'
+        - $ref: '#/components/parameters/ChannelSignature'
+      responses:
+        '200':
+          description: Booking status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/bookings/{externalRef}/cancel:
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      summary: Cancel an OTA booking (idempotent)
+      description: |
+        幂等：预订已是 `CANCELLED`（含前台先取消）→ 200 返回当前状态；
+        状态机不允许取消（如已 `CHECKED_OUT`）→ 409 `BOOKING_STATE_INVALID`。
+        取消会走酒店域既有取消逻辑释放房量占用（HELD/SOLD 都释放）并回写取消政策金额。
+      parameters:
+        - $ref: '#/components/parameters/ExternalRef'
+        - $ref: '#/components/parameters/ChannelCode'
+        - $ref: '#/components/parameters/ChannelTimestamp'
+        - $ref: '#/components/parameters/ChannelSignature'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelRequest'
+      responses:
+        '200':
+          description: Current booking state after cancellation (also idempotent replay)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  securitySchemes:
+    ChannelCode:
+      type: apiKey
+      in: header
+      name: X-Channel-Code
+      description: 渠道编码，由 `hotel.channel.channels` 配置；未配置按 401 处理。
+    ChannelSignature:
+      type: apiKey
+      in: header
+      name: X-Channel-Signature
+      description: HMAC-SHA256 canonical request（见顶层说明），小写 hex。
+  parameters:
+    ChannelCode:
+      name: X-Channel-Code
+      in: header
+      required: true
+      schema:
+        type: string
+        example: sandbox
+    ChannelTimestamp:
+      name: X-Channel-Timestamp
+      in: header
+      required: true
+      schema:
+        type: string
+        example: "1793000000000"
+      description: epoch 毫秒；允许 ±5 分钟时钟偏差。
+    ChannelSignature:
+      name: X-Channel-Signature
+      in: header
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9a-f]{64}$'
+    ExternalRef:
+      name: externalRef
+      in: path
+      required: true
+      schema:
+        type: string
+        maxLength: 128
+        pattern: '^[A-Za-z0-9._:-]+$'
+  schemas:
+    AriPushRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/AriItem'
+    AriItem:
+      type: object
+      required: [hotelRef, roomTypeRef, ratePlanRef, stayDate, total, sold, stopSell, priceMinor, currency, version]
+      properties:
+        hotelRef:
+          type: string
+        roomTypeRef:
+          type: string
+        ratePlanRef:
+          type: string
+        stayDate:
+          type: string
+          format: date
+        total:
+          type: integer
+          minimum: 0
+        sold:
+          type: integer
+          minimum: 0
+        stopSell:
+          type: boolean
+        priceMinor:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          enum: [USD, CNY]
+          default: CNY
+        minStay:
+          type: integer
+          minimum: 1
+        version:
+          type: integer
+          minimum: 0
+    AriPushResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AriResult'
+    AriResult:
+      type: object
+      required: [accepted]
+      properties:
+        stayDate:
+          type: string
+          format: date
+        accepted:
+          type: boolean
+          description: v1 恒为 false（ARI 未实现）
+        code:
+          type: string
+          example: ARI_NOT_IMPLEMENTED
+        message:
+          type: string
+    BookingCreateRequest:
+      type: object
+      required: [externalRef, hotelRef, roomTypeRef, checkIn, checkOut, rooms, guest, amountMinor, currency]
+      properties:
+        externalRef:
+          type: string
+          maxLength: 128
+          pattern: '^[A-Za-z0-9._:-]+$'
+          description: 渠道外部单号，同时是幂等键。
+        hotelRef:
+          type: string
+          description: 酒店 ID（`htl_hotel.id`，v1 映射；必须是渠道绑定租户内启用中的酒店）。
+        roomTypeRef:
+          type: string
+          description: 房型 ID（`htl_room_type.id`）。
+        ratePlanRef:
+          type: string
+          description: 房价计划 ID（`htl_rate_plan.id`）；省略时服务端取该酒店第一个启用计划。
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        rooms:
+          type: integer
+          minimum: 1
+          maximum: 20
+        guests:
+          type: integer
+          minimum: 1
+          description: 入住人数，信息字段；房量由 rooms 决定。
+        guest:
+          $ref: '#/components/schemas/Guest'
+        amountMinor:
+          type: integer
+          minimum: 0
+          description: 必须等于服务端按房价计划/每日房价算出的总额（最小货币单位）。
+        currency:
+          type: string
+          enum: [USD, CNY]
+          default: CNY
+        paymentResponsibility:
+          type: string
+          enum: [OTA_COLLECT, HOTEL_COLLECT, PREPAID]
+          description: 信息字段；实际支付模式以酒店策略（htl_policy.payment_mode）为准。
+    Guest:
+      type: object
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+          maxLength: 128
+        phone:
+          type: string
+          maxLength: 32
+    CancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+    BookingResponse:
+      type: object
+      required: [bookingNo, externalRef, status, currency, amountMinor]
+      properties:
+        bookingNo:
+          type: string
+          description: 内部预订号（htl_booking.booking_no）。
+        externalRef:
+          type: string
+        status:
+          type: string
+          description: |
+            `htl_booking.status` 实时状态，不另造对外状态词表。
+            PREPAY/定金模式创建后为 `PENDING_CONFIRM`；到店付策略下创建即 `CONFIRMED`。
+          enum: [PENDING_CONFIRM, CONFIRMED, CHECKED_IN, CHECKED_OUT, CANCELLED, NO_SHOW]
+        hotelRef:
+          type: string
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        rooms:
+          type: integer
+        currency:
+          type: string
+          enum: [USD, CNY]
+        amountMinor:
+          type: integer
+        refundMinor:
+          type: integer
+        cancelFeeMinor:
+          type: integer
+        cancelledAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: CHANNEL_UNAUTHORIZED
+        message:
+          type: string
+        requestId:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+  responses:
+    Unauthorized:
+      description: |
+        签名/时间戳/channel 校验失败：`CHANNEL_UNAUTHORIZED`。
+        该 401 由入站过滤器直接返回，不进入业务逻辑。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: |
+        映射或酒店/预订不存在：`CHANNEL_BOOKING_NOT_FOUND`、`HOTEL_NOT_FOUND`。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: |
+        与当前状态冲突：
+        `ROOM_AVAILABILITY_UNAVAILABLE`（房量不足）、
+        `CHANNEL_BOOKING_REQUEST_MISMATCH`（同 externalRef 内容不一致）、
+        `CHANNEL_BOOKING_CONFLICT_RETRY`（并发创建冲突，可重试）、
+        `BOOKING_STATE_INVALID`（当前预订状态不允许取消）、
+        `STORE_BUSINESS_TYPE_MISMATCH`（门店业态不是酒店）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PolicyRejected:
+      description: |
+        业务校验未通过：`CHANNEL_AMOUNT_MISMATCH`、`CHANNEL_CURRENCY_MISMATCH`、
+        `STORE_SCOPE_MISSING`、`STORE_ORGANIZATION_MISSING`、`GUEST_REQUIRED` 等。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

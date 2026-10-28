@@ -60,7 +60,7 @@ public class TenantOverviewController {
                                            @RequestParam(required = false) String businessType,
                                            @RequestParam(required = false) String storeIds) {
         TenantContext context = TenantContextHolder.get();
-        if (context == null || context.tenantId() <= 0 || context.storeId() != null) {
+        if (context == null || context.tenantId() <= 0 || (context.storeId() != null && context.storeId() > 0)) {
             throw new ApiException(403, "TENANT_SCOPE_REQUIRED", "总部总览必须在租户上下文中查看");
         }
         if (context.permissions() == null || !context.permissions().contains("tenant.overview.view")) {

@@ -17,6 +17,7 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.catalog.repository.CatalogItemRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import io.openware.platform.order.domain.inventory.repository.InventoryStockRepository;
@@ -55,7 +56,7 @@ class InventoryAuditTest {
         service = new InventoryApplicationService(materialRepository, stockRepository, transactionRepository,
                 mock(ProductRepository.class), mock(CatalogItemRepository.class), new InventoryAvailabilityCache(0L),
                 auditClient);
-        TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1));
+        TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 4L, 1, java.util.List.of(), null, "KTV", null));
     }
 
     @AfterEach
@@ -122,9 +123,9 @@ class InventoryAuditTest {
         when(transactionRepository.findByIdempotency(TENANT_ID, "k3")).thenReturn(Optional.empty());
         when(materialRepository.findInStore(TENANT_ID, STORE_ID, 10L))
                 .thenReturn(Optional.of(material(10L)));
-        when(stockRepository.findForUpdate(TENANT_ID, STORE_ID, 10L)).thenReturn(Optional.of(stock()));
+        when(stockRepository.findForUpdate(any(InventoryScope.class), eq(10L))).thenReturn(Optional.of(stock()));
         // 条件更新 0 行 = 库存不足（端口把「受影响行数 > 0」表达成 boolean）。
-        when(stockRepository.deductAvailable(eq(TENANT_ID), eq(STORE_ID), eq(10L), any(), any())).thenReturn(false);
+        when(stockRepository.deductAvailable(any(InventoryScope.class), eq(10L), any(), any())).thenReturn(false);
 
         assertThrows(BusinessException.class,
                 () -> service.changeStock(10L, new BigDecimal("2"), "CONSUME", "ORDER_ITEM", "1", "加项", "k3"));
@@ -138,7 +139,7 @@ class InventoryAuditTest {
     }
 
     private static InventoryStock stock() {
-        return new InventoryStock(20L, TENANT_ID, STORE_ID, 10L, BigDecimal.ONE, BigDecimal.ZERO,
+        return new InventoryStock(20L, TENANT_ID, 2L, "KTV", STORE_ID, STORE_ID, 10L, BigDecimal.ONE, BigDecimal.ZERO,
                 BigDecimal.ZERO, "USD", 0);
     }
 

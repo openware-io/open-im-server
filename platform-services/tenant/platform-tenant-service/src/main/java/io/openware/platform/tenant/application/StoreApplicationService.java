@@ -240,12 +240,61 @@ public class StoreApplicationService {
     }
 
     /**
+     * 修改当前门店 Logo（门店级品牌展示，不涉及经营报表口径）。
+     *
+     * <p>图片本身由媒体服务上传，这里只保存 URL；空值表示恢复默认图。写入前校验 URL 形态与长度，
+     * 避免把 javascript:、协议相对 URL 或超长文本写进 tnt_store.logo_url。
+     */
+    @Transactional
+    public Store updateLogoWithAudit(Long storeId, String logoUrl) {
+        TenantContext context = requireContext();
+        PermissionGuard.require("tenant.store.manage");
+        Store store = requireScopedStore(context.tenantId(), context.storeId(), storeId);
+        String normalized = normalizeLogoUrl(logoUrl);
+        if (!storeRepository.updateLogo(storeId, normalized, context.accountId())) {
+            throw new ApiException(409, "STORE_LOGO_UPDATE_FAILED", "门店 Logo 更新失败");
+        }
+        auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                .tenantId(context.tenantId())
+                .storeId(storeId)
+                .action("tenant.store.logo.update")
+                .resourceType("tnt_store")
+                .resourceId(String.valueOf(storeId))
+                .resourceName(store.name())
+                .detailJson("{\"logoUrl\":\"" + jsonText(normalized) + "\"}")
+                .build());
+        return withLogo(store, normalized);
+    }
+
+    private static String normalizeLogoUrl(String value) {
+        if (value == null || value.isBlank()) return null;
+        String normalized = value.trim();
+        if (normalized.length() > 512) {
+            throw new ApiException(400, "STORE_LOGO_INVALID", "门店 Logo URL 不能超过 512 个字符");
+        }
+        if (normalized.startsWith("//") || normalized.toLowerCase(Locale.ROOT).startsWith("javascript:")) {
+            throw new ApiException(400, "STORE_LOGO_INVALID", "门店 Logo URL 非法");
+        }
+        if (!normalized.startsWith("/") && !normalized.startsWith("https://")) {
+            throw new ApiException(400, "STORE_LOGO_INVALID", "门店 Logo 必须是上传后的相对地址或 HTTPS 地址");
+        }
+        return normalized;
+    }
+
+    private static Store withLogo(Store store, String logoUrl) {
+        return new Store(store.id(), store.tenantId(), store.organizationId(), store.code(), store.name(),
+                store.businessType(), store.countryCode(), store.regionCode(), store.timezone(),
+                store.defaultCurrency(), store.locale(), store.taxProfileId(), store.businessDayCutoff(),
+                store.status(), logoUrl);
+    }
+
+    /**
      * 按签名上下文加载门店：跨门店 → 403，跨租户 → 403，不存在 → 404。
      *
      * <p>先判门店边界再查库：门店上下文是最便宜的一次比较，越权请求不必触达数据库。
      */
     public Store requireScopedStore(long tenantId, Long contextStoreId, Long storeId) {
-        if (contextStoreId != null && !contextStoreId.equals(storeId)) {
+        if (contextStoreId != null && contextStoreId > 0 && !contextStoreId.equals(storeId)) {
             throw new ApiException(403, CODE_STORE_SCOPE_DENIED, "只能修改当前上下文门店的门店配置");
         }
         Long ownerTenantId = storeRepository.findOwnerTenantId(storeId)
@@ -261,7 +310,7 @@ public class StoreApplicationService {
     private static Store withSchedule(Store store, String timezone, String cutoff, String businessType) {
         return new Store(store.id(), store.tenantId(), store.organizationId(), store.code(), store.name(),
                 businessType, store.countryCode(), store.regionCode(), timezone, store.defaultCurrency(),
-                store.locale(), store.taxProfileId(), cutoff, store.status());
+                store.locale(), store.taxProfileId(), cutoff, store.status(), store.logoUrl());
     }
 
     /**

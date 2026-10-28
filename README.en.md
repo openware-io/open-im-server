@@ -19,7 +19,7 @@ OpenChat combines an IM open platform, multi-tenant SaaS, operations consoles, m
   </tr>
 </table>
 
-> Status: `current` (developing on `develop/2.3.0`; latest stage tag `2.2.1`)  
+> Status: `current` (developing on `develop/2.4.0-hotel`; version `2.4.0-SNAPSHOT`)  
 > Engineering topology and documentation entry: [Documentation center](docs/README.en.md) and [Engineering topology](docs/20-architecture/TOPOLOGY.en.md).
 
 ## One-click deployment (recommended)
@@ -63,7 +63,7 @@ The first run builds all service images and downloads dependencies; duration dep
 | --- | --- |
 | Unified portal | `http://<host-ip>:30080/` |
 | SaaS admin | `http://<host-ip>:30080/saas/` |
-| SaaS C-end (H5) | `http://<host-ip>:30080/a380/` |
+| SaaS C-end (H5) | `http://<host-ip>:30080/c/` |
 | SaaS B-end / operator console | `http://<host-ip>:30080/b/` |
 | IM admin | `http://<host-ip>:30080/im/` |
 | Gateway health | `http://<host-ip>:30080/actuator/health` |
@@ -226,6 +226,7 @@ im-saas docs
 - [02 Architecture Decision Records](docs/80-development/standards/02_ARCHITECTURE_DECISION_RECORDS.en.md)
 - [03 Engineering principles](docs/80-development/standards/03_ENGINEERING_PRINCIPLES.en.md)
 - [04 Gate governance](docs/80-development/standards/04_GATE_GOVERNANCE.en.md)
+- [05 Domain classification](docs/80-development/standards/05_DOMAIN_CLASSIFICATION.en.md)
 - [10 DDD service conventions](docs/80-development/standards/10_DDD_SERVICE_ENGINEERING_CONVENTIONS.md)
 - [12 RocketMQ conventions](docs/80-development/standards/12_ROCKETMQ_CONVENTIONS.md)
 - [13 Platform media conventions](docs/80-development/standards/13_PLATFORM_MEDIA_CONVENTIONS.md)
@@ -240,3 +241,4 @@ im-saas docs
 - [41 Java logging conventions](docs/80-development/standards/41_JAVA_LOGGING_CONVENTIONS.md)
 - [42 Logging and diagnostics](docs/80-development/standards/42_LOGGING_AND_OUTPUTS.md)
 - [43 E2E testing conventions](docs/80-development/standards/43_E2E_TESTING_CONVENTIONS.md)
+- [50 Permission and data scope](docs/80-development/standards/50_PERMISSION_AND_DATA_SCOPE.md)

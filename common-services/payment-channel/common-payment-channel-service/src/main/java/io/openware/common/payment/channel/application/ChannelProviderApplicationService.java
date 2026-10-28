@@ -51,6 +51,11 @@ public class ChannelProviderApplicationService {
         return resolve(provider).callbackAck(result);
     }
 
+    /** 验签通过但内部结算失败时的可重试确认报文（必须让渠道重投，不能假装成功）。 */
+    public CallbackAck retryAck(String provider, VerifyCallbackResult result) {
+        return resolve(provider).retryAck(result);
+    }
+
     private PaymentChannelProvider resolveEnabled(String provider) {
         PaymentChannelProvider p = resolve(provider);
         if (!p.capability().enabled()) {

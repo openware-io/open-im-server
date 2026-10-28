@@ -37,7 +37,7 @@ OpenChat 把两套通常分开建设的能力放在同一个工程体系里：
 
 App 内的服务板块与 H5 首页，覆盖酒店、KTV、酒吧、台球、美食、外卖、出行等服务入口。
 
-本地 demo 数据包含 `OpenChat 生活服务` 租户、`OpenChat KTV 旗舰店`、6 个 KTV 包厢、服务目录、已支付/已完成订单和预约记录。
+本地 demo 数据包含 `SaaS 生活服务` 租户、`OpenChat KTV 旗舰店`、6 个 KTV 包厢、服务目录、已支付/已完成订单和预约记录。
 
 ![OpenChat C 端服务板块](../assets/screenshots/c-end.jpg)
 

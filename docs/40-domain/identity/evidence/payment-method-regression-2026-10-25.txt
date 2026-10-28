@@ -1,0 +1,38 @@
+Payment method regression (2026-10-25)
+=====================================
+
+Symptom:
+  Platform / 支付方式 -> toggle -> "服务内部错误，请稍后重试"
+  Tenant / 支付方式 -> toggle -> error
+  GET /api/v1/admin/payment-methods/grants?tenantId=100 returned [] even
+  though open_saas.tnt_payment_method had rows for tenant 100.
+
+Root cause:
+  Payment service applies MyBatis TenantLineInnerInterceptor.
+  Platform context has tenantId=0 (platform scope), so the interceptor added
+  tenant_id=0 to the tnt_payment_method query. The repository already filters
+  by the request tenantId=100; the interceptor filter hid the existing rows.
+  setGrant then tried INSERT for 100-WALLET and hit the unique key
+  uk_tnt_payment_method_tenant_method.
+
+Layering fix:
+  1. tnt_payment_method is excluded from the generic tenant-line interceptor.
+     Every repository read/write already carries the explicit tenantId.
+  2. PaymentMethodApplicationService enforces the application boundary:
+     - platform scope may grant any tenant
+     - tenant scope may only read/switch its own tenant
+  3. Audit action codes changed from invalid hyphenated
+     "payment-method.grant" / "payment-method.user_enabled" /
+     "payment-channel.toggle" to stable dot codes:
+     payment.method.grant / payment.method.user_enabled /
+     payment.channel.toggle.
+
+Verification:
+  GET grants -> rows for tenant 100 (WALLET/POINT/ALIPAY)
+  Platform toggle WALLET -> 已授权 储值
+  Tenant toggle WALLET -> 已向用户开放 储值
+  Payment tests: 9 passed
+  No duplicate-key or audit 400 in payment service logs.
+
+Online payment/refund remains deferred by product decision; this fix only
+restores payment-method authorization/switch business logic.

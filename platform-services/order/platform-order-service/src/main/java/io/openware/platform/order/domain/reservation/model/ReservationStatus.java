@@ -51,7 +51,7 @@ public enum ReservationStatus {
     }
 
     /**
-     * 解析库中状态字符串（{@code ord_reservation.status}）。
+     * 解析库中状态字符串（{@code ktv_reservation.status}）。
      *
      * <p>状态是闭集（DDL 注释列出全部取值），未知值只可能是代码与 DDL 不一致：此时抛出而不是
      * 静默退化成一个「其它」状态——静默退化会让状态机把不认识的预约当成可取消的可到店预约。

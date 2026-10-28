@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
  * 预约聚合根（领域模型）：**预约对象 = 房型**（{@code room_type_id}），具体包厢
  * （{@code resource_id}）由「到店分配包厢」在到店前后写入。
  *
- * <p><b>字段集只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_reservation}）：
+ * <p><b>字段集只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ktv_reservation}）：
  * id / tenant_id / store_id / reservation_no / idempotency_key / customer_id / business_type /
  * resource_id / room_type_id / start_at / end_at / party_size / contact / status / order_id /
  * arrived_at / version + 四个审计列。持久化对象 {@code ReservationPo} 上的

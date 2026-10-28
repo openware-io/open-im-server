@@ -35,4 +35,11 @@ public interface UserRoleRepository {
 
   /** 列出某账号的绑定标识（按标识升序）。 */
   List<Long> findIdsByAccount(Long accountId);
+
+  /** 按账号 + 角色撤销绑定（角色人员移除；跨租户由调用方校验）。 */
+  boolean revokeByAccountAndRole(Long accountId, Long roleId);
+
+  /** 调整账号-角色的作用域（组织/门店），保留同一绑定。 */
+  boolean updateScopeByAccountAndRole(Long accountId, Long roleId, Long organizationId, Long storeId,
+                                     String scopeType);
 }

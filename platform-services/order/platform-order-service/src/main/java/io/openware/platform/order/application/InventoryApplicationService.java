@@ -18,8 +18,10 @@ import io.openware.platform.order.domain.catalog.repository.CatalogItemRepositor
 import io.openware.platform.order.domain.catalog.repository.ProductRepository;
 import io.openware.platform.order.domain.catalog.repository.ProductRepository.ProductQuery;
 import io.openware.platform.order.domain.inventory.model.InventoryMaterial;
+import io.openware.platform.order.domain.inventory.model.InventoryScope;
 import io.openware.platform.order.domain.inventory.model.InventoryStock;
 import io.openware.platform.order.domain.inventory.model.InventoryTransaction;
+import io.openware.platform.order.domain.inventory.model.InventoryWarehouse;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialPage;
 import io.openware.platform.order.domain.inventory.repository.InventoryMaterialRepository.MaterialQuery;
@@ -28,6 +30,8 @@ import io.openware.platform.order.domain.inventory.repository.InventoryStockRepo
 import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository;
 import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionPage;
 import io.openware.platform.order.domain.inventory.repository.InventoryTransactionRepository.TransactionQuery;
+import io.openware.platform.order.domain.inventory.repository.InventoryWarehouseRepository;
+import io.openware.platform.order.domain.inventory.repository.StoreScopeRepository;
 import io.openware.platform.order.infra.cache.InventoryAvailabilityCache;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,28 +50,40 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
 /**
- * 库存应用服务：物料档案、库存余额与流水。
+ * 库存应用服务：物料档案、仓库、库存余额、流水、成本，以及酒店 / KTV 共用的库存业务
+ * （入库、出库、调整、调拨、盘点、消费接入）。
  *
- * <p><b>依赖方向</b>：本类只依赖领域仓储端口（{@link InventoryMaterialRepository} /
- * {@link InventoryStockRepository} / {@link InventoryTransactionRepository}）与目录子域的端口
- * （{@code ProductRepository} / {@code CatalogItemRepository}），不再直接持有任何 MyBatis mapper
- * 或持久化对象；响应用 {@code api.dto} 的视图装配，JSON 与类型处理器只存在于适配器。
+ * <p><b>领域边界</b>：这是**通用库存域**（Material / Warehouse / Stock / StockTransaction / Valuation），
+ * 酒店商品（水、毛巾、一次性用品、迷你吧）与 KTV 商品共用同一套服务与同一套表；库存不按业态拆表，
+ * 也不绑定房间。房态 / 房量属于酒店核心域（见 {@code ORDER_ROOM_INVENTORY_TARGET.md}）。
+ *
+ * <p><b>作用域（V24/V25）</b>：库存作用域 = {@code tenant_id + business_type + store_id +
+ * warehouse_id + material_id}（见 {@link InventoryScope}）；{@code organization_id} 是归属/报表快照，
+ * **不进入唯一键**。写路径以签名 {@link TenantContext} 里的 organizationId / businessType 为门店权威快照，
+ * 并与请求声明（{@link ScopeClaim}）比对：不一致即 422，绝不按请求体把库存写进别的组织/业态。
+ *
+ * <p><b>依赖方向</b>：本类只依赖领域仓储端口（Material / Warehouse / Stock / Transaction 与门店作用域
+ * 窄读端口）与目录子域的端口，不直接持有任何 MyBatis mapper 或持久化对象；响应用 {@code api.dto}
+ * 的视图装配，JSON 与类型处理器只存在于适配器。
  *
  * <p><b>防超卖</b>：所有扣减走 {@code InventoryStockRepository#deductAvailable} 的数据库条件更新
  * （{@code SET on_hand_qty = on_hand_qty - n WHERE on_hand_qty - reserved_qty >= n}），
  * 单条语句内由数据库行锁判定，返回 0 行即库存不足并抛 {@code INVENTORY_INSUFFICIENT}，
- * 因此并发扣减也不会出现负库存。入库/调整/回补走 {@code InventoryStockRepository#increaseOnHand}。
+ * 因此并发扣减也不会出现负库存。入库/调整/调拨入库/回补走 {@code increaseOnHand}。
  *
  * <p><b>成本</b>（V24）：入库按该批次单价维护移动加权平均成本 {@code ord_inventory_stock.avg_cost}，
  * 出库只按平均成本结转发生额、不重估；库存成本 = 结存数量 × 平均成本（见 {@link #inventoryCosts}）。
- * 链路口径见 {@link #changeStock(Long, BigDecimal, String, String, String, String, String, BigDecimal)}
- * 与 {@link #movingAverageCost}，全程定点计算。
+ * 链路口径见 {@link #applyLockedMovement} 与 {@link #movingAverageCost}，全程定点计算。
+ *
+ * <p><b>调拨</b>：跨门店/跨业态调拨在**两个作用域各写一条流水**（TRANSFER_OUT / TRANSFER_IN，同一个
+ * sourceId 关联），源仓原子扣减、目标仓原子增加并重算目标仓平均成本；绝不直接改数量了事。
  *
  * <p><b>读缓存</b>：可用量读路径走 {@link InventoryAvailabilityCache}（TTL + 写后失效），
  * 只用于「能不能点 / 是否售罄」的展示；扣减一律以数据库为准，缓存不可用就回源，
@@ -98,6 +114,19 @@ public class InventoryApplicationService {
      */
     public static final long MAX_PAGE_SIZE = 200L;
 
+    /** 允许的出入库变更类型（跨业态调拨类型只能由 {@link #transfer} 内部写，不走手工入口）。 */
+    private static final Set<String> MANUAL_TRANSACTION_TYPES = Set.of(
+            InventoryTransaction.TYPE_RECEIPT, InventoryTransaction.TYPE_CONSUME,
+            InventoryTransaction.TYPE_ADJUST_IN, InventoryTransaction.TYPE_ADJUST_OUT,
+            InventoryTransaction.TYPE_REVERSE);
+
+    /** 允许的消费场景 → 流水 sourceType（酒店客房领用 / 迷你吧 / KTV / 订单加项）。 */
+    private static final Map<String, String> CONSUME_SCENES = Map.of(
+            InventoryTransaction.SOURCE_ORDER_ITEM, InventoryTransaction.SOURCE_ORDER_ITEM,
+            InventoryTransaction.SOURCE_ROOM_CONSUMPTION, InventoryTransaction.SOURCE_ROOM_CONSUMPTION,
+            InventoryTransaction.SOURCE_MINIBAR_SALE, InventoryTransaction.SOURCE_MINIBAR_SALE,
+            InventoryTransaction.SOURCE_KTV_ITEM, InventoryTransaction.SOURCE_KTV_ITEM);
+
     private final InventoryMaterialRepository materialRepository;
     private final InventoryStockRepository stockRepository;
     private final InventoryTransactionRepository transactionRepository;
@@ -105,8 +134,39 @@ public class InventoryApplicationService {
     private final CatalogItemRepository catalogItemRepository;
     private final InventoryAvailabilityCache availabilityCache;
     private final AuditClient auditClient;
+    /** 仓库仓储（旧装配/单测为 null：没有仓库表时按「门店即默认仓」兜底）。 */
+    private final InventoryWarehouseRepository warehouseRepository;
+    /** 门店作用域窄读（跨门店调拨校验目标门店；旧装配/单测为 null 时要求调用方显式声明目标作用域）。 */
+    private final StoreScopeRepository storeScopeRepository;
+    /** 仓库解析策略：生产走仓库表（懒创建默认仓），旧装配/单测按门店兜底。 */
+    private final WarehouseResolver warehouseResolver;
 
+    /**
+     * 生产装配：完整依赖（仓库表 + 门店作用域窄读）。
+     */
     @Autowired
+    public InventoryApplicationService(InventoryMaterialRepository materialRepository,
+                                       InventoryStockRepository stockRepository,
+                                       InventoryTransactionRepository transactionRepository,
+                                       ProductRepository productRepository,
+                                       CatalogItemRepository catalogItemRepository,
+                                       InventoryAvailabilityCache availabilityCache,
+                                       AuditClient auditClient,
+                                       InventoryWarehouseRepository warehouseRepository,
+                                       StoreScopeRepository storeScopeRepository) {
+        this.materialRepository = materialRepository;
+        this.stockRepository = stockRepository;
+        this.transactionRepository = transactionRepository;
+        this.productRepository = productRepository;
+        this.catalogItemRepository = catalogItemRepository;
+        this.availabilityCache = availabilityCache;
+        this.auditClient = auditClient;
+        this.warehouseRepository = warehouseRepository;
+        this.storeScopeRepository = storeScopeRepository;
+        this.warehouseResolver = new RepositoryWarehouseResolver(warehouseRepository);
+    }
+
+    /** 兼容既有单测/装配：显式传入缓存与审计客户端，但无仓库表（按门店兜底默认仓）。 */
     public InventoryApplicationService(InventoryMaterialRepository materialRepository,
                                        InventoryStockRepository stockRepository,
                                        InventoryTransactionRepository transactionRepository,
@@ -121,6 +181,9 @@ public class InventoryApplicationService {
         this.catalogItemRepository = catalogItemRepository;
         this.availabilityCache = availabilityCache;
         this.auditClient = auditClient;
+        this.warehouseRepository = null;
+        this.storeScopeRepository = null;
+        this.warehouseResolver = LegacyWarehouseResolver.INSTANCE;
     }
 
     /** 兼容既有单测/装配：显式传入缓存但不传审计客户端时，审计用关闭态客户端。 */
@@ -144,6 +207,8 @@ public class InventoryApplicationService {
                 new InventoryAvailabilityCache(0L), AuditClient.disabled());
     }
 
+    // ------------------------------------------------------------------ 读：物料 / 可用量
+
     /**
      * 物料分页列表：门店内按 关键字（名称或编码模糊）+ 分类 + 状态 过滤，按 id 倒序。
      *
@@ -154,8 +219,8 @@ public class InventoryApplicationService {
      *
      * <p>当前页每行的 {@code onHandQty}/{@code reservedQty} 用**一次** {@code IN} 查询批量回填
      * （旧实现逐行 {@code selectOne}，一页 20 行就是 20 次查询）；未建库存行的物料按 0，与
-     * {@link #availableQuantities} 的「未建行 = 售罄」口径一致。这两个字段不是
-     * {@code ord_inventory_material} 的列，只存在于响应视图里（见 {@link InventoryMaterialView}）。
+     * {@link #availableQuantities} 的「未建行 = 售罄」口径一致。一店多仓时按物料**跨仓汇总**，
+     * 列表展示的是该门店内的总可用量（仓库明细在流水/成本里能看到）。
      *
      * <p><b>时间区间</b>：{@code range} 是按**物料创建时间** {@code ord_inventory_material.created_at}
      * 的闭区间（统一 {@code from}/{@code to} 口径，见 {@link TimeRangeParams}）；为空 = 不筛。
@@ -167,10 +232,14 @@ public class InventoryApplicationService {
         if (storeId != null && !storeId.equals(context.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店库存");
         }
+        InventoryScope storeScope = requireStoreScope();
+        // 门店口径：显式 storeId 必须等于上下文门店（越权已拒绝），未传时**默认取上下文门店**——
+        // 绝不能把 null 下发给端口变成「租户级全门店物料」，那会串到别的门店/业态。
+        Long scopedStoreId = storeId != null ? storeId : storeScope.storeId();
         PageWindow window = windowOf(page, pageSize);
         MaterialPage found = materialRepository.findPage(MaterialQuery.inStore(
                 context.tenantId(),
-                storeId,
+                scopedStoreId,
                 trimmedOrNull(status),
                 trimmedOrNull(category),
                 trimmedOrNull(keyword),
@@ -179,13 +248,15 @@ public class InventoryApplicationService {
                 offsetOf(window),
                 window.size()));
         Page<InventoryMaterialView> result = new Page<>(window.current(), window.size(), found.total());
-        result.setRecords(decorateWithStock(context, found.materials()));
+        result.setRecords(decorateWithStock(storeScope, found.materials()));
         return result;
     }
 
     /**
      * 单物料可用库存（现有 − 预占，负数夹到 0）：读缓存，未命中回源并回填。
      * 仅用于展示/是否可点；扣减不得使用本方法的结果。
+     *
+     * <p>读口径是「门店内跨仓汇总」：库存行作用域带仓库，但商品可点性看的是门店总可用量。
      */
     public BigDecimal availableQuantity(Long tenantId, Long storeId, Long materialId) {
         if (tenantId == null || storeId == null || materialId == null) {
@@ -238,14 +309,17 @@ public class InventoryApplicationService {
     }
 
     private BigDecimal loadAvailable(Long tenantId, Long storeId, Long materialId) {
-        return availableOf(stockRepository.find(tenantId, storeId, materialId).orElse(null));
+        return loadAvailableBatch(tenantId, storeId, List.of(materialId))
+                .getOrDefault(materialId, BigDecimal.ZERO);
     }
 
     private Map<Long, BigDecimal> loadAvailableBatch(Long tenantId, Long storeId, Collection<Long> materialIds) {
         Map<Long, BigDecimal> result = new HashMap<>();
-        for (InventoryStock stock : stockRepository.findByMaterials(tenantId, storeId, List.copyOf(materialIds))) {
+        InventoryScope storeScope = readScope(tenantId, storeId);
+        for (InventoryStock stock : stockRepository.findByMaterials(storeScope, List.copyOf(materialIds))) {
             if (stock.materialId() != null) {
-                result.put(stock.materialId(), availableOf(stock));
+                // 一店多仓：可点性按门店跨仓汇总。
+                result.merge(stock.materialId(), availableOf(stock), BigDecimal::add);
             }
         }
         return result;
@@ -258,6 +332,8 @@ public class InventoryApplicationService {
         }
         return stock.availableQty().max(BigDecimal.ZERO);
     }
+
+    // ------------------------------------------------------------------ 物料写
 
     @Transactional
     public InventoryMaterialView createMaterial(MaterialCommand command) {
@@ -273,7 +349,12 @@ public class InventoryApplicationService {
 
     private InventoryMaterialView doCreateMaterial(MaterialCommand command) {
         TenantContext context = context();
-        if (context.storeId() == null || command.storeId() == null || !context.storeId().equals(command.storeId())) {
+        if (command == null) {
+            throw new BusinessException("MATERIAL_INVALID", "物料信息不能为空");
+        }
+        InventoryScope storeScope = applyClaim(requireStoreScope(),
+                new ScopeClaim(command.organizationId(), command.businessType()));
+        if (storeScope.storeId() == null || command.storeId() == null || !storeScope.storeId().equals(command.storeId())) {
             throw new BusinessException("STORE_SCOPE_DENIED", "无权操作该门店");
         }
         if (command.materialCode() == null || command.materialCode().isBlank() || command.name() == null || command.name().isBlank()) {
@@ -298,8 +379,10 @@ public class InventoryApplicationService {
                 .resourceName(created.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey("inventory-material-create:" + created.id())
-                .detailJson("{\"storeId\":" + created.storeId() + ",\"materialCode\":\"" + created.materialCode()
-                        + "\",\"unit\":\"" + created.unit() + "\"}")
+                .detailJson("{\"storeId\":" + created.storeId() + ",\"organizationId\":"
+                        + storeScope.organizationId() + ",\"businessType\":\"" + storeScope.businessType()
+                        + "\",\"materialCode\":\"" + created.materialCode() + "\",\"unit\":\""
+                        + created.unit() + "\"}")
                 .build());
         // 写入路径响应不带结存数量（这两个字段不是列，只在列表读路径批量回填）——与迁移前一致。
         return InventoryMaterialView.from(created, persisted.audit(), null, null);
@@ -319,6 +402,15 @@ public class InventoryApplicationService {
 
     private InventoryMaterialView doUpdateMaterial(Long id, MaterialCommand command) {
         TenantContext context = context();
+        InventoryScope storeScope = applyClaim(requireStoreScope(),
+                new ScopeClaim(command == null ? null : command.organizationId(),
+                        command == null ? null : command.businessType()));
+        if (command == null) {
+            throw new BusinessException("MATERIAL_INVALID", "物料信息不能为空");
+        }
+        if (command.storeId() != null && !command.storeId().equals(storeScope.storeId())) {
+            throw new BusinessException("STORE_SCOPE_DENIED", "无权操作该门店");
+        }
         InventoryMaterial existing = materialRepository.findInStore(context.tenantId(), context.storeId(), id)
                 .orElseThrow(() -> new BusinessException("MATERIAL_NOT_FOUND", "物料不存在"));
         // 「部分更新」在这里解析：null / 空白 = 本次不改（沿用既有值），显式值才覆盖。
@@ -365,7 +457,9 @@ public class InventoryApplicationService {
                 .resourceType("inventory_material").resourceId(String.valueOf(updated.id()))
                 .resourceName(updated.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-                .detailJson("{\"storeId\":" + updated.storeId() + ",\"safetyStock\":" + updated.safetyStock()
+                .detailJson("{\"storeId\":" + updated.storeId() + ",\"organizationId\":"
+                        + storeScope.organizationId() + ",\"businessType\":\"" + storeScope.businessType()
+                        + "\",\"safetyStock\":" + updated.safetyStock()
                         + ",\"purchasePrice\":" + updated.purchasePrice() + "}")
                 .build());
         return InventoryMaterialView.from(updated, persisted.audit(), null, null);
@@ -395,34 +489,26 @@ public class InventoryApplicationService {
         }
     }
 
+    // ------------------------------------------------------------------ 库存变更（唯一入口）
+
     @Transactional
     public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String reason, String key) {
-        return changeStock(materialId, quantity, type, "ADJUSTMENT", null, reason, key, null);
+        return changeStock(new MovementCommand(materialId, quantity, type, InventoryTransaction.SOURCE_ADJUSTMENT,
+                null, reason, key, null, null, ScopeClaim.none()));
     }
 
     /**
-     * 库存变更唯一入口：入库（RECEIPT/ADJUST_IN/REVERSE）原子加，出库（CONSUME/ADJUST_OUT）
-     * 原子条件扣减（不足即 {@code INVENTORY_INSUFFICIENT}，绝不为负），成功后写流水并失效可用量缓存。
-     * 幂等键 (tenant_id, idempotency_key) 保证重放返回首次流水、不重复扣减。
-     *
-     * <p><b>一致性</b>：库存更新与库存流水在同一事务内提交；调用方（如加项）失败回滚时，
-     * 扣减与流水一起回滚，不会出现「扣了库存没写流水」或「写了明细没扣库存」。
-     * 缓存失效发生在更新之后：即使事务随后回滚，也只是多做一次失效，下一次读自然回源拿到真实值。
-     *
-     * <p><b>失败路径</b>：条件更新返回 0 行（可用量不足）或物料不存在/已停用即抛业务异常，
-     * 由本模块 GlobalExceptionHandler 统一输出 {code,message}，不泄露 500。
-     *
-     * <p>本重载不指定入库批次单价：入库时按 {@link #resolveReceiptCost} 的口径取
-     * （回补优先还原原出库单价 → 物料 {@code purchase_price} → 0）。
+     * 库存变更（旧签名，供订单加项 / 作废回补等内部调用）：作用域自动取签名门店上下文与默认仓。
      */
     @Transactional
     public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
                                                String sourceId, String reason, String key) {
-        return changeStock(materialId, quantity, type, sourceType, sourceId, reason, key, null);
+        return changeStock(new MovementCommand(materialId, quantity, type, sourceType, sourceId, reason, key,
+                null, null, ScopeClaim.none()));
     }
 
     /**
-     * 库存变更唯一入口（带**入库批次单价**）。
+     * 库存变更（带入库批次单价的旧签名，供后台入库/调整使用）。
      *
      * <p><b>成本口径（V24 移动加权平均）</b>：
      * <ul>
@@ -432,7 +518,7 @@ public class InventoryApplicationService {
      *   <li>出库：**不改变**平均成本，只按当前平均成本结转发生额
      *       {@code total_cost = -qty * avgCost}，并把当次单价（= 平均成本）写进流水。</li>
      *   <li>并发：加权用的「入库前数量 + 旧平均成本」在 {@code findForUpdate} 行锁内读出，
-     *       锁持续到事务提交，因此同一 (租户, 门店, 物料) 的并发入库严格串行，不会丢失更新。</li>
+     *       锁持续到事务提交，因此同一作用域的并发入库严格串行，不会丢失更新。</li>
      * </ul>
      *
      * @param receiptUnitCost 入库批次单价（最小货币单位/计量单位，per {@code unit}）；null 或 0 = 未填，
@@ -442,40 +528,80 @@ public class InventoryApplicationService {
     @Transactional
     public InventoryTransactionView changeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
                                                String sourceId, String reason, String key, BigDecimal receiptUnitCost) {
+        return changeStock(new MovementCommand(materialId, quantity, type, sourceType, sourceId, reason, key,
+                receiptUnitCost, null, ScopeClaim.none()));
+    }
+
+    /**
+     * 库存变更唯一入口（协议对象）：入库（RECEIPT/ADJUST_IN/REVERSE）原子加，出库（CONSUME/ADJUST_OUT）
+     * 原子条件扣减（不足即 {@code INVENTORY_INSUFFICIENT}，绝不为负），成功后写流水并失效可用量缓存。
+     * 幂等键 (tenant_id, idempotency_key) 保证重放返回首次流水、不重复扣减；重放时校验作用域一致，
+     * 禁止拿别的门店/业态的键把库存记到本门店。
+     *
+     * <p><b>作用域</b>：门店 + 业态 + 组织取签名上下文（{@link #requireStoreScope}），仓库取
+     * {@code command.warehouseId()}（为空取默认仓）；{@code command.claim()} 若声明了组织/业态则必须与
+     * 上下文一致（422）。
+     *
+     * <p><b>一致性</b>：库存更新与库存流水在同一事务内提交；调用方（如加项）失败回滚时，
+     * 扣减与流水一起回滚，不会出现「扣了库存没写流水」或「写了明细没扣库存」。
+     * 缓存失效发生在更新之后：即使事务随后回滚，也只是多做一次失效，下一次读自然回源拿到真实值。
+     *
+     * <p><b>失败路径</b>：条件更新返回 0 行（可用量不足）或物料不存在/已停用即抛业务异常，
+     * 由本模块 GlobalExceptionHandler 统一输出 {code,message}，不泄露 500。
+     */
+    @Transactional
+    public InventoryTransactionView changeStock(MovementCommand command) {
+        String type = command == null ? null : command.type();
         try {
-            return doChangeStock(materialId, quantity, type, sourceType, sourceId, reason, key, receiptUnitCost);
+            return doChangeStock(command);
         } catch (RuntimeException failure) {
             // 库存变更失败留痕（物料停用/库存不足/跨币种加权/系数非法/落库失败）：
             // 只覆盖「人主动发起」的入库/调整（与 recordStockAudit 同一动作映射），
             // 加项出库(CONSUME)与作废回补(REVERSE)的失败由各自业务入口留痕，避免一次业务两条同义审计。
             String action = actionOf(type);
             if (action != null) {
-                recordStockFailure(action, materialId, null, failure);
+                recordStockFailure(action, command == null ? null : command.materialId(), null, failure);
             }
             throw failure;
         }
     }
 
-    private InventoryTransactionView doChangeStock(Long materialId, BigDecimal quantity, String type, String sourceType,
-                                                   String sourceId, String reason, String key, BigDecimal receiptUnitCost) {
-        TenantContext context = context();
-        if (quantity == null || quantity.signum() <= 0 || key == null || key.isBlank()) {
-            throw new BusinessException("INVENTORY_INVALID", "数量必须大于0且必须提供幂等键");
+    private InventoryTransactionView doChangeStock(MovementCommand command) {
+        if (command == null) {
+            throw new BusinessException("INVENTORY_INVALID", "库存变更参数不能为空");
         }
-        Optional<InventoryTransaction> existing = transactionRepository.findByIdempotency(context.tenantId(), key);
+        if (command.quantity() == null || command.quantity().signum() <= 0) {
+            throw new BusinessException("INVENTORY_INVALID", "数量必须大于0");
+        }
+        if (command.key() == null || command.key().isBlank()) {
+            throw new BusinessException("INVENTORY_INVALID", "必须提供幂等键");
+        }
+        String type = normalizeTransactionType(command.type());
+        InventoryScope storeScope = applyClaim(requireStoreScope(), command.claim());
+        InventoryScope scope = warehouseScope(storeScope, command.warehouseId());
+        Optional<InventoryTransaction> existing = transactionRepository.findByIdempotency(scope.tenantId(), command.key());
         if (existing.isPresent()) {
+            ensureReplayScope(existing.get(), scope);
             return InventoryTransactionView.from(existing.get());
         }
-        InventoryMaterial material = materialRepository
-                .findInStore(context.tenantId(), context.storeId(), materialId)
-                .orElseThrow(() -> new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用"));
-        if (!material.active()) {
-            throw new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用");
-        }
-        // 行锁只用来「取准确的变更前后值写流水」与串行化同一物料的并发变更；
-        // 真正的防超卖判定在下面的条件更新里由数据库保证（不依赖本处读到的值）。
-        // 成本侧同样依赖这把锁：加权平均必须在锁内读旧值、算新值、再写回，否则并发批次会互相覆盖。
-        InventoryStock stock = lockStockRow(context, materialId);
+        InventoryMaterial material = findActiveMaterial(scope.tenantId(), scope.storeId(), command.materialId());
+        // 行锁只用来「取准确的变更前后值写流水」与串行化同一作用域的并发变更；
+        // 真正的防超卖判定在 applyLockedMovement 的条件更新里由数据库保证（不依赖本处读到的值）。
+        InventoryStock stock = lockStockRow(scope, command.materialId());
+        return applyLockedMovement(scope, material, stock, type, command.quantity(), command.sourceType(),
+                command.sourceId(), command.reason(), command.key(), command.receiptUnitCost());
+    }
+
+    /**
+     * 已持有行锁后的唯一写入实现：算成本 → 原子加/扣 → 写流水 → 失效缓存 → 留痕。
+     *
+     * <p>入库 = 单条语句内同时加现有量与落库新成本；出库 = 单条带上下界的条件扣减。
+     * 两者都由数据库以行锁判定，返回值就是权威结论（0 行 = 库存不足 / 目标行不存在）。
+     */
+    private InventoryTransactionView applyLockedMovement(InventoryScope scope, InventoryMaterial material,
+                                                         InventoryStock stock, String type, BigDecimal quantity,
+                                                         String sourceType, String sourceId, String reason,
+                                                         String key, BigDecimal receiptUnitCost) {
         BigDecimal before = stock.onHandOrZero();
         BigDecimal avgCost = stock.avgCostOrZero();
         String stockCurrency = normalizedCurrency(stock.currencyCode());
@@ -483,7 +609,8 @@ public class InventoryApplicationService {
         BigDecimal unitCost;
         String currencyCode;
         if (inbound) {
-            ReceiptCost receipt = resolveReceiptCost(context, material, type, sourceType, sourceId, receiptUnitCost);
+            ReceiptCost receipt = resolveReceiptCost(scope.tenantId(), scope.storeId(), material, type, sourceType,
+                    sourceId, receiptUnitCost);
             unitCost = receipt.unitCost();
             currencyCode = receipt.currencyCode();
             avgCost = movingAverageCost(before, avgCost, stockCurrency, quantity, unitCost, currencyCode);
@@ -493,28 +620,510 @@ public class InventoryApplicationService {
             currencyCode = stockCurrency;
         }
         LocalDateTime now = LocalDateTime.now();
-        // 入库 = 单条语句内同时加现有量与落库新成本；出库 = 单条带上下界的条件扣减。
-        // 两者都由数据库以行锁判定，返回值就是权威结论（0 行 = 库存不足 / 目标行不存在）。
         int affected = inbound
-                ? stockRepository.increaseOnHand(context.tenantId(), context.storeId(), materialId, quantity,
-                        avgCost, currencyCode, now)
-                : (stockRepository.deductAvailable(context.tenantId(), context.storeId(), materialId, quantity, now)
-                        ? 1 : 0);
+                ? stockRepository.increaseOnHand(scope, material.id(), quantity, avgCost, currencyCode, now)
+                : (stockRepository.deductAvailable(scope, material.id(), quantity, now) ? 1 : 0);
         if (affected == 0) {
+            if (inbound) {
+                throw new BusinessException("INVENTORY_INVALID", "库存行不存在，无法入库");
+            }
             throw new BusinessException("INVENTORY_INSUFFICIENT", "可用库存不足");
         }
         BigDecimal signedQuantity = inbound ? quantity : quantity.negate();
-        InventoryTransaction tx = new InventoryTransaction(null, context.tenantId(), context.storeId(), materialId,
-                type, signedQuantity, before, before.add(signedQuantity),
+        InventoryTransaction tx = new InventoryTransaction(null, scope.tenantId(), scope.organizationId(),
+                scope.businessType(), scope.storeId(), scope.warehouseId(), material.id(), type, signedQuantity,
+                before, before.add(signedQuantity),
                 // 批次单价与成本发生额（带符号：入库正、出库负）——入库可追溯到具体批次，出库可追溯到当次结转依据。
                 scale(unitCost), scale(signedQuantity.multiply(unitCost)), currencyCode,
                 sourceType, sourceId, key, reason, now);
         InventoryTransaction stored = transactionRepository.append(tx);
         // 写后失效：本实例立即回源；其他实例最坏在 TTL 内看到旧可用量（展示层，不影响扣减）。
-        availabilityCache.invalidate(context.tenantId(), context.storeId(), materialId);
+        invalidateAvailability(scope, material.id());
         recordStockAudit(material, stored, type, key);
         return InventoryTransactionView.from(stored);
     }
+
+    // ------------------------------------------------------------------ 调拨（跨门店/跨业态，两边流水）
+
+    /**
+     * 库存调拨：源仓原子扣减、目标仓原子增加，**两边各写一条流水**（TRANSFER_OUT / TRANSFER_IN，
+     * 同一个 {@code sourceId = idempotencyKey} 关联），绝不直接改数量了事。
+     *
+     * <p><b>作用域校验</b>：源作用域取签名门店上下文（请求声明的组织/业态必须一致）；目标门店必须存在且启用，
+     * 其 organization/business 来自门店权威快照（{@link StoreScopeRepository}），请求声明的目标组织/业态
+     * 必须与门店一致，否则 422。目标门店若没有同编码物料，拒绝调拨（不静默建档）。
+     *
+     * <p><b>成本</b>：调拨出库按源仓当前移动加权平均成本结转，调拨入库按同一单价计入目标仓的移动加权平均；
+     * 两边流水都记录该单价与币种，账实与成本可追溯。
+     *
+     * <p><b>幂等</b>：{@code idempotencyKey} 是调拨单号；重放时返回首次写入的两条流水，不重复扣减。
+     * 任一步失败整单回滚（源扣减/目标入库/两条流水同事务），不会出现「只扣不补」的半截调拨。
+     */
+    @Transactional
+    public TransferResult transfer(TransferCommand command) {
+        try {
+            return doTransfer(command);
+        } catch (RuntimeException failure) {
+            recordStockFailure("inventory.transfer", command == null ? null : command.materialId(), null, failure);
+            throw failure;
+        }
+    }
+
+    private TransferResult doTransfer(TransferCommand command) {
+        if (command == null) {
+            throw new BusinessException("INVENTORY_INVALID", "调拨参数不能为空");
+        }
+        if (command.quantity() == null || command.quantity().signum() <= 0) {
+            throw new BusinessException("INVENTORY_INVALID", "调拨数量必须大于0");
+        }
+        if (command.key() == null || command.key().isBlank()) {
+            throw new BusinessException("INVENTORY_INVALID", "调拨必须提供幂等键（调拨单号）");
+        }
+        if (command.toStoreId() == null) {
+            throw new BusinessException("TRANSFER_TARGET_REQUIRED", "缺少目标门店");
+        }
+        InventoryScope fromStore = applyClaim(requireStoreScope(),
+                new ScopeClaim(command.fromOrganizationId(), command.fromBusinessType()));
+        InventoryScope fromScope = warehouseScope(fromStore, command.fromWarehouseId());
+        // 同门店调拨 = 仓库之间的移库：必须显式指定不同的目标仓库；跨门店则走门店权威快照校验。
+        boolean sameStore = fromStore.storeId().equals(command.toStoreId());
+        InventoryScope toStore;
+        if (sameStore) {
+            if (command.toWarehouseId() == null) {
+                throw new BusinessException("TRANSFER_SAME_STORE",
+                        "同门店调拨必须指定不同的目标仓库（仓库间移库）");
+            }
+            toStore = fromStore;
+        } else {
+            toStore = resolveTargetStoreScope(fromStore.tenantId(), command.toStoreId(),
+                    command.toOrganizationId(), command.toBusinessType());
+        }
+        InventoryScope toScope = warehouseScope(toStore, command.toWarehouseId());
+        if (sameStore && fromScope.warehouseId().equals(toScope.warehouseId())) {
+            throw new BusinessException("TRANSFER_SAME_STORE", "调拨源仓库与目标仓库不能相同");
+        }
+        String outKey = transferOutKey(command.key());
+        String inKey = transferInKey(command.key());
+        Optional<InventoryTransaction> replayOut = transactionRepository.findByIdempotency(fromStore.tenantId(), outKey);
+        if (replayOut.isPresent()) {
+            ensureReplayScope(replayOut.get(), fromScope);
+            InventoryTransaction replayIn = transactionRepository.findByIdempotency(fromStore.tenantId(), inKey)
+                    .orElseThrow(() -> new BusinessException("INVENTORY_INVALID", "调拨流水不完整，请核对调拨单"));
+            ensureReplayScope(replayIn, toScope);
+            return new TransferResult(InventoryTransactionView.from(replayOut.get()),
+                    InventoryTransactionView.from(replayIn));
+        }
+        InventoryMaterial fromMaterial = findActiveMaterial(fromStore.tenantId(), fromStore.storeId(), command.materialId());
+        // 同门店移库时物料就是同一份档案（无需按编码在目标门店重新映射）。
+        InventoryMaterial toMaterial = sameStore && command.toMaterialId() == null
+                ? fromMaterial
+                : resolveTargetMaterial(toStore, command.toMaterialId(), fromMaterial);
+
+        InventoryStock fromStock = lockStockRow(fromScope, fromMaterial.id());
+        BigDecimal beforeOut = fromStock.onHandOrZero();
+        BigDecimal unitCost = fromStock.avgCostOrZero();
+        String currencyCode = normalizedCurrency(fromStock.currencyCode());
+        LocalDateTime now = LocalDateTime.now();
+        if (!stockRepository.deductAvailable(fromScope, fromMaterial.id(), command.quantity(), now)) {
+            throw new BusinessException("INVENTORY_INSUFFICIENT", "源仓可用库存不足，无法调拨");
+        }
+        BigDecimal signedOut = command.quantity().negate();
+        InventoryTransaction outTx = new InventoryTransaction(null, fromScope.tenantId(),
+                fromScope.organizationId(), fromScope.businessType(), fromScope.storeId(), fromScope.warehouseId(),
+                fromMaterial.id(), InventoryTransaction.TYPE_TRANSFER_OUT, signedOut, beforeOut,
+                beforeOut.add(signedOut), scale(unitCost), scale(signedOut.multiply(unitCost)), currencyCode,
+                InventoryTransaction.SOURCE_TRANSFER, command.key(), outKey, command.reason(), now);
+        InventoryTransaction storedOut = transactionRepository.append(outTx);
+
+        InventoryStock toStock = lockStockRow(toScope, toMaterial.id());
+        BigDecimal beforeIn = toStock.onHandOrZero();
+        String toCurrencyBefore = normalizedCurrency(toStock.currencyCode());
+        BigDecimal weighted = movingAverageCost(beforeIn, toStock.avgCostOrZero(), toCurrencyBefore,
+                command.quantity(), unitCost, currencyCode);
+        if (stockRepository.increaseOnHand(toScope, toMaterial.id(), command.quantity(), weighted, currencyCode, now) == 0) {
+            throw new BusinessException("INVENTORY_INVALID", "目标仓库存行不存在，无法调拨入库");
+        }
+        BigDecimal signedIn = command.quantity();
+        InventoryTransaction inTx = new InventoryTransaction(null, toScope.tenantId(), toScope.organizationId(),
+                toScope.businessType(), toScope.storeId(), toScope.warehouseId(), toMaterial.id(),
+                InventoryTransaction.TYPE_TRANSFER_IN, signedIn, beforeIn, beforeIn.add(signedIn),
+                scale(unitCost), scale(signedIn.multiply(unitCost)), currencyCode,
+                InventoryTransaction.SOURCE_TRANSFER, command.key(), inKey, command.reason(), now);
+        InventoryTransaction storedIn = transactionRepository.append(inTx);
+        invalidateAvailability(fromScope, fromMaterial.id());
+        invalidateAvailability(toScope, toMaterial.id());
+        recordTransferAudit(storedOut, storedIn, command.key());
+        return new TransferResult(InventoryTransactionView.from(storedOut), InventoryTransactionView.from(storedIn));
+    }
+
+    /** 目标门店作用域：优先门店权威快照；旧装配/单测无门店窄读时要求调用方显式声明（仍需组织 + 业态）。 */
+    private InventoryScope resolveTargetStoreScope(long tenantId, Long toStoreId, Long claimedOrganizationId,
+                                                   String claimedBusinessType) {
+        String claimedBusiness = InventoryScope.normalizeBusinessType(claimedBusinessType);
+        if (storeScopeRepository == null) {
+            if (claimedOrganizationId == null || claimedBusiness == null) {
+                throw new BusinessException("TRANSFER_TARGET_SCOPE_REQUIRED",
+                        "缺少目标门店的组织/业态声明，无法校验调拨作用域");
+            }
+            return InventoryScope.store(tenantId, claimedOrganizationId, claimedBusiness, toStoreId);
+        }
+        StoreScopeRepository.StoreScope store = storeScopeRepository.findActive(tenantId, toStoreId)
+                .orElseThrow(() -> new BusinessException("TRANSFER_TARGET_STORE_NOT_FOUND", "目标门店不存在或已停用"));
+        if (claimedOrganizationId != null && !claimedOrganizationId.equals(store.organizationId())) {
+            throw new BusinessException("ORGANIZATION_MISMATCH", "目标门店声明的组织与门店组织不一致");
+        }
+        String authoritativeBusiness = InventoryScope.normalizeBusinessType(store.businessType());
+        if (claimedBusiness != null && !claimedBusiness.equals(authoritativeBusiness)) {
+            throw new BusinessException("BUSINESS_TYPE_MISMATCH", "目标门店声明的业态与门店业态不一致");
+        }
+        if (store.organizationId() == null || authoritativeBusiness == null) {
+            throw new BusinessException("TRANSFER_TARGET_SCOPE_REQUIRED", "目标门店缺少组织/业态数据，无法调拨");
+        }
+        return InventoryScope.store(tenantId, store.organizationId(), authoritativeBusiness, toStoreId);
+    }
+
+    /** 目标门店物料：显式 toMaterialId 优先，否则按源物料编码在目标门店映射；不静默建档。 */
+    private InventoryMaterial resolveTargetMaterial(InventoryScope toStore, Long toMaterialId,
+                                                    InventoryMaterial fromMaterial) {
+        if (toMaterialId != null) {
+            return findActiveMaterial(toStore.tenantId(), toStore.storeId(), toMaterialId);
+        }
+        return materialRepository.findInStoreByCode(toStore.tenantId(), toStore.storeId(),
+                        fromMaterial.materialCode())
+                .filter(InventoryMaterial::active)
+                .orElseThrow(() -> new BusinessException("TRANSFER_MATERIAL_NOT_FOUND",
+                        "目标门店没有与源物料同编码的启用物料，请先在目标门店建档"));
+    }
+
+    // ------------------------------------------------------------------ 盘点
+
+    /**
+     * 库存盘点：把账面数量与实盘数量比对，差异通过 ADJUST_IN / ADJUST_OUT 落一条流水
+     * （来源 {@code STOCKTAKE}），绝不直接改写余额；实盘不允许为负。
+     *
+     * <p>无差异（{@code counted == onHand}）不写流水，返回 {@code adjusted=false}；
+     * 有差异时盘盈按当前移动加权平均成本（无成本基准时退回采购价/0）入账，盘亏按当前平均成本结转。
+     * 幂等键与库存变更共用同一张流水表，重放返回首次流水、不重复调整。
+     */
+    @Transactional
+    public StocktakeResult stocktake(StocktakeCommand command) {
+        try {
+            return doStocktake(command);
+        } catch (RuntimeException failure) {
+            recordStockFailure("inventory.adjust", command == null ? null : command.materialId(), null, failure);
+            throw failure;
+        }
+    }
+
+    private StocktakeResult doStocktake(StocktakeCommand command) {
+        if (command == null) {
+            throw new BusinessException("INVENTORY_INVALID", "盘点参数不能为空");
+        }
+        if (command.countedQuantity() == null || command.countedQuantity().signum() < 0) {
+            throw new BusinessException("INVENTORY_INVALID", "实盘数量不能为负");
+        }
+        if (command.key() == null || command.key().isBlank()) {
+            throw new BusinessException("INVENTORY_INVALID", "盘点必须提供幂等键");
+        }
+        InventoryScope storeScope = applyClaim(requireStoreScope(),
+                new ScopeClaim(command.organizationId(), command.businessType()));
+        InventoryScope scope = warehouseScope(storeScope, command.warehouseId());
+        Optional<InventoryTransaction> existing = transactionRepository.findByIdempotency(scope.tenantId(), command.key());
+        if (existing.isPresent()) {
+            ensureReplayScope(existing.get(), scope);
+            InventoryTransaction replay = existing.get();
+            return new StocktakeResult(replay.materialId(), replay.warehouseId(), replay.quantityBefore(),
+                    replay.quantityAfter(), replay.quantityDelta(), true, InventoryTransactionView.from(replay));
+        }
+        InventoryMaterial material = findActiveMaterial(scope.tenantId(), scope.storeId(), command.materialId());
+        InventoryStock stock = lockStockRow(scope, command.materialId());
+        BigDecimal before = stock.onHandOrZero();
+        BigDecimal counted = scale(command.countedQuantity());
+        BigDecimal delta = counted.subtract(before);
+        if (delta.signum() == 0) {
+            return new StocktakeResult(material.id(), scope.warehouseId(), before, counted, BigDecimal.ZERO,
+                    false, null);
+        }
+        String type = delta.signum() > 0 ? InventoryTransaction.TYPE_ADJUST_IN
+                : InventoryTransaction.TYPE_ADJUST_OUT;
+        BigDecimal quantity = delta.abs();
+        // 盘盈不改变成本基准：按当前平均成本入账（0 基准时沿用采购价取值链）；盘亏按当前平均成本结转。
+        BigDecimal receiptUnitCost = InventoryTransaction.TYPE_ADJUST_IN.equals(type)
+                ? (stock.avgCostOrZero().signum() > 0 ? stock.avgCostOrZero() : null) : null;
+        InventoryTransactionView view = applyLockedMovement(scope, material, stock, type, quantity,
+                InventoryTransaction.SOURCE_STOCKTAKE, command.key(), command.reason(), command.key(),
+                receiptUnitCost);
+        return new StocktakeResult(material.id(), scope.warehouseId(), before, counted, delta, true, view);
+    }
+
+    // ------------------------------------------------------------------ 消费接入（酒店 / KTV 共用）
+
+    /**
+     * 消费出库（酒店客房领用 / 迷你吧销售 / KTV 商品出库 / 订单加项的统一应用服务入口）。
+     *
+     * <p><b>与订单/账单的协作只通过应用服务</b>：本方法只扣库存并写带 {@code sourceType/sourceId}
+     * 的流水，不碰订单/账单表，也不接收房间号——库存不绑定房间。订单/账单侧由各自的纵线调用本入口
+     * （或既有的 {@code changeStock(..., "CONSUME", "ORDER_ITEM", ...)}）完成联动。
+     *
+     * @param command 消费命令；{@code scene} 必须是
+     *                {@code ORDER_ITEM / ROOM_CONSUMPTION / MINIBAR_SALE / KTV_ITEM} 之一
+     */
+    @Transactional
+    public InventoryTransactionView consume(ConsumeCommand command) {
+        if (command == null) {
+            throw new BusinessException("INVENTORY_INVALID", "消费参数不能为空");
+        }
+        String scene = command.scene() == null ? null
+                : command.scene().trim().toUpperCase(Locale.ROOT);
+        String sourceType = scene == null ? null : CONSUME_SCENES.get(scene);
+        if (sourceType == null) {
+            throw new BusinessException("INVENTORY_SOURCE_INVALID",
+                    "不支持的消耗场景，仅支持 ORDER_ITEM/ROOM_CONSUMPTION/MINIBAR_SALE/KTV_ITEM");
+        }
+        return changeStock(new MovementCommand(command.materialId(), command.quantity(),
+                InventoryTransaction.TYPE_CONSUME, sourceType, command.sourceId(), command.reason(),
+                command.key(), null, command.warehouseId(),
+                new ScopeClaim(command.organizationId(), command.businessType())));
+    }
+
+    // ------------------------------------------------------------------ 成本
+
+    /** 成本查询（旧签名，门店级跨仓）。 */
+    public InventoryCostReport inventoryCosts(long page, long pageSize, Long storeId, String keyword) {
+        return inventoryCosts(page, pageSize, storeId, null, keyword);
+    }
+
+    /**
+     * 库存成本查询口径（V24）：**库存成本 = 结存数量 × 移动加权平均成本**，按门店/仓库/物料/币种。
+     *
+     * <p>数量与平均成本都取库存余额行的当前值（结存口径，非期间发生额）；金额在 Java 侧定点相乘，
+     * 不在 SQL 里做乘除，避免数据库浮点/隐式转换带来的尾差。
+     * 币种取库存行的平均成本快照：单币种时信封给 {@code currencyCode}，混币种时 {@code currencyCode=null}
+     * 且 {@code mixedCurrency=true}，调用方必须逐行渲染、不得相加。
+     *
+     * <p><b>分页口径（重要）</b>：分页只作用于「余额行」（{@code records} 是当前页的仓库×物料成本行），
+     * 而 {@code total} 与币种信封（{@code currencyCode}/{@code mixedCurrency}）都按**全部命中行**计算，
+     * 不是仅当前页 —— 否则翻页时「本页是否混币种」会漂移，合计口径会随页码变化。
+     * 代价是每次都要把命中物料全部算一遍（与改造前的实现同量级，单门店物料规模下有界），
+     * 换来的是翻页时信封恒定。
+     *
+     * @param warehouseId 仓库；{@code null} = 门店下所有仓
+     */
+    public InventoryCostReport inventoryCosts(long page, long pageSize, Long storeId, Long warehouseId,
+                                              String keyword) {
+        TenantContext context = context();
+        if (storeId != null && !storeId.equals(context.storeId())) {
+            throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店库存");
+        }
+        InventoryScope storeScope = requireStoreScope();
+        // 越权门店已在上面拒绝，因此这里的门店恒等于上下文门店。
+        Long scopedStore = storeScope.storeId();
+        InventoryScope scope = warehouseId == null ? storeScope : warehouseScope(storeScope, warehouseId);
+        String nameOrCode = trimmedOrNull(keyword);
+        Set<Long> keywordMaterialIds = nameOrCode == null
+                ? null : new HashSet<>(matchingMaterialIds(scope, nameOrCode));
+        List<InventoryStock> stocks = stockRepository.findByStore(scope);
+        if (keywordMaterialIds != null) {
+            stocks = stocks.stream().filter(stock -> keywordMaterialIds.contains(stock.materialId())).toList();
+        }
+        List<Long> materialIds = stocks.stream().map(InventoryStock::materialId)
+                .filter(Objects::nonNull).distinct().toList();
+        Map<Long, InventoryMaterial> materials = new HashMap<>();
+        if (!materialIds.isEmpty()) {
+            for (InventoryMaterial material : materialRepository.findByIds(materialIds)) {
+                materials.put(material.id(), material);
+            }
+        }
+        Set<String> currencies = new LinkedHashSet<>();
+        List<InventoryCostRow> rows = new ArrayList<>();
+        for (InventoryStock stock : stocks) {
+            InventoryMaterial material = materials.get(stock.materialId());
+            BigDecimal onHand = stock.onHandOrZero();
+            BigDecimal avgCost = stock.avgCostOrZero();
+            String currency = normalizedCurrency(stock.currencyCode());
+            currencies.add(currency);
+            rows.add(new InventoryCostRow(scopedStore, stock.warehouseId(), stock.materialId(),
+                    material == null ? null : material.materialCode(),
+                    material == null ? null : material.name(),
+                    material == null ? null : material.unit(),
+                    scale(onHand), scale(avgCost), currency, scale(onHand.multiply(avgCost)),
+                    stock.organizationId(), stock.businessType()));
+        }
+        PageWindow window = windowOf(page, pageSize);
+        InventoryCostReport report = new InventoryCostReport(window.current(), window.size(), rows.size());
+        report.setRecords(slicePage(rows, window.current(), window.size()));
+        report.setDataAsOf(Instant.now());
+        report.setStoreId(scopedStore);
+        report.setWarehouseId(scope.warehouseId());
+        report.setCurrencyCode(currencies.size() == 1 ? currencies.iterator().next() : null);
+        report.setMixedCurrency(currencies.size() > 1);
+        return report;
+    }
+
+    // ------------------------------------------------------------------ 流水
+
+    /** 流水列表（旧签名，门店级跨仓）。 */
+    public Page<InventoryTransactionView> listTransactions(long page, long pageSize, Long materialId,
+                                                           String transactionType, String sourceType,
+                                                           TimeRange range, String keyword) {
+        return listTransactions(page, pageSize, materialId, transactionType, sourceType, null, range, keyword);
+    }
+
+    /**
+     * 库存流水分页列表：当前门店内按 物料 + 类型 + 来源 + 仓库 + 发生时间闭区间 + 关键字（物料名/编码）过滤，
+     * 按 id 倒序（等价于发生时间倒序，同毫秒写入时也稳定）。
+     *
+     * <p><b>作用域（V24/V25）</b>：查询固定带 tenant + business_type + store；{@code warehouseId}
+     * 为空时覆盖该门店所有仓（一行流水自带 warehouseId，前端可以按其分组）。组织快照作为报表归属一并过滤。
+     *
+     * <p><b>时间口径</b>：本表没有独立的 {@code occurred_at} 列，流水的发生时刻就是 {@code created_at}
+     * （{@code datetime(3)}），因此区间过滤落在 {@code created_at} 上、与表列一致。
+     *
+     * <p>{@code range} 由对外的 {@code from}/{@code to} 经**全仓统一**的 {@link TimeRangeParams#parse}
+     * 解析而来（{@code yyyy-MM-dd} 的 {@code from} → 当天 00:00:00.000、{@code to} → 当天 23:59:59.999；
+     * 时刻形态按字面值），闭区间；{@code from > to} → 400 {@code TIME_RANGE_INVALID}。
+     *
+     * <p><b>关键字</b>：流水表不存物料名快照，先按名称/编码取出命中物料 id 集合，再在分页条件里
+     * {@code IN} 该集合（两条简单查询），既不 join 分页表，也不做逐行回查的 N+1；命中为空直接返回空页。
+     */
+    public Page<InventoryTransactionView> listTransactions(long page, long pageSize, Long materialId,
+                                                           String transactionType, String sourceType,
+                                                           Long warehouseId, TimeRange range, String keyword) {
+        InventoryScope storeScope = requireStoreScope();
+        InventoryScope scope = warehouseId == null ? storeScope : warehouseScope(storeScope, warehouseId);
+        PageWindow window = windowOf(page, pageSize);
+        String nameOrCode = trimmedOrNull(keyword);
+        List<Long> matchedMaterialIds = null;
+        if (nameOrCode != null) {
+            matchedMaterialIds = matchingMaterialIds(scope, nameOrCode);
+            if (matchedMaterialIds.isEmpty()) {
+                // 关键字没有命中任何物料：空页（total=0），不能下发 IN () 这种非法 SQL。
+                Page<InventoryTransactionView> empty = new Page<>(window.current(), window.size(), 0L);
+                empty.setRecords(List.of());
+                return empty;
+            }
+        }
+        TransactionPage found = transactionRepository.findPage(TransactionQuery.inScope(
+                scope,
+                materialId,
+                trimmedOrNull(transactionType),
+                trimmedOrNull(sourceType),
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive(),
+                matchedMaterialIds,
+                offsetOf(window),
+                window.size()));
+        Page<InventoryTransactionView> result = new Page<>(window.current(), window.size(), found.total());
+        result.setRecords(found.transactions().stream().map(InventoryTransactionView::from).toList());
+        return result;
+    }
+
+    // ------------------------------------------------------------------ 作用域 / 仓库解析
+
+    /** 当前签名门店的权威快照（租户 + 组织 + 业态 + 门店）；缺组织/业态直接拒绝。 */
+    private InventoryScope requireStoreScope() {
+        TenantContext context = context();
+        Long organizationId = context.organizationId();
+        if (organizationId == null) {
+            throw new BusinessException("ORGANIZATION_CONTEXT_REQUIRED", "门店上下文缺少组织信息，请重新选择门店");
+        }
+        String businessType = InventoryScope.normalizeBusinessType(context.businessType());
+        if (businessType == null) {
+            throw new BusinessException("BUSINESS_TYPE_CONTEXT_REQUIRED", "门店上下文缺少业态信息，请重新选择门店");
+        }
+        return InventoryScope.store(context.tenantId(), organizationId, businessType, context.storeId());
+    }
+
+    /** 带请求声明的门店作用域：声明值必须与签名上下文一致（不一致即 422，绝不按请求体跨组织/业态写入）。 */
+    private InventoryScope applyClaim(InventoryScope storeScope, ScopeClaim claim) {
+        if (claim == null) {
+            return storeScope;
+        }
+        if (claim.organizationId() != null && !claim.organizationId().equals(storeScope.organizationId())) {
+            throw new BusinessException("ORGANIZATION_MISMATCH", "请求声明的组织与门店所属组织不一致");
+        }
+        String claimedBusiness = InventoryScope.normalizeBusinessType(claim.businessType());
+        if (claimedBusiness != null && !claimedBusiness.equals(storeScope.businessType())) {
+            throw new BusinessException("BUSINESS_TYPE_MISMATCH", "请求声明的业态与门店当前业态不一致");
+        }
+        return storeScope;
+    }
+
+    /** 给 (租户, 门店) 的只读查询补上组织/业态（上下文匹配时），用于跨门店可点性查询。 */
+    private InventoryScope readScope(Long tenantId, Long storeId) {
+        TenantContext context = TenantContextHolder.get();
+        Long organizationId = null;
+        String businessType = null;
+        if (context != null && context.tenantId() == tenantId && storeId.equals(context.storeId())) {
+            organizationId = context.organizationId();
+            businessType = InventoryScope.normalizeBusinessType(context.businessType());
+        }
+        return InventoryScope.store(tenantId, organizationId, businessType, storeId);
+    }
+
+    /** 在门店作用域上解析仓库：显式 warehouseId 校验归属，否则取（必要时懒创建）默认仓。 */
+    private InventoryScope warehouseScope(InventoryScope storeScope, Long warehouseId) {
+        Long resolved = warehouseId == null
+                ? warehouseResolver.defaultWarehouseId(storeScope)
+                : warehouseResolver.verifyWarehouse(storeScope, warehouseId);
+        return storeScope.withWarehouse(resolved);
+    }
+
+    private static String normalizeTransactionType(String type) {
+        String normalized = type == null ? null : type.trim().toUpperCase(Locale.ROOT);
+        if (normalized == null || !MANUAL_TRANSACTION_TYPES.contains(normalized)) {
+            // 调拨类型（TRANSFER_IN/OUT）只允许由 transfer() 内部成对写入，不接受手工单边变更。
+            throw new BusinessException("INVENTORY_INVALID", "不支持的库存变更类型: " + type);
+        }
+        return normalized;
+    }
+
+    /**
+     * 加行锁取库存行；不存在则先建 0 行。并发建行由作用域唯一键
+     * (tenant, business, store, warehouse, material) 兜底，抢输的事务忽略冲突后重新加锁读取。
+     */
+    private InventoryStock lockStockRow(InventoryScope scope, Long materialId) {
+        Optional<InventoryStock> stock = stockRepository.findForUpdate(scope, materialId);
+        if (stock.isPresent()) {
+            if (!stock.get().inScope(scope)) {
+                throw new BusinessException("INVENTORY_SCOPE_MISMATCH", "库存行作用域与当前门店/业态/仓库不一致");
+            }
+            return stock.get();
+        }
+        try {
+            stockRepository.save(InventoryStock.empty(scope, materialId));
+        } catch (DuplicateKeyException e) {
+            log.debug("库存行已被并发事务创建，忽略并重新加锁读取: tenantId={} storeId={} warehouseId={} materialId={}",
+                    scope.tenantId(), scope.storeId(), scope.warehouseId(), materialId);
+        }
+        return stockRepository.findForUpdate(scope, materialId)
+                .orElseThrow(() -> new BusinessException("INVENTORY_INVALID", "库存行不存在"));
+    }
+
+    /** 幂等重放的作用域校验：幂等键是租户级唯一，命中后必须确认它属于本次门店/业态/仓库。 */
+    private static void ensureReplayScope(InventoryTransaction transaction, InventoryScope scope) {
+        InventoryScope transactionScope = new InventoryScope(transaction.tenantId(), transaction.organizationId(),
+                transaction.businessType(), transaction.storeId(), transaction.warehouseId());
+        if (!transactionScope.compatibleWith(scope)) {
+            throw new BusinessException("INVENTORY_SCOPE_MISMATCH",
+                    "幂等键已被其它门店/业态/仓库使用，禁止跨作用域重放");
+        }
+    }
+
+    private InventoryMaterial findActiveMaterial(Long tenantId, Long storeId, Long materialId) {
+        InventoryMaterial material = materialRepository.findInStore(tenantId, storeId, materialId)
+                .orElseThrow(() -> new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用"));
+        if (!material.active()) {
+            throw new BusinessException("MATERIAL_NOT_FOUND", "物料不存在或已停用");
+        }
+        return material;
+    }
+
+    private void invalidateAvailability(InventoryScope scope, Long materialId) {
+        availabilityCache.invalidate(scope.tenantId(), scope.storeId(), materialId);
+    }
+
+    // ------------------------------------------------------------------ 成本取值链 / 定点
 
     /**
      * 入库批次单价与币种的取值链（显式传入优先）：
@@ -527,7 +1136,7 @@ public class InventoryApplicationService {
      * 显式传入 0 与 null 同义（本模块既有「0 = 未填」三态约定，见 {@code normalizePurchasePrice}），
      * 避免前端把「留空」提交成 0 时把整批库存的平均成本稀释到 0。
      */
-    private ReceiptCost resolveReceiptCost(TenantContext context, InventoryMaterial material, String type,
+    private ReceiptCost resolveReceiptCost(Long tenantId, Long storeId, InventoryMaterial material, String type,
                                            String sourceType, String sourceId, BigDecimal requestedUnitCost) {
         if (requestedUnitCost != null) {
             if (requestedUnitCost.signum() < 0) {
@@ -542,7 +1151,7 @@ public class InventoryApplicationService {
         }
         if (InventoryTransaction.TYPE_REVERSE.equals(type) && sourceType != null && sourceId != null) {
             Optional<InventoryTransaction> outbound = transactionRepository.findLatestOutbound(
-                    context.tenantId(), context.storeId(), material.id(), sourceType, sourceId);
+                    tenantId, storeId, material.id(), sourceType, sourceId);
             if (outbound.isPresent() && outbound.get().unitCost() != null
                     && outbound.get().unitCost().signum() > 0) {
                 return new ReceiptCost(outbound.get().unitCost(), normalizedCurrency(outbound.get().currencyCode()));
@@ -596,65 +1205,7 @@ public class InventoryApplicationService {
         return value.setScale(COST_SCALE, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 库存成本查询口径（V24）：**库存成本 = 结存数量 × 移动加权平均成本**，按门店/物料/币种。
-     *
-     * <p>数量与平均成本都取库存余额行的当前值（结存口径，非期间发生额）；金额在 Java 侧定点相乘，
-     * 不在 SQL 里做乘除，避免数据库浮点/隐式转换带来的尾差。
-     * 币种取库存行的平均成本快照：单币种时信封给 {@code currencyCode}，混币种时 {@code currencyCode=null}
-     * 且 {@code mixedCurrency=true}，调用方必须逐行渲染、不得相加。
-     *
-     * <p><b>分页口径（重要）</b>：分页只作用于「物料行」（{@code records} 是当前页的物料成本行），
-     * 而 {@code total} 与币种信封（{@code currencyCode}/{@code mixedCurrency}）都按**全部命中行**计算，
-     * 不是仅当前页 —— 否则翻页时「本页是否混币种」会漂移，合计口径会随页码变化。
-     * 代价是每次都要把命中物料全部算一遍（与改造前的实现同量级，单门店物料规模下有界），
-     * 换来的是翻页时信封恒定。
-     */
-    public InventoryCostReport inventoryCosts(long page, long pageSize, Long storeId, String keyword) {
-        TenantContext context = context();
-        if (storeId != null && !storeId.equals(context.storeId())) {
-            throw new BusinessException("STORE_SCOPE_DENIED", "无权访问该门店库存");
-        }
-        // 越权门店已在上面拒绝，因此这里的门店恒等于上下文门店。
-        Long scopedStore = context.storeId();
-        String nameOrCode = trimmedOrNull(keyword);
-        Set<Long> keywordMaterialIds = nameOrCode == null
-                ? null : new HashSet<>(matchingMaterialIds(context, nameOrCode));
-        List<InventoryStock> stocks = stockRepository.findByStore(context.tenantId(), scopedStore);
-        if (keywordMaterialIds != null) {
-            stocks = stocks.stream().filter(stock -> keywordMaterialIds.contains(stock.materialId())).toList();
-        }
-        List<Long> materialIds = stocks.stream().map(InventoryStock::materialId)
-                .filter(Objects::nonNull).distinct().toList();
-        Map<Long, InventoryMaterial> materials = new HashMap<>();
-        if (!materialIds.isEmpty()) {
-            for (InventoryMaterial material : materialRepository.findByIds(materialIds)) {
-                materials.put(material.id(), material);
-            }
-        }
-        Set<String> currencies = new LinkedHashSet<>();
-        List<InventoryCostRow> rows = new ArrayList<>();
-        for (InventoryStock stock : stocks) {
-            InventoryMaterial material = materials.get(stock.materialId());
-            BigDecimal onHand = stock.onHandOrZero();
-            BigDecimal avgCost = stock.avgCostOrZero();
-            String currency = normalizedCurrency(stock.currencyCode());
-            currencies.add(currency);
-            rows.add(new InventoryCostRow(scopedStore, stock.materialId(),
-                    material == null ? null : material.materialCode(),
-                    material == null ? null : material.name(),
-                    material == null ? null : material.unit(),
-                    scale(onHand), scale(avgCost), currency, scale(onHand.multiply(avgCost))));
-        }
-        PageWindow window = windowOf(page, pageSize);
-        InventoryCostReport report = new InventoryCostReport(window.current(), window.size(), rows.size());
-        report.setRecords(slicePage(rows, window.current(), window.size()));
-        report.setDataAsOf(Instant.now());
-        report.setStoreId(scopedStore);
-        report.setCurrencyCode(currencies.size() == 1 ? currencies.iterator().next() : null);
-        report.setMixedCurrency(currencies.size() > 1);
-        return report;
-    }
+    // ------------------------------------------------------------------ 审计 / 校验
 
     /**
      * 库存变更留痕：只记「人主动发起」的入库/调整，加项出库(CONSUME)与回补(REVERSE)分别由
@@ -671,10 +1222,28 @@ public class InventoryApplicationService {
                 .resourceName(material.name())
                 .result(AuditClient.AuditRecord.RESULT_SUCCESS)
                 .idempotencyKey(key)
-                .detailJson("{\"storeId\":" + tx.storeId() + ",\"transactionType\":\"" + type
+                .detailJson("{\"storeId\":" + tx.storeId() + ",\"organizationId\":" + tx.organizationId()
+                        + ",\"businessType\":\"" + (tx.businessType() == null ? "" : tx.businessType())
+                        + "\",\"warehouseId\":" + tx.warehouseId() + ",\"transactionType\":\"" + type
                         + "\",\"quantity\":" + tx.quantityDelta() + ",\"quantityBefore\":" + tx.quantityBefore()
                         + ",\"quantityAfter\":" + tx.quantityAfter() + ",\"reason\":\""
                         + (tx.reason() == null ? "" : tx.reason().replace("\"", "\\\"")) + "\"}")
+                .build());
+    }
+
+    /** 调拨留痕：两条流水一条审计，detail 里带源/目标作用域与单价。 */
+    private void recordTransferAudit(InventoryTransaction out, InventoryTransaction in, String transferNo) {
+        auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                .action("inventory.transfer")
+                .resourceType("inventory_material").resourceId(String.valueOf(out.materialId()))
+                .result(AuditClient.AuditRecord.RESULT_SUCCESS)
+                .idempotencyKey(transferNo)
+                .detailJson("{\"transferNo\":" + jsonText(transferNo)
+                        + ",\"fromStoreId\":" + out.storeId() + ",\"fromWarehouseId\":" + out.warehouseId()
+                        + ",\"toStoreId\":" + in.storeId() + ",\"toWarehouseId\":" + in.warehouseId()
+                        + ",\"toMaterialId\":" + in.materialId() + ",\"quantity\":" + in.quantityDelta()
+                        + ",\"unitCost\":" + out.unitCost() + ",\"currencyCode\":\""
+                        + (out.currencyCode() == null ? "" : out.currencyCode()) + "\"}")
                 .build());
     }
 
@@ -736,77 +1305,6 @@ public class InventoryApplicationService {
         return sb.append('"').toString();
     }
 
-    /**
-     * 取库存行并加行锁；不存在则先建 0 行。并发建行由唯一键 (tenant_id, store_id, material_id) 兜底，
-     * 抢输的事务忽略冲突后重新加锁读取，不会出现两行库存。
-     *
-     * <p>建行走 {@code save}（端口上只有插入语义，没有整行写回，见端口说明）；
-     * 重新加锁后若仍读不到行，说明该行既没被本事务建成、也不存在于库中——返回空会让后续
-     * {@code onHandQty()} 取到 null，因此这里给出稳定的业务错误码而不是放任 NPE。
-     */
-    private InventoryStock lockStockRow(TenantContext context, Long materialId) {
-        Optional<InventoryStock> stock = stockRepository.findForUpdate(context.tenantId(), context.storeId(), materialId);
-        if (stock.isPresent()) {
-            return stock.get();
-        }
-        try {
-            stockRepository.save(InventoryStock.empty(context.tenantId(), context.storeId(), materialId));
-        } catch (DuplicateKeyException e) {
-            log.debug("库存行已被并发事务创建，忽略并重新加锁读取: tenantId={} storeId={} materialId={}",
-                    context.tenantId(), context.storeId(), materialId);
-        }
-        return stockRepository.findForUpdate(context.tenantId(), context.storeId(), materialId)
-                .orElseThrow(() -> new BusinessException("INVENTORY_INVALID", "库存行不存在"));
-    }
-
-    /**
-     * 库存流水分页列表：当前门店内按 物料 + 类型 + 来源 + 发生时间闭区间 + 关键字（物料名/编码）过滤，
-     * 按 id 倒序（等价于发生时间倒序，同毫秒写入时也稳定）。
-     *
-     * <p><b>时间口径</b>：本表没有独立的 {@code occurred_at} 列，流水的发生时刻就是 {@code created_at}
-     * （{@code datetime(3)}，见 V11/V24 迁移），因此区间过滤落在 {@code created_at} 上、与表列一致。
-     *
-     * <p>{@code range} 由对外的 {@code from}/{@code to} 经**全仓统一**的 {@link TimeRangeParams#parse}
-     * 解析而来（{@code yyyy-MM-dd} 的 {@code from} → 当天 00:00:00.000、{@code to} → 当天 23:59:59.999；
-     * 时刻形态按字面值），闭区间；{@code from > to} → 400 {@code TIME_RANGE_INVALID}。
-     * 本方法**不再自己解析时间字符串**——此前的 {@code INVENTORY_FILTER_INVALID} 与私有
-     * {@code parseFilterBound} 已删除，避免同一仓出现第二套时间口径。
-     *
-     * <p><b>关键字</b>：流水表不存物料名快照，先按名称/编码取出命中物料 id 集合，再在分页条件里
-     * {@code IN} 该集合（两条简单查询），既不 join 分页表，也不做逐行回查的 N+1；命中为空直接返回空页。
-     */
-    public Page<InventoryTransactionView> listTransactions(long page, long pageSize, Long materialId,
-                                                           String transactionType, String sourceType,
-                                                           TimeRange range, String keyword) {
-        TenantContext context = context();
-        PageWindow window = windowOf(page, pageSize);
-        String nameOrCode = trimmedOrNull(keyword);
-        List<Long> matchedMaterialIds = null;
-        if (nameOrCode != null) {
-            matchedMaterialIds = matchingMaterialIds(context, nameOrCode);
-            if (matchedMaterialIds.isEmpty()) {
-                // 关键字没有命中任何物料：空页（total=0），不能下发 IN () 这种非法 SQL。
-                Page<InventoryTransactionView> empty = new Page<>(window.current(), window.size(), 0L);
-                empty.setRecords(List.of());
-                return empty;
-            }
-        }
-        TransactionPage found = transactionRepository.findPage(TransactionQuery.inStore(
-                context.tenantId(),
-                context.storeId(),
-                materialId,
-                trimmedOrNull(transactionType),
-                trimmedOrNull(sourceType),
-                range == null ? null : range.fromInclusive(),
-                range == null ? null : range.toInclusive(),
-                matchedMaterialIds,
-                offsetOf(window),
-                window.size()));
-        Page<InventoryTransactionView> result = new Page<>(window.current(), window.size(), found.total());
-        result.setRecords(found.transactions().stream().map(InventoryTransactionView::from).toList());
-        return result;
-    }
-
     private TenantContext context() {
         TenantContext context = TenantContextHolder.get();
         if (context == null || context.tenantId() <= 0 || context.storeId() == null) throw new BusinessException("TENANT_CONTEXT_REQUIRED", "缺少有效门店上下文");
@@ -832,7 +1330,7 @@ public class InventoryApplicationService {
     }
 
     /**
-     * 内存分页切片（库存成本的物料行已在 Java 侧聚合，见 {@link #inventoryCosts}）。
+     * 内存分页切片（库存成本的余额行已在 Java 侧聚合，见 {@link #inventoryCosts}）。
      * 越界页返回空列表而不是报错，与 MyBatis-Plus「超出总页数返回空 records」一致；
      * 偏移量先与总行数比较再相乘，避免畸形 {@code page} 造成的 long 溢出。
      */
@@ -853,8 +1351,8 @@ public class InventoryApplicationService {
      * 流水/成本要按物料名检索，但两张表都没有名称快照：先取 id 集合再 {@code IN}，
      * 两条简单查询即可，不引入联表分页与逐行回查（N+1）。
      */
-    private List<Long> matchingMaterialIds(TenantContext context, String nameOrCode) {
-        return materialRepository.findIdsByNameOrCode(context.tenantId(), context.storeId(), nameOrCode);
+    private List<Long> matchingMaterialIds(InventoryScope scope, String nameOrCode) {
+        return materialRepository.findIdsByNameOrCode(scope.tenantId(), scope.storeId(), nameOrCode);
     }
 
     /**
@@ -862,27 +1360,29 @@ public class InventoryApplicationService {
      *
      * <p>{@code onHandQty}/{@code reservedQty} 不是 {@code ord_inventory_material} 的列
      * （见 {@link InventoryMaterialView}）：未建库存行的物料按 0，与 {@link #availableQuantities}
-     * 的「未建行 = 售罄」口径一致。
+     * 的「未建行 = 售罄」口径一致。一店多仓时按物料跨仓汇总（列表展示门店总量）。
      */
-    private List<InventoryMaterialView> decorateWithStock(TenantContext context, List<InventoryMaterial> materials) {
+    private List<InventoryMaterialView> decorateWithStock(InventoryScope storeScope, List<InventoryMaterial> materials) {
         if (materials.isEmpty()) {
             return List.of();
         }
         List<Long> materialIds = materials.stream().map(InventoryMaterial::id).filter(Objects::nonNull).toList();
-        Map<Long, InventoryStock> stockByMaterial = new HashMap<>();
+        Map<Long, BigDecimal> onHandByMaterial = new HashMap<>();
+        Map<Long, BigDecimal> reservedByMaterial = new HashMap<>();
         if (!materialIds.isEmpty()) {
-            for (InventoryStock stock : stockRepository.findByMaterials(context.tenantId(), context.storeId(), materialIds)) {
+            for (InventoryStock stock : stockRepository.findByMaterials(storeScope, materialIds)) {
                 if (stock.materialId() != null) {
-                    stockByMaterial.put(stock.materialId(), stock);
+                    onHandByMaterial.merge(stock.materialId(), stock.onHandOrZero(), BigDecimal::add);
+                    reservedByMaterial.merge(stock.materialId(),
+                            stock.reservedQty() == null ? BigDecimal.ZERO : stock.reservedQty(), BigDecimal::add);
                 }
             }
         }
         List<InventoryMaterialView> views = new ArrayList<>(materials.size());
         for (InventoryMaterial material : materials) {
-            InventoryStock stock = stockByMaterial.get(material.id());
             views.add(InventoryMaterialView.from(material, null,
-                    stock == null ? BigDecimal.ZERO : stock.onHandOrZero(),
-                    stock == null ? BigDecimal.ZERO : stock.reservedQty()));
+                    onHandByMaterial.getOrDefault(material.id(), BigDecimal.ZERO),
+                    reservedByMaterial.getOrDefault(material.id(), BigDecimal.ZERO)));
         }
         return views;
     }
@@ -915,26 +1415,93 @@ public class InventoryApplicationService {
         return value;
     }
 
+    // ------------------------------------------------------------------ 命令 / 结果 / 内部类型
+
+    /**
+     * 物料新建/编辑命令。
+     *
+     * <p>{@code organizationId}/{@code businessType} 是**可选的请求声明**：传了就必须与签名门店上下文的
+     * 权威快照一致（否则 422），不传则以上下文为准。物料档案本身是门店级主数据（DDL 没有
+     * organization/business 列），组织/业态快照落在余额与流水上。
+     */
     public record MaterialCommand(Long storeId, String materialCode, String name, String category, String unit,
                                   BigDecimal safetyStock, BigDecimal purchasePrice, String description,
-                                  List<String> imageUrls, String mainImageUrl) {}
+                                  List<String> imageUrls, String mainImageUrl,
+                                  Long organizationId, String businessType) {
+
+        /** 兼容旧调用/测试的 10 参构造：不声明组织/业态（以上下文为准）。 */
+        public MaterialCommand(Long storeId, String materialCode, String name, String category, String unit,
+                               BigDecimal safetyStock, BigDecimal purchasePrice, String description,
+                               List<String> imageUrls, String mainImageUrl) {
+            this(storeId, materialCode, name, category, unit, safetyStock, purchasePrice, description, imageUrls,
+                    mainImageUrl, null, null);
+        }
+    }
+
+    /** 请求声明的库存作用域（组织/业态）；null 段表示不声明。 */
+    public record ScopeClaim(Long organizationId, String businessType) {
+        public static ScopeClaim none() {
+            return new ScopeClaim(null, null);
+        }
+    }
+
+    /**
+     * 库存变更协议对象（应用服务唯一写入口）。
+     *
+     * @param warehouseId    仓库；{@code null} = 默认仓
+     * @param receiptUnitCost 入库批次单价；出库忽略
+     * @param claim          请求声明的组织/业态（必须与签名上下文一致）
+     */
+    public record MovementCommand(Long materialId, BigDecimal quantity, String type, String sourceType,
+                                  String sourceId, String reason, String key, BigDecimal receiptUnitCost,
+                                  Long warehouseId, ScopeClaim claim) {
+    }
+
+    /** 调拨命令：{@code key} 是调拨单号（幂等键），两边流水用 {@code key:OUT} / {@code key:IN} 落库。 */
+    public record TransferCommand(Long materialId, BigDecimal quantity, Long toStoreId, Long toMaterialId,
+                                  Long fromWarehouseId, Long toWarehouseId, String reason, String key,
+                                  Long fromOrganizationId, String fromBusinessType,
+                                  Long toOrganizationId, String toBusinessType) {
+    }
+
+    /** 盘点命令：把实盘数量与账面数量比对，差异落 ADJUST_IN/ADJUST_OUT 流水。 */
+    public record StocktakeCommand(Long materialId, BigDecimal countedQuantity, Long warehouseId, String reason,
+                                   String key, Long organizationId, String businessType) {
+    }
+
+    /** 消费命令（酒店客房领用 / 迷你吧 / KTV 商品出库 / 订单加项）；不接收房间号。 */
+    public record ConsumeCommand(Long materialId, BigDecimal quantity, String scene, String sourceId, String reason,
+                                 String key, Long warehouseId, Long organizationId, String businessType) {
+    }
+
+    /** 调拨结果：源仓出库流水 + 目标仓入库流水（两条同事务写入，同一个 {@code sourceId} 关联）。 */
+    public record TransferResult(InventoryTransactionView outbound, InventoryTransactionView inbound) {
+    }
+
+    /** 盘点结果：账面/实盘/差异 + 是否产生调整流水。 */
+    public record StocktakeResult(Long materialId, Long warehouseId, BigDecimal onHandBefore,
+                                  BigDecimal countedQuantity, BigDecimal delta, boolean adjusted,
+                                  InventoryTransactionView transaction) {
+    }
 
     /**
      * 库存成本查询结果：MyBatis-Plus {@link Page} 信封（{@code records}/{@code total}/{@code current}/{@code size}）
-     * + 币种信封（{@code currencyCode}/{@code mixedCurrency}）。
+     * + 币种信封（{@code currencyCode}/{@code mixedCurrency}）+ 门店/仓库作用域。
      *
      * <p>{@code currencyCode} 为单币种时的该币种；混币种时 {@code currencyCode=null} 且
      * {@code mixedCurrency=true}，调用方必须逐行按行内 {@code currencyCode} 渲染，不得把多行金额相加。
      *
      * <p>继承 {@link Page} 而不是自定义信封：与仓库其它分页端点（如 {@code Page<CstMemberPo>}）保持同一响应形态，
      * 前端一套分页组件即可消费；{@code total}/{@code currencyCode}/{@code mixedCurrency} 均按**全部命中行**计算，
-     * {@code records} 只是当前页的物料行。
+     * {@code records} 只是当前页的仓库×物料行。
      */
     public static class InventoryCostReport extends Page<InventoryCostRow> {
         /** 数据时点（本次查询时刻，结存口径的 as-of）。 */
         private Instant dataAsOf;
         /** 报表门店（受门店上下文限制，恒等于当前上下文门店）。 */
         private Long storeId;
+        /** 报表仓库；{@code null} = 门店下全部仓。 */
+        private Long warehouseId;
         /** 全部命中行的币种：单币种给该币种，混币种为 null（配合 mixedCurrency=true）。 */
         private String currencyCode;
         /** 全部命中行是否混币种（true 时禁止把各行金额相加）。 */
@@ -946,20 +1513,121 @@ public class InventoryApplicationService {
         public void setDataAsOf(Instant dataAsOf) { this.dataAsOf = dataAsOf; }
         public Long getStoreId() { return storeId; }
         public void setStoreId(Long storeId) { this.storeId = storeId; }
+        public Long getWarehouseId() { return warehouseId; }
+        public void setWarehouseId(Long warehouseId) { this.warehouseId = warehouseId; }
         public String getCurrencyCode() { return currencyCode; }
         public void setCurrencyCode(String currencyCode) { this.currencyCode = currencyCode; }
         public boolean isMixedCurrency() { return mixedCurrency; }
         public void setMixedCurrency(boolean mixedCurrency) { this.mixedCurrency = mixedCurrency; }
     }
 
-    /** 单行库存成本（门店/物料/币种粒度）。{@code inventoryCost = onHandQty × avgCost}，均为最小货币单位。 */
-    public record InventoryCostRow(Long storeId, Long materialId, String materialCode, String materialName, String unit,
-                                   BigDecimal onHandQty, BigDecimal avgCost, String currencyCode,
-                                   BigDecimal inventoryCost) {}
+    /**
+     * 单行库存成本（门店/仓库/物料/币种粒度）。{@code inventoryCost = onHandQty × avgCost}，均为最小货币单位。
+     *
+     * <p>{@code organizationId}/{@code businessType} 是归属/报表快照（不进入唯一键）；
+     * {@code warehouseId} 是作用域维度。保留一个 9 参构造用于兼容既有测试/装配（仓库与快照为 null）。
+     */
+    public record InventoryCostRow(Long storeId, Long warehouseId, Long materialId, String materialCode,
+                                   String materialName, String unit, BigDecimal onHandQty, BigDecimal avgCost,
+                                   String currencyCode, BigDecimal inventoryCost, Long organizationId,
+                                   String businessType) {
+
+        /** 兼容旧调用的 9 参构造（无仓库/无组织业态快照）。 */
+        public InventoryCostRow(Long storeId, Long materialId, String materialCode, String materialName, String unit,
+                                BigDecimal onHandQty, BigDecimal avgCost, String currencyCode,
+                                BigDecimal inventoryCost) {
+            this(storeId, null, materialId, materialCode, materialName, unit, onHandQty, avgCost, currencyCode,
+                    inventoryCost, null, null);
+        }
+    }
 
     /** 一次入库的批次单价与币种（内部取值链结果，不对外暴露）。 */
     private record ReceiptCost(BigDecimal unitCost, String currencyCode) {}
 
     /** 归一化后的分页窗口（页号 + 每页条数）；只在本类内部使用，端口侧只用「偏移 + 上限」。 */
     private record PageWindow(long current, long size) {}
+
+    /** 仓库解析策略（生产 = 仓库表 + 懒创建默认仓；旧装配/单测 = 门店即默认仓的兼容兜底）。 */
+    private interface WarehouseResolver {
+        Long defaultWarehouseId(InventoryScope storeScope);
+
+        Long verifyWarehouse(InventoryScope storeScope, Long warehouseId);
+    }
+
+    /** 旧装配/单测兜底：没有仓库表时按「门店即默认仓」处理（warehouseId 取 storeId）。 */
+    private static final class LegacyWarehouseResolver implements WarehouseResolver {
+        private static final LegacyWarehouseResolver INSTANCE = new LegacyWarehouseResolver();
+
+        @Override
+        public Long defaultWarehouseId(InventoryScope storeScope) {
+            return storeScope.storeId();
+        }
+
+        @Override
+        public Long verifyWarehouse(InventoryScope storeScope, Long warehouseId) {
+            return warehouseId;
+        }
+    }
+
+    /**
+     * 生产仓库解析：按 (租户, 业态, 门店, code=DEFAULT) 读取默认仓；缺失时懒创建（唯一键兜底并发），
+     * 显式 warehouseId 必须属于门店且业态一致、启用。
+     */
+    private static final class RepositoryWarehouseResolver implements WarehouseResolver {
+        private final InventoryWarehouseRepository repository;
+
+        private RepositoryWarehouseResolver(InventoryWarehouseRepository repository) {
+            this.repository = repository;
+        }
+
+        @Override
+        public Long defaultWarehouseId(InventoryScope storeScope) {
+            Optional<InventoryWarehouse> existing = repository.findDefault(storeScope.tenantId(),
+                    storeScope.storeId(), storeScope.businessType());
+            if (existing.isPresent()) {
+                return existing.get().id();
+            }
+            try {
+                InventoryWarehouse created = repository.insert(InventoryWarehouse.defaultDraft(storeScope));
+                if (created != null && created.id() != null) {
+                    return created.id();
+                }
+            } catch (DuplicateKeyException race) {
+                // 并发懒创建抢输：重新读取即可，绝不能建出两个默认仓。
+                log.debug("默认仓已被并发创建，重新读取: tenantId={} storeId={} businessType={}",
+                        storeScope.tenantId(), storeScope.storeId(), storeScope.businessType());
+            }
+            return repository.findDefault(storeScope.tenantId(), storeScope.storeId(), storeScope.businessType())
+                    .map(InventoryWarehouse::id)
+                    .orElseThrow(() -> new BusinessException("INVENTORY_WAREHOUSE_UNAVAILABLE",
+                            "无法解析默认仓库，请检查门店仓库配置"));
+        }
+
+        @Override
+        public Long verifyWarehouse(InventoryScope storeScope, Long warehouseId) {
+            InventoryWarehouse warehouse = repository.findById(storeScope.tenantId(), warehouseId)
+                    .orElseThrow(() -> new BusinessException("WAREHOUSE_NOT_FOUND", "仓库不存在"));
+            if (!warehouse.active()) {
+                throw new BusinessException("WAREHOUSE_NOT_FOUND", "仓库不存在或已停用");
+            }
+            if (!storeScope.storeId().equals(warehouse.storeId())) {
+                throw new BusinessException("INVENTORY_SCOPE_MISMATCH", "仓库不属于当前门店");
+            }
+            String warehouseBusiness = InventoryScope.normalizeBusinessType(warehouse.businessType());
+            if (warehouseBusiness != null && !warehouseBusiness.equals(storeScope.businessType())) {
+                throw new BusinessException("INVENTORY_SCOPE_MISMATCH", "仓库业态与当前门店业态不一致");
+            }
+            return warehouse.id();
+        }
+    }
+
+    /** 调拨出库流水幂等键。 */
+    static String transferOutKey(String key) {
+        return key + ":OUT";
+    }
+
+    /** 调拨入库流水幂等键。 */
+    static String transferInKey(String key) {
+        return key + ":IN";
+    }
 }

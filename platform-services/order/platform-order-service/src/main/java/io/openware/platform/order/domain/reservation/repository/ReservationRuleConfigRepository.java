@@ -40,7 +40,7 @@ public interface ReservationRuleConfigRepository {
     /**
      * 新增规则（版本 0、状态 ACTIVE），返回落库后的聚合与记账快照。
      *
-     * <p>门店/业态/租户的作用域唯一键 {@code uk_ord_reservation_rule_config_scope} 与幂等唯一键
+     * <p>门店/业态/租户的作用域唯一键 {@code uk_ktv_reservation_rule_config_scope} 与幂等唯一键
      * 均由数据库兜底：撞键必须抛出，调用方据此重查返回既有行。
      */
     Persisted<ReservationRuleConfig> insert(ReservationRuleConfig config);

@@ -7,7 +7,10 @@ import java.math.BigDecimal;
  *
  * <p>此前应用层直接用 MyBatis 持久化对象 {@code InventoryStockPo} 承载该概念，使库存这一业务对象与
  * 表映射、MyBatis 注解、以及 {@code LambdaQueryWrapper} 查询构造耦合在一起。本类型只表达业务事实：
- * 某（租户, 门店, 物料）下的现有量、预留量、移动加权平均成本及其币种快照。
+ * 某（租户, 业态, 门店, 仓库, 物料）下的现有量、预留量、移动加权平均成本及其币种快照。
+ *
+ * <p><b>作用域（V25）</b>：唯一键 {@code (tenant_id, business_type, store_id, warehouse_id, material_id)}；
+ * {@code organizationId} 是归属 / 报表快照，**不进入唯一键**。作用域口径见 {@link InventoryScope}。
  *
  * <p><b>不含审计字段</b>：{@code InventoryStockPo} 上有 {@code created_by / created_at / updated_by /
  * updated_at} 四列，本模型一个都不承载（standards/10「聚合装配与持久化契约」）。迁移时逐处核对过——
@@ -23,20 +26,26 @@ import java.math.BigDecimal;
  * <p>不可变：库存变更走仓储端口上的**原子方法**（见 {@code InventoryStockRepository}），
  * 而不是在此对象上 setter 改字段——并发扣减的正确性依赖数据库条件更新，不依赖内存中的读改写。
  *
- * @param id           库存行主键；{@code null} 表示尚未落库
- * @param tenantId     租户
- * @param storeId      门店
- * @param materialId   物料
- * @param onHandQty    现有量
- * @param reservedQty  预留量
- * @param avgCost      移动加权平均成本（最小货币单位/计量单位，V24）；{@code 0} 表示尚未建立成本基准
- * @param currencyCode {@code avgCost} 的币种快照；币种变更绝不与历史成本混合累加
- * @param revision     库存修订计数器（每次入库/扣减/回补在 SQL 内自增；并发保护由数量条件 UPDATE 承担，不是 CAS）
+ * @param id             库存行主键；{@code null} 表示尚未落库
+ * @param tenantId       租户
+ * @param organizationId 组织（门店所属组织快照，报表归属；不进入唯一键）；旧行为 {@code null}
+ * @param businessType   业态快照（HOTEL / KTV / ...）；旧上下文兼容态为 {@code null}
+ * @param storeId        门店
+ * @param warehouseId    仓/库位（作用域键的一部分）
+ * @param materialId     物料
+ * @param onHandQty      现有量
+ * @param reservedQty    预留量
+ * @param avgCost        移动加权平均成本（最小货币单位/计量单位，V24）；{@code 0} 表示尚未建立成本基准
+ * @param currencyCode   {@code avgCost} 的币种快照；币种变更绝不与历史成本混合累加
+ * @param revision       库存修订计数器（每次入库/扣减/回补在 SQL 内自增；并发保护由数量条件 UPDATE 承担，不是 CAS）
  */
 public record InventoryStock(
     Long id,
     Long tenantId,
+    Long organizationId,
+    String businessType,
     Long storeId,
+    Long warehouseId,
     Long materialId,
     BigDecimal onHandQty,
     BigDecimal reservedQty,
@@ -61,15 +70,36 @@ public record InventoryStock(
     return avgCost == null ? BigDecimal.ZERO : avgCost;
   }
 
+  /** 本余额行是否落在给定作用域内（租户 + 门店 + 业态 + 组织 + 仓库；旧行缺快照时按兼容态放行）。 */
+  public boolean inScope(InventoryScope scope) {
+    if (scope == null || tenantId == null || !tenantId.equals(scope.tenantId()) || !storeId.equals(scope.storeId())) {
+      return false;
+    }
+    if (organizationId != null && scope.organizationId() != null && !organizationId.equals(scope.organizationId())) {
+      return false;
+    }
+    if (businessType != null && scope.businessType() != null && !businessType.equals(scope.businessType())) {
+      return false;
+    }
+    return warehouseId == null || scope.warehouseId() == null || warehouseId.equals(scope.warehouseId());
+  }
+
   /**
    * 首次入库时建立的零额库存行（{@code on_hand_qty = 0}、{@code reserved_qty = 0}、
    * {@code avg_cost = 0}、{@code revision = 0}）。
    *
    * <p>{@code currencyCode} 留空：DDL 是 {@code NOT NULL DEFAULT 'USD'}，由库的缺省值填充
    * （与迁移前的 INSERT 口径一致——当时也没有写这一列）。
+   *
+   * <p>作用域必须已钉到具体仓库（{@link InventoryScope#hasWarehouse()}）：余额行不能落在「没有仓库」
+   * 的维度上，否则一店多仓时无法定位。
    */
-  public static InventoryStock empty(Long tenantId, Long storeId, Long materialId) {
-    return new InventoryStock(null, tenantId, storeId, materialId, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, 0);
+  public static InventoryStock empty(InventoryScope scope, Long materialId) {
+    if (!scope.hasWarehouse()) {
+      throw new IllegalArgumentException("库存余额作用域必须包含 warehouseId");
+    }
+    return new InventoryStock(null, scope.tenantId(), scope.organizationId(), scope.businessType(),
+        scope.storeId(), scope.warehouseId(), materialId, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        null, 0);
   }
 }

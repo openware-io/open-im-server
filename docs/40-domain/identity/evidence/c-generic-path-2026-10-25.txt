@@ -1,0 +1,34 @@
+SaaS generic path rollout (2026-10-25)
+=====================================
+
+Decision:
+  Business apps are tenant-agnostic. Paths are entry/channel only; tenant comes
+  from the signed session. No tenant code in canonical business paths.
+
+Canonical:
+  /saas/  B admin
+  /b/     B mobile
+  /c/     C consumer
+  /a380/  removed (no compatibility alias)
+
+Implemented:
+  k8s/local/ingress.yaml: /c -> saas-mobile (same static artifact)
+  platform-identity-service SaasAppRegistry: consumer referers include /c/
+  scripts/deploy/sync-oidc-client-registry.ps1: /c/ redirect URIs
+  c-end/oauth.js: APP_ID = window.SAAS_APP_ID || 'saas-a380-c'
+  open_im.user_oidc_redirect_uri: /c/ registered for saas-a380-c
+  docs/20-architecture/SAAS_PATH_STANDARD.md (+ .en.md)
+
+Verified:
+  GET /c/    200
+  GET /c     200
+  GET /a380/ no longer serves the C app
+  C /c/#/service/hotel        console []
+  C /c/#/my-reservations      console []
+  OIDC redirects:
+    127.0.0.1 /c/, localhost /c/, 192.168.3.35 /c/
+    legacy /a380/ retained
+
+Current appId:
+  saas-a380-c is a legacy app identity, not a tenant code.
+  It is configurable via window.SAAS_APP_ID; migration to saas-c is separate.

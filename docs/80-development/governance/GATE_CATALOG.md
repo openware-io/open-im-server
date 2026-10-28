@@ -3,7 +3,7 @@
 [中文](GATE_CATALOG.md) | [English](GATE_CATALOG.en.md)
 
 > 状态：`current`（`develop/2.3.0`）
-> 作用：按治理面组织 G01–G52；`GATE_REGISTRY.md` 是唯一编号台账，本目录补充类别、Owner 和阶段。
+> 作用：按治理面组织 G01–G55；`GATE_REGISTRY.md` 是唯一编号台账，本目录补充类别、Owner 和阶段。
 > 新增门禁流程见 [门禁治理规范](../standards/04_GATE_GOVERNANCE.md)。
 
 ## 分类说明
@@ -32,6 +32,7 @@
 | G50 | documentation-reachability | meta | governance | docs | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
 | G51 | gate-catalog | meta | governance | static | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
 | G52 | docs-impact | meta | governance | docs | [门禁治理](../standards/04_GATE_GOVERNANCE.md) |
+| G53 | domain-map | meta | governance | static | [业务域分类](../standards/05_DOMAIN_CLASSIFICATION.md) |
 
 ## 代码质量
 
@@ -74,6 +75,7 @@
 | G17 | security-and-flyway-configuration | security | security | static | [安全文档](../../90-security/README.md) |
 | G32 | tenant-sql | security | security | static | [安全文档](../../90-security/README.md) |
 | G37 | observability-redaction | security | security | static | [安全文档](../../90-security/README.md) |
+| G55 | permission-access-control | security | security | static | [权限与数据域规范](../standards/50_PERMISSION_AND_DATA_SCOPE.md) |
 
 ## 数据与迁移
 
@@ -103,6 +105,7 @@
 | G38 | observability-correlation | quality | quality | integration | [可观测性](../standards/40_OBSERVABILITY_CONVENTIONS.md) |
 | G39 | verify-inventory | quality | quality | docs | [E2E 规范](../standards/43_E2E_TESTING_CONVENTIONS.md) |
 | G41 | observability-metrics | quality | quality | static | [可观测性](../standards/40_OBSERVABILITY_CONVENTIONS.md) |
+| G54 | frontend-ui-standard | quality | quality | static | [前端 UI 风格](../standards/32_FRONTEND_UI_STYLE.md) |
 
 ## 媒体
 

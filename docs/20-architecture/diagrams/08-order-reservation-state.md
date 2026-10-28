@@ -62,7 +62,7 @@ stateDiagram-v2
 | `REFUNDED` | 已全额退款 | 是 |
 | `PARTIAL_REFUNDED` | 已部分退款 | 是 |
 
-## 2. 预约 `ord_reservation`
+## 2. 预约 `ktv_reservation`
 
 ```mermaid
 stateDiagram-v2

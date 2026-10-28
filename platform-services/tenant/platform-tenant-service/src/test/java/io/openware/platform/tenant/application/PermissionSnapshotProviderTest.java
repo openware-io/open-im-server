@@ -104,6 +104,27 @@ class PermissionSnapshotProviderTest {
   }
 
   @Test
+  void contexts_expandsOrganizationBindingWhoseStoreIdIsZero() {
+    when(authorization.findContexts(100L)).thenReturn(List.of(
+        ctx(1L, "Tenant A", 10L, "Org A", 0L, null, "ORGANIZATION")));
+    when(authorization.findRoleScopes(100L)).thenReturn(List.of(
+        role(1L, 10L, 0L, "TENANT_OWNER")));
+    when(authorization.findActiveStores(1L, 10L)).thenReturn(List.of(
+        ctx(1L, "Tenant A", 10L, "Org A", 1001L, "Store A1", "STORE"),
+        ctx(1L, "Tenant A", 10L, "Org A", 1002L, "Store A2", "STORE")));
+
+    List<AccountContext> result = provider.contexts(100L);
+
+    assertIterableEquals(List.of(
+        new AccountContext("1:10:0", 1L, "Tenant A", 10L, "Org A", 0L, null,
+            List.of("TENANT_OWNER"), "ORGANIZATION"),
+        new AccountContext("1:10:1001", 1L, "Tenant A", 10L, "Org A", 1001L, "Store A1",
+            List.of("TENANT_OWNER"), "ORGANIZATION"),
+        new AccountContext("1:10:1002", 1L, "Tenant A", 10L, "Org A", 1002L, "Store A2",
+            List.of("TENANT_OWNER"), "ORGANIZATION")), result);
+  }
+
+  @Test
   void contexts_deduplicatesByScope() {
     when(authorization.findContexts(100L)).thenReturn(List.of(
         ctx(1L, "Tenant A", 10L, "Org A", 1001L, "Store A1", "STORE"),
@@ -150,24 +171,24 @@ class PermissionSnapshotProviderTest {
 
   @Test
   void consumerContext_readsRegisteredScopeAndPermissions() {
-    ConsumerAuthorization row = new ConsumerAuthorization("saas-a380-c", 100L, "A380", 100L, "总部", 100L,
+    ConsumerAuthorization row = new ConsumerAuthorization("saas-c", 100L, "A380", 100L, "总部", 100L,
         "首店", "[\"reservation.view\",\"reservation.create\"]", 1);
-    when(authorization.findConsumerAuthorization("saas-a380-c", 158L)).thenReturn(Optional.of(row));
+    when(authorization.findConsumerAuthorization("saas-c", 158L)).thenReturn(Optional.of(row));
 
-    AccountContext context = provider.consumerContext("saas-a380-c", 158L);
-    PermissionSnapshot snapshot = provider.consumerSnapshot("saas-a380-c", 158L);
+    AccountContext context = provider.consumerContext("saas-c", 158L);
+    PermissionSnapshot snapshot = provider.consumerSnapshot("saas-c", 158L);
 
-    assertEquals("consumer:saas-a380-c:100:100:100", context.contextId());
+    assertEquals("consumer:saas-c:100:100:100", context.contextId());
     assertEquals(158L, snapshot.accountId());
     assertIterableEquals(List.of("reservation.view", "reservation.create"), snapshot.permissions());
   }
 
   @Test
   void authorizedConsumerSnapshot_returnsEmptyWhenAccountHasNoActiveGrant() {
-    PermissionSnapshot result = provider.authorizedConsumerSnapshot("saas-a380-c", 159L);
+    PermissionSnapshot result = provider.authorizedConsumerSnapshot("saas-c", 159L);
 
     assertEmpty(result);
-    verify(authorization).findConsumerAuthorization("saas-a380-c", 159L);
+    verify(authorization).findConsumerAuthorization("saas-c", 159L);
   }
 
   private static IamContext ctx(Long tenantId, String tenantName, Long orgId, String orgName,

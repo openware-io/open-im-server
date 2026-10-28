@@ -32,4 +32,4 @@ Follow [Gate Governance](../standards/04_GATE_GOVERNANCE.en.md):
 
 ## Full table
 
-See the [Chinese gate catalog](GATE_CATALOG.md) for all G01–G52 rows with owner, stage and evidence.
+See the [Chinese gate catalog](GATE_CATALOG.md) for all G01–G55 rows with owner, stage and evidence.

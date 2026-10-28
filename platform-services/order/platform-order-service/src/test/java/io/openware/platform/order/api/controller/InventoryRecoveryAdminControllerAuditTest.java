@@ -18,6 +18,7 @@ import io.openware.platform.order.domain.order.repository.OrderItemRepository;
 import io.openware.platform.order.domain.order.repository.OrderRepository;
 import io.openware.platform.order.domain.order.model.OrderItem;
 import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.RefundStatus;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.List;
@@ -73,7 +74,7 @@ class InventoryRecoveryAdminControllerAuditTest {
 
     @Test
     void decide_writesFailureAuditWithStableErrorCode() {
-        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("SERVING")));
+        when(orderMapper.findById(ORDER_ID)).thenReturn(Optional.of(order("DRAFT")));
 
         BusinessException ex = assertThrows(BusinessException.class, () -> controller.decide(ORDER_ID, ITEM_ID,
                 new InventoryRecoveryAdminController.RecoveryRequest(true, "已退货入库")));
@@ -105,9 +106,9 @@ class InventoryRecoveryAdminControllerAuditTest {
 
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(String status) {
-        return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, "CNY",
+        return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static OrderItem item(String inventoryStatus) {
