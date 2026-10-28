@@ -13,9 +13,11 @@
 - 例外：`hotel-channel-v1.yaml` 是**对外渠道契约**，由渠道协议维护、与 `HotelChannelBookingController`
   手工对齐（不是 springdoc 快照）；二期已实现预订创建/查询/取消，ARI 为 202 no-op 占位。
   order-service 的 springdoc 快照（`order-saas.json`）仍按原规则在 Kind 发布后重导。
-  **P2-3 收口临时状态**：`order-saas.json` 与 `platform-order-service.json` 已同步删除
-  `POST /business/orders/{id}/hold|unhold`、`HoldRequest` 及 `OrderPo.holdReason/holdAt`（与当前代码一致），
-  合并后仍需由架构师在只读 port-forward 环境重新导出一次作为权威快照。
+  **2026-10-28 已权威重导**：P2-3 清库发布（main `eb663705`）后，经只读 `kubectl port-forward`
+  从 `platform-order-service/v3/api-docs` 导出原始 springdoc 输出，覆盖 `order-saas.json` 与
+  `platform-order-service.json`（两份内容一致）；已确认不含订单级 `/hold|/unhold`、`HoldRequest`
+  与 `OrderPo.holdReason/holdAt`（其中 `/admin/hotel/rooms/{id}/holds` 与 `HoldRequest` 是房态预留，
+  属酒店房态功能，保留）。
 
 ## 已接 springdoc 的服务（可导出 /v3/api-docs）
 
