@@ -216,7 +216,8 @@ common-services/
 | IAM（访问控制/授权） | 角色、权限、作用域授权、授权审批。**本域只做授权（Access Management）**；身份由 `idt_`（SaaS 平台账号）、`group_account`（集团）、`user_`（IM）分别承担 | `iam_` | SaaS | `platform-tenant-service`（授权事实）；`iam_menu` 为 `platform-admin-service` 的控制台呈现（IAM 迭代产物） | 二阶段 | `iam_role`、`iam_user_role`、`iam_permission`、`iam_approval`、`iam_menu` |
 | Console（运营控制台） | 控制台自身数据：后台账号、菜单/导航（**引用权限，不定义权限**） | `cons_` | SaaS | `platform-admin-service` | 二阶段 | `cons_admin_account`、`iam_menu`（菜单仍属 IAM 迭代产物） |
 | Resource | 包厢（首发）、房间、技师等经营资源及占用 | `res_` | SaaS | `platform-resource-service` | 二阶段 | `res_resource`、`res_occupation` |
-| Order | 预约、订单、明细、KTV 履约（首发）/酒店/足浴（后续）。⚠️ **业态（KTV/HOTEL/SPA/RETAIL）是 `business_type` 列，不是域** | `ord_` | SaaS | `platform-order-service` | 历史冻结并扩展 | `ord_reservation`、`ord_order` |
+| Order | 订单、明细、KTV 履约（首发）/酒店/足浴（后续）。⚠️ **业态（KTV/HOTEL/SPA/RETAIL）是 `business_type` 列，不是域** | `ord_` | SaaS | `platform-order-service` | 历史冻结并扩展 | `ord_order`、`ord_order_item` |
+| KTV（订单域子域） | KTV 预约与预约规则（`business_type=KTV` 独占）；KTV 履约表仍用 `ord_ktv_*`。**子域前缀是对「一域一前缀」的显式例外**：这些表只服务 KTV，不与通用订单混用 | `ktv_` | SaaS | `platform-order-service` | 二阶段 | `ktv_reservation`、`ktv_reservation_rule_config` |
 | Hotel | 酒店房型/房价/库存/预订/入住/账单（`platform-order-service` 内酒店子域） | `htl_` | SaaS | `platform-order-service` | 二阶段 | `htl_hotel`、`htl_room_type`、`htl_booking`、`htl_inventory_calendar` |
 | Payment | 收款、退款、押金、班次、日结（通用支撑域·支付域） | `pay_` | SaaS | `common-payment-service` | 二阶段 | `pay_intent`、`pay_refund` |
 | Customer | 租户客户、会员、积分、储值、权益 | `cst_` | SaaS | `platform-customer-service` | 二阶段 | `cst_customer`、`cst_point_ledger` |

@@ -105,25 +105,22 @@ try {
   $confirmed = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/confirm" @{expectedVersion=$reservation.version} $adminHeaders; if ($confirmed.status -ne 'CONFIRMED') { throw 'Confirm failed.' }
   $arrived = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/arrival" @{} $adminHeaders; if ($arrived.status -ne 'ARRIVED') { throw 'Arrival failed.' }
   $assigned = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/assign-room" @{resourceId=$roomId;override=$false} $adminHeaders; if ($assigned.resourceId -ne $roomId) { throw 'Room assignment failed.' }
-  $order = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/open-table" @{} $adminHeaders; $script:orderId=$order.id; if (!$script:orderId -or $order.status -ne 'SERVING') { throw 'Open table failed.' }
+  $order = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/open-table" @{} $adminHeaders; $script:orderId=$order.id; if (!$script:orderId -or $order.tradeStatus -ne 'DRAFT' -or $order.sessionStatus -ne 'OPEN') { throw 'Open table failed.' }
   $catalog = @((Json 'GET' "/api/v1/business/catalog/items?storeId=$($order.storeId)" $null $adminHeaders) | Where-Object { $_.status -eq 'ACTIVE' })[0]
   if (!$catalog.id) { throw 'No active catalog item is available for the payment gate.' }
   $item = Json 'POST' "/api/v1/business/orders/$script:orderId/items" @{catalogItemId=$catalog.id;quantity=1;source='MERCHANT'} $adminHeaders
   if (!$item.id -or $item.status -ne 'ACTIVE') { throw 'Admin item addition failed.' }
   $session = Json 'GET' "/api/v1/business/orders/$script:orderId/session" $null $adminHeaders; $closed = Json 'POST' "/api/v1/business/ktv/sessions/$($session.id)/close" @{} $adminHeaders; if ($closed.status -ne 'CLOSED') { throw 'Close table failed.' }
-  $settlementState = SqlValue "SELECT CONCAT(status, '|', version) FROM ord_order WHERE id=$script:orderId;"; $settlementParts=$settlementState -split '\|'
-  if ($settlementParts.Count -ne 2 -or $settlementParts[0] -notin @('WAITING_SETTLEMENT','WAITING_PAYMENT')) { throw "Close table did not produce a payable order: $settlementState" }
-  if ($settlementParts[0] -eq 'WAITING_SETTLEMENT') {
-    $settled = Json 'POST' "/api/v1/business/orders/$script:orderId/settle" @{expectedVersion=[long]$settlementParts[1]} $adminHeaders
-    if ($settled.status -ne 'WAITING_PAYMENT') { throw 'Admin settlement did not produce a waiting-payment order.' }
-  }
-  $bill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}; if (!$bill -or $bill.status -ne 'WAITING_PAYMENT') { throw 'C bill is unavailable after settlement.' }
+  # Closing the table enters settlement: the order table only records trade facts, so expect PENDING_PAYMENT (hold/open-table are session states).
+  $settlementState = SqlValue "SELECT CONCAT(trade_status, '|', version) FROM ord_order WHERE id=$script:orderId;"; $settlementParts=$settlementState -split '\|'
+  if ($settlementParts.Count -ne 2 -or $settlementParts[0] -ne 'PENDING_PAYMENT') { throw "Close table did not produce a payable order: $settlementState" }
+  $bill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}; if (!$bill -or $bill.tradeStatus -ne 'PENDING_PAYMENT') { throw 'C bill is unavailable after settlement.' }
   $payable = [int64]([decimal]$bill.totalAmount - [decimal]$bill.paidAmount)
   if ($payable -le 0) { throw 'C bill has no payable amount for the payment gate.' }
   $payment = Json 'POST' "/api/v1/business/orders/$script:orderId/collect" @{currencyCode=$bill.currencyCode;payable=$payable;payments=@(@{method='CASH';amount=$payable})} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-pay-$script:suffix"}
   if ($payment.remainingAmount -ne 0) { throw 'C payment did not settle the full bill.' }
   $completedBill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}
-  if (!$completedBill -or $completedBill.status -ne 'COMPLETED' -or [decimal]$completedBill.paidAmount -ne [decimal]$completedBill.totalAmount) { throw 'C receipt did not reach COMPLETED.' }
+  if (!$completedBill -or $completedBill.tradeStatus -ne 'PAID' -or [decimal]$completedBill.paidAmount -ne [decimal]$completedBill.totalAmount) { throw 'C receipt did not reach PAID.' }
   $paymentRows = SqlValue "SELECT CONCAT((SELECT COUNT(*) FROM pay_collect WHERE order_id=$script:orderId AND state='CONFIRMED'), '|',(SELECT COUNT(*) FROM pay_intent WHERE order_id=$script:orderId AND status='SUCCEEDED'), '|',(SELECT COUNT(*) FROM pay_transaction t JOIN pay_intent i ON i.id=t.payment_intent_id WHERE i.order_id=$script:orderId AND t.status='SUCCEEDED'), '|',(SELECT COALESCE(SUM(i.amount),0) FROM pay_intent i WHERE i.order_id=$script:orderId AND i.status='SUCCEEDED'), '|',(SELECT COALESCE(SUM(t.amount),0) FROM pay_transaction t JOIN pay_intent i ON i.id=t.payment_intent_id WHERE i.order_id=$script:orderId AND t.status='SUCCEEDED'));"
   $parts = $paymentRows -split '\|'
   if ($parts.Count -ne 5 -or [int]$parts[0] -ne 1 -or [int]$parts[1] -ne 1 -or [int]$parts[2] -ne 1 -or [decimal]$parts[3] -ne [decimal]$completedBill.totalAmount -or [decimal]$parts[4] -ne [decimal]$completedBill.totalAmount) { throw "Payment ledger assertion failed: $paymentRows" }
@@ -131,7 +128,7 @@ try {
   Write-Output "PASS: C OAuth reservation -> admin fulfill/settle -> C payment -> completed receipt. reservation=$script:reservationId order=$script:orderId"
 } finally {
   if ($script:orderId) { Sql "DELETE FROM pay_transaction WHERE payment_intent_id IN (SELECT id FROM pay_intent WHERE order_id=$script:orderId); DELETE FROM pay_intent WHERE order_id=$script:orderId; DELETE FROM pay_collect WHERE order_id=$script:orderId; DELETE FROM ord_ktv_server_session WHERE order_id=$script:orderId; DELETE FROM ord_ktv_session WHERE order_id=$script:orderId; DELETE FROM ord_order_item WHERE order_id=$script:orderId; DELETE FROM ord_order WHERE id=$script:orderId;" }
-  if ($script:reservationId) { Sql "DELETE FROM ord_reservation WHERE id=$script:reservationId;" }
+  if ($script:reservationId) { Sql "DELETE FROM ktv_reservation WHERE id=$script:reservationId;" }
   if ($script:memberId) { Sql "DELETE FROM cst_wallet_ledger WHERE wallet_account_id IN (SELECT id FROM cst_wallet_account WHERE customer_id=$script:memberId); DELETE FROM cst_point_ledger WHERE account_id IN (SELECT id FROM cst_point_account WHERE customer_id=$script:memberId); DELETE FROM cst_wallet_account WHERE customer_id=$script:memberId; DELETE FROM cst_point_account WHERE customer_id=$script:memberId; DELETE FROM cst_member WHERE id=$script:memberId;" }
   if ($script:testRoomId -and $script:testRoomTypeId) { Sql "UPDATE res_resource SET room_type_id=NULL, updated_at=NOW(3) WHERE id=$script:testRoomId AND room_type_id=$script:testRoomTypeId; DELETE FROM res_room_type WHERE id=$script:testRoomTypeId AND code='E2E_$script:suffix';" }
   Remove-SaasSession $cCookie

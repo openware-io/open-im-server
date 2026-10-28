@@ -78,7 +78,7 @@ POST /auth/context/select
       "scopeType": "STORE",
       "membershipType": "STAFF",
       "roles": ["store.manager"],
-      "permissions": ["hotel.checkin"],
+      "permissions": ["hotel.room.manage"],
       "businessType": "HOTEL"
     }
   ]
@@ -125,7 +125,7 @@ GET /internal/iam/memberships/{membershipId}/permissions?tenantId=&storeId=
   "tenantId": 100,
   "storeId": 100,
   "roles": ["store.manager"],
-  "permissions": ["hotel.booking.view", "hotel.checkin"],
+  "permissions": ["hotel.booking.view", "hotel.room.manage"],
   "authorizationVersion": 8
 }
 ```
@@ -146,7 +146,7 @@ POST /internal/iam/authorize
   "membershipId": 12,
   "tenantId": 100,
   "storeId": 100,
-  "permission": "hotel.checkin"
+  "permission": "hotel.room.manage"
 }
 ```
 

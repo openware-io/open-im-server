@@ -201,7 +201,7 @@ class PendingApprovalApplicationServiceTest {
   private static Order order(Long id, Long storeId, String orderNo) {
     return new Order(id, TENANT_ID, null, storeId, orderNo, null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, null, null, null, 0);
+        BigDecimal.ZERO, null, null, 0);
   }
 
   /** KTV 会话：包厢快照可能为空（开台时资源服务不可达），只留 roomResourceId。 */

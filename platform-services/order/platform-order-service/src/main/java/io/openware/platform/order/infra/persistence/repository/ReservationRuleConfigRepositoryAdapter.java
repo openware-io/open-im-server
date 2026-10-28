@@ -22,7 +22,7 @@ import org.springframework.stereotype.Repository;
  * （DDL 是 {@code NOT NULL DEFAULT 0}，0 = 系统，改造前的实现也没写这两列）——迁移不顺手新增审计列写入。
  *
  * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的
- * {@code ord_reservation_rule_config}）：id / tenant_id / business_type / store_id /
+ * {@code ktv_reservation_rule_config}）：id / tenant_id / business_type / store_id /
  * advance_minutes / cancel_minutes / reschedule_minutes / version / idempotency_key / status
  * + created_by / created_at / updated_by / updated_at。{@code OrdReservationRuleConfigPo}
  * 上没有 {@code @TableField(exist = false)} 字段。

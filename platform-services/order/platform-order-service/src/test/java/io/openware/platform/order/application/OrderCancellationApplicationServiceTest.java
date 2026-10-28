@@ -288,7 +288,7 @@ class OrderCancellationApplicationServiceTest {
     private static Order order(String status, BigDecimal paidAmount) {
         return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, paidAmount,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 被订单取消级联终结的包厢会话（领域模型不可变：工厂造出后回填主键并置终结态）。 */

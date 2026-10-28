@@ -84,11 +84,11 @@ Material/SKU 是门店级共享主数据，酒店和 KTV 可以共用同一个 S
 不通用：
 
 ```text
-KTV: ord_reservation（明确仅 KTV 使用，不改名）
+KTV: ktv_reservation（仅 KTV 使用；V29 收窄为 ktv_ 前缀，前缀登记见 ENGINEERING_RULES）
 酒店: htl_booking
 ```
 
-不新增通用预约聚合、通用预约状态机。`ord_reservation.business_type` 必须为 `KTV`。
+不新增通用预约聚合、通用预约状态机。`ktv_reservation.business_type` 必须为 `KTV`。
 
 ## 7. DTO
 

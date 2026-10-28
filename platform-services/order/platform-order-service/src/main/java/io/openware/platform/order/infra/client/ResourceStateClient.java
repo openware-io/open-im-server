@@ -362,7 +362,7 @@ public class ResourceStateClient {
      * @param roomTypeName 房型名称
      * @param roomTypeUnitPrice 房型房费单价（最小货币单位/计费单位；未定价时为 null）
      * @param roomTypeServerUnitPrice 房型服务人员单价（最小货币单位/计费单位；未定价时为 null）
-     * @param resourceId 资源ID（预约分配包厢时回写 {@code ord_reservation.resource_id}；旧调用点为 null）
+     * @param resourceId 资源ID（预约分配包厢时回写 {@code ktv_reservation.resource_id}；旧调用点为 null）
      * @param roomTypeId 资源所属房型ID（预约分配时必须与该预约的房型一致）
      * @param storeId 资源所属门店（预约分配时必须与该预约的门店一致）
      * @param status 资源启用状态 ENABLED/DISABLED/MAINTENANCE

@@ -83,7 +83,7 @@ class OrderBillAuthorizationTest {
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(Long id, Long customerId) {
         return new Order(id, TENANT_ID, null, null, "ORD-20260918-0001", null, "KTV", customerId, "DRAFT", RefundStatus.NONE.name(), "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 消费者读**他人**订单账单：403 ORDER_SCOPE_DENIED，且根本不进账单服务（不泄露任何账单内容）。 */

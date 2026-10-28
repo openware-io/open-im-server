@@ -61,7 +61,7 @@ class HotelStayRoomStateTest {
     @BeforeEach
     void setUp() {
         TenantContextHolder.set(new TenantContext(TENANT_ID, 2L, STORE_ID, 3L, 1,
-                List.of("hotel.checkin", "hotel.checkout", "hotel.folio.view", "hotel.folio.manage"),
+                List.of("hotel.room.manage", "hotel.folio.manage", "hotel.folio.view"),
                 "STORE", "HOTEL", "Asia/Shanghai"));
         service = new HotelStayApplicationService(bookingMapper, roomMapper, stayMapper, folioMapper,
                 folioItemMapper, housekeepingMapper, refundMapper, paymentRefundClient,

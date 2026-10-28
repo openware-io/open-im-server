@@ -37,7 +37,7 @@ public interface ReservationRepository {
      * 按租户 + 幂等键取预约（创建路径的重试语义）。
      *
      * <p>租户条件显式落在 {@code tenant_id} 列上：幂等键只在租户内唯一
-     * （{@code uk_ord_reservation_idem} 是 {@code (tenant_id, idempotency_key)}），
+     * （{@code uk_ktv_reservation_idem} 是 {@code (tenant_id, idempotency_key)}），
      * 不做显式租户过滤会把别的租户的同键预约当成「已创建」返回。
      */
     Optional<Persisted<Reservation>> findByIdempotencyKey(Long tenantId, String idempotencyKey);
@@ -107,7 +107,7 @@ public interface ReservationRepository {
     /**
      * 新增预约，返回落库后的聚合与记账快照。
      *
-     * <p>幂等由唯一键 {@code uk_ord_reservation_idem} 兜底：撞键必须抛出，调用方据此重查返回既有预约
+     * <p>幂等由唯一键 {@code uk_ktv_reservation_idem} 兜底：撞键必须抛出，调用方据此重查返回既有预约
      * （吞掉它会让调用方以为新建成功而实际没有）。
      *
      * @param audit 本次写入的记账值（{@code created_by/created_at/updated_by/updated_at} 都取它）

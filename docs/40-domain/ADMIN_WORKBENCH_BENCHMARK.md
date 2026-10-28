@@ -131,9 +131,9 @@ Shopify/Square 都有开通清单。建议增加：
 ```text
 hotel.booking.view
 hotel.booking.create
-hotel.checkin
-hotel.checkout
-hotel.rate.update
+hotel.room.manage
+hotel.folio.manage
+hotel.room.availability.manage
 ```
 
 菜单只控制入口，按钮/接口再做动作级校验；否则会出现“能进页面但不能操作”的尴尬。

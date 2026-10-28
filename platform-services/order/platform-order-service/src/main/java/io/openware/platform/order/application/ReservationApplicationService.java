@@ -66,7 +66,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  *
  * <p><b>锁房与到店分离</b>：{@link #assignRoom} 只写 {@code resource_id}，**不改变状态**——
  * 运营提前指定包厢（备房/排班）不等于客人已到店；到店事实只能由 {@link #arrival}（显式登记）
- * 或 {@link #openTable}（到店并开台，隐含）写入 {@code ord_reservation.arrived_at}。
+ * 或 {@link #openTable}（到店并开台，隐含）写入 {@code ktv_reservation.arrived_at}。
  *
  * <p>一致性：
  * <ul>
@@ -135,7 +135,7 @@ public class ReservationApplicationService {
     }
 
     /**
-     * 创建预约：PENDING，生成 reservation_no，写 ord_reservation；幂等（Idempotency-Key）。
+     * 创建预约：PENDING，生成 reservation_no，写 ktv_reservation；幂等（Idempotency-Key）。
      * startAt/endAt 以带时区偏移的 OffsetDateTime 入参，统一转换为北京时间（UTC+8）后落库，
      * 避免转 UTC 导致前端按本地时钟展示时出现 8 小时偏移。
      *
@@ -203,7 +203,7 @@ public class ReservationApplicationService {
     /**
      * 预约列表（当前租户）：按开门时间倒序，并回填房型名/包厢名（读路径降级，见 {@link #enrichDisplayFields}）。
      *
-     * <p><b>时间区间</b>：{@code range} 是按**预约时段开始时间** {@code ord_reservation.start_at} 的闭区间
+     * <p><b>时间区间</b>：{@code range} 是按**预约时段开始时间** {@code ktv_reservation.start_at} 的闭区间
      * （统一 {@code from}/{@code to} 口径，见 {@link TimeRangeParams}）；为空 = 不筛。
      * 落在 {@code start_at} 列上、不用函数包裹，保持索引可用；排序不变。
      */
@@ -376,7 +376,7 @@ public class ReservationApplicationService {
      *   <li>预约不存在 → 404 {@code RESERVATION_NOT_FOUND}；</li>
      *   <li>已取消/未到店/已开台 → 409 {@code RESERVATION_STATUS_INVALID}；
      *       状态保持 PENDING/CONFIRMED 原值，到店事实由「到店登记」或「到店开台」写入
-     *       {@code ord_reservation.arrived_at}（V25 迁移）；</li>
+     *       {@code ktv_reservation.arrived_at}（V25 迁移）；</li>
      *   <li>历史预约没有房型（只有 resource_id）→ 409 {@code RESERVATION_ROOM_TYPE_REQUIRED}，
      *       不给历史数据「改派包厢」的隐式能力（要改派请先到资源域绑定房型或走转台）；</li>
      *   <li>已分配同一包厢 → 幂等成功（不改库、不重复留痕）；</li>
@@ -644,7 +644,7 @@ public class ReservationApplicationService {
                 null, effectiveBusinessType, r.customerId(),
                 TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), CurrencyResolver.currentCode(),
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
         // 预约开台改造前就把订单的记账列写成「当前操作人」，端口保留这一语义（null 才落到 DDL 默认 0）。
         Order inserted = orderRepository.insert(order, operatorId());
 
@@ -700,7 +700,7 @@ public class ReservationApplicationService {
      *       否则会留下「预约取消了、订单还在计时」的悬挂。</li>
      * </ol>
      *
-     * <p>原因本身没有落库列（ord_reservation 无 reason 列），因此**审计 {@code reservation.cancel}
+     * <p>原因本身没有落库列（ktv_reservation 无 reason 列），因此**审计 {@code reservation.cancel}
      * 是原因的唯一留存处**：detailJson 带 beforeStatus/afterStatus/reason/reservationNo/roomTypeId。
      */
     @Transactional
@@ -1144,7 +1144,7 @@ public class ReservationApplicationService {
 
     /**
      * 统一转为北京时间（UTC+8）的本地墙上时间落库；任何带时区的入参都归一化到 +08:00。
-     * 返回值不含偏移信息，读路径直接按门店本地时间展示（与 ord_reservation 列注释一致）。
+     * 返回值不含偏移信息，读路径直接按门店本地时间展示（与 ktv_reservation 列注释一致）。
      */
     private LocalDateTime toBusinessLocal(OffsetDateTime odt) {
         return odt == null ? null : odt.withOffsetSameInstant(ZoneOffset.ofHours(8)).toLocalDateTime();

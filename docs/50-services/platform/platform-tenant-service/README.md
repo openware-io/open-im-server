@@ -167,6 +167,8 @@ S6：/admin/iam/platform/role-bindings 平台 ACCOUNT 角色授予/撤销；旧 
 | `V31__permission_hardening.sql` | 新增 `hotel.folio.view/manage`、`hotel.housekeeping.view`、`inventory.view/manage`；把持有旧 `hotel.inventory.manage` 与细分 inventory 码的角色映射到新码（含自定义租户角色） |
 | `V32__demo_hotel_store.sql` | 清库 Kind 演示数据：同一租户/组织下 HOTEL 门店 `102`、HOTEL 业态权益。岗位绑定**不写** `ACCOUNT` 主体（上下文解析只认 `MEMBERSHIP`，`ACCOUNT` 绑定不会产生经营上下文） |
 | `V33__demo_tenant_membership.sql` | 演示经营上下文种子：`tnt_membership(account_id=100, tenant 100, org 100, STAFF, DEMO-100)`；`MEMBERSHIP → tenant.owner`（`ORGANIZATION` 100，展开 `100:100:100` / `100:100:102` 两个门店上下文）+ `MEMBERSHIP → store.manager`（`STORE` 102） |
+| `V34__retire_hotel_inventory_permission.sql` | 收口：删除 `hotel.inventory.manage` 的角色授权（含自定义角色）后把权限置 `DISABLED`（保留行作审计） |
+| `V35__retire_hotel_action_permissions.sql` | 收口：旧动作码 `hotel.checkin`→`hotel.room.manage`、`hotel.checkout`→`hotel.folio.manage`、`hotel.rate.update`→`hotel.room.availability.manage`；先把旧授权映射到新码，再删旧授权，最后把旧码置 `DISABLED`。同时停用挂单端点删除后不再使用的 `order.hold`（无替代码） |
 
 清库部署顺序约束：**`platform-admin-service` 必须先于 `platform-tenant-service` 执行 Flyway**。
 tenant 的 `V19`/`V26`/`V27` 会更新 `iam_role_profile` / `iam_menu`，这两张表由 admin 服务的
@@ -182,6 +184,7 @@ hotel.booking.* / hotel.folio.* / inventory.* / ktv.session.*
 ```
 
 `hotel.inventory.manage` 不再作为访问条件（代码已无引用）；其角色授权由 `V31` 迁移到新码，
-权限本身保留到收口迁移再停用（先删 `iam_role_permission`，再置 `DISABLED`，不物理删除）。
+权限行本身由 `V34` 删除授权后置 `DISABLED`（先删 `iam_role_permission`，再置 `DISABLED`，不物理删除）。
+旧动作码 `hotel.checkin/checkout/rate.update` 由 `V35` 同样处理（授权映射→删除→`DISABLED`）。
 库存是酒店/KTV 共用的通用域，不按业态建独立权限树；`inventory.view/manage` 受签名门店上下文约束。
 

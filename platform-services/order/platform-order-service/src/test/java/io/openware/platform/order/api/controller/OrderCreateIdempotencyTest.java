@@ -154,7 +154,7 @@ class OrderCreateIdempotencyTest {
     private static Order order(Long id, String orderNo) {
         return new Order(id, TENANT_ID, 1L, STORE_ID, orderNo, null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 门店上下文业态是权威值，请求体伪造其它业态必须在落单前拒绝。 */

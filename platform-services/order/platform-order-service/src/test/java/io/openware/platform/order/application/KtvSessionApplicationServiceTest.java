@@ -858,7 +858,7 @@ class KtvSessionApplicationServiceTest {
     // 结算按 expectedVersion 做乐观锁：真实数据 version 列缺省 0。
     return new Order(10L, 1L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, null, null, null, 0);
+        BigDecimal.ZERO, null, null, 0);
   }
 
   /**
@@ -921,7 +921,7 @@ class KtvSessionApplicationServiceTest {
   void createCopiesOrganizationSnapshotFromOrder() {
     Order withOrg = new Order(10L, 1L, 77L, 100L, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, null, null, null, 0);
+        BigDecimal.ZERO, null, null, 0);
     when(orderMapper.findById(10L)).thenReturn(Optional.of(withOrg));
     when(sessionRepository.insert(any(KtvSession.class)))
         .thenAnswer(inv -> ((KtvSession) inv.getArgument(0)).withId(42L));

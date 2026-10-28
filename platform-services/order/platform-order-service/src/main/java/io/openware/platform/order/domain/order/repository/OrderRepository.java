@@ -12,19 +12,19 @@ import java.util.Optional;
  * 应用层只表达「要什么订单」。分页也以 offset/limit 语义表达（本域当前没有分页调用点，
  * 因此端口上也不预留分页参数）。
  *
- * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_order}）：
+ * <p><b>列集合只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的 {@code ord_order}，已收口）：
  * id / tenant_id / organization_id / store_id / order_no / idempotency_key / business_type / customer_id /
- * status / currency_code / subtotal_amount / discount_amount / tax_amount / total_amount / paid_amount /
- * refundable_amount / completed_at / cancelled_at / hold_reason / hold_at / version
+ * trade_status / refund_status / currency_code / subtotal_amount / discount_amount / tax_amount / total_amount /
+ * paid_amount / refundable_amount / completed_at / cancelled_at / version
  * + created_by / created_at / updated_by / updated_at。原持久化对象上那 13 个
  * {@code @TableField(exist = false)} 的会话投影字段**不在** {@link Order} 上，也不在本端口的任何签名里：
  * 它们是从 {@code ord_ktv_session} 联表读出的展示数据（见 {@code application.dto.OrderView}）。
  *
  * <p><b>并发契约（本端口最重要的部分）</b>：{@code ord_order} 有 {@code version} 列，
  * 但持久化对象上**没有** {@code @Version} 注解、工程里也**没有** {@code OptimisticLockerInnerInterceptor}，
- * 所以 {@code updateById} 不会附加任何版本条件。下面四个条件写方法因此必须各自发**单条**
- * 带条件的 UPDATE（{@code AND version = ?} 或 {@code AND status = ?} / {@code hold_at IS NULL} /
- * {@code hold_at IS NOT NULL}，版本自增写在 SQL 里），返回 {@code false} 表示受影响 0 行
+ * 所以 {@code updateById} 不会附加任何版本条件。下面三个条件写方法因此必须各自发**单条**
+ * 带条件的 UPDATE（{@code AND version = ?} 或 {@code AND trade_status = ?}，版本自增写在 SQL 里），
+ * 返回 {@code false} 表示受影响 0 行
  * = 期间已被他人写入：调用方**必须**按冲突处理，绝不允许适配器把 0 行吞成成功。
  */
 public interface OrderRepository {
@@ -110,25 +110,6 @@ public interface OrderRepository {
      */
     boolean updateTradeStatusGuarded(Long id, String expectedTradeStatus, String newTradeStatus,
                                      LocalDateTime at);
-
-    /**
-     * 挂单的条件更新：单条 {@code UPDATE ... SET hold_at=?, hold_reason=?, updated_at=?
-     * WHERE id=? AND hold_at IS NULL}。
-     *
-     * <p>判据是 {@code hold_at} 而不是交易状态：挂单是开台中的标记、**不改交易状态**，
-     * 按状态做条件挡不住并发挂单（两次挂单的理由与时间互相覆盖，审计幂等键也对不上）。
-     *
-     * @return 是否写入成功；{@code false} = 已被他人挂单
-     */
-    boolean holdIfNotHeld(Long id, LocalDateTime holdAt, String reason, LocalDateTime at);
-
-    /**
-     * 解挂的条件更新：单条 {@code UPDATE ... SET hold_at=NULL, hold_reason=NULL, updated_at=?
-     * WHERE id=? AND hold_at IS NOT NULL}（与 {@link #holdIfNotHeld} 对称）。
-     *
-     * @return 是否写入成功；{@code false} = 当前并未挂单
-     */
-    boolean unholdIfHeld(Long id, LocalDateTime at);
 
     /**
      * 取消/作废的条件更新：单条

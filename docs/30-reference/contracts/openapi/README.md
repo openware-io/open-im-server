@@ -13,6 +13,9 @@
 - 例外：`hotel-channel-v1.yaml` 是**对外渠道契约**，由渠道协议维护、与 `HotelChannelBookingController`
   手工对齐（不是 springdoc 快照）；二期已实现预订创建/查询/取消，ARI 为 202 no-op 占位。
   order-service 的 springdoc 快照（`order-saas.json`）仍按原规则在 Kind 发布后重导。
+  **P2-3 收口临时状态**：`order-saas.json` 与 `platform-order-service.json` 已同步删除
+  `POST /business/orders/{id}/hold|unhold`、`HoldRequest` 及 `OrderPo.holdReason/holdAt`（与当前代码一致），
+  合并后仍需由架构师在只读 port-forward 环境重新导出一次作为权威快照。
 
 ## 已接 springdoc 的服务（可导出 /v3/api-docs）
 

@@ -2,7 +2,7 @@
 -- C 端预约迁移（E-MIG）：Backfill + Verify + Switch + Rollback
 -- 目标库：open_im（platform-order-service）；源库：open_im（im-order-service）
 -- 说明：本脚本在 open_im 会话内执行，跨库读写 open_im（同一 MySQL 实例）。
---       阶段一 Expand 的建表已由 Flyway V2__ord_reservation.sql 完成；V3 增加 idempotency_key 列。
+--       阶段一 Expand 的建表已由已发布迁移完成；V3 增加 idempotency_key 列。
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -37,7 +37,7 @@
 --   reserve_date+reserve_time_period→start_at/end_at（占位：默认全天，待门店时区规则）。
 -- 幂等：ON DUPLICATE KEY UPDATE 按唯一键 (tenant_id, reservation_no) 跳过重复回填。
 -- -----------------------------------------------------------------------------
-INSERT INTO open_im.ord_reservation
+INSERT INTO open_im.ktv_reservation
   (tenant_id, store_id, reservation_no, customer_id, business_type, resource_id,
    start_at, end_at, party_size, status, order_id, version,
    created_by, created_at, updated_by, updated_at)
@@ -64,7 +64,7 @@ SELECT
   NULL                                       AS order_id,
   CAST(r.version AS SIGNED)                  AS version,
   r.created_by, r.created_at, r.updated_by, r.updated_at
-FROM open_im.ord_reservation r
+FROM open_im.ktv_reservation r
 LEFT JOIN mig_user_customer m ON m.user_id = r.user_id
 ON DUPLICATE KEY UPDATE
   customer_id = VALUES(customer_id),
@@ -75,21 +75,21 @@ ON DUPLICATE KEY UPDATE
 -- [Verify] 对账校验（两边条数 / 关键字段比对）
 -- -----------------------------------------------------------------------------
 -- 1) 条数对账
-SELECT 'source' AS side, COUNT(*) AS cnt FROM open_im.ord_reservation
+SELECT 'source' AS side, COUNT(*) AS cnt FROM open_im.ktv_reservation
 UNION ALL
-SELECT 'target', COUNT(*) FROM open_im.ord_reservation WHERE tenant_id = __MIGRATION_TENANT_ID__;
+SELECT 'target', COUNT(*) FROM open_im.ktv_reservation WHERE tenant_id = __MIGRATION_TENANT_ID__;
 
 -- 2) 源有目标无（漏迁）
 SELECT r.order_no
-FROM open_im.ord_reservation r
-LEFT JOIN open_im.ord_reservation t
+FROM open_im.ktv_reservation r
+LEFT JOIN open_im.ktv_reservation t
   ON t.tenant_id = __MIGRATION_TENANT_ID__ AND t.reservation_no = r.order_no
 WHERE t.id IS NULL;
 
 -- 3) 目标有源无（多迁）
 SELECT t.reservation_no
-FROM open_im.ord_reservation t
-LEFT JOIN open_im.ord_reservation r ON r.order_no = t.reservation_no
+FROM open_im.ktv_reservation t
+LEFT JOIN open_im.ktv_reservation r ON r.order_no = t.reservation_no
 WHERE t.tenant_id = __MIGRATION_TENANT_ID__ AND r.id IS NULL;
 
 -- 4) 关键字段比对（状态/人数/门店/客户映射）
@@ -107,21 +107,21 @@ SELECT
        WHEN t.status = CASE r.status WHEN 'pending_verification' THEN 'CONFIRMED' WHEN 'verified' THEN 'CONVERTED' ELSE 'PENDING' END
         AND t.party_size = r.person_num AND t.store_id = r.store_id
        THEN 'OK' ELSE 'DIFF' END AS check_result
-FROM open_im.ord_reservation r
+FROM open_im.ktv_reservation r
 LEFT JOIN mig_user_customer m ON m.user_id = r.user_id
-LEFT JOIN open_im.ord_reservation t
+LEFT JOIN open_im.ktv_reservation t
   ON t.tenant_id = __MIGRATION_TENANT_ID__ AND t.reservation_no = r.order_no
 HAVING check_result <> 'OK';
 
 -- 5) 唯一键冲突自检（同租户 reservation_no 重复 / 幂等键重复）
 SELECT tenant_id, reservation_no, COUNT(*) AS c
-FROM open_im.ord_reservation
+FROM open_im.ktv_reservation
 WHERE tenant_id = __MIGRATION_TENANT_ID__
 GROUP BY tenant_id, reservation_no
 HAVING c > 1;
 
 SELECT tenant_id, idempotency_key, COUNT(*) AS c
-FROM open_im.ord_reservation
+FROM open_im.ktv_reservation
 WHERE tenant_id = __MIGRATION_TENANT_ID__ AND idempotency_key IS NOT NULL
 GROUP BY tenant_id, idempotency_key
 HAVING c > 1;
@@ -135,5 +135,5 @@ HAVING c > 1;
 -- -----------------------------------------------------------------------------
 -- [Rollback] 回滚：删除回填到存量迁移租户的历史预约（Switch 失败时）
 -- -----------------------------------------------------------------------------
--- DELETE FROM open_im.ord_reservation WHERE tenant_id = __MIGRATION_TENANT_ID__;
+-- DELETE FROM open_im.ktv_reservation WHERE tenant_id = __MIGRATION_TENANT_ID__;
 -- 说明：删除仅影响 SaaS 侧回填数据，IM 库旧数据不受影响，可随时重新 Backfill。

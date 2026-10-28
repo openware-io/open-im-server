@@ -62,7 +62,7 @@ stateDiagram-v2
 | `REFUNDED` | fully refunded | yes |
 | `PARTIAL_REFUNDED` | partially refunded | yes |
 
-## 2. Reservation `ord_reservation`
+## 2. Reservation `ktv_reservation`
 
 ```mermaid
 stateDiagram-v2

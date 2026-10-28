@@ -108,7 +108,7 @@ class InventoryRecoveryAdminControllerAuditTest {
     private static Order order(String status) {
         return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static OrderItem item(String inventoryStatus) {

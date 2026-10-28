@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 /** Order 域预约经营规则。store_id=0 表示租户/业态默认，门店覆盖必须带业态。 */
 @Getter
 @Setter
-@TableName("ord_reservation_rule_config")
+@TableName("ktv_reservation_rule_config")
 public class OrdReservationRuleConfigPo {
     @TableId(type = IdType.AUTO)
     private Long id;

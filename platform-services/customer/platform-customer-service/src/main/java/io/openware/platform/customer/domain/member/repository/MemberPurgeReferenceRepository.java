@@ -25,7 +25,7 @@ public interface MemberPurgeReferenceRepository {
    * 引用体检计数。
    *
    * @param orders           订单数（{@code ord_order}）
-   * @param reservations     预约数（{@code ord_reservation}）
+   * @param reservations     预约数（{@code ktv_reservation}）
    * @param wallets          有余额的储值账户数（{@code available_amount <> 0 OR frozen_amount <> 0}）
    * @param points           有余额的积分账户数（{@code available_points <> 0 OR frozen_points <> 0}）
    * @param couponsIssued    已发券数（{@code mkt_coupon_issuance}）

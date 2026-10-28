@@ -280,7 +280,7 @@ class OrderItemControllerWebTest {
     private static Order order() {
         return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 目录项夹具（不可变记录；可变字段作为参数显式给出，替代迁移前的 setter 逐项覆盖）。 */

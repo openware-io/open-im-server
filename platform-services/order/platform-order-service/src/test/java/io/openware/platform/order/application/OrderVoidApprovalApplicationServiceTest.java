@@ -89,7 +89,7 @@ class OrderVoidApprovalApplicationServiceTest {
     private static Order order(long id, String status) {
         return new Order(id, 11L, null, 21L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static Persisted<OrderVoidApproval> persisted(OrderVoidApproval approval) {

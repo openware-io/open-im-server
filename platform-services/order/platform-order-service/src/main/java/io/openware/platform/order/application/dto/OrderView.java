@@ -71,8 +71,6 @@ import java.time.LocalDateTime;
  * @param refundableAmount     可退金额
  * @param completedAt          完成时间
  * @param cancelledAt          作废时间
- * @param holdReason           挂单原因
- * @param holdAt               挂单时间
  * @param version              乐观锁版本号
  * @param createdBy            记账列：创建人（本视图不读记账快照，恒为 {@code null}）
  * @param createdAt            记账列：创建时间（同上）
@@ -113,8 +111,6 @@ public record OrderView(
     BigDecimal refundableAmount,
     LocalDateTime completedAt,
     LocalDateTime cancelledAt,
-    String holdReason,
-    LocalDateTime holdAt,
     Integer version,
     Long createdBy,
     LocalDateTime createdAt,
@@ -134,7 +130,7 @@ public record OrderView(
             trade.name(), refund.name(), settlementStatusOf(trade, refund), order.currencyCode(),
             order.subtotalAmount(), order.discountAmount(), order.taxAmount(), order.totalAmount(),
             order.paidAmount(), order.refundableAmount(), order.completedAt(), order.cancelledAt(),
-            order.holdReason(), order.holdAt(), order.version(), null, null, null, null);
+            order.version(), null, null, null, null);
     }
 
     /**
@@ -168,7 +164,7 @@ public record OrderView(
             newLiveTotalAmount, newSessionOpenedAt, newSessionClosedAt, tenantId, organizationId, storeId,
             orderNo, idempotencyKey, businessType, customerId, tradeStatus, refundStatus,
             settlementStatus, currencyCode, subtotalAmount, discountAmount, taxAmount, totalAmount,
-            paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt, version, createdBy,
+            paidAmount, refundableAmount, completedAt, cancelledAt, version, createdBy,
             createdAt, updatedBy, updatedAt);
     }
 
@@ -179,7 +175,7 @@ public record OrderView(
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
             customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
-            holdReason, holdAt, version, createdBy, createdAt, updatedBy, updatedAt);
+            version, createdBy, createdAt, updatedBy, updatedAt);
     }
 
     /** 只回填实时应付合计（无会话的订单：库内合计或明细回退即终值）。 */
@@ -189,6 +185,6 @@ public record OrderView(
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
             customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
-            holdReason, holdAt, version, createdBy, createdAt, updatedBy, updatedAt);
+            version, createdBy, createdAt, updatedBy, updatedAt);
     }
 }

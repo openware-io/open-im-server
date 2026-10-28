@@ -1156,7 +1156,7 @@ class ReservationApplicationServiceTest {
     private static Order order(Long id, String status) {
         return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     /** 库里既有预约（读路径 fixture）：审计快照固定，便于断言响应里的记账值。 */

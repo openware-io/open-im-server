@@ -71,7 +71,7 @@ public class HotelStayApplicationService {
      */
     @Transactional
     public HotelBookingPo checkIn(Long bookingId, Long roomId) {
-        PermissionGuard.require("hotel.checkin");
+        PermissionGuard.require("hotel.room.manage");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
         if (!"CONFIRMED".equals(booking.getStatus())) {
@@ -149,7 +149,7 @@ public class HotelStayApplicationService {
 
     @Transactional
     public HotelFolioPo collectDeposit(Long bookingId, Long amountMinor, String note) {
-        PermissionGuard.require("hotel.checkin");
+        PermissionGuard.require("hotel.room.manage");
         TenantContext context = requireStore();
         HotelFolioPo folio = requireOpenFolio(bookingId, context);
         if (amountMinor == null || amountMinor <= 0) {
@@ -221,7 +221,7 @@ public class HotelStayApplicationService {
     /** 换房：新房间原子占用，旧房间置 DIRTY 并生成清扫任务。 */
     @Transactional
     public HotelBookingPo moveRoom(Long bookingId, Long newRoomId) {
-        PermissionGuard.require("hotel.checkin");
+        PermissionGuard.require("hotel.room.manage");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
         if (!"CHECKED_IN".equals(booking.getStatus())) {
@@ -334,7 +334,7 @@ public class HotelStayApplicationService {
     /** 续住：只对新增夜追加 sold、房费和账单项，不改已住夜。 */
     @Transactional
     public HotelBookingPo extendStay(Long bookingId, LocalDate newCheckOutDate) {
-        PermissionGuard.require("hotel.checkin");
+        PermissionGuard.require("hotel.room.manage");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
         if (!"CHECKED_IN".equals(booking.getStatus()) && !"DUE_OUT".equals(booking.getStatus())) {

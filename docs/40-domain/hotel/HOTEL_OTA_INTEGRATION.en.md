@@ -2,7 +2,11 @@
 
 [中文](HOTEL_OTA_INTEGRATION.md) | [English](HOTEL_OTA_INTEGRATION.en.md)
 
-> Status: `draft` (`develop/2.4.0-hotel`).  
+> Status: `draft` (`develop/2.4.0-hotel`); the **v1 minimal adapter is implemented** (HMAC auth,
+> `POST /v1/bookings` idempotent create, `GET /v1/bookings/{externalRef}` query,
+> `POST /v1/bookings/{externalRef}/cancel` idempotent cancel, `POST /v1/ari` 202 no-op; the local
+> SANDBOX provider is for E2E only). Implementation notes:
+> [HOTEL_OTA_CHANNEL_V1.md](../../50-services/platform/platform-order-service/HOTEL_OTA_CHANNEL_V1.md).  
 > Scope: an external integration contract, not a single OTA's private API.  
 > Principle: contract first, adapter later; an OTA is a sales channel, not a second hotel domain.
 
@@ -15,7 +19,10 @@ Contract: [hotel-channel-v1.yaml](../../30-reference/contracts/openapi/hotel-cha
 - Channel auth, idempotency, retries, errors and versioning;
 - Channel-manager boundary.
 
-**Explicitly excluded**: real OTA adapters, a sandbox environment and a channel-manager implementation. MVP delivers the contract and internal channel model only.
+**Explicitly excluded**: vendor-specific OTA adapters (per-vendor signatures/field mapping), a production
+sandbox environment and a channel-manager implementation. `modify` is out of the v1 scope (removed from the
+contract). v1 delivers the external contract, the internal channel model and a minimal booking adapter
+(implemented in the phase-2 release, 2026-10).
 
 ## 2. Roles
 

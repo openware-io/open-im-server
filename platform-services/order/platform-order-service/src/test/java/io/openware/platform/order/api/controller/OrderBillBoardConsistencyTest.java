@@ -367,7 +367,7 @@ class OrderBillBoardConsistencyTest {
 
     private static Order order(BigDecimal totalAmount, String status) {
         return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260920-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY", totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 
     private static KtvSession session(String status, LocalDateTime billingStartAt, LocalDateTime closedAt,

@@ -437,7 +437,7 @@ class KtvServerSessionApplicationServiceTest {
   private static Order order(long id, String status, long storeId) {
     return new Order(id, 1L, null, storeId, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, null, null, null, 0);
+        BigDecimal.ZERO, null, null, 0);
   }
 
   // ---------------------------------------------------------------------------------------------

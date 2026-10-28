@@ -225,7 +225,7 @@ class OrderItemConsumerSelfServiceTest {
     /** 订单夹具：领域模型不可变，用规范构造器一次成型（审计列不在模型上）。 */
     private static Order order(Long customerId) {
         return new Order(ORDER_ID, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", customerId, "DRAFT", RefundStatus.NONE.name(), "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, BigDecimal.ZERO, null, null, 0);
     }
 
     /** 纯服务目录项：未关联商品、不占库存，单价来自目录自身（「加项能对服务加项」）。 */

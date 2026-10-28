@@ -34,8 +34,6 @@ CREATE TABLE ord_order (
   refundable_amount DECIMAL(20,6) NOT NULL DEFAULT 0,
   completed_at TIMESTAMP,
   cancelled_at TIMESTAMP,
-  hold_reason VARCHAR(255),
-  hold_at TIMESTAMP,
   version INT NOT NULL DEFAULT 0,
   created_by BIGINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP NOT NULL,
@@ -362,7 +360,7 @@ CREATE TABLE ord_void_rule_config (
 -- KTV reservation (production V1__ord_order_baseline.sql). The scheduler reads
 -- overdue reservations during the Spring context test, so the H2 test schema
 -- must contain the same table even though other reservation tests seed it.
-CREATE TABLE ord_reservation (
+CREATE TABLE ktv_reservation (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
   store_id BIGINT NOT NULL,
@@ -384,8 +382,8 @@ CREATE TABLE ord_reservation (
   created_at DATETIME(3) NOT NULL,
   updated_by BIGINT NOT NULL DEFAULT 0,
   updated_at DATETIME(3) NOT NULL,
-  CONSTRAINT uk_ord_reservation_tenant_no UNIQUE (tenant_id, reservation_no),
-  CONSTRAINT uk_ord_reservation_idem UNIQUE (tenant_id, idempotency_key)
+  CONSTRAINT uk_ktv_reservation_tenant_no UNIQUE (tenant_id, reservation_no),
+  CONSTRAINT uk_ktv_reservation_idem UNIQUE (tenant_id, idempotency_key)
 );
 
 -- Hotel scheduler tables (production V3/V4/V24). The context loads the booking

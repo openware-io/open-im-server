@@ -57,32 +57,6 @@ public interface OrderMapper extends BaseMapper<OrderPo> {
                                  @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
-     * 挂单的条件更新：仅当订单**尚未挂单**（{@code hold_at IS NULL}）时写入。
-     *
-     * <p>判据是 {@code hold_at} 而不是交易状态：挂单是开台中的标记、**不改交易状态**。
-     * 若按状态做条件，两个并发挂单都会通过——两次挂单各自的理由与时间互相覆盖，
-     * 而审计里那条 {@code order-hold:{id}:{holdAt}} 幂等键也随之对不上其中一次。
-     *
-     * @return 受影响行数；0 表示已被他人挂单
-     */
-    @Update("UPDATE ord_order SET hold_at = #{holdAt}, hold_reason = #{holdReason}, "
-            + "updated_at = #{updatedAt} WHERE id = #{id} AND hold_at IS NULL")
-    int holdIfNotHeld(@Param("id") Long id, @Param("holdAt") LocalDateTime holdAt,
-                      @Param("holdReason") String holdReason, @Param("updatedAt") LocalDateTime updatedAt);
-
-    /**
-     * 解挂的条件更新：仅当订单**确实处于挂单中**（{@code hold_at IS NOT NULL}）时清空。
-     *
-     * <p>与 {@link #holdIfNotHeld} 对称。没有这条条件时，两个并发解挂都会"成功"，
-     * 而其中一次的审计与真实变更都对不上（第二次其实什么都没改）。
-     *
-     * @return 受影响行数；0 表示当前并未挂单
-     */
-    @Update("UPDATE ord_order SET hold_at = NULL, hold_reason = NULL, updated_at = #{updatedAt} "
-            + "WHERE id = #{id} AND hold_at IS NOT NULL")
-    int unholdIfHeld(@Param("id") Long id, @Param("updatedAt") LocalDateTime updatedAt);
-
-    /**
      * 取消/作废的条件更新：仅当库中交易状态仍是 {@code expectedTradeStatus} 时写入目标终态
      * （取消 → {@code CANCELLED}，审批作废/冲正 → {@code VOIDED}）。
      *

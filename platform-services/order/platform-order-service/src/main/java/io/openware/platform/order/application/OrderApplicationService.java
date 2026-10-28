@@ -2,8 +2,6 @@ package io.openware.platform.order.application;
 
 import io.openware.common.exception.ApiException;
 import io.openware.common.exception.BusinessException;
-import io.openware.infrastructure.audit.AuditClient;
-import io.openware.infrastructure.audit.AuditErrorCodes;
 import io.openware.infrastructure.currency.Currency;
 import io.openware.infrastructure.currency.CurrencyResolver;
 import io.openware.infrastructure.tenant.PermissionGuard;
@@ -31,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 订单读/写编排：列表、详情、创建、确认、挂单、解挂。
+ * 订单读/写编排：列表、详情、创建、确认（挂单/暂停由 KTV 会话状态表达，见 KtvSessionApplicationService）。
  *
  * <p>授权、时间区间、会话投影、实时合计、创建幂等、单号分配、房态校验与审计都在应用服务完成；
  * 控制器只做协议转换（standards/10 §应用服务规则）。
@@ -44,7 +42,6 @@ public class OrderApplicationService {
   private final OrderRepository orderRepository;
   private final KtvSessionApplicationService ktvSessionService;
   private final ResourceStateClient resourceStateClient;
-  private final AuditClient auditClient;
   private final OrderCancellationApplicationService orderCancellationService;
   private final DailySerialNumberGenerator dailySerialNumberGenerator;
   private final MemberLookupProvider memberLookupProvider;
@@ -52,14 +49,12 @@ public class OrderApplicationService {
   public OrderApplicationService(OrderRepository orderRepository,
                                  KtvSessionApplicationService ktvSessionService,
                                  ResourceStateClient resourceStateClient,
-                                 AuditClient auditClient,
                                  OrderCancellationApplicationService orderCancellationService,
                                  DailySerialNumberGenerator dailySerialNumberGenerator,
                                  MemberLookupProvider memberLookupProvider) {
     this.orderRepository = orderRepository;
     this.ktvSessionService = ktvSessionService;
     this.resourceStateClient = resourceStateClient;
-    this.auditClient = auditClient;
     this.orderCancellationService = orderCancellationService;
     this.dailySerialNumberGenerator = dailySerialNumberGenerator;
     this.memberLookupProvider = memberLookupProvider;
@@ -142,7 +137,7 @@ public class OrderApplicationService {
         blankToNull(idempotencyKey), businessType, null,
         TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(req.currencyCode()),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-        BigDecimal.ZERO, null, null, null, null, 0);
+        BigDecimal.ZERO, null, null, 0);
     Order created;
     try {
       created = orderRepository.insert(order, null);
@@ -193,7 +188,7 @@ public class OrderApplicationService {
         idempotencyKey, "HOTEL", customerId,
         TradeStatus.DRAFT.name(), RefundStatus.NONE.name(), resolveCurrencyCode(currencyCode),
         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, total, BigDecimal.ZERO, BigDecimal.ZERO,
-        null, null, null, null, 0);
+        null, null, 0);
     try {
       return orderRepository.insert(order, null).id();
     } catch (DuplicateKeyException duplicate) {
@@ -226,66 +221,6 @@ public class OrderApplicationService {
       throw new BusinessException("ORDER_STATUS_INVALID", "订单状态已被其他请求变更，请重试");
     }
     return OrderView.from(order.withTradeStatus(TradeStatus.PENDING_PAYMENT.name()));
-  }
-
-  /** 挂单：开台中（KTV 会话 OPEN/PAUSED）的操作标记，不结台、不改交易状态。 */
-  public OrderView hold(Long id, String reason) {
-    PermissionGuard.require("order.hold");
-    try {
-      Order order = requireOrder(id);
-      // 挂单是「服务中」的动作：交易状态必须还是 DRAFT（未进入结算），且存在开台中/挂单中的 KTV 会话。
-      if (order.trade() != TradeStatus.DRAFT || !hasOngoingSession(id)) {
-        throw new BusinessException("ORDER_STATUS_INVALID", "仅开台中（未结算）订单可挂单");
-      }
-      // 条件更新：只有 hold_at 仍为空才算挂单成功。按 status 做条件挡不住并发挂单
-      // （挂单不改商业状态），两次挂单的理由与时间会互相覆盖。
-      LocalDateTime holdAt = LocalDateTime.now();
-      if (!orderRepository.holdIfNotHeld(id, holdAt, reason, holdAt)) {
-        throw new BusinessException("ORDER_STATUS_INVALID", "订单已处于挂单中，请重试");
-      }
-      auditClient.recordAsync(AuditClient.AuditRecord.builder()
-          .tenantId(order.tenantId())
-          .storeId(order.storeId())
-          .action("order.hold")
-          .resourceType("ord_order").resourceId(String.valueOf(id))
-          .resourceName(order.orderNo())
-          .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-          .idempotencyKey("order-hold:" + id + ":" + holdAt)
-          .detailJson("{\"reason\":\"" + safe(reason) + "\"}")
-          .build());
-      return OrderView.from(order.held(reason, holdAt));
-    } catch (RuntimeException failure) {
-      recordFailure("order.hold", "ord_order", id, null, failure);
-      throw failure;
-    }
-  }
-
-  /** 解除挂单。 */
-  public OrderView unhold(Long id) {
-    PermissionGuard.require("order.hold");
-    try {
-      Order order = requireOrder(id);
-      // 条件更新：只有确实处于挂单中才算解挂成功，与 holdIfNotHeld 对称。
-      LocalDateTime now = LocalDateTime.now();
-      if (!orderRepository.unholdIfHeld(id, now)) {
-        throw new BusinessException("ORDER_STATUS_INVALID", "订单当前并未挂单，请重试");
-      }
-      // 解挂此前完全没有留痕：解挂后订单不再被挂牌提示，是否有人解挂必须可回溯。
-      auditClient.recordAsync(AuditClient.AuditRecord.builder()
-          .tenantId(order.tenantId())
-          .storeId(order.storeId())
-          .action("order.unhold")
-          .actionLabel("订单解挂")
-          .resourceType("ord_order").resourceId(String.valueOf(id))
-          .resourceName(order.orderNo())
-          .result(AuditClient.AuditRecord.RESULT_SUCCESS)
-          .idempotencyKey("order-unhold:" + id + ":" + now)
-          .build());
-      return OrderView.from(order.unheld(now));
-    } catch (RuntimeException failure) {
-      recordFailure("order.unhold", "ord_order", id, null, failure);
-      throw failure;
-    }
   }
 
   /**
@@ -432,30 +367,8 @@ public class OrderApplicationService {
         : Currency.parse(requested).code();
   }
 
-  /** 挂单/解挂失败留痕：动作码与成功路径同码，FAILURE + 稳定 errorCode。 */
-  private void recordFailure(String action, String resourceType, Long resourceId, String resourceName,
-                             RuntimeException failure) {
-    TenantContext context = TenantContextHolder.get();
-    auditClient.recordAsync(AuditClient.AuditRecord.builder()
-        .tenantId(context == null ? null : context.tenantId())
-        .storeId(context == null ? null : context.storeId())
-        .action(action)
-        .resourceType(resourceType)
-        .resourceId(resourceId == null ? null : String.valueOf(resourceId))
-        .resourceName(resourceName)
-        .result(AuditClient.AuditRecord.RESULT_FAILURE)
-        .errorCode(AuditErrorCodes.of(failure))
-        .build());
-  }
-
   private Order requireOrder(Long id) {
     return orderCancellationService.requireOrder(id);
-  }
-
-  /** 是否存在开台中/挂单中的 KTV 会话（挂单是会话内的操作标记，不是订单交易状态）。 */
-  private boolean hasOngoingSession(Long orderId) {
-    KtvSession session = ktvSessionService.listByOrderIds(List.of(orderId)).get(orderId);
-    return session != null && session.ongoing();
   }
 
   private TenantContext requireContext() {
@@ -464,11 +377,6 @@ public class OrderApplicationService {
       throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少有效的租户/组织/门店上下文");
     }
     return context;
-  }
-
-  /** 审计详情里的自由文本：转义引号，避免拼出非法 JSON（审计落库失败会丢操作日志）。 */
-  private static String safe(String value) {
-    return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"");
   }
 
   /** 创建订单命令（与 HTTP 请求解耦）。 */

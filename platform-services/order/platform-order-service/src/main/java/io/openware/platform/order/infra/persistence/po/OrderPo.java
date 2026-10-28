@@ -98,10 +98,6 @@ public class OrderPo {
     private BigDecimal refundableAmount;
     private LocalDateTime completedAt;
     private LocalDateTime cancelledAt;
-    /** 挂单原因（KTV_BUSINESS_01 §11.1：挂单不结台、不改商业状态）。 */
-    private String holdReason;
-    /** 挂单时间。 */
-    private LocalDateTime holdAt;
     private Integer version;
     private Long createdBy;
     private LocalDateTime createdAt;

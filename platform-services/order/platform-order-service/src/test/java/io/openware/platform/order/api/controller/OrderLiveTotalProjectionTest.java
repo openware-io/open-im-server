@@ -244,7 +244,7 @@ class OrderLiveTotalProjectionTest {
     private static Order order(Long id, BigDecimal totalAmount) {
         return new Order(id, TENANT_ID, null, STORE_ID, "ORD-20260918-0001", null, "KTV", null, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, BigDecimal.ZERO, BigDecimal.ZERO,
-                null, null, null, null, 0);
+                null, null, 0);
     }
 
     /** 读路径的落库行 + 记账快照（本用例只看业务字段）。 */

@@ -62,7 +62,7 @@ class KtvReservationTimeoutServiceTest {
         return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
                 java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
-                null, null, null, null, 0);
+                null, null, 0);
     }
 
     @Test

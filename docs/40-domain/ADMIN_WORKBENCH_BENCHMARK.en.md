@@ -103,7 +103,7 @@ not subscribed -> portfolio shows "available", no hotel menus
 
 ### 4.5 Action-level permissions
 
-Menu controls entry; actions also need permissions such as `hotel.checkin`, `hotel.checkout`, `hotel.rate.update`. Otherwise users can enter a page but cannot act.
+Menu controls entry; actions also need permissions such as `hotel.room.manage`, `hotel.folio.manage`, `hotel.room.availability.manage`. Otherwise users can enter a page but cannot act.
 
 ### 4.6 Mobile parity
 

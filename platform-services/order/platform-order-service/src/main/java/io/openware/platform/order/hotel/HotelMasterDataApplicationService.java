@@ -168,7 +168,7 @@ public class HotelMasterDataApplicationService {
     @Transactional
     public HotelRatePlanPo saveRatePlan(Long id, Long hotelId, String code, String name,
                                         Long basePriceMinor, String currency) {
-        PermissionGuard.require("hotel.rate.update");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (hotelId == null || code == null || code.isBlank() || name == null || name.isBlank()
                 || basePriceMinor == null || basePriceMinor < 0) {
@@ -261,7 +261,7 @@ public class HotelMasterDataApplicationService {
     @Transactional
     public HotelDailyRatePo setDailyRate(Long roomTypeId, Long ratePlanId, LocalDate stayDate,
                                          Long priceMinor, String currency) {
-        PermissionGuard.require("hotel.rate.update");
+        PermissionGuard.require("hotel.room.availability.manage");
         TenantContext context = requireStore();
         if (roomTypeId == null || ratePlanId == null || stayDate == null || priceMinor == null || priceMinor < 0) {
             throw new ApiException(400, "DAILY_RATE_FIELDS_INVALID", "房型、房价计划、日期和价格不能为空");

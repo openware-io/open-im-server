@@ -127,18 +127,6 @@ public class OrderController {
         return KtvServerSessionView.from(ordered);
     }
 
-    /** 挂单：开台中（交易状态 DRAFT + 会话 OPEN/PAUSED）的操作标记，不结台、不改交易状态。 */
-    @PostMapping("/orders/{id}/hold")
-    public OrderView hold(@PathVariable Long id, @RequestBody HoldRequest req) {
-        return orderService.hold(id, req.reason());
-    }
-
-    /** 解除挂单。 */
-    @PostMapping("/orders/{id}/unhold")
-    public OrderView unhold(@PathVariable Long id) {
-        return orderService.unhold(id);
-    }
-
     /** 转台：换包厢，计时继承（累计）不重置。 */
     @PostMapping("/orders/{id}/transfer")
     public KtvSessionView transfer(@PathVariable Long id, @RequestBody TransferRequest req) {
@@ -205,7 +193,6 @@ public class OrderController {
                                      String currencyCode, Long resourceId) {}
     public record OpenRequest(Integer freeWaitMinutes, Integer partySize) {}
     public record OrderServerRequest(Long tenantId, Long ktvSessionId, Long serverResourceId, Long catalogItemId) {}
-    public record HoldRequest(String reason) {}
     public record TransferRequest(Long targetResourceId) {}
     public record VoidRequest(String reason) {}
     /** 取消订单请求体：{@code reason} 必填（空白 → 400 CANCEL_REASON_REQUIRED），≤255 字符。 */

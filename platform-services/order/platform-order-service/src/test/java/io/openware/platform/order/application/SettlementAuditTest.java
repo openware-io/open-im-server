@@ -149,7 +149,7 @@ class SettlementAuditTest {
     private static Order order(String status, int version) {
         return new Order(ORDER_ID, 1001L, null, 2001L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("8000"), BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, version);
+                BigDecimal.ZERO, null, null, version);
     }
 
     private AuditClient.AuditRecord captured() {

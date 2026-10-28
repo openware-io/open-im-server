@@ -13,6 +13,9 @@ import java.util.Set;
  * （见 {@code domain.ktv.model.KtvSessionStatus}），酒店的在住/待退是 {@code htl_booking.status}；
  * 二者都不再写进订单状态。
  *
+ * <p><b>订单级挂单已删除</b>：挂单/暂停由 {@code ord_ktv_session.status = PAUSED} 表达
+ * （见 {@code KtvSessionApplicationService#pause/#resume}），订单主表不再保留挂单标记列（V28 已删）。
+ *
  * <p>{@code OrderPo} 上另有若干 {@code @TableField(exist = false)} 字段（sessionId / roomResourceId /
  * roomName / roomCode / sessionStatus / partySize / serverId / serverName / roomElapsedSeconds /
  * roomEstimatedFee / liveTotalAmount / sessionOpenedAt / sessionClosedAt）——它们是**从
@@ -47,8 +50,6 @@ import java.util.Set;
  * @param refundableAmount 可退金额
  * @param completedAt      完成时间
  * @param cancelledAt      作废/取消时间
- * @param holdReason       挂单原因（挂单是开台中的标记，不改交易状态）
- * @param holdAt           挂单时间
  * @param version          乐观锁版本号
  */
 public record Order(
@@ -71,8 +72,6 @@ public record Order(
     BigDecimal refundableAmount,
     LocalDateTime completedAt,
     LocalDateTime cancelledAt,
-    String holdReason,
-    LocalDateTime holdAt,
     Integer version) {
 
   /** 终态集合（交易状态）：处于这些状态的订单不可再取消/作废/加项。 */
@@ -97,11 +96,6 @@ public record Order(
   /** 是否已作废（审批作废/冲正）。 */
   public boolean voided() {
     return trade() == TradeStatus.VOIDED;
-  }
-
-  /** 是否处于挂单中。 */
-  public boolean held() {
-    return holdAt != null;
   }
 
   /** 版本号；为空视为 0。 */
@@ -133,16 +127,14 @@ public record Order(
   public Order withTradeStatus(String newTradeStatus) {
     return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, newTradeStatus, refundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt,
-        version);
+        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, version);
   }
 
   /** 退款状态转换（返回新实例）。 */
   public Order withRefundStatus(String newRefundStatus) {
     return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, tradeStatus, newRefundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt,
-        version);
+        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, version);
   }
 
   /** 金额重算后的新实例（{@code recalculate} 产出的五个金额列）。同上：不接收时间戳。 */
@@ -150,21 +142,7 @@ public record Order(
                            BigDecimal newTotal, BigDecimal newRefundable) {
     return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, tradeStatus, refundStatus, currencyCode, newSubtotal, newDiscount, newTax,
-        newTotal, paidAmount, newRefundable, completedAt, cancelledAt, holdReason, holdAt, version);
-  }
-
-  /** 挂单（返回新实例）。 */
-  public Order held(String reason, LocalDateTime at) {
-    return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-        customerId, tradeStatus, refundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, reason, at, version);
-  }
-
-  /** 解挂（返回新实例）。 */
-  public Order unheld(LocalDateTime at) {
-    return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-        customerId, tradeStatus, refundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, null, null, version);
+        newTotal, paidAmount, newRefundable, completedAt, cancelledAt, version);
   }
 
   /** 作废（返回新实例）：交易状态 VOIDED + cancelled_at。 */
@@ -184,23 +162,20 @@ public record Order(
     }
     return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, target.name(), refundStatus, currencyCode, subtotalAmount,
-        discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, at, holdReason,
-        holdAt, version);
+        discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, at, version);
   }
 
   /** 版本自增后的新实例（CAS 成功后同步内存对象）。 */
   public Order withVersion(int newVersion) {
     return new Order(id, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, tradeStatus, refundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt,
-        newVersion);
+        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, newVersion);
   }
 
   /** 落库后回填主键的新实例（聚合不可变，插入由适配器返回带 id 的副本）。 */
   public Order withId(Long newId) {
     return new Order(newId, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
         customerId, tradeStatus, refundStatus, currencyCode, subtotalAmount, discountAmount,
-        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, holdReason, holdAt,
-        version);
+        taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt, version);
   }
 }

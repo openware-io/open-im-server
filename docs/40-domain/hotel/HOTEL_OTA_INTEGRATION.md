@@ -2,7 +2,10 @@
 
 [中文](HOTEL_OTA_INTEGRATION.md) | [English](HOTEL_OTA_INTEGRATION.en.md)
 
-> 状态：`draft`（`develop/2.4.0-hotel`）  
+> 状态：`draft`（`develop/2.4.0-hotel`）；**v1 最小适配器已实现并可用**（HMAC 鉴权、`POST /v1/bookings` 幂等创建、
+> `GET /v1/bookings/{externalRef}` 查询、`POST /v1/bookings/{externalRef}/cancel` 幂等取消、`POST /v1/ari` 202 no-op；
+> 本地 SANDBOX 渠道仅用于 E2E），实现说明见
+> [HOTEL_OTA_CHANNEL_V1.md](../../50-services/platform/platform-order-service/HOTEL_OTA_CHANNEL_V1.md)。  
 > 定位：**对外接入契约**，不是某一家 OTA 的私有文档。  
 > 原则：先定契约、再做适配器；OTA 是销售渠道，不是第二套酒店域。
 
@@ -17,7 +20,8 @@
 - 渠道鉴权、幂等、重试、错误码、版本；
 - 渠道经理（Channel Manager）作为聚合层的边界。
 
-**明确不包含**：真实 OTA 适配器、沙箱环境、渠道经理实现。MVP 只做规范与内部渠道模型。
+**明确不包含**：真实 OTA 厂商适配器（各家签名/字段映射）、生产沙箱环境、渠道经理（Channel Manager）实现；
+`modify` 不在 v1 范围（契约中已删除）。v1 只做对外契约 + 内部渠道模型 + 最小预订适配器（2026-10 二期已实现）。
 
 不覆盖：
 

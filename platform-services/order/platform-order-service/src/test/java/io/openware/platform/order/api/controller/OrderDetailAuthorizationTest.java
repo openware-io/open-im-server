@@ -149,6 +149,6 @@ class OrderDetailAuthorizationTest {
     private static Order order(Long id, Long customerId) {
         return new Order(id, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", customerId, "DRAFT", RefundStatus.NONE.name(), "CNY",
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
-                BigDecimal.ZERO, null, null, null, null, 0);
+                BigDecimal.ZERO, null, null, 0);
     }
 }

@@ -7,7 +7,7 @@ package io.openware.platform.order.domain.reservation.model;
  * 门店覆盖 &gt; 业态默认 &gt; 租户默认，见 {@link #scopeSource()}。
  *
  * <p><b>字段集只来自真实 DDL</b>（{@code V1__ord_order_baseline.sql} 的
- * {@code ord_reservation_rule_config}）：id / tenant_id / business_type / store_id /
+ * {@code ktv_reservation_rule_config}）：id / tenant_id / business_type / store_id /
  * advance_minutes / cancel_minutes / reschedule_minutes / version / idempotency_key / status
  * + 四个审计列。{@code OrdReservationRuleConfigPo} 上没有 {@code @TableField(exist = false)} 字段。
  *

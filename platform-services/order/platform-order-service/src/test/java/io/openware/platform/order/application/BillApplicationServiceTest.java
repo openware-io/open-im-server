@@ -402,7 +402,7 @@ class BillApplicationServiceTest {
   private static Order order(BigDecimal totalAmount, String status) {
     return new Order(1L, 100L, null, 100L, "ORD-20260918-0001", null, "KTV", null, status, RefundStatus.NONE.name(), "CNY",
         totalAmount, BigDecimal.ZERO, BigDecimal.ZERO, totalAmount, totalAmount, BigDecimal.ZERO,
-        null, null, null, null, 0);
+        null, null, 0);
   }
 
   private static OrderItem item(Long id, String itemType, String name, Long resourceId,

@@ -56,7 +56,7 @@ GET/POST/PUT /admin/hotel/rate-plans
 GET/PUT      /admin/hotel/availability
 ```
 
-写操作分别校验 `hotel.room.availability.manage` / `hotel.rate.update`，读取校验
+写操作分别校验 `hotel.room.availability.manage`（房价/房量），读取校验
 `hotel.room.availability.view` / `hotel.booking.view`；房态写操作校验 `hotel.room.manage`，
 清扫写操作校验 `hotel.housekeeping.manage`；
 所有查询强制当前 `storeId`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
@@ -183,7 +183,7 @@ POST /admin/hotel/frontdesk/bookings/{id}/move-room
 
 - 夜审按营业日把到离店日期的在住预订转 `DUE_OUT`，固化在住数/待退房数/房费汇总，同一营业日不可重复；
 - 换房只允许在住预订，新房间原子占用，旧房间置 `DIRTY` 并生成清扫任务；
-- 夜审和换房分别校验 `hotel.room.availability.manage` / `hotel.checkin`。
+- 夜审和换房分别校验 `hotel.room.availability.manage` / `hotel.room.manage`。
 
 ## 酒店订单应收桥接（H4）
 
@@ -249,7 +249,7 @@ POST /admin/hotel/frontdesk/bookings/{id}/extend
 ```
 
 只对新增夜追加 `sold` 库存、`htl_booking_night`、房费和账单项，不改已住夜。
-`hotel.checkin` 权限校验；新日期必须晚于当前离店日期；库存不足返回 409。
+`hotel.room.manage` 权限校验；新日期必须晚于当前离店日期；库存不足返回 409。
 
 ## C 端酒店目录/报价（H5）
 
@@ -302,8 +302,6 @@ refund_status : NONE / PARTIAL / FULL
 ```text
 POST /business/orders                         快速开台：创建 KTV 订单 + 包厢会话（ORDER 创建）
 POST /business/orders/{id}/confirm            DRAFT -> PENDING_PAYMENT
-POST /business/orders/{id}/hold               挂单标记（不改交易状态）
-POST /business/orders/{id}/unhold
 POST /business/orders/{id}/cancel             CANCELLED（释放会话/库存）
 POST /business/orders/{id}/void               VOIDED（按作废规则审批）
 GET  /business/orders、/business/orders/{id}
@@ -412,7 +410,7 @@ POST /admin/inventory/consumptions            客房领用/迷你吧/KTV 商品/
 | `hotel.room.availability.view` / `hotel.room.availability.manage` | 房量查询 / 日历维护 |
 | `hotel.booking.view` / `hotel.booking.create` | 预订查询 / 创建 |
 | `hotel.folio.view` / `hotel.folio.manage` | 账务查看 / 收款退房 |
-| `hotel.checkin` / `hotel.checkout` | 入住 / 退房动作 |
+| `hotel.room.manage` / `hotel.folio.manage` | 入住 / 退房动作 |
 | `inventory.view` / `inventory.manage` | 通用库存读写（含仓库/成本/调拨/消费） |
 | `ktv.session.open` / `ktv.session.operate` / `ktv.session.correct_pause` | KTV 会话动作 |
 
@@ -429,14 +427,22 @@ POST /admin/inventory/consumptions            客房领用/迷你吧/KTV 商品/
 | `V25__inventory_warehouse.sql` | 库存作用域收紧：`organization_id/business_type/warehouse_id NOT NULL`、`uk_ord_inventory_stock_scope`、流水仓库索引 |
 | `V26__demo_hotel_domain_seed.sql` | 清库 Kind 演示数据：HOTEL 门店 6 房型/60 房/31 天房量，移除旧 KTV 门店演示预订 |
 | `V27__drop_domain_compat_columns.sql` | **破坏性收口（最终清理）**：删除 `ord_order.status` + `idx_ord_order_store_status`、`htl_room.status`、`htl_inventory_calendar`、`htl_inventory_hold`（清库重建下旧表无可迁移数据） |
+| `V28__drop_order_hold_columns.sql` | 删除订单级挂单列 `ord_order.hold_reason/hold_at`（挂单/暂停由 `ord_ktv_session.status=PAUSED` 表达，端点 `/hold`、`/unhold` 已删） |
+| `V29__rename_ktv_reservation_tables.sql` | `ord_reservation` → `ktv_reservation`、`ord_reservation_rule_config` → `ktv_reservation_rule_config`，索引同步改 `uk_ktv_*` / `idx_ktv_*` |
 | `V30__htl_channel_booking.sql` | 酒店 OTA channel v1 映射表 `htl_channel_booking`（唯一键 `channel_code + external_ref`） |
 
 租户服务 `db/migration`：`V29__hotel_room_permissions.sql`（房态/清扫/房量权限）、
 `V31__permission_hardening.sql`（folio/housekeeping.view/inventory 权限 + 旧授权迁移）、
 `V32__demo_hotel_store.sql`（HOTEL 门店 102 + 业态权益 + 门店经理绑定）、
-`V34__retire_hotel_inventory_permission.sql`（删除 `hotel.inventory.manage` 授权并置 `DISABLED`）。
+`V34__retire_hotel_inventory_permission.sql`（删除 `hotel.inventory.manage` 授权并置 `DISABLED`）、
+`V35__retire_hotel_action_permissions.sql`（`hotel.checkin/checkout/rate.update` 授权迁移到
+`hotel.room.manage`/`hotel.folio.manage`/`hotel.room.availability.manage`，旧授权删除并置 `DISABLED`；
+同时停用随 `/hold`、`/unhold` 端点删除而不再使用的 `order.hold`）。
 
-> 破坏性收口已在本次发布执行：`ord_order.status`、`htl_room.status`、`htl_inventory_calendar`、
-> `htl_inventory_hold` 由 V27 删除；`hotel.inventory.manage` 授权由租户 V34 删除、权限行置 `DISABLED`。
+> 收口状态：`ord_order.status`、`htl_room.status`、`htl_inventory_calendar`、`htl_inventory_hold` 由 V27
+> 在二期清库发布中删除；`hotel.inventory.manage` 授权由租户 V34 删除并置 `DISABLED`。
+> P2-3 收口（V28 删订单级挂单列、V29 预约表改名 `ktv_*`、租户 V35 旧动作权限/`order.hold` 迁移停用）
+> 已合入代码，**随合并后的下一次清库发布生效**（`ktv_` 前缀在 `scripts/validate/table-prefixes.txt`
+> 与 `ENGINEERING_RULES.md` 登记）。
 > 验证门禁：`invoke-engineering-validation.ps1 -Scope Full`；E2E 覆盖 KTV 开台→结台→收款→作废、
 > 酒店预订→入住→退房→清扫、房态/房量不变量与共享库存。
