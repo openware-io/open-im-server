@@ -17,7 +17,7 @@ The B-end web preview is deployed to the local Kind environment:
 
 ```text
 http://127.0.0.1:30080/saas/#/admin/tenant/hotel
-Version: 2.4.0-SNAPSHOT
+Version: 2.4.1-SNAPSHOT
 ```
 
 This build sets `VITE_HOTEL_PROTOTYPE=true`, so the "Hotel management" entry is visible until the backend menu is delivered. Turn the flag off afterwards.

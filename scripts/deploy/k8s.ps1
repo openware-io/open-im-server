@@ -321,18 +321,21 @@ function Set-ApplicationImage {
         'release.open-im.local/deployed-at' = $CreatedAt
         'release.open-im.local/image-ref' = $imageRef
       }
-    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy; env = @(
-      @{ name = 'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE'; value = 'health,info' },
-      @{ name = 'MANAGEMENT_INFO_ENV_ENABLED'; value = 'true' },
-      @{ name = 'INFO_BUILD_GIT_COMMIT'; value = $Revision },
-      @{ name = 'INFO_BUILD_IMAGE'; value = $imageRef },
-      @{ name = 'INFO_BUILD_ARTIFACT_SHA256'; value = $ArtifactHash }
-    ) }) } } }
+    }; spec = @{ containers = @(@{ name = $Name; imagePullPolicy = $imagePullPolicy }) } } }
   } | ConvertTo-Json -Compress -Depth 8
   $patchFile = Join-Path ([System.IO.Path]::GetTempPath()) ("open-im-k8s-labels-" + [guid]::NewGuid().ToString() + '.json')
   try {
     [System.IO.File]::WriteAllText($patchFile, $patch, [System.Text.UTF8Encoding]::new($false))
     Invoke-Kubectl -Arguments @('patch', "deployment/$Name", '--namespace', $Namespace, '--type=strategic', '--patch-file', $patchFile)
+    # Set only the build-info env keys; a strategic patch that includes an env array
+    # would replace every manifest env (e.g. SAAS_COOKIE_PLAIN) with that array.
+    Invoke-Kubectl -Arguments @('set', 'env', "deployment/$Name",
+      'MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info',
+      'MANAGEMENT_INFO_ENV_ENABLED=true',
+      "INFO_BUILD_GIT_COMMIT=$Revision",
+      "INFO_BUILD_IMAGE=$imageRef",
+      "INFO_BUILD_ARTIFACT_SHA256=$ArtifactHash",
+      '--namespace', $Namespace)
   } finally {
     if (Test-Path -LiteralPath $patchFile) { Remove-Item -LiteralPath $patchFile -Force }
   }
@@ -501,6 +504,22 @@ if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
 }
 Apply-RenderedManifest -Name 'gateway-admin.yaml' -Replacements $replacements -StartSuspended
 Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspended
+# Local Kind is plain HTTP. Ensure the local-only cookie/debug-session flags survive
+# client-side apply even when a manifest env list is partially reconciled.
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-identity-service',
+  'SAAS_DEV_SESSION_ENABLED=true', 'SAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-admin-service',
+  'SAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-tenant-service',
+  'SAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/group-idaas-service',
+  'IDAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-order-service',
+  'HOTEL_CHANNEL_SANDBOX_TENANT_ID=100', 'HOTEL_CHANNEL_SANDBOX_SECRET=local-kind-ota-channel-secret-0123456789abcdef',
+  '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/common-payment-channel-service',
+  'SANDBOX_PAY_ENABLED=true', 'SANDBOX_PAY_WEBHOOK_SECRET=local-e2e-sandbox-webhook-secret',
+  '--namespace', $Namespace)
 Apply-RenderedManifest -Name 'website.yaml' -Replacements $replacements -StartSuspended
 $ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"

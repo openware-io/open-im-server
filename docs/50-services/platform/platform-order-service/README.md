@@ -262,12 +262,26 @@ POST /business/hotel/catalog/quotes
 - 只读、按租户隔离，不要求门店上下文；
 - 目录返回酒店、房型、房价计划；
 - 报价按入住夜读取库存/每日房价，`available` 与总价同时返回；
-- C 端下单/支付仍待接入。
+- C 端酒店报价/预订已接入；支付仍按订单支付端点处理。
+
+## C 端 KTV 预约（H5）
+
+```text
+GET  /me/reservations      # 当前会员的预约列表（按 customer_id 收窄）
+POST /me/reservations      # 当前会员创建 KTV 预约，Idempotency-Key 幂等
+```
+
+- `POST /me/reservations` 只接受 `roomTypeId/startAt/endAt/partySize/contact`；
+  租户、门店、业态从签名消费者上下文派生，`customerId` 从当前会员派生，客户端不能指定。
+  历史消费者上下文未携带 `businessType` 时，该 C 端 KTV 预约入口按 `KTV` 处理。
+- 权限：`reservation.create`；列表不额外要求权限，按当前会员过滤。
+- 返回体与 B 端预约视图一致；到店后由门店分配具体包厢，C 端创建时不锁定包厢。
 
 ## C/B audience
 
 - order /admin/** 与 B 前台 /business/reservations|orders|ktv/** 要求 saas-b。
 - /business/hotel/catalog/** 要求 saas-c。
+- /me/reservations 的 POST 要求 saas-c；GET 为 C 端会员自助读路径。
 - 有 TenantContext 但缺 clientApp 的用户 token 拒绝。
 
 Catalog 写端点（POST/PUT/DELETE /business/catalog/items）要求 saas-b audience；列表保持 C/B 共享。

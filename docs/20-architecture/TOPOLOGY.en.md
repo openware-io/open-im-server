@@ -2,7 +2,7 @@
 
 [中文](TOPOLOGY.zh.md) | [English](TOPOLOGY.en.md)
 
-> Status: current stage (2.2.1)  
+> Status: current stage (2.4.1)  
 > Scope: im-saas product repositories under `D:\projects\cnb-oss` and the `open-im-server` runtime  
 > Goal: give repositories, deployment units, runtime services and data infrastructure one consistent hierarchy.
 

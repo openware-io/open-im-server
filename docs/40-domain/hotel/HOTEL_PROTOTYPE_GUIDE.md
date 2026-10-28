@@ -17,7 +17,7 @@ B 端 Web 已按开发发布规范部署到本地 Kind：
 
 ```text
 http://127.0.0.1:30080/saas/#/admin/tenant/hotel
-版本：2.4.0-SNAPSHOT
+版本：2.4.1-SNAPSHOT
 ```
 
 该版本启用 `VITE_HOTEL_PROTOTYPE=true`，因此在后端菜单接入前会显示“酒店管理”入口。接入正式菜单后关闭该标志。

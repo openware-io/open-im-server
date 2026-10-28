@@ -9,11 +9,11 @@
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>im-conversation</artifactId>
-  <version>2.4.0</version>
+  <version>2.4.1</version>
   <packaging>pom</packaging>
   <properties>
-    <domain.version>2.4.0</domain.version>
-    <im.user-api.version>2.4.0</im.user-api.version>
+    <domain.version>2.4.1</domain.version>
+    <im.user-api.version>2.4.1</im.user-api.version>
   </properties>
   <dependencyManagement>
     <dependencies>

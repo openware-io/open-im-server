@@ -5,7 +5,7 @@ info:
   description: |
     External OTA / channel-manager contract for hotel bookings and cancellation.
 
-    ## Implementation status (2.4.0 二期)
+    ## Implementation status (2.4.1)
 
     - `POST /v1/bookings`（创建，externalRef 幂等）、`GET /v1/bookings/{externalRef}`（查询）、
       `POST /v1/bookings/{externalRef}/cancel`（取消，幂等）为**已实现**接口。

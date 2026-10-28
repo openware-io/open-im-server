@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> 状态：`current`（`develop/2.3.0`）  
+> 状态：`current`（`main`）  
 > 一句话：**OpenChat 是一套开源的即时通讯 + 多租户 SaaS 一体化平台，覆盖移动端、桌面端、运营后台与本地一键部署。**
 
 ![OpenChat 官网首页](../assets/screenshots/website.jpg)
@@ -101,7 +101,7 @@ App 内的服务板块与 H5 首页，覆盖酒店、KTV、酒吧、台球、美
 
 ## 8. 项目状态
 
-- 当前开发分支：`develop/2.3.0`
-- 最近阶段 tag：`2.2.1`
+- 当前开发分支：`main`
+- 最近阶段 tag：`v2.4.1`
 - 许可证：Apache License 2.0
 - 文档入口：[文档中心](../README.md)
