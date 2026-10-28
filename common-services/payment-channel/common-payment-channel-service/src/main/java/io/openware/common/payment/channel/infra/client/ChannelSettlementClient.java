@@ -6,6 +6,7 @@ import io.openware.infrastructure.security.InternalServiceAuthentication;
 import io.openware.infrastructure.security.InternalServiceSignature;
 import java.util.UUID;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -37,6 +38,7 @@ public class ChannelSettlementClient {
     private final String serviceName;
     private final String secret;
 
+    @Autowired
     public ChannelSettlementClient(
             @Value("${app.payment-settlement.base-url:http://common-payment-service:4140}") String baseUrl,
             @Value("${internal.service-auth.service-name:common-payment-channel-service}") String serviceName,
