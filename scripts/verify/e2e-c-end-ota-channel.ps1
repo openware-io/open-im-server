@@ -509,25 +509,21 @@ try {
   $ktvReservations = Invoke-Http -Client $ktvClient -Method GET -Path '/me/reservations'
   $ktvReservationList = @(Get-Data $ktvReservations)
   Add-Check 'KTV-C-MY-RESERVATIONS' ($ktvReservations.status -eq 200) 'C-side GET /me/reservations is available' ([ordered]@{ status = $ktvReservations.status; count = $ktvReservationList.Count })
-  $ktvCreate = Invoke-Http -Client $ktvClient -Method POST -Path '/business/reservations' -Body @{
-    businessType = 'KTV'; roomTypeId = 1
-    startAt = ([DateTimeOffset]::Now.AddHours(3).ToString('o')); endAt = ([DateTimeOffset]::Now.AddHours(5).ToString('o'))
+  $ktvStart = (Get-Date).Date.AddDays(1).AddHours(20)
+  $ktvEnd = $ktvStart.AddHours(2)
+  $ktvCreate = Invoke-Http -Client $ktvClient -Method POST -Path '/me/reservations' -Body @{
+    roomTypeId = 1
+    startAt = $ktvStart.ToString('yyyy-MM-ddTHH:mm:ss+08:00')
+    endAt = $ktvEnd.ToString('yyyy-MM-ddTHH:mm:ss+08:00')
     partySize = 2; contact = 'E2E C KTV'
   } -ExtraHeaders @{ 'Idempotency-Key' = ('e2e-c-ktv-' + $stamp) }
-  $ktvList = Invoke-Http -Client $ktvClient -Method GET -Path '/business/reservations'
-  Add-Check 'KTV-C-LIST-AUDIENCE' (($ktvList.status -eq 403) -or ($ktvList.status -eq 200)) 'GET /business/reservations is either C-blocked or returns C data' ([ordered]@{ status = $ktvList.status; code = (Get-ErrorCode $ktvList) })
-  $ktvCreateAbsent = ($ktvCreate.status -eq 403 -and (Get-ErrorCode $ktvCreate) -eq 'CLIENT_AUDIENCE_FORBIDDEN')
-  if ($ktvCreateAbsent) {
-    # Product boundary (Lead-confirmed): reservation write/list endpoints are @ClientAudience("saas-b");
-    # C-side only exposes /me/orders and /me/reservations. This single optional GAP is allowed in the
-    # final report and must not be expanded to any other item.
-    Add-Gap 'KTV-C-CREATE-LIST-ABSENT' 'C-side KTV reservation create/list are not exposed because the controller is @ClientAudience("saas-b"); a saas-c context gets 403 CLIENT_AUDIENCE_FORBIDDEN. C-side read entries /me/orders + /me/reservations are asserted as PASS.' ([ordered]@{ createStatus = $ktvCreate.status; createCode = (Get-ErrorCode $ktvCreate); listStatus = $ktvList.status; listCode = (Get-ErrorCode $ktvList); evidence = '@ClientAudience("saas-b") on ReservationController' }) $false
-  } elseif ($ktvCreate.status -ge 200 -and $ktvCreate.status -lt 300) {
-    $created = Get-Data $ktvCreate
-    Add-Check 'KTV-C-CREATE' ($null -ne $created.id) 'C-side KTV reservation create now exists and returned a reservation id' ([ordered]@{ status = $ktvCreate.status; body = $created })
-  } else {
-    Add-Check 'KTV-C-CREATE-UNEXPECTED' $false 'C-side KTV reservation create returned an unexpected status' ([ordered]@{ status = $ktvCreate.status; code = (Get-ErrorCode $ktvCreate); body = $ktvCreate.raw })
-  }
+  $createdKtv = Get-Data $ktvCreate
+  Add-Check 'KTV-C-CREATE' ($ktvCreate.status -ge 200 -and $ktvCreate.status -lt 300 -and $null -ne $createdKtv.id) 'C-side KTV reservation create is exposed on /me/reservations and returned an id' ([ordered]@{ status = $ktvCreate.status; body = $createdKtv })
+  $ktvReservationsAfter = Invoke-Http -Client $ktvClient -Method GET -Path '/me/reservations'
+  $ktvReservationListAfter = @(Get-Data $ktvReservationsAfter)
+  $ktvCreatedId = if ($null -ne $createdKtv.id) { [string]$createdKtv.id } else { '' }
+  $ktvListed = @($ktvReservationListAfter | Where-Object { [string]$_.id -eq $ktvCreatedId })
+  Add-Check 'KTV-C-CREATE-LISTED' ($ktvReservationsAfter.status -eq 200 -and $ktvListed.Count -eq 1) 'C-side /me/reservations lists the reservation created by the same consumer' ([ordered]@{ status = $ktvReservationsAfter.status; reservationId = $ktvCreatedId; count = $ktvReservationListAfter.Count })
 
   Step '2. C1-C4 C-side hotel session / catalog / quote / booking / queries'
   [void](Invoke-Fixture 'Prepare' 'C-Hotel')

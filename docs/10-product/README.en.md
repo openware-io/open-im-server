@@ -2,7 +2,7 @@
 
 [中文](README.md) | [English](README.en.md)
 
-> Status: `current` (`develop/2.3.0`)  
+> Status: `current` (`main`)  
 > One line: **OpenChat is an open-source instant-messaging + multi-tenant SaaS platform, covering mobile, desktop, operations consoles and one-click local deployment.**
 
 ![OpenChat website](../assets/screenshots/website.jpg)
@@ -101,7 +101,7 @@ One-click deploy → website/C-end → SaaS admin → engineering topology → s
 
 ## 8. Project status
 
-- Development branch: `develop/2.3.0`
-- Latest stage tag: `2.2.1`
+- Development branch: `main`
+- Latest stage tag: `v2.4.1`
 - License: Apache License 2.0
 - Documentation: [Documentation center](../README.en.md)
