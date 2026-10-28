@@ -32,7 +32,7 @@ function New-OtaChannelHeaders {
         [Parameter(Mandatory = $true)][string]$Method,
         [Parameter(Mandatory = $true)][string]$Path,
         [string]$Query = '',
-        [byte[]]$Body = [byte[]]@(),
+        [byte[]]$Body = [byte[]]::new(0),
         [long]$Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
     )
     $canonical = "$Channel`n$($Method.ToUpperInvariant())`n$Path`n$Query`n$Timestamp`n$(Get-OtaChannelBodyHash -Body $Body)"
@@ -58,7 +58,7 @@ function Invoke-OtaChannelRequest {
         [Parameter(Mandatory = $true)][string]$Path,
         [string]$BodyJson = ''
     )
-    $bytes = if ([string]::IsNullOrEmpty($BodyJson)) { [byte[]]@() } else { [Text.Encoding]::UTF8.GetBytes($BodyJson) }
+    $bytes = if ([string]::IsNullOrEmpty($BodyJson)) { [byte[]]::new(0) } else { [Text.Encoding]::UTF8.GetBytes($BodyJson) }
     $headers = New-OtaChannelHeaders -Channel $Channel -Secret $Secret -Method $Method -Path $Path -Body $bytes
     $params = @{
         Uri         = ($Gateway.TrimEnd('/') + $Path)

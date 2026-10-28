@@ -150,10 +150,14 @@ function Invoke-Http {
     [object]$Body = $null,
     [hashtable]$ExtraHeaders = @{}
   )
+  # Invoke-WebRequest -WebSession persists -Headers into the session, so a one-shot header such as
+  # Idempotency-Key would leak into every later request. Rebuild per-request headers from scratch.
+  if ($Client.session -and $Client.session.Headers) { $Client.session.Headers.Clear() }
   $headers = @{}
   if ($Client.referer) { $headers['Referer'] = $Client.referer }
   if ($Client.csrf) { $headers['X-CSRF-Token'] = $Client.csrf }
   foreach ($k in $ExtraHeaders.Keys) { $headers[$k] = $ExtraHeaders[$k] }
+  $headerNames = @($headers.Keys | Sort-Object)
   $params = @{ Uri = ($Base + $Path); Method = $Method; Headers = $headers; UseBasicParsing = $true; TimeoutSec = 60 }
   if ($Client.session) { $params.WebSession = $Client.session }
   if ($null -ne $Body) { $params.ContentType = 'application/json'; $params.Body = ($Body | ConvertTo-Json -Compress -Depth 8) }
@@ -175,13 +179,16 @@ function Invoke-Http {
     }
     if ([string]::IsNullOrWhiteSpace($detail)) { $detail = [string]$_.Exception.Message }
     $raw = $detail
+  } finally {
+    # Belt and braces: never let a one-shot header survive into the next request on the same session.
+    if ($Client.session -and $Client.session.Headers) { $Client.session.Headers.Clear() }
   }
   $body = $null
   if (-not [string]::IsNullOrWhiteSpace($raw)) { try { $body = ($raw | ConvertFrom-Json) } catch { $body = $raw } }
   $snippet = $raw
   if ($snippet.Length -gt 600) { $snippet = $snippet.Substring(0, 600) }
-  $script:requests.Add([ordered]@{ at = (Get-Date).ToString('o'); who = $Client.who; method = $Method; path = $Path; status = $status; response = $snippet })
-  return [ordered]@{ status = $status; body = $body; raw = $raw }
+  $script:requests.Add([ordered]@{ at = (Get-Date).ToString('o'); who = $Client.who; method = $Method; path = $Path; headerNames = $headerNames; status = $status; response = $snippet })
+  return [ordered]@{ status = $status; body = $body; raw = $raw; headerNames = $headerNames }
 }
 
 function Get-Data($response) {
@@ -369,7 +376,7 @@ function Invoke-RawHttp {
     [hashtable]$Headers = @{}
   )
   $params = @{ Uri = $Url; Method = $Method; Headers = $Headers; UseBasicParsing = $true; TimeoutSec = 30 }
-  if ($null -ne $BodyBytes) { $params.ContentType = $ContentType; $params.Body = $BodyBytes }
+  if ($null -ne $BodyBytes -and $BodyBytes.Length -gt 0) { $params.ContentType = $ContentType; $params.Body = $BodyBytes }
   $status = 0; $raw = ''
   try {
     $resp = Invoke-WebRequest @params
@@ -407,7 +414,7 @@ function Get-DeployConfigValue([string]$deployment, [string]$name) {
   return ''
 }
 
-function New-OtaHeaders([string]$method, [string]$path, [byte[]]$bodyBytes, [string]$secret) {
+function New-OtaHeaders([string]$method, [string]$path, [byte[]]$bodyBytes = [byte[]]::new(0), [string]$secret) {
   # Prefer the shared task-11 helper (scripts/verify/ota-channel-client.ps1) so signing
   # cannot drift between the OTA adapter and this E2E script.
   if (Get-Command New-OtaChannelHeaders -ErrorAction SilentlyContinue) {
@@ -472,6 +479,8 @@ $fixturePrepared = $false
 $channelJob = $null
 $bookingId = 0
 $orderId = 0
+$otaBookingId = 0
+$script:channelOrders = @()
 $amountMinor = 0
 $guestName = ''
 $stay = $null
@@ -686,7 +695,7 @@ try {
   Add-Check 'REFUND-DUP-IDEMPOTENCY' ($dupMark.status -eq 409 -and (Get-ErrorCode $dupMark) -eq 'REFUND_STATE_INVALID') 'duplicate markRefunded is rejected with 409 REFUND_STATE_INVALID (never 500, no double rollback)' ([ordered]@{ status = $dupMark.status; code = (Get-ErrorCode $dupMark); body = $dupMark.raw })
   $refundRowsBeforeDup = Get-SqlValue "SELECT COUNT(*) FROM pay_refund WHERE order_id = $orderId;"
   # No-key duplicate AFTER the order is fully refunded: a new PENDING row must never be created.
-  $refundReq2 = Invoke-Http -Client $bClient -Method POST -Path '/business/refund-requests' -Body @{ orderId = $orderId; amount = $amountMinor; reason = 'E2E duplicate refund request'; requestedBy = 100 }
+  $refundReq2 = Invoke-Http -Client $bClient -Method POST -Path '/business/refund-requests' -Body @{ orderId = $orderId; amount = $amountMinor; reason = 'E2E duplicate refund request'; requestedBy = 100 } -ExtraHeaders @{ 'Idempotency-Key' = '' }
   $refundRowsAfterDup = Get-SqlValue "SELECT COUNT(*) FROM pay_refund WHERE order_id = $orderId;"
   $dupReqCode = Get-ErrorCode $refundReq2
   $dupReqOk = ($refundReq2.status -ge 400 -and $refundReq2.status -lt 500 -and @('REFUND_DUPLICATE', 'ORDER_ALREADY_REFUNDED', 'REFUND_EXCEEDS_PAID') -contains $dupReqCode)
@@ -758,7 +767,7 @@ try {
     $otaRequiredFields = @('bookingNo', 'externalRef', 'status', 'currency', 'amountMinor')
     $otaMissingFields = @($otaRequiredFields | Where-Object { $null -eq $otaBody -or $null -eq $otaBody.PSObject.Properties[$_] })
     Add-Check 'OTA-RESPONSE-CONTRACT' ($otaMissingFields.Count -eq 0) 'OTA BookingResponse exposes the v1 required fields (bookingNo/externalRef/status/currency/amountMinor)' ([ordered]@{ missing = $otaMissingFields })
-    $otaBookingRow = Get-SqlRow "SELECT CONCAT_WS('|', order_id, status, organization_id, business_type, store_id, source) FROM htl_booking WHERE booking_no = '" + [string]$otaBody.bookingNo + "';"
+    $otaBookingRow = Get-SqlRow ("SELECT CONCAT_WS('|', order_id, status, organization_id, business_type, store_id, source) FROM htl_booking WHERE booking_no = '" + [string]$otaBody.bookingNo + "';")
     if (-not [string]::IsNullOrWhiteSpace($otaBookingRow)) {
       $b = $otaBookingRow -split '\|', 6
       $otaOrderId = [long]$b[0]
@@ -782,6 +791,7 @@ try {
       if ([int]$otaAvailReplay[$d].sold -ne [int]$otaAvailCreated[$d].sold) { $replayNoDouble = $false }
     }
     Add-Check 'DB-OTA-REPLAY-NO-DOUBLE-HOLD' $replayNoDouble 'idempotent replay does not double the room-availability hold' ([ordered]@{ afterCreate = $otaAvailCreated; afterReplay = $otaAvailReplay })
+    $bookingCountAfterOtaCreate = Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;"
     $otaConflictPayload = [ordered]@{
       externalRef = $otaRef; hotelRef = '1'
       roomTypeRef = [string]$fixture.roomTypeId; ratePlanRef = [string]$fixture.ratePlanId
@@ -793,7 +803,7 @@ try {
     $otaConflictBytes = Get-Utf8Bytes ($otaConflictPayload | ConvertTo-Json -Compress -Depth 6)
     $otaConflict = Invoke-RawHttp -Method 'POST' -Url ($Gateway.TrimEnd('/') + $otaPath) -BodyBytes $otaConflictBytes -Headers (New-OtaHeaders 'POST' $otaPath $otaConflictBytes $otaSecret)
     Add-Check 'OTA-SAME-REF-DIFF-PAYLOAD-409' ($otaConflict.status -eq 409) 'same externalRef with a different payload is rejected with HTTP 409' ([ordered]@{ status = $otaConflict.status; body = $otaConflict.raw })
-    Add-Check 'DB-OTA-CONFLICT-NO-SIDE-EFFECT' ((Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$otaRef';") -eq '1' -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountBeforeOta) 'conflicting replay leaves the single channel mapping row and htl_booking row count unchanged'
+    Add-Check 'DB-OTA-CONFLICT-NO-SIDE-EFFECT' ((Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$otaRef';") -eq '1' -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountAfterOtaCreate) 'conflicting replay leaves the single channel mapping row and htl_booking row count unchanged'
     $shortRef = 'E2E-OTA-SHORT-' + $stamp
     $shortQuote = Invoke-Http -Client $hotelClient -Method POST -Path '/business/hotel/quotes' -Body @{ roomTypeId = $fixture.roomTypeId; ratePlanId = $fixture.ratePlanId; checkInDate = $stay.checkIn; checkOutDate = $stay.checkOut; rooms = 9 }
     $shortQuoteData = Get-Data $shortQuote
@@ -810,14 +820,14 @@ try {
     $shortBytes = Get-Utf8Bytes ($shortPayload | ConvertTo-Json -Compress -Depth 6)
     $shortResp = Invoke-RawHttp -Method 'POST' -Url ($Gateway.TrimEnd('/') + $otaPath) -BodyBytes $shortBytes -Headers (New-OtaHeaders 'POST' $otaPath $shortBytes $otaSecret)
     Add-Check 'OTA-INVENTORY-SHORTAGE-409' ($shortResp.status -eq 409 -and [string]$shortResp.body.code -eq 'ROOM_AVAILABILITY_UNAVAILABLE') 'OTA request for more rooms than the daily availability is rejected with 409 ROOM_AVAILABILITY_UNAVAILABLE' ([ordered]@{ status = $shortResp.status; body = $shortResp.raw; rooms = 9 })
-    Add-Check 'DB-OTA-SHORTAGE-ROLLBACK' ((Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$shortRef';") -eq '0' -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountBeforeOta) 'failed OTA create leaves no channel mapping row and no htl_booking row (atomic rollback)'
+    Add-Check 'DB-OTA-SHORTAGE-ROLLBACK' ((Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$shortRef';") -eq '0' -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountAfterOtaCreate) 'failed OTA create leaves no channel mapping row and no htl_booking row (atomic rollback)'
     $otaGetPath = '/api/v1/open/hotel/v1/bookings/' + $otaRef
-    $otaGet = Invoke-RawHttp -Method 'GET' -Url ($Gateway.TrimEnd('/') + $otaGetPath) -Headers (New-OtaHeaders 'GET' $otaGetPath ([byte[]]@()) $otaSecret)
+    $otaGet = Invoke-RawHttp -Method 'GET' -Url ($Gateway.TrimEnd('/') + $otaGetPath) -Headers (New-OtaHeaders 'GET' $otaGetPath ([byte[]]::new(0)) $otaSecret)
     Add-Check 'OTA-GET' ($otaGet.status -eq 200 -and [string]$otaGet.body.bookingNo -eq [string]$otaBody.bookingNo) 'signed GET returns the channel booking' ([ordered]@{ status = $otaGet.status; body = $otaGet.raw })
     $missingRef = 'E2E-OTA-NOT-EXIST-' + $stamp
     $missingPath = '/api/v1/open/hotel/v1/bookings/' + $missingRef
     $missingGetMapping = Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$missingRef';"
-    $missingGet = Invoke-RawHttp -Method 'GET' -Url ($Gateway.TrimEnd('/') + $missingPath) -Headers (New-OtaHeaders 'GET' $missingPath ([byte[]]@()) $otaSecret)
+    $missingGet = Invoke-RawHttp -Method 'GET' -Url ($Gateway.TrimEnd('/') + $missingPath) -Headers (New-OtaHeaders 'GET' $missingPath ([byte[]]::new(0)) $otaSecret)
     Add-Check 'OTA-GET-NOT-FOUND-404' ($missingGet.status -eq 404 -and [string]$missingGet.body.code -eq 'CHANNEL_BOOKING_NOT_FOUND') 'signed GET for an unknown externalRef returns 404 CHANNEL_BOOKING_NOT_FOUND' ([ordered]@{ status = $missingGet.status; body = $missingGet.raw })
     Add-Check 'DB-OTA-GET-MISSING-NO-SIDE-EFFECT' ((Get-SqlValue "SELECT COUNT(*) FROM htl_channel_booking WHERE channel_code = 'sandbox' AND external_ref = '$missingRef';") -eq $missingGetMapping) 'unknown GET writes no channel mapping row'
     $otaAriPath = '/api/v1/open/hotel/v1/ari'
@@ -826,7 +836,7 @@ try {
     $otaAri = Invoke-RawHttp -Method 'POST' -Url ($Gateway.TrimEnd('/') + $otaAriPath) -BodyBytes $otaAriBytes -Headers (New-OtaHeaders 'POST' $otaAriPath $otaAriBytes $otaSecret)
     $otaAriResult = @($otaAri.body.results)[0]
     Add-Check 'OTA-ARI-202-NOOP' ($otaAri.status -eq 202 -and $otaAriResult.accepted -eq $false -and [string]$otaAriResult.code -eq 'ARI_NOT_IMPLEMENTED') 'signed ARI push is a 202 no-op with accepted=false/ARI_NOT_IMPLEMENTED' ([ordered]@{ status = $otaAri.status; body = $otaAri.raw })
-    Add-Check 'DB-OTA-ARI-NO-WRITE' ((Get-AvailabilityState $fixture.roomTypeId $nights)[$stay.checkIn].total -eq $otaAvailCreated[$stay.checkIn].total -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountBeforeOta) 'ARI no-op does not write availability or bookings'
+    Add-Check 'DB-OTA-ARI-NO-WRITE' ((Get-AvailabilityState $fixture.roomTypeId $nights)[$stay.checkIn].total -eq $otaAvailCreated[$stay.checkIn].total -and (Get-SqlValue "SELECT COUNT(*) FROM htl_booking WHERE tenant_id = 100 AND store_id = 102;") -eq $bookingCountAfterOtaCreate) 'ARI no-op does not write availability or bookings'
     $badHeaders = New-OtaHeaders 'POST' $otaPath $otaBytes $otaSecret
     $badHeaders['X-Channel-Signature'] = ('0' * 64)
     $badSig = Invoke-RawHttp -Method 'POST' -Url ($Gateway.TrimEnd('/') + $otaPath) -BodyBytes $otaBytes -Headers $badHeaders
@@ -971,6 +981,21 @@ catch {
 }
 finally {
   Stop-PortForward $channelJob
+  # Best-effort cleanup so a mid-run fatal never leaves active room holds behind for the next run.
+  if ($hotelClient) {
+    $leftovers = @()
+    if ($bookingId -gt 0) { $leftovers += [long]$bookingId }
+    if ($otaBookingId -gt 0) { $leftovers += [long]$otaBookingId }
+    foreach ($cb in @($script:channelOrders)) { if ($null -ne $cb) { $leftovers += [long]$cb.bookingId } }
+    foreach ($leftId in @($leftovers | Select-Object -Unique)) {
+      try {
+        $leftStatus = Get-SqlValue "SELECT status FROM htl_booking WHERE id = $leftId;"
+        if (@('PENDING_CONFIRM', 'CONFIRMED') -contains $leftStatus) {
+          [void](Invoke-Http -Client $hotelClient -Method POST -Path ('/business/hotel/bookings/' + $leftId + '/cancel'))
+        }
+      } catch { }
+    }
+  }
   if ($fixturePrepared -and -not $KeepFixture) {
     try {
       [void](Invoke-Fixture 'Restore' 'C-Hotel')

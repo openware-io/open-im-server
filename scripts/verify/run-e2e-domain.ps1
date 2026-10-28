@@ -30,7 +30,7 @@ if (-not $SkipAdminE2e) {
     if (-not (Test-Path -LiteralPath $adminE2e)) {
         throw "Admin E2E script not found: $adminE2e"
     }
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $adminE2e -Gateway $Gateway -OutDir $OutDir
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File $adminE2e -Gateway $Gateway -OutDir $OutDir
     if ($LASTEXITCODE -ne 0) { throw 'Admin E2E failed.' }
 }
 
@@ -41,7 +41,7 @@ if (-not (Test-Path -LiteralPath $cE2e)) {
 }
 $cArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $cE2e, '-Gateway', $Gateway, '-OutDir', $OutDir)
 if ($AllowFeatureAbsent) { $cArgs += '-AllowFeatureAbsent' }
-& powershell @cArgs
+& pwsh @cArgs
 if ($LASTEXITCODE -ne 0) { throw 'C-side / OTA / channel E2E failed.' }
 
 Write-Host "Domain E2E completed. Results: $OutDir"
