@@ -16,7 +16,8 @@
 #   body to UTF-8 once and uses the same bytes for signing and for -Body.
 
 function Get-OtaChannelBodyHash {
-    param([Parameter(Mandatory = $true)][byte[]]$Body)
+    param([byte[]]$Body = [byte[]]::new(0))
+    if ($null -eq $Body) { $Body = [byte[]]::new(0) }
     $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
         return (-join ($sha.ComputeHash($Body) | ForEach-Object { $_.ToString('x2') }))

@@ -883,15 +883,19 @@ try {
   if ($sandboxEnabled) {
     $sandboxSecret = Get-DeployConfigValue 'common-payment-channel-service' 'SANDBOX_PAY_WEBHOOK_SECRET'
     if ([string]::IsNullOrWhiteSpace($sandboxSecret)) { $sandboxSecret = 'local-e2e-sandbox-webhook-secret' }
-    function New-UnpaidChannelOrder([string]$tag) {
+    function New-UnpaidChannelOrder([string]$tag, [long]$roomTypeId) {
       $resp = Invoke-Http -Client $hotelClient -Method POST -Path '/business/hotel/bookings' -Body @{
-        roomTypeId = $fixture.roomTypeId; ratePlanId = $fixture.ratePlanId
+        roomTypeId = $roomTypeId; ratePlanId = $fixture.ratePlanId
         checkInDate = $stay.checkIn; checkOutDate = $stay.checkOut; rooms = 1
         guestName = 'E2E Sandbox ' + $tag + ' ' + $stamp
         guestPhone = ('137' + (Get-Random -Minimum 10000000 -Maximum 99999999))
       }
       $d = Get-Data $resp
-      Add-Check ('CH-ORDER-' + $tag) ($resp.status -eq 201) ('fresh unpaid C-side order created for sandbox case ' + $tag) ([ordered]@{ orderId = $d.orderId; bookingId = $d.id })
+      if ($resp.status -ne 201) {
+        Add-Check ('CH-ORDER-' + $tag) $false ('fresh unpaid C-side order could not be created for sandbox case ' + $tag) ([ordered]@{ status = $resp.status; body = $resp.raw })
+        return $null
+      }
+      Add-Check ('CH-ORDER-' + $tag) $true ('fresh unpaid C-side order created for sandbox case ' + $tag) ([ordered]@{ orderId = $d.orderId; bookingId = $d.id; roomTypeId = $roomTypeId })
       $entry = [ordered]@{ bookingId = [long]$d.id; orderId = [long]$d.orderId; amountMinor = [long]$d.amountMinor; currency = [string]$d.currency }
       $script:channelOrders += $entry
       return $entry
@@ -904,19 +908,22 @@ try {
     }
     function Get-OrderMoney([long]$id) { return (Get-SqlRow "SELECT CONCAT_WS('|', trade_status, paid_amount, refundable_amount, refund_status) FROM ord_order WHERE id = $id;") }
 
-    $caseA = New-UnpaidChannelOrder 'SUCCESS'
+    $caseA = New-UnpaidChannelOrder 'SUCCESS' 2
+    if ($null -eq $caseA) { throw 'sandbox SUCCESS case order creation failed' }
     $txA = 'E2E-SANDBOX-TX-' + $stamp
     $evA = 'E2E-SANDBOX-EVT-' + $stamp
     $payloadA = [ordered]@{ transactionId = $txA; eventId = $evA; orderId = $caseA.orderId; amount = $caseA.amountMinor; currency = $caseA.currency; status = 'SUCCEEDED'; tenantId = 100 }
     $ackA = Send-SandboxCallback $payloadA $sandboxSecret
     Add-Check 'CH-SUCCESS-ACK' ($ackA.status -eq 200 -and [string]$ackA.body.code -eq 'SUCCESS') 'sandbox SUCCEEDED callback returns HTTP 200 SUCCESS' ([ordered]@{ status = $ackA.status; body = $ackA.raw })
     $intentA = Get-SqlRow "SELECT CONCAT_WS('|', COUNT(*), COALESCE(MAX(status), ''), COALESCE(MAX(idempotency_key), '')) FROM pay_intent WHERE order_id = $($caseA.orderId) AND provider = 'SANDBOX';"
-    Add-Check 'DB-CH-PAY-INTENT' ($intentA -like '1|SUCCEEDED|CH:SANDBOX:%') 'DB pay_intent: exactly one SUCCEEDED SANDBOX intent with CH:SANDBOX idempotency prefix' ([ordered]@{ row = $intentA })
+    Add-Check 'DB-CH-PAY-INTENT' ($intentA -like '1|SUCCEEDED|CH:SANDBOX:*') 'DB pay_intent: exactly one SUCCEEDED SANDBOX intent with CH:SANDBOX idempotency prefix' ([ordered]@{ row = $intentA })
     Add-Check 'DB-CH-PAY-TX' ((Get-SqlValue "SELECT COUNT(*) FROM pay_transaction t JOIN pay_intent i ON i.id = t.payment_intent_id WHERE i.order_id = $($caseA.orderId) AND t.provider_transaction_no = '$txA' AND t.status = 'SUCCEEDED';") -eq '1') 'DB pay_transaction: exactly one SUCCEEDED row for the callback transaction id'
     $moneyA = Get-OrderMoney $caseA.orderId
     $ma = $moneyA -split '\|', 4
     Add-Check 'DB-CH-ORDER-PAID' ($ma[0] -eq 'PAID' -and [decimal]$ma[1] -eq [decimal]$caseA.amountMinor -and [decimal]$ma[2] -eq [decimal]$caseA.amountMinor -and $ma[3] -eq 'NONE') 'DB ord_order: trade_status=PAID and paid=refundable=amount' ([ordered]@{ row = $moneyA })
-    Add-Check 'DB-CH-SETTLEMENT-PAYMENT' ((Get-SqlRow "SELECT CONCAT_WS('|', kind, status, amount) FROM pay_channel_settlement WHERE provider = 'SANDBOX' AND transaction_id = '$txA' ORDER BY id LIMIT 1;") -like ('PAYMENT|SUCCEEDED|' + $caseA.amountMinor + '%')) 'DB pay_channel_settlement: PAYMENT/SUCCEEDED with the callback amount'
+    $settlementPayment = Get-SqlRow "SELECT CONCAT_WS('|', kind, status, amount) FROM pay_channel_settlement WHERE provider = 'SANDBOX' AND transaction_id = '$txA' ORDER BY id LIMIT 1;"
+    $sp = $settlementPayment -split '\|', 3
+    Add-Check 'DB-CH-SETTLEMENT-PAYMENT' ($sp[0] -eq 'PAYMENT' -and $sp[1] -eq 'SUCCEEDED' -and [decimal]$sp[2] -eq [decimal]$caseA.amountMinor) 'DB pay_channel_settlement: PAYMENT/SUCCEEDED with the callback amount' ([ordered]@{ row = $settlementPayment })
     Add-Check 'DB-CH-TX-APPLIED' ((Get-SqlRow "SELECT CONCAT_WS('|', status, settlement_status, COALESCE(settlement_attempts, 0)) FROM pay_channel_transaction WHERE provider = 'SANDBOX' AND transaction_id = '$txA';") -eq 'SUCCEEDED|APPLIED|1') 'DB pay_channel_transaction: SUCCEEDED/APPLIED with one settlement attempt'
     $ackA2 = Send-SandboxCallback $payloadA $sandboxSecret
     Add-Check 'CH-DUPLICATE-ACK' ($ackA2.status -eq 200 -and [string]$ackA2.body.code -eq 'SUCCESS') 'duplicate SUCCEEDED callback returns HTTP 200 SUCCESS'
@@ -929,14 +936,15 @@ try {
     $mr = $moneyR -split '\|', 4
     Add-Check 'DB-CH-ORDER-REFUND' ($mr[3] -eq 'FULL' -and [decimal]$mr[1] -eq 0 -and [decimal]$mr[2] -eq 0) 'DB ord_order: refund_status=FULL with paid/refundable rolled back to 0' ([ordered]@{ row = $moneyR })
     $settlementKinds = @(Invoke-Sql "SELECT CONCAT_WS('|', kind, status) FROM pay_channel_settlement WHERE provider = 'SANDBOX' AND transaction_id = '$txA' ORDER BY id;" | Where-Object { $_ -match '\|' } | ForEach-Object { $_.Trim() })
-    Add-Check 'DB-CH-SETTLEMENT-REFUND' ($settlementKinds.Count -eq 2 -and $settlementKinds -contains 'PAYMENT|SUCCEEDED' -and $settlementKinds -contains 'REFUND|SUCCEEDED') 'DB pay_channel_settlement: PAYMENT + REFUND rows for the transaction' ([ordered]@{ rows = $settlementKinds })
+    Add-Check 'DB-CH-SETTLEMENT-REFUND' ($settlementKinds.Count -eq 2 -and $settlementKinds -contains 'PAYMENT|SUCCEEDED' -and @($settlementKinds | Where-Object { $_ -match '^REFUND\|' }).Count -eq 1) 'DB pay_channel_settlement: PAYMENT + REFUND rows for the transaction' ([ordered]@{ rows = $settlementKinds })
     $ackR2 = Send-SandboxCallback $payloadR $sandboxSecret
     $settlementKinds2 = @(Invoke-Sql "SELECT CONCAT_WS('|', kind, status) FROM pay_channel_settlement WHERE provider = 'SANDBOX' AND transaction_id = '$txA' ORDER BY id;" | Where-Object { $_ -match '\|' } | ForEach-Object { $_.Trim() })
     $moneyR2 = Get-OrderMoney $caseA.orderId
     $mr2 = $moneyR2 -split '\|', 4
     Add-Check 'DB-CH-REFUND-IDEMPOTENT' ($ackR2.status -eq 200 -and $settlementKinds2.Count -eq 2 -and [decimal]$mr2[1] -eq 0) 'duplicate REFUNDED callback adds no settlement row and keeps paid_amount at 0' ([ordered]@{ rows = $settlementKinds2; order = $moneyR2 })
 
-    $caseB = New-UnpaidChannelOrder 'CLOSED'
+    $caseB = New-UnpaidChannelOrder 'CLOSED' 3
+    if ($null -eq $caseB) { throw 'sandbox CLOSED case order creation failed' }
     $txB = 'E2E-SANDBOX-TX-CLOSED-' + $stamp
     $ackB = Send-SandboxCallback ([ordered]@{ transactionId = $txB; eventId = ('E2E-SANDBOX-EVT-CLOSED-' + $stamp); orderId = $caseB.orderId; amount = $caseB.amountMinor; currency = $caseB.currency; status = 'CLOSED'; tenantId = 100 }) $sandboxSecret
     Add-Check 'CH-CLOSED-ACK' ($ackB.status -eq 200 -and [string]$ackB.body.code -eq 'SUCCESS') 'sandbox CLOSED callback returns HTTP 200 SUCCESS' ([ordered]@{ status = $ackB.status; body = $ackB.raw })
@@ -945,7 +953,8 @@ try {
     Add-Check 'DB-CH-CLOSED-NO-MONEY' ((Get-SqlValue "SELECT COUNT(*) FROM pay_intent WHERE order_id = $($caseB.orderId);") -eq '0' -and @('DRAFT', 'PENDING_PAYMENT') -contains $mb[0]) 'CLOSED/FAILED callback does not create pay_intent or change order payment' ([ordered]@{ order = $moneyB })
     Add-Check 'DB-CH-CLOSED-TX' ((Get-SqlRow "SELECT CONCAT_WS('|', status, settlement_status) FROM pay_channel_transaction WHERE provider = 'SANDBOX' AND transaction_id = '$txB';") -eq 'CLOSED|APPLIED') 'DB pay_channel_transaction: CLOSED/APPLIED (settled without money movement)'
 
-    $caseD = New-UnpaidChannelOrder 'FAILED'
+    $caseD = New-UnpaidChannelOrder 'FAILED' 4
+    if ($null -eq $caseD) { throw 'sandbox FAILED case order creation failed' }
     $txD = 'E2E-SANDBOX-TX-FAILED-' + $stamp
     $ackD = Send-SandboxCallback ([ordered]@{ transactionId = $txD; eventId = ('E2E-SANDBOX-EVT-FAILED-' + $stamp); orderId = $caseD.orderId; amount = $caseD.amountMinor; currency = $caseD.currency; status = 'FAILED'; tenantId = 100 }) $sandboxSecret
     Add-Check 'CH-FAILED-ACK' ($ackD.status -eq 200 -and [string]$ackD.body.code -eq 'SUCCESS') 'sandbox FAILED callback returns HTTP 200 SUCCESS (settled, no money movement)' ([ordered]@{ status = $ackD.status; body = $ackD.raw })
@@ -954,7 +963,8 @@ try {
     Add-Check 'DB-CH-FAILED-NO-MONEY' ((Get-SqlValue "SELECT COUNT(*) FROM pay_intent WHERE order_id = $($caseD.orderId);") -eq '0' -and @('DRAFT', 'PENDING_PAYMENT') -contains $md[0]) 'FAILED callback does not create pay_intent or change order payment' ([ordered]@{ order = $moneyD })
     Add-Check 'DB-CH-FAILED-TX' ((Get-SqlRow "SELECT CONCAT_WS('|', status, settlement_status) FROM pay_channel_transaction WHERE provider = 'SANDBOX' AND transaction_id = '$txD';") -match '^(FAILED|CLOSED)\|APPLIED$') 'DB pay_channel_transaction: FAILED/APPLIED (settled without money movement)'
 
-    $caseC = New-UnpaidChannelOrder 'MISMATCH'
+    $caseC = New-UnpaidChannelOrder 'MISMATCH' 5
+    if ($null -eq $caseC) { throw 'sandbox MISMATCH case order creation failed' }
     $txC = 'E2E-SANDBOX-TX-MISMATCH-' + $stamp
     $ackC = Send-SandboxCallback ([ordered]@{ transactionId = $txC; eventId = ('E2E-SANDBOX-EVT-MISMATCH-' + $stamp); orderId = $caseC.orderId; amount = ([long]$caseC.amountMinor - 1); currency = $caseC.currency; status = 'SUCCEEDED'; tenantId = 100 }) $sandboxSecret
     Add-Check 'CH-AMOUNT-MISMATCH-400' ($ackC.status -eq 400 -and [string]$ackC.body.code -eq 'FAIL') 'amount-mismatch callback returns HTTP 400 FAIL' ([ordered]@{ status = $ackC.status; body = $ackC.raw })
