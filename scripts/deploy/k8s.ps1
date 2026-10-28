@@ -514,6 +514,12 @@ Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-tenant-service',
   'SAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/group-idaas-service',
   'IDAAS_COOKIE_PLAIN=true', '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-order-service',
+  'HOTEL_CHANNEL_SANDBOX_TENANT_ID=100', 'HOTEL_CHANNEL_SANDBOX_SECRET=local-kind-ota-channel-secret-0123456789abcdef',
+  '--namespace', $Namespace)
+Invoke-Kubectl -Arguments @('set', 'env', 'deployment/common-payment-channel-service',
+  'SANDBOX_PAY_ENABLED=true', 'SANDBOX_PAY_WEBHOOK_SECRET=local-e2e-sandbox-webhook-secret',
+  '--namespace', $Namespace)
 Apply-RenderedManifest -Name 'website.yaml' -Replacements $replacements -StartSuspended
 $ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"

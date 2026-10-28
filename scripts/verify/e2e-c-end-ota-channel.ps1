@@ -509,10 +509,14 @@ try {
   $ktvReservations = Invoke-Http -Client $ktvClient -Method GET -Path '/me/reservations'
   $ktvReservationList = @(Get-Data $ktvReservations)
   Add-Check 'KTV-C-MY-RESERVATIONS' ($ktvReservations.status -eq 200) 'C-side GET /me/reservations is available' ([ordered]@{ status = $ktvReservations.status; count = $ktvReservationList.Count })
-  $ktvStart = (Get-Date).Date.AddDays(1).AddHours(20)
+  Invoke-Sql "DELETE FROM ktv_reservation WHERE tenant_id = 100 AND store_id = 100 AND contact = 'E2E C KTV';" | Out-Null
+  $ktvStart = (Get-Date).Date.AddDays(2).AddHours(20).AddMinutes((Get-Date).Minute)
   $ktvEnd = $ktvStart.AddHours(2)
+  Invoke-Sql "INSERT INTO res_room_type (tenant_id, store_id, code, name, capacity, unit_price, sort_order, status, created_by, created_at, updated_by, updated_at) VALUES (100, 100, 'E2E_KTV', 'E2E KTV Small', 4, 12800, 0, 'ACTIVE', 0, NOW(3), 0, NOW(3)) ON DUPLICATE KEY UPDATE updated_at = NOW(3);" | Out-Null
+  $ktvRoomTypeId = Get-SqlValue "SELECT id FROM res_room_type WHERE tenant_id = 100 AND store_id = 100 AND code = 'E2E_KTV' LIMIT 1;"
+  Invoke-Sql "UPDATE res_resource SET room_type_id = $ktvRoomTypeId, updated_at = NOW(3) WHERE tenant_id = 100 AND store_id = 100 AND resource_type = 'KTV_ROOM' AND resource_code = 'K01';" | Out-Null
   $ktvCreate = Invoke-Http -Client $ktvClient -Method POST -Path '/me/reservations' -Body @{
-    roomTypeId = 1
+    roomTypeId = [long]$ktvRoomTypeId
     startAt = $ktvStart.ToString('yyyy-MM-ddTHH:mm:ss+08:00')
     endAt = $ktvEnd.ToString('yyyy-MM-ddTHH:mm:ss+08:00')
     partySize = 2; contact = 'E2E C KTV'
