@@ -80,8 +80,14 @@ public class MyOrderController {
     if (customerId == null) {
       throw new ApiException(409, "MEMBER_INITIALIZATION_REQUIRED", "请先初始化会员资料");
     }
+    String businessType = context.businessType();
+    if (businessType == null || businessType.isBlank()) {
+      // /me/reservations is the KTV consumer reservation entry; older consumer
+      // context tokens did not carry a businessType claim.
+      businessType = "KTV";
+    }
     CreateReservationCommand command = new CreateReservationCommand(
-        context.businessType(), customerId, context.storeId(), request.roomTypeId(),
+        businessType, customerId, context.storeId(), request.roomTypeId(),
         request.startAt(), request.endAt(), request.partySize(), request.contact());
     return reservationService.create(context.tenantId(), idempotencyKey, command);
   }
