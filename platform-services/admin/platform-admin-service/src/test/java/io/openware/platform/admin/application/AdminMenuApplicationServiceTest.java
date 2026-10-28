@@ -206,7 +206,47 @@ class AdminMenuApplicationServiceTest {
     assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/orders".equals(menu.path())));
     assertFalse(flatten(menus).stream().anyMatch(menu -> "/business/wallet".equals(menu.path())));
   }
-  private List<AdminMenuRow> testMenus() {
+  /**
+   * 回归：租户总部上下文没有 businessType 时，KTV 专属菜单不得出现。
+   * 可见性必须与页面能力同源，否则会打开「当前门店不支持该业务操作」的页面。
+   */
+  @Test
+  void tenantHeadquartersHidesBusinessSpecificMenusWithoutBusinessContext() {
+    adminWithTenantContext();
+    AdminMenuRow tenantGroup = menu(103, 0, "tenant.settings", "租户设置", null, "TENANT", "core");
+    AdminMenuRow ktv = new AdminMenuRow(16L, 103L, "ktv", "KTV 配置", "/admin/ktv/config",
+        "setting", "TENANT", "ktv", null, null, "KTV", "ktv");
+    AdminMenuRow core = menu(10, 103, "store", "门店", "/admin/tenant/stores", "TENANT", "core");
+    when(menuRepository.findActiveOrdered()).thenReturn(List.of(tenantGroup, ktv, core));
+    when(tenantIamClient.permissions(1L, 100L, null, null))
+        .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, null, null, 1, List.of()));
+
+    List<AdminMenuItem> menus = service.menus("TENANT");
+
+    assertFalse(flatten(menus).stream().anyMatch(menu -> "/admin/ktv/config".equals(menu.path())),
+        "HQ 上下文不得下发 KTV 专属菜单: " + flatten(menus).stream().map(AdminMenuItem::path).toList());
+    assertTrue(flatten(menus).stream().anyMatch(menu -> "/admin/tenant/stores".equals(menu.path())));
+  }
+
+  /** 边界：同一菜单在 KTV 业态上下文中仍必须可见。 */
+  @Test
+  void businessSpecificMenuIsVisibleInMatchingBusinessContext() {
+    AdminContextHolder.set(new AdminContext(1L, "admin", "运营管理员", AdminRole.PLATFORM_ADMIN, 1L, "token"));
+    when(contextTokens.verify("token")).thenReturn(new TenantContext(
+        100L, 100L, 100L, 1L, 1, List.of(), "TENANT", "KTV", "Asia/Shanghai"));
+    AdminMenuRow tenantGroup = menu(103, 0, "tenant.settings", "租户设置", null, "TENANT", "core");
+    AdminMenuRow ktv = new AdminMenuRow(16L, 103L, "ktv", "KTV 配置", "/admin/ktv/config",
+        "setting", "TENANT", "ktv", null, null, "KTV", "ktv");
+    when(menuRepository.findActiveOrdered()).thenReturn(List.of(tenantGroup, ktv));
+    when(tenantIamClient.permissions(1L, 100L, 100L, 100L))
+        .thenReturn(new TenantIamDomainClient.PermissionSnapshot(1L, 100L, 100L, 100L, 1, List.of()));
+
+    List<AdminMenuItem> menus = service.menus("TENANT");
+
+    assertTrue(flatten(menus).stream().anyMatch(menu -> "/admin/ktv/config".equals(menu.path())));
+  }
+
+  private List<AdminMenuRow> testMenus() {
     List<AdminMenuRow> menus = new java.util.ArrayList<>();
     String[][] values = {
       {"1","0","tenant","租户管理","/admin/platform/tenants","building","PLATFORM","core"},

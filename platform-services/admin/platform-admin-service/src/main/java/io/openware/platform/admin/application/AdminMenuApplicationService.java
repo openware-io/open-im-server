@@ -162,13 +162,18 @@ public class AdminMenuApplicationService {
                 menu.i18nKey(), menu.requiredPermission(), menu.requiredGrant(), children);
     }
 
-    /** 业态以服务端签名上下文为准；未声明业态的 core 菜单可见，已声明则按逗号分隔白名单匹配。 */
+    /**
+     * 业态以服务端签名上下文为准：无业态声明的 core 菜单可见；业务专属菜单必须在匹配的业态上下文中。
+     * 租户总部上下文（storeId=0、businessType 为空）不得显示 KTV/HOTEL 菜单，否则会打开一个
+     * 「当前门店不支持该业务操作」的页面——菜单可见性必须与页面能力同源。
+     */
     private boolean matchesBusinessType(AdminMenuItem menu, String contextBusinessType) {
         String requiredType = menu.businessType();
         if ((requiredType == null || requiredType.isBlank()) && "ktv".equalsIgnoreCase(menu.domainCode())) {
             requiredType = "KTV";
         }
-        if (requiredType == null || contextBusinessType == null || contextBusinessType.isBlank()) return true;
+        if (requiredType == null || requiredType.isBlank()) return true;
+        if (contextBusinessType == null || contextBusinessType.isBlank()) return false;
         return java.util.Arrays.stream(requiredType.split(","))
                 .map(String::trim).anyMatch(type -> type.equalsIgnoreCase(contextBusinessType));
     }
