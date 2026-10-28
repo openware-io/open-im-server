@@ -7,17 +7,18 @@
 
 | 仓库 | 分支/HEAD | 状态 |
 | --- | --- | --- |
-| open-im-server | `main` / `15dfac0a` | 已 push origin/main；工作区除一个未跟踪 ADR 外干净 |
+| open-im-server | `main`（以 `git log -1` 为准） | 已 push origin/main；工作区有另一路未提交 docs 变更时不要整体 `git add -A` |
 | open-saas-admin | `main` / `2c68281` | 已 push，0 dirty |
 | open-saas-mobile | `main` / `695a424` | 已 push，0 dirty |
 | open-chat-app | `main` / `b5b7cd6` | 已 push，0 dirty |
 
-- 发布 tag：`v2.4.1` → `83b69eff`（release merge commit）
-- 注意：`83b69eff` 之后还有本地热修，当前 main 比 tag 多：
+- **当前没有发布 tag**：用户未要求正式发版，`v2.4.1` tag 已按发布规范删除（本地与 origin 均已删除）。
+- 版本 `2.4.1` 只是本轮开发迭代的 PATCH 版本，不自动产生 Git tag；tag 只在用户明确要求正式发布时创建。
+- `83b69eff` 之后还有本地热修，当前 main 比 2.4.1 版本基线多：
   - `a59e7e43` 恢复 `Admin@123` 与 E2E 凭证默认
   - `c5fea953` 菜单按业务上下文剪枝
   - `15dfac0a` 文档说明
-- 若要把 tag 与最终 main 对齐，建议下一轮按 PATCH 规则升 **2.4.2** 后重打 tag，不要直接移动已推送的 `v2.4.1`。
+- 发布规范已补充：Agent/CI 禁止自行创建或推送 Git tag。
 
 ## 2. 本地访问入口
 
