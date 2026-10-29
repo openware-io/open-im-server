@@ -21,6 +21,7 @@ The Role & Permission page manages platform, tenant and store roles:
 | Platform | IAM → Role & Permission | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Platform | IAM → Permission Catalog | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Tenant | People & Permissions → Role & Permission | `iam.role.view` (writes also need `iam.role.manage`) |
+| Tenant | People & Permissions → Role Permission Matrix | `iam.role.view` |
 
 Hiding a menu is UX only; direct API access is rejected with 403.
 
@@ -34,7 +35,19 @@ Hiding a menu is UX only; direct API access is rejected with 403.
 - platform additionally offers “Workbench defaults” and “Permission Catalog”;
 - tenant additionally offers “Assign members”.
 
-## 4. Permission editing
+## 4. Role permission matrix (tenant)
+
+The tenant Role Permission Matrix puts all visible roles (global presets + tenant custom roles) beside the permission list:
+
+- four states: granted / grantable-not-granted / not-grantable / cross-scope grant;
+- filters by module/domain/scope/state, role column selection, CSV export;
+- click a role header to open its permission editor;
+- tenant matrix excludes platform roles; platform matrix excludes tenant custom roles;
+- refresh button and version check on return.
+
+The platform Permission Catalog is a global-role-template matrix and is isolated from tenant data.
+
+## 5. Permission editing
 
 - only permissions grantable to the role scope are shown;
 - preset roles are read-only;
@@ -43,14 +56,14 @@ Hiding a menu is UX only; direct API access is rejected with 403.
 - closing with unsaved changes asks for confirmation;
 - platform roles can carry business permissions marked grantable to PLATFORM; platform operators use the same permission snapshot when entering a tenant context.
 
-## 5. Data refresh
+## 6. Data refresh
 
 - a Refresh button is available;
 - returning to the page/window refreshes silently unless a dialog is open;
 - opening a role matrix reloads permission metadata first so `grantable_levels` is current;
 - role counts, role catalog and editor use the same context and never cross tenants.
 
-## 6. FAQ
+## 7. FAQ
 
 **Why can't I see Role & Permission in the tenant console?**  
 The account needs `iam.role.view`; menus are permission-filtered by the backend.
@@ -67,7 +80,7 @@ The editor detected a version conflict and reloaded the latest grants; review an
 **Why can role-page counts differ from the matrix?**  
 They are different views. Refresh the role page; if it still differs, check for unsaved/conflicting changes.
 
-## 7. Acceptance
+## 8. Acceptance
 
 - authorized platform/tenant users can open the page from the menu;
 - users without `iam.role.view` do not see the menu and get 403 from APIs;

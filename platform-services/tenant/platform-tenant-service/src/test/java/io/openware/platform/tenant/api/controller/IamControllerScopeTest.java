@@ -127,6 +127,22 @@ class IamControllerScopeTest {
     }
 
     @Test
+    void tenantPermissionMatrixDelegatesToTenantSnapshot() {
+        PermissionCatalogSnapshot snapshot = new PermissionCatalogSnapshot(List.of(), List.of(), Map.of(),
+                "t1", "2026-10-29T00:00:00Z");
+        when(permissionCatalog.currentTenantVersion(100L)).thenReturn("t1");
+        when(permissionCatalog.tenantSnapshot(100L, false))
+                .thenReturn(new PermissionCatalogApplicationService.Result(snapshot, false));
+
+        var response = controller.tenantPermissionMatrix(false, null);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("t1", response.getBody().version());
+        assertEquals("\"t1\"", response.getHeaders().getETag());
+        verify(permissionCatalog).tenantSnapshot(100L, false);
+    }
+
+    @Test
     void rolePermissionCountsReturnsBatchCountsForVisibleRoles() {
         when(roles.listAssignableByTenant(100L)).thenReturn(List.of(role(7L, "TENANT")));
         when(roleGrants.countByRoleIds(List.of(7L))).thenReturn(Map.of(7L, 3L));

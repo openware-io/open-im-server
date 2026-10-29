@@ -62,6 +62,8 @@ GET  /api/v1/admin/iam/roles/permission-counts  角色权限数量（批量，�
 POST /api/v1/admin/iam/roles                创建平台/租户自定义角色
 GET  /api/v1/admin/iam/permissions          权限目录
 GET  /api/v1/admin/iam/permissions/matrix   权限目录矩阵（权限列表 + 全局角色授权覆盖，同一快照）
+GET  /api/v1/admin/iam/permissions/matrix/tenant  租户角色权限矩阵（预置 + 本租户自定义角色）
+GET  /api/v1/admin/iam/permissions/matrix/tenant/version  租户矩阵版本
 GET  /api/v1/admin/iam/permissions/matrix/version  目录版本（前端聚焦时轻量校验）
 GET  /api/v1/admin/iam/roles/{id}/permissions
 GET  /api/v1/admin/iam/roles/{id}/permissions/snapshot  角色权限快照（编码 + 并发版本）
@@ -80,6 +82,7 @@ PUT    /api/v1/admin/iam/roles/{id}/accounts/{accountId}/scope
 - 每个角色同时返回 `permissionCodes`（已授予）与 `grantablePermissionCodes`（按角色作用域 + `Permission.grantableTo` 计算的可授予集合）；前端据此渲染四态：已授予 / 可授予未授予 / 不可授予 / **越界授权（已授予但不可授予）**；预置角色授权元数据由 V36 校准，异常应为 0；
 - 响应带 `version`（IAM 表事实派生的目录版本）、`generatedAt`、`cached`；`?refresh=true` 跳过缓存读取；响应 `ETag = version`，支持 `If-None-Match` 返回 304（`refresh=true` 时忽略条件强制重建）；
 - 缓存为 Redis 一级 + 本地兜底，**以数据库版本为键**：版本由全局角色/授权/权限字典的“数量 + 授权集合校验和 + 最后更新时间”派生；角色/授权/权限字典任一写入都会改变版本并落到新键，多实例无需广播失效；旧键按 10 分钟 TTL 过期；同 JVM 内同版本并发未命中会合并为一次重建，避免缓存击穿。
+- 租户矩阵使用独立端点/缓存键：角色集合为全局预置 + 本租户自定义角色，版本包含租户自定义角色；平台矩阵只含全局角色。
 - 角色权限写入的并发控制：写路径先对 `iam_role` 行加锁，再用角色权限版本（角色更新时间 + 授权数量 + CRC 校验和 + 授权更新时间）做 CAS；`expectedVersion` 不匹配返回 `409 PERMISSION_VERSION_CONFLICT`，不传版本保留旧调用方语义。
 - 角色权限读取边界：平台上下文可读全局角色；租户上下文可读全局预置角色 + 本租户自定义角色；跨租户按 roleId 读取返回 403 `ROLE_TENANT_MISMATCH`。
 

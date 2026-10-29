@@ -76,7 +76,21 @@ GET /api/v1/admin/iam/roles/{roleId}/permissions/snapshot
 - version：只查目录版本，页面聚焦时使用；
 - role snapshot：返回角色已授予编码 + 该角色权限版本，编辑弹窗使用。
 
-### 3.2 角色权限写入
+### 3.2 租户角色权限矩阵
+
+```text
+GET /api/v1/admin/iam/permissions/matrix/tenant
+GET /api/v1/admin/iam/permissions/matrix/tenant/version
+```
+
+- 必须持租户上下文，要求 `iam.role.view`；
+- 角色集合 = 全局预置角色 + 本租户自定义角色，不含平台角色；
+- 版本 = 这些角色的数量/updated_at + 授权数量/CRC/updated_at + 权限字典数量/updated_at；
+- 缓存键 `tenant:{tenantId}:{version}`，与平台矩阵缓存隔离；
+- 前端复用矩阵页面，路由 meta `tenantMatrix` 切换 API、文案和角色深链；
+- 角色页提供“角色权限矩阵”入口；租户菜单同步新增矩阵入口（ADR-0020）。
+
+### 3.3 角色权限写入
 
 ```text
 POST /api/v1/admin/iam/roles/{roleId}/permissions        { permissionIds, expectedVersion? }

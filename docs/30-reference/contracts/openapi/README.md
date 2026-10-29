@@ -10,8 +10,8 @@
 - **2026-10-29 局部重导 tenant**：权限目录矩阵及四态/并发控制上线后，从运行中的
   `platform-tenant-service/v3/api-docs` 重新导出 `tenant.json`，并覆盖内容一致的 `platform-tenant-service.json`；
   其余服务快照未变。复核：
-  - 矩阵：`GET /admin/iam/permissions/matrix`（响应 `ETag = version`，支持 `If-None-Match` 304；`refresh=true` 强制 200）、
-    `GET /admin/iam/permissions/matrix/version`；
+  - 矩阵：`GET /admin/iam/permissions/matrix`（全局角色模板，响应 `ETag = version`，支持 `If-None-Match` 304；`refresh=true` 强制 200）、
+    `GET /admin/iam/permissions/matrix/version`、`GET /admin/iam/permissions/matrix/tenant`（租户预置 + 自定义角色）、`GET /admin/iam/permissions/matrix/tenant/version`；
   - 角色快照/写入：`GET /admin/iam/roles/{roleId}/permissions/snapshot`，`GET /admin/iam/roles/permission-counts`（批量计数），
     `POST /admin/iam/roles/{roleId}/permissions`
     支持 `expectedVersion`，`POST .../permissions/toggle` 同样支持；

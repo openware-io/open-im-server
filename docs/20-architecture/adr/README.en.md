@@ -16,6 +16,7 @@
 | 0017 | [Permission catalog matrix cell semantics, scope boundary and write concurrency](0017-permission-matrix-semantics-and-concurrency.md) | proposed | 2026-10-29 |
 | 0018 | [Preset role grantable-level calibration](0018-preset-role-grantable-level-calibration.md) | proposed | 2026-10-29 |
 | 0019 | [Role management menu and read-permission boundary](0019-role-menu-and-read-permission-boundary.md) | proposed | 2026-10-29 |
+| 0020 | [Tenant role permission matrix](0020-tenant-role-permission-matrix.md) | proposed | 2026-10-29 |
 
 ## Status values
 

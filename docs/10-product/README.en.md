@@ -65,7 +65,8 @@ Platform and tenant consoles share a Role & Permission entry:
 - layered platform/tenant/store roles;
 - preset roles are read-only and can be copied;
 - saves use optimistic concurrency; permission counts load in batch;
-- platform roles can be configured with business permissions grantable to PLATFORM and link to the catalog matrix.
+- platform roles can be configured with business permissions grantable to PLATFORM and link to the catalog matrix;
+- the tenant console offers a role permission matrix aggregating preset and custom roles.
 
 Product guide: [Role & Permission Page](ROLE_MANAGEMENT.en.md).
 

@@ -100,6 +100,40 @@ public class IamController {
         return new PermissionMatrixVersionView(permissionCatalogService.currentVersion());
     }
 
+    /**
+     * 租户角色权限矩阵：全局预置角色 + 本租户自定义角色，不包含平台角色。
+     *
+     * <p>需要租户上下文和角色查看权限；缓存键包含 tenantId，避免跨租户碰撞。
+     */
+    @GetMapping("/permissions/matrix/tenant")
+    public ResponseEntity<PermissionMatrixView> tenantPermissionMatrix(
+            @RequestParam(name = "refresh", required = false, defaultValue = "false") boolean refresh,
+            @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
+        TenantContext context = requireTenantContext();
+        requireRoleRead();
+        String currentVersion = permissionCatalogService.currentTenantVersion(context.tenantId());
+        String etag = "\"" + currentVersion + "\"";
+        if (!refresh && etag.equals(ifNoneMatch)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
+        }
+        PermissionCatalogApplicationService.Result result =
+                permissionCatalogService.tenantSnapshot(context.tenantId(), refresh);
+        String responseEtag = "\"" + result.snapshot().version() + "\"";
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
+        if (!refresh) {
+            builder.eTag(responseEtag);
+        }
+        return builder.body(PermissionCatalogConverter.toView(result.snapshot(), result.cached()));
+    }
+
+    @GetMapping("/permissions/matrix/tenant/version")
+    public PermissionMatrixVersionView tenantPermissionMatrixVersion() {
+        TenantContext context = requireTenantContext();
+        requireRoleRead();
+        return new PermissionMatrixVersionView(
+                permissionCatalogService.currentTenantVersion(context.tenantId()));
+    }
+
     /** 脱敏权限管理：预置角色及其 member.pii.view 状态（租户管理员配置下级人员的脱敏权限）。 */
     @GetMapping("/masking")
     public List<MaskingRoleView> masking() {

@@ -23,6 +23,7 @@
 | 0017 | [权限目录矩阵的单元格语义、范围边界与授权并发控制](0017-permission-matrix-semantics-and-concurrency.md) | proposed | 2026-10-29 |
 | 0018 | [预置角色授权基线的数据校准](0018-preset-role-grantable-level-calibration.md) | proposed | 2026-10-29 |
 | 0019 | [角色管理菜单与读权限边界](0019-role-menu-and-read-permission-boundary.md) | proposed | 2026-10-29 |
+| 0020 | [租户角色权限矩阵](0020-tenant-role-permission-matrix.md) | proposed | 2026-10-29 |
 
 ## 状态说明
 
