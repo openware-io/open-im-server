@@ -59,20 +59,6 @@ public class RoleGrantRepositoryAdapter implements RoleGrantRepository {
   }
 
   @Override
-  public Map<Long, Long> countByRoleIds(List<Long> roleIds) {
-    if (roleIds == null || roleIds.isEmpty()) {
-      return Map.of();
-    }
-    Map<Long, Long> result = new LinkedHashMap<>();
-    for (RolePermissionPo po : mapper.selectList(Wrappers.<RolePermissionPo>lambdaQuery()
-        .in(RolePermissionPo::getRoleId, roleIds)
-        .select(RolePermissionPo::getRoleId, RolePermissionPo::getPermissionId))) {
-      result.merge(po.getRoleId(), 1L, Long::sum);
-    }
-    return result;
-  }
-
-  @Override
   public boolean hasGrant(Long roleId, Long permissionId) {
     return mapper.selectCount(Wrappers.<RolePermissionPo>lambdaQuery()
         .eq(RolePermissionPo::getRoleId, roleId)

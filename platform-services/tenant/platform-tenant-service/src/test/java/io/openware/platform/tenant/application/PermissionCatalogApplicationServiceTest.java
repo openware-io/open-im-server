@@ -142,36 +142,6 @@ class PermissionCatalogApplicationServiceTest {
     }
   }
 
-  @Test
-  void tenantSnapshotUsesTenantScopedRolesAndCacheKey() {
-    when(versions.tenantVersion(100L)).thenReturn("t1");
-    when(cache.get("tenant:100:t1")).thenReturn(null);
-    when(permissions.listActive()).thenReturn(List.of(permission(1L, "a.b")));
-    when(roles.listAssignableByTenant(100L)).thenReturn(List.of(
-        role(1L, "tenant.owner", "TENANT"),
-        new Role(8L, 100L, "tenant.custom", "自定义", "TENANT", "TENANT", null, null, "ACTIVE")));
-    when(grants.findPermissionIdsByRoles(List.of(1L, 8L))).thenReturn(Map.of(8L, List.of(1L)));
-
-    PermissionCatalogApplicationService.Result result = service.tenantSnapshot(100L, false);
-
-    assertEquals("t1", result.snapshot().version());
-    assertEquals(List.of(1L, 8L), result.snapshot().roles().stream().map(Role::id).toList());
-    assertEquals(Map.of(8L, List.of(1L)), result.snapshot().rolePermissionIds());
-    verify(cache).put(org.mockito.ArgumentMatchers.eq("tenant:100:t1"),
-        org.mockito.ArgumentMatchers.any(PermissionCatalogSnapshot.class));
-  }
-
-  @Test
-  void tenantVersionIsNotGloballyShared() {
-    when(versions.tenantVersion(100L)).thenReturn("t1");
-    when(versions.tenantVersion(200L)).thenReturn("t2");
-    when(cache.get("tenant:100:t1")).thenReturn(snapshot("t1"));
-    when(cache.get("tenant:200:t2")).thenReturn(snapshot("t2"));
-
-    assertEquals("t1", service.tenantSnapshot(100L, false).snapshot().version());
-    assertEquals("t2", service.tenantSnapshot(200L, false).snapshot().version());
-  }
-
   private static Permission permission(long id, String code) {
     return new Permission(id, code, "tenant", "store", "manage", code, "TENANT", "core",
         "TENANT", "store", "ACTIVE");

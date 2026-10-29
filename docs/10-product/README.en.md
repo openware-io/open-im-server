@@ -58,29 +58,7 @@ Platform operators can compare the permission list and global-role grants on one
 
 Product guide: [Permission Catalog Matrix](PERMISSION_MATRIX.en.md).
 
-### 3.5 Role & Permission page
-
-Platform and tenant consoles share a Role & Permission entry:
-
-- layered platform/tenant/store roles;
-- preset roles are read-only and can be copied;
-- saves use optimistic concurrency; permission counts load in batch;
-- platform roles can be configured with business permissions grantable to PLATFORM and link to the catalog matrix;
-- platform operator accounts can be granted/revoked platform roles; custom platform roles are binding-checked before disable;
-- the tenant console offers a role permission matrix aggregating preset and custom roles.
-
-Product guide: [Role & Permission Page](ROLE_MANAGEMENT.en.md).
-
-### 3.6 Tenant workspace & store context
-
-- workspace (headquarters/store/platform) is separate from data scope (tenant/org/store);
-- tenant admins keep the headquarters view when switching stores; only data scope changes;
-- store managers see only their store; menus are pruned by KTV/hotel business type;
-- header shows data scope and effective roles; role pages mark tenant-level templates.
-
-Product guide: [Tenant Workspace & Store Context](TENANT_CONTEXT_MODEL.en.md).
-
-### 3.7 OpenChat App (Xiaomi 9 device)
+### 3.5 OpenChat App (Xiaomi 9 device)
 
 The conversation list, group chat and service board come from the running Kind environment; demo accounts and messages are local seed data.
 

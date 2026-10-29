@@ -20,26 +20,6 @@ public interface RoleBindingMapper extends BaseMapper<RoleBindingPo> {
       + "AND scope_type = 'PLATFORM' AND status = 'ACTIVE' ORDER BY id")
   List<Long> selectPlatformIdsByAccount(@Param("accountId") Long accountId);
 
-  /** 账号的平台角色绑定行（含 role_id），用于平台运营人员管理。 */
-  @InterceptorIgnore(tenantLine = "true")
-  @Select("""
-      SELECT id, role_id FROM iam_role_binding /* tenant-agnostic: platform ACCOUNT binding */
-      WHERE subject_type = 'ACCOUNT' AND subject_id = #{accountId}
-        AND scope_type = 'PLATFORM' AND status = 'ACTIVE' ORDER BY id
-      """)
-  List<PlatformBindingRow> selectPlatformBindingsByAccount(@Param("accountId") Long accountId);
-
-  /** 某平台角色的有效绑定数量，用于停用/删除前检查。 */
-  @InterceptorIgnore(tenantLine = "true")
-  @Select("""
-      SELECT COUNT(*) FROM iam_role_binding /* tenant-agnostic: platform role binding count */
-      WHERE role_id = #{roleId} AND scope_type = 'PLATFORM' AND status = 'ACTIVE'
-      """)
-  long countActiveByRoleId(@Param("roleId") Long roleId);
-
-  record PlatformBindingRow(Long id, Long roleId) {
-  }
-
   @InterceptorIgnore(tenantLine = "true")
   @Select("SELECT id, subject_type, subject_id, tenant_id, scope_type, authorization_version "
       + "FROM iam_role_binding /* tenant-agnostic: 按主键读取安全描述 */ WHERE id = #{id}")

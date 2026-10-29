@@ -30,11 +30,6 @@ public interface RoleGrantRepository {
    */
   Map<Long, List<Long>> findPermissionIdsByRoles(List<Long> roleIds);
 
-  /**
-   * 批量统计角色已授予的权限数量；未授予的角色不出现。用于角色列表一次加载计数，避免按角色 N+1 查询。
-   */
-  Map<Long, Long> countByRoleIds(List<Long> roleIds);
-
   /** 判断某角色是否已授予某权限（toggle 用例的判据）。 */
   boolean hasGrant(Long roleId, Long permissionId);
 

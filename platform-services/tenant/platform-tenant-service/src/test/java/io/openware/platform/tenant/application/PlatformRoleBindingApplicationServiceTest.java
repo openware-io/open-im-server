@@ -94,40 +94,4 @@ class PlatformRoleBindingApplicationServiceTest {
 
     assertThrows(ApiException.class, () -> service.assign(900L, 5L));
   }
-
-  @Test
-  void disableCustomPlatformRoleWithoutBindings() {
-    when(roles.findById(9L)).thenReturn(Optional.of(
-        new Role(9L, null, "platform.audit", "平台审计", "PLATFORM", "PLATFORM",
-            "core", null, "ACTIVE")));
-    when(bindings.countActiveByRoleId(9L)).thenReturn(0L);
-    when(roles.updatePlatformStatus(9L, "DISABLED")).thenReturn(true);
-
-    service.disableRole(9L);
-
-    verify(roles).updatePlatformStatus(9L, "DISABLED");
-    verify(audit).recordAsync(any());
-  }
-
-  @Test
-  void disableRoleWithActiveBindingsRejected() {
-    when(roles.findById(9L)).thenReturn(Optional.of(
-        new Role(9L, null, "platform.audit", "平台审计", "PLATFORM", "PLATFORM",
-            "core", null, "ACTIVE")));
-    when(bindings.countActiveByRoleId(9L)).thenReturn(2L);
-
-    ApiException error = assertThrows(ApiException.class, () -> service.disableRole(9L));
-
-    assertEquals(409, error.getStatus());
-    assertEquals("ROLE_HAS_BINDINGS", error.getCode());
-  }
-
-  @Test
-  void presetPlatformRoleCannotBeDisabled() {
-    when(roles.findById(5L)).thenReturn(Optional.of(
-        new Role(5L, null, "platform.operator", "平台运营", "PRESET", "PLATFORM",
-            "core", null, "ACTIVE")));
-
-    assertThrows(ApiException.class, () -> service.disableRole(5L));
-  }
 }

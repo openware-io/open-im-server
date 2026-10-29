@@ -85,11 +85,6 @@ public class RoleRepositoryAdapter implements RoleRepository {
         .toList();
   }
 
-  @Override
-  public boolean updatePlatformStatus(Long roleId, String status) {
-    return mapper.updatePlatformStatus(roleId, status) > 0;
-  }
-
   private static RolePo toPo(Role role) {
     RolePo po = new RolePo();
     po.setId(role.id());
@@ -105,8 +100,7 @@ public class RoleRepositoryAdapter implements RoleRepository {
   }
 
   private static Role toDomain(RolePo po) {
-    Long tenantId = po.getTenantId() == null || po.getTenantId() == 0L ? null : po.getTenantId();
-    return new Role(po.getId(), tenantId, po.getCode(), po.getName(), po.getRoleType(),
+    return new Role(po.getId(), po.getTenantId(), po.getCode(), po.getName(), po.getRoleType(),
         po.getScopeLevel(), po.getDomainCode(), po.getCopyFromRoleId(), po.getStatus());
   }
 }

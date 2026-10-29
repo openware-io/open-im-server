@@ -59,8 +59,7 @@ GET/PUT      /admin/hotel/availability
 写操作分别校验 `hotel.room.availability.manage`（房价/房量），读取校验
 `hotel.room.availability.view` / `hotel.booking.view`；房态写操作校验 `hotel.room.manage`，
 清扫写操作校验 `hotel.housekeeping.manage`；
-所有查询强制当前 `storeId`；房态图读接口也校验当前门店 `business_type=HOTEL`，KTV 门店直连返回
-`409 STORE_BUSINESS_TYPE_MISMATCH`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
+所有查询强制当前 `storeId`。表模型见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)，
 契约见 [hotel-booking-v1.yaml](../../../30-reference/contracts/openapi/hotel-booking-v1.yaml)。
 
 酒店封面 `cover_image_url` 只接受同源相对地址或 HTTPS 地址，最长 512 字符；图片本体由后台媒体

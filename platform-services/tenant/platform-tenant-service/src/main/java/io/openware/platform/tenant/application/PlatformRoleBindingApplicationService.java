@@ -55,8 +55,7 @@ public class PlatformRoleBindingApplicationService {
     }
     Role role = roles.findById(roleId)
         .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
-    if (!role.active() || !Role.SCOPE_PLATFORM.equals(role.scopeLevel())
-        || (role.tenantId() != null && role.tenantId() > 0)) {
+    if (!role.active() || !Role.SCOPE_PLATFORM.equals(role.scopeLevel()) || role.tenantId() != null) {
       throw new ApiException(400, "PLATFORM_ROLE_REQUIRED", "只能授予平台级角色");
     }
     Long existing = bindings.findPlatformId(accountId, roleId);
@@ -92,37 +91,6 @@ public class PlatformRoleBindingApplicationService {
       throw new ApiException(403, "PERMISSION_DENIED", "missing platform role permission");
     }
     return bindings.findPlatformIdsByAccount(accountId);
-  }
-
-  /**
-   * 停用平台自定义角色；有有效平台绑定时拒绝，避免把仍在使用的角色停用后无人能授权。
-   * 预置平台角色不可停用。
-   */
-  @Transactional
-  public void disableRole(Long roleId) {
-    TenantContext context = requirePlatform();
-    if (context.permissions() == null || !context.permissions().contains(PERMISSION)) {
-      throw new ApiException(403, "PERMISSION_DENIED", "缺少平台角色管理权限");
-    }
-    Role role = roles.findById(roleId)
-        .orElseThrow(() -> new ApiException(404, "ROLE_NOT_FOUND", "角色不存在"));
-    if ((role.tenantId() != null && role.tenantId() > 0) || !Role.SCOPE_PLATFORM.equals(role.scopeLevel())) {
-      throw new ApiException(400, "PLATFORM_ROLE_REQUIRED", "只能停用平台角色");
-    }
-    if ("PRESET".equals(role.roleType())) {
-      throw new ApiException(400, "PRESET_ROLE_IMMUTABLE", "预置平台角色不能停用");
-    }
-    long activeBindings = bindings.countActiveByRoleId(roleId);
-    if (activeBindings > 0) {
-      throw new ApiException(409, "ROLE_HAS_BINDINGS",
-          "该平台角色仍有 " + activeBindings + " 个有效绑定，请先撤销后再停用");
-    }
-    if (!roles.updatePlatformStatus(roleId, "DISABLED")) {
-      throw new ApiException(404, "ROLE_NOT_FOUND", "角色不存在");
-    }
-    audit.recordAsync(AuditClient.AuditRecord.of(0L, context.accountId(),
-        "iam.platform_role.disable", "iam_role", String.valueOf(roleId), role.name(),
-        "platform-role-disable:" + roleId, "{}"));
   }
 
   private static TenantContext requirePlatform() {

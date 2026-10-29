@@ -1,7 +1,6 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.common.exception.ApiException;
-import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.IamConverter;
@@ -9,17 +8,14 @@ import io.openware.platform.tenant.api.converter.PermissionCatalogConverter;
 import io.openware.platform.tenant.api.dto.PermissionMatrixVersionView;
 import io.openware.platform.tenant.api.dto.PermissionMatrixView;
 import io.openware.platform.tenant.api.dto.PermissionView;
-import io.openware.platform.tenant.api.dto.RolePermissionCountView;
 import io.openware.platform.tenant.api.dto.RolePermissionSnapshotView;
 import io.openware.platform.tenant.api.dto.RoleView;
 import io.openware.platform.tenant.api.dto.UserRoleView;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
 import io.openware.platform.tenant.application.PermissionCatalogApplicationService;
 import io.openware.platform.tenant.application.RoleBindingApplicationService;
-import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import java.util.List;
-import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -60,7 +56,6 @@ public class IamController {
     /** 权限目录（平台级，无租户上下文也可读）。 */
     @GetMapping("/permissions")
     public List<PermissionView> listPermissions() {
-        requireRoleRead();
         return authorizationService.listPermissions().stream().map(IamConverter::toView).toList();
     }
 
@@ -77,7 +72,6 @@ public class IamController {
     public ResponseEntity<PermissionMatrixView> permissionMatrix(
             @RequestParam(name = "refresh", required = false, defaultValue = "false") boolean refresh,
             @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        requireRoleRead();
         String currentVersion = permissionCatalogService.currentVersion();
         String etag = "\"" + currentVersion + "\"";
         if (!refresh && etag.equals(ifNoneMatch)) {
@@ -96,42 +90,7 @@ public class IamController {
     /** 权限目录版本：前端聚焦/可见性恢复时轻量校验，版本未变不拉全量矩阵。 */
     @GetMapping("/permissions/matrix/version")
     public PermissionMatrixVersionView permissionMatrixVersion() {
-        requireRoleRead();
         return new PermissionMatrixVersionView(permissionCatalogService.currentVersion());
-    }
-
-    /**
-     * 租户角色权限矩阵：全局预置角色 + 本租户自定义角色，不包含平台角色。
-     *
-     * <p>需要租户上下文和角色查看权限；缓存键包含 tenantId，避免跨租户碰撞。
-     */
-    @GetMapping("/permissions/matrix/tenant")
-    public ResponseEntity<PermissionMatrixView> tenantPermissionMatrix(
-            @RequestParam(name = "refresh", required = false, defaultValue = "false") boolean refresh,
-            @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        TenantContext context = requireTenantContext();
-        requireRoleRead();
-        String currentVersion = permissionCatalogService.currentTenantVersion(context.tenantId());
-        String etag = "\"" + currentVersion + "\"";
-        if (!refresh && etag.equals(ifNoneMatch)) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
-        }
-        PermissionCatalogApplicationService.Result result =
-                permissionCatalogService.tenantSnapshot(context.tenantId(), refresh);
-        String responseEtag = "\"" + result.snapshot().version() + "\"";
-        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
-        if (!refresh) {
-            builder.eTag(responseEtag);
-        }
-        return builder.body(PermissionCatalogConverter.toView(result.snapshot(), result.cached()));
-    }
-
-    @GetMapping("/permissions/matrix/tenant/version")
-    public PermissionMatrixVersionView tenantPermissionMatrixVersion() {
-        TenantContext context = requireTenantContext();
-        requireRoleRead();
-        return new PermissionMatrixVersionView(
-                permissionCatalogService.currentTenantVersion(context.tenantId()));
     }
 
     /** 脱敏权限管理：预置角色及其 member.pii.view 状态（租户管理员配置下级人员的脱敏权限）。 */
@@ -148,7 +107,6 @@ public class IamController {
         if (context == null) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
         }
-        requireRoleWrite();
         if (context.platformScope()) {
             if (!"PLATFORM".equals(req.scopeLevel())) {
                 throw new ApiException(400, "ROLE_SCOPE_INVALID", "平台上下文只能创建 PLATFORM 角色");
@@ -181,50 +139,30 @@ public class IamController {
         if (context == null) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
         }
-        requireRoleRead();
-        return visibleRoles(context).stream().map(IamConverter::toView).toList();
+        List<RoleView> catalog = context.platformScope()
+                ? authorizationService.listPlatformRoles().stream()
+                    .map(IamConverter::toView).toList()
+                : authorizationService.listAssignableRoles(context.tenantId()).stream()
+                    .map(IamConverter::toView).toList();
+        return catalog;
     }
 
     /** 租户可分配角色：全局预置角色 + 本租户自定义角色，不含平台角色。 */
     @GetMapping("/roles/assignable")
     public List<RoleView> listAssignableRoles() {
         var context = requireTenantContext();
-        requireRoleRead();
         return authorizationService.listAssignableRoles(context.tenantId()).stream()
                 .map(IamConverter::toView).toList();
     }
 
-    /** 角色权限计数（批量）：角色列表一次加载，避免逐角色 N+1。 */
-    @GetMapping("/roles/permission-counts")
-    public List<RolePermissionCountView> rolePermissionCounts() {
-        TenantContext context = TenantContextHolder.get();
-        if (context == null) {
-            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
-        }
-        requireRoleRead();
-        List<Role> roles = visibleRoles(context);
-        Map<Long, Long> counts = authorizationService.permissionCounts(roles.stream().map(Role::id).toList());
-        return roles.stream()
-                .map(role -> new RolePermissionCountView(role.id(), counts.getOrDefault(role.id(), 0L)))
-                .toList();
-    }
-
-    private List<Role> visibleRoles(TenantContext context) {
-        return context.platformScope()
-                ? authorizationService.listPlatformRoles()
-                : authorizationService.listAssignableRoles(context.tenantId());
-    }
-
     @PostMapping("/roles/{roleId}/permissions")
     public void assignPermissions(@PathVariable Long roleId, @RequestBody AssignPermissionsRequest req) {
-        requireRoleWrite();
         authorizationService.assignPermissions(roleId, req.permissionIds(), req.expectedVersion());
     }
 
     /** 角色权限快照：权限编码 + 版本（编辑弹窗用版本做乐观并发校验）。 */
     @GetMapping("/roles/{roleId}/permissions/snapshot")
     public RolePermissionSnapshotView rolePermissionSnapshot(@PathVariable Long roleId) {
-        requireRoleRead();
         IamAuthorizationApplicationService.RolePermissionSnapshot snapshot =
                 authorizationService.rolePermissionSnapshot(roleId);
         return new RolePermissionSnapshotView(snapshot.permissionCodes(), snapshot.version());
@@ -233,21 +171,18 @@ public class IamController {
     /** 角色权限码列表（脱敏权限管理等 UI 展示用）。 */
     @GetMapping("/roles/{roleId}/permissions")
     public List<String> listRolePermissions(@PathVariable Long roleId) {
-        requireRoleRead();
         return authorizationService.listRolePermissionCodes(roleId);
     }
 
     /** 单权限开关（脱敏权限 member.pii.view 等）：给角色增删单个权限，不影响其它权限。 */
     @PostMapping("/roles/{roleId}/permissions/toggle")
     public void togglePermission(@PathVariable Long roleId, @RequestBody TogglePermissionRequest req) {
-        requireRoleWrite();
         authorizationService.togglePermission(roleId, req.permissionCode(), req.granted(), req.expectedVersion());
     }
 
     /** 给账号分配角色（写 iam_role_binding，主体为 STAFF membership）。 */
     @PostMapping("/user-roles")
     public UserRoleView assignUserRole(@RequestBody AssignUserRoleRequest req) {
-        requireRoleWrite();
         RoleBinding binding = roleBindingService.assignByAccount(req.accountId(), req.tenantId(),
                 req.organizationId(), req.storeId(), req.roleId(), req.scopeType());
         return IamConverter.toView(binding, req.accountId());
@@ -255,14 +190,12 @@ public class IamController {
 
     @DeleteMapping("/roles/{roleId}/accounts/{accountId}")
     public void revokeRoleFromAccount(@PathVariable Long roleId, @PathVariable Long accountId) {
-        requireRoleWrite();
         roleBindingService.revokeByAccountAndRole(accountId, roleId);
     }
 
     @PutMapping("/roles/{roleId}/accounts/{accountId}/scope")
     public void updateRoleAssignmentScope(@PathVariable Long roleId, @PathVariable Long accountId,
                                           @RequestBody UpdateRoleScopeRequest request) {
-        requireRoleWrite();
         roleBindingService.updateScopeByAccountAndRole(accountId, roleId,
                 request.organizationId(), request.storeId(), request.scopeType());
     }
@@ -270,14 +203,12 @@ public class IamController {
     /** 撤销成员角色绑定（软删 status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {
-        requireRoleWrite();
         roleBindingService.revokeAny(userRoleId);
     }
 
     /** 账号的成员角色绑定 id 列表（供运营人员精确撤销/删除）。 */
     @GetMapping("/accounts/{accountId}/user-roles")
     public List<Long> listUserRoleIds(@PathVariable Long accountId) {
-        requireRoleWrite();
         return roleBindingService.listIdsByAccount(accountId);
     }
 
@@ -307,37 +238,5 @@ public class IamController {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
         }
         return context;
-    }
-
-    /**
-     * IAM 读接口的角色查看门禁。
-     *
-     * <p>平台后台工作区按设计不传租户上下文，平台菜单/会话由 platform-admin-service 的
-     * AdminRole（SUPER_ADMIN / PLATFORM_ADMIN）控制；这里在无上下文时放行平台级只读，
-     * 有平台上下文时要求平台角色查看权限，有租户上下文时要求租户角色查看权限。
-     */
-    private static void requireRoleRead() {
-        TenantContext context = TenantContextHolder.get();
-        if (context == null) {
-            return;
-        }
-        if (context.platformScope()) {
-            PermissionGuard.require("platform.iam.role.view");
-            return;
-        }
-        PermissionGuard.require("iam.role.view");
-    }
-
-    /** 角色写操作：平台上下文要求平台角色管理权限，租户上下文要求租户角色管理权限。 */
-    private static void requireRoleWrite() {
-        TenantContext context = TenantContextHolder.get();
-        if (context == null) {
-            return;
-        }
-        if (context.platformScope()) {
-            PermissionGuard.require("platform.iam.role.manage");
-            return;
-        }
-        PermissionGuard.require("iam.role.manage");
     }
 }

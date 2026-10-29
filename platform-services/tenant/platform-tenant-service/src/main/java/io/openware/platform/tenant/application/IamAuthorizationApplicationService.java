@@ -14,7 +14,6 @@ import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -91,12 +90,6 @@ public class IamAuthorizationApplicationService {
   @Transactional(readOnly = true)
   public List<Role> listRoles(Long tenantId) {
     return roleRepository.listActiveByTenant(tenantId);
-  }
-
-  /** 角色权限计数（批量，避免角色列表按角色逐个查询）。 */
-  @Transactional(readOnly = true)
-  public Map<Long, Long> permissionCounts(List<Long> roleIds) {
-    return roleGrantRepository.countByRoleIds(roleIds);
   }
 
   /** 某租户可分配的角色：全局预置角色 + 租户自定义角色，不含平台角色。 */

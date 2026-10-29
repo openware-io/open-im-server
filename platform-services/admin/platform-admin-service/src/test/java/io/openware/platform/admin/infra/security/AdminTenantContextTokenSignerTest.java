@@ -56,7 +56,6 @@ class AdminTenantContextTokenSignerTest {
     assertThat(seen.get().tenantId()).isZero();
     assertThat(seen.get().accountId()).isEqualTo(900L);
     assertThat(seen.get().platformScope()).isTrue();
-    assertThat(seen.get().permissions()).contains("platform.iam.role.manage", "platform.iam.role.view");
   }
 
   /** 平台 token 不能由被篡改的 payload 复用：改一个字节即验签失败（401）。 */

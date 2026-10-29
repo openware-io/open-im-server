@@ -41,9 +41,6 @@ public interface RoleRepository {
    */
   List<Role> listGlobalRoles();
 
-  /** 更新平台自定义角色状态；返回是否命中。 */
-  boolean updatePlatformStatus(Long roleId, String status);
-
   /**
    * 遮蔽（脱敏）角色视图：角色 + 其权限中标记了可见 PII 的项。
    *

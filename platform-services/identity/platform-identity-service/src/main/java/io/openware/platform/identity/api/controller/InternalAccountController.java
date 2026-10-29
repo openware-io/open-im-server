@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import io.openware.common.exception.ApiException;
-import java.util.List;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 内部账号查询：tenant 平台角色授予前校验 account_type/status。 */
@@ -29,13 +28,6 @@ public class InternalAccountController {
       return null;
     }
     return new AccountInfo(account.id(), account.accountType(), account.status());
-  }
-
-  @GetMapping("/platform-operators")
-  public List<PlatformOperatorInfo> platformOperators() {
-    return accounts.listPlatformOperators().stream()
-        .map(account -> new PlatformOperatorInfo(account.id(), account.loginIdentifier(), account.status()))
-        .toList();
   }
 
   /**
@@ -74,8 +66,5 @@ public class InternalAccountController {
   public record BindLoginIdentityRequest(String loginType, String loginIdentifier, String credential) {}
 
   public record AccountInfo(Long id, String accountType, String status) {
-  }
-
-  public record PlatformOperatorInfo(Long id, String loginIdentifier, String status) {
   }
 }
