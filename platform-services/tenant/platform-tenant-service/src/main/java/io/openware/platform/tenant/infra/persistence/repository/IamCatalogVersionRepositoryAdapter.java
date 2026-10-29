@@ -25,4 +25,10 @@ public class IamCatalogVersionRepositoryAdapter implements IamCatalogVersionRepo
     String version = mapper.selectRolePermissionVersion(roleId);
     return version == null || version.isBlank() ? "unknown" : version;
   }
+
+  @Override
+  public String tenantVersion(Long tenantId) {
+    String version = mapper.selectTenantVersion(tenantId);
+    return version == null || version.isBlank() ? "unknown" : version;
+  }
 }

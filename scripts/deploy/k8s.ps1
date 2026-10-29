@@ -20,6 +20,9 @@ param(
   [switch]$ValidateOnly,
   [ValidatePattern('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')]
   [string]$RegistryPullSecretName = 'acr-registry',
+  [ValidateSet('ephemeral', 'pvc')]
+  [string]$DataMode = 'ephemeral',
+  [switch]$MinimalProfile,
   [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = '',
   [ValidateRange(60, 900)]
@@ -116,10 +119,29 @@ function Import-KubernetesImage {
 }
 
 function Apply-RenderedManifest {
-  param([string]$Name, [hashtable]$Replacements, [switch]$StartSuspended)
+  param(
+    [string]$Name,
+    [hashtable]$Replacements,
+    [string[]]$ExcludeNames = @(),
+    [switch]$StartSuspended
+  )
   $path = Join-Path $manifestDir $Name
   if (-not (Test-Path -LiteralPath $path)) { throw "Kubernetes manifest not found: $path" }
   $content = Get-Content -Raw -LiteralPath $path
+  if ($ExcludeNames.Count -gt 0) {
+    $documents = [regex]::Split($content, '(?m)^---\s*$')
+    $kept = foreach ($document in $documents) {
+      $skip = $false
+      foreach ($excluded in $ExcludeNames) {
+        if ($document -match "(?m)^\s*metadata:\s*\{\s*name:\s*$([regex]::Escape($excluded))\s*\}") {
+          $skip = $true
+          break
+        }
+      }
+      if (-not $skip) { $document.TrimEnd() }
+    }
+    $content = ($kept -join "`n---`n")
+  }
   foreach ($entry in $Replacements.GetEnumerator()) { $content = $content.Replace($entry.Key, $entry.Value) }
   if ($StartSuspended) { $content = $content.Replace('replicas: 1', 'replicas: 0') }
   $content = $content.Replace('      containers:', "      imagePullSecrets:`n        - name: $RegistryPullSecretName`n      containers:")
@@ -481,7 +503,15 @@ try {
   if (Test-Path -LiteralPath $secretEnvFile) { Remove-Item -LiteralPath $secretEnvFile -Force }
 }
 
+if ($DataMode -eq 'pvc') {
+  Apply-Manifest -Name 'storage-pvc.yaml'
+}
 Apply-Manifest -Name 'infrastructure.yaml'
+if ($DataMode -eq 'pvc') {
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'mysql' -PatchName 'mysql-pvc-patch.yaml'
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'minio' -PatchName 'minio-pvc-patch.yaml'
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'mongodb' -PatchName 'mongodb-pvc-patch.yaml'
+}
 $infrastructureDeployments = @('mysql', 'redis', 'mongodb', 'minio', 'rocketmq-namesrv', 'rocketmq-broker')
 foreach ($deployment in $infrastructureDeployments) { Invoke-Kubectl -Arguments @('rollout', 'status', "deployment/$deployment", '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's')) }
 Invoke-Kubectl -Arguments @('delete', 'job/mysql-saas-init', '--namespace', $Namespace, '--ignore-not-found=true')
@@ -498,12 +528,17 @@ foreach ($name in $saasImages.Keys) {
 # by the admin service Flyway history (platform-admin-service V1/V2). With the previous order
 # a clean Kind rebuild failed tenant V19 with "table iam_role_profile does not exist".
 $applicationDeployments = @('im-user-service', 'im-conversation-service', 'common-media-service', 'im-message-service', 'im-admin-service', 'im-access-ws', 'gateway', 'pc-admin', 'platform-identity-service', 'platform-admin-service', 'platform-tenant-service', 'platform-resource-service', 'platform-order-service', 'common-payment-service', 'platform-customer-service', 'platform-marketing-service', 'common-payment-channel-service', 'common-audit-service', 'common-sms-service', 'common-mail-service', 'group-idaas-service', 'saas-admin', 'saas-mobile', 'unified-portal', 'open-website')
+$pcAdminExcludes = if ($MinimalProfile) { @('pc-admin', 'pc-admin-nginx') } else { @() }
+$saasMobileExcludes = if ($MinimalProfile) { @('saas-mobile') } else { @() }
+if ($MinimalProfile) {
+  $applicationDeployments = @($applicationDeployments | Where-Object { $_ -notin @('pc-admin', 'saas-mobile', 'open-website') })
+}
 Apply-RenderedManifest -Name 'applications.yaml' -Replacements $replacements -StartSuspended
 if ($secretValues['MEDIA_ACCESS_KEY'] -eq $secretValues['MINIO_ROOT_USER']) {
   Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'common-media-service' -PatchName 'media-root-credentials-patch.yaml'
 }
-Apply-RenderedManifest -Name 'gateway-admin.yaml' -Replacements $replacements -StartSuspended
-Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspended
+Apply-RenderedManifest -Name 'gateway-admin.yaml' -Replacements $replacements -StartSuspended -ExcludeNames $pcAdminExcludes
+Apply-RenderedManifest -Name 'saas.yaml' -Replacements $replacements -StartSuspended -ExcludeNames $saasMobileExcludes
 # Local Kind is plain HTTP. Ensure the local-only cookie/debug-session flags survive
 # client-side apply even when a manifest env list is partially reconciled.
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-identity-service',
@@ -520,7 +555,9 @@ Invoke-Kubectl -Arguments @('set', 'env', 'deployment/platform-order-service',
 Invoke-Kubectl -Arguments @('set', 'env', 'deployment/common-payment-channel-service',
   'SANDBOX_PAY_ENABLED=true', 'SANDBOX_PAY_WEBHOOK_SECRET=local-e2e-sandbox-webhook-secret',
   '--namespace', $Namespace)
-Apply-RenderedManifest -Name 'website.yaml' -Replacements $replacements -StartSuspended
+if (-not $MinimalProfile) {
+  Apply-RenderedManifest -Name 'website.yaml' -Replacements $replacements -StartSuspended
+}
 $ingressInstaller = Join-Path $root 'scripts\deploy\install-kind-ingress-nginx.ps1'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $ingressInstaller -Context "kind-$KindClusterName"
 if ($LASTEXITCODE -ne 0) { throw 'Kind ingress-nginx installation failed.' }

@@ -30,7 +30,7 @@ OpenChat 把 IM 开放平台、多租户 SaaS、运营后台、移动端/桌面�
 
 | 项目 | 要求 |
 | --- | --- |
-| 操作系统 | Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7） |
+| 操作系统 | Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7）；Linux/macOS 可用 `./deploy-k8s.sh`（需要 PowerShell 7） |
 | 容器运行时 | Docker Desktop，**Linux 容器模式**，Docker Engine 已启动 |
 | Kubernetes 工具 | `kind`、`kubectl` 在 `PATH` 中；不需要启用 Docker Desktop 内置 Kubernetes |
 | Java | JDK 25，`JAVA_HOME` 可用 |
@@ -56,6 +56,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
 ```
 
 首次运行会构建全部业务镜像并下载依赖，耗时取决于网络和机器性能。
+
+### 重启恢复
+
+电脑重启或 Kind 节点停止后推荐：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Mode recover
+```
+
+恢复会：
+
+- 启动 Kind 节点并修复控制面镜像别名；
+- 等待 API、CoreDNS、基础设施和初始化 Job；
+- 补载缺失的业务镜像；
+- 只重启不健康的业务 Deployment，按依赖顺序等待，Gateway 最后；
+- 校验 `/`、`/saas/`、`/actuator/health`；
+- 失败时输出 `.outputs/local-deployment/recover-<时间>.log` 诊断日志。
+
+`-Mode status` 提供只读状态检查；`-Mode reset -ConfirmReset` 会删除本地命名空间与数据。
+`-Profile minimal` 可跳过官网、IM 管理后台、SaaS H5 的构建与清单，保留 SaaS 后台、统一门户和后端。
+`-Mode init -DataMode pvc` 可把 MySQL/MongoDB/MinIO 数据放到 local-path PVC；默认仍为 `emptyDir`，
+切换模式会重建数据 Pod 且不会迁移旧数据。
+Linux/macOS 可使用 `./deploy-k8s.sh`（需要 PowerShell 7）。
 
 ### 访问
 
@@ -106,8 +129,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Stop
 需要强制重建或清理旧镜像时使用：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRebuild -ForceRedeploy
-powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -ForceRedeploy -PruneImages
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Mode init
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Mode redeploy -PruneImages
 ```
 
 完整参数、数据生命周期和故障排查见[本地部署说明](docs/60-deployment/LOCAL.md)。

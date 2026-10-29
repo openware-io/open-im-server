@@ -6,6 +6,7 @@ import io.openware.platform.tenant.infra.persistence.po.RolePo;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface RoleMapper extends BaseMapper<RolePo> {
@@ -55,4 +56,13 @@ public interface RoleMapper extends BaseMapper<RolePo> {
         ORDER BY code
         """)
     java.util.List<RolePo> selectGlobalRoles();
+
+    /** 更新角色状态（平台自定义角色停用/恢复）；调用方负责校验平台作用域与绑定。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Update("""
+        UPDATE iam_role /* tenant-agnostic: 平台角色状态，按主键更新 */
+        SET status = #{status}, updated_at = NOW(3)
+        WHERE id = #{id} AND (tenant_id IS NULL OR tenant_id = 0) AND scope_level = 'PLATFORM'
+        """)
+    int updatePlatformStatus(@Param("id") Long id, @Param("status") String status);
 }

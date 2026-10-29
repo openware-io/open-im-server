@@ -61,6 +61,7 @@
 | `verify-wallet-token-display.ps1` | 储值币（代币）与积分展示口径 |
 | `verify-reservation-room-type.ps1` | 预约房型闭环 |
 | `release-status.ps1` | 发布状态与制品哈希核对 |
+| `local-deploy-contract.ps1` | 本地 Kind 一键部署静态契约检查（模式、恢复脚本、PVC/profile、文档标记） |
 | `run-all.ps1` | 统一执行其余验证脚本，按脚本保留 log 与 `summary.txt` 证据 |
 | `run-e2e-domain.ps1` | 二期域 E2E 一键入口（fail-closed）：凭证自动化 → B 端/管理端 E2E → C 端/OTA/渠道回调 E2E |
 | `e2e-c-end-ota-channel.ps1` | C 端酒店报价/预订/支付/退款 + OTA channel v1 真链路（HMAC/幂等/取消）+ 渠道支付回调（sandbox）；真实 HTTP + `open_saas` DB 断言 |

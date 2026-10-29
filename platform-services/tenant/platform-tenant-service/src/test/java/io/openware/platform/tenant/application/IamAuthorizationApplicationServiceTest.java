@@ -20,6 +20,7 @@ import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,6 +47,16 @@ class IamAuthorizationApplicationServiceTest {
   @AfterEach
   void clearContext() {
     TenantContextHolder.clear();
+  }
+
+  @Test
+  void permissionCountsUsesBatchRepository() {
+    when(grants.countByRoleIds(List.of(7L, 8L))).thenReturn(Map.of(7L, 3L));
+
+    Map<Long, Long> counts = service.permissionCounts(List.of(7L, 8L));
+
+    assertEquals(Map.of(7L, 3L), counts);
+    verify(grants).countByRoleIds(List.of(7L, 8L));
   }
 
   @Test

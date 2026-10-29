@@ -1,6 +1,7 @@
 package io.openware.platform.order.hotel;
 
 import io.openware.infrastructure.tenant.ClientAudience;
+import io.openware.infrastructure.tenant.TenantContextHolder;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,14 +19,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class HotelRoomStateController {
 
     private final HotelRoomStateApplicationService service;
+    private final HotelStoreScopeResolver hotelStoreScope;
 
-    public HotelRoomStateController(HotelRoomStateApplicationService service) {
+    public HotelRoomStateController(HotelRoomStateApplicationService service,
+                                    HotelStoreScopeResolver hotelStoreScope) {
         this.service = service;
+        this.hotelStoreScope = hotelStoreScope;
     }
 
     /** 房态图：三组房态字段 + 当前在住客人；展示态由前端派生。 */
     @GetMapping("/board")
     public List<HotelRoomBoardView> board() {
+        // 读路径同样校验门店业态：KTV 门店不能通过直连 API 读取酒店房态。
+        hotelStoreScope.requireHotelReadScope(TenantContextHolder.get());
         return service.board();
     }
 

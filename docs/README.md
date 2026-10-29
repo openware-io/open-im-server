@@ -52,6 +52,8 @@ docs/
 | [一键部署](../README.md#一键部署推荐) | 环境要求、Kind 一键部署、入口与验证 |
 | [OpenChat 产品介绍](10-product/README.md) | 项目定位、产品界面、能力矩阵、适用场景 |
 | [权限目录矩阵（产品说明）](10-product/PERMISSION_MATRIX.md) | 四态矩阵、筛选与角色列、越界治理提示、数据新鲜度 |
+| [角色与权限页面（产品说明）](10-product/ROLE_MANAGEMENT.md) | 角色菜单、权限编辑、并发校验、批量计数与刷新 |
+| [租户工作区与门店上下文（产品说明）](10-product/TENANT_CONTEXT_MODEL.md) | 工作区/数据范围/角色来源、KTV/酒店业态菜单与店长权限 |
 
 ### 架构与参考
 

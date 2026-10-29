@@ -44,6 +44,10 @@ $allowedWorkspaceEntries = @(
   'open-saas-mobile',
   'open-website',
   'open-green-pass',
+  '.codegraph',
+  'engineering-knowledge',
+  'greenpass-knowledge',
+  'AGENTS.md',
   '.outputs',
   '.vscode',
   'artifacts'

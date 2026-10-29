@@ -23,19 +23,29 @@ public class HotelStoreScopeResolver {
     }
 
     public StoreScopeRepository.StoreScope requireHotelScope(TenantContext context) {
+        return requireHotelScope(context, "写入");
+    }
+
+    /** 酒店读路径：同样要求当前门店是酒店业态，避免跨业态直连读取。 */
+    public StoreScopeRepository.StoreScope requireHotelReadScope(TenantContext context) {
+        return requireHotelScope(context, "访问");
+    }
+
+    private StoreScopeRepository.StoreScope requireHotelScope(TenantContext context, String action) {
         if (context == null || context.storeId() == null || context.tenantId() <= 0) {
-            throw new ApiException(422, "STORE_SCOPE_REQUIRED", "缺少门店上下文，不能写入酒店领域数据");
+            throw new ApiException(422, "STORE_SCOPE_REQUIRED", "缺少门店上下文，不能" + action + "酒店领域数据");
         }
         StoreScopeRepository.StoreScope scope = storeScopeRepository
                 .findActive(context.tenantId(), context.storeId())
                 .orElseThrow(() -> new ApiException(422, "STORE_SCOPE_MISSING",
-                        "门店不存在或已停用，不能写入酒店领域数据"));
+                        "门店不存在或已停用，不能" + action + "酒店领域数据"));
         if (scope.organizationId() == null) {
-            throw new ApiException(422, "STORE_ORGANIZATION_MISSING", "门店缺少组织归属，不能写入酒店领域数据");
+            throw new ApiException(422, "STORE_ORGANIZATION_MISSING", "门店缺少组织归属，不能" + action + "酒店领域数据");
         }
         if (scope.businessType() == null
                 || !BUSINESS_TYPE_HOTEL.equalsIgnoreCase(scope.businessType().trim())) {
-            throw new ApiException(409, "STORE_BUSINESS_TYPE_MISMATCH", "门店业态不是酒店，不能写入酒店领域数据");
+            throw new ApiException(409, "STORE_BUSINESS_TYPE_MISMATCH",
+                    "门店业态不是酒店，不能" + action + "酒店领域数据");
         }
         return scope;
     }

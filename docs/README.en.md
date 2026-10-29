@@ -52,6 +52,8 @@ docs/
 | [One-click deployment](../README.en.md#one-click-deployment-recommended) | Requirements, Kind deployment, entry points |
 | [Product introduction](10-product/README.en.md) | Positioning, screens, capabilities, audience |
 | [Permission catalog matrix (product guide)](10-product/PERMISSION_MATRIX.en.md) | Four states, filters/role columns, cross-scope governance, freshness |
+| [Role & Permission page (product guide)](10-product/ROLE_MANAGEMENT.en.md) | Menus, permission editing, concurrency, batch counts and refresh |
+| [Tenant workspace & store context (product guide)](10-product/TENANT_CONTEXT_MODEL.en.md) | Workspace/data scope/role source, KTV/hotel menus and manager permissions |
 
 ### Architecture and reference
 
