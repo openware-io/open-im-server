@@ -38,6 +38,14 @@ SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），�
 指向 `/admin/tenant/settings`；页面分别维护门店级与租户级品牌/配置。对应菜单路径由
 `V5__store_settings_menu.sql`、`V6__tenant_settings_menu.sql` 修正。
 
+角色管理菜单由 `V8__iam_role_menu_entries.sql`、`V9__iam_platform_menu_permission_scope.sql`、
+`V10__iam_role_menu_view_permission.sql`、`V11__iam_role_matrix_menu.sql`、`V12__iam_platform_operator_menu.sql`、
+`V13__iam_store_business_menus.sql` 补齐：租户 `人员与权限` 下新增
+`角色与权限`（`/admin/roles`，`required_permission=iam.role.view`）和 `角色权限矩阵`
+（`/admin/roles/matrix`，`required_permission=iam.role.view`）；平台 `角色与权限`、`权限目录`、
+`平台运营人员` 同步统一命名并使用平台查看权限 `platform.iam.role.view`；门店/租户业务菜单补齐
+酒店前台（HOTEL）与 KTV 配置（KTV），按 `business_type` 剪枝。
+
 ## 网关路由（gateway）
 
 - saas-admin：/api/v1/admin/menus/**、/api/v1/admin/backends/** → PLATFORM_ADMIN_URI（默认 http://localhost:4150，StripPrefix=2）。

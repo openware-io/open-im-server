@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,8 +103,13 @@ public class PermissionCatalogApplicationService {
 
   /** 缓存未命中时，同版本只让一个线程构建；其余线程等待同一结果。 */
   private PermissionCatalogSnapshot rebuildSingleFlight(String version) {
+    return rebuildSingleFlight(version, () -> build(version));
+  }
+
+  private PermissionCatalogSnapshot rebuildSingleFlight(String cacheKey,
+                                                         Supplier<PermissionCatalogSnapshot> builder) {
     CompletableFuture<PermissionCatalogSnapshot> mine = new CompletableFuture<>();
-    CompletableFuture<PermissionCatalogSnapshot> existing = inFlight.putIfAbsent(version, mine);
+    CompletableFuture<PermissionCatalogSnapshot> existing = inFlight.putIfAbsent(cacheKey, mine);
     if (existing != null) {
       recordCache("join");
       try {
@@ -115,14 +121,15 @@ public class PermissionCatalogApplicationService {
     }
     try {
       recordCache("rebuild");
-      PermissionCatalogSnapshot built = rebuild(version);
+      PermissionCatalogSnapshot built = builder.get();
+      cache.put(cacheKey, built);
       mine.complete(built);
       return built;
     } catch (RuntimeException error) {
       mine.completeExceptionally(error);
       throw error;
     } finally {
-      inFlight.remove(version, mine);
+      inFlight.remove(cacheKey, mine);
     }
   }
 
@@ -133,8 +140,13 @@ public class PermissionCatalogApplicationService {
   }
 
   private PermissionCatalogSnapshot rebuild(String version) {
-    PermissionCatalogSnapshot built = build(version);
-    cache.put(version, built);
+    return rebuild(version, () -> build(version));
+  }
+
+  private PermissionCatalogSnapshot rebuild(String cacheKey,
+                                            Supplier<PermissionCatalogSnapshot> builder) {
+    PermissionCatalogSnapshot built = builder.get();
+    cache.put(cacheKey, built);
     return built;
   }
 
@@ -144,9 +156,40 @@ public class PermissionCatalogApplicationService {
     return versionRepository.currentVersion();
   }
 
+  /**
+   * 租户角色权限矩阵：全局预置角色 + 本租户自定义角色；缓存键包含 tenantId，避免跨租户碰撞。
+   */
+  @Transactional(readOnly = true)
+  public Result tenantSnapshot(Long tenantId, boolean refresh) {
+    String version = versionRepository.tenantVersion(tenantId);
+    String cacheKey = "tenant:" + tenantId + ":" + version;
+    if (!refresh) {
+      PermissionCatalogSnapshot cached = cache.get(cacheKey);
+      if (cached != null) {
+        recordCache("hit");
+        return new Result(cached, true);
+      }
+      recordCache("miss");
+      return new Result(rebuildSingleFlight(cacheKey,
+          () -> build(version, roleRepository.listAssignableByTenant(tenantId))), false);
+    }
+    recordCache("refresh");
+    return new Result(rebuild(cacheKey,
+        () -> build(version, roleRepository.listAssignableByTenant(tenantId))), false);
+  }
+
+  @Transactional(readOnly = true)
+  public String currentTenantVersion(Long tenantId) {
+    return versionRepository.tenantVersion(tenantId);
+  }
+
   private PermissionCatalogSnapshot build(String version) {
+    return build(version, roleRepository.listGlobalRoles());
+  }
+
+  private PermissionCatalogSnapshot build(String version, List<Role> roleDefinitions) {
     List<Permission> permissions = permissionRepository.listActive();
-    List<Role> roles = roleRepository.listGlobalRoles().stream()
+    List<Role> roles = roleDefinitions.stream()
         .sorted(Comparator
             .comparingInt((Role role) -> SCOPE_ORDER.getOrDefault(role.scopeLevel(), 4))
             .thenComparingInt(role -> ROLE_RANK.getOrDefault(role.code(), 100))

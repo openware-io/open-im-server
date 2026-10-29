@@ -19,6 +19,7 @@ import io.openware.platform.identity.domain.account.model.OauthLink;
 import io.openware.platform.identity.domain.account.repository.IdentityAccountRepository;
 import io.openware.platform.identity.domain.account.repository.LoginIdentityRepository;
 import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -69,6 +70,20 @@ class AccountApplicationServiceTest {
     assertTrue(passwordEncoder.matches("pass1234", captor.getValue().credential()));
     assertEquals(LoginIdentity.STATUS_ACTIVE, captor.getValue().status());
     assertEquals(11L, captor.getValue().accountId());
+  }
+
+  @Test
+  void listPlatformOperatorsReturnsLoginIdentifier() {
+    when(accountRepository.findByAccountType(IdentityAccount.TYPE_PLATFORM_OPERATOR)).thenReturn(List.of(
+        new IdentityAccount(9L, IdentityAccount.STATUS_ACTIVE, IdentityAccount.TYPE_PLATFORM_OPERATOR)));
+    when(loginIdentityRepository.findByAccountId(9L)).thenReturn(List.of(
+        new LoginIdentity(3L, 9L, "USERNAME", "platform-ops", null, LoginIdentity.STATUS_ACTIVE)));
+
+    List<AccountApplicationService.PlatformOperatorView> operators = service.listPlatformOperators();
+
+    assertEquals(1, operators.size());
+    assertEquals(9L, operators.get(0).id());
+    assertEquals("platform-ops", operators.get(0).loginIdentifier());
   }
 
   @Test

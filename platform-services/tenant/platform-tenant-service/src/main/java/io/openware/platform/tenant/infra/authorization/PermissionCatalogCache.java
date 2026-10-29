@@ -60,7 +60,6 @@ public class PermissionCatalogCache {
     local.put(version, new LocalEntry(snapshot, System.nanoTime() + TTL.toNanos()));
     try {
       redis.opsForValue().set(KEY_PREFIX + version, objectMapper.writeValueAsString(snapshot), TTL);
-    // degradation: redis unavailable degrades to the local cache, which is the designed two-tier behaviour
     } catch (Exception exception) {
       log.debug("failed to cache permission catalog for version {}", version, exception);
     }

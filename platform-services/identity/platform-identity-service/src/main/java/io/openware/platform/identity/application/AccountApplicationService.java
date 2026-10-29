@@ -9,6 +9,7 @@ import io.openware.platform.identity.domain.account.model.OauthLink;
 import io.openware.platform.identity.domain.account.repository.IdentityAccountRepository;
 import io.openware.platform.identity.domain.account.repository.LoginIdentityRepository;
 import io.openware.platform.identity.domain.account.repository.OauthLinkRepository;
+import java.util.List;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +51,21 @@ public class AccountApplicationService {
     }
 
     public record AccountView(Long id, String accountType, String status) {
+    }
+
+    /** 平台运营账号列表：只返回账号与登录标识，供后台角色授予页展示。 */
+    public List<PlatformOperatorView> listPlatformOperators() {
+        return accountRepository.findByAccountType(IdentityAccount.TYPE_PLATFORM_OPERATOR).stream()
+                .map(account -> new PlatformOperatorView(account.id(),
+                        loginIdentityRepository.findByAccountId(account.id()).stream()
+                                .filter(identity -> LoginIdentity.STATUS_ACTIVE.equals(identity.status()))
+                                .map(LoginIdentity::loginIdentifier)
+                                .findFirst().orElse(null),
+                        account.status()))
+                .toList();
+    }
+
+    public record PlatformOperatorView(Long id, String loginIdentifier, String status) {
     }
 
     @Transactional

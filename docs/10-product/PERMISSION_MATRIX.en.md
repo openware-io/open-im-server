@@ -17,6 +17,8 @@ The Permission Catalog page combines the permission list and global-role grants 
 
 It is a read-only governance view. Editing still happens in the Role & Permission page.
 
+The tenant console also provides a Role Permission Matrix (`/admin/roles/matrix`) that aggregates tenant presets and custom roles. The platform matrix contains only global role templates; the two are data-isolated. See [Role & Permission Page](ROLE_MANAGEMENT.en.md#4-role-permission-matrix-tenant).
+
 ## 2. Audience and scope
 
 - Platform operations accounts with access to the permission catalog.

@@ -13,6 +13,11 @@ public interface IamCatalogVersionRepository {
   String currentVersion();
 
   /**
+   * 某租户可见角色目录的版本：全局预置角色 + 本租户自定义角色的变化都会反映在版本中。
+   */
+  String tenantVersion(Long tenantId);
+
+  /**
    * 某角色权限集合的版本（角色最后变更时间 + 授权数量 + 授权集合校验和 + 授权最后变更时间）。
    *
    * <p>用于角色权限编辑的乐观并发控制：读取快照时带版本，保存时校验，不一致返回 409，避免覆盖

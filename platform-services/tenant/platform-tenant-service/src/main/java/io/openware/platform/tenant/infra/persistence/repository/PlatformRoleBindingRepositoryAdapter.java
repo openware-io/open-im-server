@@ -33,4 +33,16 @@ public class PlatformRoleBindingRepositoryAdapter implements PlatformRoleBinding
   public List<Long> findPlatformIdsByAccount(Long accountId) {
     return mapper.selectPlatformIdsByAccount(accountId);
   }
+
+  @Override
+  public List<PlatformBinding> findPlatformBindingsByAccount(Long accountId) {
+    return mapper.selectPlatformBindingsByAccount(accountId).stream()
+        .map(row -> new PlatformBinding(row.id(), row.roleId()))
+        .toList();
+  }
+
+  @Override
+  public long countActiveByRoleId(Long roleId) {
+    return mapper.countActiveByRoleId(roleId);
+  }
 }
