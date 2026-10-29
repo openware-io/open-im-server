@@ -1,0 +1,8 @@
+spec:
+  template:
+    spec:
+      volumes:
+        - name: data
+          emptyDir: null
+          persistentVolumeClaim:
+            claimName: minio-data

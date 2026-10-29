@@ -42,6 +42,8 @@ Linux/macOS 可通过仓库根目录 `deploy-k8s.sh` 使用同一实现（需要
 部署入口具备幂等恢复策略：健康 Pod 优先复用，异常或不完整集群才重新部署；`-Mode init`、
 `-Mode redeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。`-Profile minimal` 在部署后缩容可选站点
 （`open-website`、`pc-admin`、`saas-mobile`），保留 SaaS 后台与后端；镜像构建仍为完整发布。
+`-DataMode pvc` 可在初始化/重新部署时使用 local-path PVC 保存 MySQL/MongoDB/MinIO 数据；
+默认仍为 `emptyDir`，切换模式会重建数据 Pod 且不会迁移旧数据。
 
 Docker Compose 与 Kind Kubernetes 是独立部署模式。端口、停止范围和验证命令见 [`docs/deployment/LOCAL.md`](../docs/60-deployment/LOCAL.md)。
 

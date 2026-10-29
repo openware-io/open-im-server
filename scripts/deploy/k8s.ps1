@@ -20,6 +20,8 @@ param(
   [switch]$ValidateOnly,
   [ValidatePattern('^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$')]
   [string]$RegistryPullSecretName = 'acr-registry',
+  [ValidateSet('ephemeral', 'pvc')]
+  [string]$DataMode = 'ephemeral',
   [string]$Registry = 'ghcr.io/openware-io',
   [string]$RepositoryNamespace = '',
   [ValidateRange(60, 900)]
@@ -481,7 +483,15 @@ try {
   if (Test-Path -LiteralPath $secretEnvFile) { Remove-Item -LiteralPath $secretEnvFile -Force }
 }
 
+if ($DataMode -eq 'pvc') {
+  Apply-Manifest -Name 'storage-pvc.yaml'
+}
 Apply-Manifest -Name 'infrastructure.yaml'
+if ($DataMode -eq 'pvc') {
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'mysql' -PatchName 'mysql-pvc-patch.yaml'
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'minio' -PatchName 'minio-pvc-patch.yaml'
+  Apply-StrategicPatch -ResourceType 'deployment' -TargetName 'mongodb' -PatchName 'mongodb-pvc-patch.yaml'
+}
 $infrastructureDeployments = @('mysql', 'redis', 'mongodb', 'minio', 'rocketmq-namesrv', 'rocketmq-broker')
 foreach ($deployment in $infrastructureDeployments) { Invoke-Kubectl -Arguments @('rollout', 'status', "deployment/$deployment", '--namespace', $Namespace, ("--timeout=$StartupTimeoutSeconds" + 's')) }
 Invoke-Kubectl -Arguments @('delete', 'job/mysql-saas-init', '--namespace', $Namespace, '--ignore-not-found=true')

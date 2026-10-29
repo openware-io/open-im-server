@@ -41,7 +41,8 @@
 - JDK 25，`JAVA_HOME` 可用；
 - Git；首次构建可访问 Maven/npm/Docker 依赖源或已有缓存；
 - 仓库根目录 `.env`（由初始化脚本生成，按本机环境检查）；
-- 默认入口端口 `30080` 可用；建议 16 GB RAM、4 vCPU、30 GB 可用磁盘。
+- 默认入口端口 `30080` 可用；建议 16 GB RAM、4 vCPU、30 GB 可用磁盘；
+- 如需 `-DataMode pvc`，集群需存在默认 StorageClass（Kind 自带 `standard` local-path）。
 
 ### 执行与验证
 
@@ -97,12 +98,17 @@ pwsh -File .\scripts\deploy\status.ps1
 
 ### 数据生命周期
 
-本地 Kind 的 MySQL、MongoDB、Redis、MinIO、RocketMQ 使用 `emptyDir`：
+本地 Kind 默认使用 `emptyDir`：
 
 - 容器重启、节点重启通常保留；
 - **删除 Pod、删除命名空间、`-Mode reset` 会丢失数据**；
 - `-Mode recover` 不会自动重启数据组件，也不会删除命名空间；
-- 需要跨 Pod 重建持久化的场景，应改用 local-path PVC，而不是 `emptyDir`。
+- 需要跨 Pod 重建持久化的场景，使用 `-Mode init -DataMode pvc` 创建
+  `mysql-data`、`mongodb-data`、`minio-data` 三个 local-path PVC（需要集群默认 StorageClass）。
+  Redis/RocketMQ 仍为临时数据。
+- 从 `ephemeral` 切换到 `pvc` 会重建数据 Pod，原 emptyDir 数据不会自动迁移；
+  切换前必须明确这是初始化/重置场景。
+- 选择 PVC 后，普通 Pod 重建和节点重启不会删除数据；`-Mode reset` 仍会连同命名空间删除 PVC。
 
 ### Kind 镜像清理
 

@@ -11,6 +11,8 @@ param(
   [switch]$ConfirmReset,
   [ValidateSet('full', 'minimal')]
   [string]$Profile = 'full',
+  [ValidateSet('ephemeral', 'pvc')]
+  [string]$DataMode = 'ephemeral',
   [switch]$ValidateOnly,
   [switch]$PruneImages,
   [string]$ReleaseManifestPath,
@@ -227,6 +229,7 @@ try {
     KindClusterName = $KindClusterName
     LocalBindAddress = $LocalBindAddress
     StartupTimeoutSeconds = $StartupTimeoutSeconds
+    DataMode = $DataMode
   }
   if ($LocalAdvertiseAddress) { $deployArguments.LocalAdvertiseAddress = $LocalAdvertiseAddress }
   if ($ValidateOnly) { $deployArguments.ValidateOnly = $true }
