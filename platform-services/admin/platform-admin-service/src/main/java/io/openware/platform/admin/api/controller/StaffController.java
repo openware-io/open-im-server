@@ -182,7 +182,27 @@ public class StaffController {
         if (!snapshot.permissions().contains("iam.role.manage")) {
             throw new ApiException(403, "STAFF_PERMISSION_REQUIRED", "无运营人员管理权限");
         }
-        return context;
+        return normalizeScope(context);
+    }
+
+    /**
+     * 把落库口径的 0 归一为 null。
+     *
+     * <p>{@code iam_role_binding} 的 {@code organization_id}/{@code store_id} 是
+     * {@code NOT NULL DEFAULT 0}，0 表示“非组织/非门店”；而 BFF 的作用域比较（运营人员列表、
+     * 门店下拉、开通校验）以 null 表示“不限”。签名上下文直接透传 0，会把“租户/组织级上下文”
+     * 误判成“storeId=0 的门店上下文”，表现为门店下拉为空、开通门店角色 403。
+     *
+     * <p>权限快照必须用**原始值**查询（SQL 中 {@code store_id=0} 表示非门店绑定），
+     * 因此归一只能发生在权限校验之后、返回值上。
+     */
+    private static TenantContext normalizeScope(TenantContext context) {
+        Long organizationId = context.organizationId() != null && context.organizationId() > 0
+                ? context.organizationId() : null;
+        Long storeId = context.storeId() != null && context.storeId() > 0 ? context.storeId() : null;
+        return new TenantContext(context.tenantId(), organizationId, storeId, context.accountId(),
+                context.authorizationVersion(), context.permissions(), context.scopeType(),
+                context.businessType(), context.timezone());
     }
 
     public record BootstrapOwnerRequest(Long tenantId, String username, String password, String displayName) {}

@@ -151,6 +151,48 @@ class StaffControllerTest {
         assertFalse(json.contains("secret-hash"));
     }
 
+    /**
+     * 组织级上下文的 storeId 落库口径是 0（iam_role_binding.store_id NOT NULL DEFAULT 0）。
+     * 它必须被归一成“不限门店”，否则门店下拉为空、开通门店角色会被误判为跨门店 403。
+     */
+    @Test
+    void organizationContextWithZeroStoreIdCanProvisionStoreStaff() {
+        when(tokens.verify("context")).thenReturn(new TenantContext(100L, 100L, 0L, 1L, 1));
+        when(iam.permissions(1L, 100L, 100L, 0L)).thenReturn(new TenantIamDomainClient.PermissionSnapshot(
+                1L, 100L, 100L, 0L, 1, List.of("iam.role.manage")));
+        when(iam.isStaffRole(3L, "STORE")).thenReturn(true);
+        when(iam.staffStores(any())).thenReturn(List.of(new TenantIamDomainClient.StaffStore(102L, 100L, "Store")));
+        when(staffAccounts.create(any())).thenReturn(account(25L, 25L, null, "secret-hash"));
+
+        var result = controller.create(new StaffController.CreateStaffRequest("staff1", "TestPass123", null,
+                "Staff", 3L, "STORE", 100L, 100L, 102L));
+
+        assertEquals(25L, result.platformAccountId());
+        ArgumentCaptor<TenantContext> scoped = ArgumentCaptor.forClass(TenantContext.class);
+        verify(iam).staffStores(scoped.capture());
+        assertNull(scoped.getValue().storeId(), "组织级上下文的 storeId=0 必须归一为 null");
+        assertEquals(100L, scoped.getValue().organizationId());
+    }
+
+    /** 组织级上下文的门店下拉：0 不能被当成门店过滤条件，否则返回空列表。 */
+    @Test
+    void optionsInOrganizationContextTreatZeroStoreIdAsUnscoped() {
+        when(tokens.verify("context")).thenReturn(new TenantContext(100L, 100L, 0L, 1L, 1));
+        when(iam.permissions(1L, 100L, 100L, 0L)).thenReturn(new TenantIamDomainClient.PermissionSnapshot(
+                1L, 100L, 100L, 0L, 1, List.of("iam.role.manage")));
+        when(iam.staffRoles()).thenReturn(List.of(
+                new TenantIamDomainClient.StaffRole(3L, "store.manager", "店长", "STORE")));
+        when(iam.staffStores(any())).thenReturn(List.of(new TenantIamDomainClient.StaffStore(102L, 100L, "Store")));
+
+        var options = controller.options();
+
+        assertEquals(1, options.stores().size());
+        ArgumentCaptor<TenantContext> scoped = ArgumentCaptor.forClass(TenantContext.class);
+        verify(iam).staffStores(scoped.capture());
+        assertNull(scoped.getValue().storeId());
+        assertEquals(100L, scoped.getValue().organizationId());
+    }
+
     /** 作用域校验通过后才委派；控制器不再自己查库。 */
     @Test
     void bindImDelegatesOnlyAfterScopeValidation() {

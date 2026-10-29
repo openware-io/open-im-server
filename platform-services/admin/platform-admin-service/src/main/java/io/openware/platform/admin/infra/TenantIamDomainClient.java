@@ -172,13 +172,13 @@ public class TenantIamDomainClient {
         }
     }
 
-    /** 账号的 iam_user_role 绑定 id 列表（删除运营人员时逐个撤销）。 */
+    /** 账号的 iam_role_binding id 列表（删除运营人员时逐个撤销）。 */
     public List<Long> listUserRoleIds(Long accountId) {
         try {
-            String resp = restClient.get()
-                    .uri("/admin/iam/accounts/{accountId}/user-roles", accountId)
-                    .retrieve()
-                    .body(String.class);
+            RestClient.RequestHeadersSpec<?> request = restClient.get()
+                    .uri("/admin/iam/accounts/{accountId}/user-roles", accountId);
+            appendTenantContext(request);
+            String resp = request.retrieve().body(String.class);
             JsonNode node = objectMapper.readTree(resp);
             List<Long> ids = new ArrayList<>();
             if (node != null && node.isArray()) {
@@ -195,12 +195,27 @@ public class TenantIamDomainClient {
     /** 撤销账号在某作用域下的角色绑定（软删 status → REVOKED）。 */
     public void revokeUserRole(Long userRoleId) {
         try {
-            restClient.delete()
-                    .uri("/admin/iam/user-roles/{userRoleId}", userRoleId)
-                    .retrieve()
-                    .body(String.class);
+            RestClient.RequestHeadersSpec<?> request = restClient.delete()
+                    .uri("/admin/iam/user-roles/{userRoleId}", userRoleId);
+            appendTenantContext(request);
+            request.retrieve().body(String.class);
         } catch (Exception e) {
             throw new IllegalStateException("调用 tenant 服务撤销角色失败", e);
+        }
+    }
+
+    /**
+     * 给租户侧 /admin/** 写请求补签名上下文。
+     *
+     * <p>这些端点由 tenant-service 的 {@code TenantContextFilter} 解析签名上下文后鉴权；
+     * BFF 从浏览器收到的是 admin 会话，跨服务调用必须显式携带当前选中的上下文 token，
+     * 否则 tenant-service 一律 401 {@code SAAS_CONTEXT_REQUIRED}。缺少该头的直接表现是
+     * “删除/停用运营人员” 500。
+     */
+    private static void appendTenantContext(RestClient.RequestHeadersSpec<?> request) {
+        String token = AdminContextHolder.get() == null ? null : AdminContextHolder.get().tenantContextToken();
+        if (token != null && !token.isBlank()) {
+            request.header(TenantContext.HEADER, token);
         }
     }
 
@@ -334,9 +349,7 @@ public class TenantIamDomainClient {
                 Long tenantId = nullableLong(store, "tenantId");
                 Long organizationId = nullableLong(store, "organizationId");
                 Long storeId = nullableLong(store, "id");
-                if (java.util.Objects.equals(context.tenantId(), tenantId)
-                        && (context.organizationId() == null || context.organizationId().equals(organizationId))
-                        && (context.storeId() == null || context.storeId().equals(storeId))) {
+                if (matchesScope(context, tenantId, organizationId, storeId)) {
                     result.add(new StaffStore(storeId, organizationId, text(store, "name")));
                 }
             }
@@ -344,6 +357,24 @@ public class TenantIamDomainClient {
         } catch (Exception exception) {
             throw new IllegalStateException("调用 tenant 服务查询可授权门店失败", exception);
         }
+    }
+
+    /**
+     * 判断门店是否落在签名上下文的授权范围内。
+     *
+     * <p>上下文的 {@code organizationId}/{@code storeId} 在落库口径里用 0 表示“非组织/非门店”，
+     * 比较前必须归一为 null，否则“组织级上下文（storeId=0）”会被当成“门店 0”，把所有门店过滤掉。
+     */
+    static boolean matchesScope(TenantContext context, Long tenantId, Long organizationId, Long storeId) {
+        Long scopedOrganizationId = positiveOrNull(context.organizationId());
+        Long scopedStoreId = positiveOrNull(context.storeId());
+        return java.util.Objects.equals(context.tenantId(), tenantId)
+                && (scopedOrganizationId == null || scopedOrganizationId.equals(organizationId))
+                && (scopedStoreId == null || scopedStoreId.equals(storeId));
+    }
+
+    private static Long positiveOrNull(Long id) {
+        return id != null && id > 0 ? id : null;
     }
 
     public List<StaffRole> staffRoles() {
