@@ -18,19 +18,19 @@ public interface IamCatalogVersionMapper {
   @InterceptorIgnore(tenantLine = "true")
   @Select("""
       SELECT CONCAT(
-        (SELECT COUNT(*) FROM iam_role
+        (SELECT COUNT(*) FROM iam_role /* platform-wide: global role catalog version */
           WHERE status = 'ACTIVE' AND tenant_id IS NULL), ':',
-        (SELECT COALESCE(DATE_FORMAT(MAX(updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_role
+        (SELECT COALESCE(DATE_FORMAT(MAX(updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_role /* platform-wide */
           WHERE status = 'ACTIVE' AND tenant_id IS NULL), ':',
         (SELECT COUNT(*) FROM iam_role_permission rp
-          JOIN iam_role r ON r.id = rp.role_id
+          JOIN iam_role r /* platform-wide */ ON r.id = rp.role_id
           WHERE r.status = 'ACTIVE' AND r.tenant_id IS NULL), ':',
         (SELECT COALESCE(BIT_XOR(CRC32(CONCAT(rp.role_id, ':', rp.permission_id))), 0)
           FROM iam_role_permission rp
-          JOIN iam_role r ON r.id = rp.role_id
+          JOIN iam_role r /* platform-wide */ ON r.id = rp.role_id
           WHERE r.status = 'ACTIVE' AND r.tenant_id IS NULL), ':',
         (SELECT COALESCE(DATE_FORMAT(MAX(rp.updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_role_permission rp
-          JOIN iam_role r ON r.id = rp.role_id
+          JOIN iam_role r /* platform-wide */ ON r.id = rp.role_id
           WHERE r.status = 'ACTIVE' AND r.tenant_id IS NULL), ':',
         (SELECT COUNT(*) FROM iam_permission WHERE status = 'ACTIVE'), ':',
         (SELECT COALESCE(DATE_FORMAT(MAX(updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_permission
@@ -48,7 +48,7 @@ public interface IamCatalogVersionMapper {
   @InterceptorIgnore(tenantLine = "true")
   @Select("""
       SELECT CONCAT(
-        (SELECT COALESCE(DATE_FORMAT(MAX(updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_role
+        (SELECT COALESCE(DATE_FORMAT(MAX(updated_at), '%Y%m%d%H%i%s%f'), '0') FROM iam_role /* tenant-agnostic: role id access-checked by caller */
           WHERE id = #{roleId}), ':',
         (SELECT COUNT(*) FROM iam_role_permission WHERE role_id = #{roleId}), ':',
         (SELECT COALESCE(BIT_XOR(CRC32(CONCAT(role_id, ':', permission_id))), 0)

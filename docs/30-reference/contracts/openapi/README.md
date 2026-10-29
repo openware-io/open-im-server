@@ -12,7 +12,8 @@
   其余服务快照未变。复核：
   - 矩阵：`GET /admin/iam/permissions/matrix`（响应 `ETag = version`，支持 `If-None-Match` 304；`refresh=true` 强制 200）、
     `GET /admin/iam/permissions/matrix/version`；
-  - 角色快照/写入：`GET /admin/iam/roles/{roleId}/permissions/snapshot`，`POST /admin/iam/roles/{roleId}/permissions`
+  - 角色快照/写入：`GET /admin/iam/roles/{roleId}/permissions/snapshot`，`GET /admin/iam/roles/permission-counts`（批量计数），
+    `POST /admin/iam/roles/{roleId}/permissions`
     支持 `expectedVersion`，`POST .../permissions/toggle` 同样支持；
   - schema：`PermissionMatrixView` 含 `grantablePermissionCodes`（四态可授予集合）、`version/generatedAt/cached`；
     `RolePermissionSnapshotView` 含 `permissionCodes/version`；`servers[0].url = http://127.0.0.1:4110`。

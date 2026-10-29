@@ -59,7 +59,8 @@ class IamControllerScopeTest {
 
     @BeforeEach
     void enterTenantContext() {
-        TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1, List.of(), "TENANT", null, null));
+        TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1,
+                List.of("iam.role.manage"), "TENANT", null, null));
     }
 
     @AfterEach
@@ -123,6 +124,18 @@ class IamControllerScopeTest {
 
         assertEquals("INVALID_GRANT_SCOPE", error.getCode());
         verify(userRoles, never()).insert(any(UserRoleBinding.class));
+    }
+
+    @Test
+    void rolePermissionCountsReturnsBatchCountsForVisibleRoles() {
+        when(roles.listAssignableByTenant(100L)).thenReturn(List.of(role(7L, "TENANT")));
+        when(roleGrants.countByRoleIds(List.of(7L))).thenReturn(Map.of(7L, 3L));
+
+        var counts = controller.rolePermissionCounts();
+
+        assertEquals(1, counts.size());
+        assertEquals(7L, counts.get(0).roleId());
+        assertEquals(3L, counts.get(0).permissionCount());
     }
 
     @Test

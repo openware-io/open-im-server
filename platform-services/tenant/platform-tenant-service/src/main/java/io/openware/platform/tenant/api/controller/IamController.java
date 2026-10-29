@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.api.controller;
 
 import io.openware.common.exception.ApiException;
+import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.IamConverter;
@@ -8,14 +9,17 @@ import io.openware.platform.tenant.api.converter.PermissionCatalogConverter;
 import io.openware.platform.tenant.api.dto.PermissionMatrixVersionView;
 import io.openware.platform.tenant.api.dto.PermissionMatrixView;
 import io.openware.platform.tenant.api.dto.PermissionView;
+import io.openware.platform.tenant.api.dto.RolePermissionCountView;
 import io.openware.platform.tenant.api.dto.RolePermissionSnapshotView;
 import io.openware.platform.tenant.api.dto.RoleView;
 import io.openware.platform.tenant.api.dto.UserRoleView;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
 import io.openware.platform.tenant.application.PermissionCatalogApplicationService;
 import io.openware.platform.tenant.application.RoleBindingApplicationService;
+import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -56,6 +60,7 @@ public class IamController {
     /** 权限目录（平台级，无租户上下文也可读）。 */
     @GetMapping("/permissions")
     public List<PermissionView> listPermissions() {
+        requireRoleRead();
         return authorizationService.listPermissions().stream().map(IamConverter::toView).toList();
     }
 
@@ -72,6 +77,7 @@ public class IamController {
     public ResponseEntity<PermissionMatrixView> permissionMatrix(
             @RequestParam(name = "refresh", required = false, defaultValue = "false") boolean refresh,
             @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
+        requireRoleRead();
         String currentVersion = permissionCatalogService.currentVersion();
         String etag = "\"" + currentVersion + "\"";
         if (!refresh && etag.equals(ifNoneMatch)) {
@@ -90,6 +96,7 @@ public class IamController {
     /** 权限目录版本：前端聚焦/可见性恢复时轻量校验，版本未变不拉全量矩阵。 */
     @GetMapping("/permissions/matrix/version")
     public PermissionMatrixVersionView permissionMatrixVersion() {
+        requireRoleRead();
         return new PermissionMatrixVersionView(permissionCatalogService.currentVersion());
     }
 
@@ -139,20 +146,38 @@ public class IamController {
         if (context == null) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
         }
-        List<RoleView> catalog = context.platformScope()
-                ? authorizationService.listPlatformRoles().stream()
-                    .map(IamConverter::toView).toList()
-                : authorizationService.listAssignableRoles(context.tenantId()).stream()
-                    .map(IamConverter::toView).toList();
-        return catalog;
+        requireRoleRead();
+        return visibleRoles(context).stream().map(IamConverter::toView).toList();
     }
 
     /** 租户可分配角色：全局预置角色 + 本租户自定义角色，不含平台角色。 */
     @GetMapping("/roles/assignable")
     public List<RoleView> listAssignableRoles() {
         var context = requireTenantContext();
+        requireRoleRead();
         return authorizationService.listAssignableRoles(context.tenantId()).stream()
                 .map(IamConverter::toView).toList();
+    }
+
+    /** 角色权限计数（批量）：角色列表一次加载，避免逐角色 N+1。 */
+    @GetMapping("/roles/permission-counts")
+    public List<RolePermissionCountView> rolePermissionCounts() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null) {
+            throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+        }
+        requireRoleRead();
+        List<Role> roles = visibleRoles(context);
+        Map<Long, Long> counts = authorizationService.permissionCounts(roles.stream().map(Role::id).toList());
+        return roles.stream()
+                .map(role -> new RolePermissionCountView(role.id(), counts.getOrDefault(role.id(), 0L)))
+                .toList();
+    }
+
+    private List<Role> visibleRoles(TenantContext context) {
+        return context.platformScope()
+                ? authorizationService.listPlatformRoles()
+                : authorizationService.listAssignableRoles(context.tenantId());
     }
 
     @PostMapping("/roles/{roleId}/permissions")
@@ -163,6 +188,7 @@ public class IamController {
     /** 角色权限快照：权限编码 + 版本（编辑弹窗用版本做乐观并发校验）。 */
     @GetMapping("/roles/{roleId}/permissions/snapshot")
     public RolePermissionSnapshotView rolePermissionSnapshot(@PathVariable Long roleId) {
+        requireRoleRead();
         IamAuthorizationApplicationService.RolePermissionSnapshot snapshot =
                 authorizationService.rolePermissionSnapshot(roleId);
         return new RolePermissionSnapshotView(snapshot.permissionCodes(), snapshot.version());
@@ -171,6 +197,7 @@ public class IamController {
     /** 角色权限码列表（脱敏权限管理等 UI 展示用）。 */
     @GetMapping("/roles/{roleId}/permissions")
     public List<String> listRolePermissions(@PathVariable Long roleId) {
+        requireRoleRead();
         return authorizationService.listRolePermissionCodes(roleId);
     }
 
@@ -238,5 +265,24 @@ public class IamController {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少租户上下文");
         }
         return context;
+    }
+
+    /**
+     * IAM 读接口的角色管理门禁。
+     *
+     * <p>平台后台工作区按设计不传租户上下文，平台菜单/会话由 platform-admin-service 的
+     * AdminRole（SUPER_ADMIN / PLATFORM_ADMIN）控制；这里在无上下文时放行平台级只读，
+     * 有平台上下文时要求平台 IAM 权限，有租户上下文时要求租户角色管理权限。
+     */
+    private static void requireRoleRead() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null) {
+            return;
+        }
+        if (context.platformScope()) {
+            PermissionGuard.require("platform.iam.role.manage");
+            return;
+        }
+        PermissionGuard.require("iam.role.manage");
     }
 }

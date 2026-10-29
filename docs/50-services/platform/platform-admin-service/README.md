@@ -38,6 +38,10 @@ SaaS 后台 BFF（统一登录入口 + 平台运营后台 + 租户后台），�
 指向 `/admin/tenant/settings`；页面分别维护门店级与租户级品牌/配置。对应菜单路径由
 `V5__store_settings_menu.sql`、`V6__tenant_settings_menu.sql` 修正。
 
+角色管理菜单由 `V8__iam_role_menu_entries.sql`、`V9__iam_platform_menu_permission_scope.sql` 补齐：租户 `人员与权限` 下新增
+`角色与权限`（`/admin/roles`，`required_permission=iam.role.manage`）；平台
+`角色与权限`、`权限目录` 同步统一命名并使用平台权限 `platform.iam.role.manage`。
+
 ## 网关路由（gateway）
 
 - saas-admin：/api/v1/admin/menus/**、/api/v1/admin/backends/** → PLATFORM_ADMIN_URI（默认 http://localhost:4150，StripPrefix=2）。

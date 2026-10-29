@@ -58,6 +58,7 @@
 ```text
 GET  /api/v1/admin/iam/roles/catalog        当前工作区可见角色（平台或租户）
 GET  /api/v1/admin/iam/roles/assignable     租户可分配角色（预置 + 本租户自定义）
+GET  /api/v1/admin/iam/roles/permission-counts  角色权限数量（批量，避免 N+1）
 POST /api/v1/admin/iam/roles                创建平台/租户自定义角色
 GET  /api/v1/admin/iam/permissions          权限目录
 GET  /api/v1/admin/iam/permissions/matrix   权限目录矩阵（权限列表 + 全局角色授权覆盖，同一快照）
@@ -70,6 +71,7 @@ PUT    /api/v1/admin/iam/roles/{id}/accounts/{accountId}/scope
 ```
 
 约束：预置角色只读；租户只能创建 `TENANT/STORE` 角色；权限必须满足角色 `scopeLevel` 与权限 `grantableLevels`。
+角色管理读接口（角色目录、权限字典、矩阵、角色权限快照/计数）按上下文守卫：租户上下文要求 `iam.role.manage`，平台上下文要求 `platform.iam.role.manage`，无租户上下文的平台工作区由平台入口/会话控制；菜单隐藏只是 UX，服务端仍会拒绝越权。
 
 权限目录矩阵（平台后台「权限目录」页）：
 
