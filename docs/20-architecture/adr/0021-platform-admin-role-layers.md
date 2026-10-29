@@ -52,13 +52,12 @@
 - 平台超级管理员在无租户上下文的平台工作区执行这些操作，由 BFF AdminRole 边界保护；
 - 平台运营人员要获得这些权限，需通过平台角色绑定（`/admin/iam/platform/role-bindings`）授予平台角色。
 
-### 4. 待补齐的产品能力
+### 4. 平台运营角色管理能力（已落地）
 
-以下不属于“超级管理员是否可编辑”，而是平台运营角色管理的完整业务：
-
-1. 平台运营人员账号列表与平台角色授予/撤销 UI；
-2. 平台角色权限变更审计查询；
-3. 平台角色删除/停用前的绑定检查（当前无删除接口，保持只增不删）。
+1. **平台运营人员页** `/admin/iam/platform-operators`：列出 identity `PLATFORM_OPERATOR` 账号及其平台角色绑定，支持授予/撤销；
+2. 读接口要求 `platform.iam.role.view`；授予/撤销要求 `platform.iam.role.manage`；
+3. 平台自定义角色停用前检查有效绑定，存在绑定时返回 409 `ROLE_HAS_BINDINGS`；预置平台角色不可停用；
+4. 相关操作写入审计（`iam.platform_role.assign/revoke/disable`）。
 
 ## Consequences / 后果
 

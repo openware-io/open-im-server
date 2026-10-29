@@ -56,6 +56,10 @@
 ## 角色与权限接口
 
 ```text
+GET  /api/v1/admin/iam/platform/operators       平台运营账号 + 平台角色绑定（只读）
+POST /api/v1/admin/iam/platform/role-bindings   给平台运营账号授予平台角色
+DELETE /api/v1/admin/iam/platform/role-bindings/{id}  撤销平台角色绑定
+POST /api/v1/admin/iam/platform/roles/{id}/disable    停用平台自定义角色（有有效绑定时 409）
 GET  /api/v1/admin/iam/roles/catalog        当前工作区可见角色（平台或租户）
 GET  /api/v1/admin/iam/roles/assignable     租户可分配角色（预置 + 本租户自定义）
 GET  /api/v1/admin/iam/roles/permission-counts  角色权限数量（批量，避免 N+1）

@@ -25,7 +25,18 @@ Platform roles have three layers:
 | Platform operator role | IAM platform role (e.g. `platform.operator`) | yes, managed here |
 | Tenant admin/roles | IAM tenant roles | tenant console |
 
-The super admin is not an IAM role and does not appear in the catalog/matrix; platform operator roles are the configurable permission templates. Platform operator accounts get roles through platform role bindings (account-assignment UI still being completed).
+The super admin is not an IAM role and does not appear in the catalog/matrix; platform operator roles are the configurable permission templates. Platform operator accounts get roles through platform role bindings (account-assignment UI is implemented; see 1.2).
+
+## 1.2 Platform operators
+
+Platform console → IAM → Platform Operators:
+
+- lists identity `PLATFORM_OPERATOR` accounts (ID, login identifier, status);
+- shows current platform-role bindings; assign/revoke supported;
+- only platform operator accounts without tenant membership can receive platform roles;
+- a custom platform role cannot be disabled while it has active bindings;
+- preset platform roles cannot be disabled;
+- super admin/platform admin are not listed and cannot be granted here.
 
 ## 2. Menus
 
@@ -33,6 +44,7 @@ The super admin is not an IAM role and does not appear in the catalog/matrix; pl
 | --- | --- | --- |
 | Platform | IAM → Role & Permission | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Platform | IAM → Permission Catalog | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
+| Platform | IAM → Platform Operators | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Tenant | People & Permissions → Role & Permission | `iam.role.view` (writes also need `iam.role.manage`) |
 | Tenant | People & Permissions → Role Permission Matrix | `iam.role.view` |
 

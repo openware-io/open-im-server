@@ -12,6 +12,8 @@
   其余服务快照未变。复核：
   - 矩阵：`GET /admin/iam/permissions/matrix`（全局角色模板，响应 `ETag = version`，支持 `If-None-Match` 304；`refresh=true` 强制 200）、
     `GET /admin/iam/permissions/matrix/version`、`GET /admin/iam/permissions/matrix/tenant`（租户预置 + 自定义角色）、`GET /admin/iam/permissions/matrix/tenant/version`；
+  - 平台运营人员：`GET /admin/iam/platform/operators`、`POST /admin/iam/platform/role-bindings`、
+    `DELETE /admin/iam/platform/role-bindings/{id}`、`POST /admin/iam/platform/roles/{id}/disable`；
   - 角色快照/写入：`GET /admin/iam/roles/{roleId}/permissions/snapshot`，`GET /admin/iam/roles/permission-counts`（批量计数），
     `POST /admin/iam/roles/{roleId}/permissions`
     支持 `expectedVersion`，`POST .../permissions/toggle` 同样支持；
