@@ -60,7 +60,7 @@ class IamControllerScopeTest {
     @BeforeEach
     void enterTenantContext() {
         TenantContextHolder.set(new TenantContext(100L, null, null, 1L, 1,
-                List.of("iam.role.manage"), "TENANT", null, null));
+                List.of("iam.role.manage", "iam.role.view"), "TENANT", null, null));
     }
 
     @AfterEach

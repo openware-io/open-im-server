@@ -71,7 +71,7 @@ PUT    /api/v1/admin/iam/roles/{id}/accounts/{accountId}/scope
 ```
 
 约束：预置角色只读；租户只能创建 `TENANT/STORE` 角色；权限必须满足角色 `scopeLevel` 与权限 `grantableLevels`。
-角色管理读接口（角色目录、权限字典、矩阵、角色权限快照/计数）按上下文守卫：租户上下文要求 `iam.role.manage`，平台上下文要求 `platform.iam.role.manage`，无租户上下文的平台工作区由平台入口/会话控制；菜单隐藏只是 UX，服务端仍会拒绝越权。
+角色管理读接口（角色目录、权限字典、矩阵、角色权限快照/计数）按上下文守卫：租户上下文要求 `iam.role.view`，平台上下文要求 `platform.iam.role.view`，无租户上下文的平台工作区由平台入口/会话控制；写接口要求对应 `iam.role.manage` / `platform.iam.role.manage`。菜单隐藏只是 UX，服务端仍会拒绝越权。
 
 权限目录矩阵（平台后台「权限目录」页）：
 

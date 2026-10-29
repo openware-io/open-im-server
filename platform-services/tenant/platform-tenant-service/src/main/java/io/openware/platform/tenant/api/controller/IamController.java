@@ -114,6 +114,7 @@ public class IamController {
         if (context == null) {
             throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
         }
+        requireRoleWrite();
         if (context.platformScope()) {
             if (!"PLATFORM".equals(req.scopeLevel())) {
                 throw new ApiException(400, "ROLE_SCOPE_INVALID", "平台上下文只能创建 PLATFORM 角色");
@@ -182,6 +183,7 @@ public class IamController {
 
     @PostMapping("/roles/{roleId}/permissions")
     public void assignPermissions(@PathVariable Long roleId, @RequestBody AssignPermissionsRequest req) {
+        requireRoleWrite();
         authorizationService.assignPermissions(roleId, req.permissionIds(), req.expectedVersion());
     }
 
@@ -204,12 +206,14 @@ public class IamController {
     /** 单权限开关（脱敏权限 member.pii.view 等）：给角色增删单个权限，不影响其它权限。 */
     @PostMapping("/roles/{roleId}/permissions/toggle")
     public void togglePermission(@PathVariable Long roleId, @RequestBody TogglePermissionRequest req) {
+        requireRoleWrite();
         authorizationService.togglePermission(roleId, req.permissionCode(), req.granted(), req.expectedVersion());
     }
 
     /** 给账号分配角色（写 iam_role_binding，主体为 STAFF membership）。 */
     @PostMapping("/user-roles")
     public UserRoleView assignUserRole(@RequestBody AssignUserRoleRequest req) {
+        requireRoleWrite();
         RoleBinding binding = roleBindingService.assignByAccount(req.accountId(), req.tenantId(),
                 req.organizationId(), req.storeId(), req.roleId(), req.scopeType());
         return IamConverter.toView(binding, req.accountId());
@@ -217,12 +221,14 @@ public class IamController {
 
     @DeleteMapping("/roles/{roleId}/accounts/{accountId}")
     public void revokeRoleFromAccount(@PathVariable Long roleId, @PathVariable Long accountId) {
+        requireRoleWrite();
         roleBindingService.revokeByAccountAndRole(accountId, roleId);
     }
 
     @PutMapping("/roles/{roleId}/accounts/{accountId}/scope")
     public void updateRoleAssignmentScope(@PathVariable Long roleId, @PathVariable Long accountId,
                                           @RequestBody UpdateRoleScopeRequest request) {
+        requireRoleWrite();
         roleBindingService.updateScopeByAccountAndRole(accountId, roleId,
                 request.organizationId(), request.storeId(), request.scopeType());
     }
@@ -230,12 +236,14 @@ public class IamController {
     /** 撤销成员角色绑定（软删 status → REVOKED）。 */
     @DeleteMapping("/user-roles/{userRoleId}")
     public void revokeUserRole(@PathVariable Long userRoleId) {
+        requireRoleWrite();
         roleBindingService.revokeAny(userRoleId);
     }
 
     /** 账号的成员角色绑定 id 列表（供运营人员精确撤销/删除）。 */
     @GetMapping("/accounts/{accountId}/user-roles")
     public List<Long> listUserRoleIds(@PathVariable Long accountId) {
+        requireRoleWrite();
         return roleBindingService.listIdsByAccount(accountId);
     }
 
@@ -268,13 +276,26 @@ public class IamController {
     }
 
     /**
-     * IAM 读接口的角色管理门禁。
+     * IAM 读接口的角色查看门禁。
      *
      * <p>平台后台工作区按设计不传租户上下文，平台菜单/会话由 platform-admin-service 的
      * AdminRole（SUPER_ADMIN / PLATFORM_ADMIN）控制；这里在无上下文时放行平台级只读，
-     * 有平台上下文时要求平台 IAM 权限，有租户上下文时要求租户角色管理权限。
+     * 有平台上下文时要求平台角色查看权限，有租户上下文时要求租户角色查看权限。
      */
     private static void requireRoleRead() {
+        TenantContext context = TenantContextHolder.get();
+        if (context == null) {
+            return;
+        }
+        if (context.platformScope()) {
+            PermissionGuard.require("platform.iam.role.view");
+            return;
+        }
+        PermissionGuard.require("iam.role.view");
+    }
+
+    /** 角色写操作：平台上下文要求平台角色管理权限，租户上下文要求租户角色管理权限。 */
+    private static void requireRoleWrite() {
         TenantContext context = TenantContextHolder.get();
         if (context == null) {
             return;

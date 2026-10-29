@@ -21,18 +21,19 @@
 
 ### 1. 菜单数据由迁移修正
 
-新增 `platform-admin-service` 迁移 `V8__iam_role_menu_entries.sql`（租户菜单/平台命名），
-以及 `V9__iam_platform_menu_permission_scope.sql`（平台菜单改用 `platform.iam.role.manage`）：
+新增 `platform-admin-service` 迁移 `V8__iam_role_menu_entries.sql`（租户菜单/平台命名）、
+`V9__iam_platform_menu_permission_scope.sql`（平台菜单权限范围）、
+`V10__iam_role_menu_view_permission.sql`（菜单改用查看权限）：
 
 - 在租户 `人员与权限`（parent 102）下插入 `角色与权限`：
   - path `/admin/roles`
-  - required_permission `iam.role.manage`
+  - required_permission `iam.role.view`
   - sort 5（在运营人员/脱敏权限之前）
 - 平台菜单改名：
   - `iam.role` → `角色与权限`
   - `iam.permission` → `权限目录`
-- 平台菜单 `iam.role` / `iam.permission` 设置 `required_permission='platform.iam.role.manage'`；
-- 租户角色菜单使用 `iam.role.manage`；
+- 平台菜单 `iam.role` / `iam.permission` 设置 `required_permission='platform.iam.role.view'`；
+- 租户角色菜单使用 `iam.role.view`；
 - 平台菜单树当前仍由 platform-admin-service 的 AdminRole（SUPER_ADMIN / PLATFORM_ADMIN）过滤；`required_permission` 作为后续平台权限化元数据保留，租户菜单则由 IAM 权限快照剪枝。菜单隐藏只是 UX，API 仍然守住。
 
 不新增“角色-菜单”表；菜单可见性继续由 `iam_menu.required_permission` + IAM 权限快照驱动。
@@ -48,11 +49,20 @@
 
 ### 3. 角色读接口必须经过服务端权限守卫
 
+新增 `V37__iam_role_view_permissions.sql`（租户/平台 view 权限）与
+`V38__iam_role_view_preset_grants.sql`（给全局预置角色补 view）：新增 `iam.role.view`（租户）与
+`platform.iam.role.view`（平台），并给现有拥有 manage 的角色补 view（manage 蕴含 view，保证升级后入口不丢）。
+
 角色页面涉及的读接口统一通过 `requireRoleRead()` 校验：
 
 - 无租户上下文（平台后台工作区）：按平台 AdminRole/入口放行平台级只读；
-- 平台上下文：要求 `platform.iam.role.manage`；
-- 租户上下文：要求 `iam.role.manage`。
+- 平台上下文：要求 `platform.iam.role.view`；
+- 租户上下文：要求 `iam.role.view`。
+
+写操作通过 `requireRoleWrite()` 校验：平台上下文要求 `platform.iam.role.manage`，租户上下文要求
+`iam.role.manage`；覆盖创建角色、替换/切换权限、分配/撤销成员角色、调整绑定作用域等接口。
+
+读接口清单：
 
 - `/roles/catalog`
 - `/roles/assignable`
@@ -84,15 +94,15 @@
 
 代价：
 
-- 租户角色/权限菜单对无 `iam.role.manage` 的用户隐藏；平台菜单由平台 AdminRole 控制；
+- 租户角色/权限菜单对无 `iam.role.view` 的用户隐藏；平台菜单由平台 AdminRole 控制；
 - 角色页在聚焦时会额外请求一次目录/计数，低频页面可接受；
-- 读接口守卫按上下文区分：租户要求 `iam.role.manage`，平台上下文要求 `platform.iam.role.manage`，无上下文平台只读由平台入口/会话控制。
+- 读接口守卫按上下文区分：租户要求 `iam.role.view`，平台上下文要求 `platform.iam.role.view`；写接口要求对应 manage 权限，无上下文平台只读由平台入口/会话控制。
 
 ## Alternatives considered / 备选方案
 
 1. **只补租户菜单，不改平台菜单**：拒绝。平台菜单与页面标题继续不一致。
 2. **在前端固定拼租户菜单项**：拒绝。菜单主体由后端下发，前端拼固定项会绕过 `required_permission`。
-3. **新增 `iam.role.view` 读权限**：暂不采用。当前角色管理页面本质是管理页；如产品需要只读查看者，再单独立项拆分读/写权限。
+3. **只新增 `iam.role.view` 但不补 manage→view 数据**：拒绝。升级后现有管理者会因菜单门禁从 manage 切到 view 而看不到入口。
 4. **复用全局矩阵版本刷新角色页**：拒绝。全局版本不包含租户自定义角色，租户角色页会漏刷新。
 5. **保留 N+1 计数**：拒绝。角色数量增长后页面线性变慢，且多次查询不是同一快照。
 
@@ -104,3 +114,6 @@
 - `docs/10-product/ROLE_MANAGEMENT.md`
 - `V8__iam_role_menu_entries.sql`
 - `V9__iam_platform_menu_permission_scope.sql`
+- `V10__iam_role_menu_view_permission.sql`
+- `V37__iam_role_view_permissions.sql`
+- `V38__iam_role_view_preset_grants.sql`

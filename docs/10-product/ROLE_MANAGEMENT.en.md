@@ -20,7 +20,7 @@ The Role & Permission page manages platform, tenant and store roles:
 | --- | --- | --- |
 | Platform | IAM → Role & Permission | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Platform | IAM → Permission Catalog | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
-| Tenant | People & Permissions → Role & Permission | `iam.role.manage` |
+| Tenant | People & Permissions → Role & Permission | `iam.role.view` (writes also need `iam.role.manage`) |
 
 Hiding a menu is UX only; direct API access is rejected with 403.
 
@@ -29,7 +29,8 @@ Hiding a menu is UX only; direct API access is rejected with 403.
 - name, code, type, scope and permission count;
 - permission counts are loaded in one batch call;
 - “Permission Matrix” opens the per-role editor;
-- “Copy” creates a custom role from an existing one;
+- an account with only `iam.role.view` can read roles and the matrix but cannot create, copy, save or assign members;
+- “Copy” creates a custom role from an existing one (requires `iam.role.manage`);
 - platform additionally offers “Workbench defaults” and “Permission Catalog”;
 - tenant additionally offers “Assign members”.
 
@@ -37,6 +38,7 @@ Hiding a menu is UX only; direct API access is rejected with 403.
 
 - only permissions grantable to the role scope are shown;
 - preset roles are read-only;
+- with view-only access the matrix is read-only and no Save button is shown;
 - saves carry a version; conflicting edits report a conflict and reload the latest grants;
 - closing with unsaved changes asks for confirmation;
 - platform roles can carry business permissions marked grantable to PLATFORM; platform operators use the same permission snapshot when entering a tenant context.
@@ -51,7 +53,10 @@ Hiding a menu is UX only; direct API access is rejected with 403.
 ## 6. FAQ
 
 **Why can't I see Role & Permission in the tenant console?**  
-The account needs `iam.role.manage`; menus are permission-filtered by the backend.
+The account needs `iam.role.view`; menus are permission-filtered by the backend.
+
+**Why can I only view, not edit?**
+The account needs `iam.role.manage` for writes; viewing uses `iam.role.view`.
 
 **Why are preset roles read-only?**  
 They are system baselines; copy one to create a customizable role.
@@ -65,7 +70,8 @@ They are different views. Refresh the role page; if it still differs, check for 
 ## 7. Acceptance
 
 - authorized platform/tenant users can open the page from the menu;
-- users without `iam.role.manage` do not see the menu and get 403 from APIs;
+- users without `iam.role.view` do not see the menu and get 403 from APIs;
+- view-only accounts open a read-only matrix without save/assign actions;
 - tenant pages do not show platform-only “Workbench defaults”;
 - platform role page links to the permission catalog;
 - counts load in batch and refresh on focus/refresh;
