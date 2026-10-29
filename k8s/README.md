@@ -18,6 +18,8 @@
 
 本地 MinIO 使用 `emptyDir`，因此必须在各 Deployment 滚动完成后再应用 MinIO 初始化任务。仅当媒体访问密钥与 MinIO 根用户一致时，才应用 `media-root-credentials-patch.yaml`。
 
+本地 Kind 的 MySQL、MongoDB、Redis、MinIO、RocketMQ 均使用 `emptyDir`：容器/节点重启通常保留，但删除 Pod、删除命名空间或 `-Mode reset` 会丢失数据；`-Mode recover` 不会自动重启这些数据组件。需要跨 Pod 重建持久化的场景应改用 local-path PVC，而不是 `emptyDir`。
+
 网关的公共媒体路由 `/api/v1/media-public/**` 直连对象存储，因此网关容器必须持有 `MEDIA_INTERNAL_ENDPOINT`：Kind 与 ACK 都填 `http://minio:9000`（见 `local/gateway-admin.yaml` 与 `ack/edge.yaml`）。缺少该变量时路由会退化成 `http://localhost:9000`，图片全部 502。
 
 如需在不修改集群的前提下校验静态语法和 API（媒体凭据文件是策略性补丁，应与主应用清单一起校验），执行：

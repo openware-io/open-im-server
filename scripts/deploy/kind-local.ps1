@@ -4,9 +4,15 @@ param(
   [switch]$ForceRedeploy,
   [switch]$ForceRebuild,
   [switch]$Stop,
+  [switch]$Recover,
+  [switch]$Status,
+  [ValidateSet('auto', 'init', 'recover', 'redeploy', 'status', 'reset')]
+  [string]$Mode = 'auto',
+  [switch]$ConfirmReset,
+  [ValidateSet('full', 'minimal')]
+  [string]$Profile = 'full',
   [switch]$ValidateOnly,
   [switch]$PruneImages,
-  [switch]$Recover,
   [string]$ReleaseManifestPath,
   [string]$Namespace = 'open-im-local',
   [string]$KindClusterName = 'open-im-local',
@@ -25,6 +31,29 @@ Set-StrictMode -Version Latest
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $k8sScript = Join-Path $PSScriptRoot 'k8s.ps1'
 $buildScript = Join-Path $PSScriptRoot 'build-saas-release.ps1'
+. (Join-Path $PSScriptRoot 'kind-recovery.ps1')
+
+function Test-KindClusterExists {
+  $previous = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $clusters = @(& kind get clusters 2>$null)
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+  return $clusters -contains $KindClusterName
+}
+
+function Test-KindNamespaceExists {
+  $previous = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'SilentlyContinue'
+    $name = (& kubectl get namespace $Namespace --ignore-not-found -o name 2>$null | Out-String).Trim()
+    return -not [string]::IsNullOrWhiteSpace($name)
+  } finally {
+    $ErrorActionPreference = $previous
+  }
+}
 
 function Assert-Command([string]$Name, [string]$InstallHint) {
   if (!(Get-Command $Name -ErrorAction SilentlyContinue)) {
@@ -49,11 +78,11 @@ function Test-HealthyKindWorkload {
   foreach ($deployment in $deployments) {
     $desired = [int]$deployment.spec.replicas
     $available = if ($null -eq $deployment.status -or $null -eq $deployment.status.PSObject.Properties['availableReplicas']) { 0 } else { [int]$deployment.status.availableReplicas }
-    if ($desired -lt 1 -or $available -lt $desired) { return $false }
+    if ($desired -lt 1) { continue }
+    if ($available -lt $desired) { return $false }
   }
   try {
-    $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:30080/saas/' -TimeoutSec 5
-    if ($response.StatusCode -ne 200) { return $false }
+    if (-not (Test-KindLocalEndpoints -Attempts 2)) { return $false }
   } catch {
     return $false
   }
@@ -61,6 +90,7 @@ function Test-HealthyKindWorkload {
 }
 
 function Start-KindNodeContainers {
+  param([switch]$SkipWait)
   $nodes = @(& docker ps -a --filter "label=io.x-k8s.kind.cluster=$KindClusterName" --format '{{.Names}}|{{.State}}' 2>$null)
   if ($nodes.Count -eq 0) { return }
   foreach ($node in $nodes) {
@@ -72,6 +102,7 @@ function Start-KindNodeContainers {
       if ($LASTEXITCODE -ne 0) { throw "Unable to start Kind node $($parts[0])." }
     }
   }
+  if ($SkipWait) { return }
   $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
   do {
     $notReady = @(& kubectl get nodes --no-headers 2>$null | Where-Object { $_ -notmatch '\sReady\s' })
@@ -79,30 +110,6 @@ function Start-KindNodeContainers {
     Start-Sleep -Seconds 3
   } while ([DateTime]::UtcNow -lt $deadline)
   throw 'Kind nodes did not become Ready before the startup timeout.'
-}
-
-function Restart-KindWorkloads {
-  # Restart application deployments; keep stateful stores (mysql/mongodb/redis/minio/rocketmq) running.
-  $names = @(& kubectl get deployments --namespace $Namespace -o name 2>$null |
-    ForEach-Object { ($_ -split '/')[-1] } |
-    Where-Object { $_ -and $_ -notmatch '^(mysql|mongodb|redis|minio|rocketmq)' })
-  foreach ($name in $names) {
-    Write-Host "Restarting deployment/$name..."
-    & kubectl --namespace $Namespace rollout restart "deployment/$name" | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Unable to restart deployment/$name." }
-  }
-  & kubectl --namespace $Namespace wait --for=condition=available deployment --all --timeout="$($StartupTimeoutSeconds)s" | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw 'SaaS workloads did not become available before the startup timeout.' }
-  # Allow a short window for Ingress reconciliation after deployments become available.
-  for ($attempt = 1; $attempt -le 10; $attempt++) {
-    if (Test-HealthyKindWorkload) { return }
-    Start-Sleep -Seconds 2
-  }
-}
-
-if ($Stop) {
-  & $k8sScript -Stop -Namespace $Namespace -KindClusterName $KindClusterName
-  exit $LASTEXITCODE
 }
 
 Assert-Command 'git' 'Install Git for Windows and reopen PowerShell.'
@@ -113,23 +120,78 @@ Assert-Command 'kind' 'Install Kind from https://kind.sigs.k8s.io/.'
 $dockerReady = (& docker info --format '{{.ServerVersion}}' 2>$null | Out-String).Trim()
 if ($LASTEXITCODE -ne 0 -or !$dockerReady) { throw 'Docker is installed but the Docker daemon is not running.' }
 
-Start-KindNodeContainers
+if ($Stop) {
+  & $k8sScript -Stop -Namespace $Namespace -KindClusterName $KindClusterName
+  exit $LASTEXITCODE
+}
 
-if ($Recover) {
-  if (-not (Test-HealthyKindWorkload)) {
-    Restart-KindWorkloads
+if ($Status) { $Mode = 'status' }
+if ($Recover) { $Mode = 'recover' }
+if ($ForceRebuild -and $Mode -eq 'auto') { $Mode = 'init' }
+if ($ForceRedeploy -and $Mode -eq 'auto') { $Mode = 'redeploy' }
+
+if ($Mode -eq 'status') {
+  if (-not (Test-KindClusterExists)) {
+    Write-Host "Kind cluster '$KindClusterName' does not exist." -ForegroundColor Yellow
+    exit 2
   }
-  if (-not (Test-HealthyKindWorkload)) { throw 'SaaS recovery did not reach a healthy state.' }
-  Write-Host "Recovered existing Kind workload in namespace '$Namespace'."
-  & kubectl get pods --namespace $Namespace
+  $statusCode = Get-KindLocalStatus -ClusterName $KindClusterName -Namespace $Namespace
+  exit $statusCode
+}
+
+if ($Mode -eq 'reset') {
+  if (-not $ConfirmReset) {
+    throw 'Reset deletes the local namespace and its data. Re-run with -Mode reset -ConfirmReset.'
+  }
+  Write-Host "Resetting local namespace '$Namespace' (data will be deleted)..." -ForegroundColor Yellow
+  & $k8sScript -Stop -Namespace $Namespace -KindClusterName $KindClusterName
+  exit $LASTEXITCODE
+}
+
+if ($Mode -eq 'recover' -and -not (Test-KindClusterExists)) {
+  throw "Kind cluster '$KindClusterName' does not exist. Use -Mode init for first deployment."
+}
+
+# Explicit init/redeploy and -ForceRebuild must never be short-circuited by the
+# healthy-workload reuse check.
+if ($Mode -in @('init', 'redeploy') -or $ForceRebuild) { $ForceRedeploy = $true }
+
+if ($Mode -eq 'recover') {
+  Start-KindNodeContainers -SkipWait
+  Invoke-KindRecovery -Root $root -ClusterName $KindClusterName -Namespace $Namespace -TimeoutSeconds $StartupTimeoutSeconds
   exit 0
 }
+
+if ($Mode -eq 'auto' -and (Test-KindClusterExists)) {
+  # Do not wait on kubelet here: a stopped control plane may need its image
+  # aliases repaired before the API can become ready.
+  Start-KindNodeContainers -SkipWait
+  Repair-KindSystemImages -ClusterName $KindClusterName
+  Wait-KubectlApi -TimeoutSeconds 120
+  if (Test-KindNamespaceExists) {
+    if (Test-HealthyKindWorkload) {
+      Write-Host "Healthy Kind workload found in namespace '$Namespace'; reusing existing Pods."
+      & kubectl get pods --namespace $Namespace
+      exit 0
+    }
+    Write-Host "Existing Kind workload is not healthy; running staged recovery (no rebuild)."
+    Invoke-KindRecovery -Root $root -ClusterName $KindClusterName -Namespace $Namespace -TimeoutSeconds $StartupTimeoutSeconds
+    exit 0
+  }
+  Wait-KindSystemReady -TimeoutSeconds 180
+}
+
+if ($Mode -in @('init', 'redeploy') -or -not (Test-KindClusterExists)) {
+  Start-KindNodeContainers
+}
+
+if ($Mode -eq 'init' -or $ForceRebuild) { $SkipBuild = $false }
 
 if (Test-HealthyKindWorkload) {
   Write-Host "Healthy Kind workload found in namespace '$Namespace'; reusing existing Pods."
   & kubectl get pods --namespace $Namespace
   if ($LASTEXITCODE -ne 0) { throw 'Existing Kind workload could not be inspected.' }
-  Write-Host 'Existing deployment reused. Use -ForceRedeploy to apply manifests again.'
+  Write-Host 'Existing deployment reused. Use -Mode redeploy to apply manifests again.'
   exit 0
 }
 
@@ -177,6 +239,8 @@ try {
 }
 
 Write-Host "Kind deployment completed. Release manifest: $ReleaseManifestPath"
+
+Set-KindRuntimeProfile -Namespace $Namespace -Profile $Profile
 
 if ($PruneImages) {
   & (Join-Path $PSScriptRoot 'prune-local-images.ps1') -ReleaseManifestPath $ReleaseManifestPath

@@ -10,9 +10,32 @@
 
 首次接触项目时，先用 Kind 一键部署获得完整 IM + SaaS 环境，再按需深入 Docker Compose 或单服务调试。该入口已在 Windows + Docker Desktop + Kind 上完成全量部署验证。
 
+### 生命周期模式
+
+`deploy-k8s.ps1` 只服务本地环境，提供两个核心场景和一个只读诊断入口：
+
+| 模式 | 命令 | 行为 |
+| --- | --- | --- |
+| 自动 | `.\deploy-k8s.ps1` | 集群/命名空间不存在 → 初始化；已存在且健康 → 复用；已存在但不健康 → 分阶段恢复，不重新构建 |
+| 初始化 | `.\deploy-k8s.ps1 -Mode init` | 构建镜像、创建 Kind、初始化数据库、部署全部服务 |
+| 重启恢复 | `.\deploy-k8s.ps1 -Mode recover` | 启动节点、修复控制面镜像、等待 CoreDNS/基础设施、补载缺失镜像、只重启不健康业务 Deployment |
+| 重新部署 | `.\deploy-k8s.ps1 -Mode redeploy` | 重新构建并应用完整发布清单 |
+| 状态诊断 | `.\deploy-k8s.ps1 -Mode status` | 只读输出节点、Deployment、异常 Pod 和入口健康；不修改集群 |
+| 清空环境 | `.\deploy-k8s.ps1 -Mode reset -ConfirmReset` | 删除本地命名空间及数据，必须显式确认 |
+
+兼容旧参数：
+
+- `-Recover` 等价于 `-Mode recover`；
+- `-Stop` 等价于删除本地命名空间；
+- `-ForceRebuild` 进入初始化/重新构建路径。
+
+可选 `-Profile minimal`：部署完成后将 `open-website`、`pc-admin`、`saas-mobile` 缩容为 0，
+保留 SaaS 管理后台、网关和后端服务，降低本地资源占用。该 profile 只影响运行期副本数，
+镜像构建仍为完整发布（前端构建优化留待独立发布 profile）。
+
 ### 环境要求
 
-- Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7）；
+- Windows 10/11，PowerShell 5.1+（推荐 PowerShell 7）；Linux/macOS 需要 PowerShell 7（`pwsh`）；
 - Docker Desktop，Linux 容器模式，Docker Engine 已启动；
 - `kind`、`kubectl` 已安装并在 `PATH` 中；
 - JDK 25，`JAVA_HOME` 可用；
@@ -30,6 +53,60 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1
 kubectl --context kind-open-im-local get pods -n open-im-local
 kubectl --context kind-open-im-local get ingress -n open-im-local
 ```
+
+Linux/macOS 可使用同一实现（需要 PowerShell 7）：
+
+```bash
+./deploy-k8s.sh
+```
+
+重启电脑后推荐：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Mode recover
+```
+
+恢复流程由 `scripts/deploy/kind-recovery.ps1` 分阶段执行：
+
+```text
+Kind 节点
+→ Kubernetes API
+→ 控制面镜像自检/修复
+→ CoreDNS / kindnet / kube-proxy
+→ MySQL / Redis / MongoDB / MinIO / RocketMQ
+→ 初始化 Job
+→ Deployment 镜像预检/补载
+→ 只重启不健康业务 Deployment（按依赖顺序，Gateway 最后）
+→ /、/saas/、/actuator/health 冒烟
+```
+
+恢复失败会写入 `.outputs/local-deployment/recover-<时间>.log`，包含节点、Deployment、异常 Pod 事件和最后 60 行日志。
+
+### 状态与清空
+
+```powershell
+# 只读状态；异常返回非零退出码
+.\deploy-k8s.ps1 -Mode status
+
+# 只读状态脚本（可直接用于 CI/运维）
+pwsh -File .\scripts\deploy\status.ps1
+
+# 清空本地环境（删除命名空间与数据）
+.\deploy-k8s.ps1 -Mode reset -ConfirmReset
+```
+
+### 数据生命周期
+
+本地 Kind 的 MySQL、MongoDB、Redis、MinIO、RocketMQ 使用 `emptyDir`：
+
+- 容器重启、节点重启通常保留；
+- **删除 Pod、删除命名空间、`-Mode reset` 会丢失数据**；
+- `-Mode recover` 不会自动重启数据组件，也不会删除命名空间；
+- 需要跨 Pod 重建持久化的场景，应改用 local-path PVC，而不是 `emptyDir`。
+
+### Kind 镜像清理
+
+`-PruneImages` 只清理 `ghcr.io/openware-io/*` 旧业务镜像和 Docker 构建缓存，不清理 Kind 控制面系统镜像。不要手工对 Kind 节点执行 `ctr images prune --all`，否则可能删除 kube-apiserver/kube-proxy 等系统镜像别名，导致节点无法启动；恢复模式会尝试自动修复这些别名。
 
 入口：
 
@@ -131,7 +208,9 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 .\deploy-k8s.ps1 -LocalBindAddress 0.0.0.0
 ```
 
-再次开机执行同一命令时，脚本会先检查 `open-im-local` 中的核心 Deployment：全部就绪则直接复用现有 Pod，不重新构建、不重新部署；集群不存在、Pod 未就绪或资源不完整时才进入完整部署流程。需要强制重新应用清单时使用 `-ForceRedeploy`，需要强制重新构建镜像时使用 `-ForceRebuild`。
+再次开机执行 `.\deploy-k8s.ps1 -Mode recover` 时，脚本先启动退出的 Kind 节点，修复控制面镜像别名，
+等待 API/CoreDNS/基础设施，再只重启不健康的业务 Deployment；不会重新构建，也不会重启数据组件。
+自动模式（无参数）在已有环境不健康时也会选择恢复路径，而不是回退到全量构建。
 
 高级发布流程仍可直接消费已经生成并验证过的发布清单：
 
@@ -146,17 +225,20 @@ Kind 用于验证集群内服务发现、Service 路由与滚动发布行为。D
 ```powershell
 .\deploy-k8s.ps1 -ReleaseManifestPath <本地发布清单路径> -SkipBuild
 .\deploy-k8s.ps1 -SaasReleaseManifestPath <远程发布清单路径> -ValidateOnly
-.\deploy-k8s.ps1 -ForceRedeploy -PruneImages
-.\deploy-k8s.ps1 -Recover
+.\deploy-k8s.ps1 -Mode redeploy -PruneImages
+.\deploy-k8s.ps1 -Mode recover
+.\deploy-k8s.ps1 -Mode status
+.\deploy-k8s.ps1 -Mode reset -ConfirmReset
 .\deploy-k8s.ps1 -Stop
 ```
 
-`-Recover` 用于电脑重启或 Kind 节点停止后的恢复：先启动退出的 Kind 节点，再重启应用 Deployment，
-等待 Ready 和 `/saas/` 可用；不会重启 MySQL、MongoDB、Redis、MinIO、RocketMQ。日常重启不需要重新构建。
+`-Mode recover` 的详细阶段和诊断日志见本节开头；恢复失败不会删除数据，也不会自动重启 MySQL/MongoDB/Redis/MinIO/RocketMQ。
+日常重启不需要重新构建。
 
 `-PruneImages` 在部署成功后清理 `ghcr.io/openware-io/*` 中不属于本次发布清单的旧镜像，
 并清理 Docker 构建缓存；清理前会保留发布清单、Kubernetes Pod 实际引用以及运行中容器引用的镜像。
-Kind 已导入的镜像不受影响。也可单独执行
+该脚本只处理宿主机 Docker 镜像，不处理 Kind 节点系统镜像；不要手工执行
+`ctr images prune --all`，否则会破坏 kube-apiserver/kube-proxy 镜像别名。也可单独执行
 `scripts/deploy/prune-local-images.ps1`；只想清理旧镜像、不清理构建缓存时加 `-NoBuildCache`。
 
 脚本使用命名空间 `open-im-local` 并创建 `open-im-env` Secret。开发分支使用 `<模块版本>-SNAPSHOT` 镜像标签，允许开发环境覆盖；正式发布使用不带后缀的纯 SemVer，正式 tag 不可覆盖。根聚合、结构聚合和领域父 POM 保持纯 SemVer，开发后缀由可部署叶子服务的 Maven 版本和镜像版本承载。禁止 `latest`、`dev`、`dirty`、手工标签及 `@sha256` 镜像后缀；构建时间与 Git 修订写入镜像 label 和发布清单。业务镜像仅由 `scripts/deploy/build-saas-release.ps1` 构建并推送 GHCR，正式构建必须显式传入 `-FormalRelease -FormalTargets <本次服务/前端名称>`；Kind 与 ACK 都按清单的版本 tag 部署，并在发布前校验 GHCR 中的 tag 与 digest 一致；部署后校验 Pod 实际 `imageID`。`-ImageTag`、`-SaasImageTag` 覆盖入口被拒绝；Kind 需要提前配置命名空间及 GHCR 拉取 Secret；`-ValidateOnly` 只校验真实 GHCR 清单，不修改集群。`.env` 中值为空的配置会被忽略，避免覆盖 Spring 默认值。

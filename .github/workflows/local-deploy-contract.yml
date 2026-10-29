@@ -1,0 +1,36 @@
+name: Local deployment contract
+
+on:
+  pull_request:
+    paths:
+      - "scripts/deploy/kind-local.ps1"
+      - "scripts/deploy/kind-recovery.ps1"
+      - "scripts/deploy/status.ps1"
+      - "scripts/verify/local-deploy-contract.ps1"
+      - "deploy-k8s.ps1"
+      - "deploy-k8s.sh"
+      - "docs/60-deployment/LOCAL.md"
+  push:
+    branches:
+      - main
+      - "develop/2.4.0-hotel"
+    paths:
+      - "scripts/deploy/kind-local.ps1"
+      - "scripts/deploy/kind-recovery.ps1"
+      - "scripts/deploy/status.ps1"
+      - "scripts/verify/local-deploy-contract.ps1"
+      - "deploy-k8s.ps1"
+      - "deploy-k8s.sh"
+      - "docs/60-deployment/LOCAL.md"
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate local deployment contract
+        shell: pwsh
+        run: ./scripts/verify/local-deploy-contract.ps1
