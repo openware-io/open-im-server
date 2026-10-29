@@ -42,6 +42,7 @@ The tenant Role Permission Matrix puts all visible roles (global presets + tenan
 - four states: granted / grantable-not-granted / not-grantable / cross-scope grant;
 - filters by module/domain/scope/state, role column selection, CSV export;
 - click a role header to open its permission editor;
+- the role page's “Matrix view” opens the matrix focused on that role column;
 - tenant matrix excludes platform roles; platform matrix excludes tenant custom roles;
 - refresh button and version check on return.
 
