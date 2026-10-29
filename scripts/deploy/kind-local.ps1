@@ -209,6 +209,19 @@ if (!$ReleaseManifestPath) {
     ReleaseManifestPath = $ReleaseManifestPath
     SkipPush = $true
   }
+  if ($Profile -eq 'minimal') {
+    # Keep all backend services and the SaaS/portal entry; skip the optional
+    # frontend image builds and their manifests during a minimal first init.
+    $buildArguments.Targets = @(
+      'im-user-service', 'im-message-service', 'im-conversation-service',
+      'common-media-service', 'im-admin-service', 'im-access-ws', 'gateway',
+      'platform-identity-service', 'platform-tenant-service', 'platform-resource-service',
+      'platform-order-service', 'common-payment-service', 'platform-admin-service',
+      'platform-customer-service', 'platform-marketing-service',
+      'common-payment-channel-service', 'common-audit-service', 'common-sms-service',
+      'common-mail-service', 'group-idaas-service', 'saas-admin', 'unified-portal'
+    )
+  }
   if ($PcAdminProjectPath) { $buildArguments.PcAdminProjectPath = $PcAdminProjectPath }
   if ($SaasAdminProjectPath) { $buildArguments.SaasAdminProjectPath = $SaasAdminProjectPath }
   if ($SaasMobileProjectPath) { $buildArguments.SaasMobileProjectPath = $SaasMobileProjectPath }
@@ -231,6 +244,7 @@ try {
     StartupTimeoutSeconds = $StartupTimeoutSeconds
     DataMode = $DataMode
   }
+  if ($Profile -eq 'minimal') { $deployArguments.MinimalProfile = $true }
   if ($LocalAdvertiseAddress) { $deployArguments.LocalAdvertiseAddress = $LocalAdvertiseAddress }
   if ($ValidateOnly) { $deployArguments.ValidateOnly = $true }
   Write-Host "Deploying local release to Kind cluster '$KindClusterName'..."

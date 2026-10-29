@@ -29,9 +29,9 @@
 - `-Stop` 等价于删除本地命名空间；
 - `-ForceRebuild` 进入初始化/重新构建路径。
 
-可选 `-Profile minimal`：部署完成后将 `open-website`、`pc-admin`、`saas-mobile` 缩容为 0，
-保留 SaaS 管理后台、网关和后端服务，降低本地资源占用。该 profile 只影响运行期副本数，
-镜像构建仍为完整发布（前端构建优化留待独立发布 profile）。
+可选 `-Profile minimal`：初始化/重新部署时跳过 `open-website`、`pc-admin`、`saas-mobile`
+的镜像构建与清单应用，保留 SaaS 管理后台、统一门户、网关和后端服务；部署后也会将这三个可选站点缩容为 0。
+该 profile 显著减少首次前端构建和运行资源，但构建当前仍会执行所选后端模块。
 
 ### 环境要求
 

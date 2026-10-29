@@ -31,8 +31,26 @@ foreach ($mode in @('auto', 'init', 'recover', 'redeploy', 'status', 'reset')) {
     $failures.Add("kind-local.ps1 does not expose mode '$mode'")
   }
 }
+foreach ($parameter in @('$DataMode', '$Profile', '$ConfirmReset')) {
+  if ($kindLocal -notmatch [regex]::Escape($parameter)) {
+    $failures.Add("kind-local.ps1 missing parameter: $parameter")
+  }
+}
 if ($kindLocal -match 'Restart-KindWorkloads') {
   $failures.Add('kind-local.ps1 must not restart all workloads; use staged recovery.')
+}
+
+$k8s = Get-Content -Raw -LiteralPath (Join-Path $root 'scripts/deploy/k8s.ps1')
+foreach ($parameter in @('$DataMode', '$MinimalProfile')) {
+  if ($k8s -notmatch [regex]::Escape($parameter)) {
+    $failures.Add("k8s.ps1 missing parameter: $parameter")
+  }
+}
+if (!(Test-Path -LiteralPath (Join-Path $root 'k8s/local/storage-pvc.yaml'))) {
+  $failures.Add('missing k8s/local/storage-pvc.yaml')
+}
+if (!(Test-Path -LiteralPath (Join-Path $root 'deploy-k8s.sh'))) {
+  $failures.Add('missing deploy-k8s.sh')
 }
 
 $recovery = Get-Content -Raw -LiteralPath (Join-Path $root 'scripts/deploy/kind-recovery.ps1')

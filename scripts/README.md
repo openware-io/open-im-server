@@ -40,8 +40,8 @@ Kind 创建或复用、镜像导入、部署和健康检查。已有发布清单
 Linux/macOS 可通过仓库根目录 `deploy-k8s.sh` 使用同一实现（需要 PowerShell 7）。
 
 部署入口具备幂等恢复策略：健康 Pod 优先复用，异常或不完整集群才重新部署；`-Mode init`、
-`-Mode redeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。`-Profile minimal` 在部署后缩容可选站点
-（`open-website`、`pc-admin`、`saas-mobile`），保留 SaaS 后台与后端；镜像构建仍为完整发布。
+`-Mode redeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。`-Profile minimal` 在构建/部署时跳过可选站点
+（`open-website`、`pc-admin`、`saas-mobile`），保留 SaaS 后台、统一门户与后端，并在部署后将这些站点缩容为 0。
 `-DataMode pvc` 可在初始化/重新部署时使用 local-path PVC 保存 MySQL/MongoDB/MinIO 数据；
 默认仍为 `emptyDir`，切换模式会重建数据 Pod 且不会迁移旧数据。
 

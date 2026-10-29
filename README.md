@@ -75,7 +75,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\deploy-k8s.ps1 -Mode recov
 - 失败时输出 `.outputs/local-deployment/recover-<时间>.log` 诊断日志。
 
 `-Mode status` 提供只读状态检查；`-Mode reset -ConfirmReset` 会删除本地命名空间与数据。
-`-Profile minimal` 可在部署后缩容可选站点（官网、IM 管理后台、SaaS H5），保留 SaaS 后台与后端。
+`-Profile minimal` 可跳过官网、IM 管理后台、SaaS H5 的构建与清单，保留 SaaS 后台、统一门户和后端。
 `-Mode init -DataMode pvc` 可把 MySQL/MongoDB/MinIO 数据放到 local-path PVC；默认仍为 `emptyDir`，
 切换模式会重建数据 Pod 且不会迁移旧数据。
 Linux/macOS 可使用 `./deploy-k8s.sh`（需要 PowerShell 7）。
