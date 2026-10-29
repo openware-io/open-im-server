@@ -33,7 +33,7 @@
   - `iam.permission` → `权限目录`
 - 平台菜单 `iam.role` / `iam.permission` 设置 `required_permission='platform.iam.role.manage'`；
 - 租户角色菜单使用 `iam.role.manage`；
-- 平台菜单剪枝按 `AdminRole`（SUPER_ADMIN / PLATFORM_ADMIN）执行，租户菜单按权限快照执行；菜单隐藏只是 UX，API 仍然守住。
+- 平台菜单树当前仍由 platform-admin-service 的 AdminRole（SUPER_ADMIN / PLATFORM_ADMIN）过滤；`required_permission` 作为后续平台权限化元数据保留，租户菜单则由 IAM 权限快照剪枝。菜单隐藏只是 UX，API 仍然守住。
 
 不新增“角色-菜单”表；菜单可见性继续由 `iam_menu.required_permission` + IAM 权限快照驱动。
 

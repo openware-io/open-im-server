@@ -18,8 +18,8 @@ The Role & Permission page manages platform, tenant and store roles:
 
 | Console | Menu path | Visibility |
 | --- | --- | --- |
-| Platform | IAM → Role & Permission | `platform.iam.role.manage` |
-| Platform | IAM → Permission Catalog | `platform.iam.role.manage` |
+| Platform | IAM → Role & Permission | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
+| Platform | IAM → Permission Catalog | Platform AdminRole (SUPER_ADMIN / PLATFORM_ADMIN) |
 | Tenant | People & Permissions → Role & Permission | `iam.role.manage` |
 
 Hiding a menu is UX only; direct API access is rejected with 403.

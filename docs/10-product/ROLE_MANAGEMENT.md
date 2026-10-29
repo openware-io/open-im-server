@@ -20,8 +20,8 @@
 
 | 后台 | 菜单路径 | 可见条件 |
 | --- | --- | --- |
-| 平台 | 权限管理 → 角色与权限 | `platform.iam.role.manage` |
-| 平台 | 权限管理 → 权限目录 | `platform.iam.role.manage` |
+| 平台 | 权限管理 → 角色与权限 | 平台 AdminRole（SUPER_ADMIN / PLATFORM_ADMIN） |
+| 平台 | 权限管理 → 权限目录 | 平台 AdminRole（SUPER_ADMIN / PLATFORM_ADMIN） |
 | 租户 | 人员与权限 → 角色与权限 | `iam.role.manage` |
 
 菜单不可见时直接访问页面仍会被服务端拒绝（403）。
