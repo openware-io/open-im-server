@@ -14,6 +14,19 @@ The Role & Permission page manages platform, tenant and store roles:
 - preset roles are read-only; copy one to customize;
 - the permission catalog matrix is a read-only comparison view; this page is the editing entry.
 
+## 1.1 Platform role layers
+
+Platform roles have three layers:
+
+| Layer | Carrier | Editable on this page |
+| --- | --- | --- |
+| Platform super admin | fixed BFF role `SUPER_ADMIN` | no, break-glass |
+| Platform admin | fixed BFF role `PLATFORM_ADMIN` | no, admin-account role |
+| Platform operator role | IAM platform role (e.g. `platform.operator`) | yes, managed here |
+| Tenant admin/roles | IAM tenant roles | tenant console |
+
+The super admin is not an IAM role and does not appear in the catalog/matrix; platform operator roles are the configurable permission templates. Platform operator accounts get roles through platform role bindings (account-assignment UI still being completed).
+
 ## 2. Menus
 
 | Console | Menu path | Visibility |
