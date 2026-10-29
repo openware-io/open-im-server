@@ -4,7 +4,10 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.infra.persistence.mapper.RolePermissionMapper;
 import io.openware.platform.tenant.infra.persistence.po.RolePermissionPo;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -38,6 +41,21 @@ public class RoleGrantRepositoryAdapter implements RoleGrantRepository {
     return mapper.selectList(Wrappers.<RolePermissionPo>lambdaQuery()
             .eq(RolePermissionPo::getRoleId, roleId))
         .stream().map(RolePermissionPo::getPermissionId).toList();
+  }
+
+  @Override
+  public Map<Long, List<Long>> findPermissionIdsByRoles(List<Long> roleIds) {
+    if (roleIds == null || roleIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<Long, List<Long>> result = new LinkedHashMap<>();
+    for (RolePermissionPo po : mapper.selectList(Wrappers.<RolePermissionPo>lambdaQuery()
+        .in(RolePermissionPo::getRoleId, roleIds)
+        .orderByAsc(RolePermissionPo::getRoleId)
+        .orderByAsc(RolePermissionPo::getPermissionId))) {
+      result.computeIfAbsent(po.getRoleId(), ignored -> new ArrayList<>()).add(po.getPermissionId());
+    }
+    return result;
   }
 
   @Override

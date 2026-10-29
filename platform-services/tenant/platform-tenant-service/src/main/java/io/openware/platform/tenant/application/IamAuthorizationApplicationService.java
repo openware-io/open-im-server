@@ -8,6 +8,7 @@ import io.openware.platform.tenant.domain.iam.model.MaskingRole;
 import io.openware.platform.tenant.domain.iam.model.Permission;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
+import io.openware.platform.tenant.domain.iam.repository.IamCatalogVersionRepository;
 import io.openware.platform.tenant.domain.iam.repository.PermissionRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
@@ -34,11 +35,15 @@ public class IamAuthorizationApplicationService {
 
   private static final String CODE_PERMISSION_NOT_FOUND = "PERMISSION_NOT_FOUND";
 
+  /** 角色权限集合已被其他管理员修改（乐观并发校验失败）。 */
+  private static final String CODE_PERMISSION_VERSION_CONFLICT = "PERMISSION_VERSION_CONFLICT";
+
   private final RoleRepository roleRepository;
   private final PermissionRepository permissionRepository;
   private final RoleGrantRepository roleGrantRepository;
   private final UserRoleRepository userRoleRepository;
   private final PermissionSnapshotProvider permissionSnapshotProvider;
+  private final IamCatalogVersionRepository catalogVersionRepository;
   private final AuditClient auditClient;
 
   /** 兼容既有单测/装配：不传审计客户端时使用关闭态客户端。 */
@@ -46,9 +51,10 @@ public class IamAuthorizationApplicationService {
                                             PermissionRepository permissionRepository,
                                             RoleGrantRepository roleGrantRepository,
                                             UserRoleRepository userRoleRepository,
-                                            PermissionSnapshotProvider permissionSnapshotProvider) {
+                                            PermissionSnapshotProvider permissionSnapshotProvider,
+                                            IamCatalogVersionRepository catalogVersionRepository) {
     this(roleRepository, permissionRepository, roleGrantRepository, userRoleRepository,
-        permissionSnapshotProvider, AuditClient.disabled());
+        permissionSnapshotProvider, catalogVersionRepository, AuditClient.disabled());
   }
 
   @Autowired
@@ -57,12 +63,14 @@ public class IamAuthorizationApplicationService {
                                             RoleGrantRepository roleGrantRepository,
                                             UserRoleRepository userRoleRepository,
                                             PermissionSnapshotProvider permissionSnapshotProvider,
+                                            IamCatalogVersionRepository catalogVersionRepository,
                                             AuditClient auditClient) {
     this.roleRepository = roleRepository;
     this.permissionRepository = permissionRepository;
     this.roleGrantRepository = roleGrantRepository;
     this.userRoleRepository = userRoleRepository;
     this.permissionSnapshotProvider = permissionSnapshotProvider;
+    this.catalogVersionRepository = catalogVersionRepository;
     this.auditClient = auditClient;
   }
 
@@ -156,11 +164,21 @@ public class IamAuthorizationApplicationService {
    *
    * <p>校验顺序是先"权限是否都存在"再"是否都可授予"：请求了不存在的权限标识必须拒绝，
    * 不能静默忽略——否则前端以为授予成功，实际少授了。
+   *
+   * <p>并发控制：先对角色行加锁，再做版本校验，最后替换授权。这样“版本校验通过 → 替换”之间
+   * 不会被另一个管理员的写事务插入；{@code expectedVersion} 为空时保留旧调用方的无版本语义。
    */
   @Transactional
   public Role assignPermissions(Long roleId, List<Long> permissionIds) {
-    Role role = requireActiveRole(roleId);
+    return assignPermissions(roleId, permissionIds, null);
+  }
+
+  /** 带乐观并发校验的权限集合替换；{@code expectedVersion} 来自角色权限快照接口。 */
+  @Transactional
+  public Role assignPermissions(Long roleId, List<Long> permissionIds, String expectedVersion) {
+    Role role = requireActiveRoleForUpdate(roleId);
     assertTenantCanWriteRole(role);
+    assertPermissionVersion(roleId, expectedVersion);
     List<Long> ids = permissionIds == null ? List.of() : permissionIds;
     if (!ids.isEmpty()) {
       List<Permission> permissions = permissionRepository.findByIds(ids);
@@ -185,13 +203,20 @@ public class IamAuthorizationApplicationService {
    */
   @Transactional
   public Role togglePermission(Long roleId, String permissionCode, boolean granted) {
+    return togglePermission(roleId, permissionCode, granted, null);
+  }
+
+  /** 带乐观并发校验的单权限开关。 */
+  @Transactional
+  public Role togglePermission(Long roleId, String permissionCode, boolean granted, String expectedVersion) {
+    Role role = requireActiveRoleForUpdate(roleId);
     Permission permission = permissionRepository.findByCode(permissionCode)
         .orElseThrow(() -> new ApiException(404, CODE_PERMISSION_NOT_FOUND, "权限不存在"));
-    Role role = roleRepository.findById(roleId).orElse(null);
-    if (role == null || !permission.grantableTo(role.scopeLevel())) {
+    if (!permission.grantableTo(role.scopeLevel())) {
       throw invalidGrantScope();
     }
     assertTenantCanWriteRole(role);
+    assertPermissionVersion(roleId, expectedVersion);
     if (granted) {
       roleGrantRepository.grant(roleId, permission.id());
     } else {
@@ -204,9 +229,20 @@ public class IamAuthorizationApplicationService {
     return role;
   }
 
+  /**
+   * 角色权限快照：已授予编码 + 版本，供编辑弹窗做乐观并发校验。
+   */
+  @Transactional(readOnly = true)
+  public RolePermissionSnapshot rolePermissionSnapshot(Long roleId) {
+    List<String> codes = listRolePermissionCodes(roleId);
+    return new RolePermissionSnapshot(codes, catalogVersionRepository.rolePermissionVersion(roleId));
+  }
+
   /** 角色已授予的权限编码（按标识集合解析成对人可读的编码）。 */
   @Transactional(readOnly = true)
   public List<String> listRolePermissionCodes(Long roleId) {
+    Role role = requireActiveRole(roleId);
+    assertCanReadRole(role);
     List<Long> ids = roleGrantRepository.findPermissionIdsByRole(roleId);
     if (ids.isEmpty()) {
       return List.of();
@@ -267,6 +303,34 @@ public class IamAuthorizationApplicationService {
     return role;
   }
 
+  private Role requireActiveRoleForUpdate(Long roleId) {
+    Role role = roleRepository.findByIdForUpdate(roleId).orElse(null);
+    if (role == null || !role.active()) {
+      throw new ApiException(404, CODE_ROLE_NOT_FOUND, "角色不存在");
+    }
+    return role;
+  }
+
+  /**
+   * 乐观并发校验：只有调用方明确带版本时才校验；空版本保留旧接口的无条件替换语义。
+   *
+   * <p>调用点必须在角色行锁之后执行，否则校验和替换之间仍可能被并发写穿透。
+   */
+  private void assertPermissionVersion(Long roleId, String expectedVersion) {
+    if (expectedVersion == null || expectedVersion.isBlank()) {
+      return;
+    }
+    String current = catalogVersionRepository.rolePermissionVersion(roleId);
+    if (!expectedVersion.equals(current)) {
+      throw new ApiException(409, CODE_PERMISSION_VERSION_CONFLICT,
+          "角色权限已被其他管理员修改，请刷新后重试");
+    }
+  }
+
+  /** 角色权限快照：编码列表 + 版本。 */
+  public record RolePermissionSnapshot(List<String> permissionCodes, String version) {
+  }
+
   private void assertTenantCanWriteRole(Role role) {
     TenantContext context = TenantContextHolder.get();
     if (context == null) {
@@ -286,6 +350,29 @@ public class IamAuthorizationApplicationService {
     }
     if (!role.tenantId().equals(context.tenantId())) {
       throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能修改其他租户的角色");
+    }
+  }
+
+  /**
+   * 读取角色权限的边界：平台上下文可读全局角色；租户上下文可读全局预置角色 + 本租户角色；
+   * 禁止跨租户按 roleId 读取权限集合。
+   */
+  private void assertCanReadRole(Role role) {
+    TenantContext context = TenantContextHolder.get();
+    if (context == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少上下文");
+    }
+    if (context.platformScope()) {
+      if (role.tenantId() == null) {
+        return;
+      }
+      throw new ApiException(403, "ROLE_SCOPE_FORBIDDEN", "不能读取租户角色");
+    }
+    if (role.tenantId() == null) {
+      return;
+    }
+    if (!role.tenantId().equals(context.tenantId())) {
+      throw new ApiException(403, "ROLE_TENANT_MISMATCH", "不能读取其他租户的角色");
     }
   }
 

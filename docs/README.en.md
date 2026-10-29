@@ -51,6 +51,7 @@ docs/
 | [Getting started](00-getting-started/README.en.md) | Shortest path to a running system |
 | [One-click deployment](../README.en.md#one-click-deployment-recommended) | Requirements, Kind deployment, entry points |
 | [Product introduction](10-product/README.en.md) | Positioning, screens, capabilities, audience |
+| [Permission catalog matrix (product guide)](10-product/PERMISSION_MATRIX.en.md) | Four states, filters/role columns, cross-scope governance, freshness |
 
 ### Architecture and reference
 

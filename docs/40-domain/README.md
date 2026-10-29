@@ -10,6 +10,9 @@
 | --- | --- |
 | [账号与权限模型](ACCOUNT_PERMISSION_MODEL.md) | 平台账号、IM 账号、租户/门店角色和运营权限 |
 | [身份与访问](identity/README.md) | IM/SaaS 身份联邦、租户成员、角色绑定、权益、应用安装 |
+| [组织管理设计与归属](identity/ORGANIZATION_MANAGEMENT_DESIGN.md) | 租户侧组织生命周期、平台只读边界、一期授权作用域节奏 |
+| [权限目录矩阵设计与实现](identity/PERMISSION_MATRIX_DESIGN.md) | 四态矩阵、全局角色模板范围、角色权限版本 CAS、页面新鲜度 |
+| [预置角色授权基线数据校准](identity/PERMISSION_DATA_CALIBRATION.md) | 67 项元数据校准、V36 迁移、审计查询与零异常验收 |
 | [业务域版图](DOMAIN_MAP.md) | 核心/支撑/通用/边缘域、Owner 与依赖规则 |
 | [后台角色工作台](ADMIN_WORKBENCH.md) | 平台/总部/门店/IM 工作区与角色首页 |
 | [门店接口权限与数据域](security/STORE_SCOPE_SECURITY.md) | 权限码、门店过滤器与后续业务接入清单 |

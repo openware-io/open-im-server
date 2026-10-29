@@ -2,7 +2,9 @@ package io.openware.platform.tenant.api.controller;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -14,17 +16,21 @@ import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
+import io.openware.platform.tenant.application.PermissionCatalogApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.application.RoleBindingApplicationService;
 import io.openware.platform.tenant.domain.iam.model.Permission;
+import io.openware.platform.tenant.domain.iam.model.PermissionCatalogSnapshot;
 import io.openware.platform.tenant.domain.iam.model.Role;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import io.openware.platform.tenant.domain.iam.model.UserRoleBinding;
+import io.openware.platform.tenant.domain.iam.repository.IamCatalogVersionRepository;
 import io.openware.platform.tenant.domain.iam.repository.PermissionRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleGrantRepository;
 import io.openware.platform.tenant.domain.iam.repository.RoleRepository;
 import io.openware.platform.tenant.domain.iam.repository.UserRoleRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,11 +48,14 @@ class IamControllerScopeTest {
     private final RoleGrantRepository roleGrants = mock(RoleGrantRepository.class);
     private final UserRoleRepository userRoles = mock(UserRoleRepository.class);
     private final PermissionSnapshotProvider snapshots = mock(PermissionSnapshotProvider.class);
+    private final IamCatalogVersionRepository catalogVersions = mock(IamCatalogVersionRepository.class);
     private final AuditClient audit = mock(AuditClient.class);
     private final RoleBindingApplicationService roleBindings = mock(RoleBindingApplicationService.class);
+    private final PermissionCatalogApplicationService permissionCatalog = mock(PermissionCatalogApplicationService.class);
     private final IamAuthorizationApplicationService authorization =
-            new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots, audit);
-    private final IamController controller = new IamController(authorization, roleBindings);
+            new IamAuthorizationApplicationService(roles, permissions, roleGrants, userRoles, snapshots,
+                    catalogVersions, audit);
+    private final IamController controller = new IamController(authorization, roleBindings, permissionCatalog);
 
     @BeforeEach
     void enterTenantContext() {
@@ -60,7 +69,7 @@ class IamControllerScopeTest {
 
     @Test
     void storeRoleCannotReceiveTenantOnlyPermission() {
-        when(roles.findById(7L)).thenReturn(Optional.of(role(7L, "STORE")));
+        when(roles.findByIdForUpdate(7L)).thenReturn(Optional.of(role(7L, "STORE")));
         when(permissions.findByIds(List.of(9L)))
                 .thenReturn(List.of(permission(9L, "tenant.store.manage", "TENANT")));
 
@@ -76,7 +85,7 @@ class IamControllerScopeTest {
      */
     @Test
     void unknownPermissionIdIsRejectedNotIgnored() {
-        when(roles.findById(7L)).thenReturn(Optional.of(role(7L, "TENANT")));
+        when(roles.findByIdForUpdate(7L)).thenReturn(Optional.of(role(7L, "TENANT")));
         when(permissions.findByIds(List.of(9L, 999L)))
                 .thenReturn(List.of(permission(9L, "a.b", "TENANT")));
 
@@ -89,7 +98,7 @@ class IamControllerScopeTest {
 
     @Test
     void inactiveRoleIsNotFoundAndNothingIsWritten() {
-        when(roles.findById(7L)).thenReturn(Optional.empty());
+        when(roles.findByIdForUpdate(7L)).thenReturn(Optional.empty());
 
         ApiException error = assertThrows(ApiException.class,
                 () -> controller.assignPermissions(7L, new IamController.AssignPermissionsRequest(List.of())));
@@ -114,6 +123,57 @@ class IamControllerScopeTest {
 
         assertEquals("INVALID_GRANT_SCOPE", error.getCode());
         verify(userRoles, never()).insert(any(UserRoleBinding.class));
+    }
+
+    @Test
+    void permissionMatrixVersionDelegatesToCatalogService() {
+        when(permissionCatalog.currentVersion()).thenReturn("v1");
+
+        var view = controller.permissionMatrixVersion();
+
+        assertEquals("v1", view.version());
+        verify(permissionCatalog).currentVersion();
+    }
+
+    @Test
+    void permissionMatrixDelegatesToCatalogService() {
+        PermissionCatalogSnapshot snapshot = new PermissionCatalogSnapshot(List.of(), List.of(), Map.of(),
+                "v1", "2026-10-29T00:00:00Z");
+        when(permissionCatalog.snapshot(false))
+                .thenReturn(new PermissionCatalogApplicationService.Result(snapshot, true));
+
+        var response = controller.permissionMatrix(false, null);
+
+        assertEquals(200, response.getStatusCode().value());
+        assertEquals("v1", response.getBody().version());
+        assertTrue(response.getBody().cached());
+        assertEquals("\"v1\"", response.getHeaders().getETag());
+        verify(permissionCatalog).snapshot(false);
+    }
+
+    @Test
+    void permissionMatrixReturnsNotModifiedWhenEtagMatches() {
+        when(permissionCatalog.currentVersion()).thenReturn("v1");
+
+        var response = controller.permissionMatrix(false, "\"v1\"");
+
+        assertEquals(304, response.getStatusCode().value());
+        assertFalse(response.hasBody());
+        verify(permissionCatalog, never()).snapshot(false);
+    }
+
+    @Test
+    void permissionMatrixRefreshIgnoresMatchingEtag() {
+        PermissionCatalogSnapshot snapshot = new PermissionCatalogSnapshot(List.of(), List.of(), Map.of(),
+                "v1", "2026-10-29T00:00:00Z");
+        when(permissionCatalog.currentVersion()).thenReturn("v1");
+        when(permissionCatalog.snapshot(true))
+                .thenReturn(new PermissionCatalogApplicationService.Result(snapshot, false));
+
+        var response = controller.permissionMatrix(true, "\"v1\"");
+
+        assertEquals(200, response.getStatusCode().value());
+        verify(permissionCatalog).snapshot(true);
     }
 
     @Test

@@ -18,6 +18,14 @@ public interface RoleMapper extends BaseMapper<RolePo> {
     @Select("SELECT * FROM iam_role /* tenant-agnostic: 主键查询需包含全局预置角色 tenant_id=NULL */ WHERE id = #{id}")
     RolePo selectByIdIgnoringTenant(@Param("id") Long id);
 
+    /**
+     * 写路径的角色行锁：权限集合替换/单权限开关以角色行为串行点，避免“版本校验通过后、替换前”
+     * 被另一个管理员插入修改。必须在事务内调用。
+     */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("SELECT * FROM iam_role /* tenant-agnostic: 写路径行锁 */ WHERE id = #{id} FOR UPDATE")
+    RolePo selectByIdForUpdate(@Param("id") Long id);
+
     /** 预置角色 tenant_id 为 NULL，租户可分配目录必须同时包含预置角色和本租户自定义角色。 */
     @InterceptorIgnore(tenantLine = "true")
     @Select("""
@@ -37,4 +45,14 @@ public interface RoleMapper extends BaseMapper<RolePo> {
         ORDER BY code
         """)
     java.util.List<RolePo> selectPlatformRoles();
+
+    /** 全局角色定义：预置角色 + 平台自定义角色（tenant_id IS NULL），用于权限目录矩阵。 */
+    @InterceptorIgnore(tenantLine = "true")
+    @Select("""
+        SELECT * FROM iam_role /* tenant-agnostic: 全局角色模板，tenant_id 为空 */
+        WHERE status = 'ACTIVE'
+          AND tenant_id IS NULL
+        ORDER BY code
+        """)
+    java.util.List<RolePo> selectGlobalRoles();
 }

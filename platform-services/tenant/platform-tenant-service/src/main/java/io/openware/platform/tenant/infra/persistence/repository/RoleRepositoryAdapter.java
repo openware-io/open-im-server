@@ -37,6 +37,11 @@ public class RoleRepositoryAdapter implements RoleRepository {
   }
 
   @Override
+  public Optional<Role> findByIdForUpdate(Long roleId) {
+    return Optional.ofNullable(mapper.selectByIdForUpdate(roleId)).map(RoleRepositoryAdapter::toDomain);
+  }
+
+  @Override
   public Role insert(Role role) {
     LocalDateTime now = LocalDateTime.now();
     RolePo po = toPo(role);
@@ -63,6 +68,12 @@ public class RoleRepositoryAdapter implements RoleRepository {
   @Override
   public List<Role> listPlatformRoles() {
     return mapper.selectPlatformRoles().stream()
+        .map(RoleRepositoryAdapter::toDomain).toList();
+  }
+
+  @Override
+  public List<Role> listGlobalRoles() {
+    return mapper.selectGlobalRoles().stream()
         .map(RoleRepositoryAdapter::toDomain).toList();
   }
 

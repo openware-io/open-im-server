@@ -43,7 +43,9 @@ public class PermissionRepositoryAdapter implements PermissionRepository {
   @Override
   public List<Permission> listActive() {
     return mapper.selectList(Wrappers.<PermissionPo>lambdaQuery()
-            .eq(PermissionPo::getStatus, Permission.STATUS_ACTIVE))
+            .eq(PermissionPo::getStatus, Permission.STATUS_ACTIVE)
+            .orderByAsc(PermissionPo::getModule)
+            .orderByAsc(PermissionPo::getCode))
         .stream().map(PermissionRepositoryAdapter::toDomain).toList();
   }
 

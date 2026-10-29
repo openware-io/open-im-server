@@ -10,6 +10,9 @@
 | --- | --- |
 | [Account and permission model](ACCOUNT_PERMISSION_MODEL.md) | Platform/IM accounts, tenant/store roles and operator permissions |
 | [Identity and access](identity/README.en.md) | IM/SaaS identity federation, tenant memberships, role bindings, entitlements, app installation |
+| [Organization management design](identity/ORGANIZATION_MANAGEMENT_DESIGN.md) | Tenant-side organization lifecycle, platform read-only boundary, phase-1 authorization-scope staging |
+| [Permission catalog matrix design](identity/PERMISSION_MATRIX_DESIGN.md) | Four-state matrix, global-role-template scope, per-role permission CAS, page freshness |
+| [Preset role baseline calibration](identity/PERMISSION_DATA_CALIBRATION.md) | 67 metadata grants, V36 migration, audit query and zero-anomaly acceptance |
 | [Domain map](DOMAIN_MAP.en.md) | Core/supporting/generic/edge domains, owners and dependency rules |
 | [Admin role workbench](ADMIN_WORKBENCH.en.md) | Platform/headquarters/store/IM workspaces and role homes |
 | [Admin workbench benchmark](ADMIN_WORKBENCH_BENCHMARK.en.md) | Benchmark against Shopify/Square/Toast/Mews and gaps |

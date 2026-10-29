@@ -51,6 +51,7 @@ docs/
 | [快速开始](00-getting-started/README.md) | 5 分钟跑起来的最短路径 |
 | [一键部署](../README.md#一键部署推荐) | 环境要求、Kind 一键部署、入口与验证 |
 | [OpenChat 产品介绍](10-product/README.md) | 项目定位、产品界面、能力矩阵、适用场景 |
+| [权限目录矩阵（产品说明）](10-product/PERMISSION_MATRIX.md) | 四态矩阵、筛选与角色列、越界治理提示、数据新鲜度 |
 
 ### 架构与参考
 

@@ -1,6 +1,7 @@
 package io.openware.platform.tenant.domain.iam.repository;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 角色-权限授予端口。
@@ -20,6 +21,14 @@ public interface RoleGrantRepository {
 
   /** 列出某角色已授予的权限标识。 */
   List<Long> findPermissionIdsByRole(Long roleId);
+
+  /**
+   * 批量读取角色已授予的权限标识。
+   *
+   * <p>返回的 Map 只包含 {@code roleIds} 中给了授权的角色；未授权的角色不出现。用于权限目录矩阵，
+   * 避免按角色逐个查询产生 N+1。
+   */
+  Map<Long, List<Long>> findPermissionIdsByRoles(List<Long> roleIds);
 
   /** 判断某角色是否已授予某权限（toggle 用例的判据）。 */
   boolean hasGrant(Long roleId, Long permissionId);

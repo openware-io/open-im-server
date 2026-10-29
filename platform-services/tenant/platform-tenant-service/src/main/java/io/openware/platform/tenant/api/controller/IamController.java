@@ -4,19 +4,28 @@ import io.openware.common.exception.ApiException;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.tenant.api.converter.IamConverter;
+import io.openware.platform.tenant.api.converter.PermissionCatalogConverter;
+import io.openware.platform.tenant.api.dto.PermissionMatrixVersionView;
+import io.openware.platform.tenant.api.dto.PermissionMatrixView;
 import io.openware.platform.tenant.api.dto.PermissionView;
+import io.openware.platform.tenant.api.dto.RolePermissionSnapshotView;
 import io.openware.platform.tenant.api.dto.RoleView;
 import io.openware.platform.tenant.api.dto.UserRoleView;
 import io.openware.platform.tenant.application.IamAuthorizationApplicationService;
+import io.openware.platform.tenant.application.PermissionCatalogApplicationService;
 import io.openware.platform.tenant.application.RoleBindingApplicationService;
 import io.openware.platform.tenant.domain.iam.model.RoleBinding;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,17 +43,54 @@ import org.springframework.web.bind.annotation.RestController;
 public class IamController {
     private final IamAuthorizationApplicationService authorizationService;
     private final RoleBindingApplicationService roleBindingService;
+    private final PermissionCatalogApplicationService permissionCatalogService;
 
     public IamController(IamAuthorizationApplicationService authorizationService,
-                         RoleBindingApplicationService roleBindingService) {
+                         RoleBindingApplicationService roleBindingService,
+                         PermissionCatalogApplicationService permissionCatalogService) {
         this.authorizationService = authorizationService;
         this.roleBindingService = roleBindingService;
+        this.permissionCatalogService = permissionCatalogService;
     }
 
     /** 权限目录（平台级，无租户上下文也可读）。 */
     @GetMapping("/permissions")
     public List<PermissionView> listPermissions() {
         return authorizationService.listPermissions().stream().map(IamConverter::toView).toList();
+    }
+
+    /**
+     * 权限目录矩阵：权限列表 + 全局角色授权覆盖，一次请求返回同一快照。
+     *
+     * <p>{@code refresh=true} 跳过缓存读取（用于页面手动刷新）；缓存键由数据库目录版本决定，
+     * 角色/授权写入后版本变化，会自动重建，不存在跨实例旧数据。
+     *
+     * <p>与 {@code GET /admin/iam/permissions} 同口径：平台级只读字典（权限点 + 全局角色模板），
+     * 不包含租户数据，因此不要求租户上下文；写入仍走角色/权限授予接口。
+     */
+    @GetMapping("/permissions/matrix")
+    public ResponseEntity<PermissionMatrixView> permissionMatrix(
+            @RequestParam(name = "refresh", required = false, defaultValue = "false") boolean refresh,
+            @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
+        String currentVersion = permissionCatalogService.currentVersion();
+        String etag = "\"" + currentVersion + "\"";
+        if (!refresh && etag.equals(ifNoneMatch)) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).build();
+        }
+        PermissionCatalogApplicationService.Result result = permissionCatalogService.snapshot(refresh);
+        String responseEtag = "\"" + result.snapshot().version() + "\"";
+        ResponseEntity.BodyBuilder builder = ResponseEntity.ok();
+        // 刷新请求必须返回完整响应体：不设置 ETag，避免框架按 If-None-Match 自动转 304。
+        if (!refresh) {
+            builder.eTag(responseEtag);
+        }
+        return builder.body(PermissionCatalogConverter.toView(result.snapshot(), result.cached()));
+    }
+
+    /** 权限目录版本：前端聚焦/可见性恢复时轻量校验，版本未变不拉全量矩阵。 */
+    @GetMapping("/permissions/matrix/version")
+    public PermissionMatrixVersionView permissionMatrixVersion() {
+        return new PermissionMatrixVersionView(permissionCatalogService.currentVersion());
     }
 
     /** 脱敏权限管理：预置角色及其 member.pii.view 状态（租户管理员配置下级人员的脱敏权限）。 */
@@ -111,7 +157,15 @@ public class IamController {
 
     @PostMapping("/roles/{roleId}/permissions")
     public void assignPermissions(@PathVariable Long roleId, @RequestBody AssignPermissionsRequest req) {
-        authorizationService.assignPermissions(roleId, req.permissionIds());
+        authorizationService.assignPermissions(roleId, req.permissionIds(), req.expectedVersion());
+    }
+
+    /** 角色权限快照：权限编码 + 版本（编辑弹窗用版本做乐观并发校验）。 */
+    @GetMapping("/roles/{roleId}/permissions/snapshot")
+    public RolePermissionSnapshotView rolePermissionSnapshot(@PathVariable Long roleId) {
+        IamAuthorizationApplicationService.RolePermissionSnapshot snapshot =
+                authorizationService.rolePermissionSnapshot(roleId);
+        return new RolePermissionSnapshotView(snapshot.permissionCodes(), snapshot.version());
     }
 
     /** 角色权限码列表（脱敏权限管理等 UI 展示用）。 */
@@ -123,7 +177,7 @@ public class IamController {
     /** 单权限开关（脱敏权限 member.pii.view 等）：给角色增删单个权限，不影响其它权限。 */
     @PostMapping("/roles/{roleId}/permissions/toggle")
     public void togglePermission(@PathVariable Long roleId, @RequestBody TogglePermissionRequest req) {
-        authorizationService.togglePermission(roleId, req.permissionCode(), req.granted());
+        authorizationService.togglePermission(roleId, req.permissionCode(), req.granted(), req.expectedVersion());
     }
 
     /** 给账号分配角色（写 iam_role_binding，主体为 STAFF membership）。 */
@@ -159,8 +213,19 @@ public class IamController {
     }
 
     public record CreateRoleRequest(Long tenantId, String code, String name, String roleType, String scopeLevel) {}
-    public record AssignPermissionsRequest(List<Long> permissionIds) {}
-    public record TogglePermissionRequest(String permissionCode, boolean granted) {}
+    public record AssignPermissionsRequest(List<Long> permissionIds, String expectedVersion) {
+        /** 兼容旧调用方：不带版本时保持无条件替换语义。 */
+        public AssignPermissionsRequest(List<Long> permissionIds) {
+            this(permissionIds, null);
+        }
+    }
+
+    public record TogglePermissionRequest(String permissionCode, boolean granted, String expectedVersion) {
+        /** 兼容旧调用方：不带版本时保持无条件切换语义。 */
+        public TogglePermissionRequest(String permissionCode, boolean granted) {
+            this(permissionCode, granted, null);
+        }
+    }
     public record MaskingRoleView(Long roleId, String code, String name, boolean piiView) {}
     public record AssignUserRoleRequest(Long accountId, Long tenantId, Long organizationId, Long storeId,
                                         Long roleId, String scopeType) {}

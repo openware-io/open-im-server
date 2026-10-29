@@ -15,6 +15,13 @@ public interface RoleRepository {
   /** 按标识读取角色。 */
   Optional<Role> findById(Long roleId);
 
+  /**
+   * 按标识读取角色并加行锁（写路径专用，必须在事务内调用）。
+   *
+   * <p>用于角色权限编辑的并发串行化：先锁角色行，再校验版本/替换授权，避免 check-then-act 竞态。
+   */
+  Optional<Role> findByIdForUpdate(Long roleId);
+
   /** 新增角色，返回落库后的聚合（含回填主键）。 */
   Role insert(Role role);
 
@@ -26,6 +33,13 @@ public interface RoleRepository {
 
   /** 平台角色目录，仅平台上下文使用。 */
   List<Role> listPlatformRoles();
+
+  /**
+   * 全局角色定义（{@code tenant_id IS NULL} 的预置角色与平台自定义角色）。
+   *
+   * <p>用于平台级权限目录矩阵：这些角色是平台统一维护的授权模板，不属于任何租户。
+   */
+  List<Role> listGlobalRoles();
 
   /**
    * 遮蔽（脱敏）角色视图：角色 + 其权限中标记了可见 PII 的项。

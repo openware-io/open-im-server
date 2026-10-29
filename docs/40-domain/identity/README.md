@@ -11,6 +11,9 @@
 | 文档 | 说明 |
 | --- | --- |
 | [身份与访问模型](IDENTITY_ACCESS_MODEL.md) | 主体、成员身份、角色、权限、权益、OAuth、会话、工程结构 |
+| [组织管理设计与归属](ORGANIZATION_MANAGEMENT_DESIGN.md) | 组织生命周期、平台/租户边界、权限与上下文分期（ADR-0016） |
+| [权限目录矩阵设计与实现](PERMISSION_MATRIX_DESIGN.md) | 四态矩阵、全局角色模板范围、角色权限版本 CAS、页面新鲜度（ADR-0017） |
+| [预置角色授权基线数据校准](PERMISSION_DATA_CALIBRATION.md) | 67 项元数据校准、V36 迁移、审计查询与零异常验收（ADR-0018） |
 | [租户/门店/C 端账号与登录现状](TENANT_ONBOARDING.md) | 新增租户、租户/门店登录、C 端登录缺口与整改顺序 |
 | [身份数据模型](IDENTITY_SCHEMA.md) | 目标 DDL、表归属、唯一键、迁移顺序 |
 | [身份 API 契约](IDENTITY_API.md) | OAuth 回调、上下文、权限快照、应用入口、错误码 |

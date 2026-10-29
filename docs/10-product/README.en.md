@@ -47,7 +47,18 @@ The console manages users, conversations, groups, client releases, open-platform
 
 ![OpenIM admin login](../assets/screenshots/im-admin.jpg)
 
-### 3.4 OpenChat App (Xiaomi 9 device)
+### 3.4 SaaS operations console: permission catalog matrix
+
+Platform operators can compare the permission list and global-role grants on one page:
+
+- Four states: granted, grantable-not-granted, not-grantable, cross-scope grant;
+- Filters by module/domain/scope/state, selectable role columns;
+- A governance banner highlights historical preset-role cross-scope grants;
+- Read-only view; editing stays in the Role & Permission page.
+
+Product guide: [Permission Catalog Matrix](PERMISSION_MATRIX.en.md).
+
+### 3.5 OpenChat App (Xiaomi 9 device)
 
 The conversation list, group chat and service board come from the running Kind environment; demo accounts and messages are local seed data.
 
@@ -64,7 +75,7 @@ The conversation list, group chat and service board come from the running Kind e
 | Layer | Capabilities |
 | --- | --- |
 | Instant messaging | Private/group chats, channels, secret chats, read receipts, recall, multi-device sync, WebSocket access |
-| Accounts and permissions | SaaS/IM accounts, tenant/store/role, OAuth/OIDC, unified sign-in |
+| Accounts and permissions | SaaS/IM accounts, tenant/store/role, OAuth/OIDC, unified sign-in, permission catalog four-state matrix and cross-scope governance |
 | Business platform | Tenants, customers, members, points, wallet, KTV reservations, orders, resources, payments, marketing |
 | Administration | IM admin, SaaS operations console, merchant workspace, client releases and service-board configuration |
 | Infrastructure | MySQL, MongoDB, Redis, RocketMQ, MinIO, Kind/Docker Compose |

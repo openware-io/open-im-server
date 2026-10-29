@@ -19,6 +19,9 @@
 | 0013 | [角色工作台作为平台能力](0013-role-workbench.md) | proposed | 2026-10-22 |
 | 0014 | [平台、租户、门店工作区与角色治理](0014-workspace-role-model.md) | accepted | 2026-10-23 |
 | 0015 | [IM 与 SaaS 身份联邦、租户成员与授权模型](0015-identity-federation-tenant-iam.md) | accepted | 2026-10-23 |
+| 0016 | [组织管理的归属与一期形态](0016-organization-management-boundary.md) | proposed | 2026-10-28 |
+| 0017 | [权限目录矩阵的单元格语义、范围边界与授权并发控制](0017-permission-matrix-semantics-and-concurrency.md) | proposed | 2026-10-29 |
+| 0018 | [预置角色授权基线的数据校准](0018-preset-role-grantable-level-calibration.md) | proposed | 2026-10-29 |
 
 ## 状态说明
 
