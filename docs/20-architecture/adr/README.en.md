@@ -18,6 +18,7 @@
 | 0019 | [Role management menu and read-permission boundary](0019-role-menu-and-read-permission-boundary.md) | proposed | 2026-10-29 |
 | 0020 | [Tenant role permission matrix](0020-tenant-role-permission-matrix.md) | proposed | 2026-10-29 |
 | 0021 | [Platform admin role layers and super-admin protection](0021-platform-admin-role-layers.md) | proposed | 2026-10-29 |
+| 0022 | [Tenant workspace, context and store data scope](0022-tenant-workspace-context-scope.md) | proposed | 2026-10-29 |
 
 ## Status values
 

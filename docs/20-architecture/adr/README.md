@@ -25,6 +25,7 @@
 | 0019 | [角色管理菜单与读权限边界](0019-role-menu-and-read-permission-boundary.md) | proposed | 2026-10-29 |
 | 0020 | [租户角色权限矩阵](0020-tenant-role-permission-matrix.md) | proposed | 2026-10-29 |
 | 0021 | [平台管理员角色分层与超级管理员保护](0021-platform-admin-role-layers.md) | proposed | 2026-10-29 |
+| 0022 | [租户工作区、上下文与门店数据范围](0022-tenant-workspace-context-scope.md) | proposed | 2026-10-29 |
 
 ## 状态说明
 
