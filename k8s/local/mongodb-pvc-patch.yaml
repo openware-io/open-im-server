@@ -1,0 +1,12 @@
+spec:
+  template:
+    spec:
+      containers:
+        - name: mongodb
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mongodb-data

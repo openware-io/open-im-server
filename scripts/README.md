@@ -22,7 +22,28 @@
 Kind 创建或复用、镜像导入、部署和健康检查。已有发布清单的维护者仍可使用
 `-SaasReleaseManifestPath` 进入严格的远程制品部署流程。
 
-部署入口具备幂等恢复策略：健康 Pod 优先复用，异常或不完整集群才重新部署；`-ForceRedeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。
+本地生命周期模式：
+
+```powershell
+.\deploy-k8s.ps1                 # auto：初始化/复用/分阶段恢复
+.\deploy-k8s.ps1 -Mode init      # 首次初始化
+.\deploy-k8s.ps1 -Mode recover   # 重启后恢复（不重建）
+.\deploy-k8s.ps1 -Mode redeploy  # 重新构建并部署
+.\deploy-k8s.ps1 -Mode status    # 只读诊断
+.\deploy-k8s.ps1 -Mode reset -ConfirmReset
+```
+
+恢复实现位于 `scripts/deploy/kind-recovery.ps1`：系统镜像自检、API/CoreDNS/基础设施等待、
+镜像预检/补载、按依赖顺序重启不健康 Deployment、失败诊断日志。`scripts/deploy/status.ps1`
+提供只读状态入口；`scripts/verify/local-deploy-contract.ps1` 是不依赖 Docker/Kubernetes 的静态契约检查。
+
+Linux/macOS 可通过仓库根目录 `deploy-k8s.sh` 使用同一实现（需要 PowerShell 7）。
+
+部署入口具备幂等恢复策略：健康 Pod 优先复用，异常或不完整集群才重新部署；`-Mode init`、
+`-Mode redeploy` 和 `-ForceRebuild` 用于显式覆盖自动判断。`-Profile minimal` 在构建/部署时跳过可选站点
+（`open-website`、`pc-admin`、`saas-mobile`），保留 SaaS 后台、统一门户与后端，并在部署后将这些站点缩容为 0。
+`-DataMode pvc` 可在初始化/重新部署时使用 local-path PVC 保存 MySQL/MongoDB/MinIO 数据；
+默认仍为 `emptyDir`，切换模式会重建数据 Pod 且不会迁移旧数据。
 
 Docker Compose 与 Kind Kubernetes 是独立部署模式。端口、停止范围和验证命令见 [`docs/deployment/LOCAL.md`](../docs/60-deployment/LOCAL.md)。
 
