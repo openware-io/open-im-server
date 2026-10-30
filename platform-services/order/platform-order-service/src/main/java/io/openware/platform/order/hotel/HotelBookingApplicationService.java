@@ -178,6 +178,11 @@ public class HotelBookingApplicationService {
         }
         Long customerId = bookedByAccountId == null ? null
                 : memberLookupProvider.findMemberId(context.tenantId(), bookedByAccountId).orElse(null);
+        // C 端订单必须在 customer 域有会员档案，否则 ord_order.customer_id 为空，
+        // “我的消费”按 memberId 查询会永久漏掉这笔酒店订单。
+        if (bookedByAccountId != null && customerId == null) {
+            throw new ApiException(409, "MEMBER_INITIALIZATION_REQUIRED", "请先初始化会员资料");
+        }
         long pointsDiscount = 0L;
         if (pointsUsed > 0) {
             if (!Boolean.TRUE.equals(paymentPolicy.getPointsRedeemEnabled())
@@ -429,8 +434,9 @@ public class HotelBookingApplicationService {
         if (accountId == null || accountId <= 0) {
             throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
         }
+        // C 端消费应用绑定一个安装门店（如 KTV），同一租户的酒店订单可能属于
+        // 另一个酒店门店；本人订单按账号 + 租户聚合，不能再用当前安装门店收窄。
         LambdaQueryWrapper<HotelBookingPo> query = new LambdaQueryWrapper<HotelBookingPo>()
-                .eq(HotelBookingPo::getStoreId, context.storeId())
                 .eq(HotelBookingPo::getBookedByAccountId, accountId)
                 .orderByDesc(HotelBookingPo::getId);
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);

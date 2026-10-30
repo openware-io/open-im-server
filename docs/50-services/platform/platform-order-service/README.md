@@ -87,7 +87,9 @@ POST /admin/hotel/bookings/{id}/cancel
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；
 报价/预订按房型的权威 `storeId` 切换到酒店门店作用域，再执行酒店权限与库存校验，
-不要求 C 应用安装门店本身是酒店。
+不要求 C 应用安装门店本身是酒店。C 端「我的酒店订单」按 `bookedByAccountId + tenant`
+聚合，不能按当前安装门店过滤；C 端创建酒店订单前必须已有会员档案，保证
+`ord_order.customer_id` 可写，避免订单在「我的消费」中不可见。
 
 库存并发与状态机见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)。
 
