@@ -83,6 +83,10 @@ POST /admin/hotel/bookings/{id}/cancel
 - 确认：hold → sold；
 - 取消：未确认释放 hold，已确认释放 sold；
 - 同一 `booking_id + stay_date` 只允许一条 hold 记录。
+- B 端 `GET /admin/hotel/bookings` 默认 `limit=100`，可用 `limit/offset` 分页；确认接口支持
+  `expectedVersion` 做乐观锁校验，冲突返回 `409 BOOKING_VERSION_CONFLICT`。
+- B 端按住客手机号自动归属时，只有当前租户存在 ACTIVE 会员档案才写入 `bookedByAccountId`；
+  否则按无账号到店客处理，避免把订单挂到无关账号。
 
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；
