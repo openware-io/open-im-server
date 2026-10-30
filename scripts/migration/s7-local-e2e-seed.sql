@@ -2,6 +2,16 @@
 -- 幂等；不替代 Flyway 结构迁移。
 USE open_saas;
 
+-- 0) 统一门户本地管理员与本地演示口令对齐（仅本地测试库）
+--    IDaaS 结构种子里的密码是历史哈希；本地 Kind 约定使用 Admin@123。
+USE open_group;
+UPDATE idaas_account
+   SET password = '$2b$12$MBT49IRZYK/Gu2loj3w6N.P8IreuGpMHrknQdAFpOUFdRyWPJIVL6',
+       status = 'ENABLED',
+       updated_at = NOW(3)
+ WHERE username = 'admin';
+USE open_saas;
+
 -- 1) 管理后台租户管理员映射到统一账本账号 101
 UPDATE cons_admin_account
    SET platform_account_id = 101, updated_at = NOW(3)
