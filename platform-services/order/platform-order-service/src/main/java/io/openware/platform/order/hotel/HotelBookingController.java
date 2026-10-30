@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import io.openware.infrastructure.tenant.ClientAudience;
+import io.openware.infrastructure.tenant.TenantContext;
+import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
 import org.springframework.web.bind.annotation.RestController;
 
 /** 酒店报价、预订、确认与取消。 */
@@ -23,13 +26,16 @@ public class HotelBookingController {
     private final HotelBookingApplicationService service;
     private final HotelOrderQueryApplicationService orderQueryService;
     private final IdentityAccountLookupClient identityLookup;
+    private final MemberLookupProvider memberLookupProvider;
 
     public HotelBookingController(HotelBookingApplicationService service,
                                   HotelOrderQueryApplicationService orderQueryService,
-                                  IdentityAccountLookupClient identityLookup) {
+                                  IdentityAccountLookupClient identityLookup,
+                                  MemberLookupProvider memberLookupProvider) {
         this.service = service;
         this.orderQueryService = orderQueryService;
         this.identityLookup = identityLookup;
+        this.memberLookupProvider = memberLookupProvider;
     }
 
     @PostMapping("/quotes")
@@ -43,7 +49,14 @@ public class HotelBookingController {
     public HotelBookingPo create(@RequestBody BookingRequest request) {
         Long bookedByAccountId = request.bookedByAccountId();
         if (bookedByAccountId == null && request.guestPhone() != null) {
-            bookedByAccountId = identityLookup.findByPhone(request.guestPhone()).orElse(null);
+            Long candidate = identityLookup.findByPhone(request.guestPhone()).orElse(null);
+            TenantContext context = TenantContextHolder.get();
+            // 仅当手机号对应当前租户的有效 CUSTOMER 会员时才自动归属；
+            // 否则按“无账号的到店客”建单，不能把订单挂到无关账号上。
+            if (candidate != null && context != null && memberLookupProvider
+                    .findMemberId(context.tenantId(), candidate).isPresent()) {
+                bookedByAccountId = candidate;
+            }
         }
         return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
                 request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
@@ -55,8 +68,10 @@ public class HotelBookingController {
     public List<HotelBookingPo> list(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return service.list(status, from, to);
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(defaultValue = "100") int limit,
+            @RequestParam(defaultValue = "0") int offset) {
+        return service.list(status, from, to, limit, offset);
     }
 
     /** 酒店订单读模型：订单 + 预订 + 住客 + 房型/房号 + 入离 + 状态 + 金额。 */
@@ -66,8 +81,9 @@ public class HotelBookingController {
     }
 
     @PostMapping("/bookings/{id}/confirm")
-    public HotelBookingPo confirm(@PathVariable Long id) {
-        return service.confirm(id);
+    public HotelBookingPo confirm(@PathVariable Long id,
+                                  @RequestParam(required = false) Integer expectedVersion) {
+        return service.confirm(id, expectedVersion);
     }
 
     @PostMapping("/bookings/{id}/cancel")

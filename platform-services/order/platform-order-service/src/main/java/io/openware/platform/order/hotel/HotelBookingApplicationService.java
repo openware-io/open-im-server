@@ -309,9 +309,18 @@ public class HotelBookingApplicationService {
 
     @Transactional
     public HotelBookingPo confirm(Long bookingId) {
+        return confirm(bookingId, null);
+    }
+
+    /** B 端确认：expectedVersion 非空时做乐观锁校验，防止两个店长重复覆盖。 */
+    @Transactional
+    public HotelBookingPo confirm(Long bookingId, Integer expectedVersion) {
         PermissionGuard.require("hotel.booking.create");
         TenantContext context = requireStore();
         HotelBookingPo booking = requireBooking(bookingId, context);
+        if (expectedVersion != null && !expectedVersion.equals(booking.getVersion())) {
+            throw new ApiException(409, "BOOKING_VERSION_CONFLICT", "预订已被其他人更新，请刷新后重试");
+        }
         if (!"PENDING_CONFIRM".equals(booking.getStatus())) {
             throw new ApiException(409, "BOOKING_STATE_INVALID", "当前预订不能确认");
         }
@@ -330,6 +339,7 @@ public class HotelBookingApplicationService {
         }
         updateNights(bookingId, "SOLD");
         booking.setStatus("CONFIRMED");
+        booking.setVersion(booking.getVersion() == null ? 1 : booking.getVersion() + 1);
         booking.setUpdatedAt(LocalDateTime.now());
         bookingMapper.updateById(booking);
         return booking;
@@ -415,11 +425,19 @@ public class HotelBookingApplicationService {
     }
 
     public List<HotelBookingPo> list(String status, LocalDate from, LocalDate to) {
+        return list(status, from, to, 100, 0);
+    }
+
+    /** B 端酒店预订列表：默认最多 100 条，避免运营页一次拉全量。 */
+    public List<HotelBookingPo> list(String status, LocalDate from, LocalDate to, int limit, int offset) {
         PermissionGuard.require("hotel.booking.view");
         TenantContext context = requireStore();
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        int safeOffset = Math.max(0, offset);
         LambdaQueryWrapper<HotelBookingPo> query = new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getStoreId, context.storeId())
-                .orderByDesc(HotelBookingPo::getId);
+                .orderByDesc(HotelBookingPo::getId)
+                .last("LIMIT " + safeLimit + " OFFSET " + safeOffset);
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
         if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);
         if (to != null) query.lt(HotelBookingPo::getCheckOutDate, to);
@@ -438,7 +456,8 @@ public class HotelBookingApplicationService {
         // 另一个酒店门店；本人订单按账号 + 租户聚合，不能再用当前安装门店收窄。
         LambdaQueryWrapper<HotelBookingPo> query = new LambdaQueryWrapper<HotelBookingPo>()
                 .eq(HotelBookingPo::getBookedByAccountId, accountId)
-                .orderByDesc(HotelBookingPo::getId);
+                .orderByDesc(HotelBookingPo::getId)
+                .last("LIMIT 100");
         if (status != null && !status.isBlank()) query.eq(HotelBookingPo::getStatus, status);
         if (from != null) query.ge(HotelBookingPo::getCheckInDate, from);
         if (to != null) query.lt(HotelBookingPo::getCheckOutDate, to);
