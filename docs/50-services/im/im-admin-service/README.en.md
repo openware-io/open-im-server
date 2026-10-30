@@ -11,6 +11,8 @@
 ## Boundary
 
 - The service board (`consumer`/`operator` items) is configured here and consumed by the App.
+- Service item links target the current C-end routes `/c/` and `/c/#/service/...`. The legacy
+  `/a380/` route is no longer served; migration V7 rewrites historical links to current routes.
 
 ## Related
 
