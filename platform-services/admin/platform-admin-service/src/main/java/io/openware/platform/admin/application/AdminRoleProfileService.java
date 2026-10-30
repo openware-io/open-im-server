@@ -30,6 +30,13 @@ public class AdminRoleProfileService {
     }
 
     public AdminWorkspace resolve(Long platformAccountId, AdminRole legacyRole) {
+        // SUPER_ADMIN is a fixed BFF/break-glass role, not an IAM platform role.
+        // Never surface it as platform.operator, otherwise the super admin and a
+        // configurable platform operator look identical in effective permissions.
+        if (legacyRole == AdminRole.SUPER_ADMIN) {
+            return new AdminWorkspace(List.of(), List.of("PLATFORM"), "PLATFORM",
+                    "/admin/platform/tenants");
+        }
         List<String> roleCodes = roleCodes(platformAccountId, legacyRole);
         List<AdminRoleProfileRepository.RoleProfile> rows = profiles.findByRoleCodes(roleCodes);
         if (rows.isEmpty()) {
