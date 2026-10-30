@@ -199,8 +199,10 @@
       // 30081/30083 NodePort 分支跳转：该分支会绕过 Ingress，且这些端口
       // 不承载当前后台入口，导致集团登录成功后打开空页或连接失败。
       var APP_ORIGIN = window.location.protocol + '//' + window.location.hostname;
-      var IM_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/im/';
-      var SAAS_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/saas/';
+      // 版本查询参数用于绕过浏览器对旧 /im/ SPA 壳的缓存；后台静态资源本身带 hash。
+      var ADMIN_ENTRY_VERSION = '20261030';
+      var IM_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/im/?v=' + ADMIN_ENTRY_VERSION;
+      var SAAS_ADMIN_URL = APP_ORIGIN + (window.location.port ? ':' + window.location.port : '') + '/saas/?v=' + ADMIN_ENTRY_VERSION;
 
       var loginCard = document.getElementById('loginCard');
       var appList = document.getElementById('appList');
