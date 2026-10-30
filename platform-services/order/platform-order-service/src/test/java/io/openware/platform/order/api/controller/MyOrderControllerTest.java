@@ -13,8 +13,11 @@ import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.application.OrderQueryApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService.CreateReservationCommand;
+import io.openware.platform.order.domain.order.model.Order;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +55,21 @@ class MyOrderControllerTest {
   @AfterEach
   void tearDown() {
     TenantContextHolder.clear();
+  }
+
+  @Test
+  void myOrdersUseHotelBookingStatusForDisplayStatus() {
+    Order order = new Order(49L, 100L, 100L, 102L, "O202610300011", null, "HOTEL", 10L,
+        "DRAFT", "NONE", "CNY", BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+        new BigDecimal("1798"), BigDecimal.ZERO, BigDecimal.ZERO, null, null, 0);
+    when(orderQueryService.listMine()).thenReturn(List.of(order));
+    when(hotelBookingStatusReader.byOrderIds(List.of(49L))).thenReturn(Map.of(49L, "CONFIRMED"));
+
+    var result = controller.orders();
+
+    assertEquals(1, result.size());
+    assertEquals("CONFIRMED", result.getFirst().displayStatus());
+    assertEquals("DRAFT", result.getFirst().tradeStatus());
   }
 
   @Test

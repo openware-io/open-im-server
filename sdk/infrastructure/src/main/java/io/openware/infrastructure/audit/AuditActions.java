@@ -170,6 +170,7 @@ public final class AuditActions {
     register("reservation.assign_room", "预约分配包厢");
     register("reservation.open_table", "预约开台");
     register("reservation.cancel", "预约取消");
+    register("hotel.booking.customer_attribution", "酒店订单会员归属");
     register("member.create", "会员新建");
     register("member.update", "会员修改");
     register("wallet.recharge", "储值充值");

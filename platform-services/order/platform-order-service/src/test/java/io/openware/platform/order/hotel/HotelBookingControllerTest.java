@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
 import io.openware.platform.order.domain.order.repository.MemberLookupProvider;
@@ -23,6 +24,7 @@ class HotelBookingControllerTest {
   private HotelOrderQueryApplicationService orderQuery;
   private IdentityAccountLookupClient identityLookup;
   private MemberLookupProvider memberLookup;
+  private AuditClient auditClient;
   private HotelBookingController controller;
 
   @BeforeEach
@@ -31,7 +33,8 @@ class HotelBookingControllerTest {
     orderQuery = mock(HotelOrderQueryApplicationService.class);
     identityLookup = mock(IdentityAccountLookupClient.class);
     memberLookup = mock(MemberLookupProvider.class);
-    controller = new HotelBookingController(service, orderQuery, identityLookup, memberLookup);
+    auditClient = mock(AuditClient.class);
+    controller = new HotelBookingController(service, orderQuery, identityLookup, memberLookup, auditClient);
     TenantContextHolder.set(new TenantContext(100L, 100L, 102L, 1L, 1,
         List.of("hotel.booking.view", "hotel.booking.create"), null, "HOTEL", null));
   }

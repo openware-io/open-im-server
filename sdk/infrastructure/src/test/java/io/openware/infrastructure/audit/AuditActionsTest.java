@@ -36,6 +36,7 @@ class AuditActionsTest {
     assertEquals("点单目录项删除", AuditActions.labelOf("catalog.item.delete"));
     assertEquals("包厢清洁状态切换", AuditActions.labelOf("resource.cleaning.update"));
     assertEquals("角色新建", AuditActions.labelOf("iam.role.create"));
+    assertEquals("酒店订单会员归属", AuditActions.labelOf("hotel.booking.customer_attribution"));
   }
 
   /** 保留策略的自留审计动作码也必须有标签（归档/预建都是合规相关动作，日志里不能出现裸码）。 */
