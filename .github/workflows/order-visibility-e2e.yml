@@ -1,0 +1,37 @@
+name: Order visibility E2E
+
+# 只在显式提供已运行的本地 Kind 地址时执行；不伪造 CI 环境，也不在普通 PR 上消耗 Kind。
+# 运行器需要带 open-im-kind 标签，并具备 kubectl、mysql client、pwsh。
+on:
+  workflow_dispatch:
+    inputs:
+      gateway:
+        description: "Kind ingress，例如 http://192.168.3.35:30080"
+        required: true
+      h5-base:
+        description: "C H5 base，留空则等于 gateway"
+        required: false
+      admin-user:
+        description: "SaaS tenant admin"
+        required: false
+        default: tenant-admin
+      admin-password:
+        description: "SaaS tenant admin password"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: [self-hosted, open-im-kind]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run C/B hotel and KTV visibility E2E
+        shell: pwsh
+        run: >
+          ./scripts/verify/verify-order-visibility-e2e.ps1
+          -Gateway "${{ inputs.gateway }}"
+          -H5Base "${{ inputs.h5-base }}"
+          -AdminUser "${{ inputs.admin-user }}"
+          -AdminPassword "${{ inputs.admin-password }}"
