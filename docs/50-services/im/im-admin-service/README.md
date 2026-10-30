@@ -35,3 +35,5 @@
   统一账号落点（`idt_login_identity` / `idt_oauth_link`，以及成为孤儿的**客户** `idt_account`）的清理
   由 `im-user-service` 在删除事务内调用 `platform-identity-service` 完成；员工 / 平台运营账号本体保留
   （删除后处于「未绑定 IM」，等后台换绑新的 IM 账号）。
+- 小程序服务项链接使用当前 C 端入口：`/c/` 与 `/c/#/service/...`。`/a380/` 已从网关和静态产物移除，
+  V7 迁移会把历史 `/a380/` 服务链接修正到当前路由，避免 App 服务页打开 404。
