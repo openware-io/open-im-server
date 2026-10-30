@@ -13,14 +13,17 @@ import io.openware.platform.order.application.dto.OrderView;
 import io.openware.platform.order.domain.order.model.Order;
 import io.openware.platform.order.domain.order.model.TradeStatus;
 import io.openware.platform.order.hotel.HotelBookingStatusReader;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -79,6 +82,25 @@ public class MyOrderController {
   @GetMapping("/reservations")
   public List<ReservationView> reservations() {
     return reservationService.listMine(orderQueryService.currentMemberId());
+  }
+
+  /**
+   * C 端只读可约时段：按房型、营业日、预计时长返回每个到店时段剩余名额。
+   * 与创建预约共用同一条容量/营业时间口径，页面不得自行推算。
+   */
+  @ClientAudience("saas-c")
+  @GetMapping("/reservations/availability")
+  public ReservationApplicationService.AvailabilityView reservationAvailability(
+      @RequestParam Long roomTypeId,
+      @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+      @RequestParam(defaultValue = "3") int durationHours) {
+    PermissionGuard.require("reservation.view");
+    TenantContext context = TenantContextHolder.get();
+    if (context == null || context.tenantId() <= 0 || context.storeId() == null) {
+      throw new ApiException(401, "SAAS_CONTEXT_REQUIRED", "缺少门店上下文");
+    }
+    return reservationService.availability(context.tenantId(), context.storeId(),
+        roomTypeId, date, durationHours);
   }
 
   /**

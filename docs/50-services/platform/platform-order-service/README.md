@@ -96,6 +96,10 @@ POST /admin/hotel/bookings/{id}/cancel
   `GET /business/reservations/business-hours` 允许 `saas-c` 与 `saas-b` 访问；
   C 端创建预约统一走 `POST /me/reservations`，不得调用 B 端
   `POST /business/reservations`（否则返回 `CLIENT_AUDIENCE_FORBIDDEN`）。
+- C 端可约时段：`GET /me/reservations/availability?roomTypeId=&date=&durationHours=`。
+  返回 `enabledRooms` 与每个整点 `slots{startTime,endTime,available,remaining}`；
+  与创建接口共用房型启用数、营业时间和 `countSlotHolding` 口径，页面据此禁用满时段并自动改选，
+  不自行推算容量。
 
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；

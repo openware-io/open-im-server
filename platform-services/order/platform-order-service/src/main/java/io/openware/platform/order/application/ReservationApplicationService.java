@@ -873,6 +873,53 @@ public class ReservationApplicationService {
         return businessHoursClient.resolve(storeId).orElseGet(TenantBusinessHoursClient::defaultHours);
     }
 
+    /**
+     * C 端只读可约时段：按房型启用包厢数、营业时间和时段内仍占名额的预约数计算。
+     *
+     * <p>时段从营业开始时间起按整点生成，{@code durationHours} 为当前选择时长；
+     * 左闭右开与创建校验完全同源（{@link #requireWithinBusinessHours}、
+     * {@link #requireRoomTypeNotOverbooked}），因此页面看到的「可约」不会在提交时变成 {@code ROOM_TYPE_FULL}。
+     * 跨自然日营业（18:00–05:00）时 {@code date} 是营业日，末尾时段可延续到次日。
+     */
+    public AvailabilityView availability(Long tenantId, Long storeId, Long roomTypeId,
+                                         java.time.LocalDate businessDate, int durationHours) {
+        requireTenant(tenantId);
+        if (storeId == null || roomTypeId == null || businessDate == null) {
+            throw new ApiException(400, "AVAILABILITY_PARAMS_REQUIRED", "缺少门店、房型或日期参数");
+        }
+        RoomTypeView roomType = requireBookableRoomType(storeId, roomTypeId);
+        long enabledRooms = requireEnabledRooms(storeId, roomType);
+        int duration = Math.max(1, Math.min(durationHours <= 0 ? 3 : durationHours, 8));
+        TenantBusinessHoursClient.BusinessHours hours = businessHours(storeId);
+        LocalDateTime openAt = LocalDateTime.of(businessDate, hours.open());
+        LocalDateTime closeAt = LocalDateTime.of(businessDate, hours.close());
+        if (!closeAt.isAfter(openAt)) {
+            // 跨自然日或全天营业：营业结束落在下一个自然日。
+            closeAt = closeAt.plusDays(1);
+        }
+        List<AvailabilitySlot> slots = new ArrayList<>();
+        for (LocalDateTime cursor = openAt; cursor.isBefore(closeAt); cursor = cursor.plusHours(1)) {
+            LocalDateTime endAt = cursor.plusHours(duration);
+            long holding = reservationRepository.countSlotHolding(
+                    tenantId, storeId, roomTypeId, cursor, endAt);
+            int remaining = (int) Math.max(0, enabledRooms - holding);
+            slots.add(new AvailabilitySlot(
+                    cursor.toLocalTime().format(BUSINESS_TIME_FORMAT),
+                    endAt.toLocalTime().format(BUSINESS_TIME_FORMAT),
+                    remaining > 0, remaining));
+        }
+        return new AvailabilityView(roomTypeId, businessDate, duration, enabledRooms, slots);
+    }
+
+    /** C 端可约时段视图；时间只返回门店墙上时间（HH:mm），日期由 {@code date} 表达。 */
+    public record AvailabilityView(Long roomTypeId, java.time.LocalDate date, int durationHours,
+                                   long enabledRooms, List<AvailabilitySlot> slots) {
+    }
+
+    /** 单个到店时段；{@code remaining=0} 时不可约。 */
+    public record AvailabilitySlot(String startTime, String endTime, boolean available, int remaining) {
+    }
+
     /** 该房型必须至少有 1 个启用包厢，否则「预约得出去、到店分不出房」。 */
     private long requireEnabledRooms(Long storeId, RoomTypeView roomType) {
         long enabledRooms = roomTypeCatalogClient.enabledRoomCount(storeId, roomType.id());

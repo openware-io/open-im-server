@@ -289,7 +289,7 @@ spring:
       - id: saas-my-order
         uri: ${PLATFORM_ORDER_URI:http://localhost:4130}
         predicates:
-         - Path=/api/v1/me/orders,/api/v1/me/reservations
+         - Path=/api/v1/me/orders,/api/v1/me/reservations,/api/v1/me/reservations/availability
         filters:
          - StripPrefix=2
       - id: saas-admin
