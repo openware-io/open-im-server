@@ -63,9 +63,11 @@ public class ReservationController {
      */
     @GetMapping
     public List<ReservationView> list(@RequestParam(required = false) String from,
-                                    @RequestParam(required = false) String to) {
+                                    @RequestParam(required = false) String to,
+                                    @RequestParam(defaultValue = "100") int limit,
+                                    @RequestParam(defaultValue = "0") int offset) {
         PermissionGuard.require("reservation.view");
-        return reservationService.list(TimeRangeParams.parse(from, to));
+        return reservationService.list(TimeRangeParams.parse(from, to), limit, offset);
     }
 
     /** 预约详情（当前租户；跨租户由租户拦截器过滤为 404 语义）。 */

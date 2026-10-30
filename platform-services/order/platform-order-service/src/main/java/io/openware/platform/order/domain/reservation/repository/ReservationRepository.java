@@ -54,7 +54,16 @@ public interface ReservationRepository {
      * <p>时间条件直接落在 {@code start_at} 列上、不用函数包裹（保持索引可用）；
      * 边界为 {@code null} 表示该侧不筛。租户过滤由租户拦截器追加（与改造前一致）。
      */
-    List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive, LocalDateTime toInclusive);
+    default List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive,
+                                                            LocalDateTime toInclusive) {
+        return findByStartAtRange(fromInclusive, toInclusive, 100, 0);
+    }
+
+    /** 有界分页版本：B 端列表禁止无界全量查询；limit 由适配器收敛到 1..200。 */
+    List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive,
+                                                    LocalDateTime toInclusive,
+                                                    int limit,
+                                                    int offset);
 
     /**
      * 「到店时间已过、仍未到店」的预约：超时未到店任务用（{@code KtvReservationTimeoutService}）。

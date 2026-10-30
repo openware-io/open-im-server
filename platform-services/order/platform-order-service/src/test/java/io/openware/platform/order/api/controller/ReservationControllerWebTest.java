@@ -55,7 +55,7 @@ class ReservationControllerWebTest {
     @Test
     void listReturns200() throws Exception {
         TenantContextHolder.set(new TenantContext(7L, 8L, 1001L, 42L, 1, List.of("reservation.view")));
-        when(reservationService.list(TimeRange.none())).thenReturn(List.of());
+        when(reservationService.list(TimeRange.none(), 100, 0)).thenReturn(List.of());
         mvc.perform(get("/business/reservations")).andExpect(status().isOk());
     }
 
@@ -201,3 +201,4 @@ class ReservationControllerWebTest {
                 ReservationStatus.PENDING, null, null, 0), null);
     }
 }
+

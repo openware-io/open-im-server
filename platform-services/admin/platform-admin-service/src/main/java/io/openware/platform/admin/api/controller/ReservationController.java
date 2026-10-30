@@ -49,10 +49,12 @@ public class ReservationController {
      */
     @GetMapping
     public List<Map<String, Object>> list(@RequestParam(required = false) String from,
-                                          @RequestParam(required = false) String to) {
+                                          @RequestParam(required = false) String to,
+                                          @RequestParam(defaultValue = "100") int limit,
+                                          @RequestParam(defaultValue = "0") int offset) {
         PermissionGuard.require("reservation.view");
         TimeRangeParams.parse(from, to);
-        return reservationClient.list(from, to);
+        return reservationClient.list(from, to, limit, offset);
     }
 
     @PostMapping("/{id}/confirm")

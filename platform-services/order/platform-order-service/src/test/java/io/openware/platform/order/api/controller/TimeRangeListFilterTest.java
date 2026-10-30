@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -136,17 +137,17 @@ class TimeRangeListFilterTest {
 
     @Test
     void reservationListPassesClosedDayRangeToService() {
-        when(reservationService.list(any())).thenReturn(List.of());
+        when(reservationService.list(any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        reservationController.list("2026-09-01", "2026-09-30");
+        reservationController.list("2026-09-01", "2026-09-30", 100, 0);
 
-        verify(reservationService).list(new TimeRange(LocalDateTime.of(2026, 9, 1, 0, 0, 0, 0), CLOSED_END));
+        verify(reservationService).list(new TimeRange(LocalDateTime.of(2026, 9, 1, 0, 0, 0, 0), CLOSED_END), 100, 0);
     }
 
     @Test
     void reservationListRejectsInvertedRangeWith400() {
         ApiException failure = assertThrows(ApiException.class,
-                () -> reservationController.list("2026-09-30", "2026-09-01"));
+                () -> reservationController.list("2026-09-30", "2026-09-01", 100, 0));
 
         assertEquals(TimeRangeParams.CODE_TIME_RANGE_INVALID, failure.getCode());
         verify(reservationService, never()).list(any());
@@ -218,3 +219,4 @@ class TimeRangeListFilterTest {
         return captor.getValue();
     }
 }
+

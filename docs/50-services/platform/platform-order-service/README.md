@@ -89,6 +89,9 @@ POST /admin/hotel/bookings/{id}/cancel
   `expectedVersion` 做乐观锁校验，冲突返回 `409 BOOKING_VERSION_CONFLICT`。
 - B 端按住客手机号自动归属时，只有当前租户存在 ACTIVE 会员档案才写入 `bookedByAccountId`；
   否则按无账号到店客处理，避免把订单挂到无关账号。
+- C 端 `GET /me/orders` 的 `OrderView` 追加 `displayStatus`：酒店订单取
+  `htl_booking.status`，未确认的酒店订单不再把 `ord_order.trade_status=DRAFT` 直接暴露为用户状态；
+  B 端默认仍等于 `tradeStatus`。
 
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；
