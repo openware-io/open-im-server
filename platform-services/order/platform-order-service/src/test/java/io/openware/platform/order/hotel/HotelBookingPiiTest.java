@@ -36,6 +36,27 @@ class HotelBookingPiiTest {
   }
 
   @Test
+  void ownCustomerBookingKeepsPii() {
+    TenantContextHolder.set(new TenantContext(100L, 100L, 100L, 101L, 1,
+        List.of("hotel.booking.view"), "CONSUMER", null, "Asia/Shanghai"));
+    HotelBookingPo booking = new HotelBookingPo();
+    booking.setId(2L);
+    booking.setGuestName("张三");
+    booking.setGuestPhone("13800000014");
+    booking.setBookedByAccountId(101L);
+    when(bookingMapper.selectList(any())).thenReturn(List.of(booking));
+    HotelBookingApplicationService service = new HotelBookingApplicationService(
+        bookingMapper, roomTypeMapper, ratePlanMapper, availabilityMapper, availabilityHoldMapper,
+        dailyRateMapper, nightMapper, orderApplicationService, memberLookupProvider, policyService,
+        storeScopeResolver);
+
+    HotelBookingPo result = service.listByAccount(null, null, null, 101L).getFirst();
+
+    assertEquals("张三", result.getGuestName());
+    assertEquals("13800000014", result.getGuestPhone());
+  }
+
+  @Test
   void listMasksGuestPiiWithoutPermission() {
     TenantContextHolder.set(new TenantContext(100L, 100L, 102L, 101L, 1,
         List.of("hotel.booking.view"), "STORE", "HOTEL", "Asia/Shanghai"));
