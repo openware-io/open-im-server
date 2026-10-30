@@ -100,6 +100,8 @@ POST /admin/hotel/bookings/{id}/cancel
   返回 `enabledRooms` 与每个整点 `slots{startTime,endTime,available,remaining}`；
   与创建接口共用房型启用数、营业时间和 `countSlotHolding` 口径，页面据此禁用满时段并自动改选，
   不自行推算容量。
+- C 端房型目录：`GET /business/resources/types`（resource 服务，`saas-c` 只读启用房型），
+  C 预约页不再调用后台 `/admin/resources/types` 后靠 403 fallback。
 
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；
