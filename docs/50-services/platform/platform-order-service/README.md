@@ -92,6 +92,10 @@ POST /admin/hotel/bookings/{id}/cancel
 - C 端 `GET /me/orders` 的 `OrderView` 追加 `displayStatus`：酒店订单取
   `htl_booking.status`，未确认的酒店订单不再把 `ord_order.trade_status=DRAFT` 直接暴露为用户状态；
   B 端默认仍等于 `tradeStatus`。
+- C 端预约页只读的 `GET /business/ktv/pricing` 与
+  `GET /business/reservations/business-hours` 允许 `saas-c` 与 `saas-b` 访问；
+  C 端创建预约统一走 `POST /me/reservations`，不得调用 B 端
+  `POST /business/reservations`（否则返回 `CLIENT_AUDIENCE_FORBIDDEN`）。
 
 C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
 `GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；

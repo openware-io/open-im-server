@@ -28,7 +28,7 @@ import java.util.Map;
  * {@code roomUnitPrice}/{@code serverUnitPrice}/{@code combinedUnitPrice} 就是**实际生效**的单价
  * （合计 = 房型单价 + 服务单价，C 端展示口径），{@code displayText} 与计费同源。
  */
-@ClientAudience("saas-b")
+@ClientAudience({"saas-b", "saas-c"})
 @RestController
 @RequestMapping("/business/ktv/pricing")
 @Slf4j

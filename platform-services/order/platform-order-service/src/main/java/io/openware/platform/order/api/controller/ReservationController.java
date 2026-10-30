@@ -168,6 +168,7 @@ public class ReservationController {
      *
      * <p>只读、租户上下文内（无权限码）：营业时间不是敏感数据，但下单前的顾客必须能读到它。
      */
+    @ClientAudience({"saas-b", "saas-c"})
     @GetMapping("/business-hours")
     public BusinessHoursResponse businessHours(@RequestParam(required = false) Long storeId) {
         TenantContext context = TenantContextHolder.get();
