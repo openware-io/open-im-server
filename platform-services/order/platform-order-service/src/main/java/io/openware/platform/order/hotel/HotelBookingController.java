@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import io.openware.infrastructure.audit.AuditClient;
 import io.openware.infrastructure.tenant.ClientAudience;
 import io.openware.infrastructure.tenant.TenantContext;
 import io.openware.infrastructure.tenant.TenantContextHolder;
@@ -27,15 +28,18 @@ public class HotelBookingController {
     private final HotelOrderQueryApplicationService orderQueryService;
     private final IdentityAccountLookupClient identityLookup;
     private final MemberLookupProvider memberLookupProvider;
+    private final AuditClient auditClient;
 
     public HotelBookingController(HotelBookingApplicationService service,
                                   HotelOrderQueryApplicationService orderQueryService,
                                   IdentityAccountLookupClient identityLookup,
-                                  MemberLookupProvider memberLookupProvider) {
+                                  MemberLookupProvider memberLookupProvider,
+                                  AuditClient auditClient) {
         this.service = service;
         this.orderQueryService = orderQueryService;
         this.identityLookup = identityLookup;
         this.memberLookupProvider = memberLookupProvider;
+        this.auditClient = auditClient;
     }
 
     @PostMapping("/quotes")
@@ -48,6 +52,7 @@ public class HotelBookingController {
     @ResponseStatus(HttpStatus.CREATED)
     public HotelBookingPo create(@RequestBody BookingRequest request) {
         Long bookedByAccountId = request.bookedByAccountId();
+        boolean autoAttributed = false;
         if (bookedByAccountId == null && request.guestPhone() != null) {
             Long candidate = identityLookup.findByPhone(request.guestPhone()).orElse(null);
             TenantContext context = TenantContextHolder.get();
@@ -56,12 +61,29 @@ public class HotelBookingController {
             if (candidate != null && context != null && memberLookupProvider
                     .findMemberId(context.tenantId(), candidate).isPresent()) {
                 bookedByAccountId = candidate;
+                autoAttributed = true;
             }
         }
-        return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
-                request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
+        HotelBookingPo booking = service.createBooking(request.roomTypeId(), request.ratePlanId(),
+                request.checkInDate(), request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
                 request.guestName(), request.guestPhone(), request.note(), bookedByAccountId,
                 request.pointsUsed());
+        if (autoAttributed && booking != null) {
+            Long accountId = bookedByAccountId;
+            auditClient.recordAsync(AuditClient.AuditRecord.builder()
+                    .tenantId(booking.getTenantId())
+                    .storeId(booking.getStoreId())
+                    .action("hotel.booking.customer_attribution")
+                    .resourceType("hotel_booking")
+                    .resourceId(String.valueOf(booking.getId()))
+                    .resourceName(booking.getBookingNo())
+                    .result(AuditClient.AuditRecord.RESULT_SUCCESS)
+                    .idempotencyKey("hotel.booking.customer_attribution:" + booking.getId())
+                    .detailJson("{\"accountId\":" + accountId + ",\"bookingNo\":\""
+                            + booking.getBookingNo() + "\"}")
+                    .build());
+        }
+        return booking;
     }
 
     @GetMapping("/bookings")
