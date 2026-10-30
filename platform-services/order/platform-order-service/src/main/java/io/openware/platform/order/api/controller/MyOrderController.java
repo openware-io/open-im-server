@@ -10,8 +10,12 @@ import io.openware.platform.order.application.OrderQueryApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService.CreateReservationCommand;
 import io.openware.platform.order.application.dto.OrderView;
+import io.openware.platform.order.domain.order.model.Order;
+import io.openware.platform.order.domain.order.model.TradeStatus;
+import io.openware.platform.order.hotel.HotelBookingStatusReader;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,17 +40,36 @@ import org.springframework.web.bind.annotation.RestController;
 public class MyOrderController {
   private final OrderQueryApplicationService orderQueryService;
   private final ReservationApplicationService reservationService;
+  private final HotelBookingStatusReader hotelBookingStatusReader;
 
   public MyOrderController(OrderQueryApplicationService orderQueryService,
-                           ReservationApplicationService reservationService) {
+                           ReservationApplicationService reservationService,
+                           HotelBookingStatusReader hotelBookingStatusReader) {
     this.orderQueryService = orderQueryService;
     this.reservationService = reservationService;
+    this.hotelBookingStatusReader = hotelBookingStatusReader;
   }
 
-  /** 我的订单（C 端）：按会员收窄，创建时间倒序。 */
+  /** 我的订单（C 端）：按会员收窄，创建时间倒序；酒店订单使用预订状态做用户可见投影。 */
   @GetMapping("/orders")
   public List<OrderView> orders() {
-    return orderQueryService.listMine().stream().map(OrderView::from).toList();
+    List<Order> orders = orderQueryService.listMine();
+    Map<Long, String> hotelStatuses = hotelBookingStatusReader.byOrderIds(
+        orders.stream().map(Order::id).toList());
+    return orders.stream()
+        .map(order -> OrderView.from(order).withDisplayStatus(displayStatusOf(order, hotelStatuses.get(order.id()))))
+        .toList();
+  }
+
+  private static String displayStatusOf(Order order, String hotelBookingStatus) {
+    if (hotelBookingStatus != null && !hotelBookingStatus.isBlank()) {
+      return hotelBookingStatus;
+    }
+    // 酒店订单在预订确认前 order 仍可能是 DRAFT；不要把内部交易状态直接当用户状态。
+    if ("HOTEL".equals(order.businessType()) && order.trade() == TradeStatus.DRAFT) {
+      return "PENDING_CONFIRM";
+    }
+    return order.trade().name();
   }
 
   /**

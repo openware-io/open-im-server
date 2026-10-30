@@ -36,11 +36,14 @@ class MyOrderControllerTest {
   @Mock
   private ReservationApplicationService reservationService;
 
+  @Mock
+  private io.openware.platform.order.hotel.HotelBookingStatusReader hotelBookingStatusReader;
+
   private MyOrderController controller;
 
   @BeforeEach
   void setUp() {
-    controller = new MyOrderController(orderQueryService, reservationService);
+    controller = new MyOrderController(orderQueryService, reservationService, hotelBookingStatusReader);
     TenantContextHolder.set(new TenantContext(
         100L, 100L, 100L, 100L, 1,
         List.of("reservation.create"), "TENANT", "KTV", "Asia/Shanghai"));

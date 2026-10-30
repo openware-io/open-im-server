@@ -60,6 +60,7 @@ import java.time.LocalDateTime;
  * @param businessType         业态
  * @param customerId           会员
  * @param tradeStatus          交易状态：DRAFT/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/VOIDED
+ * @param displayStatus        用户可见状态投影；C 端酒店订单使用酒店预订状态，B 端默认等于 tradeStatus
  * @param refundStatus         退款状态：NONE/PARTIAL/FULL
  * @param settlementStatus     结算派生状态：UNSETTLED/PENDING_PAYMENT/PAID/COMPLETED/CANCELLED/REFUNDED/PARTIALLY_REFUNDED
  * @param currencyCode         币种快照
@@ -100,6 +101,7 @@ public record OrderView(
     String businessType,
     Long customerId,
     String tradeStatus,
+    String displayStatus,
     String refundStatus,
     String settlementStatus,
     String currencyCode,
@@ -127,7 +129,7 @@ public record OrderView(
         return new OrderView(order.id(), null, null, null, null, null, null, null, null, null, null, null,
             null, null, order.tenantId(), order.organizationId(), order.storeId(), order.orderNo(),
             order.idempotencyKey(), order.businessType(), order.customerId(),
-            trade.name(), refund.name(), settlementStatusOf(trade, refund), order.currencyCode(),
+            trade.name(), trade.name(), refund.name(), settlementStatusOf(trade, refund), order.currencyCode(),
             order.subtotalAmount(), order.discountAmount(), order.taxAmount(), order.totalAmount(),
             order.paidAmount(), order.refundableAmount(), order.completedAt(), order.cancelledAt(),
             order.version(), null, null, null, null);
@@ -162,7 +164,7 @@ public record OrderView(
         return new OrderView(id, newSessionId, newRoomResourceId, newRoomName, newRoomCode, newSessionStatus,
             newPartySize, newServerId, newServerName, newRoomElapsedSeconds, newRoomEstimatedFee,
             newLiveTotalAmount, newSessionOpenedAt, newSessionClosedAt, tenantId, organizationId, storeId,
-            orderNo, idempotencyKey, businessType, customerId, tradeStatus, refundStatus,
+            orderNo, idempotencyKey, businessType, customerId, tradeStatus, displayStatus, refundStatus,
             settlementStatus, currencyCode, subtotalAmount, discountAmount, taxAmount, totalAmount,
             paidAmount, refundableAmount, completedAt, cancelledAt, version, createdBy,
             createdAt, updatedBy, updatedAt);
@@ -173,7 +175,7 @@ public record OrderView(
         return new OrderView(id, newSessionId, roomResourceId, roomName, roomCode, sessionStatus, partySize,
             serverId, serverName, roomElapsedSeconds, roomEstimatedFee, liveTotalAmount, sessionOpenedAt,
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-            customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
+            customerId, tradeStatus, displayStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
             version, createdBy, createdAt, updatedBy, updatedAt);
     }
@@ -183,8 +185,18 @@ public record OrderView(
         return new OrderView(id, sessionId, roomResourceId, roomName, roomCode, sessionStatus, partySize,
             serverId, serverName, roomElapsedSeconds, roomEstimatedFee, newLiveTotalAmount, sessionOpenedAt,
             sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
-            customerId, tradeStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
+            customerId, tradeStatus, displayStatus, refundStatus, settlementStatus, currencyCode, subtotalAmount,
             discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount, completedAt, cancelledAt,
             version, createdBy, createdAt, updatedBy, updatedAt);
+    }
+
+    /** C 端读模型回填用户可见状态；B 端默认保持 tradeStatus。 */
+    public OrderView withDisplayStatus(String newDisplayStatus) {
+        return new OrderView(id, sessionId, roomResourceId, roomName, roomCode, sessionStatus, partySize,
+            serverId, serverName, roomElapsedSeconds, roomEstimatedFee, liveTotalAmount, sessionOpenedAt,
+            sessionClosedAt, tenantId, organizationId, storeId, orderNo, idempotencyKey, businessType,
+            customerId, tradeStatus, newDisplayStatus, refundStatus, settlementStatus, currencyCode,
+            subtotalAmount, discountAmount, taxAmount, totalAmount, paidAmount, refundableAmount,
+            completedAt, cancelledAt, version, createdBy, createdAt, updatedBy, updatedAt);
     }
 }

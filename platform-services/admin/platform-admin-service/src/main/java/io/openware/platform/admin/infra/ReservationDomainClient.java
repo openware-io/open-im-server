@@ -42,7 +42,16 @@ public class ReservationDomainClient {
    * 为空时**不带该查询参数**，域内按「不筛」处理（不发送空串）。
    */
   public List<Map<String, Object>> list(String from, String to) {
-    return toList(getJson(withTimeRange("/business/reservations", from, to)));
+    return list(from, to, 100, 0);
+  }
+
+  /** 有界分页列表：BFF 只透传 limit/offset，范围收敛交给 order 域。 */
+  public List<Map<String, Object>> list(String from, String to, int limit, int offset) {
+    String uri = withTimeRange("/business/reservations", from, to);
+    String separator = uri.contains("?") ? "&" : "?";
+    uri = uri + separator + "limit=" + Math.max(1, Math.min(limit, 200))
+        + "&offset=" + Math.max(0, offset);
+    return toList(getJson(uri));
   }
 
   /** 拼时间区间查询串：只在参数有值时附加，值与域名做 URL 编码（日期/时刻串本身安全，仍统一处理）。 */

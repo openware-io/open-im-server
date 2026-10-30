@@ -213,6 +213,13 @@ public class ReservationApplicationService {
                 range == null ? null : range.toInclusive()));
     }
 
+    /** B 端预约列表：有界分页，默认上限 100，避免运营页一次拉全量。 */
+    public List<ReservationView> list(TimeRange range, int limit, int offset) {
+        return enrichDisplayFields(reservationRepository.findByStartAtRange(
+                range == null ? null : range.fromInclusive(),
+                range == null ? null : range.toInclusive(), limit, offset));
+    }
+
     /** 预约详情（当前租户；跨租户由租户拦截器过滤为 null，返回 404 语义）。 */
     public ReservationView get(Long id) {
         return enrichDisplayFields(List.of(require(id))).get(0);

@@ -87,12 +87,18 @@ public class ReservationRepositoryAdapter implements ReservationRepository {
     }
 
     @Override
-    public List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive, LocalDateTime toInclusive) {
+    public List<Persisted<Reservation>> findByStartAtRange(LocalDateTime fromInclusive,
+                                                            LocalDateTime toInclusive,
+                                                            int limit,
+                                                            int offset) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        int safeOffset = Math.max(0, offset);
         // 时间条件落在 start_at 列上、不用函数包裹，保持索引可用（与改造前的口径一致）。
         return persistedList(mapper.selectList(Wrappers.<ReservationPo>lambdaQuery()
             .ge(fromInclusive != null, ReservationPo::getStartAt, fromInclusive)
             .le(toInclusive != null, ReservationPo::getStartAt, toInclusive)
-            .orderByDesc(ReservationPo::getStartAt)));
+            .orderByDesc(ReservationPo::getStartAt)
+            .last("LIMIT " + safeLimit + " OFFSET " + safeOffset)));
     }
 
     @Override
