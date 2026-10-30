@@ -1,0 +1,33 @@
+name: Order visibility contract
+
+on:
+  pull_request:
+    paths:
+      - "platform-services/order/**"
+      - "platform-services/admin/platform-admin-service/**"
+      - "sdk/infrastructure/**"
+      - "scripts/verify/e2e-c-end-ota-channel.ps1"
+      - "scripts/verify/verify-openchat-ktv-closure.ps1"
+      - "scripts/verify/verify-order-visibility-e2e.ps1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: C/B order visibility unit contracts
+        run: >
+          ./mvnw -B -ntp
+          -pl platform-services/order/platform-order-service,platform-services/admin/platform-admin-service
+          -am
+          -Dtest=MyOrderControllerTest,HotelBookingControllerTest,HotelCustomerBookingControllerTest,HotelBookingPiiTest,ReservationControllerTest
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test
