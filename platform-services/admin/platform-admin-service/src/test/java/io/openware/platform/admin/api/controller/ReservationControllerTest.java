@@ -38,6 +38,17 @@ class ReservationControllerTest {
     }
 
     @Test
+    void listForwardsPagination() {
+        TenantContextHolder.set(new TenantContext(100L, 100L, 100L, 1L, 1,
+                List.of("reservation.view"), "STORE", "KTV", "Asia/Shanghai"));
+        when(reservationClient.list(null, null, 20, 40)).thenReturn(List.of());
+
+        controller.list(null, null, 20, 40);
+
+        verify(reservationClient).list(null, null, 20, 40);
+    }
+
+    @Test
     void cancelRequiresReason() {
         ApiException blank = assertThrows(ApiException.class,
                 () -> controller.cancel(9L, new ReservationController.CancelRequest("   ")));
