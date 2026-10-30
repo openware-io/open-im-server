@@ -3,8 +3,11 @@ package io.openware.platform.resource.api.controller;
 import io.openware.common.exception.BusinessException;
 import io.openware.infrastructure.tenant.PermissionGuard;
 import io.openware.infrastructure.tenant.TenantContextHolder;
+import io.openware.platform.resource.api.converter.RoomTypeConverter;
+import io.openware.platform.resource.api.dto.RoomTypeView;
 import io.openware.platform.resource.application.ResourceStateApplicationService;
 import io.openware.platform.resource.application.ResourceStateApplicationService.ResourceView;
+import io.openware.platform.resource.application.RoomTypeApplicationService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,14 +21,23 @@ import java.util.List;
 @RequestMapping("/business/resources")
 public class BusinessResourceController {
     private final ResourceStateApplicationService resourceStateService;
+    private final RoomTypeApplicationService roomTypeService;
 
-    public BusinessResourceController(ResourceStateApplicationService resourceStateService) {
+    public BusinessResourceController(ResourceStateApplicationService resourceStateService,
+                                      RoomTypeApplicationService roomTypeService) {
         this.resourceStateService = resourceStateService;
+        this.roomTypeService = roomTypeService;
     }
 
     @GetMapping
     public List<ResourceView> list(@RequestParam String resourceType) {
         return resourceStateService.listWithState(resourceType, TenantContextHolder.tenantIdOrNull());
+    }
+
+    /** C 端只读房型目录：KTV 预约页按房型展示，不依赖后台 /admin/resources/types。 */
+    @GetMapping("/types")
+    public List<RoomTypeView> types(@RequestParam(required = false) Long storeId) {
+        return roomTypeService.list(storeId, "ACTIVE").stream().map(RoomTypeConverter::toView).toList();
     }
 
     /** 置资源清洁状态：清洁中的包厢不可开台、不可预约（结台后由门店端确认清洁完成）。 */
