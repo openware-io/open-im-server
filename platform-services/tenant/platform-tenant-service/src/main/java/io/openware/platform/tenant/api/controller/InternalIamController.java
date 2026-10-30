@@ -1,10 +1,12 @@
 package io.openware.platform.tenant.api.controller;
 
+import io.openware.platform.tenant.application.MembershipApplicationService;
 import io.openware.platform.tenant.application.PermissionSnapshotProvider;
 import io.openware.platform.tenant.application.RoleBindingApplicationService;
 import io.openware.platform.tenant.domain.authorization.AccountContext;
 import io.openware.platform.tenant.domain.authorization.PermissionSnapshot;
 import io.openware.platform.tenant.domain.authorization.RoleBinding;
+import io.openware.platform.tenant.domain.membership.Membership;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,11 +22,14 @@ public class InternalIamController {
 
     private final PermissionSnapshotProvider provider;
     private final RoleBindingApplicationService roleBindings;
+    private final MembershipApplicationService memberships;
 
     public InternalIamController(PermissionSnapshotProvider provider,
-                                 RoleBindingApplicationService roleBindings) {
+                                 RoleBindingApplicationService roleBindings,
+                                 MembershipApplicationService memberships) {
         this.provider = provider;
         this.roleBindings = roleBindings;
+        this.memberships = memberships;
     }
 
     /** 账号在某作用域下的权限快照（权限码 + 授权版本）；refresh=true 跳过缓存（上下文选择时用）。 */
@@ -66,6 +71,21 @@ public class InternalIamController {
     @DeleteMapping("/consumer/{appId}/authorization")
     public void revokeConsumerAuthorization(@PathVariable String appId, @RequestParam Long accountId) {
         provider.revokeConsumerAuthorization(appId, accountId);
+    }
+
+    /**
+     * C 端首次 OAuth 绑定的身份门禁：在 consumer app 所属租户幂等补齐 CUSTOMER membership。
+     * 仅在已有 consumer 授权时调用；会员档案仍由 customer 域首次业务访问时创建。
+     */
+    @PostMapping("/consumer/{appId}/customer-membership")
+    public Membership ensureConsumerCustomerMembership(@PathVariable String appId,
+                                                        @RequestParam Long accountId) {
+        AccountContext context = provider.consumerContext(appId, accountId);
+        if (context == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "consumer authorization required");
+        }
+        return memberships.ensureForTenant(context.tenantId(), accountId, context.organizationId(),
+                "CUSTOMER", "C" + accountId);
     }
 
     /** 内部：平台引导租户管理员时按显式 tenantId 绑定角色（service-to-service）。 */

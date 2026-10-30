@@ -95,6 +95,14 @@ public class TenantServiceClient {
                 .retrieve().toBodilessEntity();
     }
 
+    /** 首次 C 端 OAuth：在 consumer app 租户幂等补齐 CUSTOMER membership。 */
+    public void ensureConsumerCustomerMembership(Long accountId, String appId) {
+        restClient.post().uri(uriBuilder -> uriBuilder
+                        .path("/internal/iam/consumer/{appId}/customer-membership")
+                        .queryParam("accountId", accountId).build(appId))
+                .retrieve().toBodilessEntity();
+    }
+
     /** C 端解绑：撤销 consumer 授权并逐出权限快照。 */
     public void revokeConsumerAuthorization(Long accountId, String appId) {
         restClient.delete().uri(uriBuilder -> uriBuilder.path("/internal/iam/consumer/{appId}/authorization")
