@@ -84,6 +84,11 @@ POST /admin/hotel/bookings/{id}/cancel
 - 取消：未确认释放 hold，已确认释放 sold；
 - 同一 `booking_id + stay_date` 只允许一条 hold 记录。
 
+C 端入口为 `POST /business/hotel/quotes`、`POST /business/hotel/bookings` 与
+`GET /business/hotel/bookings`。C 端上下文可能来自 KTV 门店安装的消费应用；
+报价/预订按房型的权威 `storeId` 切换到酒店门店作用域，再执行酒店权限与库存校验，
+不要求 C 应用安装门店本身是酒店。
+
 库存并发与状态机见 [酒店数据模型](../../../40-domain/hotel/HOTEL_DATA_MODEL.md)。
 
 ## 酒店每日房价与 hold 过期（H2 补充）

@@ -112,7 +112,9 @@ STORE：门店级店长/收银/财务
 ```
 
 账号必须已有 CUSTOMER membership，并已授权 C 应用；否则登录会提示
-“该账号还没有 C 端身份”。首次客户绑定仍从 OpenChat 完成。
+“该账号还没有 C 端身份”。C 端首次从 OpenChat 打开 C 应用时，OAuth 回调会在
+consumer app 所属租户幂等补齐 ACTIVE CUSTOMER membership；独立手机号/邮箱登录
+仍要求账号已由租户后台开通或已完成一次 OpenChat OAuth 绑定。
 
 入口：
 
