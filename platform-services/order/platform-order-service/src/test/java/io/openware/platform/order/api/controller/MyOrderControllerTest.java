@@ -15,6 +15,7 @@ import io.openware.platform.order.application.ReservationApplicationService;
 import io.openware.platform.order.application.ReservationApplicationService.CreateReservationCommand;
 import io.openware.platform.order.domain.order.model.Order;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +71,23 @@ class MyOrderControllerTest {
     assertEquals(1, result.size());
     assertEquals("CONFIRMED", result.getFirst().displayStatus());
     assertEquals("DRAFT", result.getFirst().tradeStatus());
+  }
+
+  @Test
+  void availabilityUsesSignedStoreAndView() {
+    TenantContextHolder.set(new TenantContext(
+        100L, 100L, 100L, 100L, 1,
+        List.of("reservation.view"), "TENANT", "KTV", "Asia/Shanghai"));
+    LocalDate date = LocalDate.of(2026, 11, 1);
+    var view = new ReservationApplicationService.AvailabilityView(
+        1L, date, 3, 1,
+        List.of(new ReservationApplicationService.AvailabilitySlot("22:00", "01:00", true, 1)));
+    when(reservationService.availability(100L, 100L, 1L, date, 3)).thenReturn(view);
+
+    var result = controller.reservationAvailability(1L, date, 3);
+
+    assertEquals(view, result);
+    verify(reservationService).availability(100L, 100L, 1L, date, 3);
   }
 
   @Test
