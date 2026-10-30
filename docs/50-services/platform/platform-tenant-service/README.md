@@ -141,6 +141,8 @@ URL 最长 512 字符，禁止 `javascript:` / 协议相对 URL。
 - `POST /admin/memberships/{id}/status`：ACTIVE/SUSPENDED/LEFT，版本递增
 - `GET /internal/iam/accounts/{accountId}/memberships`：登录期跨租户查询，显式 accountId
 - `GET /internal/iam/memberships/{id}`：成员详情
+- `POST /internal/iam/consumer/{appId}/authorizations`：C 应用 consumer 授权
+- `POST /internal/iam/consumer/{appId}/customer-membership`：C 首次 OAuth 幂等补齐 consumer app 所属租户的 ACTIVE CUSTOMER membership（内部、不暴露网关）
 
 `tnt_membership` 是角色绑定主体；`iam_role_binding` 必须绑定 membership，不直接绑定全局 account。
 

@@ -102,7 +102,7 @@ S3 会话入口要求：
 
 - `/auth/session`、`/auth/contexts`、`/auth/context/select` 的 `appId` 必填，缺失返回 `400 SAAS_APP_REQUIRED`。
 - B 应用 OAuth 回调阶段校验 STAFF 成员；未绑定直接 `403 STAFF_NOT_BOUND`，不创建会话、不种 cookie。
-- C 应用回调授权后校验已有 ACTIVE CUSTOMER membership；未绑定返回 403 CUSTOMER_NOT_BOUND。S3 不建客户，首登建客户留到 S5。
+- C 应用回调授权后校验 ACTIVE CUSTOMER membership；首次 OAuth 回调会在 consumer app 所属租户幂等补齐该 membership，再校验；补齐失败仍返回 403 CUSTOMER_NOT_BOUND。S3 不建客户档案，首访会员资料由 customer 域创建。
 
 S3 解绑/重绑：
 
