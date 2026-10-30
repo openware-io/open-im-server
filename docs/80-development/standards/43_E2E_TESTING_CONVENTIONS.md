@@ -65,6 +65,8 @@
 | `run-all.ps1` | 统一执行其余验证脚本，按脚本保留 log 与 `summary.txt` 证据 |
 | `run-e2e-domain.ps1` | 二期域 E2E 一键入口（fail-closed）：凭证自动化 → B 端/管理端 E2E → C 端/OTA/渠道回调 E2E |
 | `e2e-c-end-ota-channel.ps1` | C 端酒店报价/预订/支付/退款 + OTA channel v1 真链路（HMAC/幂等/取消）+ 渠道支付回调（sandbox）；真实 HTTP + `open_saas` DB 断言 |
+| `verify-order-visibility-e2e.ps1` | C/B 主流程可见性 E2E 编排：酒店与 KTV 两条真实链路、C 我的可见、B/SaaS 响应 |
+| `cleanup-order-e2e-data.ps1` | 仅 `open-im-local` 的酒店 E2E fixture 清理；默认 dry-run，`-Apply` 才删除 |
 | `ota-channel-client.ps1` | 酒店 OTA channel v1 请求辅助（HMAC 签名，供 C 端/OTA E2E dot-source 复用） |
 | `prepare-e2e-c-hotel-fixture.ps1` | C 端酒店 E2E 前置 fixture：临时 app 安装指向 HOTEL 门店，finally 恢复 |
 
