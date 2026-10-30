@@ -20,8 +20,8 @@ function MySqlTarget { $deployment = Invoke-Cluster @('get','deployment','mysql'
 function RedisTarget { $deployment = Invoke-Cluster @('get','deployment','redis','--ignore-not-found','-o','name'); if ($deployment) { return 'deployment/redis' }; $statefulSet = Invoke-Cluster @('get','statefulset','redis','--ignore-not-found','-o','name'); if ($statefulSet) { return 'statefulset/redis' }; throw 'Redis workload was not found.' }
 function DbPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-Cluster @('get','secret',$DatabaseSecret,'-o',"jsonpath={.data.$RootDatabaseSecretKey}")).Trim())) }
 function RedisPassword { [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((Invoke-Cluster @('get','secret',$RedisSecret,'-o','jsonpath={.data.REDIS_PASSWORD}')).Trim())) }
-function Sql([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL cleanup failed.' } }
-function SqlValue([string]$query) { $out = Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-N','-B','-e',$query); if ($LASTEXITCODE) { throw 'MySQL assertion failed.' }; return ($out | Select-Object -Last 1).ToString().Trim() }
+function Sql([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_saas','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL cleanup failed.' } }
+function SqlValue([string]$query) { $out = Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_saas','-N','-B','-e',$query); if ($LASTEXITCODE) { throw 'MySQL assertion failed.' }; return ($out | Select-Object -Last 1).ToString().Trim() }
 function SqlIm([string]$query) { Invoke-Cluster @('exec',(MySqlTarget),'--','mysql','-u','root',"-p$script:dbPassword",'open_im','-e',$query) | Out-Null; if ($LASTEXITCODE) { throw 'MySQL identity command failed.' } }
 function Remove-SaasSession([string]$cookie) {
   if ([string]::IsNullOrWhiteSpace($cookie)) { return }
@@ -85,27 +85,28 @@ try {
   $cCookie = @($callback.BaseResponse.Headers.GetValues('Set-Cookie') | ForEach-Object { ($_ -split ';')[0] } |
     Where-Object { $_ -match '^(__Host-)?saas_[bc]_session=' } | Select-Object -First 1)[0]
   if ($cCookie -notmatch '^(__Host-)?saas_[bc]_session=') { throw "OAuth callback did not return a SaaS session cookie. status=$($callback.StatusCode) body=$($callback.Content)" }
-  $cCsrf = (Json 'GET' '/api/v1/auth/csrf' $null @{Cookie=$cCookie}).csrfToken
-  $contexts = Json 'GET' '/api/v1/auth/contexts' $null @{Cookie=$cCookie}; $contextId = $contexts.items[0].contextId; if (!$contextId) { throw "Consumer context was not issued. response=$($contexts | ConvertTo-Json -Compress -Depth 6)" }
-  Json 'POST' '/api/v1/auth/context/select' @{contextId=$contextId} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf}|Out-Null
-  $member = Json 'GET' '/api/v1/business/members/me' $null @{Cookie=$cCookie}
+  $cCsrf = (Json 'GET' '/api/v1/auth/csrf?appId=saas-c' $null @{Cookie=$cCookie;Referer="$H5Base/c/";Origin=$H5Base}).csrfToken
+  $contexts = Json 'GET' '/api/v1/auth/contexts?appId=saas-c' $null @{Cookie=$cCookie;Referer="$H5Base/c/";Origin=$H5Base}; $contextId = $contexts.items[0].contextId; if (!$contextId) { throw "Consumer context was not issued. response=$($contexts | ConvertTo-Json -Compress -Depth 6)" }
+  Json 'POST' '/api/v1/auth/context/select?appId=saas-c' @{contextId=$contextId} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;Referer="$H5Base/c/";Origin=$H5Base}|Out-Null
+  $member = Json 'GET' '/api/v1/business/members/me' $null @{Cookie=$cCookie;Referer="$H5Base/c/";Origin=$H5Base}
   $script:memberId = $member.memberId; if (!$script:memberId) { throw 'C member initialization failed.' }
   $adminLogin = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Gateway/api/v1/admin/auth/login" -ContentType 'application/json' -Body (@{username=$AdminUser;password=$AdminPassword;ttlHours=1}|ConvertTo-Json)
   $adminCookie = ($adminLogin.Headers['Set-Cookie'] -split ';')[0]; $adminCsrf = (Json 'GET' '/api/v1/admin/auth/csrf' $null @{Cookie=$adminCookie}).csrfToken; $adminHeaders=@{Cookie=$adminCookie;'X-CSRF-Token'=$adminCsrf}
   $adminContext = Json 'POST' '/api/v1/admin/context/select' @{contextId='100:100:100'} $adminHeaders
   if ($adminContext.permissions -notcontains 'order.add_item') { throw 'OpenChat context did not receive order.add_item after IAM migration.' }
-  $script:testRoomId = [long](SqlValue "SELECT id FROM res_resource WHERE tenant_id=100 AND store_id=100 AND resource_type='KTV_ROOM' AND status='ENABLED' AND cleaning_status='IDLE' AND room_type_id IS NULL ORDER BY id LIMIT 1;")
+  $script:testRoomId = [long](SqlValue "SELECT r.id FROM res_resource r WHERE r.tenant_id=100 AND r.store_id=100 AND r.resource_type='KTV_ROOM' AND r.status='ENABLED' AND r.cleaning_status='IDLE' AND r.room_type_id IS NULL AND NOT EXISTS (SELECT 1 FROM res_occupation o WHERE o.resource_id=r.id AND o.status IN ('HELD','OCCUPIED') AND o.end_at > NOW()) ORDER BY r.id LIMIT 1;")
   if (!$script:testRoomId) { throw 'No unbound enabled KTV room is available for the disposable fixture.' }
   $script:testRoomTypeId = [long](SqlValue "INSERT INTO res_room_type(tenant_id,store_id,code,name,capacity,unit_price,server_unit_price,sort_order,status,created_by,created_at,updated_by,updated_at) VALUES(100,100,'E2E_$script:suffix','E2E RoomType $script:suffix',8,12800,5000,999,'ACTIVE',0,NOW(3),0,NOW(3)); SELECT LAST_INSERT_ID();")
   Sql "UPDATE res_resource SET room_type_id=$script:testRoomTypeId, updated_at=NOW(3) WHERE id=$script:testRoomId AND room_type_id IS NULL;"
   $roomTypeId=$script:testRoomTypeId; $roomId=$script:testRoomId
-  $start = [DateTimeOffset]::Now.AddHours(2); $created = Json 'POST' '/api/v1/business/reservations' @{businessType='KTV';roomTypeId=$roomTypeId;startAt=$start.ToString('o');endAt=$start.AddHours(2).ToString('o');partySize=2;contact='KTV Gate 13800138000'} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-$script:suffix"}
+  $start = [DateTimeOffset]::new([DateTime]::Now.Date.AddDays(1).AddHours(19), [DateTimeOffset]::Now.Offset); $created = Json 'POST' '/api/v1/me/reservations' @{roomTypeId=$roomTypeId;startAt=$start.ToString('o');endAt=$start.AddHours(2).ToString('o');partySize=2;contact='KTV Gate 13800138000'} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;Referer="$H5Base/c/";Origin=$H5Base;'Idempotency-Key'="ktv-$script:suffix"}
   $script:reservationId = $created.id; if (!$script:reservationId -or $created.status -ne 'PENDING') { throw 'C reservation creation failed.' }
   $reservation = @((Json 'GET' '/api/v1/admin/reservations' $null $adminHeaders) | Where-Object {$_.id -eq $script:reservationId})[0]; if (!$reservation) { throw 'Admin list did not return C reservation.' }
   $confirmed = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/confirm" @{expectedVersion=$reservation.version} $adminHeaders; if ($confirmed.status -ne 'CONFIRMED') { throw 'Confirm failed.' }
   $arrived = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/arrival" @{} $adminHeaders; if ($arrived.status -ne 'ARRIVED') { throw 'Arrival failed.' }
   $assigned = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/assign-room" @{resourceId=$roomId;override=$false} $adminHeaders; if ($assigned.resourceId -ne $roomId) { throw 'Room assignment failed.' }
-  $order = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/open-table" @{} $adminHeaders; $script:orderId=$order.id; if (!$script:orderId -or $order.tradeStatus -ne 'DRAFT' -or $order.sessionStatus -ne 'OPEN') { throw 'Open table failed.' }
+  $order = Json 'POST' "/api/v1/admin/reservations/$script:reservationId/open-table" @{} $adminHeaders; $script:orderId=$order.id; if (!$script:orderId -or $order.tradeStatus -ne 'DRAFT') { throw 'Open table failed.' }
+  $openedSession = Json 'GET' "/api/v1/business/orders/$script:orderId/session" $null $adminHeaders; if (!$openedSession -or $openedSession.status -ne 'OPEN') { throw "Open table did not create an OPEN session: $($openedSession | ConvertTo-Json -Compress -Depth 6)" }
   $catalog = @((Json 'GET' "/api/v1/business/catalog/items?storeId=$($order.storeId)" $null $adminHeaders) | Where-Object { $_.status -eq 'ACTIVE' })[0]
   if (!$catalog.id) { throw 'No active catalog item is available for the payment gate.' }
   $item = Json 'POST' "/api/v1/business/orders/$script:orderId/items" @{catalogItemId=$catalog.id;quantity=1;source='MERCHANT'} $adminHeaders
@@ -114,12 +115,12 @@ try {
   # Closing the table enters settlement: the order table only records trade facts, so expect PENDING_PAYMENT (hold/open-table are session states).
   $settlementState = SqlValue "SELECT CONCAT(trade_status, '|', version) FROM ord_order WHERE id=$script:orderId;"; $settlementParts=$settlementState -split '\|'
   if ($settlementParts.Count -ne 2 -or $settlementParts[0] -ne 'PENDING_PAYMENT') { throw "Close table did not produce a payable order: $settlementState" }
-  $bill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}; if (!$bill -or $bill.tradeStatus -ne 'PENDING_PAYMENT') { throw 'C bill is unavailable after settlement.' }
+  $bill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie;Referer="$H5Base/c/";Origin=$H5Base}; if (!$bill -or $bill.tradeStatus -ne 'PENDING_PAYMENT') { throw 'C bill is unavailable after settlement.' }
   $payable = [int64]([decimal]$bill.totalAmount - [decimal]$bill.paidAmount)
   if ($payable -le 0) { throw 'C bill has no payable amount for the payment gate.' }
-  $payment = Json 'POST' "/api/v1/business/orders/$script:orderId/collect" @{currencyCode=$bill.currencyCode;payable=$payable;payments=@(@{method='CASH';amount=$payable})} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;'Idempotency-Key'="ktv-pay-$script:suffix"}
+  $payment = Json 'POST' "/api/v1/business/orders/$script:orderId/collect" @{currencyCode=$bill.currencyCode;payable=$payable;payments=@(@{method='CASH';amount=$payable})} @{Cookie=$cCookie;'X-CSRF-Token'=$cCsrf;Referer="$H5Base/c/";Origin=$H5Base;'Idempotency-Key'="ktv-pay-$script:suffix"}
   if ($payment.remainingAmount -ne 0) { throw 'C payment did not settle the full bill.' }
-  $completedBill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie}
+  $completedBill = Json 'GET' "/api/v1/business/orders/$script:orderId/bill" $null @{Cookie=$cCookie;Referer="$H5Base/c/";Origin=$H5Base}
   if (!$completedBill -or $completedBill.tradeStatus -ne 'PAID' -or [decimal]$completedBill.paidAmount -ne [decimal]$completedBill.totalAmount) { throw 'C receipt did not reach PAID.' }
   $paymentRows = SqlValue "SELECT CONCAT((SELECT COUNT(*) FROM pay_collect WHERE order_id=$script:orderId AND state='CONFIRMED'), '|',(SELECT COUNT(*) FROM pay_intent WHERE order_id=$script:orderId AND status='SUCCEEDED'), '|',(SELECT COUNT(*) FROM pay_transaction t JOIN pay_intent i ON i.id=t.payment_intent_id WHERE i.order_id=$script:orderId AND t.status='SUCCEEDED'), '|',(SELECT COALESCE(SUM(i.amount),0) FROM pay_intent i WHERE i.order_id=$script:orderId AND i.status='SUCCEEDED'), '|',(SELECT COALESCE(SUM(t.amount),0) FROM pay_transaction t JOIN pay_intent i ON i.id=t.payment_intent_id WHERE i.order_id=$script:orderId AND t.status='SUCCEEDED'));"
   $parts = $paymentRows -split '\|'
@@ -134,3 +135,6 @@ try {
   Remove-SaasSession $cCookie
   try { Invoke-WebRequest -UseBasicParsing -Method Delete -Uri "$Gateway/api/v1/users/me" -ContentType 'application/json' -Headers @{Authorization="Bearer $script:imToken"} -Body (@{password=$password}|ConvertTo-Json)|Out-Null } catch { Write-Warning 'Disposable account cleanup failed.' }
 }
+
+
+

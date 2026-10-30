@@ -33,7 +33,7 @@ public class HotelCustomerBookingController {
 
   @PostMapping("/quotes")
   public HotelBookingApplicationService.Quote quote(@RequestBody QuoteRequest request) {
-    return service.quote(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
+    return service.quoteForCustomer(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
         request.checkOutDate(), request.rooms() == null ? 1 : request.rooms());
   }
 
@@ -44,8 +44,8 @@ public class HotelCustomerBookingController {
     if (context == null || context.accountId() <= 0) {
       throw new ApiException(401, "ACCOUNT_REQUIRED", "缺少账号");
     }
-    return service.createBooking(request.roomTypeId(), request.ratePlanId(), request.checkInDate(),
-        request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
+    return service.createBookingForCustomer(request.roomTypeId(), request.ratePlanId(),
+        request.checkInDate(), request.checkOutDate(), request.rooms() == null ? 1 : request.rooms(),
         request.guestName(), request.guestPhone(), request.note(), context.accountId(),
         request.pointsUsed());
   }

@@ -114,6 +114,10 @@ public class OAuthImBindApplicationService {
             }
         } else {
             tenantServiceClient.grantConsumerAuthorization(result.accountId(), resolvedAppId, "profile.basic");
+            // A newly registered IM account has no tenant membership yet. The
+            // consumer app is the tenant onboarding anchor: create the ACTIVE
+            // CUSTOMER membership idempotently before evaluating C-end access.
+            tenantServiceClient.ensureConsumerCustomerMembership(result.accountId(), resolvedAppId);
             var consumer = tenantServiceClient.consumerContext(result.accountId(), resolvedAppId);
             Long tenantId = consumer == null ? null : consumer.tenantId();
             boolean customer = tenantId != null && tenantServiceClient.memberships(result.accountId()).stream()

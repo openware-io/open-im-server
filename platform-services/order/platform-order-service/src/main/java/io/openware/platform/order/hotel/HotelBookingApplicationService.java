@@ -15,6 +15,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -101,6 +102,16 @@ public class HotelBookingApplicationService {
                 LocalDateTime.now().plusMinutes(HOLD_MINUTES));
     }
 
+    /**
+     * C 端报价：消费者上下文所属门店可能不是酒店（同一租户多业态），
+     * 房型自身携带权威 storeId，因此以房型门店执行酒店读作用域，避免 C 端
+     * 只能绑定一个业态门店时无法预订同租户其它酒店。
+     */
+    public Quote quoteForCustomer(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
+                                  int rooms) {
+        return inRoomTypeStore(roomTypeId, () -> quote(roomTypeId, ratePlanId, checkIn, checkOut, rooms));
+    }
+
     @Transactional
     public HotelBookingPo createBooking(Long roomTypeId, Long ratePlanId, LocalDate checkIn, LocalDate checkOut,
                                         int rooms, String guestName, String guestPhone, String note) {
@@ -121,6 +132,16 @@ public class HotelBookingApplicationService {
                                         Long bookedByAccountId, Long requestedPoints) {
         return createBooking(roomTypeId, ratePlanId, checkIn, checkOut, rooms, guestName, guestPhone, note,
                 bookedByAccountId, requestedPoints, "WEB");
+    }
+
+    /** C 端预订：与 {@link #quoteForCustomer} 相同，按房型权威门店执行酒店写作用域。 */
+    @Transactional
+    public HotelBookingPo createBookingForCustomer(Long roomTypeId, Long ratePlanId, LocalDate checkIn,
+                                                   LocalDate checkOut, int rooms, String guestName,
+                                                   String guestPhone, String note, Long bookedByAccountId,
+                                                   Long requestedPoints) {
+        return inRoomTypeStore(roomTypeId, () -> createBooking(roomTypeId, ratePlanId, checkIn, checkOut,
+                rooms, guestName, guestPhone, note, bookedByAccountId, requestedPoints, "WEB"));
     }
 
     /**
@@ -536,6 +557,35 @@ public class HotelBookingApplicationService {
         }
         String trimmed = source.trim();
         return trimmed.length() <= 24 ? trimmed : trimmed.substring(0, 24);
+    }
+
+    /**
+     * 在房型所属酒店门店上下文中执行 C 端酒店用例。
+     *
+     * <p>C 消费应用按门店安装（如 KTV 门店），同租户的酒店房型仍应可预订；
+     * 这里只用房型的权威 storeId 扩展上下文，权限快照仍来自当前消费者会话。
+     * 非当前租户/门店不匹配的房型按不存在处理。
+     */
+    private <T> T inRoomTypeStore(Long roomTypeId, Supplier<T> action) {
+        TenantContext base = requireStore();
+        HotelRoomTypePo roomType = roomTypeId == null ? null : roomTypeMapper.selectById(roomTypeId);
+        if (roomType == null || roomType.getStoreId() == null
+                || roomType.getTenantId() == null || base.tenantId() != roomType.getTenantId()) {
+            throw new ApiException(404, "ROOM_TYPE_NOT_FOUND", "房型不存在");
+        }
+        TenantContext previous = TenantContextHolder.get();
+        TenantContextHolder.set(new TenantContext(base.tenantId(), base.organizationId(),
+                roomType.getStoreId(), base.accountId(), base.authorizationVersion(), base.permissions(),
+                base.scopeType(), "HOTEL", base.timezone()));
+        try {
+            return action.get();
+        } finally {
+            if (previous == null) {
+                TenantContextHolder.clear();
+            } else {
+                TenantContextHolder.set(previous);
+            }
+        }
     }
 
     private void validateStay(LocalDate checkIn, LocalDate checkOut, int rooms) {

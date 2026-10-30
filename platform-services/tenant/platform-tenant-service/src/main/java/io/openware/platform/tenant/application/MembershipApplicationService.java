@@ -62,6 +62,32 @@ public class MembershipApplicationService {
     }
   }
 
+  /**
+   * 幂等开通成员身份：C 端首次 OAuth 绑定时自动补齐 CUSTOMER membership。
+   * 已存在同租户同类型成员时直接返回，不重复写审计。
+   */
+  @Transactional
+  public Membership ensureForTenant(Long tenantId, Long accountId, Long organizationId,
+                                    String type, String memberNo) {
+    if (tenantId == null || accountId == null) {
+      throw new ApiException(400, "MEMBERSHIP_INVALID", "租户和账号不能为空");
+    }
+    // Internal onboarding has no HTTP tenant context; the lookup itself also
+    // needs the target tenant for the MyBatis tenant-line interceptor.
+    TenantContext previous = TenantContextHolder.get();
+    TenantContextHolder.set(new TenantContext(tenantId, organizationId, null, 0L, 0, List.of(), "TENANT"));
+    try {
+      return repository.findByAccountAndTenantAndType(accountId, tenantId, type)
+          .orElseGet(() -> createForTenant(tenantId, accountId, organizationId, type, memberNo));
+    } finally {
+      if (previous == null) {
+        TenantContextHolder.clear();
+      } else {
+        TenantContextHolder.set(previous);
+      }
+    }
+  }
+
   public Membership get(Long id) {
     return repository.findById(id)
         .orElseThrow(() -> new ApiException(404, "MEMBERSHIP_NOT_FOUND", "成员身份不存在"));

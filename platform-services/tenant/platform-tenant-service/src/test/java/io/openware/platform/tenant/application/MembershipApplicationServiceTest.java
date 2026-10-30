@@ -43,6 +43,34 @@ class MembershipApplicationServiceTest {
   }
 
   @Test
+  void ensureCustomerMembershipIsIdempotent() {
+    Membership existing = Membership.create(9L, 100L, 10L, "CUSTOMER", "C9");
+    when(repository.findByAccountAndTenantAndType(9L, 100L, "CUSTOMER"))
+        .thenReturn(Optional.of(existing));
+
+    Membership result = service.ensureForTenant(100L, 9L, 10L, "CUSTOMER", "C9");
+
+    assertEquals(existing, result);
+  }
+
+  @Test
+  void ensureCustomerMembershipCreatesWhenMissing() {
+    when(repository.findByAccountAndTenantAndType(9L, 100L, "CUSTOMER"))
+        .thenReturn(Optional.empty());
+    when(repository.save(any())).thenAnswer(invocation -> {
+      Membership m = invocation.getArgument(0);
+      return new Membership(11L, m.accountId(), m.tenantId(), m.organizationId(),
+          m.membershipType(), m.memberNo(), m.authorizationVersion(), m.status());
+    });
+
+    Membership result = service.ensureForTenant(100L, 9L, 10L, "CUSTOMER", "C9");
+
+    assertEquals("CUSTOMER", result.membershipType());
+    assertEquals(100L, result.tenantId());
+    verify(audit).recordAsync(any());
+  }
+
+  @Test
   void createUsesCurrentTenant() {
     when(repository.findByAccountAndTenantAndType(9L, 100L, "STAFF")).thenReturn(Optional.empty());
     when(repository.save(any())).thenAnswer(invocation -> {
