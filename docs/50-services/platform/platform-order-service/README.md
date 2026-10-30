@@ -6,6 +6,8 @@
 > 运行时端口：`4130`  
 > 数据归属：MySQL `open_saas` 的 `ord_*` 表
 
+C/B 端订单主流程治理：[C_END_ORDER_GOVERNANCE_PLAN.md](../../../40-domain/order/C_END_ORDER_GOVERNANCE_PLAN.md)
+
 ## 职责
 
 订单与预约域的写模型和编排服务：
